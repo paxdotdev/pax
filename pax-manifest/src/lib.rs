@@ -4,6 +4,7 @@ use std::fmt::Display;
 use std::hash::Hasher;
 use std::{cmp::Ordering, hash::Hash};
 
+use pax_lang::interpreter::{PaxExpression, PaxIdentifier};
 use pax_message::serde::{Deserialize, Serialize};
 pub use pax_runtime_api;
 use pax_runtime_api::{CoercionRules, HelperFunctions, Interpolatable, PaxValue, ToPaxValue};
@@ -283,7 +284,7 @@ impl ComponentDefinition {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(crate = "pax_message::serde")]
 pub enum SettingsBlockElement {
     SelectorBlock(Token, LiteralBlockDefinition),
@@ -1228,8 +1229,10 @@ impl ComponentTemplate {
                     if let SettingElement::Setting(setting, value) = setting {
                         if setting.raw_value == "id" {
                             if let ValueDefinition::LiteralValue(val) = value {
-                                if val.raw_value == id {
-                                    return Some(i);
+                                if let PaxValue::String(val_id) = val {
+                                    if id == val_id {
+                                        return Some(i);
+                                    }
                                 };
                             }
                         }
@@ -1535,48 +1538,20 @@ pub struct ExpressionCompilationInfo {
 
 /// Container for settings values, storing all possible
 /// variants, populated at parse-time and used at compile-time
-#[derive(Serialize, Deserialize, Default, Debug, Clone, Eq)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
 pub enum ValueDefinition {
     #[default]
     Undefined, //Used for `Default`
-    LiteralValue(Token),
+    LiteralValue(PaxValue),
     Block(LiteralBlockDefinition),
     /// (Expression contents, vtable id binding)
-    Expression(Token),
+    Expression(PaxExpression),
     /// (Expression contents, vtable id binding)
-    Identifier(Token),
+    Identifier(PaxIdentifier),
     /// (Expression contents, vtable id binding)
-    DoubleBinding(Token),
+    DoubleBinding(PaxIdentifier),
     EventBindingTarget(Token),
-}
-
-impl Hash for ValueDefinition {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        match self {
-            ValueDefinition::Undefined => {
-                "Undefined".hash(state);
-            }
-            ValueDefinition::LiteralValue(t) => {
-                t.hash(state);
-            }
-            ValueDefinition::Block(lbd) => {
-                lbd.hash(state);
-            }
-            ValueDefinition::Expression(t) => {
-                t.hash(state);
-            }
-            ValueDefinition::Identifier(t) => {
-                t.hash(state);
-            }
-            ValueDefinition::DoubleBinding(t) => {
-                t.hash(state);
-            }
-            ValueDefinition::EventBindingTarget(t) => {
-                t.hash(state);
-            }
-        }
-    }
 }
 
 impl PartialEq for ValueDefinition {
@@ -1729,7 +1704,7 @@ pub struct ControlFlowRepeatSourceDefinition {
 }
 
 /// Container for a parsed Literal object
-#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 #[serde(crate = "pax_message::serde")]
 pub struct LiteralBlockDefinition {
     pub explicit_type_pascal_identifier: Option<Token>,
@@ -1745,13 +1720,8 @@ impl LiteralBlockDefinition {
     }
 }
 
-impl Hash for LiteralBlockDefinition {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.elements.hash(state);
-    }
-}
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(crate = "pax_message::serde")]
 pub enum SettingElement {
     Setting(Token, ValueDefinition),
