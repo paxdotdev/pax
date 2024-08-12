@@ -370,6 +370,7 @@ impl CoercionRules for Rotation {
 impl CoercionRules for Numeric {
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
         Ok(match pax_value {
+            PaxValue::Bool(b) => (b as i32).into(),
             PaxValue::Numeric(n) => n.into(),
             PaxValue::Size(n) => n.into(),
             PaxValue::Option(mut opt) => {

@@ -646,14 +646,15 @@ pub trait ComponentFactory {
                     skew_x: resolve_property("skew_x", &defined_properties, &stack_frame),
                     skew_y: resolve_property("skew_y", &defined_properties, &stack_frame),
                     rotate: resolve_property("rotate", &defined_properties, &stack_frame),
+                    transform: resolve_property("transform", &defined_properties, &stack_frame),
+                    anchor_x: resolve_property("anchor_x", &defined_properties, &stack_frame),
+                    anchor_y: resolve_property("anchor_y", &defined_properties, &stack_frame),
                     _raycastable: resolve_property(
                         "_raycastable",
                         &defined_properties,
                         &stack_frame,
                     ),
-                    transform: resolve_property("transform", &defined_properties, &stack_frame),
-                    anchor_x: resolve_property("anchor_x", &defined_properties, &stack_frame),
-                    anchor_y: resolve_property("anchor_y", &defined_properties, &stack_frame),
+                    _suspended: resolve_property("_suspended", &defined_properties, &stack_frame),
                 }
             }))
         })

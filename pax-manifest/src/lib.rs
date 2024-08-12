@@ -1862,6 +1862,16 @@ impl Token {
         }
     }
 
+    pub fn new_value_raw(token_value: String, raw_value: String, token_type: TokenType) -> Self {
+        Self {
+            token_value,
+            raw_value,
+            token_type,
+            source_line: None,
+            token_location: None,
+        }
+    }
+
     pub fn new_with_raw_value(
         token_value: String,
         raw_value: String,
@@ -1876,16 +1886,6 @@ impl Token {
             token_type,
             source_line,
             token_location: Some(token_location),
-        }
-    }
-
-    pub fn new_from_raw_value(raw_value: String, token_type: TokenType) -> Self {
-        Self {
-            token_value: raw_value.clone(),
-            raw_value,
-            token_type,
-            source_line: None,
-            token_location: None,
         }
     }
 }

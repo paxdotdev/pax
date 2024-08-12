@@ -1,7 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
 use pax_runtime_api::{
-    functions::call_function, CoercionRules as _, Numeric, PaxValue, Percent, Rotation, Size,
+    functions::call_function, CoercionRules, Numeric, PaxValue, Percent, Rotation, Size,
 };
 
 use super::{
@@ -94,20 +94,21 @@ impl Computable for PaxPrimary {
             }
             PaxPrimary::Grouped(expr, unit) => {
                 let expr_val = expr.compute(idr.clone())?;
-                if let PaxValue::Numeric(n) = expr_val {
-                    let ret: Result<PaxValue, String> = if let Some(unit) = unit {
-                        match unit {
+                if let Some(unit) = unit {
+                    match Numeric::try_coerce(expr_val) {
+                        Ok(n) => match unit {
                             PaxUnit::Percent => Ok(PaxValue::Percent(Percent(n))),
                             PaxUnit::Pixels => Ok(PaxValue::Size(Size::Pixels(n))),
                             PaxUnit::Radians => Ok(PaxValue::Rotation(Rotation::Radians(n))),
                             PaxUnit::Degrees => Ok(PaxValue::Rotation(Rotation::Degrees(n))),
-                        }
-                    } else {
-                        Ok(expr_val)
-                    };
-                    return ret;
+                        },
+                        Err(e) => Err(format!(
+                            "A grouped expression with a unit must be of type numeric: {e:?}"
+                        )),
+                    }
+                } else {
+                    Ok(expr_val)
                 }
-                return Err("Grouped expression must be a numeric value".to_string());
             }
             PaxPrimary::Enum(variant, args) => {
                 let args = args
