@@ -540,6 +540,7 @@ pub struct CommonProperties {
     pub rotate: Property<Option<Rotation>>,
     pub transform: Property<Option<Transform2D>>,
     pub _raycastable: Property<Option<bool>>,
+    pub _suspended: Property<Option<bool>>,
 }
 
 impl CommonProperties {
@@ -578,66 +579,87 @@ impl CommonProperties {
     }
 
     pub fn retrieve_property_scope(&self) -> HashMap<String, Variable> {
-        let mut scope = HashMap::new();
+        let CommonProperties {
+            id,
+            x,
+            y,
+            width,
+            height,
+            anchor_x,
+            anchor_y,
+            scale_x,
+            scale_y,
+            skew_x,
+            skew_y,
+            rotate,
+            transform,
+            _raycastable,
+            _suspended,
+            // NOTE: remember to add an entry to the hashmap bellow as well
+        } = self;
 
-        scope.insert(
-            "id".to_string(),
-            Variable::new_from_typed_property(self.id.clone()),
-        );
-        scope.insert(
-            "x".to_string(),
-            Variable::new_from_typed_property(self.x.clone()),
-        );
-        scope.insert(
-            "y".to_string(),
-            Variable::new_from_typed_property(self.y.clone()),
-        );
-        scope.insert(
-            "scale_x".to_string(),
-            Variable::new_from_typed_property(self.scale_x.clone()),
-        );
-        scope.insert(
-            "scale_y".to_string(),
-            Variable::new_from_typed_property(self.scale_y.clone()),
-        );
-        scope.insert(
-            "skew_x".to_string(),
-            Variable::new_from_typed_property(self.skew_x.clone()),
-        );
-        scope.insert(
-            "skew_y".to_string(),
-            Variable::new_from_typed_property(self.skew_y.clone()),
-        );
-        scope.insert(
-            "rotate".to_string(),
-            Variable::new_from_typed_property(self.rotate.clone()),
-        );
-        scope.insert(
-            "anchor_x".to_string(),
-            Variable::new_from_typed_property(self.anchor_x.clone()),
-        );
-        scope.insert(
-            "anchor_y".to_string(),
-            Variable::new_from_typed_property(self.anchor_y.clone()),
-        );
-        scope.insert(
-            "transform".to_string(),
-            Variable::new_from_typed_property(self.transform.clone()),
-        );
-        scope.insert(
-            "width".to_string(),
-            Variable::new_from_typed_property(self.width.clone()),
-        );
-        scope.insert(
-            "height".to_string(),
-            Variable::new_from_typed_property(self.height.clone()),
-        );
-        scope.insert(
-            "_raycastable".to_string(),
-            Variable::new_from_typed_property(self._raycastable.clone()),
-        );
-
-        scope
+        HashMap::from([
+            (
+                "id".to_string(),
+                Variable::new_from_typed_property(id.clone()),
+            ),
+            (
+                "x".to_string(),
+                Variable::new_from_typed_property(x.clone()),
+            ),
+            (
+                "y".to_string(),
+                Variable::new_from_typed_property(y.clone()),
+            ),
+            (
+                "scale_x".to_string(),
+                Variable::new_from_typed_property(scale_x.clone()),
+            ),
+            (
+                "scale_y".to_string(),
+                Variable::new_from_typed_property(scale_y.clone()),
+            ),
+            (
+                "skew_x".to_string(),
+                Variable::new_from_typed_property(skew_x.clone()),
+            ),
+            (
+                "skew_y".to_string(),
+                Variable::new_from_typed_property(skew_y.clone()),
+            ),
+            (
+                "rotate".to_string(),
+                Variable::new_from_typed_property(rotate.clone()),
+            ),
+            (
+                "anchor_x".to_string(),
+                Variable::new_from_typed_property(anchor_x.clone()),
+            ),
+            (
+                "anchor_y".to_string(),
+                Variable::new_from_typed_property(anchor_y.clone()),
+            ),
+            (
+                "transform".to_string(),
+                Variable::new_from_typed_property(transform.clone()),
+            ),
+            (
+                "width".to_string(),
+                Variable::new_from_typed_property(width.clone()),
+            ),
+            (
+                "height".to_string(),
+                Variable::new_from_typed_property(height.clone()),
+            ),
+            (
+                "_raycastable".to_string(),
+                Variable::new_from_typed_property(_raycastable.clone()),
+            ),
+            (
+                "_suspended".to_string(),
+                Variable::new_from_typed_property(_suspended.clone()),
+            ),
+        ])
     }
 }
 

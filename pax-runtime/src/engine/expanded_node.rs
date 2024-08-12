@@ -1,7 +1,6 @@
 use crate::api::TextInput;
 use crate::node_interface::NodeLocal;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
-use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::{
     borrow, borrow_mut, use_RefCell, Interpolatable, Percent, Property, Variable,
 };
@@ -121,6 +120,9 @@ pub struct ExpandedNode {
     /// The flattened index of this node in its container (if this container
     /// cares about slot children, ex: component, path).
     pub slot_index: Property<Option<usize>>,
+
+    /// property used to "freeze" (stop firing tick) on a node and all it's children
+    pub suspended: Property<bool>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -252,6 +254,7 @@ impl ExpandedNode {
             occlusion: Default::default(),
             properties_scope: RefCell::new(property_scope),
             slot_index: Property::default(),
+            suspended: Property::new(false),
         });
         res
     }
@@ -341,6 +344,20 @@ impl ExpandedNode {
             child
                 .parent_frame
                 .replace_with(Property::computed(move || parent_frame.get(), &deps));
+
+            // suspension is used in the designer to turn of/on tick/update
+            let cp = self.get_common_properties();
+            let self_suspended = borrow!(cp)._suspended.clone();
+            let parent_suspended = self.suspended.clone();
+            let deps = [parent_suspended.untyped(), self_suspended.untyped()];
+            child.suspended.replace_with(Property::computed(
+                move || {
+                    self_suspended
+                        .get()
+                        .unwrap_or_else(|| parent_suspended.get())
+                },
+                &deps,
+            ));
         }
         if self.attached.get() > 0 {
             for child in curr_children.iter() {
@@ -384,30 +401,34 @@ impl ExpandedNode {
     /// need to be here since all property dependencies can be set up and removed during mount/unmount
     pub fn recurse_update(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
         if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
-            for handler in borrow!(registry)
-                .handlers
-                .get("tick")
-                .unwrap_or(&Vec::new())
-            {
-                (handler.function)(
-                    Rc::clone(&*borrow!(self.properties)),
-                    &self.get_node_context(context),
-                    None,
-                )
+            if !self.suspended.get() {
+                for handler in borrow!(registry)
+                    .handlers
+                    .get("tick")
+                    .unwrap_or(&Vec::new())
+                {
+                    (handler.function)(
+                        Rc::clone(&*borrow!(self.properties)),
+                        &self.get_node_context(context),
+                        None,
+                    )
+                }
             }
         }
         Rc::clone(&*borrow!(self.instance_node)).update(&self, context);
         if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
-            for handler in borrow!(registry)
-                .handlers
-                .get("pre_render")
-                .unwrap_or(&Vec::new())
-            {
-                (handler.function)(
-                    Rc::clone(&*borrow!(self.properties)),
-                    &self.get_node_context(context),
-                    None,
-                )
+            if !self.suspended.get() {
+                for handler in borrow!(registry)
+                    .handlers
+                    .get("pre_render")
+                    .unwrap_or(&Vec::new())
+                {
+                    (handler.function)(
+                        Rc::clone(&*borrow!(self.properties)),
+                        &self.get_node_context(context),
+                        None,
+                    )
+                }
             }
         }
         for child in self.children.get().iter() {

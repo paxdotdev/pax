@@ -165,6 +165,16 @@ fn max(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(args[0].clone().max(args[1].clone()))
 }
 
+fn len(args: Vec<PaxValue>) -> Result<PaxValue, String> {
+    if args.len() != 1 {
+        return Err("len function takes a single argument".to_string());
+    }
+    match args.into_iter().next().unwrap() {
+        PaxValue::Vec(vec) => Ok(vec.len().to_pax_value()),
+        e => Err(format!("can't get length of {e:?}")),
+    }
+}
+
 fn rgb(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 3 {
         return Err("Expected 3 arguments for function rgb".to_string());
@@ -241,6 +251,7 @@ impl Functions {
         register_function("Math".to_string(), "!".to_string(), Arc::new(bool_not));
         register_function("Math".to_string(), "min".to_string(), Arc::new(min));
         register_function("Math".to_string(), "max".to_string(), Arc::new(max));
+        register_function("Math".to_string(), "len".to_string(), Arc::new(len));
         // Colors
         register_function("Color".to_string(), "rgb".to_string(), Arc::new(rgb));
         register_function("Color".to_string(), "rgba".to_string(), Arc::new(rgba));
@@ -297,8 +308,8 @@ impl HelperFunctions for isize {}
 
 impl HelperFunctions for f32 {}
 impl HelperFunctions for f64 {}
+impl<T> HelperFunctions for Vec<T> {}
 
-impl<T: HelperFunctions> HelperFunctions for Vec<T> {}
 impl<T: HelperFunctions> HelperFunctions for Option<T> {}
 
 impl HelperFunctions for crate::Transform2D {
