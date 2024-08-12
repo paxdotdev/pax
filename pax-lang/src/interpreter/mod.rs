@@ -6,6 +6,7 @@ use pest::{
     pratt_parser::{self, PrattParser},
 };
 use property_resolution::IdentifierResolver;
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, rc::Rc};
 
 use crate::{
@@ -17,7 +18,7 @@ pub(crate) mod computable;
 pub mod property_resolution;
 mod tests;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub enum PaxExpression {
     Primary(Box<PaxPrimary>),
     Prefix(Box<PaxPrefix>),
@@ -25,7 +26,7 @@ pub enum PaxExpression {
     Postfix(Box<PaxPostfix>),
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub enum PaxPrimary {
     Literal(PaxValue),
     Grouped(Box<PaxExpression>, Option<PaxUnit>),
@@ -38,7 +39,7 @@ pub enum PaxPrimary {
     List(Vec<PaxExpression>),
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub enum PaxUnit {
     Percent,
     Pixels,
@@ -46,43 +47,43 @@ pub enum PaxUnit {
     Degrees,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub enum PaxAccessor {
     Tuple(usize),
     List(PaxExpression),
     Struct(String),
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct PaxPrefix {
     operator: PaxOperator,
     rhs: Box<PaxExpression>,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct PaxInfix {
     operator: PaxOperator,
     lhs: Box<PaxExpression>,
     rhs: Box<PaxExpression>,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct PaxPostfix {
     operator: PaxOperator,
     lhs: Box<PaxExpression>,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct PaxOperator {
     name: String,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct PaxIdentifier {
     name: String,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct PaxFunctionCall {
     scope: String,
     function_name: String,

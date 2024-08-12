@@ -27,8 +27,6 @@ const OBJECT: &str = "Object";
 pub fn from_pax(str: &str) -> Result<PaxValue> {
     let ast = if let Ok(mut ast) = PaxParser::parse(Rule::literal_value, &str) {
         ast.next().unwrap()
-    } else if let Ok(mut ast) = PaxParser::parse(Rule::literal_object, &str) {
-        ast.next().unwrap()
     } else {
         return Err(Error::Message(format!("Could not parse: {}", str)));
     };
