@@ -4,7 +4,48 @@
 **Broad flow**
 
 [ ] Merge / rebase expression interpreting
+
+# back up branch
+git checkout -b zb/designer-bak-00
+
+migrating paxcorp/pax-designer to pax/pax-designer, including range of commits 561666d08256e52f967a6d59a3948175181cbf71 to 7767d5d4396ac8023cc456d6dda63151e076cd04 (inclusive)
+
+```
+git subtree split -P pax-designer -b temp-pax-designer-aug12
+
+# Create a patch of new changes
+git format-patch -k --stdout --full-index --binary origin/master..temp-pax-designer-aug12 > /tmp/new-pax-designtime-changes.patch
+
+# Step 2: In the new repository
+cd path/to/new/repo
+git checkout main  # or the branch where pax-designtime now lives
+
+# Create a temporary branch
+git checkout -b temp-merge-branch
+
+# Apply the patch
+git am -k --directory=pax-designtime < /tmp/new-pax-designtime-changes.patch
+```
+
+    migrating paxcorp/pax-design-server to pax/pax-design-server, including range of commits 02ae043657ec1bf6053af0ad2de98041f20f6bee to 137ea86a1e27bbc84530c670f53291d784c80047 (inclusive)
 [ ] Update init logic, two manifests, two designtimes on other side of serialization
+
+git checkout main  # or the branch where pax-designtime exists
+git subtree split -P pax-designtime -b temp-pax-designtime
+
+# Create a patch of new changes
+git format-patch -k --stdout --full-index --binary origin/main..temp-pax-designtime > /tmp/new-pax-designtime-changes.patch
+
+# Step 2: In the new repository
+cd path/to/new/repo
+git checkout main  # or the branch where pax-designtime now lives
+
+# Create a temporary branch
+git checkout -b temp-merge-branch
+
+# Apply the patch
+git am -k --directory=pax-designtime < /tmp/new-pax-designtime-changes.patch
+
 
  
 if we’re in main and designtime
