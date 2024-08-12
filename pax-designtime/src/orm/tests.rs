@@ -21,7 +21,7 @@ mod tests {
                 primitive_instance_import_path: None,
                 template: None,
                 settings: Some(vec![SettingsBlockElement::SelectorBlock(
-                    Token::new_from_raw_value("existing_selector".to_string(), TokenType::Selector),
+                    Token::new_only_raw("existing_selector".to_string(), TokenType::Selector),
                     LiteralBlockDefinition::new(vec![]),
                 )]),
             },

@@ -21,8 +21,14 @@ pub fn parse_value(raw_value: &str) -> Result<ValueDefinition, &str> {
             ValueDefinition::Block(derive_value_definition_from_literal_object_pair(value))
         }
         Rule::expression_body => {
-            let expression_token =
-                Token::new_only_raw(raw_value.to_string(), TokenType::Expression);
+            let expression_token = Token::new_value_raw(
+                raw_value
+                    .trim_start_matches('{')
+                    .trim_end_matches('}')
+                    .to_string(),
+                raw_value.to_string(),
+                TokenType::Expression,
+            );
             ValueDefinition::Expression(expression_token)
         }
         Rule::identifier => {

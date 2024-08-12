@@ -149,13 +149,13 @@ impl<'a> NodeBuilder<'a> {
             return Ok(());
         }
         let value = pax_manifest::utils::parse_value(value).map_err(|e| anyhow!(e.to_owned()))?;
-        let token = Token::new_from_raw_value(key.to_owned(), TokenType::SettingKey);
+        let token = Token::new_only_raw(key.to_owned(), TokenType::SettingKey);
         self.updated_property_map.insert(token, Some(value));
         Ok(())
     }
 
     pub fn remove_property(&mut self, key: &str) {
-        let key = Token::new_from_raw_value(key.to_owned(), TokenType::SettingKey);
+        let key = Token::new_only_raw(key.to_owned(), TokenType::SettingKey);
         self.updated_property_map.insert(key, None);
     }
 
