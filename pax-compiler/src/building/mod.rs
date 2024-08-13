@@ -17,9 +17,6 @@ use self::{apple::build_apple_project_with_cartridge, web::build_web_project_wit
 pub mod apple;
 pub mod web;
 
-#[cfg(feature = "designtime")]
-mod design;
-
 /// Runs `cargo build` (or `wasm-pack build`) with appropriate env in the directory
 /// of the generated chassis project inside the specified .pax dir
 /// Returns an output object containing bytestreams of stdout/stderr as well as an exit code
