@@ -14,10 +14,11 @@
     @mount: on_mount
     .label {
         style: {
-            font: {Font::system(
+            font: {Font::Web(
                 "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
                 FontStyle::Normal,
-                FontWeight::Light
+                FontWeight::Light,
             )},
             font_size: 14px,
             fill: WHITE,

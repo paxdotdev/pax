@@ -17,6 +17,7 @@ for (obj, i) in self.tree_objects {
 if self.dragging {
     <Rectangle y={(80 + self.drag_id*42)px} height=2px fill=WHITE/>
 }
+<Rectangle fill=TRANSPARENT/>
 
 @settings {
 	@mount: on_mount

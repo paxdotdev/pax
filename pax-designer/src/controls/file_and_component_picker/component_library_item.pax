@@ -8,10 +8,11 @@
     .component_text {
         style: {
             font_size: 22px,
-            font: {Font::system(
+            font: {Font::Web(
                 "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
                 FontStyle::Normal,
-                FontWeight::Light
+                FontWeight::Light,
             )},
             fill: WHITE,
             align_vertical: TextAlignVertical::Center,
@@ -22,10 +23,11 @@
     .path_text {
         style: {
             font_size: 10px,
-            font: {Font::system(
+            font: {Font::Web(
                 "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
                 FontStyle::Normal,
-                FontWeight::Light
+                FontWeight::Light,
             )},
             fill: WHITE,
             align_vertical: TextAlignVertical::Center,

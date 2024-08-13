@@ -13,7 +13,7 @@ use pax_std::stacker::Stacker;
 
 use crate::{
     glass::{
-        control_point::{ControlPointBehaviorFactory, ControlPointStyling},
+        control_point::{ControlPointStyling, ControlPointToolFactory},
         outline::PathOutline,
         wireframe_editor::editor_generation::CPoint,
         ToolVisualizationState,
@@ -221,9 +221,9 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
         }
     }
 
-    fn slot_dot_control_factory(slot_child: GlassNode) -> ControlPointBehaviorFactory {
-        ControlPointBehaviorFactory {
-            tool_behavior: Rc::new(move |ctx, p| {
+    fn slot_dot_control_factory(slot_child: GlassNode) -> ControlPointToolFactory {
+        ControlPointToolFactory {
+            tool_factory: Rc::new(move |ctx, p| {
                 let dt = borrow!(ctx.engine_context.designtime);
                 let before_move_undo_id = dt.get_orm().get_last_undo_id().unwrap_or(0);
 
@@ -249,6 +249,7 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                         ToolVisualizationState {
                             rect_tool: Default::default(),
                             outline,
+                            snap_lines: Default::default(), // TODO snaplines impl (SIMILAR TO NORMAL MOVE?)
                         }
                     },
                     &deps,
@@ -323,7 +324,7 @@ pub fn raycast_slot(
         .next()
         .unwrap();
 
-    let open_containers = ctx.derived_state.open_containers.get();
+    let open_container = ctx.derived_state.open_container.get();
     let slot_hit = all_elements_beneath_ray
         .into_iter()
         .filter(|n| n.is_descendant_of(&root))
@@ -331,14 +332,14 @@ pub fn raycast_slot(
         .filter(|n| n.is_of_type::<Slot>())
         .filter(|n| {
             // is either directly in an open container, or one level deep
-            open_containers.contains(
-                &n.containing_component()
+            open_container
+                == n.containing_component()
                     .unwrap()
                     .template_parent()
                     .unwrap()
                     .global_id()
-                    .unwrap(),
-            ) || open_containers.contains(&n.containing_component().unwrap().global_id().unwrap())
+                    .unwrap()
+                || open_container == n.containing_component().unwrap().global_id().unwrap()
         })
         .rev()
         .next()?;

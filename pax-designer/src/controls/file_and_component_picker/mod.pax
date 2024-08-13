@@ -2,7 +2,7 @@
     <Text text="github.com/paxcorp/simpleproject" class=h3 />
     <Text text="MAIN COMPONENT" class=h1 />
 </Stacker>
-<Image path={self.library_active_toggle_image} x=92% y=65% width=30px height=30px anchor_x=50% anchor_y=50% @click=self.library_toggle/>
+<Image source={ImageSource::Url(self.library_active_toggle_image)} x=92% y=65% width=30px height=30px anchor_x=50% anchor_y=50% @click=self.library_toggle/>
 if self.library_active {
     for (comp, i) in self.registered_components {
         <ComponentLibraryItem data=comp height=40px y={(80 + i*40)px}/>
@@ -17,21 +17,23 @@ if self.library_active {
         width: {100% - 30px}
         style: {
             font_size: 23px,
-            font: {Font::system(
-                "ff-real-headline-pro",
-                FontStyle::Normal,
-                FontWeight::Light
-            )},
+                font: {Font::Web(
+                    "ff-real-headline-pro",
+                    "https://use.typekit.net/ivu7epf.css",
+                    FontStyle::Normal,
+                    FontWeight::Light,
+                )},
             fill: WHITE,
         }
     }
     .h2 {
         height: 30px,
         style: {
-            font: {Font::system(
+            font: {Font::Web(
                 "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
                 FontStyle::Normal,
-                FontWeight::Light
+                FontWeight::Light,
             )},
             font_size: 24px,
             fill: WHITE,
@@ -42,10 +44,11 @@ if self.library_active {
         anchor_y: 90%,
         y: 90%,
         style: {
-            font: {Font::system(
+            font: {Font::Web(
                 "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
                 FontStyle::Normal,
-                FontWeight::ExtraLight
+                FontWeight::ExtraLight,
             )},
             font_size: 14px,
             fill: WHITE,

@@ -10,10 +10,12 @@ use crate::math::coordinate_spaces::World;
 use crate::model::action::ActionContext;
 use crate::model::input::RawInput;
 use crate::DESIGNER_GLASS_ID;
+use crate::ROOT_PROJECT_ID;
 use action::Action;
 use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
+use pax_designtime::orm::SubTrees;
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::Color;
 use pax_engine::api::Interpolatable;
@@ -37,6 +39,7 @@ use pax_engine::{api::borrow, api::NodeContext, math::Point2};
 use std::any::Any;
 use std::cell::OnceCell;
 use std::cell::RefCell;
+use std::collections::BTreeSet;
 use std::collections::HashSet;
 use std::ops::ControlFlow;
 use std::rc::Rc;
@@ -76,6 +79,10 @@ pub struct AppState {
     /// INVALID_IF: TemplateNodeId doesn't correspond to an id in the component with id
     /// selected_component_id
     pub selected_template_node_ids: Property<Vec<TemplateNodeId>>,
+    /// A copied subtree of nodes, used for internal copy/paste before
+    /// we decide to write to clipboard
+    /// INVALID_IF: no invalid states (that is the responsibility of the designer)
+    pub clip_board: Property<SubTrees>,
 
     //---------------glass------------------
     /// Size and color of the glass stage for the current view, this is the
@@ -125,7 +132,7 @@ pub struct DerivedAppState {
     pub to_glass_transform: Property<Property<Transform2<Window, Glass>>>,
     pub selected_nodes: Property<Vec<(UniqueTemplateNodeIdentifier, NodeInterface)>>,
     pub selection_state: Property<SelectionState>,
-    pub open_containers: Property<Vec<UniqueTemplateNodeIdentifier>>,
+    pub open_container: Property<UniqueTemplateNodeIdentifier>,
 }
 
 const INITIALIZED: &'static str = "model should have been initialized";
@@ -174,12 +181,12 @@ impl Model {
         let to_glass_transform = Self::derive_to_glass_transform(ctx);
         let selection_state =
             Self::derive_selection_state(selected_nodes.clone(), to_glass_transform.clone());
-        let open_containers = Self::derive_open_containers(ctx, app_state);
+        let open_containers = Self::derive_open_container(ctx, app_state);
 
         DerivedAppState {
             to_glass_transform,
             selection_state,
-            open_containers,
+            open_container: open_containers,
             selected_nodes,
         }
     }
@@ -266,10 +273,10 @@ impl Model {
         )
     }
 
-    fn derive_open_containers(
+    fn derive_open_container(
         ctx: &NodeContext,
         app_state: &AppState,
-    ) -> Property<Vec<UniqueTemplateNodeIdentifier>> {
+    ) -> Property<UniqueTemplateNodeIdentifier> {
         let selected_comp = app_state.selected_component_id.clone();
         let node_ids = app_state.selected_template_node_ids.clone();
         let ctx_cp = ctx.clone();
@@ -277,7 +284,7 @@ impl Model {
         let deps = [selected_comp.untyped(), node_ids.untyped()];
         Property::computed(
             move || {
-                let mut containers = vec![];
+                let mut containers = HashSet::new();
                 for n in node_ids.get() {
                     let uid = UniqueTemplateNodeIdentifier::build(selected_comp.get(), n);
                     let interface = ctx_cp.get_nodes_by_global_id(uid);
@@ -288,9 +295,18 @@ impl Model {
                         .unwrap()
                         .global_id()
                         .unwrap();
-                    containers.push(parent_uid);
+                    containers.insert(parent_uid);
                 }
-                containers
+                if containers.len() == 1 {
+                    containers.into_iter().next().unwrap()
+                } else {
+                    let root = ctx_cp
+                        .get_nodes_by_id(ROOT_PROJECT_ID)
+                        .into_iter()
+                        .next()
+                        .unwrap();
+                    root.global_id().unwrap()
+                }
             },
             &deps,
         )

@@ -45,7 +45,7 @@ impl ProjectModeToggle {
         model::perform_action(
             &SelectNodes {
                 ids: &[],
-                overwrite: true,
+                force_deselection_of_others: true,
             },
             ctx,
         );

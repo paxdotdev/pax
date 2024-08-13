@@ -1,0 +1,94 @@
+<ColorPicker height=30px x=72% anchor_x=0% width=25% bind:color=self.font_color/>
+<Dropdown width=70% class=input options={self.font_families} bind:selected_id=font_family_index/>
+<Dropdown y=40px width=70% class=input options={self.font_weights} bind:selected_id=font_weight_index/>
+<Textbox y=40px anchor_x=0% class=input x=72% width=25% text=font_size @textbox_change=size_change/>
+<Group y=80px>
+    <Group height=30px width=30px @click=h_align_left>
+        <Text class=text text="L" width=100% height=100%/>
+        <Rectangle fill={rgb(20 + 50 * (h_align_index == 0), 20 + 50 * (h_align_index == 0), 20 + 50 * (h_align_index == 0))}
+	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
+        />
+    </Group>
+    <Group x=35px height=30px width=30px @click=h_align_center>
+        <Text class=text text="C" width=100% height=100%/>
+        <Rectangle fill={rgb(20 + 50 * (h_align_index == 1), 20 + 50 * (h_align_index == 1), 20 + 50 * (h_align_index == 1))}
+	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
+        />
+    </Group>
+    <Group x=70px height=30px width=30px @click=h_align_right>
+        <Text class=text text="R" width=100% height=100%/>
+        <Rectangle fill={rgb(20 + 50 * (h_align_index == 2), 20 + 50 * (h_align_index == 2), 20 + 50 * (h_align_index == 2))}
+	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
+        />
+    </Group>
+
+    <Group x=110px height=30px width=30px @click=v_align_top>
+        <Text class=text text="T" width=100% height=100%/>
+        <Rectangle fill={rgb(20 + 50 * (v_align_index == 0), 20 + 50 * (v_align_index == 0), 20 + 50 * (v_align_index == 0))}
+	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
+        />
+    </Group>
+    <Group x=145px height=30px width=30px @click=v_align_center>
+        <Text class=text text="C" width=100% height=100%/>
+        <Rectangle fill={rgb(20 + 50 * (v_align_index == 1), 20 + 50 * (v_align_index == 1), 20 + 50 * (v_align_index == 1))}
+	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
+        />
+    </Group>
+    <Group x=180px height=30px width=30px @click=v_align_bottom>
+        <Text class=text text="B" width=100% height=100%/>
+        <Rectangle fill={rgb(20 + 50 * (v_align_index == 2), 20 + 50 * (v_align_index == 2), 20 + 50 * (v_align_index == 2))}
+	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
+        />
+    </Group>
+
+    <Group x=220px height=30px width=30px @click=set_auto_size>
+        <Text class=text text="A" width=100% height=100%/>
+        <Rectangle fill={rgb(20 + 50 * auto, 20 + 50 * auto, 20 + 50 * auto)}
+	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
+        />
+    </Group>
+</Group>
+
+@settings {
+    @mount: on_mount
+    @pre_render: pre_render
+    .text {
+        style: {
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Bold,
+            )},
+            font_size: 10px,
+            fill: WHITE,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+
+    .input {
+        width: 96.66%,
+        height: 30px,
+        background: BLACK,
+        stroke: {
+            color: rgb(40, 48, 54),
+            width: 1px,
+        },
+        border_radius: 5,
+        style: {
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light,
+            )},
+            font_size: 14px,
+            fill: WHITE,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+}

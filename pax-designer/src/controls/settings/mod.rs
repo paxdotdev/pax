@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use crate::model;
 use pax_std::*;
 
+pub mod color_picker;
 pub mod property_editor;
 use property_editor::PropertyEditor;
 
@@ -27,6 +28,7 @@ pub struct PropertyArea {
     pub vertical_pos: f64,
     pub name: String,
     pub name_friendly: String,
+    pub index: usize,
 }
 
 const SPACING: f64 = 10.0;
@@ -133,19 +135,21 @@ impl Settings {
                     selected_component_name.set("".to_owned())
                 }
 
-                let Some(mut node) = dt.get_orm_mut().get_node(uni) else {
+                let Some(mut node) = dt.get_orm_mut().get_node(uni, false) else {
                     return vec![];
                 };
 
                 let props = node.get_all_properties();
                 props
                     .into_iter()
-                    .filter_map(|(propdef, _)| match propdef.name.as_str() {
+                    .enumerate()
+                    .filter_map(|(i, (propdef, _))| match propdef.name.as_str() {
                         "x" | "y" | "width" | "height" | "rotate" | "scale_x" | "scale_y"
                         | "anchor_x" | "anchor_y" | "skew_x" | "skew_y" | "id" | "transform" => {
                             None
                         }
                         custom => (!custom.starts_with('_')).then_some(PropertyArea {
+                            index: i + 1,
                             vertical_space: 10.0,
                             vertical_pos: Default::default(),
                             name_friendly: Self::camel_to_title_case(custom),
@@ -169,12 +173,13 @@ impl Settings {
                 let mut adjusted_props = custom_props.get();
                 let areas = areas.get();
                 let mut running_sum = 0.0;
-                for (i, area) in areas.iter().take(adjusted_props.len()).enumerate() {
-                    adjusted_props[i].vertical_space = *area;
-                    adjusted_props[i].vertical_pos = running_sum;
+                for prop in &mut adjusted_props {
+                    let area = areas.get(prop.index - 1).unwrap_or(&10.0);
+                    prop.vertical_space = *area;
+                    prop.vertical_pos = running_sum;
                     running_sum += area + SPACING;
                 }
-                adjusted_props
+                adjusted_props.into_iter().rev().collect()
             },
             &deps,
         )

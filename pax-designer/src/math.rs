@@ -11,6 +11,7 @@ use pax_engine::{
 use crate::math::coordinate_spaces::Glass;
 
 use self::coordinate_spaces::World;
+pub mod intent_snapper;
 
 #[derive(PartialEq, Default, Clone, Copy)]
 pub enum SizeUnit {

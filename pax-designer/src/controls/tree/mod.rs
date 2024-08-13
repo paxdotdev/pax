@@ -5,16 +5,16 @@ use pax_manifest::{
     ComponentTemplate, PaxType, TemplateNodeId, TreeIndexPosition, TypeId,
     UniqueTemplateNodeIdentifier,
 };
-use pax_std::*;
+use pax_std::{RefCell, *};
 
-use std::cell::{OnceCell, RefCell};
+use std::cell::OnceCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, OnceLock};
 pub mod treeobj;
 use serde::Deserialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use treeobj::TreeObj;
 
 use crate::glass::SetEditingComponent;
@@ -28,7 +28,6 @@ use crate::model::{self, GlassNode};
 #[file("controls/tree/mod.pax")]
 pub struct Tree {
     pub tree_objects: Property<Vec<FlattenedTreeEntry>>,
-    pub on_click_handler: Property<bool>,
     pub dragging: Property<bool>,
     pub drag_id: Property<usize>,
     pub drag_id_start: Property<usize>,
@@ -36,18 +35,16 @@ pub struct Tree {
 
 impl Interpolatable for TreeMsg {}
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub enum TreeMsg {
     ArrowClicked(usize),
     ObjDoubleClicked(usize),
     ObjMouseDown(usize),
     ObjMouseMove(usize),
-    #[default]
-    None,
 }
 
 thread_local! {
-    pub static TREE_CLICK_PROP: Property<TreeMsg> = Property::new(TreeMsg::None);
+    pub static TREE_CLICK_PROP: std::cell::RefCell<VecDeque<TreeMsg>> = Default::default();
 }
 
 struct TreeEntry {
@@ -167,54 +164,6 @@ impl Tree {
     //     );
     // }
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let click_msg = TREE_CLICK_PROP.with(|click_msg| click_msg.clone());
-        let deps = [click_msg.untyped()];
-
-        let ctxp = ctx.clone();
-        let tree_obj = self.tree_objects.clone();
-        let selected_comp =
-            model::read_app_state(|app_state| app_state.selected_component_id.clone());
-
-        let dragging = self.dragging.clone();
-        let drag_id = self.drag_id.clone();
-        let drag_id_start = self.drag_id_start.clone();
-
-        self.on_click_handler.replace_with(Property::computed(
-            move || {
-                let msg = click_msg.get();
-                match msg {
-                    TreeMsg::ObjDoubleClicked(sender) => {
-                        let node_id = tree_obj.read(|t| t[sender].node_id.clone());
-                        let uuid =
-                            UniqueTemplateNodeIdentifier::build(selected_comp.get(), node_id);
-                        let mut dt = borrow_mut!(ctxp.designtime);
-                        let builder = dt.get_orm_mut().get_node(uuid).unwrap();
-                        let type_id_of_tree_target = builder.get_type_id();
-
-                        model::perform_action(&SetEditingComponent(type_id_of_tree_target), &ctxp);
-                    }
-                    TreeMsg::ObjMouseDown(sender) => {
-                        model::perform_action(
-                            &SelectNodes {
-                                ids: &[tree_obj.read(|t| t[sender].node_id.clone())],
-                                overwrite: false,
-                            },
-                            &ctxp,
-                        );
-                        dragging.set(true);
-                        drag_id_start.set(sender);
-                    }
-                    TreeMsg::ObjMouseMove(sender) => {
-                        drag_id.set(sender);
-                    }
-                    TreeMsg::ArrowClicked(_) => (),
-                    TreeMsg::None => (),
-                };
-                false
-            },
-            &deps,
-        ));
-
         model::read_app_state(|app_state| {
             let type_id = app_state.selected_component_id.clone();
             let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
@@ -258,10 +207,42 @@ impl Tree {
         self.dragging.set(false);
     }
 
-    pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        // because of lazy eval. Need to make sure closure fires
-        // if its dependents have changed
-        self.on_click_handler.get();
+    pub fn pre_render(&mut self, ctx: &NodeContext) {
+        let tree_obj = self.tree_objects.clone();
+        let selected_comp =
+            model::read_app_state(|app_state| app_state.selected_component_id.clone());
+
+        let dragging = self.dragging.clone();
+        let drag_id = self.drag_id.clone();
+        let drag_id_start = self.drag_id_start.clone();
+        while let Some(msg) = TREE_CLICK_PROP.with_borrow_mut(|msgs| msgs.pop_front()) {
+            match msg {
+                TreeMsg::ObjDoubleClicked(sender) => {
+                    let node_id = tree_obj.read(|t| t[sender].node_id.clone());
+                    let uuid = UniqueTemplateNodeIdentifier::build(selected_comp.get(), node_id);
+                    let mut dt = borrow_mut!(ctx.designtime);
+                    let builder = dt.get_orm_mut().get_node(uuid, false).unwrap();
+                    let type_id_of_tree_target = builder.get_type_id();
+
+                    model::perform_action(&SetEditingComponent(type_id_of_tree_target), &ctx);
+                }
+                TreeMsg::ObjMouseDown(sender) => {
+                    model::perform_action(
+                        &SelectNodes {
+                            ids: &[tree_obj.read(|t| t[sender].node_id.clone())],
+                            force_deselection_of_others: false,
+                        },
+                        &ctx,
+                    );
+                    dragging.set(true);
+                    drag_id_start.set(sender);
+                }
+                TreeMsg::ObjMouseMove(sender) => {
+                    drag_id.set(sender);
+                }
+                TreeMsg::ArrowClicked(_) => (),
+            };
+        }
     }
 
     fn tree_move(
@@ -308,8 +289,6 @@ impl Tree {
                     })
                     .unwrap_or_default(),
             };
-            ctx.undo_save();
-
             let node_layout = if is_stacker {
                 NodeLayoutSettings::Fill::<NodeLocal>
             } else {
@@ -320,14 +299,17 @@ impl Tree {
                 })
             };
 
-            if let Err(e) = (MoveNode {
-                node_id: &from_node.id,
-                new_parent_uid: &to_node_container.id,
-                index,
-                node_layout,
-            }
-            .perform(ctx))
-            {
+            let mut t = ctx.transaction("moving object in tree");
+            t.run(|| {
+                MoveNode {
+                    node_id: &from_node.id,
+                    new_parent_uid: &to_node_container.id,
+                    index,
+                    node_layout,
+                }
+                .perform(ctx)
+            });
+            if let Err(e) = t.finish(ctx) {
                 log::warn!("failed to move tree node: {e}");
             };
         });

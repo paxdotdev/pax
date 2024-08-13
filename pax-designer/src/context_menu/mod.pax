@@ -45,7 +45,12 @@ if self.visible {
     @mount: on_mount
     #text {
         style: {
-                font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)},
+                font: {Font::Web(
+                    "ff-real-headline-pro",
+                    "https://use.typekit.net/ivu7epf.css",
+                    FontStyle::Normal,
+                    FontWeight::Normal,
+                )},
                 font_size: 12px,
                 fill: WHITE,
                 align_vertical: TextAlignVertical::Center,

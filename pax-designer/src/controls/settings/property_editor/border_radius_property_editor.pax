@@ -7,10 +7,11 @@
         text="px"
         height=30px
         style={
-            font: {Font::system(
+            font: {Font::Web(
                 "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
                 FontStyle::Normal,
-                FontWeight::Light
+                FontWeight::Light,
             )},
             font_size: 15px,
             fill: WHITE,
@@ -27,10 +28,11 @@
     @mount: on_mount
     #text {
         style: {
-            font: {Font::system(
+            font: {Font::Web(
                 "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
                 FontStyle::Normal,
-                FontWeight::Bold
+                FontWeight::Bold,
             )},
             font_size: 10px,
             fill: {rgba(255, 0.3*255, 0.3*255, 255)},
@@ -53,10 +55,11 @@
         },
         border_radius: 5,
         style: {
-            font: {Font::system(
+            font: {Font::Web(
                 "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
                 FontStyle::Normal,
-                FontWeight::Light
+                FontWeight::Light,
             )},
             font_size: 14px,
             fill: WHITE,

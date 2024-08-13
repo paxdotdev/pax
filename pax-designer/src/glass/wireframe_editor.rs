@@ -15,9 +15,7 @@ use pax_std::*;
 use serde::Deserialize;
 
 use super::control_point::{ControlPoint, ControlPointBehavior};
-use crate::glass::control_point::{
-    ControlPointBehaviorFactory, ControlPointDef, ControlPointStyling,
-};
+use crate::glass::control_point::{ControlPointDef, ControlPointStyling, ControlPointToolFactory};
 use crate::math::coordinate_spaces::{Glass, SelectionSpace};
 use crate::math::{AxisAlignedBox, BoxPoint, GetUnit, SizeUnit};
 use crate::model::action::orm::{write_to_orm, SetAnchor};
@@ -40,7 +38,7 @@ pub struct WireframeEditor {
 // Temporary solution - can be moved to private field on ObjectEditor
 // Once we have private variables/upwards data passing (from ControlPoint)
 thread_local!(
-    pub static CONTROL_POINT_FUNCS: RefCell<Option<Vec<ControlPointBehaviorFactory>>> =
+    pub static CONTROL_POINT_FUNCS: RefCell<Option<Vec<ControlPointToolFactory>>> =
         RefCell::new(None);
 );
 
