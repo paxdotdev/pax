@@ -20,7 +20,7 @@
 
         let mut ctx = pax_engine::pax_manifest::parsing::ParsingContext::default();
         ctx.main_component_type_id = <pax_engine::pax_designer::PaxDesigner as pax_engine::pax_manifest::parsing::Reflectable>::get_type_id();
-        let (mut ctx, _) = pax_engine::pax_designer::PaxDesigner as pax_engine::pax_manifest::parsing::Reflectable>::parse_to_manifest(ctx);
+        let (mut ctx, _) = <pax_engine::pax_designer::PaxDesigner as pax_engine::pax_manifest::parsing::Reflectable>::parse_to_manifest(ctx);
 
         let designer_manifest = pax_engine::pax_manifest::PaxManifest {
             components: ctx.component_definitions,
@@ -32,9 +32,9 @@
         //Send data back to parent process by printing to stdout
         //Note presence of second manifest when designtime (manifest for PaxDesigner)
         #[cfg(feature = "designtime")]
-        println!("{}", &pax_engine::serde_json::to_string_pretty((&userland_manifest.unwrap(), &designer_manifest.unwrap()));
+        println!("{}", &pax_engine::serde_json::to_string_pretty((&userland_manifest, &designer_manifest)).unwrap());
         #[cfg(not(feature = "designtime"))]
-        println!("{}", &pax_engine::serde_json::to_string_pretty(&userland_manifest.unwrap());
+        println!("{}", &pax_engine::serde_json::to_string_pretty(&userland_manifest).unwrap());
         std::process::exit(0);
 
     }
