@@ -1,14 +1,15 @@
 use std::{cell::RefCell, rc::Rc};
 
 use anyhow::anyhow;
-use pax_engine::{api::NodeContext, log, math::Point2, Property};
 use pax_engine::api::{borrow, borrow_mut, Color, Size};
+use pax_engine::{api::NodeContext, log, math::Point2, Property};
 use pax_std::*;
 
+use crate::glass::control_point::ControlPointTool;
+use crate::glass::ToolVisualizationState;
+use crate::math::intent_snapper::{IntentSnapper, SnapSet};
 use crate::{
-    glass::control_point::{
-        ControlPointBehavior, ControlPointBehaviorFactory, ControlPointStyling,
-    },
+    glass::control_point::{ControlPointBehavior, ControlPointStyling, ControlPointToolFactory},
     math::{coordinate_spaces::Glass, GetUnit},
     model::{
         self,
@@ -29,7 +30,7 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
     }
 
     impl ControlPointBehavior for StackerDividerControlBehavior {
-        fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
+        fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) -> anyhow::Result<()> {
             let t = self.stacker_node.transform_and_bounds.as_transform();
             let (_, u, v) = t.decompose();
             let (x_l, y_l) = (u.length(), v.length());
@@ -65,15 +66,21 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             let mut builder = dt
                 .get_orm_mut()
-                .get_node(self.stacker_node.id.clone())
+                .get_node(
+                    self.stacker_node.id.clone(),
+                    ctx.app_state
+                        .keys_pressed
+                        .get()
+                        .contains(&model::input::InputEvent::Control),
+                )
                 .unwrap();
 
-            builder.set_property("sizes", &sizes_str).unwrap();
+            builder.set_property("sizes", &sizes_str)?;
 
             builder
                 .save()
                 .map_err(|e| anyhow!("could not save: {}", e))
-                .unwrap();
+                .map(|_| ())
         }
     }
 
@@ -83,22 +90,27 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
         start_sizes: Vec<Option<Size>>,
         item: GlassNode,
         dir: StackerDirection,
-    ) -> ControlPointBehaviorFactory {
+    ) -> ControlPointToolFactory {
         let stacker_id = item.id.clone();
-        ControlPointBehaviorFactory {
-            tool_behavior: Rc::new(move |_ac, _p| {
-                Rc::new(RefCell::new(StackerDividerControlBehavior {
-                    stacker_node: (&item).into(),
-                    resize_ind,
-                    boundaries: boundaries.clone(),
-                    start_sizes: start_sizes.clone(),
-                    dir: dir.clone(),
-                }))
+        let stacker_id_2 = item.id.clone();
+        ControlPointToolFactory {
+            tool_factory: Rc::new(move |ac, _p| {
+                Rc::new(RefCell::new(ControlPointTool::new(
+                    ac.transaction("resizing stacker cells"),
+                    Some(IntentSnapper::new(ac, &[stacker_id.clone()])),
+                    StackerDividerControlBehavior {
+                        stacker_node: (&item).into(),
+                        resize_ind,
+                        boundaries: boundaries.clone(),
+                        start_sizes: start_sizes.clone(),
+                        dir: dir.clone(),
+                    },
+                )))
             }),
             double_click_behavior: Rc::new(move |ctx| {
                 let stacker_node = ctx
                     .engine_context
-                    .get_nodes_by_global_id(stacker_id.clone())
+                    .get_nodes_by_global_id(stacker_id_2.clone())
                     .into_iter()
                     .next()
                     .unwrap();
@@ -112,7 +124,16 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
                 let sizes_str = sizes_to_string(&sizes);
 
                 let mut dt = borrow_mut!(ctx.engine_context.designtime);
-                let mut builder = dt.get_orm_mut().get_node(stacker_id.clone()).unwrap();
+                let mut builder = dt
+                    .get_orm_mut()
+                    .get_node(
+                        stacker_id_2.clone(),
+                        ctx.app_state
+                            .keys_pressed
+                            .get()
+                            .contains(&model::input::InputEvent::Control),
+                    )
+                    .unwrap();
 
                 builder.set_property("sizes", &sizes_str).unwrap();
 

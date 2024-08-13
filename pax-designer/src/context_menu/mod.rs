@@ -61,25 +61,15 @@ impl DesignerContextMenu {
     }
 
     pub fn create_component(&mut self, ctx: &NodeContext, _args: Event<Click>) {
-        model::with_action_context(ctx, |ac| {
-            ac.undo_save();
-        });
         model::perform_action(&SelectedIntoNewComponent {}, ctx);
-        self.close_menu();
     }
 
     pub fn group(&mut self, ctx: &NodeContext, _args: Event<Click>) {
-        model::with_action_context(ctx, |ac| {
-            ac.undo_save();
-        });
         model::perform_action(&GroupSelected {}, ctx);
         self.close_menu();
     }
 
     pub fn ungroup(&mut self, ctx: &NodeContext, _args: Event<Click>) {
-        model::with_action_context(ctx, |ac| {
-            ac.undo_save();
-        });
         model::perform_action(&UngroupSelected {}, ctx);
         self.close_menu();
     }

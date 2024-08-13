@@ -1,14 +1,16 @@
 use std::{cell::RefCell, rc::Rc};
 
 use pax_engine::api::{borrow, borrow_mut, Color, Interpolatable};
+use pax_engine::math::Parts;
 use pax_engine::{
     api::NodeContext, layout::TransformAndBounds, log, math::Point2, NodeInterface, Property,
 };
 
+use crate::glass::control_point::{ControlPointTool, Snap};
+use crate::glass::ToolVisualizationState;
+use crate::math::intent_snapper::{IntentSnapper, SnapSet};
 use crate::{
-    glass::control_point::{
-        ControlPointBehavior, ControlPointBehaviorFactory, ControlPointStyling,
-    },
+    glass::control_point::{ControlPointBehavior, ControlPointStyling, ControlPointToolFactory},
     math::{
         coordinate_spaces::{Glass, SelectionSpace},
         BoxPoint,
@@ -91,27 +93,28 @@ impl Editor {
         }
 
         impl ControlPointBehavior for RotationBehavior {
-            fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
-                if let Err(e) = (action::orm::RotateSelected {
+            fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) -> anyhow::Result<()> {
+                action::orm::RotateSelected {
                     curr_pos: point,
                     start_pos: self.start_pos,
                     initial_selection: &self.initial_selection,
                 }
-                .perform(ctx))
-                {
-                    pax_engine::log::warn!("rotation failed: {:?}", e);
-                };
+                .perform(ctx)
             }
         }
 
-        fn rotate_factory() -> ControlPointBehaviorFactory {
-            ControlPointBehaviorFactory {
-                tool_behavior: Rc::new(|ctx, point| {
+        fn rotate_factory() -> ControlPointToolFactory {
+            ControlPointToolFactory {
+                tool_factory: Rc::new(|ctx, point| {
                     let initial_selection = (&ctx.derived_state.selection_state.get()).into();
-                    Rc::new(RefCell::new(RotationBehavior {
-                        start_pos: point,
-                        initial_selection,
-                    }))
+                    Rc::new(RefCell::new(ControlPointTool::new(
+                        ctx.transaction("rotating"),
+                        None,
+                        RotationBehavior {
+                            start_pos: point,
+                            initial_selection,
+                        },
+                    )))
                 }),
                 double_click_behavior: Rc::new(|_| ()),
             }
@@ -151,26 +154,44 @@ impl Editor {
         }
 
         impl ControlPointBehavior for ResizeBehavior {
-            fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
-                if let Err(e) = (action::orm::Resize {
+            fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) -> anyhow::Result<()> {
+                action::orm::Resize {
                     initial_selection: &self.initial_selection,
                     fixed_point: self.attachment_point,
                     new_point: point,
                 }
-                .perform(ctx))
-                {
-                    pax_engine::log::warn!("resize failed: {:?}", e);
-                };
+                .perform(ctx)
             }
         }
 
-        fn resize_factory(anchor: Point2<BoxPoint>) -> ControlPointBehaviorFactory {
-            ControlPointBehaviorFactory {
-                tool_behavior: Rc::new(move |ac, _p| {
-                    Rc::new(RefCell::new(ResizeBehavior {
-                        attachment_point: anchor,
-                        initial_selection: (&ac.derived_state.selection_state.get()).into(),
-                    }))
+        fn resize_factory(anchor: Point2<BoxPoint>) -> ControlPointToolFactory {
+            ControlPointToolFactory {
+                tool_factory: Rc::new(move |ac, _p| {
+                    let initial_selection: SelectionStateSnapshot =
+                        (&ac.derived_state.selection_state.get()).into();
+
+                    // only snap if either no rotation or this is a corner point
+                    let should_snap = Into::<Parts>::into(initial_selection.total_bounds.transform)
+                        .rotation
+                        .abs()
+                        < 1e-2
+                        || (anchor.x != 0.5 && anchor.y != 0.5);
+
+                    Rc::new(RefCell::new(ControlPointTool::new(
+                        ac.transaction("resize"),
+                        should_snap.then_some(IntentSnapper::new(
+                            ac,
+                            &initial_selection
+                                .items
+                                .iter()
+                                .map(|i| i.id.clone())
+                                .collect::<Vec<_>>(),
+                        )),
+                        ResizeBehavior {
+                            attachment_point: anchor,
+                            initial_selection,
+                        },
+                    )))
                 }),
                 double_click_behavior: Rc::new(|_| ()),
             }
@@ -234,31 +255,34 @@ impl Editor {
         }
 
         impl ControlPointBehavior for AnchorBehavior {
-            fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) {
+            fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) -> anyhow::Result<()> {
                 if let Some(initial_object) = &self.initial_object {
                     let t_and_b = initial_object.transform_and_bounds;
                     let point_in_space = t_and_b.transform.inverse() * point;
-                    if let Err(e) = (action::orm::SetAnchor {
+                    action::orm::SetAnchor {
                         object: &initial_object,
                         point: point_in_space,
                     }
-                    .perform(ctx))
-                    {
-                        pax_engine::log::warn!("resize failed: {:?}", e);
-                    };
+                    .perform(ctx)
+                } else {
+                    Ok(())
                 }
             }
         }
 
-        fn anchor_factory() -> ControlPointBehaviorFactory {
-            ControlPointBehaviorFactory {
-                tool_behavior: Rc::new(move |ac, _p| {
-                    Rc::new(RefCell::new(AnchorBehavior {
-                        initial_object: (&ac.derived_state.selection_state.get())
-                            .items
-                            .first()
-                            .map(Into::into),
-                    }))
+        fn anchor_factory() -> ControlPointToolFactory {
+            ControlPointToolFactory {
+                tool_factory: Rc::new(move |ac, _p| {
+                    Rc::new(RefCell::new(ControlPointTool::new(
+                        ac.transaction("moving anchor point"),
+                        None,
+                        AnchorBehavior {
+                            initial_object: (&ac.derived_state.selection_state.get())
+                                .items
+                                .first()
+                                .map(Into::into),
+                        },
+                    )))
                 }),
                 double_click_behavior: Rc::new(|_| ()),
             }
@@ -292,7 +316,7 @@ impl Editor {
         let item = selection.items.into_iter().next().unwrap();
         let type_id = {
             let mut dt = borrow_mut!(ctx.designtime);
-            let Some(builder) = dt.get_orm_mut().get_node(item.id.clone()) else {
+            let Some(builder) = dt.get_orm_mut().get_node(item.id.clone(), false) else {
                 return Vec::default();
             };
             builder.get_type_id()
@@ -316,11 +340,11 @@ impl Interpolatable for CPoint {}
 pub struct CPoint {
     // make this point a prop?
     pub point: Point2<Glass>,
-    pub behavior: ControlPointBehaviorFactory,
+    pub behavior: ControlPointToolFactory,
 }
 
 impl CPoint {
-    fn new(point: Point2<Glass>, behavior: ControlPointBehaviorFactory) -> Self {
+    fn new(point: Point2<Glass>, behavior: ControlPointToolFactory) -> Self {
         Self { point, behavior }
     }
 }

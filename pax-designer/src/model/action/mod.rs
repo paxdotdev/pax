@@ -1,16 +1,22 @@
 use std::any::Any;
+use std::cell::Cell;
 use std::{rc::Rc, sync::Arc};
+
+use self::orm::UndoRequested;
 
 use super::{DerivedAppState, GlassNode, SelectionState};
 use crate::math::coordinate_spaces::World;
+use crate::message_log_display::{self, DesignerLogMsg};
 use crate::{math::AxisAlignedBox, model::AppState, DESIGNER_GLASS_ID, ROOT_PROJECT_ID};
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Error, Result};
 use pax_designtime::orm::PaxManifestORM;
 use pax_designtime::DesigntimeManager;
-use pax_engine::api::{borrow, Axis, Size};
+use pax_engine::api::{borrow, borrow_mut, Axis, Size};
 use pax_engine::layout::TransformAndBounds;
 use pax_engine::math::Vector2;
-use pax_engine::pax_manifest::{TemplateNodeId, UniqueTemplateNodeIdentifier};
+use pax_engine::pax_manifest::{
+    NodeLocation, TemplateNodeId, TreeIndexPosition, TreeLocation, UniqueTemplateNodeIdentifier,
+};
 use pax_engine::{
     api::{NodeContext, Window},
     math::{Point2, Space, Transform2},
@@ -18,6 +24,7 @@ use pax_engine::{
 };
 use pax_engine::{log, Property};
 use pax_std::drawing::rectangle::Rectangle;
+use pax_std::RefCell;
 
 use crate::math::coordinate_spaces::Glass;
 
@@ -115,7 +122,7 @@ impl ActionContext<'_> {
             };
             if parent
                 .global_id()
-                .is_some_and(|v| self.derived_state.open_containers.get().contains(&v))
+                .is_some_and(|v| self.derived_state.open_container.get() == v)
             {
                 break;
             }
@@ -128,7 +135,7 @@ impl ActionContext<'_> {
                 };
                 if next_parent
                     .global_id()
-                    .is_some_and(|v| self.derived_state.open_containers.get().contains(&v))
+                    .is_some_and(|v| self.derived_state.open_container.get() == v)
                 {
                     break;
                 }
@@ -136,6 +143,33 @@ impl ActionContext<'_> {
             target = target.template_parent().unwrap();
         }
         Some(target)
+    }
+
+    pub fn location(
+        &self,
+        uid: &UniqueTemplateNodeIdentifier,
+        index: &TreeIndexPosition,
+    ) -> NodeLocation {
+        if self
+            .engine_context
+            .get_nodes_by_id(ROOT_PROJECT_ID)
+            .first()
+            .unwrap()
+            .global_id()
+            == Some(uid.clone())
+        {
+            NodeLocation::new(
+                self.app_state.selected_component_id.get(),
+                TreeLocation::Root,
+                index.clone(),
+            )
+        } else {
+            NodeLocation::new(
+                self.app_state.selected_component_id.get(),
+                TreeLocation::Parent(uid.get_template_node_id()),
+                index.clone(),
+            )
+        }
     }
 
     pub fn get_glass_node_by_global_id(&mut self, uid: &UniqueTemplateNodeIdentifier) -> GlassNode {
@@ -148,12 +182,86 @@ impl ActionContext<'_> {
         GlassNode::new(&node_interface, &self.glass_transform())
     }
 
-    pub fn undo_save(&mut self) {
-        let before_undo_id = borrow!(self.engine_context.designtime)
+    pub fn transaction(&mut self, user_action_message: &str) -> Transaction {
+        Transaction::new(&self.engine_context.designtime, user_action_message)
+    }
+}
+
+pub struct Transaction {
+    before_undo_id: usize,
+    design_time: Rc<RefCell<DesigntimeManager>>,
+    result: RefCell<Result<()>>,
+    finished: bool,
+    user_action_message: String,
+}
+
+impl Transaction {
+    pub fn new(designtime: &Rc<RefCell<DesigntimeManager>>, user_action_message: &str) -> Self {
+        let design_time = Rc::clone(&designtime);
+        let before_undo_id = borrow!(design_time)
             .get_orm()
             .get_last_undo_id()
             .unwrap_or(0);
-        self.undo_stack.push(before_undo_id);
+        Self {
+            before_undo_id,
+            design_time,
+            result: RefCell::new(Ok(())),
+            finished: false,
+            user_action_message: user_action_message.to_owned(),
+        }
+    }
+
+    pub fn run(&self, t: impl FnOnce() -> Result<()>) {
+        if borrow!(self.result).is_err() {
+            return;
+        }
+        match t() {
+            Ok(()) => (),
+            Err(e) => {
+                // TODO improve: this is weird for certain kinds of errors (for
+                // example internal ones), find more general framework.
+                let user_message = format!(
+                    "{} and would have been modified when {}. \
+                    To modify individual values use the settings view. \
+                    To overwrite all expressions hold Ctrl.",
+                    e, self.user_action_message
+                );
+                message_log_display::log(DesignerLogMsg::message(user_message));
+                *borrow_mut!(self.result) = Err(anyhow!("transaction failed: {e}"));
+                let mut dt = borrow_mut!(self.design_time);
+                dt.get_orm_mut()
+                    .undo_until(self.before_undo_id)
+                    .ok()
+                    .unwrap();
+            }
+        }
+    }
+
+    pub fn finish(&mut self, ctx: &mut ActionContext) -> Result<()> {
+        if self.finished {
+            return Err(anyhow!(
+                "called finish twice on transaction {:?}",
+                self.user_action_message
+            ));
+        }
+        self.finished = true;
+        ctx.undo_stack.push(self.before_undo_id);
+        std::mem::replace(&mut *borrow_mut!(self.result), Ok(()))
+    }
+}
+
+// This exists to never forget to call finish on a created transaction, aim to
+// not remove this but instead figure out why finish wasn't called. TODO: might
+// want to add a "cancel" method to the struct above to explicitly cancel a
+// transaction as well (revert changes and don't push to undo stack)
+impl Drop for Transaction {
+    fn drop(&mut self) {
+        if !self.finished {
+            panic!(
+                "transaction {:?} was dropped without calling \".finish\"",
+                self.user_action_message
+            );
+        }
     }
 }
 

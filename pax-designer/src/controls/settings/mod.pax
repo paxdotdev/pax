@@ -1,5 +1,20 @@
 if self.is_component_selected {
     <Group x=5px width={100% - 10px}>
+        // custom properties at top since we want things like color picker
+        // to be drawn above the rest of the settings view (and z-index isn't supported yet)
+        // TODO this scroller results in crashes, why?
+        // <Scroller y=343px height={100% - 343px} scroll_height={1000px}>
+        <Group y=343px>
+            for property in self.custom_properties {
+                <Group y={(property.vertical_pos)px} height={(property.vertical_space)px}>
+                    <PropertyEditor y=40px ind={property.index} name={property.name} stid={self.stid} snid={self.snid} />
+                    <Path class=hr/>
+                    <Text text={property.name_friendly} class=h2 class=col_1 y=10px/>
+                </Group>
+            }
+        </Group>
+        // </Scroller>
+
         <Text text={self.selected_component_name} class=h1 class=col_1 class=span_6 />
         <Group height=150px y=47px>
             <Group y=0px height=30px>
@@ -44,18 +59,6 @@ if self.is_component_selected {
             </Group>
         </Group>
 
-        // TODO this scroller results in crashes, why?
-        // <Scroller y=343px height={100% - 343px} scroll_height={1000px}>
-        <Group y=343px>
-            for (property, i) in self.custom_properties {
-                <Group y={(property.vertical_pos)px} height={(property.vertical_space)px}>
-                    <Path class=hr/>
-                    <Text text={property.name_friendly} class=h2 class=col_1 y=10px/>
-                    <PropertyEditor y=40px ind={i + 1} name={property.name} stid={self.stid} snid={self.snid} />
-                </Group>
-            }
-        </Group>
-        // </Scroller>
     </Group>
 }
 
@@ -65,8 +68,9 @@ if self.is_component_selected {
         height: 30px
         style: {
             font_size: 26px,
-            font: {Font::system(
+            font: {Font::Web(
                 "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
                 FontStyle::Normal,
                 FontWeight::Light
             )},
@@ -76,8 +80,9 @@ if self.is_component_selected {
     .h2 {
         height: 18px,
         style: {
-            font: {Font::system(
+            font: {Font::Web(
                 "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
                 FontStyle::Normal,
                 FontWeight::Light
             )},
@@ -105,8 +110,9 @@ if self.is_component_selected {
         y: 50%,
         anchor_y: 50%,
         style: {
-            font: {Font::system(
+            font: {Font::Web(
                 "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
                 FontStyle::Normal,
                 FontWeight::Light
             )},
@@ -122,8 +128,9 @@ if self.is_component_selected {
         y: 50%,
         anchor_y: 50%,
         style: {
-            font: {Font::system(
+            font: {Font::Web(
                 "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
                 FontStyle::Normal,
                 FontWeight::Thin
             )},

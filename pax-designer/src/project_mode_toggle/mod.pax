@@ -21,10 +21,11 @@
         width: 100%
         height: 100%
         style: {
-            font: {Font::system(
+            font: {Font::Web(
                 "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
                 FontStyle::Normal,
-                FontWeight::Light
+                FontWeight::Light,
             )},
             font_size: 20px,
             fill: WHITE,

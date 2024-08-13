@@ -1,16 +1,16 @@
 if self.is_not_leaf {
 	<Image
 		x=15px anchor_y=50% y=50% height=30px width=30px scale_x=60% scale_y=60%
-		path={self.arrow_path}
+		source={ImageSource::Url(self.arrow_path)}
 		@click=self.arrow_clicked
 	/>
 }
-<Rectangle fill=TRANSPARENT/>
+<EventBlocker/>
 
 // Icon
 <Image
 	x=40px anchor_y=50% y=50% height=30px width=30px
-	path={self.image_path}
+	source={ImageSource::Url(self.image_path)}
 />
 // Label
 <Text x=80px height=100% width={120px} text={self.name} id=text/>
@@ -28,10 +28,11 @@ if self.is_selected {
 
     #text {
         style: {
-            font: {Font::system(
+            font: {Font::Web(
                 "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
                 FontStyle::Normal,
-                FontWeight::Light
+                FontWeight::Light,
             )},
             font_size: 16px,
             fill: WHITE,

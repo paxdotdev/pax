@@ -7,6 +7,7 @@ use pax_engine::api::Interpolatable;
 use crate::model::action::orm::{RedoRequested, SerializeRequested, UndoRequested};
 use crate::{controls::toolbar, glass, llm_interface::OpenLLMPrompt};
 
+use super::action::orm::{CopySelected, Paste};
 use super::{
     action::{self, orm::DeleteSelected, world, Action, ActionContext},
     Component, Tool,
@@ -28,7 +29,10 @@ impl Default for InputMapper {
                     RawInput::R,
                     InputEvent::SelectTool(Tool::CreateComponent(Component::Rectangle)),
                 ),
-                (RawInput::V, InputEvent::SelectTool(Tool::Pointer)),
+                // TODO handle modifier key combinations as different map values
+                // (RawInput::V, InputEvent::SelectTool(Tool::Pointer)),
+                (RawInput::C, InputEvent::Copy),
+                (RawInput::V, InputEvent::Paste),
                 (RawInput::Control, InputEvent::Control),
                 (RawInput::Space, InputEvent::Space),
                 (RawInput::Plus, InputEvent::Plus),
@@ -80,6 +84,8 @@ impl InputMapper {
                 UndoRedoAction
             })),
             (&InputEvent::Serialize, Dir::Down) => Some(Box::new(SerializeRequested {})),
+            (&InputEvent::Copy, Dir::Down) => Some(Box::new(CopySelected)),
+            (&InputEvent::Paste, Dir::Down) => Some(Box::new(Paste)),
             _ => None,
         }
     }
@@ -99,6 +105,7 @@ pub enum RawInput {
     Backspace,
     R,
     V,
+    C,
     Control,
     Space,
     Plus,
@@ -123,6 +130,7 @@ impl TryFrom<String> for RawInput {
             "z" => Self::Z,
             "k" => Self::K,
             "s" => Self::S,
+            "c" => Self::C,
             " " => Self::Space,
             "Control" => Self::Control,
             "=" => Self::Plus,
@@ -155,4 +163,6 @@ pub enum InputEvent {
     DeleteSelected,
     Undo,
     Serialize,
+    Copy,
+    Paste,
 }

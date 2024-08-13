@@ -1,9 +1,9 @@
 
 <Group x={self.data.x} y={self.data.y} width=65px>
     if self.data.more_than_one_item {
-        <Image class=arrow path="assets/icons/chevron-down.png" @click=self.dropdown/>
+        <Image class=arrow source=ImageSource::Url("assets/icons/chevron-down.png") @click=self.dropdown/>
     }
-    <Image class=icon path={self.data.icon} @click=self.on_click/>
+    <Image class=icon source={ImageSource::Url(self.data.icon)} @click=self.on_click/>
     if self.data.background {
         <Rectangle
             fill=BLACK

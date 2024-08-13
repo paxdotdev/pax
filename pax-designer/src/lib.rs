@@ -19,6 +19,7 @@ pub mod utils;
 pub mod controls;
 pub mod llm_interface;
 pub mod math;
+pub mod message_log_display;
 pub mod model;
 pub mod project_mode_toggle;
 
@@ -26,6 +27,7 @@ use context_menu::DesignerContextMenu;
 use controls::Controls;
 use glass::Glass;
 use llm_interface::LLMInterface;
+use message_log_display::MessageLogDisplay;
 use project_mode_toggle::ProjectModeToggle;
 
 use pax_std::*;
@@ -49,6 +51,7 @@ pub struct PaxDesigner {
     pub stage: Property<StageInfo>,
     pub play_active: Property<bool>,
     pub glass_active: Property<bool>,
+    pub manifest_loaded_from_server: Property<bool>,
 }
 
 impl PaxDesigner {
@@ -60,6 +63,18 @@ impl PaxDesigner {
             self.bind_glass_active_property(&app_state);
             self.bind_interaction_mode_property();
         });
+
+        // used to show "loading screen"
+        let manifest_load_state = borrow!(ctx.designtime).get_manifest_loaded_from_server_prop();
+        let deps = [manifest_load_state.untyped()];
+        self.manifest_loaded_from_server
+            .replace_with(Property::computed(
+                move || {
+                    log::debug!("manifest load state: {}", manifest_load_state.get());
+                    manifest_load_state.get()
+                },
+                &deps,
+            ));
     }
 
     fn bind_stage_property(&mut self, app_state: &model::AppState) {

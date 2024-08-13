@@ -1,8 +1,14 @@
 <ProjectModeToggle x=100% width=90px height=55px/>
 if self.glass_active {
+    <MessageLogDisplay/>
     <LLMInterface/>
     <Controls/>
     <Group id=designer_glass>
+        // hide glass before project is loaded, could potentially show loading bar at some point
+        if !self.manifest_loaded_from_server {
+            <Text id=loading text="Loading..." width=100% height=100%/>
+            <Rectangle fill=WHITE/>
+        }
         //Optionally turned on on right click
         <DesignerContextMenu/>
         <Glass/>
@@ -55,9 +61,24 @@ if 0 == 1 {
         height: {100% - 65px},
     }
 
+    #loading {
+        style: {
+            font: {Font::Web(
+                "Inconsolata, monospace",
+                "https://fonts.googleapis.com/css2?family=Inconsolata:wght@200..900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)}
+            font_size: 30px
+            fill: BLACK
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+
     #annot {
         style: {
-            font: {Font::web(
+            font: {Font::Web(
                 "Inconsolata, monospace",
                 "https://fonts.googleapis.com/css2?family=Inconsolata:wght@200..900&display=swap",
                 FontStyle::Normal,

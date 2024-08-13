@@ -5,9 +5,12 @@ use std::rc::Rc;
 use super::wireframe_editor::GlassPoint;
 use super::ToolVisualizationState;
 use crate::glass;
+use crate::math::intent_snapper::{self, IntentSnapper, SnapSet};
+use anyhow::Result;
 use pax_engine::api::Fill;
 use pax_engine::api::*;
 use pax_engine::math::{Point2, Transform2};
+use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_engine::*;
 use pax_std::*;
 use serde::Deserialize;
@@ -19,7 +22,7 @@ use crate::model::{AppState, ToolBehavior};
 use crate::math;
 use crate::math::coordinate_spaces::{self, Glass, World};
 use crate::model::action::pointer::Pointer;
-use crate::model::action::{Action, ActionContext};
+use crate::model::action::{Action, ActionContext, Transaction};
 use crate::model::input::Dir;
 
 #[pax]
@@ -34,18 +37,42 @@ pub struct ControlPoint {
 }
 
 #[derive(Clone)]
-pub struct ControlPointBehaviorFactory {
-    pub tool_behavior:
+pub struct ControlPointToolFactory {
+    pub tool_factory:
         Rc<dyn Fn(&mut ActionContext, Point2<Glass>) -> Rc<RefCell<dyn ToolBehavior>>>,
     pub double_click_behavior: Rc<dyn Fn(&mut ActionContext)>,
 }
 
-pub trait ControlPointBehavior {
-    fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>);
-    // used for pushing an undo id to the stack
+pub struct ControlPointTool {
+    transaction: Transaction,
+    snapper: Option<IntentSnapper>,
+    behaviour: Box<dyn ControlPointBehavior>,
 }
 
-impl<C: ControlPointBehavior> ToolBehavior for C {
+pub enum Snap<'a> {
+    No,
+    Yes(&'a [UniqueTemplateNodeIdentifier]),
+}
+
+impl ControlPointTool {
+    pub fn new(
+        transaction: Transaction,
+        snapper: Option<IntentSnapper>,
+        behaviour: impl ControlPointBehavior + 'static,
+    ) -> Self {
+        Self {
+            transaction,
+            behaviour: Box::new(behaviour),
+            snapper,
+        }
+    }
+}
+
+pub trait ControlPointBehavior {
+    fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) -> Result<()>;
+}
+
+impl ToolBehavior for ControlPointTool {
     fn pointer_down(
         &mut self,
         _point: Point2<Glass>,
@@ -59,15 +86,23 @@ impl<C: ControlPointBehavior> ToolBehavior for C {
         point: Point2<Glass>,
         ctx: &mut ActionContext,
     ) -> std::ops::ControlFlow<()> {
-        self.step(ctx, point);
+        let point = match &self.snapper {
+            Some(intent_snapper) => {
+                let offset = intent_snapper.snap(&SnapSet::new(&[point]));
+                point + offset
+            }
+            None => point,
+        };
+        self.transaction.run(|| self.behaviour.step(ctx, point));
         std::ops::ControlFlow::Continue(())
     }
 
     fn pointer_up(
         &mut self,
         _point: Point2<Glass>,
-        _ctx: &mut ActionContext,
+        ctx: &mut ActionContext,
     ) -> std::ops::ControlFlow<()> {
+        self.transaction.finish(ctx);
         std::ops::ControlFlow::Break(())
     }
 
@@ -80,8 +115,21 @@ impl<C: ControlPointBehavior> ToolBehavior for C {
         std::ops::ControlFlow::Continue(())
     }
 
-    fn get_visual(&self) -> Property<glass::ToolVisualizationState> {
-        Property::new(ToolVisualizationState::default())
+    fn get_visual(&self) -> Property<crate::glass::ToolVisualizationState> {
+        if let Some(intent_snapper) = &self.snapper {
+            let snap_lines = intent_snapper.get_snap_lines_prop();
+            let deps = [snap_lines.untyped()];
+            Property::computed(
+                move || ToolVisualizationState {
+                    rect_tool: Default::default(),
+                    outline: Default::default(),
+                    snap_lines: snap_lines.get(),
+                },
+                &deps,
+            )
+        } else {
+            Property::default()
+        }
     }
 }
 
@@ -128,7 +176,7 @@ impl ControlPoint {
                         .unwrap_or(0);
                     ac.undo_stack.push(before_undo_id);
 
-                    (funcs[self.ind.get().to_int() as usize].tool_behavior)(
+                    (funcs[self.ind.get().to_int() as usize].tool_factory)(
                         ac,
                         ac.glass_transform().get() * pos,
                     )
