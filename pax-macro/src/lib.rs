@@ -19,6 +19,26 @@ use templating::{
 
 use sailfish::TemplateOnce;
 
+const CRATES_WHERE_WE_DONT_PARSE_DESIGNER : &[&str] = &[
+    "pax-designer",
+    "pax-std",
+    "pax-engine",
+];
+
+fn should_parse_designer() -> bool {
+
+    let ret = !CRATES_WHERE_WE_DONT_PARSE_DESIGNER.contains(&std::env::var("CARGO_PKG_NAME").unwrap_or_default().as_str());
+
+    // append to the file ~/code/zack/scrap/fs0.txt
+    // the value of &std::env::var("CARGO_PKG_NAME").unwrap_or_default().as_str()
+    // followed by a newline
+    let old_val = fs::read_to_string("/Users/zack/code/scrap/fs0.txt").unwrap_or_default();
+    let new_val = old_val + &std::env::var("CARGO_PKG_NAME").unwrap_or_default().as_str() + ", should_parse:" + &ret.to_string() + "\n" ;
+    fs::write("/Users/zack/code/scrap/fs0.txt", new_val).unwrap();
+
+    ret
+}
+
 use syn::{
     parse_macro_input, Data, DeriveInput, Field, Fields, FnArg, GenericArgument, ImplItem,
     ImplItemMethod, ItemFn, ItemImpl, Lit, Meta, PatType, PathArguments, Signature, Token, Type,
@@ -47,6 +67,7 @@ fn pax_primitive(
         internal_definitions,
         pascal_identifier,
         is_custom_interpolatable,
+        should_parse_designer: should_parse_designer(),
         is_enum,
     }
     .render_once()
@@ -68,13 +89,14 @@ fn pax_struct_only_component(
 
     let internal_definitions = get_internal_definitions_from_tokens(&input_parsed.data);
 
-    let output = templating::TemplateArgsDerivePax {
+    let output = TemplateArgsDerivePax {
         args_full_component: None,
         args_primitive: None,
         args_struct_only_component: Some(ArgsStructOnlyComponent {}),
 
         pascal_identifier: pascal_identifier.clone(),
         internal_definitions,
+        should_parse_designer: should_parse_designer(),
         is_custom_interpolatable,
         is_enum,
     }
@@ -334,6 +356,7 @@ fn pax_full_component(
         }),
         pascal_identifier,
         internal_definitions,
+        should_parse_designer: should_parse_designer(),
         is_custom_interpolatable,
         is_enum,
     }
