@@ -36,6 +36,10 @@ use wireframe_editor::WireframeEditor;
 pub struct Glass {
     pub tool_visual: Property<ToolVisualizationState>,
     pub on_tool_change: Property<bool>,
+    // NOTE: these can be removed when for loops support nested calls:
+    // self.tool_visual.snap_lines.vertical/self.tool_visual.snap_lines.horizontal
+    pub tool_visual_snap_lines_vertical: Property<Vec<f64>>,
+    pub tool_visual_snap_lines_horizontal: Property<Vec<f64>>,
 }
 
 impl Glass {
@@ -49,12 +53,30 @@ impl Glass {
                 app_state.glass_to_world_transform.clone(),
             )
         });
+        let tool_visual_snap_lines_vertical = self.tool_visual_snap_lines_vertical.clone();
+        let tool_visual_snap_lines_horizontal = self.tool_visual_snap_lines_horizontal.clone();
         let ctx = ctx.clone();
         self.on_tool_change.replace_with(Property::computed(
             move || {
                 tool_visual.replace_with(if let Some(tool_behavior) = tool_behavior.get() {
-                    tool_behavior.borrow_mut().get_visual()
+                    let tool_visual_state = tool_behavior.borrow_mut().get_visual();
+                    // NOTE: these can be removed when for loops support nested calls:
+                    // self.tool_visual.snap_lines.vertical/self.tool_visual.snap_lines.horizontal
+                    let tv = tool_visual_state.clone();
+                    let deps = [tv.untyped()];
+                    tool_visual_snap_lines_vertical.replace_with(Property::computed(
+                        move || tv.get().snap_lines.vertical,
+                        &deps,
+                    ));
+                    let tv = tool_visual_state.clone();
+                    tool_visual_snap_lines_horizontal.replace_with(Property::computed(
+                        move || tv.get().snap_lines.horizontal,
+                        &deps,
+                    ));
+                    tool_visual_state
                 } else {
+                    tool_visual_snap_lines_vertical.replace_with(Property::default());
+                    tool_visual_snap_lines_horizontal.replace_with(Property::default());
                     // Default ToolVisualziation behavior
                     let deps = [mouse_pos.untyped(), world_transform.untyped()];
                     let mouse_pos = mouse_pos.clone();
@@ -79,6 +101,7 @@ impl Glass {
                                         )
                                     })
                                     .unwrap_or_default(),
+                                snap_lines: Default::default(),
                             }
                         },
                         &deps,
@@ -116,7 +139,13 @@ impl Glass {
                 selected_node_id.clone(),
             );
             let mut dt = borrow_mut!(ctx.designtime);
-            let builder = dt.get_orm_mut().get_node(uid.clone())?;
+            let builder = dt.get_orm_mut().get_node(
+                uid.clone(),
+                app_state
+                    .keys_pressed
+                    .get()
+                    .contains(&model::input::InputEvent::Control),
+            )?;
             Some((builder.get_type_id(), uid))
         });
         if let Some((node_id, uid)) = info {
@@ -140,7 +169,7 @@ impl Glass {
                         if let Some(hit) = hit {
                             if let Err(e) = (SelectNodes {
                                 ids: &[hit.global_id().unwrap().get_template_node_id()],
-                                overwrite: false,
+                                force_deselection_of_others: false,
                             }
                             .perform(ac))
                             {
@@ -150,23 +179,23 @@ impl Glass {
                         // make scroller not clip if a child is selected
                         // for now only scroller needs somewhat special behavior
                         // might want to create more general double click framework at some point
-                        // if path.contains("Scroller") {
-                        //     let node = ac.get_glass_node_by_global_id(&uid);
-                        //     let open_containers = ac.derived_state.open_containers.clone();
-                        //     let id = node.id.clone();
-                        //     node.raw_node_interface
-                        //         .with_properties(|scroller: &mut Scroller| {
-                        //             let deps = [open_containers.untyped()];
-                        //             scroller._clip_content.replace_with(Property::computed(
-                        //                 move || {
-                        //                     let is_open = open_containers.get().contains(&id);
-                        //                     !is_open
-                        //                 },
-                        //                 &deps,
-                        //             ));
-                        //         })
-                        //         .unwrap();
-                        // }
+                        if path.contains("Scroller") {
+                            let node = ac.get_glass_node_by_global_id(&uid);
+                            let open_containers = ac.derived_state.open_container.clone();
+                            let id = node.id.clone();
+                            node.raw_node_interface
+                                .with_properties(|scroller: &mut Scroller| {
+                                    let deps = [open_containers.untyped()];
+                                    scroller._clip_content.replace_with(Property::computed(
+                                        move || {
+                                            let is_open = open_containers.get() == id;
+                                            !is_open
+                                        },
+                                        &deps,
+                                    ));
+                                })
+                                .unwrap();
+                        }
                     });
                 }
                 // Assume it's a component if it didn't have a custom impl for double click behavior
@@ -288,6 +317,7 @@ impl Action for SetEditingComponent {
             .get_node(
                 node.global_id()
                     .ok_or(anyhow!("expanded node doesn't have global id"))?,
+                false,
             )
             .ok_or(anyhow!("no such node in manifest"))?;
         builder.set_type_id(&type_id);
@@ -309,6 +339,13 @@ impl Action for SetEditingComponent {
 pub struct ToolVisualizationState {
     pub rect_tool: RectTool,
     pub outline: Vec<PathElement>,
+    pub snap_lines: SnapLines,
+}
+
+#[pax]
+pub struct SnapLines {
+    pub vertical: Vec<f64>,
+    pub horizontal: Vec<f64>,
 }
 
 #[pax]

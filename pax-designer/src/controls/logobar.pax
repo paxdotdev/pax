@@ -1,5 +1,5 @@
-<Image id=logo path="assets/pax-designer-white.png" @click=handle_logo_click />
-<Image id=face path="assets/zface.png" />
+<Image id=logo source=ImageSource::Url("assets/pax-designer-white.png") @click=handle_logo_click />
+<Image id=face source=ImageSource::Url("assets/zface.png")/>
 
 @settings {
     #logo {

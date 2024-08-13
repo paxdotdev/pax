@@ -9,17 +9,21 @@ use std::fmt::Write;
 
 pub mod border_radius_property_editor;
 pub mod color_property_editor;
+pub mod corner_radii_property_editor;
 pub mod direction_property_editor;
 pub mod fill_property_editor;
 pub mod stroke_property_editor;
 pub mod text_property_editor;
+pub mod text_style_property_editor;
 
 use border_radius_property_editor::BorderRadiusPropertyEditor;
 use color_property_editor::ColorPropertyEditor;
+use corner_radii_property_editor::CornerRadiiPropertyEditor;
 use direction_property_editor::DirectionPropertyEditor;
 use fill_property_editor::FillPropertyEditor;
 use stroke_property_editor::StrokePropertyEditor;
 use text_property_editor::TextPropertyEditor;
+use text_style_property_editor::TextStylePropertyEditor;
 
 use crate::model;
 
@@ -72,12 +76,15 @@ impl PropertyEditor {
                 // log useful for quickly checking what to match when adding new editor:
                 // log::info!("type ident gen for: ({}, {})", data.name, prop_type_ident);
                 match (data.name.as_str(), prop_type_ident.as_str()) {
-                    // TODO make this unique type (4 corner values) instead of matching on name
+                    // TODO rename RectangleCornerRadii to CornerRadii and use for button/textbox
+                    // etc. as well.
                     ("border_radius", "f64") => 6,
                     (_, "pax_engine::api::Color") => 5,
                     (_, "pax_engine::api::Fill") => 2,
                     (_, "pax_engine::api::Stroke") => 3,
                     (_, "pax_std::layout::stacker::StackerDirection") => 4,
+                    (_, "pax_std::core::text::TextStyle") => 7,
+                    (_, "pax_std::drawing::rectangle::RectangleCornerRadii") => 8,
                     _ => 1,
                 }
             },
@@ -117,8 +124,8 @@ impl PropertyEditorData {
         fn stringify(value: &ValueDefinition) -> String {
             match value {
                 ValueDefinition::LiteralValue(Token { raw_value, .. })
-                | ValueDefinition::Expression(Token { raw_value, .. }, _)
-                | ValueDefinition::Identifier(Token { raw_value, .. }, _) => raw_value.to_owned(),
+                | ValueDefinition::Expression(Token { raw_value, .. })
+                | ValueDefinition::Identifier(Token { raw_value, .. }) => raw_value.to_owned(),
                 ValueDefinition::Block(LiteralBlockDefinition { elements, .. }) => {
                     let mut block = String::new();
                     write!(block, "{{").unwrap();
@@ -144,16 +151,17 @@ impl PropertyEditorData {
 
     pub fn set_value(&self, ctx: &NodeContext, val: &str) -> anyhow::Result<()> {
         // save-point before property edit
-        model::with_action_context(ctx, |ac| {
-            ac.undo_save();
+        let mut t = model::with_action_context(ctx, |ac| ac.transaction("updating property"));
+        t.run(|| {
+            match self.with_node_def(ctx, |mut node| {
+                node.set_property(&self.name, val)?;
+                node.save().map_err(|e| anyhow!("{:?}", e)).map(|_| ())
+            }) {
+                Some(res) => res,
+                None => Err(anyhow!("has no definition")),
+            }
         });
-        match self.with_node_def(ctx, |mut node| {
-            node.set_property(&self.name, val)?;
-            node.save().map_err(|e| anyhow!("{:?}", e)).map(|_| ())
-        }) {
-            Some(res) => res,
-            None => Err(anyhow!("has no definition")),
-        }
+        model::with_action_context(ctx, |ac| t.finish(ac))
     }
 
     pub fn with_node_def<T>(
@@ -162,12 +170,12 @@ impl PropertyEditorData {
         f: impl FnOnce(NodeBuilder<'_>) -> T,
     ) -> Option<T> {
         let mut dt = borrow_mut!(ctx.designtime);
-        let node_definition = dt
-            .get_orm_mut()
-            .get_node(UniqueTemplateNodeIdentifier::build(
-                self.stid.clone(),
-                self.snid.clone(),
-            ))?;
+        let node_definition = dt.get_orm_mut().get_node(
+            UniqueTemplateNodeIdentifier::build(self.stid.clone(), self.snid.clone()),
+            // TODO how to handle this? The UI should probably show in some way
+            // if this already contains an expression, and if so not show the normal editor
+            false,
+        )?;
         Some(f(node_definition))
     }
 }

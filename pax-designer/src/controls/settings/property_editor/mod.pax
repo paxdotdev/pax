@@ -25,6 +25,14 @@ if self.prop_type_ident_id == 6 {
 	<BorderRadiusPropertyEditor data={data}/>
 }
 
+if self.prop_type_ident_id == 7 {
+	<TextStylePropertyEditor data={data}/>
+}
+
+if self.prop_type_ident_id == 8 {
+	<CornerRadiiPropertyEditor data={data}/>
+}
+
 @settings {
 	@mount: on_mount
 }

@@ -1,26 +1,42 @@
-<Textbox class=input text={self.textbox} @textbox_change=self.text_change @textbox_input=self.text_input/>
-<Text y=32px height=15px width=70% id=text text={self.error}/>
+<Group>
+    // <Text
+    //     class=text
+    //     y=5px
+    //     x={75% + 10px}
+    //     anchor_x=0%
+    //     text="TL"
+    //     height=30px
+    // />
+    <Textbox x=5% class=input text={self.r0} @textbox_change=self.change_0/>
+    <Textbox x=27.5% class=input text={self.r1} @textbox_change=self.change_1/>
+    <Textbox x=50% class=input text={self.r2} @textbox_change=self.change_2/>
+    <Textbox x=72.5% class=input text={self.r3} @textbox_change=self.change_3/>
+</Group>
+
 
 @settings {
     @mount: on_mount
-    #text {
-        style: {
+    .text {
+        style={
             font: {Font::Web(
                 "ff-real-headline-pro",
                 "https://use.typekit.net/ivu7epf.css",
                 FontStyle::Normal,
-                FontWeight::Bold,
+                FontWeight::Light,
             )},
-            font_size: 10px,
-            fill: {rgba(255, 0.3*255, 0.3*255, 255)},
-            align_vertical: TextAlignVertical::Top,
+            font_size: 15px,
+            fill: WHITE,
+            align_vertical: TextAlignVertical::Bottom,
             align_horizontal: TextAlignHorizontal::Left,
             align_multiline: TextAlignHorizontal::Left
         }
     }
 
     .input {
-        width: 96.66%,
+        y=0px
+        anchor_x=0%
+        anchor_y=0%
+        width: 20%,
         height: 30px,
         background: BLACK,
         stroke: {

@@ -76,6 +76,7 @@ impl Action for MouseEntryPointAction<'_> {
                                 ),
                                 0,
                                 &[],
+                                ctx,
                             ),
                             Component::Ellipse => CreateComponentTool::new(
                                 point_glass,
@@ -85,24 +86,28 @@ impl Action for MouseEntryPointAction<'_> {
                                 ),
                                 0,
                                 &[],
+                                ctx,
                             ),
                             Component::Text => CreateComponentTool::new(
                                 point_glass,
                                 &TypeId::build_singleton("pax_std::core::text::Text", None),
                                 0,
                                 &[],
+                                ctx,
                             ),
                             Component::Scroller => CreateComponentTool::new(
                                 point_glass,
                                 &TypeId::build_singleton("pax_std::core::scroller::Scroller", None),
                                 1,
                                 &[("scroll_width", "100%"), ("scroll_height", "200%")],
+                                ctx,
                             ),
                             Component::Stacker => CreateComponentTool::new(
                                 point_glass,
                                 &TypeId::build_singleton("pax_std::layout::stacker::Stacker", None),
                                 5,
                                 &[],
+                                ctx,
                             ),
 
                             Component::Checkbox => CreateComponentTool::new(
@@ -113,24 +118,28 @@ impl Action for MouseEntryPointAction<'_> {
                                 ),
                                 0,
                                 &[],
+                                ctx,
                             ),
                             Component::Textbox => CreateComponentTool::new(
                                 point_glass,
                                 &TypeId::build_singleton("pax_std::forms::textbox::Textbox", None),
                                 0,
                                 &[],
+                                ctx,
                             ),
                             Component::Button => CreateComponentTool::new(
                                 point_glass,
                                 &TypeId::build_singleton("pax_std::forms::button::Button", None),
                                 0,
                                 &[],
+                                ctx,
                             ),
                             Component::Slider => CreateComponentTool::new(
                                 point_glass,
                                 &TypeId::build_singleton("pax_std::forms::slider::Slider", None),
                                 0,
                                 &[],
+                                ctx,
                             ),
                             Component::Dropdown => CreateComponentTool::new(
                                 point_glass,
@@ -140,6 +149,7 @@ impl Action for MouseEntryPointAction<'_> {
                                 ),
                                 0,
                                 &[],
+                                ctx,
                             ),
                             Component::RadioSet => CreateComponentTool::new(
                                 point_glass,
@@ -149,6 +159,7 @@ impl Action for MouseEntryPointAction<'_> {
                                 ),
                                 0,
                                 &[],
+                                ctx,
                             ),
                         }))));
                     }

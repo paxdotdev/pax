@@ -143,9 +143,9 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "bytes"
-version = "1.5.0"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2bd12c1caf447e69cd4528f47f94d203fd2582878ecb9e9465484c4148a8223"
+checksum = "fca2be1d5c43812bae364ee3f30b3afcb7877cf59f4aeb94c66f313a41d2fac9"
 
 [[package]]
 name = "cairo-rs"
@@ -355,6 +355,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ctor"
+version = "0.1.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d2301688392eb071b0bf1a37be05c469d3cc4dbbd95df672fe28ab021e6a096"
+dependencies = [
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "darling"
 version = "0.20.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -391,9 +401,9 @@ dependencies = [
 
 [[package]]
 name = "data-encoding"
-version = "2.5.0"
+version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e962a19be5cfc3f3bf6dd8f61eb50107f356ad6270fbb3ed41476571db78be5"
+checksum = "e8566979429cf69b49a5c740c60791108e86440e8be149bbea4fe54d2c32d6e2"
 
 [[package]]
 name = "deranged"
@@ -423,9 +433,9 @@ dependencies = [
 
 [[package]]
 name = "document-features"
-version = "0.2.8"
+version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef5282ad69563b5fc40319526ba27e0e7363d552a896f0297d54f767717f9b95"
+checksum = "cb6969eaabd2421f8a2775cfd2471a2b634372b4a25d41e3bd647b79912850a0"
 dependencies = [
  "litrs",
 ]
@@ -479,9 +489,9 @@ checksum = "d9435d864e017c3c6afeac1654189b06cdb491cf2ff73dbf0d73b0f292f42ff8"
 
 [[package]]
 name = "ewebsock"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7340666282406cb008c4d7206e6d7e157a82486afddd26deaad3ce9ebff3f238"
+checksum = "82d031a4d5ce7817b9146a559be40bd4218363ead4e1b6f948ec9086cce96dde"
 dependencies = [
  "document-features",
  "js-sys",
@@ -789,9 +799,9 @@ dependencies = [
 
 [[package]]
 name = "http"
-version = "0.2.11"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8947b1a6fad4393052c7ba1f4cd97bed3e953a95c79c92ad9b051a04611d9fbb"
+checksum = "21b9ddb458710bc376481b842f5da65cdf31522de232c1ca8146abce2a358258"
 dependencies = [
  "bytes",
  "fnv",
@@ -1100,9 +1110,9 @@ dependencies = [
 
 [[package]]
 name = "paste"
-version = "1.0.14"
+version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
+checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "pax-chassis-common"
@@ -1146,8 +1156,6 @@ dependencies = [
 name = "pax-chassis-web"
 version = "0.22.0"
 dependencies = [
- "console_error_panic_hook",
- "console_log",
  "js-sys",
  "log",
  "pax-designtime",
@@ -1201,11 +1209,14 @@ dependencies = [
 name = "pax-engine"
 version = "0.22.0"
 dependencies = [
+ "console_error_panic_hook",
+ "console_log",
  "log",
  "pax-chassis-common",
  "pax-chassis-ios",
  "pax-chassis-macos",
  "pax-chassis-web",
+ "pax-lang",
  "pax-macro",
  "pax-manifest",
  "pax-message",
@@ -1219,8 +1230,11 @@ dependencies = [
 name = "pax-lang"
 version = "0.22.0"
 dependencies = [
+ "log",
+ "pax-runtime-api",
  "pest",
  "pest_derive",
+ "serde",
 ]
 
 [[package]]
@@ -1256,6 +1270,7 @@ dependencies = [
 name = "pax-message"
 version = "0.22.0"
 dependencies = [
+ "cfg-if",
  "serde",
  "wasm-bindgen",
 ]
@@ -1270,6 +1285,7 @@ dependencies = [
  "log",
  "mut_static",
  "pax-designtime",
+ "pax-lang",
  "pax-manifest",
  "pax-message",
  "pax-runtime-api",
@@ -1283,9 +1299,11 @@ dependencies = [
 name = "pax-runtime-api"
 version = "0.22.0"
 dependencies = [
- "cfg-if",
+ "ctor",
  "kurbo",
  "log",
+ "once_cell",
+ "paste",
  "pax-message",
  "piet",
  "serde",
@@ -1301,6 +1319,7 @@ dependencies = [
  "lazy_static",
  "log",
  "pax-engine",
+ "pax-lang",
  "pax-manifest",
  "pax-message",
  "pax-runtime",
@@ -2046,9 +2065,9 @@ dependencies = [
 
 [[package]]
 name = "tungstenite"
-version = "0.20.1"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e3dac10fd62eaf6617d3a904ae222845979aec67c615d1c842b4002c7666fb9"
+checksum = "9ef1a641ea34f399a848dea702823bbecfb4c486f911735368f1f137cb8257e1"
 dependencies = [
  "byteorder",
  "bytes",
@@ -2175,9 +2194,9 @@ checksum = "1dd624098567895118886609431a7c3b8f516e41d30e0643f03d94592a147e36"
 
 [[package]]
 name = "url"
-version = "2.5.0"
+version = "2.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31e6302e3bb753d46e83516cae55ae196fc0c309407cf11ab35cc51a4c2a4633"
+checksum = "22784dbdf76fdde8af1aeda5622b546b422b6fc585325248a2bf9f5e41e94d6c"
 dependencies = [
  "form_urlencoded",
  "idna",

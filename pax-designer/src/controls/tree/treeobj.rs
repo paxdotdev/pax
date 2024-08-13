@@ -34,14 +34,14 @@ impl TreeObj {
     }
 
     pub fn arrow_clicked(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        super::TREE_CLICK_PROP.with(|cn| {
-            cn.set(super::TreeMsg::ArrowClicked(self.ind.get().clone().into()));
+        super::TREE_CLICK_PROP.with_borrow_mut(|cn| {
+            cn.push_back(super::TreeMsg::ArrowClicked(self.ind.get().clone().into()));
         })
     }
 
     pub fn obj_double_clicked(&mut self, _ctx: &NodeContext, _args: Event<DoubleClick>) {
-        super::TREE_CLICK_PROP.with(|cn| {
-            cn.set(super::TreeMsg::ObjDoubleClicked(
+        super::TREE_CLICK_PROP.with_borrow_mut(|cn| {
+            cn.push_back(super::TreeMsg::ObjDoubleClicked(
                 self.ind.get().clone().into(),
             ));
         });
@@ -49,15 +49,15 @@ impl TreeObj {
 
     pub fn mouse_down(&mut self, _ctx: &NodeContext, event: Event<MouseDown>) {
         event.prevent_default();
-        super::TREE_CLICK_PROP.with(|cn| {
-            cn.set(super::TreeMsg::ObjMouseDown(self.ind.get().clone().into()));
+        super::TREE_CLICK_PROP.with_borrow_mut(|cn| {
+            cn.push_back(super::TreeMsg::ObjMouseDown(self.ind.get().clone().into()));
         });
     }
 
     pub fn mouse_move(&mut self, _ctx: &NodeContext, event: Event<MouseMove>) {
         event.prevent_default();
-        super::TREE_CLICK_PROP.with(|cn| {
-            cn.set(super::TreeMsg::ObjMouseMove(self.ind.get().clone().into()));
+        super::TREE_CLICK_PROP.with_borrow_mut(|cn| {
+            cn.push_back(super::TreeMsg::ObjMouseMove(self.ind.get().clone().into()));
         });
     }
 }
