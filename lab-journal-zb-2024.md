@@ -29,6 +29,10 @@ git checkout -b zb/designer-bak-00
 
 [ ] Init logic
     [x] Macro init logic (compiletime)
+        [ ] Issue: can't export pax_engine::pax_designer (circ. ref., because pax-designer depends on pax-engine)
+            - could import pax-designer directly from userland, but adds to boilerplate
+            - could pre-parse pax-designer to manifest, including the manifest string as a compiler artifact (string constant)
+                then at init-time, instead of parsing pax-designer to 
     [ ] Compiler-side: try-deserialize the tuple vs. the single manifest [probably make it a vec!  more extensible]
     [ ] Engine init logic (runtime)
         [ ] If in designtime build, render the root component via the designer; register the userland component for iframe  

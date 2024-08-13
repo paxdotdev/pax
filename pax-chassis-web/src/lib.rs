@@ -27,6 +27,8 @@ use piet_web::WebRenderContext;
 
 use pax_runtime::{PaxEngine, Renderer};
 
+pub use {console_error_panic_hook, console_log};
+
 use pax_message::NativeInterrupt;
 use pax_runtime::api::{
     Clap, Click, ContextMenu, DoubleClick, Drop, KeyDown, KeyPress, KeyUp, KeyboardEventArgs,
