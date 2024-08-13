@@ -46,6 +46,7 @@ pub enum NativeMessage {
     ImageLoad(ImagePatch),
     LayerAdd(LayerAddPatch), //FUTURE: native form controls
     OcclusionUpdate(OcclusionPatch),
+    Navigate(NavigationPatch),
 }
 
 #[derive(Deserialize)]
@@ -515,6 +516,14 @@ pub struct OcclusionPatch {
     pub occlusion_layer_id: u32,
     pub z_index: i32,
     pub parent_frame: Option<u32>,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub struct NavigationPatch {
+    pub url: String,
+    pub target: String,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]

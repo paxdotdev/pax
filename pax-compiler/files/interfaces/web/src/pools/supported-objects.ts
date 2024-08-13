@@ -16,6 +16,7 @@ import { DropdownUpdatePatch } from "../classes/messages/dropdown-update-patch";
 import { SliderUpdatePatch } from "../classes/messages/slider-update-patch";
 import { RadioSetUpdatePatch } from "../classes/messages/radio-set-update-patch";
 import { EventBlockerUpdatePatch } from "../classes/messages/event-blocker-update-patch";
+import { NavigationPatch } from "../classes/messages/navigation-patch";
 
 export const OBJECT = "Object";
 export const ARRAY = "Array";
@@ -30,6 +31,7 @@ export const FRAME_UPDATE_PATCH = "Frame Update Patch";
 export const EVENT_BLOCKER_UPDATE_PATCH = "Event Blocker Update Patch";
 export const IMAGE_LOAD_PATCH = "IMAGE LOAD PATCH";
 export const SCROLLER_UPDATE_PATCH = "Scroller Update Patch";
+export const NAVIGATION_PATCH = "Navigation Patch";
 export const TEXT_UPDATE_PATCH = "Text Update Patch";
 export const CHECKBOX_UPDATE_PATCH = "Checkbox Update Patch";
 export const TEXTBOX_UPDATE_PATCH = "Textbox Update Patch";
@@ -181,6 +183,11 @@ export let SUPPORTED_OBJECTS = [{
         name: SCROLLER_UPDATE_PATCH,
         factory: () => new ScrollerUpdatePatch(),
         cleanUp: (patch: ScrollerUpdatePatch) => {patch.cleanUp()},
+    },
+    {
+        name: NAVIGATION_PATCH,
+        factory: () => new NavigationPatch(),
+        cleanUp: (patch: NavigationPatch) => {patch.cleanUp()},
     },
     {
         name: LAYER,

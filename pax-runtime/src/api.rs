@@ -56,6 +56,18 @@ impl NodeContext {
         self.node_transform_and_bounds.as_transform().inverse() * p
     }
 
+    pub fn navigate_to(&self, url: &str, target: NavigationTarget) {
+        self.runtime_context
+            .enqueue_native_message(NativeMessage::Navigate(NavigationPatch {
+                url: url.to_string(),
+                target: match target {
+                    NavigationTarget::Current => "current",
+                    NavigationTarget::New => "new",
+                }
+                .to_string(),
+            }))
+    }
+
     pub fn dispatch_event(&self, identifier: &'static str) -> Result<(), String> {
         let component_origin = self
             .component_origin
