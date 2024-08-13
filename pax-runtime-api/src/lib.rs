@@ -1656,6 +1656,12 @@ impl Interpolatable for Stroke {
         self.clone()
     }
 }
+
+pub enum NavigationTarget {
+    Current,
+    New,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "crate::serde")]
 pub enum Fill {

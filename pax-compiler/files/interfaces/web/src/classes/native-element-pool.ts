@@ -20,6 +20,7 @@ import { RadioSetUpdatePatch } from "./messages/radio-set-update-patch";
 import { DropdownUpdatePatch } from "./messages/dropdown-update-patch";
 import { SliderUpdatePatch } from "./messages/slider-update-patch";
 import { EventBlockerUpdatePatch } from "./messages/event-blocker-update-patch";
+import { NavigationPatch } from "./messages/navigation-patch";
 
 export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
@@ -943,6 +944,21 @@ export class NativeElementPool {
         chassis.interrupt(JSON.stringify(message), image_data.pixels);
     }
 
+    navigate(patch: NavigationPatch) {
+        let name: string;
+        switch (patch.target) {
+            case "current":
+                name = "_self";
+                break;
+            case "new":
+                name = "_blank";
+                break;
+            default:
+                console.error("no valid url target!");
+                name = "_self";
+        }
+        window.open(patch.url, name);
+    }
 }
 
 function toCssColor(color: ColorGroup): string {

@@ -13,6 +13,7 @@ import {
     TEXT_UPDATE_PATCH,
     RADIOSET_UPDATE_PATCH,
     EVENT_BLOCKER_UPDATE_PATCH,
+    NAVIGATION_PATCH,
 } from "./pools/supported-objects";
 import {NativeElementPool} from "./classes/native-element-pool";
 import {AnyCreatePatch} from "./classes/messages/any-create-patch";
@@ -30,6 +31,7 @@ import { ButtonUpdatePatch } from "./classes/messages/button-update-patch";
 import { TextboxUpdatePatch } from "./classes/messages/textbox-update-patch";
 import { DropdownUpdatePatch } from "./classes/messages/dropdown-update-patch";
 import { SliderUpdatePatch } from "./classes/messages/slider-update-patch";
+import { NavigationPatch } from "./classes/messages/navigation-patch";
 
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let messages : any[];
@@ -122,6 +124,7 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
 
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, get_latest_memory))
 }
+
 
 export function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
     messages?.forEach((unwrapped_msg) => {
@@ -265,6 +268,11 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
         }else if (unwrapped_msg["ScrollerDelete"]) {
             let msg = unwrapped_msg["ScrollerDelete"];
             nativePool.scrollerDelete(msg)
+        }else if (unwrapped_msg["Navigate"]) {
+            let msg = unwrapped_msg["Navigate"];
+            let patch : NavigationPatch = objectManager.getFromPool(NAVIGATION_PATCH);
+            patch.fromPatch(msg);
+            nativePool.navigate(patch)
         }
     })
 }
