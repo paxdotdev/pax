@@ -19,7 +19,7 @@ pub use pax_runtime::Slot;
 
 #[cfg(feature = "web")]
 pub use {
-    console_error_panic_hook, console_log, pax_chassis_web, wasm_bindgen, wasm_bindgen_futures,
+    pax_chassis_web, wasm_bindgen, wasm_bindgen_futures,
 };
 
 #[cfg(any(feature = "macos", feature = "ios"))]
