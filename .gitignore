@@ -14,6 +14,7 @@ tests/src/*/.pax/
 
 pax-compiler/files/interfaces/web/public/pax-interface-web.css
 pax-compiler/files/interfaces/web/public/pax-interface-web.js
+pax-compiler/files/interfaces/designer/manifest.json
 
 **/*.rs.bk
 Cargo.lock

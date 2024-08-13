@@ -10,6 +10,7 @@ PACKAGES = [
     "pax-chassis-web",
     "pax-cli",
     "pax-compiler",
+    "pax-designer",
     "pax-designtime",
     "pax-runtime",
     "pax-example",
