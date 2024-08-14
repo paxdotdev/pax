@@ -60,6 +60,20 @@ git checkout -b zb/designer-bak-00
         start in fireworks, track down flags & deps; see who's breaking the chain
 
         [Solution] — default = ["designtime"] was added to pax-engine/Cargo.toml; was causing break
+        [Solution cont.] — remove pax-designer from root workspace; enables building workspace without `--features designtime`
+    
+    [ ] Issue: we are including cartridge.partial.rs across every #[main], which e.g. causes build of pax-designer to fail
+        when running Fireworks.
+
+        Drafted solution:
+            [ ] detect whether we are in the root crate of this build.
+            [ ] might be able to store a static mutable Option<root_crate_pkg_name>, a write-once-read-many (WORM) signal to the rest of the build.
+            [ ] in the stpl template, check this signal and only include the partial if we are in the root crate. 
+                [-] This might be fragile if somehow different versions of pax-macro are included in a build (is that possible or does cargo prevent it?) Answer: cargo prevents it.
+
+
+
+                
 
     [ ] Compiler-side: try-deserialize the tuple vs. the single manifest [probably make it a vec!  more extensible]
     [ ] Engine init logic (runtime)

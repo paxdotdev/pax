@@ -355,16 +355,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ctor"
-version = "0.1.26"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d2301688392eb071b0bf1a37be05c469d3cc4dbbd95df672fe28ab021e6a096"
-dependencies = [
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "darling"
 version = "0.20.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1156,6 +1146,8 @@ dependencies = [
 name = "pax-chassis-web"
 version = "0.22.0"
 dependencies = [
+ "console_error_panic_hook",
+ "console_log",
  "js-sys",
  "log",
  "pax-designtime",
@@ -1209,8 +1201,6 @@ dependencies = [
 name = "pax-engine"
 version = "0.22.0"
 dependencies = [
- "console_error_panic_hook",
- "console_log",
  "log",
  "pax-chassis-common",
  "pax-chassis-ios",
@@ -1299,7 +1289,6 @@ dependencies = [
 name = "pax-runtime-api"
 version = "0.22.0"
 dependencies = [
- "ctor",
  "kurbo",
  "log",
  "once_cell",
