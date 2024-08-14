@@ -12,7 +12,6 @@ anyhow = "1.0.79"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
-name = "paxcartridge"
 
 [[bin]]
 name = "parser"
