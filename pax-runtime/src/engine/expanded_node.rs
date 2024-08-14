@@ -535,6 +535,9 @@ impl ExpandedNode {
     }
 
     pub fn recurse_visit_postorder(self: &Rc<Self>, func: &mut impl FnMut(&Rc<Self>)) {
+        // NOTE: This is to make sure that the slot children list is updated before trying to access children,
+        // to make stacker/scroller behave correctly when number of children is dynamic. (ex: tree view in designer)
+        self.compute_flattened_slot_children();
         for child in self.children.get().iter().rev() {
             child.recurse_visit_postorder(func)
         }
