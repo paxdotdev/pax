@@ -27,10 +27,10 @@ const CRATES_WHERE_WE_DONT_PARSE_DESIGNER : &[&str] = &[
 ];
 
 fn should_parse_designer() -> bool {
-
-    let ret = !CRATES_WHERE_WE_DONT_PARSE_DESIGNER.contains(&std::env::var("CARGO_PKG_NAME").unwrap_or_default().as_str());
-    pax_macro_writeln(&format!("{},should_parse{}", &env::var("CARGO_PKG_NAME").unwrap_or_default().as_str(), &ret.to_string()));
-    ret
+    let is_not_blacklisted = !CRATES_WHERE_WE_DONT_PARSE_DESIGNER.contains(&std::env::var("CARGO_PKG_NAME").unwrap_or_default().as_str());
+    let worm_dir = unsafe { WORM_ROOT_CARGO_MANIFEST_DIR.as_ref().unwrap()}.as_str();
+    let is_root_crate = worm_dir == env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());;
+    is_not_blacklisted && is_root_crate
 }
 
 use syn::{
@@ -330,17 +330,12 @@ static mut ROOT_CRATE_PKG_NAME: Option<String> = None;
 
 
 
-static mut ROOT_CARGO_MANIFEST_DIR: Option<String> = None;
+
 const FILE_NAME: &'static str = "pax_macro_writeln.txt";
 
 fn pax_macro_writeln(content: &str) {
     // get cargo_manifest path:
-    unsafe {
-        if let None = &ROOT_CARGO_MANIFEST_DIR {
-            ROOT_CARGO_MANIFEST_DIR = Some(env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into()));
-        }
-    }
-    let cargo_manifest = unsafe {ROOT_CARGO_MANIFEST_DIR.as_ref().unwrap().to_string()};
+    let cargo_manifest = unsafe { WORM_ROOT_CARGO_MANIFEST_DIR.as_ref().unwrap().to_string()};
     let full_path = Path::new(&cargo_manifest).join(FILE_NAME);
 
     //create file if it doesn't exist:
@@ -558,11 +553,26 @@ fn validate_config(
     Ok(())
 }
 
+//Write-once-read-many static register for declaring the root package
+//of a build, which should be the first to run.  Note that this requires unsafe
+//to read / write; we might package into an Arc<Mutex> to make this safe and/or to support multithreaded builds.
+static mut WORM_ROOT_CARGO_MANIFEST_DIR: Option<String> = None;
+
 #[proc_macro_attribute]
 pub fn pax(
     _args: proc_macro::TokenStream,
     input: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
+    //Write to our WORM register the root package, which should be the first to run
+    //This should be the only time we write to this register
+    unsafe {
+        if let None = &WORM_ROOT_CARGO_MANIFEST_DIR {
+            let new_val = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
+            WORM_ROOT_CARGO_MANIFEST_DIR = Some(new_val.clone());
+            pax_macro_writeln(&format!("WRITING TO WORM {}", &new_val));
+        }
+    }
+
     let mut input = parse_macro_input!(input as DeriveInput);
 
     let pascal_identifier = input.ident.to_string();
