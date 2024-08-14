@@ -1490,6 +1490,12 @@ pub struct ExpressionInfo {
     pub dependencies: Vec<String>,
 }
 
+impl Display for ExpressionInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.expression)
+    }
+}
+
 impl ExpressionInfo {
     pub fn new(expr: PaxExpression) -> Self {
         Self {

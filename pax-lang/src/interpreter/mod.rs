@@ -203,6 +203,12 @@ pub struct PaxIdentifier {
     pub name: String,
 }
 
+impl Display for PaxIdentifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
 impl PaxIdentifier {
     pub fn new(name: &str) -> Self {
         Self {

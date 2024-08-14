@@ -657,11 +657,16 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
 pub fn parse_value_definition(value: Pair<Rule>) -> ValueDefinition {
     match value.as_rule() {
         Rule::literal_value => {
-            let literal = from_pax(value.as_str()).expect("Unable to parse literal");
-            ValueDefinition::LiteralValue(literal)
-        }
-        Rule::literal_object => {
-            ValueDefinition::Block(derive_value_definition_from_literal_object_pair(value))
+            let inner = value.into_inner().next().unwrap();
+            match inner.as_rule() {
+                Rule::literal_object =>     {
+                    ValueDefinition::Block(derive_value_definition_from_literal_object_pair(inner))
+                },
+                _ => {
+                    let literal = from_pax(inner.as_str()).expect(&format!("Unable to parse literal: {:?}", inner));
+                    ValueDefinition::LiteralValue(literal)
+                }
+            }
         }
         Rule::expression_body => {
             let expression =
