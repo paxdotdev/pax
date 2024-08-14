@@ -603,6 +603,7 @@ pub trait ComponentFactory {
                     transform: resolve_property("transform", &defined_properties, &stack_frame),
                     anchor_x: resolve_property("anchor_x", &defined_properties, &stack_frame),
                     anchor_y: resolve_property("anchor_y", &defined_properties, &stack_frame),
+                    unclippable: resolve_property("unclippable", &defined_properties, &stack_frame),
                     _raycastable: resolve_property(
                         "_raycastable",
                         &defined_properties,

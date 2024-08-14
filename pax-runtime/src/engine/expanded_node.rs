@@ -498,10 +498,24 @@ impl ExpandedNode {
         }
     }
 
-    pub fn recurse_render(&self, ctx: &Rc<RuntimeContext>, rcs: &mut dyn RenderContext) {
+    pub fn recurse_render_queue(
+        self: &Rc<Self>,
+        ctx: &Rc<RuntimeContext>,
+        rcs: &mut dyn RenderContext,
+    ) {
+        let cp = self.get_common_properties();
+        let cp = borrow!(cp);
+        if cp.unclippable.get().unwrap_or(false) {
+            ctx.queue_render(Rc::clone(&self));
+        } else {
+            self.recurse_render(ctx, rcs);
+        }
+    }
+
+    pub fn recurse_render(self: &Rc<Self>, ctx: &Rc<RuntimeContext>, rcs: &mut dyn RenderContext) {
         borrow!(self.instance_node).handle_pre_render(&self, ctx, rcs);
         for child in self.children.get().iter().rev() {
-            child.recurse_render(ctx, rcs);
+            child.recurse_render_queue(ctx, rcs);
         }
         borrow!(self.instance_node).render(&self, ctx, rcs);
         borrow!(self.instance_node).handle_post_render(&self, ctx, rcs);
@@ -607,13 +621,6 @@ impl ExpandedNode {
             && transformed_ray.x < width
             && transformed_ray.y < height;
         res
-    }
-
-    /// Returns the scroll offset from a Scroller component
-    /// Used by the engine to transform its children
-    pub fn get_scroll_offset(&mut self) -> (f64, f64) {
-        // (0.0, 0.0)
-        todo!("patch into an ExpandedNode-friendly way to track this state");
     }
 
     pub fn compute_flattened_slot_children(&self) {
