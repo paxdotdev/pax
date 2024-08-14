@@ -57,6 +57,6 @@ pub struct TemplateArgsDerivePax {
     pub internal_definitions: InternalDefinitions,
     pub pascal_identifier: String,
     pub is_custom_interpolatable: bool,
-    pub should_parse_designer: bool,
+    pub is_root_crate: bool,
     pub is_enum: bool,
 }

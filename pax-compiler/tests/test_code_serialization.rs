@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use pax_compiler::formatting::format_file;
 use pax_compiler::helpers::clear_inlined_template;
 use pax_compiler::run_parser_binary;
-use pax_design_server::code_serialization::serialize_component_to_file;
+use pax_compiler::design_server::code_serialization::serialize_component_to_file;
 use pax_manifest::PaxManifest;
 
 fn setup_test_project() {

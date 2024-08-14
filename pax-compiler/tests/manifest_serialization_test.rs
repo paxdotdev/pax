@@ -6,7 +6,7 @@ use std::{
 use actix_web::{web::Data, App};
 use awc::Client;
 use futures_util::SinkExt as _;
-use pax_design_server::{web_socket, AppState};
+use pax_compiler::design_server::{web_socket, AppState};
 use pax_designtime::messages::{AgentMessage, ManifestSerializationRequest};
 use pax_manifest::{
     ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, PaxManifest,
