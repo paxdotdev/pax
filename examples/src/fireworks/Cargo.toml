@@ -8,6 +8,7 @@ default-run = "run"
 pax-engine = { version = "0.23.0", path="../../../pax-engine" }
 pax-std = { version = "0.23.0", path="../../../pax-std"}
 pax-designer = {version = "0.23.0", path="../../../pax-designer"}
+pax-designtime = {version = "0.23.0", path="../../../pax-designtime"}
 
 [lib]
 crate-type = ["cdylib", "rlib"]

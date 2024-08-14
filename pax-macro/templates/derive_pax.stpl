@@ -35,15 +35,17 @@
                 //Note presence of second manifest when designtime (manifest for PaxDesigner)
                 println!("{}", &pax_engine::serde_json::to_string_pretty(&vec![userland_manifest, designer_manifest]).unwrap());
             }
-            #[cfg(not(feature = "designtime"))]
-        <% } %>
+
+            #[cfg(not(feature = "designtime"))]<% } %>
             println!("{}", &pax_engine::serde_json::to_string_pretty(&vec![userland_manifest]).unwrap());
             std::process::exit(0);
 
     }
 
-    //For main component only, include cartridge snippet and manifest JSON
-    <%= args_full_component.as_ref().unwrap().cartridge_snippet %>
+    <% if is_root_crate { %>
+        //For main+root component only, include cartridge snippet and manifest JSON
+        <%= args_full_component.as_ref().unwrap().cartridge_snippet %>
+    <% } %>
 
     //Platform-specific mount logic for #[main] component
     #[cfg(feature = "web")]
