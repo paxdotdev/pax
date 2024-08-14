@@ -45,17 +45,13 @@ pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_")*}
 event_id = {"@" ~ identifier}
 
 //Describes an attribute k/v pair like `id="some_element"` or `@click=self.handle_click`. Supports expressions.
-attribute_key_value_pair = {double_binding | attribute_event_binding | id_binding | (identifier ~ "=" ~ any_template_value) }
+attribute_key_value_pair = {double_binding | attribute_event_binding | (identifier ~ "=" ~ any_template_value) }
 attribute_event_binding = {event_id ~ "=" ~ literal_function}
 
 double_binding = {"bind" ~ ":" ~ identifier ~ "=" ~ literal_function}
 
 //`...=5.0`, `...={...}`
 any_template_value = {literal_value | expression_wrapped | identifier}
-
-// id=identifier (non-expression)
-id = {"id"}
-id_binding = {id ~ "=" ~ identifier}
 
 //For example: <Text>"This is my inner content"</Text>
 //Presumably this content can be bare literal values other than strings like Color::hlca(...)

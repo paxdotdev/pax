@@ -6,7 +6,7 @@ use pax_manifest::ValueDefinition;
 use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::{PropertyValue, UntypedProperty};
 use pax_runtime_api::{
-    use_RefCell, CommonProperties, HelperFunctions, Numeric, Property, Variable,
+    use_RefCell, CommonProperties, HelperFunctions, Numeric, Property, ToPaxValue, Variable,
 };
 use serde::de::DeserializeOwned;
 use std::any::Any;
@@ -128,17 +128,17 @@ pub trait DefinitionToInstanceTraverser {
             node_id.clone(),
         );
 
-        let children = self.build_children(containing_component_type_id, &node_id);
+        let children: Vec<Rc<dyn InstanceNode>> =
+            self.build_children(containing_component_type_id, &node_id);
         match tnd.type_id.get_pax_type() {
             pax_manifest::PaxType::If => {
-                let expr_str = tnd
+                let expr_info = tnd
                     .control_flow_settings
                     .as_ref()
                     .unwrap()
-                    .condition_expression_paxel
+                    .condition_expression
                     .as_ref()
                     .unwrap()
-                    .raw_value
                     .clone();
                 let prototypical_properties_factory: Box<
                     dyn Fn(
@@ -149,12 +149,10 @@ pub trait DefinitionToInstanceTraverser {
                     std::rc::Rc::new(RefCell::new({
                         let mut properties = crate::ConditionalProperties::default();
                         let cloned_stack = stack_frame.clone();
-                        let expr_str = expr_str.clone();
-                        let expr_ast =
-                            parse_pax_expression(&expr_str, cloned_stack.clone()).unwrap();
+                        let expr_ast = expr_info.expression.clone();
 
                         let mut dependencies = Vec::new();
-                        for dependency in &expr_ast.collect_dependencies() {
+                        for dependency in &expr_info.dependencies {
                             if let Some(p) =
                                 stack_frame.resolve_symbol_as_erased_property(dependency)
                             {
@@ -167,8 +165,8 @@ pub trait DefinitionToInstanceTraverser {
                             move || {
                                 let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
                                 let coerced = bool::try_coerce(new_value)
-                                    .map_err(|e| {
-                                        format!("Failed to parse boolean expression: {}", expr_str)
+                                    .map_err(|_e| {
+                                        format!("Failed to parse boolean expression: {}", expr_ast)
                                     })
                                     .unwrap();
                                 coerced
@@ -190,14 +188,13 @@ pub trait DefinitionToInstanceTraverser {
                 })
             }
             pax_manifest::PaxType::Slot => {
-                let expr_str = tnd
+                let expr_info = tnd
                     .control_flow_settings
                     .as_ref()
                     .unwrap()
-                    .slot_index_expression_paxel
+                    .slot_index_expression
                     .as_ref()
                     .unwrap()
-                    .raw_value
                     .clone();
 
                 let prototypical_properties_factory: Box<
@@ -209,12 +206,10 @@ pub trait DefinitionToInstanceTraverser {
                     std::rc::Rc::new(RefCell::new({
                         let mut properties = crate::Slot::default();
                         let cloned_stack = stack_frame.clone();
-                        let expr_str = expr_str.clone();
-                        let expr_ast =
-                            parse_pax_expression(&expr_str, cloned_stack.clone()).unwrap();
+                        let expr_ast = expr_info.expression.clone();
 
                         let mut dependencies = Vec::new();
-                        for dependency in &expr_ast.collect_dependencies() {
+                        for dependency in &expr_info.dependencies {
                             if let Some(p) =
                                 stack_frame.resolve_symbol_as_erased_property(dependency)
                             {
@@ -230,7 +225,7 @@ pub trait DefinitionToInstanceTraverser {
                                     .map_err(|_| {
                                         format!(
                                             "Failed to parse slot index expression: {}",
-                                            expr_str
+                                            expr_ast
                                         )
                                     })
                                     .unwrap();
@@ -253,14 +248,14 @@ pub trait DefinitionToInstanceTraverser {
                 })
             }
             pax_manifest::PaxType::Repeat => {
-                let rsd = tnd
+                let source_expression_info = tnd
                     .control_flow_settings
                     .as_ref()
                     .unwrap()
-                    .repeat_source_definition
+                    .repeat_source_expression
                     .clone()
                     .unwrap();
-                let rpd = tnd
+                let predictate_definition = tnd
                     .control_flow_settings
                     .as_ref()
                     .unwrap()
@@ -275,92 +270,35 @@ pub trait DefinitionToInstanceTraverser {
                 > = Box::new(move |stack_frame| {
                     std::rc::Rc::new(RefCell::new({
                         let mut properties = crate::RepeatProperties::default();
-                        properties.source_expression_vec = if let Some(t) = &rsd.symbolic_binding {
-                            let cloned_stack = stack_frame.clone();
-                            let expr = t.token_value.clone();
-                            let expr_ast =
-                                parse_pax_expression(&expr, cloned_stack.clone()).unwrap();
+                        let cloned_stack = stack_frame.clone();
+                        let expr = source_expression_info.expression.clone();
+                        let deps = source_expression_info.dependencies.clone();
 
-                            let mut dependencies = Vec::new();
-                            for dependency in &expr_ast.collect_dependencies() {
-                                if let Some(p) =
-                                    stack_frame.resolve_symbol_as_erased_property(dependency)
-                                {
-                                    dependencies.push(p);
-                                } else {
-                                    panic!("Failed to resolve symbol {}", dependency);
-                                }
+                        let mut dependencies = Vec::new();
+                        for dependency in &deps {
+                            if let Some(p) =
+                                stack_frame.resolve_symbol_as_erased_property(dependency)
+                            {
+                                dependencies.push(p);
+                            } else {
+                                panic!("Failed to resolve symbol {}", dependency);
                             }
+                        }
 
-                            Some(Property::computed_with_name(
-                                move || {
-                                    let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
+                        properties.source_expression = Property::computed_with_name(
+                            move || expr.compute(cloned_stack.clone()).unwrap(),
+                            &dependencies,
+                            "repeat source vec",
+                        );
 
-                                    let coerced = Vec::try_coerce(new_value)
-                                        .map_err(|e| {
-                                            format!(
-                                                "Failed to parse repeat source expression: {}",
-                                                &expr
-                                            )
-                                        })
-                                        .unwrap();
-                                    coerced
-                                },
-                                &dependencies,
-                                "repeat source vec",
-                            ))
-                        } else {
-                            None
-                        };
-
-                        properties.source_expression_range = if let Some(expr) =
-                            &rsd.range_expression_paxel
-                        {
-                            let cloned_stack = stack_frame.clone();
-                            let source_expr_str = expr.raw_value.clone();
-                            let expr_ast =
-                                parse_pax_expression(&source_expr_str, cloned_stack.clone())
-                                    .unwrap();
-
-                            let mut dependencies = Vec::new();
-                            for dependency in &expr_ast.collect_dependencies() {
-                                if let Some(p) =
-                                    stack_frame.resolve_symbol_as_erased_property(dependency)
-                                {
-                                    dependencies.push(p);
-                                } else {
-                                    panic!("Failed to resolve symbol {}", dependency);
-                                }
-                            }
-
-                            Some(Property::computed_with_name(
-                                move || {
-                                    let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
-                                    let coerced = std::ops::Range::<isize>::try_coerce(new_value)
-                                        .map_err(|e| {
-                                            format!(
-                                                "Failed to parse repeat source expression: {}",
-                                                source_expr_str
-                                            )
-                                        })
-                                        .unwrap();
-                                    coerced
-                                },
-                                &dependencies,
-                                "repeat source range",
-                            ))
-                        } else {
-                            None
-                        };
-
-                        let (elem, index) = match &rpd {
-                            pax_manifest::ControlFlowRepeatPredicateDefinition::ElemId(token) => {
-                                (Some(token.raw_value.clone()), None)
+                        let (elem, index) = match &predictate_definition {
+                            pax_manifest::ControlFlowRepeatPredicateDefinition::ElemId(id) => {
+                                (Some(id.clone()), None)
                             }
                             pax_manifest::ControlFlowRepeatPredicateDefinition::ElemIdIndexId(
                                 t1,
                                 t2,
-                            ) => (Some(t1.raw_value.clone()), Some(t2.raw_value.clone())),
+                            ) => (Some(t1.clone()), Some(t2.clone())),
                         };
                         properties.iterator_i_symbol = index;
                         properties.iterator_elem_symbol = elem;
@@ -497,9 +435,9 @@ pub trait DefinitionToInstanceTraverser {
         if let Some(settings) = &tnd.settings {
             for setting in settings {
                 if let pax_manifest::SettingElement::Setting(token, value) = setting {
-                    if &token.raw_value == "id" {
-                        if let pax_manifest::ValueDefinition::LiteralValue(lv) = value {
-                            if lv.raw_value == id {
+                    if &token.token_value == "id" {
+                        if let pax_manifest::ValueDefinition::Identifier(ident) = value {
+                            if ident.name == id {
                                 return true;
                             }
                         }
@@ -551,54 +489,39 @@ fn resolve_property<T: CoercionRules + PropertyValue + DeserializeOwned>(
     let Some(value_def) = defined_properties.get(name) else {
         return Property::default();
     };
+    let cloned_stack = stack.clone();
     let resolved_property: Property<Option<T>> = match value_def.clone() {
         pax_manifest::ValueDefinition::LiteralValue(lv) => {
-            let literal = if name == "id" || name == "class" {
-                // ids & classes look like identifiers but should be strings
-                format!("\"{}\"", lv.raw_value)
-            } else {
-                lv.raw_value.clone()
-            };
-            let val = T::try_coerce(
-                pax_lang::deserializer::from_pax(&literal)
-                    .map_err(|e| format!("failed to read {}: {}", &lv.raw_value, e))
-                    .unwrap(),
-            )
-            .unwrap();
-            Property::new_with_name(Some(val), &lv.raw_value)
+            let val = T::try_coerce(lv).unwrap();
+            Property::new_with_name(Some(val), name)
         }
-        pax_manifest::ValueDefinition::DoubleBinding(token) => {
-            let identifier = token.token_value.clone();
+        pax_manifest::ValueDefinition::DoubleBinding(identifier) => {
             let untyped_property = stack
-                .resolve_symbol_as_erased_property(&identifier)
+                .resolve_symbol_as_erased_property(&identifier.name)
                 .expect("failed to resolve identifier");
             Property::new_from_untyped(untyped_property.clone())
         }
-        pax_manifest::ValueDefinition::Expression(token)
-        | pax_manifest::ValueDefinition::Identifier(token) => {
-            let expr = token.token_value.clone();
-            let expr_ast = pax_lang::parse_pax_expression(&expr, stack.clone()).unwrap();
-            let expr_deps = expr_ast.collect_dependencies();
+        pax_manifest::ValueDefinition::Expression(info) => {
             let mut dependents = vec![];
-            for dependency in &expr_deps {
+            for dependency in &info.dependencies {
                 if let Some(p) = stack.resolve_symbol_as_erased_property(dependency) {
                     dependents.push(p);
                 } else {
                     panic!("Failed to resolve symbol {}", dependency);
                 }
             }
-            let cloned_stack = stack.clone();
-
+            let name = &info.expression.to_string();
             Property::computed_with_name(
                 move || {
-                    let new_value = expr_ast
+                    let new_value = info
+                        .expression
                         .compute(cloned_stack.clone())
-                        .expect(&format!("Failed to compute expr: {}", expr));
+                        .expect(&format!("Failed to compute expr: {}", info.expression));
                     let coerced = T::try_coerce(new_value.clone());
                     let coerced = if let Err(e) = coerced {
                         panic!(
-                            "Failed to coerce value: {},\n {:?}\n, {}\n , {:?}",
-                            e, new_value, expr, expr_ast
+                            "Failed to coerce value: {},\n {:?}\n, {}\n",
+                            e, new_value, info.expression
                         );
                     } else {
                         coerced.unwrap()
@@ -606,7 +529,23 @@ fn resolve_property<T: CoercionRules + PropertyValue + DeserializeOwned>(
                     Some(coerced)
                 },
                 &dependents,
-                &token.token_value,
+                name,
+            )
+        }
+        pax_manifest::ValueDefinition::Identifier(ident) => {
+            let property = if let Some(p) = stack.resolve_symbol_as_erased_property(&ident.name) {
+                Property::new_from_untyped(p.clone())
+            } else {
+                panic!("Failed to resolve symbol {}", ident.name);
+            };
+            let untyped = property.untyped();
+            Property::computed_with_name(
+                move || {
+                    let new_value = property.get();
+                    Some(new_value)
+                },
+                &[untyped],
+                &ident.name,
             )
         }
         _ => unreachable!("Invalid value definition for {}", stringify!($prop_name)),
@@ -636,7 +575,19 @@ pub trait ComponentFactory {
         Box::new(move |stack_frame| {
             std::rc::Rc::new(RefCell::new({
                 CommonProperties {
-                    id: resolve_property("id", &defined_properties, &stack_frame),
+                    id: {
+                        // just grab identifier, no need to resolve it
+                        let id = defined_properties.get("id");
+                        Property::new(
+                            if let Some(pax_manifest::ValueDefinition::Identifier(pax_identifier)) =
+                                id
+                            {
+                                Some(pax_identifier.name.clone())
+                            } else {
+                                None
+                            },
+                        )
+                    },
                     x: resolve_property("x", &defined_properties, &stack_frame),
                     y: resolve_property("y", &defined_properties, &stack_frame),
                     width: resolve_property("width", &defined_properties, &stack_frame),

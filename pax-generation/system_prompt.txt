@@ -204,10 +204,6 @@ double_binding = {"bind:" ~ identifier ~ "=" ~ literal_function}
 //`...=5.0`, `...={...}`
 any_template_value = {literal_value | literal_object | expression_wrapped | identifier}
 
-// id=identifier (non-expression)
-id = {"id"}
-id_binding = {id ~ "=" ~ identifier}
-
 //For example: <Text>"This is my inner content"</Text>
 //Presumably this content can be bare literal values other than strings like Color::hlca(...)
 //It could also be an `{...}` expression
