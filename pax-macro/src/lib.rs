@@ -31,7 +31,7 @@ fn is_root_crate() -> bool {
     let is_not_blacklisted = !CRATES_WHERE_WE_DONT_PARSE_DESIGNER.contains(&std::env::var("CARGO_PKG_NAME").unwrap_or_default().as_str());
     let worm_dir = unsafe { WORM_ROOT_CARGO_MANIFEST_DIR.as_ref().unwrap()}.as_str();
     let is_root_crate = worm_dir == env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());;
-    is_designtime && is_not_blacklisted && is_root_crate
+    is_not_blacklisted && is_root_crate
 }
 
 use syn::{
