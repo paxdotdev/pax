@@ -5,7 +5,9 @@ use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeMessage;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::properties::UntypedProperty;
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Interpolatable, PaxValue, Store, Variable};
+use pax_runtime_api::{
+    borrow, borrow_mut, use_RefCell, Interpolatable, PaxValue, RenderContext, Store, Variable,
+};
 use_RefCell!();
 use std::any::{Any, TypeId};
 use std::cell::Cell;
@@ -34,6 +36,7 @@ pub struct RuntimeContext {
     root_node: RefCell<Weak<ExpandedNode>>,
     node_cache: RefCell<NodeCache>,
     queued_custom_events: RefCell<Vec<(Rc<ExpandedNode>, &'static str)>>,
+    queued_renders: RefCell<Vec<Rc<ExpandedNode>>>,
 }
 
 struct NodeCache {
@@ -82,6 +85,7 @@ impl RuntimeContext {
             root_node: RefCell::new(Weak::new()),
             node_cache: RefCell::new(NodeCache::new()),
             queued_custom_events: Default::default(),
+            queued_renders: Default::default(),
         }
     }
 
@@ -141,10 +145,6 @@ impl RuntimeContext {
             .unwrap_or_default()
     }
 
-    /// Simple 2D raycasting: the coordinates of the ray represent a
-    /// ray running orthogonally to the view plane, intersecting at
-    /// the specified point `ray`.  Areas outside of clipping bounds will
-    /// not register a `hit`, nor will elements that suppress input events.
     pub fn get_elements_beneath_ray(
         &self,
         ray: Point2<Window>,
@@ -158,10 +158,12 @@ impl RuntimeContext {
         //Finally: check whether element itself satisfies hit_test(ray)
 
         let root_node = borrow!(self.root_node).upgrade().unwrap();
-        let mut to_process = vec![root_node];
-        while let Some(node) = to_process.pop() {
+        let mut to_process = vec![(root_node, false)];
+        while let Some((node, clipped)) = to_process.pop() {
+            // make sure slot sources are updated for this node
+            node.compute_flattened_slot_children();
             let hit = node.ray_cast_test(ray);
-            if hit {
+            if hit && !clipped {
                 if hit_invisible
                     || !borrow!(node.instance_node)
                         .base()
@@ -177,13 +179,75 @@ impl RuntimeContext {
                     accum.push(Rc::clone(&node));
                 }
             }
-
-            if hit || !borrow!(node.instance_node).clips_content(&node) {
-                to_process.extend(node.children.get().iter().cloned().rev())
-            }
+            let clipped = clipped || (!hit && borrow!(node.instance_node).clips_content(&node));
+            to_process.extend(
+                node.children
+                    .get()
+                    .iter()
+                    .cloned()
+                    .map(|v| {
+                        let cp = v.get_common_properties();
+                        let unclippable = borrow!(cp).unclippable.get().unwrap_or(false);
+                        (v, clipped && !unclippable)
+                    })
+                    .rev(),
+            )
         }
         accum
     }
+    /// Simple 2D raycasting: the coordinates of the ray represent a
+    /// ray running orthogonally to the view plane, intersecting at
+    /// the specified point `ray`.  Areas outside of clipping bounds will
+    /// not register a `hit`, nor will elements that suppress input events.
+    // pub fn get_elements_beneath_ray(
+    //     &self,
+    //     ray: Point2<Window>,
+    //     limit_one: bool,
+    //     mut accum: Vec<Rc<ExpandedNode>>,
+    //     hit_invisible: bool,
+    // ) -> Vec<Rc<ExpandedNode>> {
+    //     //Traverse all elements in render tree sorted by z-index (highest-to-lowest)
+    //     //First: check whether events are suppressed
+    //     //Next: check whether ancestral clipping bounds (hit_test) are satisfied
+    //     //Finally: check whether element itself satisfies hit_test(ray)
+
+    //     let root_node = borrow!(self.root_node).upgrade().unwrap();
+    //     let mut to_process = vec![(root_node, false)];
+    //     while let Some((node, clipped)) = to_process.pop() {
+    //         let hit = node.ray_cast_test(ray);
+    //         if hit && !clipped {
+    //             if hit_invisible
+    //                 || !borrow!(node.instance_node)
+    //                     .base()
+    //                     .flags()
+    //                     .invisible_to_raycasting
+    //             {
+    //                 //We only care about the topmost node getting hit, and the element
+    //                 //pool is ordered by z-index so we can just resolve the whole
+    //                 //calculation when we find the first matching node
+    //                 if limit_one {
+    //                     return vec![node];
+    //                 }
+    //                 accum.push(Rc::clone(&node));
+    //             }
+    //         }
+    //         let node_clips = !borrow!(node.instance_node).clips_content(&node);
+    //         let clipped = clipped || (!hit && node_clips);
+    //         to_process.extend(
+    //             node.children
+    //                 .get()
+    //                 .iter()
+    //                 .cloned()
+    //                 .map(|v| {
+    //                     let cp = v.get_common_properties();
+    //                     let unclippable = borrow!(cp).unclippable.get().unwrap_or(false);
+    //                     (v, clipped && !unclippable)
+    //                 })
+    //                 .rev(),
+    //         )
+    //     }
+    //     accum
+    // }
 
     /// Alias for `get_elements_beneath_ray` with `limit_one = true`
     pub fn get_topmost_element_beneath_ray(&self, ray: Point2<Window>) -> Option<Rc<ExpandedNode>> {
@@ -232,6 +296,18 @@ impl RuntimeContext {
             target.dispatch_custom_event(ident, self)?;
         }
         Ok(())
+    }
+
+    pub fn queue_render(&self, expanded_node: Rc<ExpandedNode>) {
+        borrow_mut!(self.queued_renders).push(expanded_node);
+    }
+
+    pub fn recurse_flush_queued_renders(self: &Rc<RuntimeContext>, rcs: &mut dyn RenderContext) {
+        while !borrow!(self.queued_renders).is_empty() {
+            for n in std::mem::take(&mut *borrow_mut!(self.queued_renders)) {
+                n.recurse_render(self, rcs);
+            }
+        }
     }
 }
 
