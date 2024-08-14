@@ -13,7 +13,6 @@ members = [
     "pax-cli",
     "pax-compiler",
     "pax-compiler",
-    "pax-designer",
     "pax-designtime",
     "pax-engine",
     "pax-lang",
@@ -28,7 +27,7 @@ members = [
 
 exclude = [
     "pax-compiler/files",
-#    "pax-designer",
+    "pax-designer",#cannot build workspace without designtime when this is present
     "examples",
     "tests",
     "pax-generation",
