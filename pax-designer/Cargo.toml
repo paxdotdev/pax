@@ -17,7 +17,7 @@ name = "paxcartridge"
 [[bin]]
 name = "parser"
 path = "src/lib.rs"
-required-features = ["parser"]
+required-features = ["parser", "designtime"]
 
 [[bin]]
 name = "run"
