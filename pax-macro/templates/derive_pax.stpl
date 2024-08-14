@@ -1,4 +1,4 @@
-<% if args_full_component.as_ref().is_some() && args_full_component.as_ref().unwrap().is_main_component { %>
+<% if args_full_component.as_ref().is_some() && is_root_crate { %>
     // For the main (application-root) component only, a `main` is generated for the `parser` bin target.
     // This method bootstraps the parsing process, parsing not only the main/application-root component
     // but every component/primitive found in its extended render tree. This main method
