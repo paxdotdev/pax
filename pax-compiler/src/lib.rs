@@ -98,33 +98,6 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
             );
         }
     }
-    //must also build the designer into manifest when in libdev mode
-    if ctx.is_libdev_mode {
-        if let Ok(root) = std::env::var("PAX_WORKSPACE_ROOT") {
-            let mut cmd = Command::new("bash");
-            cmd.arg("./build-designer.sh");
-            let script_path = Path::new(&root)
-                .join("pax-compiler")
-                .join("files")
-                .join("designer");
-            cmd.current_dir(&script_path);
-            if !cmd
-                .output()
-                .expect("failed to start process")
-                .status
-                .success()
-            {
-                panic!(
-                    "failed to build pax-designer manifest ./build-designer.sh at {:?}",
-                    script_path
-                );
-            };
-        } else {
-            panic!(
-                "FATAL: PAX_WORKSPACE_ROOT env variable not set - didn't parse pax-designer manifest"
-            );
-        }
-    }
 
     let pax_dir = get_or_create_pax_directory(&ctx.project_path);
 

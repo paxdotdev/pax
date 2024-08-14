@@ -2,11 +2,12 @@ extern crate proc_macro;
 extern crate proc_macro2;
 mod parsing;
 mod templating;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::Read;
 use std::str::FromStr;
 use std::{env, fs, path::PathBuf};
 use std::path::Path;
+use std::io::Write; // Necessary for `writeln!` macro to work
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
@@ -28,14 +29,7 @@ const CRATES_WHERE_WE_DONT_PARSE_DESIGNER : &[&str] = &[
 fn should_parse_designer() -> bool {
 
     let ret = !CRATES_WHERE_WE_DONT_PARSE_DESIGNER.contains(&std::env::var("CARGO_PKG_NAME").unwrap_or_default().as_str());
-
-    // append to the file ~/code/zack/scrap/fs0.txt
-    // the value of &std::env::var("CARGO_PKG_NAME").unwrap_or_default().as_str()
-    // followed by a newline
-    let old_val = fs::read_to_string("/Users/zack/code/scrap/fs0.txt").unwrap_or_default();
-    let new_val = old_val + &std::env::var("CARGO_PKG_NAME").unwrap_or_default().as_str() + ", should_parse:" + &ret.to_string() + "\n" ;
-    fs::write("/Users/zack/code/scrap/fs0.txt", new_val).unwrap();
-
+    pax_macro_writeln(&format!("{},should_parse{}", &env::var("CARGO_PKG_NAME").unwrap_or_default().as_str(), &ret.to_string()));
     ret
 }
 
@@ -302,6 +296,67 @@ fn get_internal_definitions_from_tokens(data: &Data) -> InternalDefinitions {
 
     ret
 }
+
+
+/* Context:
+[ ] Issue: we are including cartridge.partial.rs across every #[main], which e.g. causes build of pax-designer to fail
+        when running Fireworks.
+
+        Drafted solution:
+            [ ] detect whether we are in the root crate of this build.
+                [ ] might be able to store a static mutable Option<root_crate_pkg_name>, a write-once-read-many (WORM) signal to the rest of the build.
+            [ ] in the stpl template, check this signal and only include the partial if we are in the root crate.
+                [-] This might be fragile if somehow different versions of pax-macro are included in a build (is that possible or does cargo prevent it?) Answer: cargo prevents it.
+ */
+
+// Task at hand: [ ] detect whether we are in the root crate of this build.
+//                 [ ] might be able to store a static mutable Option<root_crate_pkg_name>, a write-once-read-many (WORM) signal to the rest of the build.
+
+static mut ROOT_CRATE_PKG_NAME: Option<String> = None;
+//I should set this in the pax-macro crate, and then check it in the stpl template.
+//How can I access that env value, correctly reflecting the package being built (instead of pax-macro, this package) ?
+// [ ] I could set it in the build script, but that would require the user to add a build script to their project.
+// [ ] I could set it in the pax-macro crate, but that would require the user to include pax-macro in their project.
+//     This is okay -- pax-macro is available in the workspace, so it's not a big deal.
+// To verify: what snippet of code will read the env value and set the static mutable variable?
+// ```
+// let root_crate_pkg_name = std::env::var("CARGO_PKG_NAME").unwrap_or_default();
+// if let None = unsafe { ROOT_CRATE_PKG_NAME } {
+//      unsafe { ROOT_CRATE_PKG_NAME = Some(root_crate_pkg_name); }
+// }
+// ```
+// And to doubly verify: this first time this is run, CARGO_PKG_NAME should be the root crate being built?
+// [ ] I should add a println! to the build script to verify this.
+
+
+
+static mut ROOT_CARGO_MANIFEST_DIR: Option<String> = None;
+const FILE_NAME: &'static str = "pax_macro_writeln.txt";
+
+fn pax_macro_writeln(content: &str) {
+    // get cargo_manifest path:
+    unsafe {
+        if let None = &ROOT_CARGO_MANIFEST_DIR {
+            ROOT_CARGO_MANIFEST_DIR = Some(env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into()));
+        }
+    }
+    let cargo_manifest = unsafe {ROOT_CARGO_MANIFEST_DIR.as_ref().unwrap().to_string()};
+    let full_path = Path::new(&cargo_manifest).join(FILE_NAME);
+
+    //create file if it doesn't exist:
+    if !full_path.exists() {
+        let mut file = File::create(&full_path).unwrap();
+        let _ = writeln!(file, "{}", "");
+    }
+
+    //append to file
+    let mut file = OpenOptions::new()
+        .append(true)
+        .open(full_path)
+        .unwrap();
+    let _ = writeln!(file, "{}", content);
+}
+
 
 fn pax_full_component(
     raw_pax: String,
