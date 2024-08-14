@@ -39,12 +39,6 @@ where
     fn try_coerce(value: PaxValue) -> Result<Self, String>;
 }
 
-// pub enum Fill {
-//     Solid(Color),
-//     LinearGradient(LinearGradient),
-//     RadialGradient(RadialGradient),
-// }
-
 // Fill is a type that other types (Color) can be coerced into, thus the default
 // from to pax macro isn't enough (only translates directly back and forth, and returns
 // an error if it contains any other type)

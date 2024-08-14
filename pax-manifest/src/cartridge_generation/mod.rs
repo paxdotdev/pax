@@ -39,7 +39,7 @@ impl PaxManifest {
                             key.token_value.clone(),
                             values
                                 .iter()
-                                .map(|v| self.clean_handler(v.raw_value.clone()))
+                                .map(|v| self.clean_handler(v.token_value.clone()))
                                 .collect(),
                         ));
                     }
@@ -119,7 +119,7 @@ impl PaxManifest {
                                 .expect("custom handlers not supported in settings block")
                                 .as_ref();
                             handler_data.push(HandlerInfo {
-                                name: self.clean_handler(value.raw_value.clone()),
+                                name: self.clean_handler(value.token_value.clone()),
                                 args_type: event_args.map(|t| format!("Event<{}>", &t)),
                             });
                         }
@@ -138,7 +138,7 @@ impl PaxManifest {
                                         .get(key.token_value.as_str())
                                         .and_then(|v| v.as_ref());
                                     handler_data.push(HandlerInfo {
-                                        name: self.clean_handler(e.raw_value.clone()),
+                                        name: self.clean_handler(e.name.clone()),
                                         args_type: event_args.map(|t| format!("Event<{}>", &t)),
                                     });
                                 }
@@ -225,7 +225,7 @@ impl PaxManifest {
                         ValueDefinition::EventBindingTarget(e) => {
                             handlers.push((
                                 key.token_value.clone(),
-                                self.clean_handler(e.raw_value.clone()),
+                                self.clean_handler(e.name.clone()),
                             ));
                         }
                         _ => {}
@@ -239,7 +239,7 @@ impl PaxManifest {
     fn pull_matched_identifiers_from_inline(
         inline_settings: &Option<Vec<SettingElement>>,
         s: String,
-    ) -> Vec<Token> {
+    ) -> Vec<String> {
         let mut ret = Vec::new();
         if let Some(val) = inline_settings {
             let matched_settings = val.iter().filter(|e| match e {
@@ -249,8 +249,7 @@ impl PaxManifest {
             for e in matched_settings {
                 if let SettingElement::Setting(_, value) = e {
                     match value {
-                        ValueDefinition::LiteralValue(s) => ret.push(s.clone()),
-                        ValueDefinition::Identifier(s) => ret.push(s.clone()),
+                        ValueDefinition::Identifier(s) => ret.push(s.name.clone()),
                         _ => {}
                     };
                 }
@@ -288,10 +287,9 @@ impl PaxManifest {
 
         let mut id_settings = Vec::new();
         if ids.len() == 1 {
-            if let Some(settings) = Self::pull_settings_with_selector(
-                &settings_block,
-                format!("#{}", ids[0].token_value),
-            ) {
+            if let Some(settings) =
+                Self::pull_settings_with_selector(&settings_block, format!("#{}", ids[0]))
+            {
                 id_settings.extend(settings.clone());
             }
         } else if ids.len() > 1 {
@@ -304,10 +302,9 @@ impl PaxManifest {
 
         let mut class_settings = Vec::new();
         for class in classes {
-            if let Some(settings) = Self::pull_settings_with_selector(
-                &settings_block,
-                format!(".{}", class.token_value),
-            ) {
+            if let Some(settings) =
+                Self::pull_settings_with_selector(&settings_block, format!(".{}", class))
+            {
                 class_settings.extend(settings.clone());
             }
         }

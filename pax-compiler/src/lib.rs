@@ -12,7 +12,6 @@
 extern crate core;
 mod building;
 mod cartridge_generation;
-pub mod errors;
 pub mod formatting;
 pub mod helpers;
 
@@ -30,8 +29,6 @@ use std::sync::{Arc, Mutex};
 use std::os::unix::process::CommandExt;
 
 use crate::building::build_project_with_cartridge;
-
-use crate::errors::source_map::SourceMap;
 
 use crate::cartridge_generation::generate_cartridge_partial_rs;
 use std::path::{Path, PathBuf};

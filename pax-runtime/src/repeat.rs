@@ -5,6 +5,7 @@ use_RefCell!();
 
 use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::UntypedProperty;
+use pax_runtime_api::CoercionRules;
 use pax_runtime_api::{
     borrow, borrow_mut, use_RefCell, ImplToFromPaxAny, PaxValue, Property, ToPaxValue, Variable,
 };
@@ -28,8 +29,7 @@ impl ImplToFromPaxAny for RepeatProperties {}
 ///is encoded as a Vec<T> (where T is a `PaxValue` properties type) or as a Range<isize>
 #[derive(Default)]
 pub struct RepeatProperties {
-    pub source_expression_vec: Option<Property<Vec<PaxValue>>>,
-    pub source_expression_range: Option<Property<std::ops::Range<isize>>>,
+    pub source_expression: Property<PaxValue>,
     pub iterator_i_symbol: Option<String>,
     pub iterator_elem_symbol: Option<String>,
 }
@@ -39,12 +39,8 @@ impl ToPaxValue for RepeatProperties {
         PaxValue::Object(
             vec![
                 (
-                    "source_expression_vec".to_string(),
-                    self.source_expression_vec.to_pax_value(),
-                ),
-                (
-                    "source_expression_range".to_string(),
-                    self.source_expression_range.to_pax_value(),
+                    "source_expression".to_string(),
+                    self.source_expression.to_pax_value(),
                 ),
                 (
                     "iterator_i_symbol".to_string(),
@@ -123,19 +119,7 @@ impl InstanceNode for RepeatInstance {
         let cloned_context = Rc::clone(context);
         let source_expression =
             expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
-                let source = if let Some(range) = &properties.source_expression_range {
-                    let cp_range = range.clone();
-                    let dep = [range.untyped()];
-                    Property::computed(
-                        move || cp_range.get().map(|v| v.to_pax_value()).collect::<Vec<_>>(),
-                        &dep,
-                    )
-                } else if let Some(vec) = &properties.source_expression_vec {
-                    vec.clone()
-                } else {
-                    unreachable!("range or vec source must exist")
-                };
-                source
+                properties.source_expression.clone()
             });
 
         let i_symbol =
@@ -159,7 +143,15 @@ impl InstanceNode for RepeatInstance {
                         panic!("ran evaluator after expanded node dropped (repeat elem)")
                     };
                     let source = source_expression.get();
-                    let source_len = source.len();
+                    let source_len = if let PaxValue::Range(start, end) = source {
+                        (isize::try_coerce(*end).unwrap() - isize::try_coerce(*start).unwrap())
+                            as usize
+                    } else if let PaxValue::Vec(v) = source {
+                        v.len()
+                    } else {
+                        unreachable!("source must be a vec");
+                    };
+
                     if source_len == *borrow!(last_length) {
                         return cloned_expanded_node.children.get();
                     }
@@ -173,10 +165,16 @@ impl InstanceNode for RepeatInstance {
                             let cp_source_expression = source_expression.clone();
                             let property_elem = Property::computed_with_name(
                                 move || {
-                                    cp_source_expression.get().get(i).unwrap_or_else(|| panic!(
-                                        "engine error: tried to access index {} of an array source that now only contains {} elements",
-                                        i, cp_source_expression.get().len()
-                                    )).clone()
+                                    let source = cp_source_expression.get();
+                                    if let PaxValue::Range(start, _) = source {
+                                        let start = isize::try_coerce(*start).unwrap();
+                                        let elem = (start + i as isize).to_pax_value();
+                                        elem
+                                    } else if let PaxValue::Vec(v) = source {
+                                        v[i].clone()
+                                    } else {
+                                        unreachable!("source must be a vec");
+                                    }
                                 },
                                 &[source_expression.untyped()],
                                 "repeat elem",
@@ -186,15 +184,22 @@ impl InstanceNode for RepeatInstance {
                                     i: property_i.clone(),
                                     elem: property_elem.clone(),
                                 }
-                                .to_pax_value().to_pax_any(),
+                                .to_pax_value()
+                                .to_pax_any(),
                             ));
 
                             let mut scope: HashMap<String, Variable> = HashMap::new();
                             if let Some(ref i_symbol) = i_symbol {
-                                scope.insert(i_symbol.clone(), Variable::new_from_typed_property(property_i));
+                                scope.insert(
+                                    i_symbol.clone(),
+                                    Variable::new_from_typed_property(property_i),
+                                );
                             }
                             if let Some(ref elem_symbol) = elem_symbol {
-                                scope.insert(elem_symbol.clone(), Variable::new_from_typed_property(property_elem));
+                                scope.insert(
+                                    elem_symbol.clone(),
+                                    Variable::new_from_typed_property(property_elem),
+                                );
                             }
 
                             let new_env = cloned_expanded_node.stack.push(scope, &new_repeat_item);
@@ -203,8 +208,11 @@ impl InstanceNode for RepeatInstance {
                                 .into_iter()
                                 .zip(iter::repeat(new_env))
                         });
-                    let ret =
-                        cloned_expanded_node.generate_children(children_with_envs, &cloned_context,&cloned_expanded_node.parent_frame);
+                    let ret = cloned_expanded_node.generate_children(
+                        children_with_envs,
+                        &cloned_context,
+                        &cloned_expanded_node.parent_frame,
+                    );
                     ret
                 },
                 &deps,

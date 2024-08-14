@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::fmt::Display;
 use std::ops::{Add, Deref, Mul, Neg, Sub};
 
 use crate::math::Space;
@@ -372,6 +373,16 @@ pub enum Size {
     Percent(Numeric),
     ///Pixel component, Percent component
     Combined(Numeric, Numeric),
+}
+
+impl Display for Size {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Size::Pixels(val) => write!(f, "{}px", val),
+            Size::Percent(val) => write!(f, "{}%", val),
+            Size::Combined(pix, per) => write!(f, "{}px + {}%", pix, per),
+        }
+    }
 }
 
 impl Neg for Size {
@@ -998,6 +1009,12 @@ impl OcclusionLayerGen {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Percent(pub Numeric);
 
+impl Display for Percent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}%", self.0)
+    }
+}
+
 impl Interpolatable for Percent {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
         Self(self.0.interpolate(&other.0, t))
@@ -1041,6 +1058,16 @@ pub enum ColorChannel {
     Integer(Numeric),
     /// [0.0, 100.0]
     Percent(Numeric),
+}
+
+impl Display for ColorChannel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ColorChannel::Rotation(rot) => write!(f, "{}", rot),
+            ColorChannel::Integer(int) => write!(f, "{}", int),
+            ColorChannel::Percent(per) => write!(f, "{}%", per),
+        }
+    }
 }
 
 impl Default for ColorChannel {
@@ -1115,6 +1142,44 @@ pub enum Color {
     WHITE,
     TRANSPARENT,
     NONE,
+}
+
+// implement display respecting all color enum variants, printing out their names
+impl Display for Color {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::rgb(r, g, b) => write!(f, "rgb({}, {}, {})", r, g, b),
+            Self::rgba(r, g, b, a) => write!(f, "rgba({}, {}, {}, {})", r, g, b, a),
+            Self::hsl(h, s, l) => write!(f, "hsl({}, {}, {})", h, s, l),
+            Self::hsla(h, s, l, a) => write!(f, "hsla({}, {}, {}, {})", h, s, l, a),
+            Self::SLATE => write!(f, "SLATE"),
+            Self::GRAY => write!(f, "GRAY"),
+            Self::ZINC => write!(f, "ZINC"),
+            Self::NEUTRAL => write!(f, "NEUTRAL"),
+            Self::STONE => write!(f, "STONE"),
+            Self::RED => write!(f, "RED"),
+            Self::ORANGE => write!(f, "ORANGE"),
+            Self::AMBER => write!(f, "AMBER"),
+            Self::YELLOW => write!(f, "YELLOW"),
+            Self::LIME => write!(f, "LIME"),
+            Self::GREEN => write!(f, "GREEN"),
+            Self::EMERALD => write!(f, "EMERALD"),
+            Self::TEAL => write!(f, "TEAL"),
+            Self::CYAN => write!(f, "CYAN"),
+            Self::SKY => write!(f, "SKY"),
+            Self::BLUE => write!(f, "BLUE"),
+            Self::INDIGO => write!(f, "INDIGO"),
+            Self::VIOLET => write!(f, "VIOLET"),
+            Self::PURPLE => write!(f, "PURPLE"),
+            Self::FUCHSIA => write!(f, "FUCHSIA"),
+            Self::PINK => write!(f, "PINK"),
+            Self::ROSE => write!(f, "ROSE"),
+            Self::BLACK => write!(f, "BLACK"),
+            Self::WHITE => write!(f, "WHITE"),
+            Self::TRANSPARENT => write!(f, "TRANSPARENT"),
+            Self::NONE => write!(f, "NONE"),
+        }
+    }
 }
 
 impl Color {
@@ -1476,6 +1541,16 @@ pub enum Rotation {
     Radians(Numeric),
     Degrees(Numeric),
     Percent(Numeric),
+}
+
+impl Display for Rotation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Rotation::Radians(rad) => write!(f, "{}rad", rad),
+            Rotation::Degrees(deg) => write!(f, "{}deg", deg),
+            Rotation::Percent(per) => write!(f, "{}%", per),
+        }
+    }
 }
 
 impl Default for Rotation {

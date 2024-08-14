@@ -73,7 +73,7 @@ fn test_ast() {
             PaxValue::Numeric(Numeric::I64(4)),
         )))),
     }));
-    let v = parse_pax_expression(expr, idr).unwrap();
+    let v = parse_pax_expression(expr).unwrap();
     assert_eq!(expected, v);
 }
 
@@ -399,7 +399,7 @@ fn test_collect_dependencies() {
     let idr = initialize_test_resolver();
     let expr = "a + b";
     let expected = vec!["a".to_string(), "b".to_string()];
-    let result = PaxExpression::collect_dependencies(&parse_pax_expression(expr, idr).unwrap());
+    let result = PaxExpression::collect_dependencies(&parse_pax_expression(expr).unwrap());
     assert_eq!(expected, result);
 }
 
@@ -410,4 +410,35 @@ fn test_negative_size() {
     let expected = PaxValue::Size(Size::Pixels(Numeric::I64(-10)));
     let result = compute_paxel(expr, idr).unwrap();
     assert_eq!(expected, result);
+}
+
+#[test]
+fn test_display_expression() {
+    let idr = initialize_test_resolver();
+    let expr = "10 + 4";
+    let expected = "10 + 4";
+    let result = format!("{}", parse_pax_expression(expr).unwrap());
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_display_complex_expression() {
+    let idr = initialize_test_resolver();
+    let expr = "Math::min(a,Math::max(3,1))";
+    let expected = "Math::min(a, Math::max(3, 1))";
+    let result = format!("{}", parse_pax_expression(expr).unwrap());
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_display_object() {
+    let idr = initialize_test_resolver();
+    let expr = "{a: 10+4, b: true || false }";
+    let expected = "{a: 10 + 4, b: true || false}";
+    let result = format!("{}", parse_pax_expression(expr).unwrap());
+    assert_eq!(expected, result);
+}
+
+fn test_object() {
+    let expr = "{{top_left: 4 top_right:3}}";
 }
