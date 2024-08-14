@@ -59,6 +59,7 @@ fn test_code_serializaton() {
     let output = run_parser_binary(
         &std::path::PathBuf::from(path_str),
         Arc::clone(&process_child_ids),
+        false
     );
 
     let out = String::from_utf8(output.stdout).unwrap();

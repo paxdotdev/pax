@@ -20,8 +20,6 @@ use std::net::TcpListener;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
 
-const IS_DESIGN_TIME_BUILD: bool = cfg!(feature = "designtime");
-
 pub fn build_web_project_with_cartridge(
     ctx: &RunContext,
     pax_dir: &PathBuf,
@@ -63,7 +61,7 @@ pub fn build_web_project_with_cartridge(
     } else {
         cmd.arg("--dev");
     }
-    if IS_DESIGN_TIME_BUILD {
+    if ctx.should_run_designer {
         cmd.arg("--features").arg("designtime");
     }
 

@@ -19,7 +19,7 @@ pub mod constants;
 
 /// Definition container for an entire Pax cartridge
 #[serde_with::serde_as]
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(crate = "pax_message::serde")]
 pub struct PaxManifest {
     #[serde_as(as = "BTreeMap<serde_with::json::JsonString, _>")]
@@ -94,6 +94,11 @@ impl PaxManifest {
             &self.main_component_type_id.get_pascal_identifier().unwrap(),
             crate::constants::DEFINITION_TO_INSTANCE_TRAVERSER_PARTIAL_STRUCT_ID
         )
+    }
+
+    pub fn merge_in_place(&mut self, other: &PaxManifest) {
+        self.components.extend(other.components.clone());
+        self.type_table.extend(other.type_table.clone());
     }
 }
 
