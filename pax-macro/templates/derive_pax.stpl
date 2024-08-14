@@ -1,4 +1,4 @@
-<% if args_full_component.as_ref().is_some() && is_root_crate { %>
+<% if is_root_crate && args_full_component.as_ref().is_some() { %>
     // For the main (application-root) component only, a `main` is generated for the `parser` bin target.
     // This method bootstraps the parsing process, parsing not only the main/application-root component
     // but every component/primitive found in its extended render tree. This main method
@@ -18,7 +18,7 @@
             type_table: ctx.type_table,
         };
 
-        <% if should_parse_designer { %>
+        <% if is_root_crate { %>
             #[cfg(feature = "designtime")]
             {
                 let mut ctx = pax_engine::pax_manifest::parsing::ParsingContext::default();
@@ -70,8 +70,6 @@
     //cdylib exports
     #[cfg(feature = "web")]
     pub use pax_engine::pax_chassis_web::*;
-
-
 
     #[cfg(any(feature = "macos", feature="ios"))]
     #[no_mangle]
