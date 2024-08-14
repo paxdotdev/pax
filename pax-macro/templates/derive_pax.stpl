@@ -37,7 +37,7 @@
             }
             #[cfg(not(feature = "designtime"))]
         <% } %>
-            println!("{}", &pax_engine::serde_json::to_string_pretty(&userland_manifest).unwrap());
+            println!("{}", &pax_engine::serde_json::to_string_pretty(&vec![userland_manifest]).unwrap());
             std::process::exit(0);
 
     }

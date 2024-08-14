@@ -94,6 +94,7 @@ pub async fn start_server(folder_to_watch: &str) -> std::io::Result<()> {
         project_path: PathBuf::from("../pax-designer".to_string()),
         verbose: false,
         should_also_run: false,
+        should_run_designer: true,
         is_libdev_mode: true,
         process_child_ids: Arc::new(Mutex::new(vec![])),
         is_release: false,
@@ -273,6 +274,7 @@ fn create_run_context() -> RunContext {
         verbose: false,
         should_also_run: false,
         is_libdev_mode: true,
+        should_run_designer: true,
         process_child_ids: Arc::new(Mutex::new(vec![])),
         is_release: false,
     }

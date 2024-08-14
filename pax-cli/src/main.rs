@@ -62,6 +62,12 @@ fn main() -> Result<(), Report> {
         .help("Build in Release mode, with appropriate platform-specific optimizations.");
 
     #[allow(non_snake_case)]
+    let ARG_NO_DESIGNER = Arg::with_name("no-designer")
+        .long("no-designer")
+        .takes_value(false)
+        .help("Runs project directly without wrapping in designer & designtime.");
+
+    #[allow(non_snake_case)]
     let ARG_LIBDEV = Arg::with_name("libdev")
         .long("libdev")
         .takes_value(false)
@@ -79,6 +85,7 @@ fn main() -> Result<(), Report> {
             App::new("run")
                 .about("Run the Pax project from the current working directory in a demo harness")
                 .arg( ARG_PATH.clone() )
+                .arg( ARG_NO_DESIGNER.clone() )
                 .arg( ARG_TARGET.clone() )
                 .arg( ARG_VERBOSE.clone() )
                 .arg( ARG_LIBDEV.clone() )
@@ -164,6 +171,7 @@ fn perform_nominal_action(
             let path = args.value_of("path").unwrap().to_string(); //default value "."
             let verbose = args.is_present("verbose");
             let is_libdev_mode = args.is_present("libdev");
+            let should_run_designer = !args.is_present("no-designer");
 
             let _ = pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
@@ -172,6 +180,7 @@ fn perform_nominal_action(
                 should_also_run: true,
                 is_libdev_mode,
                 process_child_ids,
+                should_run_designer,
                 is_release: false,
             })?;
 
@@ -188,6 +197,7 @@ fn perform_nominal_action(
                 target: RunTarget::from(target.as_str()),
                 project_path: PathBuf::from(path),
                 should_also_run: false,
+                should_run_designer: false,
                 verbose,
                 is_libdev_mode,
                 process_child_ids,
@@ -223,7 +233,7 @@ fn perform_nominal_action(
                 ("parse", Some(args)) => {
                     let path = args.value_of("path").unwrap().to_string(); //default value "."
                     let output =
-                        &pax_compiler::run_parser_binary(&PathBuf::from(path), process_child_ids);
+                        &pax_compiler::run_parser_binary(&PathBuf::from(path), process_child_ids, false);
 
                     // Forward both stdout and stderr
                     std::io::stderr()

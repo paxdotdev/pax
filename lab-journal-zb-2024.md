@@ -70,9 +70,28 @@ git checkout -b zb/designer-bak-00
             [x] might be able to store a static mutable Option<root_crate_pkg_name>, a write-once-read-many (WORM) signal to the rest of the build.
             [x] in the stpl template, check this signal and only include the partial if we are in the root crate. 
                 [-] This might be fragile if somehow different versions of pax-macro are included in a build (is that possible or does cargo prevent it?) Answer: cargo prevents it. (answer ft. copilot)
+
+        Note: as of current state, building without designtime requires omitting pax-designer as dependency. 
+                might want to rewrap pax-engine-without-designer and pax-engine in another crate after all, to ease ergo here? (consolidating flags:  --feature=designer) 
+                ^ this can happen in another pass after big merge
+
+        Success will look like: can build fireworks and hopefully even run it; expected runtime crash
+
+        Looks like there's an issue with `IS_DESIGNTIME_BUILD` definition — checking cfg within pax-compiler likely won't be useful.
+        Probably should pass a runtime flag via CLI instead.
+        ^ Resolved this but still hitting
+        ```
+        6 | #[pax]
+        | ^^^^^^ use of undeclared crate or module `pax_designer`
+        ```
+        This is despite the fact that we're including pax_designer in the root crate.  Could it be because (a) the crate is failing to build,
+        or (b) there's some corruption of features, or (c) because pax_designer isn't present in the workspace, even though it's available via the relative path specified in the root project's Cargo.toml?
+        ^ This is because we're not including pax_designer in the root crate; it's only included in the pax-engine crate.  This is a problem because we need to include it in the root crate to get the #[pax] macro to work.
         
 
+
     [ ] Compiler-side: try-deserialize the tuple vs. the single manifest [probably make it a vec!  more extensible]
+        
     [ ] Engine init logic (runtime)
         [ ] If in designtime build, render the root component via the designer; register the userland component for iframe
 
