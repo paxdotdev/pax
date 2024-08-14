@@ -7,7 +7,7 @@ default-run = "run"
 [dependencies]
 pax-engine = { version = "0.23.0", path="../../../pax-engine" }
 pax-std = { version = "0.23.0", path="../../../pax-std"}
-pax-designer = {version = "0.23.0", path="../../../pax-designer" }
+#pax-designer = {version = "0.23.0", path="../../../pax-designer" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -24,7 +24,7 @@ path = "bin/run.rs"
 
 [features]
 parser = ["pax-std/parser"]
-designtime = ["pax-engine/designtime", "pax-std/designtime", "pax-designer/designtime"]
+designtime = ["pax-engine/designtime", "pax-std/designtime"]
 web = ["pax-engine/web"]
 macos = ["pax-engine/macos"]
 ios = ["pax-engine/ios"]
