@@ -2,7 +2,7 @@ use actix_web::web::Data;
 use actix_web::App;
 use awc::Client;
 use futures_util::{SinkExt, StreamExt};
-use pax_design_server::{setup_file_watcher, web_socket, AppState};
+use pax_compiler::design_server::{setup_file_watcher, web_socket, AppState};
 use pax_designtime::messages::AgentMessage;
 use rmp_serde::from_slice;
 use std::fs::File;
