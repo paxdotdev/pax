@@ -127,7 +127,7 @@ Date:   Mon Aug 12 15:45:14 2024 +0700
 
     [x] Compiler-side: deserialization updates (Vec<PaxManifest>)
 
-    [ ] achieve build and run (cargo config, parser, etc.)
+    [x] achieve build and run (cargo config, parser, etc.)
         `error[E0433]: failed to resolve: use of undeclared crate or module `pax_designer`
         
         perhaps pax_designer is not being exported or `pub use`? (it seems to be doing so correctly)
@@ -141,7 +141,18 @@ Date:   Mon Aug 12 15:45:14 2024 +0700
         163 | }
         |  ^ consider adding a `main` function to `src/lib.rs`
         ```
-            
+
+        Clue: running `cargo run --features=parser` fails on pax-designer.  Digging through output, found this error:
+        Location: [35m/Users/zack/.cargo/registry/src/index.crates.io-6f17d22bba15001f/pax-compiler-0.22.0/src/lib.rs
+        
+        Which suggests there's a place we're pulling a local crate from crates.io instead of via fs path!
+        There are no apparent violations in Cargo.tomls, from what I can find
+
+        What apparently finally resolved this was the combo of: 1. fixing a double newline in the .stpl, which was breaking a feature flag cfg macro, and 2. running cargo update
+
+        BUT we still have the `pax_designer` import issue `failed to resolve: use of undeclared crate or module `pax_designer``
+
+        signing off for the day aug 14 2024 with a victory: achieved build of fireworks + designtime; it also runs (as userland component); now must manage runtime init with the two definitiontoinstancetraversers
                 
     [ ] Engine init logic (runtime)
         [ ] for designtime builds, register both definitiontoinstancetraversers with engine on init

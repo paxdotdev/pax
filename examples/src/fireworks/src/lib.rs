@@ -4,7 +4,6 @@ use pax_engine::*;
 use pax_std::*;
 
 
-
 #[pax]
 #[main]
 #[file("fireworks.pax")]
