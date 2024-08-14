@@ -29,7 +29,7 @@ git checkout -b zb/designer-bak-00
 
 [ ] Init logic
     [x] Macro init logic (compiletime)
-        [ ] Issue: can't export pax_engine::pax_designer (circ. ref., because pax-designer depends on pax-engine)
+        [x] Issue: can't export pax_engine::pax_designer (circ. ref., because pax-designer depends on pax-engine)
             - could import pax-designer directly from userland, but adds to boilerplate
                 seems most viable so far — maybe even correct to require `pax-designer` as a dev dependency when you intend to use it.
                 we can handle generating this boilerplate for new projects, and carefully document it.  
@@ -69,12 +69,7 @@ git checkout -b zb/designer-bak-00
             [ ] detect whether we are in the root crate of this build.
             [ ] might be able to store a static mutable Option<root_crate_pkg_name>, a write-once-read-many (WORM) signal to the rest of the build.
             [ ] in the stpl template, check this signal and only include the partial if we are in the root crate. 
-                [-] This might be fragile if somehow different versions of pax-macro are included in a build (is that possible or does cargo prevent it?) Answer: cargo prevents it.
-
-
-
-                
-
+                [-] This might be fragile if somehow different versions of pax-macro are included in a build (is that possible or does cargo prevent it?) Answer: cargo prevents it. (answer ft. copilot)
     [ ] Compiler-side: try-deserialize the tuple vs. the single manifest [probably make it a vec!  more extensible]
     [ ] Engine init logic (runtime)
         [ ] If in designtime build, render the root component via the designer; register the userland component for iframe
