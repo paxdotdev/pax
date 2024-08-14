@@ -383,10 +383,16 @@ impl PaxEngine {
         self.root_node.recurse_visit_postorder(&mut |node| {
             let layer = borrow!(node.instance_node).base().flags().layer;
             occlusion_ind.update_z_index(layer);
+            let cp = node.get_common_properties();
+            let cp = borrow!(cp);
             let new_occlusion = Occlusion {
                 occlusion_layer_id: occlusion_ind.get_level(),
                 z_index,
-                parent_frame: node.parent_frame.get().map(|v| v.to_u32()),
+                parent_frame: node
+                    .parent_frame
+                    .get()
+                    .filter(|_| !cp.unclippable.get().unwrap_or(false))
+                    .map(|v| v.to_u32()),
             };
             // either native layer, or something that clips content (ex: Frame)
             if (layer == Layer::Native || borrow!(node.instance_node).clips_content(node))
@@ -416,9 +422,9 @@ impl PaxEngine {
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
         // This is pretty useful during debugging - left it here since I use it often. /Sam
         // crate::api::log(&format!("tree: {:#?}", self.root_node));
-
         self.root_node
-            .recurse_render(&mut self.runtime_context, rcs);
+            .recurse_render_queue(&mut self.runtime_context, rcs);
+        self.runtime_context.recurse_flush_queued_renders(rcs);
     }
 
     pub fn get_expanded_node(&self, id: ExpandedNodeIdentifier) -> Option<Rc<ExpandedNode>> {

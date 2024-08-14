@@ -550,6 +550,7 @@ pub struct CommonProperties {
     pub skew_y: Property<Option<Rotation>>,
     pub rotate: Property<Option<Rotation>>,
     pub transform: Property<Option<Transform2D>>,
+    pub unclippable: Property<Option<bool>>,
     pub _raycastable: Property<Option<bool>>,
     pub _suspended: Property<Option<bool>>,
 }
@@ -604,6 +605,7 @@ impl CommonProperties {
             skew_y,
             rotate,
             transform,
+            unclippable,
             _raycastable,
             _suspended,
             // NOTE: remember to add an entry to the hashmap bellow as well
@@ -661,6 +663,10 @@ impl CommonProperties {
             (
                 "height".to_string(),
                 Variable::new_from_typed_property(height.clone()),
+            ),
+            (
+                "unclippable".to_string(),
+                Variable::new_from_typed_property(unclippable.clone()),
             ),
             (
                 "_raycastable".to_string(),
