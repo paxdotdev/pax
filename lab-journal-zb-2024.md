@@ -121,9 +121,6 @@ Date:   Mon Aug 12 15:45:14 2024 +0700
         ```
         This is despite the fact that we're including pax_designer in the root crate.  Could it be because (a) the crate is failing to build,
         or (b) there's some corruption of features, or (c) because pax_designer isn't present in the workspace, even though it's available via the relative path specified in the root project's Cargo.toml?
-        ^ This is because we're not including pax_designer in the root crate; it's only included in the pax-engine crate.  This is a problem because we need to include it in the root crate to get the #[pax] macro to work.
-        
-
 
     [x] Compiler-side: deserialization updates (Vec<PaxManifest>)
 
@@ -152,11 +149,13 @@ Date:   Mon Aug 12 15:45:14 2024 +0700
 
         BUT we still have the `pax_designer` import issue `failed to resolve: use of undeclared crate or module `pax_designer``
 
-        signing off for the day aug 14 2024 with a victory: achieved build of fireworks + designtime; it also runs (as userland component); now must manage runtime init with the two definitiontoinstancetraversers
+        signing off for the day aug 14 2024 with a victory: achieved build of fireworks + designtime; it also runs (rendering only userland component, not designer); now must manage runtime init with the two definitiontoinstancetraversers
                 
     [ ] Engine init logic (runtime)
         [ ] for designtime builds, register both definitiontoinstancetraversers with engine on init
         [ ] for designtime builds, render the root component via the designer; register the userland component for paxiframe
+
+    [ ] run design_server instead of static server
 
     [ ] Module cleanup pass
         [ ] pax_main
