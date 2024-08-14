@@ -6,6 +6,7 @@ vendor/
 
 .swiftpm
 .build
+pax_macro_writeln.txt
 
 xcuserdata
 
