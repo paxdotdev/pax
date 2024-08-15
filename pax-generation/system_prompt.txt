@@ -101,7 +101,12 @@ Following is a simple Pax component called `IncrementMe`:
     @pre_render: handle_pre_render,
     #text {
         style: {
-                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+               font: {Font::Web(
+                    "ff-real-headline-pro",
+                    "https://use.typekit.net/ivu7epf.css",
+                    FontStyle::Normal,
+                    FontWeight::Light,
+                )},
                 font_size: 22px,
                 fill: WHITE,
                 align_vertical: TextAlignVertical::Center,
@@ -473,7 +478,12 @@ impl Example {
     @pre_render: handle_pre_render,
     #text {
         style: {
-                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                font: {Font::Web(
+                    "ff-real-headline-pro",
+                    "https://use.typekit.net/ivu7epf.css",
+                    FontStyle::Normal,
+                    FontWeight::Light,
+                )},
                 font_size: 22px,
                 fill: WHITE,
                 align_vertical: TextAlignVertical::Center,
@@ -1751,7 +1761,12 @@ pub enum Font {
 
 impl Default for Font {
     fn default() -> Self {
-        Self::System(SystemFont::default())
+        Self::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light,
+        )
     }
 }
 
@@ -1818,27 +1833,10 @@ pub enum TextAlignVertical {
 }
 
 impl Font {
-    pub fn system(family: String, style: FontStyle, weight: FontWeight) -> Self {
-        Self::System(SystemFont {
-            family,
-            style,
-            weight,
-        })
-    }
-
     pub fn web(family: String, url: String, style: FontStyle, weight: FontWeight) -> Self {
         Self::Web(WebFont {
             family,
             url,
-            style,
-            weight,
-        })
-    }
-
-    pub fn local(family: String, path: String, style: FontStyle, weight: FontWeight) -> Self {
-        Self::Local(LocalFont {
-            family,
-            path,
             style,
             weight,
         })
@@ -1965,7 +1963,12 @@ Made an example conways game of life which you can adjust the speed of iteration
     @tick: tick
     .h1 {
         style: {
-                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light,
+            )},
                 font_size: 64px,
                 fill: BLACK,
                 align_vertical: TextAlignVertical::Center,
@@ -1975,7 +1978,12 @@ Made an example conways game of life which you can adjust the speed of iteration
     }
     .btn {
         style: {
-                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light,
+            )},
                 font_size: 24px,
                 fill: BLACK,
                 align_vertical: TextAlignVertical::Center,
@@ -2012,7 +2020,12 @@ Made an example conways game of life which you can adjust the speed of iteration
     @mount: mount,
     .text {
         style: {
-                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+               font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light,
+            )},
                 font_size: 28px,
                 fill: BLACK,
                 align_vertical: TextAlignVertical::Center,
@@ -2032,7 +2045,12 @@ Made an example conways game of life which you can adjust the speed of iteration
 @settings {
     .text {
         style: {
-                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light,
+            )},
                 font_size: 28px,
                 fill: BLACK,
                 align_vertical: TextAlignVertical::Center,
@@ -2785,7 +2803,12 @@ if self.game_state == "GAME_OVER" {
 
     #game_over {
         style: {
-            font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Normal)},
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light,
+            )},
             font_size: 100px,
             fill: WHITE,
             align_vertical: TextAlignVertical::Center,
@@ -2796,7 +2819,12 @@ if self.game_state == "GAME_OVER" {
 
     #game_over_score {
         style: {
-            font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light,
+            )},
             font_size: 64px,
             fill: WHITE,
             align_vertical: TextAlignVertical::Center,
@@ -2947,7 +2975,12 @@ impl Pong {
 
     #score {
         style: {
-            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Bold)},
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light,
+            )},
             font_size: 36px,
             fill: WHITE,
             align_vertical: TextAlignVertical::Top,
@@ -3069,7 +3102,12 @@ impl Calculator {
 @settings {
     #display {
         style: {
-            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Bold)},
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light,
+            )},
             font_size: 32px,
             fill: WHITE,
             align_vertical: TextAlignVertical::Center,
@@ -3078,7 +3116,12 @@ impl Calculator {
     }
     .btn {
         style: {
-            font: {Font::system("Arial", FontStyle::Normal, FontWeight::Normal)},
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light,
+            )},
             font_size: 24px,
             fill: BLACK,
             align_vertical: TextAlignVertical::Center,
