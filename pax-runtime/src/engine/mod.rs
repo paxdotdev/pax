@@ -240,7 +240,7 @@ impl PaxEngine {
         };
         let runtime_context = Rc::new(RuntimeContext::new(globals));
         let root_node = ExpandedNode::root(Rc::clone(&main_component_instance), &runtime_context);
-        runtime_context.register_root_node(&root_node);
+        runtime_context.register_root_expanded_node(&root_node);
 
         PaxEngine {
             runtime_context,
@@ -277,7 +277,7 @@ impl PaxEngine {
         let mut runtime_context = Rc::new(RuntimeContext::new(globals));
         let root_expanded_node =
             ExpandedNode::root(Rc::clone(&designer_main_component_instance), &mut runtime_context);
-        runtime_context.register_root_node(&root_expanded_node);
+        runtime_context.register_root_expanded_node(&root_expanded_node);
 
         PaxEngine {
             runtime_context,
