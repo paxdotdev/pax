@@ -168,7 +168,7 @@ impl pax_engine::pax_manifest::parsing::Reflectable for <%= pascal_identifier %>
 
 
         <% if args_full_component.as_ref().is_some() && args_full_component.as_ref().unwrap().is_main_component { %>
-            let crate_root = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set"));
+            let crate_root = "<%= cargo_dir %>".to_string();
             let assets_dir = crate_root.join("assets");
 
             //panic!("pre-canonicalized assets_dir {:?}", assets_dir);
@@ -187,24 +187,6 @@ impl pax_engine::pax_manifest::parsing::Reflectable for <%= pascal_identifier %>
                     }
                 }
                 _ => {
-                        let plain_path_str = assets_dir.to_str().unwrap();
-                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-                        //This doesn't work because by the time it's evaluated (runtime, parserbin) the
-                        //only value will be the root crate.
-                        //Can this be called / collected at macro time instead?
-                        //i.e. where we detect #[main]
-                        //Then, it can be passed as an arg to stpl!
-                        println!("{}", std::env::var("CARGO_PKG_NAME").unwrap());
-                        println!("{}", plain_path_str);
-
-                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-
 
                 } //silently fail; no assets dir
             }
