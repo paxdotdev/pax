@@ -113,6 +113,7 @@ impl PaxChassisWeb {
     pub async fn new(
         definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
+
         let (width, height, os_info) = Self::init_common();
 
         let main_component_instance = definition_to_instance_traverser.get_main_component();

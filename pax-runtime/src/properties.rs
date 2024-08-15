@@ -34,6 +34,8 @@ pub struct RuntimeContext {
     messages: RefCell<Vec<NativeMessage>>,
     globals: RefCell<Globals>,
     root_expanded_node: RefCell<Weak<ExpandedNode>>,
+    #[cfg(feature="designtime")]
+    userland_root_expanded_node: RefCell<Weak<ExpandedNode>>,
     node_cache: RefCell<NodeCache>,
     queued_custom_events: RefCell<Vec<(Rc<ExpandedNode>, &'static str)>>,
     queued_renders: RefCell<Vec<Rc<ExpandedNode>>>,
@@ -83,6 +85,8 @@ impl RuntimeContext {
             messages: RefCell::new(Vec::new()),
             globals: RefCell::new(globals),
             root_expanded_node: RefCell::new(Weak::new()),
+            #[cfg(feature="designtime")]
+            userland_root_expanded_node: RefCell::new(Weak::new()),
             node_cache: RefCell::new(NodeCache::new()),
             queued_custom_events: Default::default(),
             queued_renders: Default::default(),
@@ -92,6 +96,12 @@ impl RuntimeContext {
     pub fn register_root_expanded_node(&self, root: &Rc<ExpandedNode>) {
         *borrow_mut!(self.root_expanded_node) = Rc::downgrade(root);
     }
+
+    #[cfg(feature = "designtime")]
+    pub fn register_userland_root_expanded_node(&self, root: &Rc<ExpandedNode>) {
+        *borrow_mut!(self.userland_root_expanded_node) = Rc::downgrade(root);
+    }
+
 
     pub fn add_to_cache(&self, node: &Rc<ExpandedNode>) {
         borrow_mut!(self.node_cache).add_to_cache(node);
@@ -246,6 +256,11 @@ impl RuntimeContext {
             target.dispatch_custom_event(ident, self)?;
         }
         Ok(())
+    }
+
+    #[cfg(feature = "designtime")]
+    pub fn get_userland_root_expanded_node(&self) -> Option<Rc<ExpandedNode>> {
+        borrow!(self.userland_root_expanded_node).upgrade()
     }
 
     pub fn queue_render(&self, expanded_node: Rc<ExpandedNode>) {

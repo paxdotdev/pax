@@ -152,19 +152,27 @@ Date:   Mon Aug 12 15:45:14 2024 +0700
         signing off for the day aug 14 2024 with a victory: achieved build of fireworks + designtime; it also runs (rendering only userland component, not designer); now must manage runtime init with the two definitiontoinstancetraversers
         (see 7c169db2a09d69d8607aeed933149a3d791d562f)
                 
-    [ ] Engine init logic (runtime)
-        [ ] for designtime builds, register both definitiontoinstancetraversers with engine on init
-            [ ] stub out pax-designer designtime for native builds for now (just render userland project, even if designtime is on)
-        [ ] for designtime builds, render the root component via the designer; register the userland component for paxiframe
-        [ ] render userland component via paxiframe
+    [x] Engine init logic (runtime)
+        [x] for designtime builds, register both definitiontoinstancetraversers with engine on init
+            [-] stub out pax-designer designtime for native builds for now (just render userland project, even if designtime is on)
+        [x] for designtime builds, render the root component via the designer; register the userland component for paxiframe
+        [x] render userland component via paxiframe
+
+    [x] Resolve scoping of addressable components via designtimemanager 
+        - resolved by managing merged_manifest separately from userland_manifest;
+        we use the merged_manifest for codegen and userland_manifest for the DTIT and designtimemanager
     
-    [ ] paxiframe primitive
-        [ ] don't worry about string lookup for now - just pull from register
-        [ ] add to designer in both places currently exists (see stubbed TODOs)
+    [x] InlineFrame primitive
+        [x] don't worry about string lookup for now - just pull from register
+        [x] add to designer in both places currently exists (see stubbed TODOs)
+        [x] handle transition between DTITs as elegantly as possible (set children statefully a la frame?)
 
     [ ] run design_server instead of static server
+        [ ] refactor and consolidate divergent building:: vs design_server:: logic
 
     [ ] solve assets (can we merge all? do we need to coordinate across `#[main]`s somehow?)
+
+    [ ] one more merge from dev; prepare PR
 
     [ ] Module cleanup pass
         [ ] pax_main

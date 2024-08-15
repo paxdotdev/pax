@@ -131,7 +131,7 @@ impl InstanceNode for FrameInstance {
             occlusion_layer_id: 0,
         }));
 
-        // bellow is the same as default impl for adding children in instance_node
+        // below is the same as default impl for adding children in instance_node
         let env = Rc::clone(&expanded_node.stack);
         let children = borrow!(self.base().get_instance_children());
         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
