@@ -1,4 +1,5 @@
 use computable::Computable;
+use pax_runtime_api::functions::print_all_functions;
 use pax_runtime_api::{pax_value::functions::call_function, PaxValue, Percent, Rotation, Size};
 use pax_runtime_api::{CoercionRules, Functions, Numeric};
 use pest::{
@@ -330,7 +331,6 @@ fn recurse_pratt_parse(
                 } else {
                     vec![]
                 };
-
                 if Functions::has_function(&scope, &function_name) {
                     let value = PaxFunctionCall {
                         scope,

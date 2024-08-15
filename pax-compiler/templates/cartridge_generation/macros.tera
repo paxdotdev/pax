@@ -21,24 +21,26 @@ impl pax_engine::pax_runtime::ComponentFactory for {{component.pascal_identifier
                                 },
                                 pax_engine::pax_manifest::ValueDefinition::DoubleBinding(identifier) => {
                                     let identifier = identifier.name;
-                                    let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier).expect("failed to resolve identifier");
+                                    let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier).expect(&format!("failed to resolve identifier: {}", &identifier));
                                     properties.{{property.name}} = Property::new_from_untyped(untyped_property.clone());
                                 },
                                 pax_engine::pax_manifest::ValueDefinition::Identifier(ident)  => {
-                                    let property = if let Some(p) = stack_frame.resolve_symbol_as_erased_property(&ident.name) {
-                                        Property::new_from_untyped(p.clone())
-                                    } else {
-                                        panic!("Failed to resolve symbol {}", ident.name);
-                                    };
-                                    let untyped = property.untyped();
+                                    let variable = if let Some(p) = stack_frame.resolve_symbol_as_variable(&ident.name) {
+                                        p
+                                     } else {
+                                         panic!("Failed to resolve symbol {}", ident.name);
+                                     };
+                                     let name = ident.name.clone();
+                                     let untyped = variable.get_untyped_property().clone();
+                                     let cloned_variable = variable.clone();
                                     properties.{{property.name}} = Property::computed_with_name(
-                                        move || {
-                                            let new_value = property.get();
-                                            new_value
-                                        },
-                                        &[untyped],
-                                        &ident.name,
-                                    );
+                                         move || {
+                                             let new_value = cloned_variable.get_as_pax_value();
+                                             <{{property.property_type.type_id._type_id}}>::try_coerce(new_value).unwrap()
+                                         },
+                                         &[untyped],
+                                         &name,
+                                     );
                                 }
                                 
                                 pax_engine::pax_manifest::ValueDefinition::Expression(info) =>
@@ -191,21 +193,22 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                     },
                                     pax_engine::pax_manifest::ValueDefinition::DoubleBinding(identifier) => {
                                         let identifier = identifier.name.clone();
-                                        let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier).expect("failed to resolve identifier");
+                                        let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier).expect(&format!("failed to resolve identifier: {}", &identifier));
                                         Property::new_from_untyped(untyped_property.clone())
                                     },
                                     pax_engine::pax_manifest::ValueDefinition::Identifier(ident)  => {
-                                        let property = if let Some(p) = stack_frame.resolve_symbol_as_erased_property(&ident.name) {
-                                            Property::new_from_untyped(p.clone())
+                                        let variable = if let Some(p) = stack_frame.resolve_symbol_as_variable(&ident.name) {
+                                           p
                                         } else {
                                             panic!("Failed to resolve symbol {}", ident.name);
                                         };
                                         let name = ident.name.clone();
-                                        let untyped = property.untyped();
+                                        let untyped = variable.get_untyped_property().clone();
+                                        let cloned_variable = variable.clone();
                                         Property::computed_with_name(
                                             move || {
-                                                let new_value = property.get();
-                                                new_value
+                                                let new_value = cloned_variable.get_as_pax_value();
+                                                <{{prop.type_id._type_id}}>::try_coerce(new_value).unwrap()
                                             },
                                             &[untyped],
                                             &name,

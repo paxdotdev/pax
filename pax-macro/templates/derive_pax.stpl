@@ -7,6 +7,8 @@
     pub fn main() {
         let mut ctx = pax_engine::pax_manifest::parsing::ParsingContext::default();
 
+        pax_engine::api::Functions::register_all_functions();
+
         ctx.main_component_type_id = <<%= pascal_identifier %> as pax_engine::pax_manifest::parsing::Reflectable>::get_type_id();
         let (mut ctx, _) = <<%= pascal_identifier %> as pax_engine::pax_manifest::parsing::Reflectable>::parse_to_manifest(ctx);
 
@@ -141,6 +143,7 @@ impl pax_engine::pax_manifest::parsing::Reflectable for <%= pascal_identifier %>
                 <% for scoped_resolvable_type in &spd.scoped_resolvable_types { %>
 
                     //Parse each scoped resolvable type, but no need to track the child property_definitions like we did for the root scoped resolvable type
+                    < <%= scoped_resolvable_type %> as pax_engine::api::HelperFunctions>::register_all_functions();
                     let (mut ctx, _) = <%= scoped_resolvable_type %>::parse_to_manifest(ctx);
                 <% } %>
 

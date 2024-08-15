@@ -292,7 +292,7 @@ impl RuntimePropertiesStackFrame {
     }
 
     pub fn resolve_symbol(&self, symbol: &str) -> Option<Rc<RefCell<PaxAny>>> {
-        if let Some(_) = self.symbols_within_frame.get(symbol) {
+        if let Some(_) = self.symbols_within_frame.get(&clean_symbol(symbol)) {
             Some(Rc::clone(&self.properties))
         } else {
             self.parent.upgrade()?.resolve_symbol(symbol)
@@ -325,8 +325,16 @@ impl RuntimePropertiesStackFrame {
         Ok(v)
     }
 
+    pub fn resolve_symbol_as_variable(&self, symbol: &str) -> Option<Variable> {
+        if let Some(e) = self.symbols_within_frame.get(&clean_symbol(symbol)) {
+            Some(e.clone())
+        } else {
+            self.parent.upgrade()?.resolve_symbol_as_variable(symbol)
+        }
+    }
+
     pub fn resolve_symbol_as_erased_property(&self, symbol: &str) -> Option<UntypedProperty> {
-        if let Some(e) = self.symbols_within_frame.get(symbol) {
+        if let Some(e) = self.symbols_within_frame.get(&clean_symbol(symbol)) {
             Some(e.clone().get_untyped_property().clone())
         } else {
             self.parent
@@ -336,7 +344,7 @@ impl RuntimePropertiesStackFrame {
     }
 
     pub fn resolve_symbol_as_pax_value(&self, symbol: &str) -> Option<PaxValue> {
-        if let Some(e) = self.symbols_within_frame.get(symbol) {
+        if let Some(e) = self.symbols_within_frame.get(&clean_symbol(symbol)) {
             Some(e.get_as_pax_value())
         } else {
             self.parent.upgrade()?.resolve_symbol_as_pax_value(symbol)
@@ -346,6 +354,12 @@ impl RuntimePropertiesStackFrame {
     pub fn get_properties(&self) -> Rc<RefCell<PaxAny>> {
         Rc::clone(&self.properties)
     }
+
+   
+}
+
+fn clean_symbol(symbol: &str) -> String {
+    symbol.replace("self.", "").replace("this.", "")
 }
 
 impl IdentifierResolver for RuntimePropertiesStackFrame {

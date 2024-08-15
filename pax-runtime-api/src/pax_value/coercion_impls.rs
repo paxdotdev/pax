@@ -5,8 +5,7 @@
 use std::ops::Range;
 
 use crate::{
-    impl_default_coercion_rule, Color, ColorChannel, Fill, GradientStop, LinearGradient, Numeric,
-    PaxValue, Percent, Property, RadialGradient, Rotation, Size, Stroke, Transform2D,
+    impl_default_coercion_rule, math::{Transform2, Vector2}, Color, ColorChannel, Fill, GradientStop, LinearGradient, Numeric, PaxValue, Percent, Property, RadialGradient, Rotation, Size, Stroke, Transform2D
 };
 
 // Default coersion rules:
@@ -579,6 +578,51 @@ impl CoercionRules for Transform2D {
                 }
             }
             _ => return Err(format!("{:?} can't be coerced into a Transform2D", value)),
+        })
+    }
+}
+
+impl CoercionRules for Transform2 {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        Ok(match value {
+            PaxValue::Option(mut opt) => {
+                if let Some(t) = opt.take() {
+                    Transform2::try_coerce(t)?
+                } else {
+                    return Err(format!("None can't be coerced into a Transform2"));
+                }
+            }
+            PaxValue::Object(map) => {
+                let m = Vec::<f64>::try_coerce(map.get("m").unwrap().clone())?;
+                if m.len() != 6 {
+                    return Err(format!(
+                        "expected 6 elements in coeffs, got {:?}",
+                        m.len()
+                    ));
+                }
+                Transform2::new([m[0], m[1], m[2], m[3], m[4], m[5]])
+            }
+            _ => return Err(format!("{:?} can't be coerced into a Transform2", value)),
+        })
+    }
+}
+
+impl CoercionRules for Vector2 {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        Ok(match value {
+            PaxValue::Option(mut opt) => {
+                if let Some(t) = opt.take() {
+                    Vector2::try_coerce(t)?
+                } else {
+                    return Err(format!("None can't be coerced into a Vector2"));
+                }
+            }
+            PaxValue::Object(map) => {
+                let x = f64::try_coerce(map.get("x").unwrap().clone())?;
+                let y = f64::try_coerce(map.get("y").unwrap().clone())?;
+                Vector2::new(x, y)
+            }
+            _ => return Err(format!("{:?} can't be coerced into a Vector2", value)),
         })
     }
 }
