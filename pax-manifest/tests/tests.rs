@@ -33,7 +33,7 @@ mod tests {
     fn test_parse_expression() {
         let res = utils::parse_value("{5 + 3}");
         if let Ok(ValueDefinition::Expression(info)) = res {
-            assert_eq!(&info.expression.to_string(), "{5 + 3}");
+            assert_eq!(&info.expression.to_string(), "5 + 3");
         } else {
             panic!("unexpected result: {:?}", res);
         }
