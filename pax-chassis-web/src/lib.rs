@@ -85,15 +85,19 @@ impl PaxChassisWeb {
             .expect("no search exists");
 
         let main_component_instance = designer_definition_to_instance_traverser.get_main_component();
-        let designtime_manager = designer_definition_to_instance_traverser
+        let userland_main_component_instance = userland_definition_to_instance_traverser.get_main_component();
+
+        let designtime_manager = userland_definition_to_instance_traverser
             .get_designtime_manager(query_string)
             .unwrap();
         let engine = pax_runtime::PaxEngine::new_with_designtime(
             main_component_instance,
+            userland_main_component_instance,
             (width, height),
             designtime_manager.clone(),
             Platform::Web,
             os_info,
+
         );
         let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
         Self {
