@@ -74,7 +74,8 @@ pub struct InterruptResult {
 impl PaxChassisWeb {
     #[cfg(feature = "designtime")]
     pub async fn new(
-        definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
+        userland_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
+        designer_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
         let (width, height, os_info) = Self::init_common();
         let query_string = window()
@@ -83,8 +84,8 @@ impl PaxChassisWeb {
             .search()
             .expect("no search exists");
 
-        let main_component_instance = definition_to_instance_traverser.get_main_component();
-        let designtime_manager = definition_to_instance_traverser
+        let main_component_instance = designer_definition_to_instance_traverser.get_main_component();
+        let designtime_manager = designer_definition_to_instance_traverser
             .get_designtime_manager(query_string)
             .unwrap();
         let engine = pax_runtime::PaxEngine::new_with_designtime(
@@ -98,7 +99,7 @@ impl PaxChassisWeb {
         Self {
             engine: engine_container,
             drawing_contexts: Renderer::new(),
-            definition_to_instance_traverser,
+            definition_to_instance_traverser: designer_definition_to_instance_traverser,
             designtime_manager,
             last_manifest_version_rendered: 0,
         }
