@@ -1,4 +1,7 @@
-use crate::{math::{Transform2, Vector2}, Color, ColorChannel, Fill, Numeric, PaxValue, Rotation};
+use crate::{
+    math::{Transform2, Vector2},
+    Color, ColorChannel, Fill, Numeric, PaxValue, Rotation,
+};
 use once_cell::sync::Lazy;
 use std::{
     collections::HashMap,

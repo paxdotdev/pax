@@ -348,11 +348,12 @@ pub fn parse_value_definition(value: Pair<Rule>) -> ValueDefinition {
         Rule::literal_value => {
             let inner = value.into_inner().next().unwrap();
             match inner.as_rule() {
-                Rule::literal_object =>     {
+                Rule::literal_object => {
                     ValueDefinition::Block(derive_value_definition_from_literal_object_pair(inner))
-                },
+                }
                 _ => {
-                    let literal = from_pax(inner.as_str()).expect(&format!("Unable to parse literal: {:?}", inner));
+                    let literal = from_pax(inner.as_str())
+                        .expect(&format!("Unable to parse literal: {:?}", inner));
                     ValueDefinition::LiteralValue(literal)
                 }
             }

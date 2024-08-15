@@ -354,8 +354,6 @@ impl RuntimePropertiesStackFrame {
     pub fn get_properties(&self) -> Rc<RefCell<PaxAny>> {
         Rc::clone(&self.properties)
     }
-
-   
 }
 
 fn clean_symbol(symbol: &str) -> String {

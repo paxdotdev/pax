@@ -48,7 +48,7 @@ event_id = {"@" ~ identifier}
 attribute_key_value_pair = {double_binding | attribute_event_binding | (identifier ~ "=" ~ any_template_value) }
 attribute_event_binding = {event_id ~ "=" ~ literal_function}
 
-double_binding = {"bind" ~ ":" ~ identifier ~ "=" ~ literal_function}
+double_binding = {identifier ~ "=" ~ "bind" ~ ":" ~ literal_function}
 
 //`...=5.0`, `...={...}`
 any_template_value = {literal_value | expression_wrapped | identifier}

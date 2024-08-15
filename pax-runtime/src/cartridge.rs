@@ -498,7 +498,10 @@ fn resolve_property<T: CoercionRules + PropertyValue + DeserializeOwned>(
         pax_manifest::ValueDefinition::DoubleBinding(identifier) => {
             let untyped_property = stack
                 .resolve_symbol_as_erased_property(&identifier.name)
-                .expect(&format!("failed to resolve identifier: {}", &identifier.name));
+                .expect(&format!(
+                    "failed to resolve identifier: {}",
+                    &identifier.name
+                ));
             Property::new_from_untyped(untyped_property.clone())
         }
         pax_manifest::ValueDefinition::Expression(info) => {
