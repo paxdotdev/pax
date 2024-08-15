@@ -58,8 +58,9 @@ impl std::fmt::Debug for Globals {
 /// Singleton struct storing everything related to properties computation & rendering
 pub struct PaxEngine {
     pub runtime_context: Rc<RuntimeContext>,
-    pub root_node: Rc<ExpandedNode>,
+    pub root_expanded_node: Rc<ExpandedNode>,
     main_component_instance: Rc<ComponentInstance>,
+    iframe_component_instance: Option<Rc<ComponentInstance>>,
 }
 
 pub enum HandlerLocation {
@@ -243,14 +244,16 @@ impl PaxEngine {
 
         PaxEngine {
             runtime_context,
-            root_node,
+            root_expanded_node: root_node,
             main_component_instance,
+            iframe_component_instance: None,
         }
     }
 
     #[cfg(feature = "designtime")]
     pub fn new_with_designtime(
-        main_component_instance: Rc<ComponentInstance>,
+        designer_main_component_instance: Rc<ComponentInstance>,
+        userland_main_component_instance: Rc<ComponentInstance>,
         viewport_size: (f64, f64),
         designtime: Rc<RefCell<DesigntimeManager>>,
         platform: Platform,
@@ -272,14 +275,15 @@ impl PaxEngine {
         };
 
         let mut runtime_context = Rc::new(RuntimeContext::new(globals));
-        let root_node =
-            ExpandedNode::root(Rc::clone(&main_component_instance), &mut runtime_context);
-        runtime_context.register_root_node(&root_node);
+        let root_expanded_node =
+            ExpandedNode::root(Rc::clone(&designer_main_component_instance), &mut runtime_context);
+        runtime_context.register_root_node(&root_expanded_node);
 
         PaxEngine {
             runtime_context,
-            root_node,
-            main_component_instance,
+            root_expanded_node,
+            main_component_instance: designer_main_component_instance,
+            iframe_component_instance: Some(userland_main_component_instance),
         }
     }
 
@@ -313,7 +317,7 @@ impl PaxEngine {
             .clone()
             .expect("new instance node has unique identifier");
         Self::recurse_remount_main_template_expanded_node(
-            &self.root_node,
+            &self.root_expanded_node,
             &unique_id,
             &mut self.runtime_context,
         );
@@ -375,7 +379,7 @@ impl PaxEngine {
         // 1. UPDATE NODES (properties, etc.). This part we should be able to
         // completely remove once reactive properties dirty-dag is a thing.
         //
-        self.root_node.recurse_update(&mut self.runtime_context);
+        self.root_expanded_node.recurse_update(&mut self.runtime_context);
 
         let ctx = &self.runtime_context;
         // Occlusion
@@ -383,7 +387,7 @@ impl PaxEngine {
         let mut occlusion_ind = OcclusionLayerGen::new(None);
         let mut z_index = 0;
 
-        let root_node = Rc::clone(&self.root_node);
+        let root_node = Rc::clone(&self.root_expanded_node);
         let mut to_process = vec![(root_node, false)];
 
         while let Some((node, clip)) = to_process.pop() {
@@ -437,7 +441,7 @@ impl PaxEngine {
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
         // This is pretty useful during debugging - left it here since I use it often. /Sam
         // crate::api::log(&format!("tree: {:#?}", self.root_node));
-        self.root_node
+        self.root_expanded_node
             .recurse_render_queue(&mut self.runtime_context, rcs);
         self.runtime_context.recurse_flush_queued_renders(rcs);
     }
@@ -457,7 +461,7 @@ impl PaxEngine {
     }
 
     pub fn global_dispatch_key_down(&self, args: KeyDown) {
-        self.root_node
+        self.root_expanded_node
             .recurse_visit_postorder(&mut |expanded_node| {
                 expanded_node.dispatch_key_down(
                     Event::new(args.clone()),
@@ -468,7 +472,7 @@ impl PaxEngine {
     }
 
     pub fn global_dispatch_key_up(&self, args: KeyUp) {
-        self.root_node
+        self.root_expanded_node
             .recurse_visit_postorder(&mut |expanded_node| {
                 expanded_node.dispatch_key_up(
                     Event::new(args.clone()),
@@ -479,7 +483,7 @@ impl PaxEngine {
     }
 
     pub fn global_dispatch_key_press(&self, args: KeyPress) {
-        self.root_node
+        self.root_expanded_node
             .recurse_visit_postorder(&mut |expanded_node| {
                 expanded_node.dispatch_key_press(
                     Event::new(args.clone()),

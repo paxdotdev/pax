@@ -89,16 +89,6 @@ pub async fn web_socket(
 #[allow(unused_assignments)]
 pub async fn start_server(folder_to_watch: &str) -> std::io::Result<()> {
     std::env::set_var("PAX_WORKSPACE_ROOT", "../pax");
-    let ctx = RunContext {
-        target: crate::RunTarget::Web,
-        project_path: PathBuf::from("../pax-designer".to_string()),
-        verbose: false,
-        should_also_run: false,
-        should_run_designer: true,
-        is_libdev_mode: true,
-        process_child_ids: Arc::new(Mutex::new(vec![])),
-        is_release: false,
-    };
 
     let initial_state = perform_build_and_create_state(folder_to_watch)?;
     let fs_path = initial_state.serve_dir.lock().unwrap().clone();

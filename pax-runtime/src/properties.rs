@@ -33,7 +33,7 @@ pub struct RuntimeContext {
     next_uid: Cell<ExpandedNodeIdentifier>,
     messages: RefCell<Vec<NativeMessage>>,
     globals: RefCell<Globals>,
-    root_node: RefCell<Weak<ExpandedNode>>,
+    root_expanded_node: RefCell<Weak<ExpandedNode>>,
     node_cache: RefCell<NodeCache>,
     queued_custom_events: RefCell<Vec<(Rc<ExpandedNode>, &'static str)>>,
     queued_renders: RefCell<Vec<Rc<ExpandedNode>>>,
@@ -82,7 +82,7 @@ impl RuntimeContext {
             next_uid: Cell::new(ExpandedNodeIdentifier(0)),
             messages: RefCell::new(Vec::new()),
             globals: RefCell::new(globals),
-            root_node: RefCell::new(Weak::new()),
+            root_expanded_node: RefCell::new(Weak::new()),
             node_cache: RefCell::new(NodeCache::new()),
             queued_custom_events: Default::default(),
             queued_renders: Default::default(),
@@ -90,7 +90,7 @@ impl RuntimeContext {
     }
 
     pub fn register_root_node(&self, root: &Rc<ExpandedNode>) {
-        *borrow_mut!(self.root_node) = Rc::downgrade(root);
+        *borrow_mut!(self.root_expanded_node) = Rc::downgrade(root);
     }
 
     pub fn add_to_cache(&self, node: &Rc<ExpandedNode>) {
@@ -161,7 +161,7 @@ impl RuntimeContext {
         //Next: check whether ancestral clipping bounds (hit_test) are satisfied
         //Finally: check whether element itself satisfies hit_test(ray)
 
-        let root_node = borrow!(self.root_node).upgrade().unwrap();
+        let root_node = borrow!(self.root_expanded_node).upgrade().unwrap();
         let mut to_process = vec![(root_node, false)];
         while let Some((node, clipped)) = to_process.pop() {
             // make sure slot sources are updated for this node
@@ -205,7 +205,7 @@ impl RuntimeContext {
         Some(
             res.into_iter()
                 .next()
-                .unwrap_or(borrow!(self.root_node).upgrade().unwrap()),
+                .unwrap_or(borrow!(self.root_expanded_node).upgrade().unwrap()),
         )
     }
 
