@@ -1492,7 +1492,7 @@ pub struct ExpressionInfo {
 
 impl Display for ExpressionInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.expression)
+        write!(f, "{}", self.expression)
     }
 }
 
