@@ -12,6 +12,7 @@ use super::ToPaxValue;
 use crate::impl_to_from_pax_value;
 use crate::math::Space;
 use crate::math::Transform2;
+use crate::math::Vector2;
 use crate::properties::PropertyValue;
 use crate::Color;
 use crate::ColorChannel;
@@ -250,6 +251,36 @@ impl ToPaxValue for Transform2D {
                         .map(|s| PaxValue::Option(Box::new(Some(s.to_vec().to_pax_value()))))
                         .unwrap_or(PaxValue::Option(Box::new(None))),
                 ),
+            ]
+            .into_iter()
+            .collect(),
+        )
+    }
+}
+
+impl ToPaxValue for Transform2 {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Object(
+            vec![
+                (
+                    "m".to_string(),
+                    PaxValue::Vec(
+                        self.m.iter().map(|v| v.to_pax_value()).collect::<Vec<_>>(),
+                    ),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        )
+    }
+}
+
+impl ToPaxValue for Vector2 {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Object(
+            vec![
+                ("x".to_string(), self.x.to_pax_value()),
+                ("y".to_string(), self.y.to_pax_value()),
             ]
             .into_iter()
             .collect(),

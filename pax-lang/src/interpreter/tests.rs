@@ -233,7 +233,10 @@ fn test_adding_strings() {
 #[test]
 fn test_function_call() {
     let idr = initialize_test_resolver();
-    let expr = "Math::min(10,3)";
+    let expr = "Transform2D::translate(0px,0px)";
+
+    let ast = parse_pax_expression(expr).unwrap();
+    println!("{:?}", ast);
     let expected = PaxValue::Numeric(Numeric::I64(3));
     let result = compute_paxel(expr, idr).unwrap();
     assert_eq!(expected, result);
