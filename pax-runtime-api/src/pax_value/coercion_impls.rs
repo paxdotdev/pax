@@ -5,7 +5,10 @@
 use std::ops::Range;
 
 use crate::{
-    impl_default_coercion_rule, math::{Transform2, Vector2}, Color, ColorChannel, Fill, GradientStop, LinearGradient, Numeric, PaxValue, Percent, Property, RadialGradient, Rotation, Size, Stroke, Transform2D
+    impl_default_coercion_rule,
+    math::{Transform2, Vector2},
+    Color, ColorChannel, Fill, GradientStop, LinearGradient, Numeric, PaxValue, Percent, Property,
+    RadialGradient, Rotation, Size, Stroke, Transform2D,
 };
 
 // Default coersion rules:
@@ -595,10 +598,7 @@ impl CoercionRules for Transform2 {
             PaxValue::Object(map) => {
                 let m = Vec::<f64>::try_coerce(map.get("m").unwrap().clone())?;
                 if m.len() != 6 {
-                    return Err(format!(
-                        "expected 6 elements in coeffs, got {:?}",
-                        m.len()
-                    ));
+                    return Err(format!("expected 6 elements in coeffs, got {:?}", m.len()));
                 }
                 Transform2::new([m[0], m[1], m[2], m[3], m[4], m[5]])
             }

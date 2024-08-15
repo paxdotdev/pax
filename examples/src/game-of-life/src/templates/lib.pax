@@ -10,17 +10,17 @@
                 </Stacker>
             </Frame>
             <Frame width=300px height=50px x=50%>
-                <SpeedControl bind:speed=speed />
+                <SpeedControl speed=bind:speed />
             </Frame>
             <Frame width=300px height=60px x=50%>
-                <ColorControl bind:selected_color=color />
+                <ColorControl selected_color=bind:color />
             </Frame>
         </Stacker>
         <Stacker>
             for i in 0..10 {
                 <Stacker direction=StackerDirection::Horizontal >
                     for j in 0..10 {
-                        <Cell bind:cells=cells row=i col=j bind:color=color />
+                        <Cell cells=bind:cells row=i col=j color=bind:color />
                     }
                 </Stacker>
             }

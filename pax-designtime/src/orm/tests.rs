@@ -2,7 +2,8 @@
 mod tests {
     use crate::orm::PaxManifestORM;
     use pax_manifest::{
-        ComponentDefinition, LiteralBlockDefinition, PaxManifest, SettingsBlockElement, Token, TypeId,
+        ComponentDefinition, LiteralBlockDefinition, PaxManifest, SettingsBlockElement, Token,
+        TypeId,
     };
     use std::collections::{BTreeMap, HashMap};
 

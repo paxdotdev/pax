@@ -261,14 +261,10 @@ impl ToPaxValue for Transform2D {
 impl ToPaxValue for Transform2 {
     fn to_pax_value(self) -> PaxValue {
         PaxValue::Object(
-            vec![
-                (
-                    "m".to_string(),
-                    PaxValue::Vec(
-                        self.m.iter().map(|v| v.to_pax_value()).collect::<Vec<_>>(),
-                    ),
-                ),
-            ]
+            vec![(
+                "m".to_string(),
+                PaxValue::Vec(self.m.iter().map(|v| v.to_pax_value()).collect::<Vec<_>>()),
+            )]
             .into_iter()
             .collect(),
         )
