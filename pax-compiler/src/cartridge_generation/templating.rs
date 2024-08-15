@@ -39,6 +39,9 @@ pub struct TemplateArgsCodegenCartridgeSnippet {
 
     // JSON string representation of the manifest, used at least for designtime builds
     pub manifest_json: String,
+
+    // JSON string representation of the manifest, used at least for designtime builds
+    pub designer_manifest_json: String,
 }
 
 #[allow(unused)]

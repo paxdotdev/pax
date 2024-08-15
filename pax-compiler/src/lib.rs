@@ -138,7 +138,7 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     };
 
     println!("{} 🦀 Generating Rust", *PAX_BADGE);
-    generate_cartridge_partial_rs(&pax_dir, &merged_manifest);
+    generate_cartridge_partial_rs(&pax_dir, &merged_manifest, designer_manifest);
     // source_map.extract_ranges_from_generated_code(cartridge_path.to_str().unwrap());
 
     //7. Build full project from source
