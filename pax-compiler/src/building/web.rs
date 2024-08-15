@@ -92,7 +92,7 @@ pub fn build_web_project_with_cartridge(
         return Err(eyre!("Error creating directory {:?}: {}", asset_dest, e));
     }
 
-    panic!("final asset copying: {:?}", &assets_dirs);
+    // panic!("final asset copying: {:?}", &assets_dirs);
 
     for asset_src in assets_dirs {
         let asset_src = PathBuf::from(asset_src);
