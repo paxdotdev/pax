@@ -60,7 +60,8 @@ pub struct PaxEngine {
     pub runtime_context: Rc<RuntimeContext>,
     pub root_expanded_node: Rc<ExpandedNode>,
     main_component_instance: Rc<ComponentInstance>,
-    iframe_component_instance: Option<Rc<ComponentInstance>>,
+    #[cfg(feature="designtime")]
+    userland_main_component_instance: Rc<ComponentInstance>,
 }
 
 pub enum HandlerLocation {
@@ -246,7 +247,6 @@ impl PaxEngine {
             runtime_context,
             root_expanded_node: root_node,
             main_component_instance,
-            iframe_component_instance: None,
         }
     }
 
@@ -274,7 +274,17 @@ impl PaxEngine {
             designtime: designtime.clone(),
         };
 
+
         let mut runtime_context = Rc::new(RuntimeContext::new(globals));
+
+
+        //Must register userland node first, because this will mount component trees (calling .mount)
+        //Because InlineFrame's mount logic assumes that the "iframe" component is already registered and available
+        //on runtime context, it must first be registered (here)
+        let userland_root_expanded_node =
+            ExpandedNode::root(Rc::clone(&userland_main_component_instance), &mut runtime_context);
+        runtime_context.register_userland_root_expanded_node(&userland_root_expanded_node);
+
         let root_expanded_node =
             ExpandedNode::root(Rc::clone(&designer_main_component_instance), &mut runtime_context);
         runtime_context.register_root_expanded_node(&root_expanded_node);
@@ -283,7 +293,7 @@ impl PaxEngine {
             runtime_context,
             root_expanded_node,
             main_component_instance: designer_main_component_instance,
-            iframe_component_instance: Some(userland_main_component_instance),
+            userland_main_component_instance: userland_main_component_instance,
         }
     }
 
