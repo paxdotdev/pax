@@ -44,7 +44,7 @@ impl Display for PaxValue {
         match self {
             PaxValue::Bool(b) => write!(f, "{}", b),
             PaxValue::Numeric(n) => write!(f, "{}", n),
-            PaxValue::String(s) => write!(f, "{}", s),
+            PaxValue::String(s) => write!(f, "\"{}\"", s),
             PaxValue::Size(s) => write!(f, "{}", s),
             PaxValue::Percent(p) => write!(f, "{}", p),
             PaxValue::Color(c) => write!(f, "{}", c),
