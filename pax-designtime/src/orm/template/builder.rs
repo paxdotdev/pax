@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 use pax_manifest::{
-    NodeLocation, PropertyDefinition, SettingElement, Token, TokenType, TypeId,
-    UniqueTemplateNodeIdentifier, ValueDefinition,
+    NodeLocation, PropertyDefinition, SettingElement, Token, TypeId, UniqueTemplateNodeIdentifier,
+    ValueDefinition,
 };
 use serde::Serialize;
 
@@ -106,7 +106,7 @@ impl<'a> NodeBuilder<'a> {
         let values: Vec<Option<ValueDefinition>> = properties
             .iter()
             .map(|prop| {
-                let key = &Token::new_only_raw(prop.name.clone(), TokenType::SettingKey);
+                let key = &Token::new_without_location(prop.name.clone());
                 full_settings.get(key).cloned()
             })
             .collect();
@@ -149,13 +149,13 @@ impl<'a> NodeBuilder<'a> {
             return Ok(());
         }
         let value = pax_manifest::utils::parse_value(value).map_err(|e| anyhow!(e.to_owned()))?;
-        let token = Token::new_only_raw(key.to_owned(), TokenType::SettingKey);
+        let token = Token::new_without_location(key.to_owned());
         self.updated_property_map.insert(token, Some(value));
         Ok(())
     }
 
     pub fn remove_property(&mut self, key: &str) {
-        let key = Token::new_only_raw(key.to_owned(), TokenType::SettingKey);
+        let key = Token::new_without_location(key.to_owned());
         self.updated_property_map.insert(key, None);
     }
 

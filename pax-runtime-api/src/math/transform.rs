@@ -14,7 +14,7 @@ use std::{marker::PhantomData, ops::Mul};
 impl<W: Space, T: Space> Interpolatable for Transform2<W, T> {}
 
 pub struct Transform2<WFrom = Generic, WTo = WFrom> {
-    m: [f64; 6],
+    pub m: [f64; 6],
     _panthom_from: PhantomData<WFrom>,
     _panthom_to: PhantomData<WTo>,
 }

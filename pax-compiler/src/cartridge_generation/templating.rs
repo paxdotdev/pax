@@ -8,7 +8,7 @@ use tera::{Context, Tera};
 
 use pax_manifest::{
     cartridge_generation::{CommonProperty, ComponentInfo},
-    ExpressionSpec, TypeTable,
+    TypeTable,
 };
 
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates/cartridge_generation");

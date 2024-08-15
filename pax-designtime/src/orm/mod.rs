@@ -221,7 +221,7 @@ impl PaxManifestORM {
         if let Some(settings) = &tnd.settings {
             for setting in settings {
                 if let SettingElement::Setting(token, value) = setting {
-                    if token.raw_value == key {
+                    if token.token_value == key {
                         return Some(value.clone());
                     }
                 }

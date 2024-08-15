@@ -40,8 +40,6 @@ fn renamed_rules(rule: &Rule) -> String {
         Rule::attribute_event_binding => "handler binding".to_string(),
         Rule::double_binding => "two-way binding".to_string(),
         Rule::any_template_value => "literal value, literal object, expression, identifier".to_string(),
-        Rule::id => "id".to_string(),
-        Rule::id_binding => "id binding (e.g. id=ID_SELECTOR )".to_string(),
         Rule::node_inner_content => "literal value or expression".to_string(),
         Rule::string => "double quoted string".to_string(),
         Rule::inner => "string".to_string(),

@@ -12,14 +12,14 @@ use std::collections::HashMap;
 #[inlined(
     <Frame _clip_content={self._clip_content}>
         <Scrollbar
-            bind:scroll_y=scroll_pos_y
+            scroll_y=bind:scroll_pos_y
             width=20px
             anchor_x=100%
             x=100%
             size_inner_pane_y={self.scroll_height}
         />
         <Scrollbar
-            bind:scroll_x=scroll_pos_x
+            scroll_x=bind:scroll_pos_x
             height=20px
             anchor_y=100%
             y=100%

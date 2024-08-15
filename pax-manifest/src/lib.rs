@@ -4,6 +4,8 @@ use std::fmt::Display;
 use std::hash::Hasher;
 use std::{cmp::Ordering, hash::Hash};
 
+use pax_lang::interpreter::{PaxExpression, PaxIdentifier};
+use pax_lang::DependencyCollector;
 use pax_message::serde::{Deserialize, Serialize};
 pub use pax_runtime_api;
 use pax_runtime_api::{CoercionRules, HelperFunctions, Interpolatable, PaxValue, ToPaxValue};
@@ -131,127 +133,11 @@ pub fn get_common_properties_as_property_definitions() -> Vec<PropertyDefinition
     ret
 }
 
-impl Eq for ExpressionSpec {}
-
-impl PartialEq<Self> for ExpressionSpec {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-impl PartialOrd<Self> for ExpressionSpec {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.id.partial_cmp(&other.id)
-    }
-}
-
-impl Ord for ExpressionSpec {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.id.partial_cmp(&other.id).unwrap()
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(crate = "pax_message::serde")]
-pub struct ExpressionSpec {
-    /// Unique id for vtable entry — used for binding a node definition property to vtable
-    pub id: usize,
-
-    /// Representations of symbols used in an expression, and the necessary
-    /// metadata to "invoke" those symbols from the runtime
-    pub invocations: Vec<ExpressionSpecInvocation>,
-
-    /// Fully qualified (reexport-qualified) type ID, used for explicit RIL statement
-    /// casting before packing into PaxType.  This ensures .into() chains evaluate before packing
-    /// into PaxType, which enables us to downcast correctly at runtime.
-    pub output_type: String,
-
-    /// String (RIL) representation of the compiled expression
-    pub output_statement: String,
-
-    /// String representation of the original input statement
-    pub input_statement: MappedString,
-
-    /// Special-handling for Repeat codegen
-    pub is_repeat_source_iterable_expression: bool,
-}
-
-/// The spec of an expression `invocation`, the necessary configuration
-/// for initializing a pointer to (or copy of, in some cases) the data behind a symbol.
-/// For example, if an expression uses `i`, that `i` needs to be "invoked," bound dynamically
-/// to some data on the other side of `i` for the context of a particular expression.  `ExpressionSpecInvocation`
-/// holds the recipe for such an `invocation`, populated as a part of expression compilation.
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(crate = "pax_message::serde")]
-pub struct ExpressionSpecInvocation {
-    /// Identifier of the top-level symbol (stripped of `this` or `self`) for nested symbols (`foo` for `foo.bar`) or the
-    /// identifier itself for non-nested symbols (`foo` for `foo`)
-    pub root_identifier: String,
-
-    /// Identifier escaped so that all operations (like `.` or `[...]`) are
-    /// encoded as a valid single identifier
-    pub escaped_identifier: String,
-
-    /// Statically known stack offset for traversing Repeat-based scopes at runtime
-    pub stack_offset: usize,
-
-    /// Type of the containing Properties struct, for downcasting from PaxType.
-    pub fully_qualified_properties_struct_type: String,
-
-    /// For symbolic invocations that refer to repeat elements, this is the fully qualified type of each such repeated element
-    pub fully_qualified_iterable_type: String,
-
-    /// Flags used for particular corner cases of `Repeat` codegen
-    pub is_numeric: bool,
-    pub is_bool: bool,
-    pub is_string: bool,
-
-    /// Flags describing attributes of properties
-    pub property_flags: PropertyDefinitionFlags,
-
-    /// Metadata used for nested symbol invocation, like `foo.bar.baz`
-    /// Holds an RIL "tail" string for appending to invocation literal bodies,
-    /// like `.bar.get().baz.get()` for the nested symbol invocation `foo.bar.baz`.
-    pub nested_symbol_tail_literal: String,
-    /// Flag describing whether the nested symbolic invocation, e.g. `foo.bar`, ultimately
-    /// resolves to a numeric type (as opposed to `is_numeric`, which represents the root of a nested type)
-    pub is_nested_numeric: bool,
-}
-
 pub const SUPPORTED_NUMERIC_PRIMITIVES: [&str; 13] = [
     "u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64", "i128", "isize", "f64",
 ];
 
 pub const SUPPORTED_NONNUMERIC_PRIMITIVES: [&str; 2] = ["String", "bool"];
-
-impl ExpressionSpecInvocation {
-    pub fn is_primitive_string(property_type: &TypeId) -> bool {
-        match property_type.get_pax_type() {
-            PaxType::Primitive { pascal_identifier } | PaxType::Singleton { pascal_identifier } => {
-                return SUPPORTED_NONNUMERIC_PRIMITIVES[0] == pascal_identifier;
-            }
-            _ => false,
-        }
-    }
-
-    pub fn is_primitive_bool(property_type: &TypeId) -> bool {
-        match property_type.get_pax_type() {
-            PaxType::Primitive { pascal_identifier } | PaxType::Singleton { pascal_identifier } => {
-                return SUPPORTED_NONNUMERIC_PRIMITIVES[1] == pascal_identifier;
-            }
-            _ => false,
-        }
-    }
-
-    pub fn is_numeric(property_type: &TypeId) -> bool {
-        match property_type.get_pax_type() {
-            PaxType::Primitive { pascal_identifier } | PaxType::Singleton { pascal_identifier } => {
-                return SUPPORTED_NUMERIC_PRIMITIVES.contains(&pascal_identifier.as_str());
-            }
-            _ => false,
-        }
-    }
-}
 
 /// Container for an entire component definition — includes template, settings,
 /// event bindings, property definitions, and compiler + reflection metadata
@@ -283,7 +169,7 @@ impl ComponentDefinition {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
 pub enum SettingsBlockElement {
     SelectorBlock(Token, LiteralBlockDefinition),
@@ -1226,10 +1112,12 @@ impl ComponentTemplate {
             if let Some(settings) = &n.settings {
                 for setting in settings {
                     if let SettingElement::Setting(setting, value) = setting {
-                        if setting.raw_value == "id" {
+                        if setting.token_value == "id" {
                             if let ValueDefinition::LiteralValue(val) = value {
-                                if val.raw_value == id {
-                                    return Some(i);
+                                if let PaxValue::String(val_id) = val {
+                                    if id == val_id {
+                                        return Some(i);
+                                    }
                                 };
                             }
                         }
@@ -1535,109 +1423,25 @@ pub struct ExpressionCompilationInfo {
 
 /// Container for settings values, storing all possible
 /// variants, populated at parse-time and used at compile-time
-#[derive(Serialize, Deserialize, Default, Debug, Clone, Eq)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
 pub enum ValueDefinition {
     #[default]
     Undefined, //Used for `Default`
-    LiteralValue(Token),
+    LiteralValue(PaxValue),
     Block(LiteralBlockDefinition),
     /// (Expression contents, vtable id binding)
-    Expression(Token),
+    Expression(ExpressionInfo),
     /// (Expression contents, vtable id binding)
-    Identifier(Token),
+    Identifier(PaxIdentifier),
     /// (Expression contents, vtable id binding)
-    DoubleBinding(Token),
-    EventBindingTarget(Token),
-}
-
-impl Hash for ValueDefinition {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        match self {
-            ValueDefinition::Undefined => {
-                "Undefined".hash(state);
-            }
-            ValueDefinition::LiteralValue(t) => {
-                t.hash(state);
-            }
-            ValueDefinition::Block(lbd) => {
-                lbd.hash(state);
-            }
-            ValueDefinition::Expression(t) => {
-                t.hash(state);
-            }
-            ValueDefinition::Identifier(t) => {
-                t.hash(state);
-            }
-            ValueDefinition::DoubleBinding(t) => {
-                t.hash(state);
-            }
-            ValueDefinition::EventBindingTarget(t) => {
-                t.hash(state);
-            }
-        }
-    }
-}
-
-impl PartialEq for ValueDefinition {
-    fn eq(&self, other: &Self) -> bool {
-        match self {
-            ValueDefinition::Undefined => {
-                if let ValueDefinition::Undefined = other {
-                    true
-                } else {
-                    false
-                }
-            }
-            ValueDefinition::LiteralValue(t) => {
-                if let ValueDefinition::LiteralValue(ot) = other {
-                    t == ot
-                } else {
-                    false
-                }
-            }
-            ValueDefinition::Block(lbd) => {
-                if let ValueDefinition::Block(olbd) = other {
-                    lbd == olbd
-                } else {
-                    false
-                }
-            }
-            ValueDefinition::Expression(t) => {
-                if let ValueDefinition::Expression(ot) = other {
-                    t == ot
-                } else {
-                    false
-                }
-            }
-            ValueDefinition::Identifier(t) => {
-                if let ValueDefinition::Identifier(ot) = other {
-                    t == ot
-                } else {
-                    false
-                }
-            }
-            ValueDefinition::EventBindingTarget(t) => {
-                if let ValueDefinition::EventBindingTarget(ot) = other {
-                    t == ot
-                } else {
-                    false
-                }
-            }
-            ValueDefinition::DoubleBinding(t) => {
-                if let ValueDefinition::DoubleBinding(ot) = other {
-                    t == ot
-                } else {
-                    false
-                }
-            }
-        }
-    }
+    DoubleBinding(PaxIdentifier),
+    EventBindingTarget(PaxIdentifier),
 }
 
 /// Container for holding metadata about original Location in Pax Template
 /// Used for source-mapping
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Hash, Eq, PartialOrd, Ord)]
 #[serde(crate = "pax_message::serde")]
 pub struct LocationInfo {
     pub start_line_col: (usize, usize),
@@ -1650,20 +1454,18 @@ pub struct LocationInfo {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 #[serde(crate = "pax_message::serde")]
 pub enum ControlFlowRepeatPredicateDefinition {
-    ElemId(Token),
-    ElemIdIndexId(Token, Token),
+    ElemId(String),
+    ElemIdIndexId(String, String),
 }
 
 impl ControlFlowRepeatPredicateDefinition {
     pub fn get_symbols(&self) -> HashSet<String> {
         match self {
             ControlFlowRepeatPredicateDefinition::ElemId(t) => {
-                vec![t.raw_value.clone()].into_iter().collect()
+                vec![t.clone()].into_iter().collect()
             }
             ControlFlowRepeatPredicateDefinition::ElemIdIndexId(t1, t2) => {
-                vec![t1.raw_value.clone(), t2.raw_value.clone()]
-                    .into_iter()
-                    .collect()
+                vec![t1.clone(), t2.clone()].into_iter().collect()
             }
         }
     }
@@ -1675,61 +1477,36 @@ impl ControlFlowRepeatPredicateDefinition {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(crate = "pax_message::serde")]
 pub struct ControlFlowSettingsDefinition {
-    pub condition_expression_paxel: Option<Token>,
-    pub condition_expression_info: Option<ExpressionCompilationInfo>,
-    pub slot_index_expression_paxel: Option<Token>,
-    pub slot_index_expression_info: Option<ExpressionCompilationInfo>,
+    pub condition_expression: Option<ExpressionInfo>,
+    pub slot_index_expression: Option<ExpressionInfo>,
     pub repeat_predicate_definition: Option<ControlFlowRepeatPredicateDefinition>,
-    pub repeat_source_definition: Option<ControlFlowRepeatSourceDefinition>,
+    pub repeat_source_expression: Option<ExpressionInfo>,
 }
 
-impl PartialEq for ControlFlowRepeatSourceDefinition {
-    fn eq(&self, other: &Self) -> bool {
-        self.range_expression_paxel == other.range_expression_paxel
-    }
-}
-
-impl Eq for ControlFlowRepeatSourceDefinition {}
-
-impl Hash for ControlFlowRepeatSourceDefinition {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.range_expression_paxel.hash(state);
-    }
-}
-
-impl PartialEq for ControlFlowSettingsDefinition {
-    fn eq(&self, other: &Self) -> bool {
-        self.condition_expression_paxel == other.condition_expression_paxel
-            && self.slot_index_expression_paxel == other.slot_index_expression_paxel
-            && self.repeat_predicate_definition == other.repeat_predicate_definition
-            && self.repeat_source_definition == other.repeat_source_definition
-    }
-}
-
-impl Eq for ControlFlowSettingsDefinition {}
-
-impl Hash for ControlFlowSettingsDefinition {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.condition_expression_paxel.hash(state);
-        self.slot_index_expression_paxel.hash(state);
-        self.repeat_predicate_definition.hash(state);
-        self.repeat_source_definition.hash(state);
-    }
-}
-
-/// Container describing the possible variants of a Repeat source
-/// — namely a range expression in PAXEL or a symbolic binding
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(crate = "pax_message::serde")]
-pub struct ControlFlowRepeatSourceDefinition {
-    pub range_expression_paxel: Option<Token>,
-    pub range_symbolic_bindings: Vec<Token>,
-    pub expression_info: Option<ExpressionCompilationInfo>,
-    pub symbolic_binding: Option<Token>,
+pub struct ExpressionInfo {
+    pub expression: PaxExpression,
+    pub dependencies: Vec<String>,
+}
+
+impl Display for ExpressionInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.expression)
+    }
+}
+
+impl ExpressionInfo {
+    pub fn new(expr: PaxExpression) -> Self {
+        Self {
+            dependencies: expr.collect_dependencies(),
+            expression: expr,
+        }
+    }
 }
 
 /// Container for a parsed Literal object
-#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(crate = "pax_message::serde")]
 pub struct LiteralBlockDefinition {
     pub explicit_type_pascal_identifier: Option<Token>,
@@ -1745,13 +1522,7 @@ impl LiteralBlockDefinition {
     }
 }
 
-impl Hash for LiteralBlockDefinition {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.elements.hash(state);
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
 pub enum SettingElement {
     Setting(Token, ValueDefinition),
@@ -1775,59 +1546,23 @@ impl LiteralBlockDefinition {
 
 /// Container for parsed values with optional location information
 /// Location is optional in case this token was generated dynamically
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, Eq, PartialOrd, Ord)]
 #[serde(crate = "pax_message::serde")]
 pub struct Token {
     pub token_value: String,
-    // Non-pratt parsed string
-    pub raw_value: String,
-    pub token_type: TokenType,
-    pub source_line: Option<String>,
     pub token_location: Option<LocationInfo>,
-}
-
-impl PartialOrd for Token {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.raw_value.partial_cmp(&other.raw_value)
-    }
-}
-impl Ord for Token {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.raw_value.cmp(&other.raw_value)
-    }
 }
 
 impl PartialEq for Token {
     fn eq(&self, other: &Self) -> bool {
-        self.raw_value == other.raw_value
+        self.token_value == other.token_value
     }
 }
-
-impl Eq for Token {}
 
 impl Hash for Token {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.raw_value.hash(state);
+        self.token_value.hash(state)
     }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-#[serde(crate = "pax_message::serde")]
-pub enum TokenType {
-    Expression,
-    Identifier,
-    LiteralValue,
-    IfExpression,
-    ForPredicate,
-    ForSource,
-    SlotExpression,
-    EventId,
-    Handler,
-    SettingKey,
-    Selector,
-    PascalIdentifier,
-    #[default]
-    Unknown,
 }
 
 fn get_line(s: &str, line_number: usize) -> Option<&str> {
@@ -1835,57 +1570,17 @@ fn get_line(s: &str, line_number: usize) -> Option<&str> {
 }
 
 impl Token {
-    pub fn new(
-        token_value: String,
-        token_type: TokenType,
-        token_location: LocationInfo,
-        pax: &str,
-    ) -> Self {
-        let source_line = get_line(pax, token_location.start_line_col.0).map(|s| s.to_string());
-        let raw_value = token_value.clone();
+    pub fn new(token_value: String, token_location: LocationInfo) -> Self {
         Self {
             token_value,
-            raw_value,
-            token_type,
-            source_line,
             token_location: Some(token_location),
         }
     }
 
-    pub fn new_only_raw(raw_value: String, token_type: TokenType) -> Self {
-        Self {
-            token_value: raw_value.to_owned(),
-            raw_value,
-            token_type,
-            source_line: None,
-            token_location: None,
-        }
-    }
-
-    pub fn new_value_raw(token_value: String, raw_value: String, token_type: TokenType) -> Self {
+    pub fn new_without_location(token_value: String) -> Self {
         Self {
             token_value,
-            raw_value,
-            token_type,
-            source_line: None,
             token_location: None,
-        }
-    }
-
-    pub fn new_with_raw_value(
-        token_value: String,
-        raw_value: String,
-        token_type: TokenType,
-        token_location: LocationInfo,
-        pax: &str,
-    ) -> Self {
-        let source_line = get_line(pax, token_location.start_line_col.0).map(|s| s.to_string());
-        Self {
-            token_value,
-            raw_value,
-            token_type,
-            source_line,
-            token_location: Some(token_location),
         }
     }
 }
@@ -1902,47 +1597,6 @@ pub enum Number {
 pub enum Unit {
     Pixels,
     Percent,
-}
-
-#[derive(Serialize, Deserialize, Clone, Default, Debug)]
-#[serde(crate = "pax_message::serde")]
-pub struct MappedString {
-    pub content: String,
-    /// Markers used to identify generated code range for source map.
-    pub source_map_start_marker: Option<String>,
-    pub source_map_end_marker: Option<String>,
-}
-
-impl PartialEq for MappedString {
-    fn eq(&self, other: &Self) -> bool {
-        self.content == other.content
-    }
-}
-
-impl Eq for MappedString {}
-
-impl Hash for MappedString {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.content.hash(state);
-    }
-}
-
-impl MappedString {
-    pub fn none() -> Self {
-        MappedString {
-            content: "None".to_string(),
-            source_map_start_marker: None,
-            source_map_end_marker: None,
-        }
-    }
-
-    pub fn new(content: String) -> Self {
-        MappedString {
-            content,
-            source_map_start_marker: None,
-            source_map_end_marker: None,
-        }
-    }
 }
 
 pub fn escape_identifier(input: String) -> String {

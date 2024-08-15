@@ -199,14 +199,10 @@ event_id = {"@" ~ identifier}
 attribute_key_value_pair = {double_binding | attribute_event_binding | id_binding | (identifier ~ "=" ~ any_template_value) }
 attribute_event_binding = {event_id ~ "=" ~ literal_function}
 
-double_binding = {"bind:" ~ identifier ~ "=" ~ literal_function}
+double_binding = {identifier ~ "=" ~ "bind" ~ ":" ~ literal_function}
 
 //`...=5.0`, `...={...}`
 any_template_value = {literal_value | literal_object | expression_wrapped | identifier}
-
-// id=identifier (non-expression)
-id = {"id"}
-id_binding = {id ~ "=" ~ identifier}
 
 //For example: <Text>"This is my inner content"</Text>
 //Presumably this content can be bare literal values other than strings like Color::hlca(...)
@@ -1947,17 +1943,17 @@ Made an example conways game of life which you can adjust the speed of iteration
                 </Stacker>
             </Frame>
             <Frame width=300px height=50px x=50%>
-                <SpeedControl bind:speed=speed />
+                <SpeedControl speed=bind:speed />
             </Frame>
             <Frame width=300px height=60px x=50%>
-                <ColorControl bind:selected_color=color />
+                <ColorControl selected_color=bind:color />
             </Frame>
         </Stacker>
         <Stacker>
             for i in 0..10 {
                 <Stacker direction=StackerDirection::Horizontal >
                     for j in 0..10 {
-                        <Cell bind:cells=cells row=i col=j bind:color=color />
+                        <Cell cells=bind:cells row=i col=j color=bind:color />
                     }
                 </Stacker>
             }
@@ -2009,7 +2005,7 @@ Made an example conways game of life which you can adjust the speed of iteration
 ```pax filename=game-of-life/src/templates/color_control.pax
 <Stacker> 
     <Text text="Color" class=text x=50% />
-    <Dropdown bind:selected_id=selected_id options=["Red","White","Blue"] stroke=BLACK background=WHITE />
+    <Dropdown selected_id=bind:selected_id options=["Red","White","Blue"] stroke=BLACK background=WHITE />
 </Stacker>
 
 @settings {
@@ -2030,7 +2026,7 @@ Made an example conways game of life which you can adjust the speed of iteration
 ```pax filename=game-of-life/src/speed_control.pax
 <Stacker> 
     <Text text="Speed" class=text x=50% />
-    <Slider bind:value=speed min=1 max=100 step=1 accent=BLUE />
+    <Slider value=bind:speed min=1 max=100 step=1 accent=BLUE />
 </Stacker>
 
 @settings {
