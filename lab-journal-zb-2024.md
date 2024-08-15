@@ -171,6 +171,9 @@ Date:   Mon Aug 12 15:45:14 2024 +0700
         [ ] refactor and consolidate divergent building:: vs design_server:: logic
 
     [ ] solve assets (can we merge all? do we need to coordinate across `#[main]`s somehow?)
+        - wj: store fs paths in manifest?
+            - for any #[main] component, can "stamp" asset fs path into manifest, place on FS to check for assets at build time
+            
 
     [ ] one more merge from dev; prepare PR
 
