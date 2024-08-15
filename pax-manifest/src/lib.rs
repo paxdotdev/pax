@@ -1546,11 +1546,23 @@ impl LiteralBlockDefinition {
 
 /// Container for parsed values with optional location information
 /// Location is optional in case this token was generated dynamically
-#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, Eq, PartialOrd, Ord)]
 #[serde(crate = "pax_message::serde")]
 pub struct Token {
     pub token_value: String,
     pub token_location: Option<LocationInfo>,
+}
+
+impl PartialEq for Token {
+    fn eq(&self, other: &Self) -> bool {
+        self.token_value == other.token_value
+    }
+}
+
+impl Hash for Token {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.token_value.hash(state)
+    }
 }
 
 fn get_line(s: &str, line_number: usize) -> Option<&str> {
