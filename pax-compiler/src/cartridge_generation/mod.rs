@@ -17,7 +17,7 @@ pub const CARTRIDGE_PARTIAL_PATH: &str = "cartridge.partial.rs";
 // Generates (codegens) the PaxCartridge definition, abiding by the PaxCartridge trait.
 // Side-effect: writes the generated string to disk as .pax/cartridge.partial.rs,
 // so that it may be `include!`d by the  #[pax] #[main] macro
-pub fn generate_cartridge_partial_rs(pax_dir: &PathBuf, merged_manifest: &PaxManifest, designer_manifest: Option<PaxManifest>) -> PathBuf {
+pub fn generate_cartridge_partial_rs(pax_dir: &PathBuf, merged_manifest: &PaxManifest, userland_manifest: &PaxManifest, designer_manifest: Option<PaxManifest>) -> PathBuf {
     //press template into String
     let generated_lib_rs = templating::press_template_codegen_cartridge_snippet(
         templating::TemplateArgsCodegenCartridgeSnippet {
@@ -28,7 +28,7 @@ pub fn generate_cartridge_partial_rs(pax_dir: &PathBuf, merged_manifest: &PaxMan
             common_properties: CommonProperty::get_as_common_property(),
             type_table: merged_manifest.type_table.clone(),
             is_designtime: cfg!(feature = "designtime"),
-            manifest_json: serde_json::to_string(merged_manifest).unwrap(),
+            userland_manifest_json: serde_json::to_string(userland_manifest).unwrap(),
             designer_manifest_json: if let Some(designer_manifest) = designer_manifest {
                 serde_json::to_string(&designer_manifest).unwrap()
             } else {

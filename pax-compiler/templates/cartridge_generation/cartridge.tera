@@ -17,8 +17,8 @@ fn init_cartridge() -> Box<dyn pax_engine::pax_runtime::cartridge::PaxCartridge>
 }
 
 fn init_manifest() -> pax_manifest::PaxManifest {
-    let manifest_json = r#######"{{manifest_json}}"#######;
-    let manifest : pax_engine::pax_manifest::PaxManifest = pax_engine::serde_json::from_str(manifest_json).unwrap();
+    let userland_manifest_json = r#######"{{userland_manifest_json}}"#######;
+    let manifest : pax_engine::pax_manifest::PaxManifest = pax_engine::serde_json::from_str(userland_manifest_json).unwrap();
     manifest
 }
 

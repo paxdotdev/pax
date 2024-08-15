@@ -17,7 +17,7 @@ if self.glass_active {
             <Group width={(self.stage.width)px} height={(self.stage.height)px} id=stage>
                 // The example project replaces all of the children of the project_container
                 <Group id=project_container>
-                    //TODO: ADD PAXIFRAME
+                    <InlineFrame />
                 </Group>
                 <Rectangle width={self.stage.width} height={self.stage.height} fill={self.stage.color}/>
                 <Text id=annot text={self.stage.height} x=50% y={100% + 30px}/>
@@ -26,7 +26,7 @@ if self.glass_active {
     </Group>
 }
 if self.play_active {
-    //TODO: add paxiframe
+    <InlineFrame />
 }
 <Rectangle id=global_background />
 

@@ -6,6 +6,8 @@ use pax_manifest::TypeId;
 use pax_std::*;
 use std::sync::Mutex;
 
+use pax_std::inline_frame::InlineFrame;
+
 use crate::math::coordinate_spaces::{self, World};
 use model::{
     action::{pointer::Pointer, Action, ActionContext},
