@@ -187,6 +187,24 @@ impl pax_engine::pax_manifest::parsing::Reflectable for <%= pascal_identifier %>
                     }
                 }
                 _ => {
+                        let plain_path_str = assets_dir.to_str().unwrap();
+                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                        //This doesn't work because by the time it's evaluated (runtime, parserbin) the
+                        //only value will be the root crate.
+                        //Can this be called / collected at macro time instead?
+                        //i.e. where we detect #[main]
+                        //Then, it can be passed as an arg to stpl!
+                        println!("{}", std::env::var("CARGO_PKG_NAME").unwrap());
+                        println!("{}", plain_path_str);
+
+                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+
 
                 } //silently fail; no assets dir
             }
