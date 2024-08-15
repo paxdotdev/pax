@@ -16,6 +16,7 @@
             components: ctx.component_definitions,
             main_component_type_id: ctx.main_component_type_id,
             type_table: ctx.type_table,
+            assets_dirs: ctx.assets_dirs,
         };
 
         <% if is_root_crate { %>
@@ -29,6 +30,7 @@
                     components: ctx.component_definitions,
                     main_component_type_id: ctx.main_component_type_id,
                     type_table: ctx.type_table,
+                    assets_dirs: ctx.assets_dirs,
                 };
 
                 //Send data back to parent process by printing to stdout
@@ -162,6 +164,53 @@ impl pax_engine::pax_manifest::parsing::Reflectable for <%= pascal_identifier %>
                 std::process::exit(1);
             <% } %>
         <% } %>
+
+
+
+        <% if args_full_component.as_ref().is_some() && args_full_component.as_ref().unwrap().is_main_component { %>
+            let crate_root = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set"));
+            let assets_dir = crate_root.join("assets");
+
+            //panic!("pre-canonicalized assets_dir {:?}", assets_dir);
+
+
+            match assets_dir.canonicalize() {
+                Ok(canonicalized_dir) => {
+                    panic!("Canonicalized dir: {:?}", canonicalized_dir);
+                    // The code won't reach here due to the panic above, but we'll include the rest for completeness
+                    match canonicalized_dir.to_str() {
+                        Some(dir_str) => {
+                            ctx.assets_dirs.push(dir_str.to_string());
+                            panic!("Adding assets dir: {}", dir_str);
+                        }
+                        None => panic!("Failed to convert path to string: {:?}", canonicalized_dir),
+                    }
+                }
+                _ => {
+                        let plain_path_str = assets_dir.to_str().unwrap();
+                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                        //This doesn't work because by the time it's evaluated (runtime, parserbin) the
+                        //only value will be the root crate.
+                        //Can this be called / collected at macro time instead?
+                        //i.e. where we detect #[main]
+                        //Then, it can be passed as an arg to stpl!
+                        println!("{}", std::env::var("CARGO_PKG_NAME").unwrap());
+                        println!("{}", plain_path_str);
+
+                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                        println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+
+
+                } //silently fail; no assets dir
+            }
+
+        <% } %>
+
 
         let self_type_id = <%= pascal_identifier %>::get_type_id();
         let mut property_definitions : Vec<pax_engine::pax_manifest::PropertyDefinition> = vec![];

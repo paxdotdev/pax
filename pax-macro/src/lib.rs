@@ -60,6 +60,7 @@ fn pax_primitive(
         args_full_component: None,
         internal_definitions,
         pascal_identifier,
+        cargo_dir: std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "".into()),
         is_custom_interpolatable,
         is_root_crate: is_root_crate(),
         is_enum,
@@ -90,6 +91,7 @@ fn pax_struct_only_component(
 
         pascal_identifier: pascal_identifier.clone(),
         internal_definitions,
+        cargo_dir: std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "".into()),
         is_root_crate: is_root_crate(),
         is_custom_interpolatable,
         is_enum,
@@ -406,6 +408,7 @@ fn pax_full_component(
         }),
         pascal_identifier,
         internal_definitions,
+        cargo_dir: std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "".into()),
         is_root_crate: is_root_crate(),
         is_custom_interpolatable,
         is_enum,

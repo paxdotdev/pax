@@ -55,6 +55,7 @@ pub struct TemplateArgsDerivePax {
 
     /// Shared properties
     pub internal_definitions: InternalDefinitions,
+    pub cargo_dir: String,
     pub pascal_identifier: String,
     pub is_custom_interpolatable: bool,
     pub is_root_crate: bool,
