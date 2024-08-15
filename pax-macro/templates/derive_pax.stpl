@@ -78,16 +78,11 @@
             let userland_manifest = init_manifest();
             let userland_definition_to_instance_traverser = init_definition_to_instance_traverser(userland_manifest);
 
-            let designer_manifest = init_manifest();
+            let designer_manifest = init_designer_manifest();
             let designer_definition_to_instance_traverser = init_definition_to_instance_traverser(designer_manifest);
 
             JsValue::from(pax_engine::pax_chassis_web::PaxChassisWeb::new(userland_definition_to_instance_traverser, designer_definition_to_instance_traverser).await)
         }
-
-
-
-
-
 
     }
 

@@ -164,6 +164,8 @@ Date:   Mon Aug 12 15:45:14 2024 +0700
 
     [ ] run design_server instead of static server
 
+    [ ] solve assets (can we merge all? do we need to coordinate across `#[main]`s somehow?)
+
     [ ] Module cleanup pass
         [ ] pax_main
             engine
