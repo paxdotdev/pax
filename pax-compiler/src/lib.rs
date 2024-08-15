@@ -121,8 +121,6 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
 
     let out = String::from_utf8(output.stdout).unwrap();
 
-
-
     let mut manifests: Vec<PaxManifest> = serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
 
     // Simple starting convention: first manifest is userland, second manifest is designer; other schemas are undefined
@@ -143,8 +141,9 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
 
     //7. Build full project from source
     println!("{} 🧱 Building project with `cargo`", *PAX_BADGE);
+    panic!("assets before final build: {:?}", &merged_manifest.assets_dirs);
     let build_dir =
-        build_project_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids))?;
+        build_project_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids), merged_manifest.assets_dirs)?;
 
     Ok((userland_manifest, build_dir))
 }

@@ -31,6 +31,7 @@ mod tests {
             components,
             main_component_type_id: type_id,
             type_table: HashMap::new(),
+            assets_dirs: vec![],
         }
     }
 

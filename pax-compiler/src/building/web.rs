@@ -24,6 +24,7 @@ pub fn build_web_project_with_cartridge(
     ctx: &RunContext,
     pax_dir: &PathBuf,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
+    assets_dirs: Vec<String>,
 ) -> Result<PathBuf, eyre::Report> {
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
@@ -83,7 +84,7 @@ pub fn build_web_project_with_cartridge(
     }
 
     // Copy assets
-    let asset_src = pax_dir.join("..").join(ASSETS_DIR_NAME);
+    // let asset_src = pax_dir.join("..").join(ASSETS_DIR_NAME);
     let asset_dest = interface_path.join(ASSETS_DIR_NAME);
 
     // Create target assets directory
@@ -91,11 +92,16 @@ pub fn build_web_project_with_cartridge(
         return Err(eyre!("Error creating directory {:?}: {}", asset_dest, e));
     }
 
-    // Check if the asset_src directory exists before attempting the copy
-    if asset_src.exists() {
-        // Perform recursive copy from userland `assets/` to built `assets/`
-        if let Err(e) = copy_dir_recursively(&asset_src, &asset_dest, &vec![]) {
-            return Err(eyre!("Error copying assets: {}", e));
+    panic!("final asset copying: {:?}", &assets_dirs);
+
+    for asset_src in assets_dirs {
+        let asset_src = PathBuf::from(asset_src);
+        // Check if the asset_src directory exists before attempting the copy
+        if asset_src.exists() {
+            // Perform recursive copy from userland `assets/` to built `assets/`
+            if let Err(e) = copy_dir_recursively(&asset_src, &asset_dest, &vec![]) {
+                return Err(eyre!("Error copying assets: {}", e));
+            }
         }
     }
 

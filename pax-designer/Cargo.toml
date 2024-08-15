@@ -3,6 +3,7 @@ name = "pax-designer"
 version = "0.22.0"
 edition = "2021"
 default-run = "run"
+include = ["assets/**/*"]
 
 [dependencies]
 pax-engine = { version = "0.22.0" , path = "../pax-engine" }

@@ -27,6 +27,7 @@ pub struct PaxManifest {
     pub main_component_type_id: TypeId,
     #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]
     pub type_table: TypeTable,
+    pub assets_dirs: Vec<String>,
 }
 
 impl PaxManifest {
@@ -99,6 +100,7 @@ impl PaxManifest {
     pub fn merge_in_place(&mut self, other: &PaxManifest) {
         self.components.extend(other.components.clone());
         self.type_table.extend(other.type_table.clone());
+        self.assets_dirs.extend(other.assets_dirs.clone());
     }
 }
 
