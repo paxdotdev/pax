@@ -89,7 +89,7 @@ impl RuntimeContext {
         }
     }
 
-    pub fn register_root_node(&self, root: &Rc<ExpandedNode>) {
+    pub fn register_root_expanded_node(&self, root: &Rc<ExpandedNode>) {
         *borrow_mut!(self.root_expanded_node) = Rc::downgrade(root);
     }
 
