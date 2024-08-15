@@ -2,9 +2,9 @@ use core::panic;
 use std::{collections::HashMap, path::PathBuf};
 
 use pax_manifest::{
-    ComponentDefinition, ComponentTemplate, NodeLocation, NodeType, PaxManifest, SettingElement,
-    TemplateNodeDefinition, TemplateNodeId, Token, TreeIndexPosition, TreeLocation, TypeId,
-    UniqueTemplateNodeIdentifier, ValueDefinition,
+    pax_runtime_api::ToPaxValue, ComponentDefinition, ComponentTemplate, NodeLocation, NodeType,
+    PaxManifest, SettingElement, TemplateNodeDefinition, TemplateNodeId, Token, TreeIndexPosition,
+    TreeLocation, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 use serde_derive::{Deserialize, Serialize};
 
@@ -1025,32 +1025,20 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
         let settings = {
             let mut settings: Vec<SettingElement> = Vec::new();
             settings.push(SettingElement::Setting(
-                Token::new_only_raw("x".to_string(), pax_manifest::TokenType::SettingKey),
-                ValueDefinition::LiteralValue(Token::new_only_raw(
-                    format!("{}px", self.x),
-                    pax_manifest::TokenType::LiteralValue,
-                )),
+                Token::new_without_location("x".to_string()),
+                ValueDefinition::LiteralValue(self.x.to_pax_value()),
             ));
             settings.push(SettingElement::Setting(
-                Token::new_only_raw("y".to_string(), pax_manifest::TokenType::SettingKey),
-                ValueDefinition::LiteralValue(Token::new_only_raw(
-                    format!("{}px", self.y),
-                    pax_manifest::TokenType::LiteralValue,
-                )),
+                Token::new_without_location("y".to_string()),
+                ValueDefinition::LiteralValue(self.y.to_pax_value()),
             ));
             settings.push(SettingElement::Setting(
-                Token::new_only_raw("width".to_string(), pax_manifest::TokenType::SettingKey),
-                ValueDefinition::LiteralValue(Token::new_only_raw(
-                    format!("{}px", self.width),
-                    pax_manifest::TokenType::LiteralValue,
-                )),
+                Token::new_without_location("width".to_string()),
+                ValueDefinition::LiteralValue(self.width.to_pax_value()),
             ));
             settings.push(SettingElement::Setting(
-                Token::new_only_raw("height".to_string(), pax_manifest::TokenType::SettingKey),
-                ValueDefinition::LiteralValue(Token::new_only_raw(
-                    format!("{}px", self.height),
-                    pax_manifest::TokenType::LiteralValue,
-                )),
+                Token::new_without_location("height".to_string()),
+                ValueDefinition::LiteralValue(self.height.to_pax_value()),
             ));
             settings
         };
@@ -1112,17 +1100,11 @@ pub enum NodeAction {
 pub fn update_position_if_exists(new_x: f64, new_y: f64, settings: &mut [SettingElement]) {
     for setting in settings.iter_mut() {
         if let SettingElement::Setting(key, value) = setting {
-            if key.raw_value == "x" {
-                *value = ValueDefinition::LiteralValue(Token::new_only_raw(
-                    format!("{}px", new_x),
-                    pax_manifest::TokenType::LiteralValue,
-                ))
+            if key.token_value == "x" {
+                *value = ValueDefinition::LiteralValue(new_x.to_pax_value())
             }
-            if key.raw_value == "y" {
-                *value = ValueDefinition::LiteralValue(Token::new_only_raw(
-                    format!("{}px", new_y),
-                    pax_manifest::TokenType::LiteralValue,
-                ))
+            if key.token_value == "y" {
+                *value = ValueDefinition::LiteralValue(new_y.to_pax_value())
             }
         }
     }

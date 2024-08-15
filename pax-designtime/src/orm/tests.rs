@@ -3,9 +3,9 @@ mod tests {
     use crate::orm::PaxManifestORM;
     use pax_manifest::{
         ComponentDefinition, LiteralBlockDefinition, PaxManifest, SettingsBlockElement, Token,
-        TokenType, TypeId,
+        TypeId,
     };
-    use std::collections::{BTreeMap, HashMap, HashSet};
+    use std::collections::{BTreeMap, HashMap};
 
     fn create_basic_manifest() -> PaxManifest {
         let mut components = BTreeMap::new();
@@ -21,7 +21,7 @@ mod tests {
                 primitive_instance_import_path: None,
                 template: None,
                 settings: Some(vec![SettingsBlockElement::SelectorBlock(
-                    Token::new_only_raw("existing_selector".to_string(), TokenType::Selector),
+                    Token::new_without_location("existing_selector".to_string()),
                     LiteralBlockDefinition::new(vec![]),
                 )]),
             },

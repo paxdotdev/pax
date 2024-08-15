@@ -45,17 +45,13 @@ pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_")*}
 event_id = {"@" ~ identifier}
 
 //Describes an attribute k/v pair like `id="some_element"` or `@click=self.handle_click`. Supports expressions.
-attribute_key_value_pair = {double_binding | attribute_event_binding | id_binding | (identifier ~ "=" ~ any_template_value) }
+attribute_key_value_pair = {double_binding | attribute_event_binding | (identifier ~ "=" ~ any_template_value) }
 attribute_event_binding = {event_id ~ "=" ~ literal_function}
 
-double_binding = {"bind" ~ ":" ~ identifier ~ "=" ~ literal_function}
+double_binding = {identifier ~ "=" ~ "bind" ~ ":" ~ literal_function}
 
 //`...=5.0`, `...={...}`
-any_template_value = {literal_value | literal_object | expression_wrapped | identifier}
-
-// id=identifier (non-expression)
-id = {"id"}
-id_binding = {id ~ "=" ~ identifier}
+any_template_value = {literal_value | expression_wrapped | identifier}
 
 //For example: <Text>"This is my inner content"</Text>
 //Presumably this content can be bare literal values other than strings like Color::hlca(...)
@@ -88,13 +84,13 @@ selector = {("." | "#") ~ identifier}
 settings_key_value_pair = { (settings_key ~ settings_value) ~ silent_comma? }
 settings_event_binding = {event_id ~ ":" ~ literal_function ~ silent_comma? }
 settings_key = { identifier ~ (":" | "=") } //Offer some grace here, since our borrowing of HTML/CSS semantics means we inherit the mismatch between xml-like `=` and json-like `:`.  Let's allow both and let linters deal with cleaning up mismatches.
-settings_value = { literal_value | literal_object | expression_wrapped }
+settings_value = { literal_value | expression_wrapped }
 
 literal_function = { ("self." | "this.")? ~ identifier }
 silent_comma = _{","}
 
 function_list = {"[" ~ literal_function* ~ "]"}
-literal_value = { literal_list | literal_color | literal_number_with_unit | literal_number | literal_tuple | literal_option | literal_enum_value | literal_boolean |  string }
+literal_value = { literal_list | literal_color | literal_number_with_unit | literal_number | literal_tuple | literal_option | literal_enum_value | literal_boolean | literal_object |  string }
 literal_boolean = {("true" | "false")}
 literal_some = {("Some" ~ "(" ~ literal_value ~ ")")}
 literal_none = {"None"}
@@ -104,15 +100,15 @@ literal_number = {literal_number_float | literal_number_integer}
 literal_number_integer = {"-"? ~ (!(".") ~ ASCII_DIGIT)+ }
 literal_number_float = {"-"? ~ ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ }
 literal_number_unit = {("%" ~ !"%") | "px" | "deg" | "rad"}
-literal_tuple = {("(") ~ (literal_value | literal_object) ~ ("," ~ (literal_value | literal_object))* ~ (")")}
+literal_tuple = {("(") ~ literal_value ~ ("," ~ literal_value)* ~ (")")}
 literal_tuple_access = {identifier ~ "." ~ literal_number_integer}
-literal_list = {"[" ~ ((literal_value | literal_object)  ~ silent_comma?)* ~ "]"}
+literal_list = {"[" ~ (literal_value  ~ silent_comma?)* ~ "]"}
 literal_list_access = {identifier ~ "[" ~ literal_number_integer ~ "]"}
 
 //Enums like Orientation::Vertical
 //Note that this is parsed separately from expression enums, `xo_enum*`
 literal_enum_value = {identifier ~ ("::" ~ identifier)+ ~ ("("~literal_enum_args_list~")")?}
-literal_enum_args_list = {(literal_value | literal_object) ~ ("," ~ (literal_value | literal_object))* ~ silent_comma?}
+literal_enum_args_list = {literal_value ~ ("," ~ literal_value)* ~ silent_comma?}
 
 ////// ////// //////
 /// BEGIN COLORS

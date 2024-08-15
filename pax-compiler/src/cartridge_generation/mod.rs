@@ -6,7 +6,7 @@
 use itertools::Itertools;
 use std::fs;
 
-use pax_manifest::{cartridge_generation::CommonProperty, ExpressionSpec, PaxManifest};
+use pax_manifest::{cartridge_generation::CommonProperty, PaxManifest};
 
 use std::path::PathBuf;
 

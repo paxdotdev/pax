@@ -2,7 +2,7 @@ use crate::{
     properties::PropertyValue, Color, ColorChannel, Fill, Interpolatable, Percent, Rotation, Size,
     Stroke, Transform2D,
 };
-use std::{any::Any, collections::HashMap, default};
+use std::{any::Any, collections::HashMap, default, fmt::Display};
 
 use self::numeric::Numeric;
 pub use coercion_impls::CoercionRules;
@@ -36,6 +36,56 @@ pub enum PaxValue {
     Range(Box<PaxValue>, Box<PaxValue>),
     Object(HashMap<String, PaxValue>),
     Enum(String, Vec<PaxValue>),
+}
+
+// Make sure Enum looks like an enum and vec looks like a vec
+impl Display for PaxValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PaxValue::Bool(b) => write!(f, "{}", b),
+            PaxValue::Numeric(n) => write!(f, "{}", n),
+            PaxValue::String(s) => write!(f, "{}", s),
+            PaxValue::Size(s) => write!(f, "{}", s),
+            PaxValue::Percent(p) => write!(f, "{}", p),
+            PaxValue::Color(c) => write!(f, "{}", c),
+            PaxValue::Rotation(r) => write!(f, "{}", r),
+            PaxValue::Option(o) => match o.as_ref() {
+                Some(v) => write!(f, "Some({})", v),
+                None => write!(f, "None"),
+            },
+            PaxValue::Vec(v) => {
+                write!(f, "[")?;
+                for (i, val) in v.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", val)?;
+                }
+                write!(f, "]")
+            }
+            PaxValue::Range(start, end) => write!(f, "{}..{}", start, end),
+            PaxValue::Object(o) => {
+                write!(f, "{{")?;
+                for (i, (key, val)) in o.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}: {}", key, val)?;
+                }
+                write!(f, "}}")
+            }
+            PaxValue::Enum(name, values) => {
+                write!(f, "{}(", name)?;
+                for (i, val) in values.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", val)?;
+                }
+                write!(f, ")")
+            }
+        }
+    }
 }
 
 impl Default for PaxValue {

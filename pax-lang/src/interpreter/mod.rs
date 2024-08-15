@@ -1,4 +1,5 @@
 use computable::Computable;
+use pax_runtime_api::functions::print_all_functions;
 use pax_runtime_api::{pax_value::functions::call_function, PaxValue, Percent, Rotation, Size};
 use pax_runtime_api::{CoercionRules, Functions, Numeric};
 use pest::{
@@ -6,6 +7,8 @@ use pest::{
     pratt_parser::{self, PrattParser},
 };
 use property_resolution::IdentifierResolver;
+use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 use std::{collections::HashMap, rc::Rc};
 
 use crate::{
@@ -17,7 +20,7 @@ pub(crate) mod computable;
 pub mod property_resolution;
 mod tests;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub enum PaxExpression {
     Primary(Box<PaxPrimary>),
     Prefix(Box<PaxPrefix>),
@@ -25,7 +28,24 @@ pub enum PaxExpression {
     Postfix(Box<PaxPostfix>),
 }
 
-#[derive(PartialEq, Debug)]
+impl Default for PaxExpression {
+    fn default() -> Self {
+        Self::Primary(Box::new(PaxPrimary::default()))
+    }
+}
+
+impl Display for PaxExpression {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PaxExpression::Primary(p) => write!(f, "{}", p),
+            PaxExpression::Prefix(p) => write!(f, "{}{}", p.operator.name, p.rhs),
+            PaxExpression::Infix(i) => write!(f, "{} {} {}", i.lhs, i.operator.name, i.rhs),
+            PaxExpression::Postfix(p) => write!(f, "{}{}", p.lhs, p.operator.name),
+        }
+    }
+}
+
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub enum PaxPrimary {
     Literal(PaxValue),
     Grouped(Box<PaxExpression>, Option<PaxUnit>),
@@ -38,7 +58,109 @@ pub enum PaxPrimary {
     List(Vec<PaxExpression>),
 }
 
-#[derive(PartialEq, Debug)]
+impl Display for PaxPrimary {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PaxPrimary::Literal(l) => write!(f, "{}", l),
+            PaxPrimary::Grouped(e, u) => {
+                if let Some(u) = u {
+                    write!(
+                        f,
+                        "({}){}",
+                        e,
+                        match u {
+                            PaxUnit::Percent => "%",
+                            PaxUnit::Pixels => "px",
+                            PaxUnit::Radians => "rad",
+                            PaxUnit::Degrees => "deg",
+                        }
+                    )
+                } else {
+                    write!(f, "({})", e)
+                }
+            }
+            PaxPrimary::Identifier(i, a) => {
+                write!(f, "{}", i.name)?;
+                for accessor in a {
+                    match accessor {
+                        PaxAccessor::Tuple(i) => write!(f, ".{}", i)?,
+                        PaxAccessor::List(e) => write!(f, "[{}]", e)?,
+                        PaxAccessor::Struct(s) => write!(f, ".{}", s)?,
+                    }
+                }
+                Ok(())
+            }
+            PaxPrimary::FunctionCall(fc) => {
+                write!(f, "{}::{}", fc.scope, fc.function_name)?;
+                if !fc.args.is_empty() {
+                    write!(f, "(")?;
+                    for (i, arg) in fc.args.iter().enumerate() {
+                        write!(f, "{}", arg)?;
+                        if i != fc.args.len() - 1 {
+                            write!(f, ", ")?;
+                        }
+                    }
+                    write!(f, ")")?;
+                }
+                Ok(())
+            }
+            PaxPrimary::Object(o) => {
+                write!(f, "{{")?;
+                let mut o = o.iter().collect::<Vec<_>>();
+                o.sort_by(|a, b| a.0.cmp(b.0));
+                for (i, (key, val)) in o.iter().enumerate() {
+                    write!(f, "{}: {}", key, val)?;
+                    if i != o.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+                write!(f, "}}")?;
+                Ok(())
+            }
+            PaxPrimary::Enum(e, a) => {
+                write!(f, "{}(", e)?;
+                for (i, arg) in a.iter().enumerate() {
+                    write!(f, "{}", arg)?;
+                    if i != a.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+                Ok(())
+            }
+            PaxPrimary::Range(s, e) => write!(f, "{}..{}", s, e),
+            PaxPrimary::Tuple(t) => {
+                write!(f, "(")?;
+                for (i, e) in t.iter().enumerate() {
+                    write!(f, "{}", e)?;
+                    if i != t.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+                write!(f, ")")?;
+                Ok(())
+            }
+            PaxPrimary::List(l) => {
+                write!(f, "[")?;
+                for (i, e) in l.iter().enumerate() {
+                    write!(f, "{}", e)?;
+                    if i != l.len() - 1 {
+                        write!(f, ", ")?;
+                    }
+                }
+                write!(f, "]")?;
+                Ok(())
+            }
+        }
+    }
+}
+
+impl Default for PaxPrimary {
+    fn default() -> Self {
+        Self::Literal(PaxValue::default())
+    }
+}
+
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub enum PaxUnit {
     Percent,
     Pixels,
@@ -46,43 +168,57 @@ pub enum PaxUnit {
     Degrees,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub enum PaxAccessor {
     Tuple(usize),
     List(PaxExpression),
     Struct(String),
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct PaxPrefix {
     operator: PaxOperator,
     rhs: Box<PaxExpression>,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct PaxInfix {
     operator: PaxOperator,
     lhs: Box<PaxExpression>,
     rhs: Box<PaxExpression>,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct PaxPostfix {
     operator: PaxOperator,
     lhs: Box<PaxExpression>,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct PaxOperator {
     name: String,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct PaxIdentifier {
-    name: String,
+    pub name: String,
 }
 
-#[derive(PartialEq, Debug)]
+impl Display for PaxIdentifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
+impl PaxIdentifier {
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+        }
+    }
+}
+
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 pub struct PaxFunctionCall {
     scope: String,
     function_name: String,
@@ -90,20 +226,21 @@ pub struct PaxFunctionCall {
 }
 
 /// Parse a pax expression into a computable AST
-pub fn parse_pax_expression(
-    expr: &str,
-    idr: Rc<dyn IdentifierResolver>,
-) -> Result<PaxExpression, String> {
+pub fn parse_pax_expression(expr: &str) -> Result<PaxExpression, String> {
     let parsed_expr = parse_pax_pairs(Rule::expression_body, expr)
         .map_err(|e| format!("Failed to parse expression: {}", e))?;
     let pratt_parser = get_pax_pratt_parser();
-    recurse_pratt_parse(parsed_expr, &pratt_parser, idr)
+    recurse_pratt_parse(parsed_expr, &pratt_parser)
+}
+
+pub fn parse_pax_expression_from_pair(expr: Pair<Rule>) -> Result<PaxExpression, String> {
+    let pratt_parser = get_pax_pratt_parser();
+    recurse_pratt_parse(Pairs::single(expr), &pratt_parser)
 }
 
 fn recurse_pratt_parse(
     expr: Pairs<Rule>,
     pratt_parser: &PrattParser<Rule>,
-    idr: Rc<dyn IdentifierResolver>,
 ) -> Result<PaxExpression, String> {
     pratt_parser
         .map_primary(move |primary| match primary.as_rule() {
@@ -132,7 +269,7 @@ fn recurse_pratt_parse(
                         let mut inner = inner.into_inner();
                         let ident = inner.next().unwrap().as_str().trim().to_string();
                         let index = inner.next().unwrap().as_str();
-                        let index = parse_pax_expression(index, idr.clone())?;
+                        let index = parse_pax_expression(index)?;
                         let value = PaxPrimary::Identifier(
                             PaxIdentifier { name: ident },
                             vec![PaxAccessor::List(index)],
@@ -145,13 +282,11 @@ fn recurse_pratt_parse(
                     }
                 }
             }
-            Rule::expression_body => {
-                recurse_pratt_parse(primary.into_inner(), pratt_parser, idr.clone())
-            }
+            Rule::expression_body => recurse_pratt_parse(primary.into_inner(), pratt_parser),
             Rule::expression_grouped => {
                 let mut inner = primary.clone().into_inner();
                 let expr = inner.next().unwrap();
-                let expr_val = recurse_pratt_parse(expr.into_inner(), pratt_parser, idr.clone())?;
+                let expr_val = recurse_pratt_parse(expr.into_inner(), pratt_parser)?;
                 let ret: Result<PaxExpression, String> = if let Some(unit) = inner.next() {
                     let unit = unit.as_str().trim();
                     match unit {
@@ -191,12 +326,11 @@ fn recurse_pratt_parse(
 
                 let args = if let Some(args) = inner.next() {
                     args.into_inner()
-                        .map(|a| recurse_pratt_parse(a.into_inner(), pratt_parser, idr.clone()))
+                        .map(|a| recurse_pratt_parse(a.into_inner(), pratt_parser))
                         .collect::<Result<Vec<PaxExpression>, String>>()?
                 } else {
                     vec![]
                 };
-
                 if Functions::has_function(&scope, &function_name) {
                     let value = PaxFunctionCall {
                         scope,
@@ -215,7 +349,7 @@ fn recurse_pratt_parse(
                 let func = primary.as_str().trim().split("(").next().unwrap();
                 let inner = primary.into_inner();
                 let args = inner
-                    .map(|a| recurse_pratt_parse(a.into_inner(), pratt_parser, idr.clone()))
+                    .map(|a| recurse_pratt_parse(a.into_inner(), pratt_parser))
                     .collect::<Result<Vec<PaxExpression>, String>>()?;
                 let value = PaxFunctionCall {
                     scope: "Color".to_string(),
@@ -243,7 +377,7 @@ fn recurse_pratt_parse(
                         .trim_end_matches('=')
                         .to_string();
                     let value = pair.next().unwrap();
-                    let value = recurse_pratt_parse(value.into_inner(), pratt_parser, idr.clone())?;
+                    let value = recurse_pratt_parse(value.into_inner(), pratt_parser)?;
                     obj.insert(key, value);
                 }
                 let value = PaxPrimary::Object(obj);
@@ -253,11 +387,11 @@ fn recurse_pratt_parse(
             Rule::xo_range => {
                 let mut inner = primary.into_inner();
                 let start_rule = Pairs::single(inner.next().unwrap());
-                let start = recurse_pratt_parse(start_rule, pratt_parser, idr.clone())?;
+                let start = recurse_pratt_parse(start_rule, pratt_parser)?;
                 // xo_range_exclusive
                 inner.next();
                 let end_rule = Pairs::single(inner.next().unwrap());
-                let end = recurse_pratt_parse(end_rule, pratt_parser, idr.clone())?;
+                let end = recurse_pratt_parse(end_rule, pratt_parser)?;
                 let value = PaxPrimary::Range(start, end);
                 let exp = PaxExpression::Primary(Box::new(value));
                 Ok(exp)
@@ -265,7 +399,7 @@ fn recurse_pratt_parse(
             Rule::xo_tuple => {
                 let inner = primary.into_inner();
                 let tuple = inner
-                    .map(|e| recurse_pratt_parse(e.into_inner(), pratt_parser, idr.clone()))
+                    .map(|e| recurse_pratt_parse(e.into_inner(), pratt_parser))
                     .collect::<Result<Vec<PaxExpression>, String>>()?;
                 let value = PaxPrimary::Tuple(tuple);
                 let exp = PaxExpression::Primary(Box::new(value));
@@ -274,7 +408,7 @@ fn recurse_pratt_parse(
             Rule::xo_list => {
                 let inner = primary.into_inner();
                 let list = inner
-                    .map(|e| recurse_pratt_parse(e.into_inner(), pratt_parser, idr.clone()))
+                    .map(|e| recurse_pratt_parse(e.into_inner(), pratt_parser))
                     .collect::<Result<Vec<PaxExpression>, String>>()?;
                 let value = PaxPrimary::List(list);
                 let exp = PaxExpression::Primary(Box::new(value));
@@ -294,11 +428,7 @@ fn recurse_pratt_parse(
                     let accessor = match symbol.as_rule() {
                         // list access
                         Rule::expression_body => {
-                            let expr = recurse_pratt_parse(
-                                symbol.into_inner(),
-                                pratt_parser,
-                                idr.clone(),
-                            )?;
+                            let expr = recurse_pratt_parse(symbol.into_inner(), pratt_parser)?;
                             PaxAccessor::List(expr)
                         }
                         // field access .field
@@ -370,6 +500,6 @@ fn recurse_pratt_parse(
 
 /// Compute a pax expression to a PaxValue
 pub fn compute_paxel(expr: &str, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String> {
-    let expr = parse_pax_expression(expr, idr.clone())?;
+    let expr = parse_pax_expression(expr)?;
     expr.compute(idr)
 }

@@ -1,4 +1,7 @@
-use crate::{Color, ColorChannel, Fill, Numeric, PaxValue, Rotation};
+use crate::{
+    math::{Transform2, Vector2},
+    Color, ColorChannel, Fill, Numeric, PaxValue, Rotation,
+};
 use once_cell::sync::Lazy;
 use std::{
     collections::HashMap,
@@ -359,6 +362,67 @@ impl HelperFunctions for crate::Transform2D {
                 let x = crate::Size::try_coerce(args[0].clone())?;
                 let y = crate::Size::try_coerce(args[1].clone())?;
                 Ok(crate::Transform2D::anchor(x, y).to_pax_value())
+            }),
+        );
+    }
+}
+
+impl HelperFunctions for Transform2 {
+    fn register_all_functions() {
+        register_function(
+            "Transform2".to_string(),
+            "identity".to_string(),
+            Arc::new(|args| {
+                if args.len() != 0 {
+                    return Err("Expected 0 arguments for function identity".to_string());
+                }
+                Ok(Transform2::identity().to_pax_value())
+            }),
+        );
+        register_function(
+            "Transform2".to_string(),
+            "scale".to_string(),
+            Arc::new(|args| {
+                if args.len() != 1 {
+                    return Err("Expected 1 argument for function scale".to_string());
+                }
+                let s = f64::try_coerce(args[0].clone())?;
+                Ok(Transform2::scale(s).to_pax_value())
+            }),
+        );
+
+        register_function(
+            "Transform2".to_string(),
+            "translate".to_string(),
+            Arc::new(|args| {
+                if args.len() != 1 {
+                    return Err("Expected 1 argument for function scale".to_string());
+                }
+                let s = Vector2::try_coerce(args[0].clone())?;
+                Ok(Transform2::translate(s).to_pax_value())
+            }),
+        );
+
+        register_function(
+            "Transform2".to_string(),
+            "rotate".to_string(),
+            Arc::new(|args| {
+                if args.len() != 1 {
+                    return Err("Expected 1 argument for function rotate".to_string());
+                }
+                let s = f64::try_coerce(args[0].clone())?;
+                Ok(Transform2::rotate(s).to_pax_value())
+            }),
+        );
+        register_function(
+            "Transform2".to_string(),
+            "skew".to_string(),
+            Arc::new(|args| {
+                if args.len() != 1 {
+                    return Err("Expected 1 argument for function skew".to_string());
+                }
+                let s = Vector2::try_coerce(args[0].clone())?;
+                Ok(Transform2::skew(s).to_pax_value())
             }),
         );
     }

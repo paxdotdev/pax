@@ -1,6 +1,6 @@
 <Stacker> 
     <Text text="Speed" class=text x=50% />
-    <Slider bind:value=speed min=1 max=100 step=1 accent=BLUE />
+    <Slider value=bind:speed min=1 max=100 step=1 accent=BLUE />
 </Stacker>
 
 @settings {
