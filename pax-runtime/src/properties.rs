@@ -145,6 +145,10 @@ impl RuntimeContext {
             .unwrap_or_default()
     }
 
+    /// Simple 2D raycasting: the coordinates of the ray represent a
+    /// ray running orthogonally to the view plane, intersecting at
+    /// the specified point `ray`.  Areas outside of clipping bounds will
+    /// not register a `hit`, nor will elements that suppress input events.
     pub fn get_elements_beneath_ray(
         &self,
         ray: Point2<Window>,
@@ -195,60 +199,6 @@ impl RuntimeContext {
         }
         accum
     }
-    /// Simple 2D raycasting: the coordinates of the ray represent a
-    /// ray running orthogonally to the view plane, intersecting at
-    /// the specified point `ray`.  Areas outside of clipping bounds will
-    /// not register a `hit`, nor will elements that suppress input events.
-    // pub fn get_elements_beneath_ray(
-    //     &self,
-    //     ray: Point2<Window>,
-    //     limit_one: bool,
-    //     mut accum: Vec<Rc<ExpandedNode>>,
-    //     hit_invisible: bool,
-    // ) -> Vec<Rc<ExpandedNode>> {
-    //     //Traverse all elements in render tree sorted by z-index (highest-to-lowest)
-    //     //First: check whether events are suppressed
-    //     //Next: check whether ancestral clipping bounds (hit_test) are satisfied
-    //     //Finally: check whether element itself satisfies hit_test(ray)
-
-    //     let root_node = borrow!(self.root_node).upgrade().unwrap();
-    //     let mut to_process = vec![(root_node, false)];
-    //     while let Some((node, clipped)) = to_process.pop() {
-    //         let hit = node.ray_cast_test(ray);
-    //         if hit && !clipped {
-    //             if hit_invisible
-    //                 || !borrow!(node.instance_node)
-    //                     .base()
-    //                     .flags()
-    //                     .invisible_to_raycasting
-    //             {
-    //                 //We only care about the topmost node getting hit, and the element
-    //                 //pool is ordered by z-index so we can just resolve the whole
-    //                 //calculation when we find the first matching node
-    //                 if limit_one {
-    //                     return vec![node];
-    //                 }
-    //                 accum.push(Rc::clone(&node));
-    //             }
-    //         }
-    //         let node_clips = !borrow!(node.instance_node).clips_content(&node);
-    //         let clipped = clipped || (!hit && node_clips);
-    //         to_process.extend(
-    //             node.children
-    //                 .get()
-    //                 .iter()
-    //                 .cloned()
-    //                 .map(|v| {
-    //                     let cp = v.get_common_properties();
-    //                     let unclippable = borrow!(cp).unclippable.get().unwrap_or(false);
-    //                     (v, clipped && !unclippable)
-    //                 })
-    //                 .rev(),
-    //         )
-    //     }
-    //     accum
-    // }
-
     /// Alias for `get_elements_beneath_ray` with `limit_one = true`
     pub fn get_topmost_element_beneath_ray(&self, ray: Point2<Window>) -> Option<Rc<ExpandedNode>> {
         let res = self.get_elements_beneath_ray(ray, true, vec![], false);

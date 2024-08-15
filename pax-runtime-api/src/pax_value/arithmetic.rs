@@ -84,6 +84,7 @@ impl Neg for PaxValue {
         match self {
             PaxValue::Numeric(a) => (-a).to_pax_value(),
             PaxValue::Size(a) => (-a).to_pax_value(),
+            PaxValue::Percent(p) => (-p.0).to_pax_value(),
             a => panic!("can't negate {:?}", a),
         }
     }

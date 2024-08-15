@@ -325,6 +325,7 @@ impl PaxEngine {
         id: &UniqueTemplateNodeIdentifier,
         ctx: &Rc<RuntimeContext>,
     ) {
+        parent.compute_flattened_slot_children();
         if parent.children.get().iter().any(|node| {
             borrow!(node.instance_node)
                 .base()
@@ -378,41 +379,55 @@ impl PaxEngine {
 
         let ctx = &self.runtime_context;
         // Occlusion
+        // Occlusion
         let mut occlusion_ind = OcclusionLayerGen::new(None);
         let mut z_index = 0;
-        self.root_node.recurse_visit_postorder(&mut |node| {
+
+        let root_node = Rc::clone(&self.root_node);
+        let mut to_process = vec![(root_node, false)];
+
+        while let Some((node, clip)) = to_process.pop() {
             let layer = borrow!(node.instance_node).base().flags().layer;
             occlusion_ind.update_z_index(layer);
             let cp = node.get_common_properties();
             let cp = borrow!(cp);
+            let clip = cp.unclippable.get().unwrap_or(false) | clip;
             let new_occlusion = Occlusion {
                 occlusion_layer_id: occlusion_ind.get_level(),
                 z_index,
                 parent_frame: node
                     .parent_frame
                     .get()
-                    .filter(|_| !cp.unclippable.get().unwrap_or(false))
+                    .filter(|_| !clip)
                     .map(|v| v.to_u32()),
             };
+
             // either native layer, or something that clips content (ex: Frame)
-            if (layer == Layer::Native || borrow!(node.instance_node).clips_content(node))
+            if (layer == Layer::Native || borrow!(node.instance_node).clips_content(&node))
                 && node.occlusion.get() != new_occlusion
             {
+                let occlusion_patch = OcclusionPatch {
+                    id: node.id.to_u32(),
+                    z_index: new_occlusion.z_index,
+                    occlusion_layer_id: new_occlusion.occlusion_layer_id,
+                    parent_frame: new_occlusion.parent_frame,
+                };
                 ctx.enqueue_native_message(pax_message::NativeMessage::OcclusionUpdate(
-                    OcclusionPatch {
-                        id: node.id.to_u32(),
-                        z_index: new_occlusion.z_index,
-                        occlusion_layer_id: new_occlusion.occlusion_layer_id,
-                        parent_frame: new_occlusion.parent_frame,
-                    },
+                    occlusion_patch,
                 ));
             }
             node.occlusion.set(new_occlusion);
             z_index += 1;
-        });
+
+            to_process.extend(
+                node.children
+                    .get()
+                    .iter()
+                    .map(|child| (Rc::clone(child), clip)),
+            );
+        }
 
         let time = &ctx.globals().frames_elapsed;
-
         time.set(time.get() + 1);
 
         ctx.flush_custom_events().unwrap();
