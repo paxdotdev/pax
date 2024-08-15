@@ -18,8 +18,15 @@ fn init_cartridge() -> Box<dyn pax_engine::pax_runtime::cartridge::PaxCartridge>
 
 fn init_manifest() -> pax_manifest::PaxManifest {
     let manifest_json = r#######"{{manifest_json}}"#######;
-    let manifest: pax_manifest::PaxManifest = pax_engine::serde_json::from_str(manifest_json).unwrap();
+    let manifest : pax_engine::pax_manifest::PaxManifest = pax_engine::serde_json::from_str(manifest_json).unwrap();
     manifest
+}
+
+#[cfg(feature = "designtime")]
+fn init_designer_manifest() -> pax_engine::pax_manifest::PaxManifest {
+    let designer_manifest_json = r#######"{{designer_manifest_json}}"#######;
+    let designer_manifest : pax_engine::pax_manifest::PaxManifest = pax_engine::serde_json::from_str(designer_manifest_json).unwrap();
+    designer_manifest
 }
 
 fn init_definition_to_instance_traverser(initial_manifest: pax_manifest::PaxManifest) -> Box<dyn pax_engine::pax_runtime::cartridge::DefinitionToInstanceTraverser> {

@@ -64,9 +64,31 @@
         pax_engine::pax_chassis_web::console_log::init_with_level(pax_engine::log::Level::Error)
             .expect("console_log::init_with_level initialized correctly");
 
-        let manifest = init_manifest();
-        let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest);
-        JsValue::from(pax_engine::pax_chassis_web::PaxChassisWeb::new(definition_to_instance_traverser).await)
+
+
+        #[cfg(not(feature="designtime"))]
+        {
+            let manifest = init_manifest();
+            let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest);
+            JsValue::from(pax_engine::pax_chassis_web::PaxChassisWeb::new(definition_to_instance_traverser).await)
+        }
+
+        #[cfg(feature="designtime")]
+        {
+            let userland_manifest = init_manifest();
+            let userland_definition_to_instance_traverser = init_definition_to_instance_traverser(userland_manifest);
+
+            let designer_manifest = init_manifest();
+            let designer_definition_to_instance_traverser = init_definition_to_instance_traverser(designer_manifest);
+
+            JsValue::from(pax_engine::pax_chassis_web::PaxChassisWeb::new(userland_definition_to_instance_traverser, designer_definition_to_instance_traverser).await)
+        }
+
+
+
+
+
+
     }
 
     //cdylib exports
