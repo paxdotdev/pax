@@ -9,6 +9,7 @@ use std::{
 };
 
 use color_eyre::eyre;
+use pax_manifest::PaxManifest;
 
 use crate::{RunContext, RunTarget};
 
@@ -25,6 +26,7 @@ pub fn build_project_with_cartridge(
     ctx: &RunContext,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
     assets_dirs: Vec<String>,
+    manifest: PaxManifest,
 ) -> Result<Option<PathBuf>, eyre::Report> {
     let target: &RunTarget = &ctx.target;
     let pax_dir = PathBuf::from(pax_dir.to_str().unwrap());
@@ -36,7 +38,7 @@ pub fn build_project_with_cartridge(
             Ok(None)
         }
         RunTarget::Web => {
-            let fs = build_web_project_with_cartridge(ctx, &pax_dir, process_child_ids, assets_dirs)?;
+            let fs = build_web_project_with_cartridge(ctx, &pax_dir, process_child_ids, assets_dirs, manifest)?;
             Ok(Some(fs))
         }
     }

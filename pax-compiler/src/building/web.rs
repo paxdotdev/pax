@@ -20,12 +20,14 @@ use std::net::TcpListener;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
 use dotenv::dotenv;
+use pax_manifest::PaxManifest;
 
 pub fn build_web_project_with_cartridge(
     ctx: &RunContext,
     pax_dir: &PathBuf,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
     assets_dirs: Vec<String>,
+    manifest: PaxManifest, //used by designtime
 ) -> Result<PathBuf, eyre::Report> {
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
@@ -93,6 +95,7 @@ pub fn build_web_project_with_cartridge(
         return Err(eyre!("Error creating directory {:?}: {}", asset_dest, e));
     }
 
+    // `asset_dirs` gets collected by detecting #[pax]#[main] through compiletime
     for asset_src in assets_dirs {
         let asset_src = PathBuf::from(asset_src);
         // Check if the asset_src directory exists before attempting the copy
@@ -128,12 +131,12 @@ pub fn build_web_project_with_cartridge(
     // Start local server if this is a `run` rather than a `build`
     if ctx.should_also_run {
         if ctx.should_run_designer {
-            println!("{} 🐇🎨 Running with Pax Designer...", *PAX_BADGE);
+            println!("{} 🐇🎨 Running Pax Web with Pax Designer...", *PAX_BADGE);
             dotenv().ok();
-            let _ = crate::design_server::start_server(build_dest.to_str().unwrap(),true, ctx.is_libdev_mode);
+            let _ = crate::design_server::start_server(build_dest.to_str().unwrap(),build_src.to_str().unwrap(), manifest);
         } else {
             println!("{} 🐇 Running Pax Web...", *PAX_BADGE);
-            let _ = crate::design_server::start_server(build_dest.to_str().unwrap(),false, ctx.is_libdev_mode);
+            let _ = crate::design_server::static_server::start_server(build_dest);
         }
     } else {
         println!(
