@@ -21,7 +21,7 @@ use crate::math::{
 use crate::model::action::orm::{MoveNode, NodeLayoutSettings};
 use crate::model::Tool;
 use crate::model::{AppState, ToolBehavior};
-use crate::{SetStage, ROOT_PROJECT_ID};
+use crate::{SetStage};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::math::Transform2;
@@ -442,10 +442,7 @@ impl ToolBehavior for PointerTool {
                     .contains_point(point)
                     && ctx
                         .engine_context
-                        .get_nodes_by_id(ROOT_PROJECT_ID)
-                        .into_iter()
-                        .next()
-                        .unwrap()
+                        .get_userland_root_expanded_node()
                         != curr_slot
                 {
                     let container_parent = curr_node

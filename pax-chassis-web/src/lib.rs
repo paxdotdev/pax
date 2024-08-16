@@ -58,6 +58,9 @@ pub struct PaxChassisWeb {
     definition_to_instance_traverser:
         Box<dyn pax_runtime::cartridge::DefinitionToInstanceTraverser>,
     #[cfg(feature = "designtime")]
+    userland_definition_to_instance_traverser:
+    Box<dyn pax_runtime::cartridge::DefinitionToInstanceTraverser>,
+    #[cfg(feature = "designtime")]
     designtime_manager: Rc<RefCell<DesigntimeManager>>,
     #[cfg(feature = "designtime")]
     last_manifest_version_rendered: usize,
@@ -104,6 +107,7 @@ impl PaxChassisWeb {
             engine: engine_container,
             drawing_contexts: Renderer::new(),
             definition_to_instance_traverser: designer_definition_to_instance_traverser,
+            userland_definition_to_instance_traverser,
             designtime_manager,
             last_manifest_version_rendered: 0,
         }
@@ -712,7 +716,7 @@ impl PaxChassisWeb {
                 match reload_type {
                     ReloadType::FullEdit => {
                         if let Some(instance_node) = self
-                            .definition_to_instance_traverser
+                            .userland_definition_to_instance_traverser
                             .get_template_node_by_id(USERLAND_PROJECT_ID)
                         {
                             let mut engine = borrow_mut!(self.engine);
@@ -722,7 +726,7 @@ impl PaxChassisWeb {
                     }
                     ReloadType::FullPlay => {
                         if let Some(instance_node) = self
-                            .definition_to_instance_traverser
+                            .userland_definition_to_instance_traverser
                             .get_template_node_by_id(RUNNING_PROJECT_ID)
                         {
                             let mut engine = borrow_mut!(self.engine);
@@ -732,7 +736,7 @@ impl PaxChassisWeb {
                     }
                     ReloadType::Partial(uni) => {
                         let instance_node =
-                            self.definition_to_instance_traverser.build_template_node(
+                            self.userland_definition_to_instance_traverser.build_template_node(
                                 &uni.get_containing_component_type_id(),
                                 &uni.get_template_node_id(),
                             );

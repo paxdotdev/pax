@@ -29,7 +29,6 @@ use crate::{
         GlassNode, GlassNodeSnapshot, ToolBehavior,
     },
     utils::filter_with_last::FilterWithLastExt,
-    ROOT_PROJECT_ID,
 };
 
 use super::ControlPointSet;
@@ -151,10 +150,7 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                 .contains_point(point)
                 && ctx
                     .engine_context
-                    .get_nodes_by_id(ROOT_PROJECT_ID)
-                    .into_iter()
-                    .next()
-                    .unwrap()
+                    .get_userland_root_expanded_node()
                     != curr_container
             {
                 let container_parent = curr_container.template_parent().unwrap();
@@ -319,10 +315,7 @@ pub fn raycast_slot(
         .raycast(ctx.glass_transform().get().inverse() * point, true);
     let root = ctx
         .engine_context
-        .get_nodes_by_id(ROOT_PROJECT_ID)
-        .into_iter()
-        .next()
-        .unwrap();
+        .get_userland_root_expanded_node();
 
     let open_container = ctx.derived_state.open_container.get();
     let slot_hit = all_elements_beneath_ray

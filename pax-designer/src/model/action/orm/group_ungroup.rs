@@ -10,7 +10,6 @@ use crate::{
         tools::SelectNodes,
         GlassNode, GlassNodeSnapshot, SelectionStateSnapshot,
     },
-    ROOT_PROJECT_ID,
 };
 use anyhow::{anyhow, Context, Result};
 use pax_engine::api::borrow_mut;
