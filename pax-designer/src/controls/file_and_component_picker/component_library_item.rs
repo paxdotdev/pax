@@ -21,7 +21,6 @@ use crate::model::input::Dir;
 use crate::model::input::InputEvent;
 use crate::model::GlassNode;
 use crate::model::ToolBehavior;
-use crate::ROOT_PROJECT_ID;
 use math::Point2;
 
 use super::SetLibraryState;
@@ -60,10 +59,7 @@ impl ToolBehavior for DropComponent {
         let bounds = AxisAlignedBox::new(point + v, point - v);
         let parent = ctx
             .engine_context
-            .get_nodes_by_id(ROOT_PROJECT_ID)
-            .into_iter()
-            .next()
-            .unwrap();
+            .get_userland_root_expanded_node();
         let parent = GlassNode::new(&parent, &ctx.glass_transform());
         CreateComponent {
             parent_id: &parent.id,

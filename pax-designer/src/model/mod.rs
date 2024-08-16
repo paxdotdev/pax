@@ -10,7 +10,6 @@ use crate::math::coordinate_spaces::World;
 use crate::model::action::ActionContext;
 use crate::model::input::RawInput;
 use crate::DESIGNER_GLASS_ID;
-use crate::ROOT_PROJECT_ID;
 use action::Action;
 use anyhow::anyhow;
 use anyhow::Context;
@@ -301,10 +300,7 @@ impl Model {
                     containers.into_iter().next().unwrap()
                 } else {
                     let root = ctx_cp
-                        .get_nodes_by_id(ROOT_PROJECT_ID)
-                        .into_iter()
-                        .next()
-                        .unwrap();
+                        .get_userland_root_expanded_node();
                     root.global_id().unwrap()
                 }
             },

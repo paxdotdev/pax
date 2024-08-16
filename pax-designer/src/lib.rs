@@ -41,7 +41,6 @@ use pax_std::*;
 // Things to decide:
 // - Who/what should be allowed to modify model state? (harder to encode when everything is Properties)
 
-pub const ROOT_PROJECT_ID: &str = "userland_project";
 pub const DESIGNER_GLASS_ID: &str = "designer_glass";
 
 

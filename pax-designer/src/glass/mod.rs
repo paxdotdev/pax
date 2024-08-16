@@ -13,7 +13,7 @@ use crate::model::action::orm::CreateComponent;
 use crate::model::action::world::Translate;
 use crate::model::tools::SelectNodes;
 use crate::model::{AppState, GlassNode};
-use crate::{model, SetStage, StageInfo, ROOT_PROJECT_ID};
+use crate::{model, SetStage, StageInfo};
 
 use crate::math::coordinate_spaces::{self, World};
 use crate::math::{self, AxisAlignedBox};
@@ -251,10 +251,7 @@ impl Glass {
             };
         }
         let parent = ctx
-            .get_nodes_by_id(ROOT_PROJECT_ID)
-            .into_iter()
-            .next()
-            .unwrap();
+            .get_userland_root_expanded_node();
         model::with_action_context(ctx, |ac| {
             let parent = GlassNode::new(&parent, &ac.glass_transform());
             let cw = ac.glass_transform().get() * Point2::new(event.args.x, event.args.y);
@@ -308,10 +305,7 @@ impl Action for SetEditingComponent {
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
         let node = ctx
             .engine_context
-            .get_nodes_by_id(ROOT_PROJECT_ID)
-            .into_iter()
-            .next()
-            .ok_or(anyhow!("couldn't find node with userland id"))?;
+            .get_userland_root_expanded_node();
         let mut builder = dt
             .get_orm_mut()
             .get_node(

@@ -10,7 +10,7 @@ use crate::model::tools::{CreateComponentTool, PointerTool};
 use crate::model::Component;
 use crate::model::{action, Tool};
 use crate::model::{AppState, StageInfo};
-use crate::{SetStage, ROOT_PROJECT_ID};
+use crate::{SetStage};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::{borrow, Color, MouseButton, Window};

@@ -185,7 +185,7 @@ macro_rules! dispatch_event_handler {
 }
 
 impl ExpandedNode {
-    pub fn root(template: Rc<ComponentInstance>, ctx: &Rc<RuntimeContext>) -> Rc<Self> {
+    pub fn initialize_root(template: Rc<ComponentInstance>, ctx: &Rc<RuntimeContext>) -> Rc<Self> {
         let root_env = RuntimePropertiesStackFrame::new(
             HashMap::new(),
             Rc::new(RefCell::new(().to_pax_any())),

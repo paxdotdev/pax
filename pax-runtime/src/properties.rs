@@ -263,6 +263,10 @@ impl RuntimeContext {
         borrow!(self.userland_root_expanded_node).upgrade()
     }
 
+    pub fn get_root_expanded_node(&self) -> Option<Rc<ExpandedNode>> {
+        borrow!(self.root_expanded_node).upgrade()
+    }
+
     pub fn queue_render(&self, expanded_node: Rc<ExpandedNode>) {
         borrow_mut!(self.queued_renders).push(expanded_node);
     }

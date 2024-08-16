@@ -10,7 +10,6 @@ use pax_engine::{
 use crate::{
     glass::SnapLines,
     model::{action::ActionContext, GlassNode},
-    ROOT_PROJECT_ID,
 };
 
 use super::{
@@ -29,10 +28,7 @@ impl IntentSnapper {
         let mut snap_set = SnapSet::new(iter::empty());
         let root = ctx
             .engine_context
-            .get_nodes_by_id(ROOT_PROJECT_ID)
-            .into_iter()
-            .next()
-            .unwrap();
+            .get_userland_root_expanded_node();
         let glass_transform = ctx.glass_transform().get();
         let glass_t_and_b = TransformAndBounds {
             transform: glass_transform,
@@ -40,7 +36,7 @@ impl IntentSnapper {
         };
         let mut to_process = vec![root];
         while let Some(node) = to_process.pop() {
-            if ignore.contains(&node.global_id().unwrap()) {
+            if node.global_id().is_some() && ignore.contains(&node.global_id().unwrap()) {
                 continue;
             }
             let t_and_b = glass_t_and_b * node.transform_and_bounds().get();
