@@ -169,6 +169,13 @@ Date:   Mon Aug 12 15:45:14 2024 +0700
 
     [ ] run design_server instead of static server
         [ ] refactor and consolidate divergent building:: vs design_server:: logic
+            [ ] assess what else is exposed&expected (e.g. websockets, priv. agent)
+            [ ] figure out  `std::env::set_var("PAX_WORKSPACE_ROOT", "../pax");`
+            [ ] Expose previous bin logic through method (env, mostly)
+            [ ] bolt onto existing static serve logic (e.g. with port-seeking)
+                [x] refactor use of static server from `building` => `design_server`
+
+                 
 
     [x] solve assets (can we merge all? do we need to coordinate across `#[main]`s somehow?)
         - wj: store fs paths in manifest?
@@ -176,6 +183,9 @@ Date:   Mon Aug 12 15:45:14 2024 +0700
         - had to do some macro wrangling / surfing, but got there
 
     [ ] one more merge from dev; prepare PR
+
+    [ ] UI cleanup pass
+        [ ] icon tightening (make more outlines, less solids)
 
     [ ] Module cleanup pass
         [ ] pax_main

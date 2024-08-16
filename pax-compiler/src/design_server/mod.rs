@@ -11,6 +11,7 @@ use serde_with::serde::de::Deserialize;
 use serde_with::serde::ser::Serialize;
 use serde_json::json;
 use std::{env, fs};
+use std::net::TcpListener;
 
 use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use crate::helpers::PAX_BADGE;
@@ -30,6 +31,9 @@ pub mod code_serialization;
 #[allow(unused)]
 mod llm;
 pub mod websocket;
+pub mod static_server;
+
+
 const PORT: u16 = 8252;
 
 pub struct AppState {
@@ -87,31 +91,78 @@ pub async fn web_socket(
 }
 
 #[allow(unused_assignments)]
-pub async fn start_server(folder_to_watch: &str) -> std::io::Result<()> {
-    std::env::set_var("PAX_WORKSPACE_ROOT", "../pax");
+pub async fn start_server(folder_to_watch: &str, with_designer: bool, is_libdev_mode: bool) -> std::io::Result<()> {
 
-    let initial_state = perform_build_and_create_state(folder_to_watch)?;
-    let fs_path = initial_state.serve_dir.lock().unwrap().clone();
-    let state = Data::new(initial_state);
-    let _watcher =
-        setup_file_watcher(state.clone(), folder_to_watch).expect("Failed to setup file watcher");
+    if is_libdev_mode {
+        // Allows libdev of web chassis TS files
+        std::env::set_var("PAX_WORKSPACE_ROOT", "../../../");
+    }
 
-    let server = HttpServer::new(move || {
-        App::new()
-            .wrap(Logger::default())
-            .app_data(state.clone())
-            .service(ai_page)
-            .service(ai_submit)
-            .service(web_socket)
-            .service(actix_files::Files::new("/*", fs_path.clone()).index_file("index.html"))
-    })
-    .bind(("127.0.0.1", PORT))?;
+    // Initialize logging
+    std::env::set_var("RUST_LOG", "actix_web=info");
+    env_logger::Builder::from_env(env_logger::Env::default())
+        .format(|buf, record| writeln!(buf, "{} 🍱 Served {}", *PAX_BADGE, record.args()))
+        .init();
 
-    let address_msg = format!("http://127.0.0.1:{}", PORT).blue();
-    let server_running_at_msg = format!("Server running at {}", address_msg).bold();
-    println!("{} 📠 {}", *PAX_BADGE, server_running_at_msg);
 
-    server.run().await
+
+    let design_server_details = if with_designer {
+        {
+            let initial_state = perform_build_and_create_state(folder_to_watch)?;
+            let fs_path = initial_state.serve_dir.lock().unwrap().clone();
+            let state = Data::new(initial_state);
+            let _watcher =
+                setup_file_watcher(state.clone(), folder_to_watch).expect("Failed to setup file watcher");
+
+            Some((fs_path,state,_watcher))
+        }
+
+    } else {
+        None
+    };
+
+
+
+
+    // Create a Runtime
+    let runtime = actix_web::rt::System::new().block_on(async {
+        let mut port = 8080;
+        let server = loop {
+            // Check if the port is available
+            if TcpListener::bind(("127.0.0.1", port)).is_ok() {
+                // Log the server details
+                println!(
+                    "{} 🗂️  Serving static files from {}",
+                    *PAX_BADGE,
+                    &folder_to_watch.to_str().unwrap()
+                );
+                let address_msg = format!("http://127.0.0.1:{}", port).blue();
+                let server_running_at_msg = format!("Server running at {}", address_msg).bold();
+                println!("{} 📠 {}", *PAX_BADGE, server_running_at_msg);
+                break HttpServer::new(move || {
+                    let mut app = App::new().wrap(Logger::new("| %s | %U")).service(
+                        actix_files::Files::new("/*", folder_to_watch.clone()).index_file("index.html"),
+                    );
+
+                    if with_designer {
+                        app = app.app_data(design_server_details.unwrap().1.clone())
+                            .service(ai_page)
+                            .service(ai_submit)
+                            .service(web_socket);
+                    }
+
+                    app
+                }).bind(("127.0.0.1", port))
+                .expect("Error binding to address")
+                .workers(2);
+            } else {
+                port += 1; // Try the next port
+            }
+        };
+
+        server.run().await
+    });
+    runtime
 }
 
 #[derive(Default)]
