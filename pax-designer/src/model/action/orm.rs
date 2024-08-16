@@ -10,7 +10,6 @@ use crate::math::{
 use crate::model::input::InputEvent;
 use crate::model::tools::SelectNodes;
 use crate::model::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot};
-use crate::ROOT_PROJECT_ID;
 use crate::{math::BoxPoint, model, model::AppState};
 use anyhow::{anyhow, Context, Result};
 use pax_designtime::orm::template::builder::NodeBuilder;

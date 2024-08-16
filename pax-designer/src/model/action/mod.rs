@@ -7,7 +7,7 @@ use self::orm::UndoRequested;
 use super::{DerivedAppState, GlassNode, SelectionState};
 use crate::math::coordinate_spaces::World;
 use crate::message_log_display::{self, DesignerLogMsg};
-use crate::{math::AxisAlignedBox, model::AppState, DESIGNER_GLASS_ID, ROOT_PROJECT_ID};
+use crate::{math::AxisAlignedBox, model::AppState, DESIGNER_GLASS_ID};
 use anyhow::{anyhow, Error, Result};
 use pax_designtime::orm::PaxManifestORM;
 use pax_designtime::DesigntimeManager;
@@ -94,7 +94,7 @@ impl ActionContext<'_> {
         let window_point = self.glass_transform().get().inverse() * point;
         let all_elements_beneath_ray = self.engine_context.raycast(window_point, false);
 
-        let userland = self.engine_context.get_nodes_by_id(ROOT_PROJECT_ID).pop()?;
+        let userland = self.engine_context.get_userland_root_expanded_node();
         let userland_id = userland.global_id();
 
         let mut potential_targets = all_elements_beneath_ray
@@ -152,9 +152,7 @@ impl ActionContext<'_> {
     ) -> NodeLocation {
         if self
             .engine_context
-            .get_nodes_by_id(ROOT_PROJECT_ID)
-            .first()
-            .unwrap()
+            .get_userland_root_expanded_node()
             .global_id()
             == Some(uid.clone())
         {

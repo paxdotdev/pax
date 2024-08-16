@@ -168,21 +168,26 @@ Date:   Mon Aug 12 15:45:14 2024 +0700
         [x] handle transition between DTITs as elegantly as possible (set children statefully a la frame?)
 
     [ ] run design_server instead of static server
-        [ ] refactor and consolidate divergent building:: vs design_server:: logic
+        [x] refactor and consolidate divergent building:: vs design_server:: logic
             [x] assess what else is exposed&expected (e.g. websockets, priv. agent)
             [x] figure out  `std::env::set_var("PAX_WORKSPACE_ROOT", "../pax");`
             [x] Expose previous bin logic through method (env, mostly)
-                [ ] must also solve async runtime (since not using tokio::main)
+                [x] must also solve async runtime (since not using tokio::main)
             [-] bolt onto existing static serve logic (e.g. with port-seeking)
                 [-] refactor use of static server from `building` => `design_server`
         [ ] figure out port coordination + autoport (or fall back to fixed)
-            [ ] client-side, should be able to query port of current URL / file?  
+            [-] client-side, should be able to query port of current URL / file?  
                 window.location.port, 
                 or maybe even just a relative path
-            [ ] there's a tangle with how the designtimemanager is init'd —
+            [-] there's a tangle with how the designtimemanager is init'd —
                 are we crossing a websys boundary and can we query client port at that time?
+            [x] punted by hard-coding to 8080; will need more effort to support dynamic ports
 
-    [ ] Root out ROOT_PROJECT_ID — must make dynamic; 
+    [x] Root out ROOT_PROJECT_ID — must make dynamic; 
+        - exposed get_userland_root_expanded_node
+
+    [ ] solve `root.global_id().unwrap()` — sometimes global_id is None; why?
+        - this blocks e.g. instantiating a Rect, probably also selection
 
     [ ] support non-designtime builds (esp. release)
 

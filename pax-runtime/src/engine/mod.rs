@@ -240,7 +240,7 @@ impl PaxEngine {
             os,
         };
         let runtime_context = Rc::new(RuntimeContext::new(globals));
-        let root_node = ExpandedNode::root(Rc::clone(&main_component_instance), &runtime_context);
+        let root_node = ExpandedNode::initialize_root(Rc::clone(&main_component_instance), &runtime_context);
         runtime_context.register_root_expanded_node(&root_node);
 
         PaxEngine {
@@ -275,6 +275,7 @@ impl PaxEngine {
         };
 
 
+
         let mut runtime_context = Rc::new(RuntimeContext::new(globals));
 
 
@@ -282,11 +283,11 @@ impl PaxEngine {
         //Because InlineFrame's mount logic assumes that the "iframe" component is already registered and available
         //on runtime context, it must first be registered (here)
         let userland_root_expanded_node =
-            ExpandedNode::root(Rc::clone(&userland_main_component_instance), &mut runtime_context);
+            ExpandedNode::initialize_root(Rc::clone(&userland_main_component_instance), &mut runtime_context);
         runtime_context.register_userland_root_expanded_node(&userland_root_expanded_node);
 
         let root_expanded_node =
-            ExpandedNode::root(Rc::clone(&designer_main_component_instance), &mut runtime_context);
+            ExpandedNode::initialize_root(Rc::clone(&designer_main_component_instance), &mut runtime_context);
         runtime_context.register_root_expanded_node(&root_expanded_node);
 
         PaxEngine {
