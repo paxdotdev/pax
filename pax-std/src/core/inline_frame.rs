@@ -1,4 +1,4 @@
-use pax_engine::pax;
+use pax_engine::{pax, Property};
 use pax_runtime::{BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 use std::rc::Rc;
 
@@ -50,8 +50,10 @@ impl InstanceNode for InlineFrameInstance {
     }
 
     fn handle_mount(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, ctx: &Rc<RuntimeContext>) {
-        let inline_children = vec![ctx.get_userland_root_expanded_node().expect("Unable to load userland component via InlineFrame — has it been registered?")];
-        expanded_node.children.set(inline_children);
+        let foo = ctx.userland_root_expanded_node.clone();
+        expanded_node.children.replace_with(Property::computed(move ||{
+            vec![foo.get().upgrade().unwrap()]
+        },&[ctx.userland_root_expanded_node.untyped()]));
     }
 
 }

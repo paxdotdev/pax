@@ -35,7 +35,7 @@ pub struct RuntimeContext {
     globals: RefCell<Globals>,
     root_expanded_node: RefCell<Weak<ExpandedNode>>,
     #[cfg(feature="designtime")]
-    userland_root_expanded_node: RefCell<Weak<ExpandedNode>>,
+    pub userland_root_expanded_node: pax_runtime_api::Property<Weak<ExpandedNode>>,
     node_cache: RefCell<NodeCache>,
     queued_custom_events: RefCell<Vec<(Rc<ExpandedNode>, &'static str)>>,
     queued_renders: RefCell<Vec<Rc<ExpandedNode>>>,
@@ -86,7 +86,7 @@ impl RuntimeContext {
             globals: RefCell::new(globals),
             root_expanded_node: RefCell::new(Weak::new()),
             #[cfg(feature="designtime")]
-            userland_root_expanded_node: RefCell::new(Weak::new()),
+            userland_root_expanded_node: Default::default(),
             node_cache: RefCell::new(NodeCache::new()),
             queued_custom_events: Default::default(),
             queued_renders: Default::default(),
@@ -99,7 +99,7 @@ impl RuntimeContext {
 
     #[cfg(feature = "designtime")]
     pub fn register_userland_root_expanded_node(&self, root: &Rc<ExpandedNode>) {
-        *borrow_mut!(self.userland_root_expanded_node) = Rc::downgrade(root);
+        self.userland_root_expanded_node.set(Rc::downgrade(root));
     }
 
 
@@ -260,7 +260,7 @@ impl RuntimeContext {
 
     #[cfg(feature = "designtime")]
     pub fn get_userland_root_expanded_node(&self) -> Option<Rc<ExpandedNode>> {
-        borrow!(self.userland_root_expanded_node).upgrade()
+        Some(self.userland_root_expanded_node.get().upgrade().unwrap())
     }
 
     pub fn get_root_expanded_node(&self) -> Option<Rc<ExpandedNode>> {
