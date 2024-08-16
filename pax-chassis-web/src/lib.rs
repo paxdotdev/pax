@@ -11,7 +11,7 @@ use pax_runtime::api::Platform;
 use pax_runtime::api::RenderContext;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::OS;
-use pax_runtime::DefinitionToInstanceTraverser;
+use pax_runtime::{DefinitionToInstanceTraverser, ExpandedNode};
 use pax_runtime_api::borrow_mut;
 use pax_runtime_api::Event;
 use_RefCell!();
@@ -715,14 +715,14 @@ impl PaxChassisWeb {
             for reload_type in reload_queue {
                 match reload_type {
                     ReloadType::FullEdit => {
-                        if let Some(instance_node) = self
-                            .userland_definition_to_instance_traverser
-                            .get_template_node_by_id(USERLAND_PROJECT_ID)
-                        {
-                            let mut engine = borrow_mut!(self.engine);
-                            engine.replace_main_template_instance_node(Rc::clone(&instance_node));
-                            engine.remount_main_template_expanded_node(Rc::clone(&instance_node));
-                        }
+                        let mc = self.userland_definition_to_instance_traverser
+                            .get_main_component();
+                        
+                        let mut engine = borrow_mut!(self.engine);
+
+                        ExpandedNode::initialize_root(mc, &engine.runtime_context);
+                        // engine.replace_main_template_instance_node(Rc::clone(&instance_node));
+                        // engine.remount_main_template_expanded_node(Rc::clone(&instance_node));
                     }
                     ReloadType::FullPlay => {
                         if let Some(instance_node) = self

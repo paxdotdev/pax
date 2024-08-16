@@ -125,6 +125,7 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
 
     // Simple starting convention: first manifest is userland, second manifest is designer; other schemas are undefined
     let mut userland_manifest = manifests.remove(0);
+
     let mut merged_manifest = userland_manifest.clone();
 
     //Hack: add a wrapper component so UniqueTemplateNodeIdentifer is a suitable uniqueid, even for root nodes
@@ -147,13 +148,22 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
         }
     );
 
+
+
+
     let designer_manifest = if ctx.should_run_designer {
         let designer_manifest = manifests.remove(0);
         merged_manifest.merge_in_place(&designer_manifest);
+
+        userland_manifest.components.extend(designer_manifest.components.clone());
+        userland_manifest.type_table.extend(designer_manifest.type_table.clone());
+
         Some(designer_manifest)
     } else {
         None
     };
+
+
 
     println!("{} 🦀 Generating Rust", *PAX_BADGE);
     generate_cartridge_partial_rs(&pax_dir, &merged_manifest, &userland_manifest, designer_manifest);
