@@ -13,6 +13,9 @@ use serde_json::json;
 use std::{env, fs};
 use std::net::TcpListener;
 
+use env_logger;
+use std::io::Write;
+
 use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use crate::helpers::PAX_BADGE;
 use crate::{RunContext, RunTarget};
@@ -32,9 +35,6 @@ pub mod code_serialization;
 mod llm;
 pub mod websocket;
 pub mod static_server;
-
-
-const PORT: u16 = 8252;
 
 pub struct AppState {
     serve_dir: Mutex<PathBuf>,
@@ -91,38 +91,22 @@ pub async fn web_socket(
 }
 
 #[allow(unused_assignments)]
-pub async fn start_server(folder_to_watch: &str, with_designer: bool, is_libdev_mode: bool) -> std::io::Result<()> {
-
-    if is_libdev_mode {
-        // Allows libdev of web chassis TS files
-        std::env::set_var("PAX_WORKSPACE_ROOT", "../../../");
-    }
-
+pub fn start_server(static_file_path: &str, src_folder_to_watch: &str, manifest: PaxManifest) -> std::io::Result<()> {
     // Initialize logging
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::Builder::from_env(env_logger::Env::default())
         .format(|buf, record| writeln!(buf, "{} 🍱 Served {}", *PAX_BADGE, record.args()))
         .init();
 
-
-
-    let design_server_details = if with_designer {
-        {
-            let initial_state = perform_build_and_create_state(folder_to_watch)?;
-            let fs_path = initial_state.serve_dir.lock().unwrap().clone();
-            let state = Data::new(initial_state);
-            let _watcher =
-                setup_file_watcher(state.clone(), folder_to_watch).expect("Failed to setup file watcher");
-
-            Some((fs_path,state,_watcher))
-        }
-
-    } else {
-        None
-    };
-
-
-
+    let initial_state = AppState::new(
+        PathBuf::from(static_file_path),
+        PathBuf::from_str(src_folder_to_watch).unwrap(),
+        manifest,
+    );
+    let fs_path = initial_state.serve_dir.lock().unwrap().clone();
+    let state = Data::new(initial_state);
+    let _watcher =
+        setup_file_watcher(state.clone(), src_folder_to_watch).expect("Failed to setup file watcher");
 
     // Create a Runtime
     let runtime = actix_web::rt::System::new().block_on(async {
@@ -134,27 +118,23 @@ pub async fn start_server(folder_to_watch: &str, with_designer: bool, is_libdev_
                 println!(
                     "{} 🗂️  Serving static files from {}",
                     *PAX_BADGE,
-                    &folder_to_watch.to_str().unwrap()
+                    &fs_path.to_str().unwrap()
                 );
                 let address_msg = format!("http://127.0.0.1:{}", port).blue();
                 let server_running_at_msg = format!("Server running at {}", address_msg).bold();
                 println!("{} 📠 {}", *PAX_BADGE, server_running_at_msg);
                 break HttpServer::new(move || {
-                    let mut app = App::new().wrap(Logger::new("| %s | %U")).service(
-                        actix_files::Files::new("/*", folder_to_watch.clone()).index_file("index.html"),
-                    );
-
-                    if with_designer {
-                        app = app.app_data(design_server_details.unwrap().1.clone())
-                            .service(ai_page)
-                            .service(ai_submit)
-                            .service(web_socket);
-                    }
-
-                    app
-                }).bind(("127.0.0.1", port))
-                .expect("Error binding to address")
-                .workers(2);
+                    App::new()
+                        .wrap(Logger::new("| %s | %U"))
+                        .app_data(state.clone())
+                        .service(ai_page)
+                        .service(ai_submit)
+                        .service(web_socket)
+                        .service(actix_files::Files::new("/*", fs_path.clone()).index_file("index.html"))
+                })
+                    .bind(("127.0.0.1", port))
+                    .expect("Error binding to address")
+                    .workers(2);
             } else {
                 port += 1; // Try the next port
             }
@@ -162,6 +142,7 @@ pub async fn start_server(folder_to_watch: &str, with_designer: bool, is_libdev_
 
         server.run().await
     });
+
     runtime
 }
 
@@ -322,7 +303,6 @@ fn create_run_context() -> RunContext {
 }
 
 fn perform_build() -> std::io::Result<(PaxManifest, Option<PathBuf>)> {
-    std::env::set_var("PAX_WORKSPACE_ROOT", "../pax");
     let ctx = create_run_context();
     crate::perform_build(&ctx).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
 }
@@ -336,14 +316,4 @@ fn perform_build_and_update_state(state: &AppState, folder_to_watch: &str) -> st
     *state.manifest.lock().unwrap() = Some(manifest);
 
     Ok(())
-}
-
-fn perform_build_and_create_state(folder_to_watch: &str) -> std::io::Result<AppState> {
-    let (manifest, fs_path) = perform_build()?;
-
-    Ok(AppState::new(
-        fs_path.expect("serve directory should exist"),
-        PathBuf::from_str(folder_to_watch).unwrap(),
-        manifest,
-    ))
 }

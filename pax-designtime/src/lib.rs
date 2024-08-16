@@ -61,7 +61,7 @@ impl DesigntimeManager {
     }
 
     pub fn new(manifest: PaxManifest) -> Self {
-        Self::new_with_addr(manifest, SocketAddr::from((Ipv4Addr::LOCALHOST, 8252)))
+        Self::new_with_addr(manifest, SocketAddr::from((Ipv4Addr::LOCALHOST, 8080)))
     }
 
     pub fn set_project(&mut self, project_query: String) {

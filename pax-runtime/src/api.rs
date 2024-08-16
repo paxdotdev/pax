@@ -115,6 +115,11 @@ impl NodeContext {
             .collect()
     }
 
+    pub fn get_root_expanded_node(&self) -> NodeInterface {
+        let expanded_node = self.runtime_context.get_userland_root_expanded_node().unwrap();
+        expanded_node.into()
+    }
+
     pub fn get_nodes_by_id(&self, id: &str) -> Vec<NodeInterface> {
         let expanded_nodes = self.runtime_context.get_expanded_nodes_by_id(id);
         expanded_nodes

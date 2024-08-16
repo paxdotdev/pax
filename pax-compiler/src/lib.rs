@@ -142,7 +142,7 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     //7. Build full project from source
     println!("{} 🧱 Building project with `cargo`", *PAX_BADGE);
     let build_dir =
-        build_project_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids), merged_manifest.assets_dirs)?;
+        build_project_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids), merged_manifest.assets_dirs, userland_manifest.clone())?;
 
     Ok((userland_manifest, build_dir))
 }

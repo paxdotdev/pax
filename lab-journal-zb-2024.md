@@ -169,13 +169,22 @@ Date:   Mon Aug 12 15:45:14 2024 +0700
 
     [ ] run design_server instead of static server
         [ ] refactor and consolidate divergent building:: vs design_server:: logic
-            [ ] assess what else is exposed&expected (e.g. websockets, priv. agent)
-            [ ] figure out  `std::env::set_var("PAX_WORKSPACE_ROOT", "../pax");`
-            [ ] Expose previous bin logic through method (env, mostly)
-            [ ] bolt onto existing static serve logic (e.g. with port-seeking)
-                [x] refactor use of static server from `building` => `design_server`
+            [x] assess what else is exposed&expected (e.g. websockets, priv. agent)
+            [x] figure out  `std::env::set_var("PAX_WORKSPACE_ROOT", "../pax");`
+            [x] Expose previous bin logic through method (env, mostly)
+                [ ] must also solve async runtime (since not using tokio::main)
+            [-] bolt onto existing static serve logic (e.g. with port-seeking)
+                [-] refactor use of static server from `building` => `design_server`
+        [ ] figure out port coordination + autoport (or fall back to fixed)
+            [ ] client-side, should be able to query port of current URL / file?  
+                window.location.port, 
+                or maybe even just a relative path
+            [ ] there's a tangle with how the designtimemanager is init'd —
+                are we crossing a websys boundary and can we query client port at that time?
 
-                 
+    [ ] Root out ROOT_PROJECT_ID — must make dynamic; 
+
+    [ ] support non-designtime builds (esp. release)
 
     [x] solve assets (can we merge all? do we need to coordinate across `#[main]`s somehow?)
         - wj: store fs paths in manifest?
