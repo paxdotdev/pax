@@ -2,7 +2,7 @@ use_RefCell!();
 use crate::api::NodeContext;
 use crate::{HandlerRegistry, InstanceNode, InstantiationArgs, RuntimePropertiesStackFrame};
 use pax_lang::{parse_pax_expression, Computable, DependencyCollector};
-use pax_manifest::ValueDefinition;
+use pax_manifest::{TypeId, ValueDefinition};
 use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::{PropertyValue, UntypedProperty};
 use pax_runtime_api::{
@@ -36,7 +36,14 @@ pub trait DefinitionToInstanceTraverser {
             let manifest = self.get_manifest();
             manifest.main_component_type_id.clone()
         };
-        let args = self.build_component_args(&main_component_type_id);
+
+        let wrapper_type_id = TypeId::build_singleton("ROOT_COMPONENT", Some("RootComponent"));
+
+        let mut args = self.build_component_args(&main_component_type_id);
+        args.template_node_identifier = Some(pax_manifest::UniqueTemplateNodeIdentifier::build(
+            wrapper_type_id,
+            pax_manifest::TemplateNodeId::build(0),
+        ));
         let main_component = crate::ComponentInstance::instantiate(args);
         main_component
     }
