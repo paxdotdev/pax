@@ -19,6 +19,7 @@ use std::io::Write;
 use std::net::TcpListener;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
+use dotenv::dotenv;
 
 pub fn build_web_project_with_cartridge(
     ctx: &RunContext,
@@ -126,8 +127,14 @@ pub fn build_web_project_with_cartridge(
 
     // Start local server if this is a `run` rather than a `build`
     if ctx.should_also_run {
-        println!("{} 🐇 Running Pax Web...", *PAX_BADGE);
-        let _ = start_static_http_server(build_dest);
+        if ctx.should_run_designer {
+            println!("{} 🐇🎨 Running with Pax Designer...", *PAX_BADGE);
+            dotenv().ok();
+            let _ = crate::design_server::start_server(build_dest.to_str().unwrap(),true, ctx.is_libdev_mode);
+        } else {
+            println!("{} 🐇 Running Pax Web...", *PAX_BADGE);
+            let _ = crate::design_server::start_server(build_dest.to_str().unwrap(),false, ctx.is_libdev_mode);
+        }
     } else {
         println!(
             "{} 🗂️ Done: {} build available at {}",
@@ -139,44 +146,3 @@ pub fn build_web_project_with_cartridge(
     Ok(build_src)
 }
 
-fn start_static_http_server(fs_path: PathBuf) -> std::io::Result<()> {
-    // Initialize logging
-
-    std::env::set_var("RUST_LOG", "actix_web=info");
-    env_logger::Builder::from_env(env_logger::Env::default())
-        .format(|buf, record| writeln!(buf, "{} 🍱 Served {}", *PAX_BADGE, record.args()))
-        .init();
-
-    // Create a Runtime
-    let runtime = actix_web::rt::System::new().block_on(async {
-        let mut port = 8080;
-        let server = loop {
-            // Check if the port is available
-            if TcpListener::bind(("127.0.0.1", port)).is_ok() {
-                // Log the server details
-                println!(
-                    "{} 🗂️  Serving static files from {}",
-                    *PAX_BADGE,
-                    &fs_path.to_str().unwrap()
-                );
-                let address_msg = format!("http://127.0.0.1:{}", port).blue();
-                let server_running_at_msg = format!("Server running at {}", address_msg).bold();
-                println!("{} 📠 {}", *PAX_BADGE, server_running_at_msg);
-                break HttpServer::new(move || {
-                    App::new().wrap(Logger::new("| %s | %U")).service(
-                        actix_files::Files::new("/*", fs_path.clone()).index_file("index.html"),
-                    )
-                })
-                .bind(("127.0.0.1", port))
-                .expect("Error binding to address")
-                .workers(2);
-            } else {
-                port += 1; // Try the next port
-            }
-        };
-
-        server.run().await
-    });
-
-    runtime
-}
