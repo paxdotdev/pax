@@ -32,7 +32,7 @@ pub fn generate_cartridge_partial_rs(pax_dir: &PathBuf, merged_manifest: &PaxMan
             designer_manifest_json: if let Some(designer_manifest) = designer_manifest {
                 serde_json::to_string(&designer_manifest).unwrap()
             } else {
-                "\"\"".to_string()
+                "{}".to_string()
             },
         },
     );
