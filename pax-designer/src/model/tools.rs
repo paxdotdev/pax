@@ -564,10 +564,7 @@ impl ToolBehavior for MultiSelectTool {
         self.bounds.set(AxisAlignedBox::new(self.p1, point));
         let project_root = ctx
             .engine_context
-            .get_nodes_by_id(ROOT_PROJECT_ID)
-            .into_iter()
-            .next()
-            .unwrap();
+            .get_userland_root_expanded_node();
         let selection_box = TransformAndBounds {
             transform: self.bounds.get().as_transform(),
             bounds: (1.0, 1.0),
