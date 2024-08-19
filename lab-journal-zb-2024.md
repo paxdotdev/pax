@@ -17,7 +17,7 @@ git checkout -b zb/designer-bak-00
     [error, patch does not apply]
     next to try: extract my local commits to patch; apply in the other direction on latest master
     
-    [Solution] 
+    [Solution]
     git apply --3way ../pax-designer.patch
     git apply --3way ../pax-design-server.patch
     
@@ -186,7 +186,7 @@ finally, userland depends on pax-engine, and gets both crates
     [x] Root out ROOT_PROJECT_ID — must make dynamic; 
         - exposed get_userland_root_expanded_node
 
-    [ ] solve `root.global_id().unwrap()` — sometimes global_id is None; why?
+    [x] solve `root.global_id().unwrap()` — sometimes global_id is None; why?
         - this blocks e.g. instantiating a Rect, probably also selection
 
 
@@ -204,25 +204,13 @@ finally, userland depends on pax-engine, and gets both crates
         Possibly make uniquenodeidentifier an enum: {Root(probably need root component id here), Node(ContainingComponent, TemplateNodeId)}
         Alternatively, refactor the use of global_id in designer to have better awareness of root, instead of
 
-    [ ] As a stopgap: in the manifest, put the extra component in there, which in its template just has the userland component
+    [x] As a stopgap: in the manifest, put the extra component in there, which in its template just has the userland component
     when? could probably do at macro time, same place we add BlankComponent
     "root wrapper"
     in that component, put the userland root in there as a single template node
     in get_main_component, where we create the uniquetemplatenodeidentifier, 
     make it a combination of that special wrapper component's typeid
     and tnid(0) (the root)
-
-    ```
-    todo!("add wrapper component with single template node: a def for an instance of the main userland component");
-    //can give the wrapper component a spurious typeid
-    //TypeId::build_singleton with some spurious import path or e.g. "ROOT_COMPONENT",
-    // also give it a pascal id like RootComponent
-    ```
-    
-    Next up: apply patches for pax-designer and pax-design-server
-    Clean up
-    Make PR
-
 
     [ ] support non-designtime builds (esp. release)
 
@@ -232,6 +220,13 @@ finally, userland depends on pax-engine, and gets both crates
         - had to do some macro wrangling / surfing, but got there
 
     [ ] one more merge from dev; prepare PR
+        [ ] Previously patched up to `7767d5d4396ac8023cc456d6dda63151e076cd04`
+
+git format-patch 7767d5d4396ac8023cc456d6dda63151e076cd04..HEAD --stdout -- pax-designer > pax-designer.patch
+git format-patch 7767d5d4396ac8023cc456d6dda63151e076cd04..HEAD --stdout -- pax-design-server > pax-design-server.patch
+cd pax
+git apply --3way ../pax-designer.patch
+git apply --3way ../pax-design-server.patch
 
     [ ] UI cleanup pass
         [ ] icon tightening (make more outlines, less solids)
