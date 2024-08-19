@@ -14,6 +14,13 @@ if self.visible {
                 stroke={color: GRAY, width: 1px}
             />
         </Group>
+        <Group y=50px height=25px @click=self.group_link>
+            <Text height=100% text="Link" id=text x=5px/>
+            <Rectangle
+                fill=TRANSPARENT
+                stroke={color: GRAY, width: 1px}
+            />
+        </Group>
         //Create component
         // <Group height=25px @click=self.create_component>
         //     <Text height=100% text="Create Component" id=text x=5px/>

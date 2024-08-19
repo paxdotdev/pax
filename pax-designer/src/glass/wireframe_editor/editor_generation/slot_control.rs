@@ -261,7 +261,7 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
         }
     }
 
-    let control_point_styling = ControlPointStyling {
+    let slot_dot_point_styling = ControlPointStyling {
         round: true,
         stroke: Color::RED,
         fill: Color::rgba(255.into(), 255.into(), 255.into(), 150.into()),
@@ -298,7 +298,7 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                 .collect();
             ControlPointSet {
                 points: slot_dot_control_points,
-                styling: control_point_styling.clone(),
+                styling: slot_dot_point_styling.clone(),
             }
         },
         &deps,

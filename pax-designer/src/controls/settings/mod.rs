@@ -96,12 +96,17 @@ impl Settings {
     }
 
     fn bind_custom_properties_total_height(&mut self) {
-        // TODO fix: this if properly hooked up for some reason triggers
-        // children get, resulting in getting an index that's already removed
-        // let areas = AREAS_PROP.with(|p| p.clone());
-        let deps = []; // let deps = [areas.untyped()];
+        let custom_props = self.custom_properties.clone();
+        let deps = [custom_props.untyped()];
         self.custom_properties_total_height
-            .replace_with(Property::computed(move || 1000.0, &deps));
+            .replace_with(Property::computed(
+                move || {
+                    let cp = custom_props.get();
+                    let l = cp.into_iter().next().unwrap_or(PropertyArea::default());
+                    l.vertical_pos + l.vertical_space
+                },
+                &deps,
+            ));
     }
 
     fn compute_custom_props_default_position(

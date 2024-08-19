@@ -1,4 +1,4 @@
-<ColorPicker y={-30px} anchor_x=0% height=30px x=72% width=25% bind:color=color/>
+<ColorPicker y={-30px} anchor_x=0% height=30px x=72% width=25% color=bind:color/>
 
 @settings {
     @mount: on_mount

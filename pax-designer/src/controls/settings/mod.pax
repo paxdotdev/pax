@@ -2,18 +2,17 @@ if self.is_component_selected {
     <Group x=5px width={100% - 10px}>
         // custom properties at top since we want things like color picker
         // to be drawn above the rest of the settings view (and z-index isn't supported yet)
-        // TODO this scroller results in crashes, why?
-        // <Scroller y=343px height={100% - 343px} scroll_height={1000px}>
-        <Group y=343px>
+        <Scroller y=343px height={100% - 343px} scroll_height={(self.custom_properties_total_height + 5.0)px}>
             for property in self.custom_properties {
                 <Group y={(property.vertical_pos)px} height={(property.vertical_space)px}>
-                    <PropertyEditor y=40px ind={property.index} name={property.name} stid={self.stid} snid={self.snid} />
+                    <PropertyEditor y=40px ind={property.index} name={property.name} stid={self.stid} snid={self.snid}
+                        fx_button_at_far_left=true
+                    />
                     <Path class=hr/>
-                    <Text text={property.name_friendly} class=h2 class=col_1 y=10px/>
+                    <Text x=18px text={property.name_friendly} class=h2 y=10px/>
                 </Group>
             }
-        </Group>
-        // </Scroller>
+        </Scroller>
 
         <Text text={self.selected_component_name} class=h1 class=col_1 class=span_6 />
         <Group height=150px y=47px>

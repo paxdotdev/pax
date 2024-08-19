@@ -1,12 +1,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::{Action, ActionContext};
+use super::{Action, ActionContext, RaycastMode};
 use crate::context_menu::ContextMenuMsg;
 use crate::math::coordinate_spaces::Glass;
+use crate::math::SizeUnit;
 use crate::model::action::world::Pan;
 use crate::model::input::InputEvent;
-use crate::model::tools::{CreateComponentTool, PointerTool};
+use crate::model::tools::{CreateComponentTool, MovingTool, MultiSelectTool};
 use crate::model::Component;
 use crate::model::{action, Tool};
 use crate::model::{AppState, StageInfo};
@@ -16,7 +17,7 @@ use pax_designtime::DesigntimeManager;
 use pax_engine::api::{borrow, Color, MouseButton, Window};
 use pax_engine::log;
 use pax_engine::math::Point2;
-use pax_engine::pax_manifest::TypeId;
+use pax_engine::pax_manifest::{TypeId, Unit};
 
 pub struct MouseEntryPointAction<'a> {
     pub prevent_default: &'a dyn Fn(),
@@ -59,12 +60,25 @@ impl Action for MouseEntryPointAction<'_> {
         if matches!(self.event, Pointer::Down) && tool_behavior.get().is_none() {
             match (&self.button, spacebar) {
                 (MouseButton::Left, false) => match ctx.app_state.selected_tool.get() {
-                    Tool::Pointer => {
+                    mode @ (Tool::PointerPercent | Tool::PointerPixels) => {
                         (self.prevent_default)();
-                        tool_behavior.set(Some(Rc::new(RefCell::new(PointerTool::new(
-                            ctx,
-                            point_glass,
-                        )))));
+                        ctx.app_state.unit_mode.set(match mode {
+                            Tool::PointerPercent => SizeUnit::Percent,
+                            Tool::PointerPixels => SizeUnit::Pixels,
+                            _ => unreachable!("matched on above"),
+                        });
+                        if let Some(hit) = ctx.raycast_glass(point_glass, RaycastMode::Top, &[]) {
+                            tool_behavior.set(Some(Rc::new(RefCell::new(MovingTool::new(
+                                ctx,
+                                point_glass,
+                                hit,
+                            )))));
+                        } else {
+                            tool_behavior.set(Some(Rc::new(RefCell::new(MultiSelectTool::new(
+                                ctx,
+                                point_glass,
+                            )))));
+                        }
                     }
                     Tool::CreateComponent(component) => {
                         tool_behavior.set(Some(Rc::new(RefCell::new(match component {
@@ -190,7 +204,14 @@ impl Action for MouseEntryPointAction<'_> {
                 match res {
                     std::ops::ControlFlow::Continue(_) => false,
                     std::ops::ControlFlow::Break(_) => {
-                        ctx.app_state.selected_tool.set(Tool::Pointer);
+                        // TODO this could most likely be done in a nicer way:
+                        // make a tool "stack", and return to last tool here instead
+                        ctx.app_state
+                            .selected_tool
+                            .set(match ctx.app_state.unit_mode.get() {
+                                SizeUnit::Pixels => Tool::PointerPixels,
+                                SizeUnit::Percent => Tool::PointerPercent,
+                            });
                         true
                     }
                 }

@@ -32,13 +32,12 @@ impl DirectionPropertyEditor {
             });
         }
         let data = self.data.clone();
-        let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
-        let deps = [data.untyped(), manifest_ver.untyped()];
+        let deps = [data.untyped()];
         let ctx = ctx.clone();
         self.is_vertical.replace_with(Property::computed(
             move || {
                 let s = data.get().get_value_as_str(&ctx);
-                !s.contains("StackerDirection::Horizontal")
+                !s.contains("Horizontal")
             },
             &deps,
         ));

@@ -1,37 +1,64 @@
 
-// NOTE: don't use index zero, for some reason doesn't trigger on_mount
+<Group width={100%-12px}>
+	if !self.is_literal {
+		<TextPropertyEditor data={data}/>
+	}
 
-if self.prop_type_ident_id == 1 {
-	<TextPropertyEditor data={data}/>
-}
+	if self.is_literal {
 
-if self.prop_type_ident_id == 2 {
-	<FillPropertyEditor data={data}/>
-}
+		// NOTE: don't use index zero, for some reason doesn't trigger on_mount
+		if self.prop_type_ident_id == 1 {
+			<TextPropertyEditor data={data}/>
+		}
 
-if self.prop_type_ident_id == 3 {
-	<StrokePropertyEditor data={data}/>
-}
+		if self.prop_type_ident_id == 2 {
+			<FillPropertyEditor data={data}/>
+		}
 
-if self.prop_type_ident_id == 4 {
-	<DirectionPropertyEditor data={data}/>
-}
+		if self.prop_type_ident_id == 3 {
+			<StrokePropertyEditor data={data}/>
+		}
 
-if self.prop_type_ident_id == 5 {
-	<ColorPropertyEditor data={data}/>
-}
+		if self.prop_type_ident_id == 4 {
+			<DirectionPropertyEditor data={data}/>
+		}
 
-if self.prop_type_ident_id == 6 {
-	<BorderRadiusPropertyEditor data={data}/>
-}
+		if self.prop_type_ident_id == 5 {
+			<ColorPropertyEditor data={data}/>
+		}
 
-if self.prop_type_ident_id == 7 {
-	<TextStylePropertyEditor data={data}/>
-}
+		if self.prop_type_ident_id == 6 {
+			<BorderRadiusPropertyEditor data={data}/>
+		}
 
-if self.prop_type_ident_id == 8 {
-	<CornerRadiiPropertyEditor data={data}/>
-}
+		if self.prop_type_ident_id == 7 {
+			<TextStylePropertyEditor data={data}/>
+		}
+
+		if self.prop_type_ident_id == 8 {
+			<CornerRadiiPropertyEditor data={data}/>
+		}
+	}
+</Group>
+<Group width=12px height=12px y={(-30*self.fx_button_at_far_left)px} x={(100*(1 - 1*self.fx_button_at_far_left))%} @click=self.toggle_literal>
+	<Text
+	    style={
+	        font: {Font::Web(
+	            "ff-real-headline-pro",
+	            "https://use.typekit.net/ivu7epf.css",
+	            FontStyle::Normal,
+	            FontWeight::Light,
+	        )},
+	        font_size: 8px,
+	        fill: {self.fx_text_color},
+	        align_vertical: TextAlignVertical::Center,
+	        align_horizontal: TextAlignHorizontal::Center,
+	        align_multiline: TextAlignHorizontal::Center
+	    } text="fx" width=100%/>
+	<Rectangle
+		    corner_radii={RectangleCornerRadii::radii(2.0,2.0,2.0,2.0)}
+			fill={self.fx_background_color}/>
+</Group>
 
 @settings {
 	@mount: on_mount

@@ -88,21 +88,22 @@ impl ToolBehavior for ControlPointTool {
     ) -> std::ops::ControlFlow<()> {
         let point = match &self.snapper {
             Some(intent_snapper) => {
-                let offset = intent_snapper.snap(&SnapSet::new(&[point]));
+                let offset = intent_snapper.snap(&[point]);
                 point + offset
             }
             None => point,
         };
-        self.transaction.run(|| self.behaviour.step(ctx, point));
-        std::ops::ControlFlow::Continue(())
+        match self.transaction.run(|| self.behaviour.step(ctx, point)) {
+            Ok(()) => std::ops::ControlFlow::Continue(()),
+            Err(_) => std::ops::ControlFlow::Break(()),
+        }
     }
 
     fn pointer_up(
         &mut self,
         _point: Point2<Glass>,
-        ctx: &mut ActionContext,
+        _ctx: &mut ActionContext,
     ) -> std::ops::ControlFlow<()> {
-        self.transaction.finish(ctx);
         std::ops::ControlFlow::Break(())
     }
 
