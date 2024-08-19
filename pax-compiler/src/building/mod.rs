@@ -38,7 +38,13 @@ pub fn build_project_with_cartridge(
             Ok(None)
         }
         RunTarget::Web => {
-            let fs = build_web_project_with_cartridge(ctx, &pax_dir, process_child_ids, assets_dirs, manifest)?;
+            let fs = build_web_project_with_cartridge(
+                ctx,
+                &pax_dir,
+                process_child_ids,
+                assets_dirs,
+                manifest,
+            )?;
             Ok(Some(fs))
         }
     }

@@ -13,14 +13,14 @@ use std::sync::{Arc, Mutex};
 
 use actix_web::middleware::Logger;
 use actix_web::{App, HttpServer};
+use dotenv::dotenv;
 use env_logger;
 use eyre::eyre;
+use pax_manifest::PaxManifest;
 use std::io::Write;
 use std::net::TcpListener;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
-use dotenv::dotenv;
-use pax_manifest::PaxManifest;
 
 pub fn build_web_project_with_cartridge(
     ctx: &RunContext,
@@ -133,7 +133,11 @@ pub fn build_web_project_with_cartridge(
         if ctx.should_run_designer {
             println!("{} 🐇🎨 Running Pax Web with Pax Designer...", *PAX_BADGE);
             dotenv().ok();
-            let _ = crate::design_server::start_server(build_dest.to_str().unwrap(),build_src.to_str().unwrap(), manifest);
+            let _ = crate::design_server::start_server(
+                build_dest.to_str().unwrap(),
+                build_src.to_str().unwrap(),
+                manifest,
+            );
         } else {
             println!("{} 🐇 Running Pax Web...", *PAX_BADGE);
             let _ = crate::design_server::static_server::start_server(build_dest);
@@ -148,4 +152,3 @@ pub fn build_web_project_with_cartridge(
     }
     Ok(build_src)
 }
-

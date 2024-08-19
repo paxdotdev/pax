@@ -34,7 +34,7 @@ pub struct RuntimeContext {
     messages: RefCell<Vec<NativeMessage>>,
     globals: RefCell<Globals>,
     root_expanded_node: RefCell<Weak<ExpandedNode>>,
-    #[cfg(feature="designtime")]
+    #[cfg(feature = "designtime")]
     pub userland_root_expanded_node: pax_runtime_api::Property<Weak<ExpandedNode>>,
     node_cache: RefCell<NodeCache>,
     queued_custom_events: RefCell<Vec<(Rc<ExpandedNode>, &'static str)>>,
@@ -85,7 +85,7 @@ impl RuntimeContext {
             messages: RefCell::new(Vec::new()),
             globals: RefCell::new(globals),
             root_expanded_node: RefCell::new(Weak::new()),
-            #[cfg(feature="designtime")]
+            #[cfg(feature = "designtime")]
             userland_root_expanded_node: Default::default(),
             node_cache: RefCell::new(NodeCache::new()),
             queued_custom_events: Default::default(),
@@ -101,7 +101,6 @@ impl RuntimeContext {
     pub fn register_userland_root_expanded_node(&self, root: &Rc<ExpandedNode>) {
         self.userland_root_expanded_node.set(Rc::downgrade(root));
     }
-
 
     pub fn add_to_cache(&self, node: &Rc<ExpandedNode>) {
         borrow_mut!(self.node_cache).add_to_cache(node);
