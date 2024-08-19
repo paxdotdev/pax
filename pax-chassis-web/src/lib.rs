@@ -59,7 +59,7 @@ pub struct PaxChassisWeb {
         Box<dyn pax_runtime::cartridge::DefinitionToInstanceTraverser>,
     #[cfg(feature = "designtime")]
     userland_definition_to_instance_traverser:
-    Box<dyn pax_runtime::cartridge::DefinitionToInstanceTraverser>,
+        Box<dyn pax_runtime::cartridge::DefinitionToInstanceTraverser>,
     #[cfg(feature = "designtime")]
     designtime_manager: Rc<RefCell<DesigntimeManager>>,
     #[cfg(feature = "designtime")]
@@ -87,8 +87,10 @@ impl PaxChassisWeb {
             .search()
             .expect("no search exists");
 
-        let main_component_instance = designer_definition_to_instance_traverser.get_main_component();
-        let userland_main_component_instance = userland_definition_to_instance_traverser.get_main_component();
+        let main_component_instance =
+            designer_definition_to_instance_traverser.get_main_component();
+        let userland_main_component_instance =
+            userland_definition_to_instance_traverser.get_main_component();
 
         let designtime_manager = userland_definition_to_instance_traverser
             .get_designtime_manager(query_string)
@@ -100,7 +102,6 @@ impl PaxChassisWeb {
             designtime_manager.clone(),
             Platform::Web,
             os_info,
-
         );
         let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
         Self {
@@ -117,7 +118,6 @@ impl PaxChassisWeb {
     pub async fn new(
         definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
-
         let (width, height, os_info) = Self::init_common();
 
         let main_component_instance = definition_to_instance_traverser.get_main_component();
@@ -715,9 +715,10 @@ impl PaxChassisWeb {
             for reload_type in reload_queue {
                 match reload_type {
                     ReloadType::FullEdit => {
-                        let mc = self.userland_definition_to_instance_traverser
+                        let mc = self
+                            .userland_definition_to_instance_traverser
                             .get_main_component();
-                        
+
                         let mut engine = borrow_mut!(self.engine);
 
                         ExpandedNode::initialize_root(mc, &engine.runtime_context);
@@ -735,8 +736,9 @@ impl PaxChassisWeb {
                         }
                     }
                     ReloadType::Partial(uni) => {
-                        let instance_node =
-                            self.userland_definition_to_instance_traverser.build_template_node(
+                        let instance_node = self
+                            .userland_definition_to_instance_traverser
+                            .build_template_node(
                                 &uni.get_containing_component_type_id(),
                                 &uni.get_template_node_id(),
                             );

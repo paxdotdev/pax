@@ -7,16 +7,14 @@ use std::{
 };
 
 use pax_lang::interpreter::PaxExpression;
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 
 use syn::{parse_file, spanned::Spanned, visit::Visit, Item};
 use tera::{Context, Tera};
 
 use include_dir::{include_dir, Dir};
 
-use pax_manifest::{
-    pax_runtime_api::PaxValue, ComponentDefinition, PaxType,
-};
+use pax_manifest::{pax_runtime_api::PaxValue, ComponentDefinition, PaxType};
 
 use crate::{
     formatting::format_pax_template,

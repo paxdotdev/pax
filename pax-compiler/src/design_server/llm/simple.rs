@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use schemars::JsonSchema;
 use serde;
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 
 /// All possible actions that the LLM can perform
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]

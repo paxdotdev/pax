@@ -115,10 +115,12 @@ impl NodeContext {
             .collect()
     }
 
-
     pub fn get_userland_root_expanded_node(&self) -> NodeInterface {
         #[cfg(feature = "designtime")]
-        let expanded_node = self.runtime_context.get_userland_root_expanded_node().unwrap();
+        let expanded_node = self
+            .runtime_context
+            .get_userland_root_expanded_node()
+            .unwrap();
         #[cfg(not(feature = "designtime"))]
         let expanded_node = self.runtime_context.get_root_expanded_node().unwrap();
         expanded_node.into()

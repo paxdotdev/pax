@@ -7,18 +7,18 @@ use actix_web::{post, HttpResponse, Result};
 use actix_web_actors::ws;
 use colored::Colorize;
 use pax_generation::{AIModel, PaxAppGenerator};
+use serde_json::json;
 use serde_with::serde::de::Deserialize;
 use serde_with::serde::ser::Serialize;
-use serde_json::json;
-use std::{env, fs};
 use std::net::TcpListener;
+use std::{env, fs};
 
 use env_logger;
 use std::io::Write;
 
-use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use crate::helpers::PAX_BADGE;
 use crate::{RunContext, RunTarget};
+use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use pax_designtime::messages::LLMHelpResponse;
 use pax_designtime::orm::template::NodeAction;
 use pax_manifest::{PaxManifest, TypeId};
@@ -33,8 +33,8 @@ use websocket::PrivilegedAgentWebSocket;
 pub mod code_serialization;
 #[allow(unused)]
 mod llm;
-pub mod websocket;
 pub mod static_server;
+pub mod websocket;
 
 pub struct AppState {
     serve_dir: Mutex<PathBuf>,
@@ -91,7 +91,11 @@ pub async fn web_socket(
 }
 
 #[allow(unused_assignments)]
-pub fn start_server(static_file_path: &str, src_folder_to_watch: &str, manifest: PaxManifest) -> std::io::Result<()> {
+pub fn start_server(
+    static_file_path: &str,
+    src_folder_to_watch: &str,
+    manifest: PaxManifest,
+) -> std::io::Result<()> {
     // Initialize logging
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::Builder::from_env(env_logger::Env::default())
@@ -105,8 +109,8 @@ pub fn start_server(static_file_path: &str, src_folder_to_watch: &str, manifest:
     );
     let fs_path = initial_state.serve_dir.lock().unwrap().clone();
     let state = Data::new(initial_state);
-    let _watcher =
-        setup_file_watcher(state.clone(), src_folder_to_watch).expect("Failed to setup file watcher");
+    let _watcher = setup_file_watcher(state.clone(), src_folder_to_watch)
+        .expect("Failed to setup file watcher");
 
     // Create a Runtime
     let runtime = actix_web::rt::System::new().block_on(async {
@@ -130,11 +134,13 @@ pub fn start_server(static_file_path: &str, src_folder_to_watch: &str, manifest:
                         .service(ai_page)
                         .service(ai_submit)
                         .service(web_socket)
-                        .service(actix_files::Files::new("/*", fs_path.clone()).index_file("index.html"))
+                        .service(
+                            actix_files::Files::new("/*", fs_path.clone()).index_file("index.html"),
+                        )
                 })
-                    .bind(("127.0.0.1", port))
-                    .expect("Error binding to address")
-                    .workers(2);
+                .bind(("127.0.0.1", port))
+                .expect("Error binding to address")
+                .workers(2);
             } else {
                 port += 1; // Try the next port
             }

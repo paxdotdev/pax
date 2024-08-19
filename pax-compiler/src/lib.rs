@@ -9,7 +9,8 @@
 //! - `utilities`: Helper functions and common routines used across the library.
 //!
 
-#[macro_use] extern crate serde;
+#[macro_use]
+extern crate serde;
 
 extern crate core;
 mod building;
@@ -24,7 +25,9 @@ use color_eyre::eyre::Report;
 use eyre::eyre;
 use fs_extra::dir::{self, CopyOptions};
 use helpers::{copy_dir_recursively, wait_with_output, ERR_SPAWN};
-use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TemplateNodeDefinition, TypeId};
+use pax_manifest::{
+    ComponentDefinition, ComponentTemplate, PaxManifest, TemplateNodeDefinition, TypeId,
+};
 use std::fs;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
@@ -106,7 +109,11 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     println!("{} 🛠️  Building parser binary with `cargo`...", *PAX_BADGE);
 
     // Run parser bin from host project with `--features parser`
-    let output = run_parser_binary(&ctx.project_path, Arc::clone(&ctx.process_child_ids), ctx.should_run_designer);
+    let output = run_parser_binary(
+        &ctx.project_path,
+        Arc::clone(&ctx.process_child_ids),
+        ctx.should_run_designer,
+    );
 
     // Forward stderr only
     std::io::stderr()
@@ -121,7 +128,8 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
 
     let out = String::from_utf8(output.stdout).unwrap();
 
-    let mut manifests: Vec<PaxManifest> = serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
+    let mut manifests: Vec<PaxManifest> =
+        serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
 
     // Simple starting convention: first manifest is userland, second manifest is designer; other schemas are undefined
     let mut userland_manifest = manifests.remove(0);
@@ -132,7 +140,7 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     let wrapper_type_id = TypeId::build_singleton("ROOT_COMPONENT", Some("RootComponent"));
     let mut tnd = TemplateNodeDefinition::default();
     tnd.type_id = userland_manifest.main_component_type_id.clone();
-    let mut wrapper_component_template = ComponentTemplate::new(wrapper_type_id.clone(),None);
+    let mut wrapper_component_template = ComponentTemplate::new(wrapper_type_id.clone(), None);
     wrapper_component_template.add(tnd);
     userland_manifest.components.insert(
         wrapper_type_id.clone(),
@@ -145,34 +153,43 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
             primitive_instance_import_path: None,
             template: Some(wrapper_component_template),
             settings: None,
-        }
+        },
     );
-
-
-
 
     let designer_manifest = if ctx.should_run_designer {
         let designer_manifest = manifests.remove(0);
         merged_manifest.merge_in_place(&designer_manifest);
 
-        userland_manifest.components.extend(designer_manifest.components.clone());
-        userland_manifest.type_table.extend(designer_manifest.type_table.clone());
+        userland_manifest
+            .components
+            .extend(designer_manifest.components.clone());
+        userland_manifest
+            .type_table
+            .extend(designer_manifest.type_table.clone());
 
         Some(designer_manifest)
     } else {
         None
     };
 
-
-
     println!("{} 🦀 Generating Rust", *PAX_BADGE);
-    generate_cartridge_partial_rs(&pax_dir, &merged_manifest, &userland_manifest, designer_manifest);
+    generate_cartridge_partial_rs(
+        &pax_dir,
+        &merged_manifest,
+        &userland_manifest,
+        designer_manifest,
+    );
     // source_map.extract_ranges_from_generated_code(cartridge_path.to_str().unwrap());
 
     //7. Build full project from source
     println!("{} 🧱 Building project with `cargo`", *PAX_BADGE);
-    let build_dir =
-        build_project_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids), merged_manifest.assets_dirs, userland_manifest.clone())?;
+    let build_dir = build_project_with_cartridge(
+        &pax_dir,
+        &ctx,
+        Arc::clone(&ctx.process_child_ids),
+        merged_manifest.assets_dirs,
+        userland_manifest.clone(),
+    )?;
 
     Ok((userland_manifest, build_dir))
 }

@@ -1,6 +1,6 @@
 use crate::design_server::{
-    code_serialization::serialize_component_to_file,
-    AppState, FileContent, LLMHelpResponseMessage, WatcherFileChanged,
+    code_serialization::serialize_component_to_file, AppState, FileContent, LLMHelpResponseMessage,
+    WatcherFileChanged,
 };
 
 use pax_manifest::parsing::TemplateNodeParseContext;

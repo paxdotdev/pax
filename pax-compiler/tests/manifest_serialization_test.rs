@@ -8,7 +8,10 @@ use awc::Client;
 use futures_util::SinkExt as _;
 use pax_compiler::design_server::{web_socket, AppState};
 use pax_designtime::messages::{AgentMessage, ManifestSerializationRequest};
-use pax_manifest::{ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, LocationInfo, PaxManifest, SettingsBlockElement, TemplateNodeDefinition, Token, TokenType, TypeId};
+use pax_manifest::{
+    ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, LocationInfo, PaxManifest,
+    SettingsBlockElement, TemplateNodeDefinition, Token, TokenType, TypeId,
+};
 use rmp_serde::to_vec;
 
 const EXPECTED_PAX: &str = "// Hello world
@@ -67,7 +70,13 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
                     LiteralBlockDefinition::new(vec![]),
                 ),
                 SettingsBlockElement::Handler(
-                    Token::new_with_raw_value("@existing_handler".to_string(), "@existing_handler".to_string(), TokenType::EventId, LocationInfo::default(), ""),
+                    Token::new_with_raw_value(
+                        "@existing_handler".to_string(),
+                        "@existing_handler".to_string(),
+                        TokenType::EventId,
+                        LocationInfo::default(),
+                        "",
+                    ),
                     vec![Token::new_without_location("handler_action".to_string())],
                 ),
             ]),

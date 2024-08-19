@@ -11,7 +11,7 @@ pub mod text;
 //Only exposing inline_frame when designtime feature is enabled,
 //mostly as a safety measure to prevent it from being used in userland
 //(unless or until we want to support a specific use-case)
-#[cfg(feature="designtime")]
+#[cfg(feature = "designtime")]
 pub mod inline_frame;
 
 pub use blank::*;
