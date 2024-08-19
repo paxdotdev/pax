@@ -5,8 +5,8 @@ edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-engine = { version = "0.22.0", path="../../../pax-engine" }
-pax-std = { version = "0.22.0", path="../../../pax-std"}
+pax-engine = { version = "0.23.0", path="../../../pax-engine" }
+pax-std = { version = "0.23.0", path="../../../pax-std"}
 rand = { version = "0.8.5" }
 getrandom = { version = "0.2.15", features = ["js"] }
 

@@ -1,6 +1,6 @@
 [package]
 name = "pax-lang"
-version = "0.22.0"
+version = "0.23.0"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -14,5 +14,5 @@ description = "Pax language parser"
 pest = {version = "2.7.10", features = ["std"]}
 pest_derive = {version = "2.7.10", features = ["std"]}
 serde = { version="1.0.95", features=["derive"]}
-pax-runtime-api = {path="../pax-runtime-api", version="0.22.0"}
+pax-runtime-api = {path="../pax-runtime-api", version="0.23.0"}
 log = "0.4.20"
