@@ -87,7 +87,6 @@ pub fn build_web_project_with_cartridge(
     }
 
     // Copy assets
-    // let asset_src = pax_dir.join("..").join(ASSETS_DIR_NAME);
     let asset_dest = interface_path.join(ASSETS_DIR_NAME);
 
     // Create target assets directory
