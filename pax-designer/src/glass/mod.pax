@@ -2,11 +2,33 @@
     @wheel=handle_wheel
     @drop=handle_drop
 >
-    <WireframeEditor/>
+
+    // --------------- Snap line visuals ---------------- 
+    // TODO should be replaced by self.tool_visual.snap_lines.vertical once
+    // nested lookups in for loop sources work
+    for x in self.tool_visual_snap_lines_vertical {
+        <Rectangle x={(x.line)px} width=1px height=100% fill={x.color}/>
+    }
+    for y in self.tool_visual_snap_lines_horizontal {
+        <Rectangle y={(y.line)px} width=100% height=1px fill={y.color}/>
+    }
+    for p in self.tool_visual_snap_lines_points {
+        <Ellipse
+            anchor_x=50%
+            anchor_y=50%
+            width=16px
+            height=16px
+            x={(p[0])px}
+            y={(p[1])px}
+            fill=rgba(16, 196, 187, 100)
+        />
+    }
+
 
     // -------------- tool editing visuals --------------
 
-
+    //Wireframe (on for all tools)
+    <WireframeEditor/>
 
     // Rectangle visual
     <Group>
@@ -19,18 +41,7 @@
         />
     </Group>
 
-    // Snap line visuals
-    // TODO should be replaced by self.tool_visual.snap_lines.vertical once
-    // nested lookups in for loop sources work
-    for x in self.tool_visual_snap_lines_vertical {
-        <Rectangle x={(x)px} width=1px height=100% fill=rgba(16, 196, 187, 150)/>
-    }
-    for y in self.tool_visual_snap_lines_horizontal {
-        <Rectangle y={(y)px} width=100% height=1px fill=rgba(16, 196, 187, 150)/>
-    }
-
-
-    // Outline visual
+    // -------------- Outline visual ------------------
     <Group>
         <Path 
             elements={self.tool_visual.outline}

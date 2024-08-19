@@ -1,3 +1,4 @@
+use std::f64::consts::PI;
 use std::{cell::RefCell, rc::Rc};
 
 use pax_engine::api::{borrow, borrow_mut, Color, Interpolatable};
@@ -8,7 +9,7 @@ use pax_engine::{
 
 use crate::glass::control_point::{ControlPointTool, Snap};
 use crate::glass::ToolVisualizationState;
-use crate::math::intent_snapper::{IntentSnapper, SnapSet};
+use crate::math::intent_snapper::{IntentSnapper, SnapCollection, SnapSet};
 use crate::{
     glass::control_point::{ControlPointBehavior, ControlPointStyling, ControlPointToolFactory},
     math::{
@@ -131,8 +132,8 @@ impl Editor {
             stroke: Color::TRANSPARENT,
             fill: Color::TRANSPARENT,
             stroke_width_pixels: 0.0,
-            width: 42.0,
-            height: 42.0,
+            width: 38.0,
+            height: 38.0,
             affected_by_transform: false,
         };
 
@@ -171,15 +172,15 @@ impl Editor {
                         (&ac.derived_state.selection_state.get()).into();
 
                     // only snap if either no rotation or this is a corner point
-                    let should_snap = Into::<Parts>::into(initial_selection.total_bounds.transform)
+                    let rot = Into::<Parts>::into(initial_selection.total_bounds.transform)
                         .rotation
-                        .abs()
-                        < 1e-2
+                        .rem_euclid(PI / 2.0);
+                    let should_snap = (rot < 1e-2 || rot > PI / 2.0 - 1e-2)
                         || (anchor.x != 0.5 && anchor.y != 0.5);
 
                     Rc::new(RefCell::new(ControlPointTool::new(
                         ac.transaction("resize"),
-                        should_snap.then_some(IntentSnapper::new(
+                        should_snap.then_some(IntentSnapper::new_from_scene(
                             ac,
                             &initial_selection
                                 .items
@@ -238,8 +239,8 @@ impl Editor {
             stroke: Color::BLUE,
             fill: Color::WHITE,
             stroke_width_pixels: 1.0,
-            width: 10.0,
-            height: 10.0,
+            width: 8.0,
+            height: 8.0,
             affected_by_transform: false,
         };
 
@@ -273,14 +274,28 @@ impl Editor {
         fn anchor_factory() -> ControlPointToolFactory {
             ControlPointToolFactory {
                 tool_factory: Rc::new(move |ac, _p| {
+                    let selection_state = (&ac.derived_state.selection_state.get())
+                        .items
+                        .first()
+                        .map(Into::into);
                     Rc::new(RefCell::new(ControlPointTool::new(
                         ac.transaction("moving anchor point"),
-                        None,
+                        Some(IntentSnapper::new(
+                            ac,
+                            SnapCollection {
+                                sets: selection_state
+                                    .as_ref()
+                                    .map(|ss: &GlassNodeSnapshot| {
+                                        vec![SnapSet::points_from_transform_and_bounds(
+                                            ss.transform_and_bounds,
+                                            Color::BLUE,
+                                        )]
+                                    })
+                                    .unwrap_or_default(),
+                            },
+                        )),
                         AnchorBehavior {
-                            initial_object: (&ac.derived_state.selection_state.get())
-                                .items
-                                .first()
-                                .map(Into::into),
+                            initial_object: selection_state,
                         },
                     )))
                 }),

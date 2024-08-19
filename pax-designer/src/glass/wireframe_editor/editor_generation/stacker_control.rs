@@ -97,7 +97,7 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
             tool_factory: Rc::new(move |ac, _p| {
                 Rc::new(RefCell::new(ControlPointTool::new(
                     ac.transaction("resizing stacker cells"),
-                    Some(IntentSnapper::new(ac, &[stacker_id.clone()])),
+                    Some(IntentSnapper::new_from_scene(ac, &[stacker_id.clone()])),
                     StackerDividerControlBehavior {
                         stacker_node: (&item).into(),
                         resize_ind,

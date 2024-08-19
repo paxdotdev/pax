@@ -7,6 +7,7 @@ use crate::glass::control_point::ControlPointBehavior;
 use crate::glass::ToolVisualizationState;
 use crate::math::coordinate_spaces::SelectionSpace;
 use crate::math::coordinate_spaces::World;
+use crate::math::SizeUnit;
 use crate::model::action::ActionContext;
 use crate::model::input::RawInput;
 use crate::DESIGNER_GLASS_ID;
@@ -30,6 +31,7 @@ use pax_engine::pax_manifest::PropertyDefinition;
 use pax_engine::pax_manifest::TemplateNodeId;
 use pax_engine::pax_manifest::TypeId;
 use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
+use pax_engine::pax_manifest::Unit;
 use pax_engine::pax_manifest::ValueDefinition;
 use pax_engine::NodeInterface;
 use pax_engine::NodeLocal;
@@ -71,6 +73,9 @@ pub struct AppState {
     /// The project mode (playing/editing)
     /// INVALID_IF: no invalid states
     pub project_mode: Property<ProjectMode>,
+    /// Unit mode (are we drawing in px or %)
+    /// INVALID_IF: no invalid states
+    pub unit_mode: Property<SizeUnit>,
     /// The component currently being viewed and edited in the glass
     /// INVALID_IF: The TypeId doesn't correspond to a valid component
     pub selected_component_id: Property<TypeId>,
@@ -142,7 +147,7 @@ thread_local! {
 }
 
 pub struct Model {
-    pub undo_stack: UndoRedoStack,
+    pub undo_stack: Rc<UndoRedoStack>,
     pub app_state: AppState,
     pub derived_state: DerivedAppState,
 }
@@ -155,7 +160,7 @@ impl Model {
 
         MODEL.with_borrow_mut(|state| {
             *state = Some(Model {
-                undo_stack: UndoRedoStack::default(),
+                undo_stack: Rc::new(UndoRedoStack::default()),
                 app_state,
                 derived_state,
             })
@@ -287,14 +292,12 @@ impl Model {
                 for n in node_ids.get() {
                     let uid = UniqueTemplateNodeIdentifier::build(selected_comp.get(), n);
                     let interface = ctx_cp.get_nodes_by_global_id(uid);
-                    let parent_uid = interface
+                    if let Some(parent_uid) = interface
                         .first()
-                        .unwrap()
-                        .template_parent()
-                        .unwrap()
-                        .global_id()
-                        .unwrap();
-                    containers.insert(parent_uid);
+                        .and_then(|v| v.template_parent().unwrap().global_id())
+                    {
+                        containers.insert(parent_uid);
+                    }
                 }
                 if containers.len() == 1 {
                     containers.into_iter().next().unwrap()
@@ -319,7 +322,7 @@ pub fn with_action_context<R: 'static>(
 ) -> R {
     MODEL.with_borrow_mut(|model| {
         let Model {
-            ref mut undo_stack,
+            ref undo_stack,
             ref mut app_state,
             ref mut derived_state,
             ..
@@ -396,7 +399,8 @@ impl Interpolatable for Tool {}
 pub enum Tool {
     TodoTool,
     #[default]
-    Pointer,
+    PointerPercent,
+    PointerPixels,
     CreateComponent(Component),
 }
 

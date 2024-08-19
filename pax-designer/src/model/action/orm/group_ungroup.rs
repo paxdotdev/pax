@@ -4,10 +4,10 @@ use crate::{
     math::{DecompositionConfiguration, IntoDecompositionConfiguration},
     model::{
         action::{
-            orm::{group_ungroup, SetNodeProperties},
+            orm::{group_ungroup, SetNodeLayoutProperties},
             Action, ActionContext,
         },
-        tools::SelectNodes,
+        tools::{SelectMode, SelectNodes},
         GlassNode, GlassNodeSnapshot, SelectionStateSnapshot,
     },
 };
@@ -24,11 +24,13 @@ use pax_engine::{
 };
 use pax_std::core::group::Group;
 
-use super::{CreateComponent, MoveNode, NodeLayoutSettings, SetNodePropertiesFromTransform};
+use super::{CreateComponent, MoveNode, NodeLayoutSettings, SetNodeLayoutPropertiesFromTransform};
 
-pub struct GroupSelected {}
+pub struct GroupSelected<'a> {
+    pub new_parent_type_id: &'a TypeId,
+}
 
-impl Action for GroupSelected {
+impl Action for GroupSelected<'_> {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         let selected: SelectionStateSnapshot = (&ctx.derived_state.selection_state.get()).into();
 
@@ -39,9 +41,14 @@ impl Action for GroupSelected {
         let root_parent = ctx.derived_state.open_container.get();
 
         // -------- Create a group ------------
-        let group_parent_data = ctx.get_glass_node_by_global_id(&root_parent);
+        let group_parent_data = ctx.get_glass_node_by_global_id(&root_parent).unwrap();
         let group_transform_and_bounds = selected.total_bounds.as_pure_size().cast_spaces();
-        let mut t = ctx.transaction("grouping selected objects");
+        let t = ctx.transaction(&format!(
+            "grouping selected objects into {}",
+            self.new_parent_type_id
+                .get_pascal_identifier()
+                .unwrap_or_else(|| "<no ident>".to_string()),
+        ));
 
         t.run(|| {
             let group_uid = CreateComponent {
@@ -52,7 +59,7 @@ impl Action for GroupSelected {
                     node_decomposition_config: &Default::default(),
                 },
                 parent_index: TreeIndexPosition::Top,
-                type_id: &TypeId::build_singleton("pax_std::core::group::Group", None),
+                type_id: &self.new_parent_type_id,
                 custom_props: &[],
                 mock_children: 0,
             }
@@ -78,13 +85,12 @@ impl Action for GroupSelected {
             // ---------- Select the newly created group -----
             SelectNodes {
                 ids: &[group_uid.get_template_node_id()],
-                force_deselection_of_others: true,
+                mode: SelectMode::DiscardOthers,
             }
             .perform(ctx)?;
 
             Ok(())
-        });
-        t.finish(ctx)
+        })
     }
 }
 
@@ -93,17 +99,19 @@ pub struct UngroupSelected {}
 impl Action for UngroupSelected {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         let selected: SelectionStateSnapshot = (&ctx.derived_state.selection_state.get()).into();
-        let mut t = ctx.transaction("ungrouping");
+        let t = ctx.transaction("ungrouping");
         t.run(|| {
             for group in selected.items {
-                let parent = ctx.get_glass_node_by_global_id(
-                    &group
-                        .raw_node_interface
-                        .template_parent()
-                        .unwrap()
-                        .global_id()
-                        .unwrap(),
-                );
+                let parent = ctx
+                    .get_glass_node_by_global_id(
+                        &group
+                            .raw_node_interface
+                            .template_parent()
+                            .unwrap()
+                            .global_id()
+                            .unwrap(),
+                    )
+                    .unwrap();
                 let group_parent_bounds = parent.transform_and_bounds.get();
 
                 let group_children = borrow_mut!(ctx.engine_context.designtime)
@@ -113,7 +121,7 @@ impl Action for UngroupSelected {
 
                 // ---------- Move Nodes to group parent --------------
                 for child in group_children.iter().rev() {
-                    let child_runtime_node = ctx.get_glass_node_by_global_id(&child);
+                    let child_runtime_node = ctx.get_glass_node_by_global_id(&child).unwrap();
                     let child_inv_config = child_runtime_node
                         .layout_properties
                         .into_decomposition_config();
@@ -140,7 +148,6 @@ impl Action for UngroupSelected {
             }
 
             Ok(())
-        });
-        t.finish(ctx)
+        })
     }
 }

@@ -1,3 +1,4 @@
+use anyhow::Result;
 use pax_engine::api::*;
 use pax_engine::layout::LayoutProperties;
 use pax_engine::*;
@@ -18,11 +19,13 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use treeobj::TreeObj;
 
 use crate::glass::SetEditingComponent;
+use crate::math::coordinate_spaces::Glass;
 use crate::math::IntoDecompositionConfiguration;
 use crate::model::action::orm::{MoveNode, NodeLayoutSettings};
 use crate::model::action::Action;
 use crate::model::tools::SelectNodes;
 use crate::model::{self, GlassNode};
+use crate::ROOT_PROJECT_ID;
 
 #[pax]
 #[file("controls/tree/mod.pax")]
@@ -31,20 +34,27 @@ pub struct Tree {
     pub dragging: Property<bool>,
     pub drag_id: Property<usize>,
     pub drag_id_start: Property<usize>,
+    pub drag_x_start: Property<f64>,
+    pub drag_indent: Property<isize>,
 }
 
 impl Interpolatable for TreeMsg {}
 
 #[derive(Clone)]
 pub enum TreeMsg {
-    ArrowClicked(usize),
     ObjDoubleClicked(usize),
-    ObjMouseDown(usize),
-    ObjMouseMove(usize),
+    ObjMouseDown(usize, f64),
+    ObjMouseMove(usize, f64),
 }
 
 thread_local! {
     pub static TREE_CLICK_PROP: std::cell::RefCell<VecDeque<TreeMsg>> = Default::default();
+    pub static GLOBAL_MOUSEUP_PROP: Property<bool> = Default::default();
+    pub static TREE_HIDDEN_NODES: Property<HashSet<TemplateNodeId>> = Default::default();
+}
+
+pub fn trigger_global_mouseup() {
+    GLOBAL_MOUSEUP_PROP.with(|p| p.set(true));
 }
 
 struct TreeEntry {
@@ -109,8 +119,6 @@ impl TreeEntry {
             ind: *ind,
             indent_level,
             is_visible: true,
-            is_collapsed: false,
-            is_not_leaf: !self.children.is_empty(),
             is_selected: false,
             is_container: container,
         });
@@ -134,8 +142,6 @@ pub struct FlattenedTreeEntry {
     pub indent_level: isize,
     pub is_visible: bool,
     pub is_selected: bool,
-    pub is_collapsed: bool,
-    pub is_not_leaf: bool,
     pub is_container: bool,
 }
 
@@ -169,10 +175,12 @@ impl Tree {
             let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
             let selected = app_state.selected_template_node_ids.clone();
             let ctx = ctx.clone();
+            let hidden_nodes = TREE_HIDDEN_NODES.with(|p| p.clone());
             let deps = [
                 selected.untyped(),
                 type_id.untyped(),
                 manifest_ver.untyped(),
+                hidden_nodes.untyped(),
             ];
 
             self.tree_objects.replace_with(Property::computed(
@@ -188,23 +196,6 @@ impl Tree {
                 &deps,
             ));
         });
-    }
-
-    pub fn mouse_up(&mut self, ctx: &NodeContext, _event: Event<MouseUp>) {
-        let from = self.drag_id_start.get();
-        let to = self.drag_id.get();
-        if self.dragging.get() && from != to {
-            let (from, to) = self.tree_objects.read(|tree| {
-                let from = &tree[from];
-                let to = &tree[to];
-                (
-                    (from.node_id.clone(), from.is_container),
-                    (to.node_id.clone(), to.is_container),
-                )
-            });
-            Self::tree_move(from, to, &ctx);
-        }
-        self.dragging.set(false);
     }
 
     pub fn pre_render(&mut self, ctx: &NodeContext) {
@@ -226,37 +217,104 @@ impl Tree {
 
                     model::perform_action(&SetEditingComponent(type_id_of_tree_target), &ctx);
                 }
-                TreeMsg::ObjMouseDown(sender) => {
+                TreeMsg::ObjMouseDown(sender, x_offset) => {
                     model::perform_action(
                         &SelectNodes {
                             ids: &[tree_obj.read(|t| t[sender].node_id.clone())],
-                            force_deselection_of_others: false,
+                            mode: model::tools::SelectMode::Dynamic,
                         },
                         &ctx,
                     );
                     dragging.set(true);
                     drag_id_start.set(sender);
+                    self.drag_x_start.set(x_offset);
+                    self.drag_indent
+                        .set(tree_obj.read(|t| t[sender].indent_level));
                 }
-                TreeMsg::ObjMouseMove(sender) => {
+                TreeMsg::ObjMouseMove(sender, x_offset) => {
                     drag_id.set(sender);
+                    let tree_obj = tree_obj.get();
+                    let offset = x_offset - self.drag_x_start.get();
+                    let original_indent = tree_obj[sender].indent_level;
+                    let potential_indent = (offset / 15.0) as isize + original_indent;
+                    let above = tree_obj
+                        .get(sender.saturating_sub(1))
+                        .map(|a| a.indent_level + a.is_container as isize)
+                        .unwrap_or(0);
+                    // find the object closest below in the list with indent equal or less to original_indent
+                    let mut curr_ind = sender + 1;
+                    while curr_ind < tree_obj.len()
+                        && tree_obj[curr_ind].indent_level > original_indent
+                    {
+                        curr_ind += 1;
+                    }
+                    let below = tree_obj.get(curr_ind).map(|b| b.indent_level).unwrap_or(0);
+                    self.drag_indent
+                        .set(potential_indent.clamp(below.min(above), above));
                 }
-                TreeMsg::ArrowClicked(_) => (),
             };
+        }
+
+        if GLOBAL_MOUSEUP_PROP.with(|p| p.get()) {
+            GLOBAL_MOUSEUP_PROP.with(|p| p.set(false));
+            let from = self.drag_id_start.get();
+            let to = self.drag_id.get();
+            let drag_indent = self.drag_indent.get();
+            let tree = self.tree_objects.get();
+
+            if self.dragging.get() && (from != to || tree[to].indent_level != drag_indent) {
+                let from = tree[from].clone();
+                let (to, child_ind_override) = if drag_indent == tree[to].indent_level {
+                    (Some(tree[to].clone()), None)
+                } else {
+                    // Find the first container whos indent level is one
+                    // less than drag_indent
+                    let mut children_above = 0;
+                    let mut curr_ind = to as isize - 1;
+                    while curr_ind >= 0 && tree[curr_ind as usize].indent_level != drag_indent - 1 {
+                        if tree[curr_ind as usize].indent_level == drag_indent {
+                            children_above += 1;
+                        }
+                        curr_ind -= 1;
+                    }
+                    (
+                        (curr_ind >= 0).then(|| tree[curr_ind as usize].clone()),
+                        Some(TreeIndexPosition::At(children_above)),
+                    )
+                };
+                if let Err(e) = Self::tree_move(from, to, child_ind_override, &ctx) {
+                    log::warn!("failed to move tree node: {e}");
+                };
+            }
+            self.dragging.set(false);
         }
     }
 
     fn tree_move(
-        (from_id, _): (TemplateNodeId, bool),
-        (to_id, to_is_container): (TemplateNodeId, bool),
+        from: FlattenedTreeEntry,
+        to: Option<FlattenedTreeEntry>,
+        child_ind_override: Option<TreeIndexPosition>,
         ctx: &NodeContext,
-    ) {
+    ) -> Result<()> {
         model::with_action_context(ctx, |ctx| {
             let comp_id = ctx.app_state.selected_component_id.get();
-            let from_uid = UniqueTemplateNodeIdentifier::build(comp_id.clone(), from_id);
-            let to_uid = UniqueTemplateNodeIdentifier::build(comp_id.clone(), to_id);
-            let from_node = ctx.get_glass_node_by_global_id(&from_uid);
-            let to_node = ctx.get_glass_node_by_global_id(&to_uid);
-            let to_node_container = match to_is_container {
+            let from_uid =
+                UniqueTemplateNodeIdentifier::build(comp_id.clone(), from.node_id.clone());
+            let to_uid = to
+                .as_ref()
+                .map(|t| UniqueTemplateNodeIdentifier::build(comp_id.clone(), t.node_id.clone()))
+                .unwrap_or(
+                    ctx.engine_context
+                        .get_nodes_by_id(ROOT_PROJECT_ID)
+                        .into_iter()
+                        .next()
+                        .unwrap()
+                        .global_id()
+                        .unwrap(),
+                );
+            let from_node = ctx.get_glass_node_by_global_id(&from_uid).unwrap();
+            let to_node = ctx.get_glass_node_by_global_id(&to_uid).unwrap();
+            let to_node_container = match to.map(|t| t.is_container).unwrap_or(true) {
                 true => to_node.clone(),
                 false => {
                     let parent = to_node.raw_node_interface.template_parent().unwrap();
@@ -265,8 +323,14 @@ impl Tree {
                 }
             };
 
+            TREE_HIDDEN_NODES.with(|p| {
+                p.update(|v| {
+                    v.remove(&to_node_container.id.get_template_node_id());
+                })
+            });
+
             let is_stacker = to_node_container.raw_node_interface.is_of_type::<Stacker>();
-            let index = match is_stacker {
+            let index = child_ind_override.unwrap_or_else(|| match is_stacker {
                 true => {
                     if to_node_container.raw_node_interface == to_node.raw_node_interface {
                         TreeIndexPosition::Top
@@ -288,18 +352,31 @@ impl Tree {
                         (c == to_node.raw_node_interface).then_some(TreeIndexPosition::At(i))
                     })
                     .unwrap_or_default(),
+            });
+            let keep_bounds = NodeLayoutSettings::KeepScreenBounds {
+                node_transform_and_bounds: &from_node.transform_and_bounds.get(),
+                node_decomposition_config: &from_node.layout_properties.into_decomposition_config(),
+                parent_transform_and_bounds: &to_node_container.transform_and_bounds.get(),
             };
             let node_layout = if is_stacker {
-                NodeLayoutSettings::Fill::<NodeLocal>
+                NodeLayoutSettings::Fill::<Glass>
             } else {
-                NodeLayoutSettings::WithProperties(LayoutProperties {
-                    x: Some(Size::ZERO()),
-                    y: Some(Size::ZERO()),
-                    ..from_node.layout_properties
-                })
+                // TODO decide how to handle tree movement:
+                // - keeping screen bounds most intuitive (is what Figma does)
+                //   but this makes objects that have expressions be immovable
+                // - keep all properties (makes everything with exprs movable)
+                // - keep some properties (still would complain if x/y is expr):
+                // ```
+                // NodeLayoutSettings::WithProperties(LayoutProperties {
+                //     x: Some(Size::ZERO()),
+                //     y: Some(Size::ZERO()),
+                //     ..from_node.layout_properties
+                // })
+                // ```
+                keep_bounds
             };
 
-            let mut t = ctx.transaction("moving object in tree");
+            let t = ctx.transaction("moving object in tree");
             t.run(|| {
                 MoveNode {
                     node_id: &from_node.id,
@@ -308,11 +385,8 @@ impl Tree {
                     node_layout,
                 }
                 .perform(ctx)
-            });
-            if let Err(e) = t.finish(ctx) {
-                log::warn!("failed to move tree node: {e}");
-            };
-        });
+            })
+        })
     }
 }
 
@@ -343,12 +417,16 @@ fn to_tree(tnid: &TemplateNodeId, component_template: &ComponentTemplate) -> Opt
     if node.type_id.get_pax_type() == &PaxType::Comment {
         return None;
     }
-    let children = component_template
-        .get_children(tnid)
-        .unwrap_or_default()
-        .iter()
-        .filter_map(|c_tnid| to_tree(c_tnid, component_template))
-        .collect();
+    let children = if TREE_HIDDEN_NODES.with(|p| p.get().contains(tnid)) {
+        Vec::new()
+    } else {
+        component_template
+            .get_children(tnid)
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|c_tnid| to_tree(c_tnid, component_template))
+            .collect()
+    };
     let node_type = resolve_tree_type(node.type_id.clone());
     Some(TreeEntry {
         node_id: tnid.clone(),

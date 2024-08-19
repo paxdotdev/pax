@@ -4,6 +4,7 @@ if self.picker_open {
 		height=415px
 		anchor_x=100%
 		anchor_y=100%
+		unclippable=true
 	>
 		<Group
 			x=5px
@@ -22,7 +23,7 @@ if self.picker_open {
 				anchor_x=50%
 				anchor_y=50%
 				fill=TRANSPARENT
-				stroke={color: Color::WHITE, width: 2px}
+				stroke={color: WHITE, width: 2px}
 			/>
 			<Frame>
 			<Image
@@ -47,7 +48,7 @@ if self.picker_open {
 				y=5px
 				height=10px
 			>
-				<Slider min=0.0 max=1.0 step=0.001 bind:value=hue accent=WHITE background=TRANSPARENT/>
+				<Slider min=0.0 max=1.0 step=0.001 value=bind:hue accent=WHITE background=TRANSPARENT/>
 				<Image 
 					source={ImageSource::Data(10, 1, self.hue_slider_image_data)}
 					fit=ImageFit::Fill
@@ -59,7 +60,7 @@ if self.picker_open {
 				y=25px
 				height=10px
 			>
-				<Slider min=0.0 max=1.0 step=0.001 bind:value=alpha accent=WHITE background=TRANSPARENT/>
+				<Slider min=0.0 max=1.0 step=0.001 value=bind:alpha accent=WHITE background=TRANSPARENT/>
 				<Image 
 					source={ImageSource::Data(10, 1, self.alpha_slider_image_data)}
 					fit=ImageFit::Fill

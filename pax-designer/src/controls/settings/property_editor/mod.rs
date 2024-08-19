@@ -34,23 +34,29 @@ pub struct PropertyEditor {
     pub ind: Property<usize>,
     pub stid: Property<TypeId>,
     pub snid: Property<TemplateNodeId>,
+    pub fx_button_at_far_left: Property<bool>,
 
     // internal repr, always set to collection of above
     pub prop_type_ident_id: Property<usize>,
     pub data: Property<PropertyEditorData>,
+    pub is_literal: Property<bool>,
+    pub fx_text_color: Property<Color>,
+    pub fx_background_color: Property<Color>,
 }
 
 impl PropertyEditor {
-    pub fn on_mount(&mut self, ctx: &NodeContext) {
+    pub fn on_mount(&mut self, ctxs: &NodeContext) {
         let stid = self.stid.clone();
         let snid = self.snid.clone();
         let name = self.name.clone();
         let ind = self.ind.clone();
+        let manifest_ver = borrow!(ctxs.designtime).get_manifest_version();
         let deps = [
             stid.untyped(),
             snid.untyped(),
             name.untyped(),
             ind.untyped(),
+            manifest_ver.untyped(),
         ];
         self.data.replace_with(Property::computed(
             move || PropertyEditorData {
@@ -63,7 +69,7 @@ impl PropertyEditor {
         ));
 
         let data = self.data.clone();
-        let ctx = ctx.clone();
+        let ctx = ctxs.clone();
         let deps = [data.untyped()];
         self.prop_type_ident_id.replace_with(Property::computed(
             move || {
@@ -90,6 +96,54 @@ impl PropertyEditor {
             },
             &deps,
         ));
+
+        let data = self.data.clone();
+        let ctx = ctxs.clone();
+        self.is_literal.replace_with(Property::computed(
+            move || {
+                let val = data.get().get_value(&ctx);
+                !matches!(val, Some(ValueDefinition::Expression(_)))
+            },
+            &deps,
+        ));
+
+        let is_literal = self.is_literal.clone();
+        let deps = [is_literal.untyped()];
+        self.fx_text_color.replace_with(Property::computed(
+            move || match is_literal.get() {
+                true => Color::WHITE,
+                false => Color::rgb(207.into(), 31.into(), 201.into()),
+            },
+            &deps,
+        ));
+        let is_literal = self.is_literal.clone();
+        self.fx_background_color.replace_with(Property::computed(
+            move || match is_literal.get() {
+                true => Color::rgb(50.into(), 50.into(), 50.into()),
+                false => Color::TEAL,
+            },
+            &deps,
+        ));
+    }
+
+    pub fn toggle_literal(&mut self, ctx: &NodeContext, _event: Event<Click>) {
+        let data = self.data.get();
+        let val = data.get_value(&ctx);
+        let res = if matches!(val, Some(ValueDefinition::Expression(_))) {
+            data.set_value(&ctx, "")
+        } else {
+            let str_val = data.get_value_as_str(ctx);
+            if str_val.is_empty() {
+                // don't convert to expression if embty
+                Ok(())
+            } else {
+                let str_val_expr = format!("{{{str_val}}}");
+                data.set_value(&ctx, &str_val_expr)
+            }
+        };
+        if let Err(e) = res {
+            log::warn!("couldn't toggle expr: {e}");
+        }
     }
 }
 
@@ -123,16 +177,16 @@ impl PropertyEditorData {
     pub fn get_value_as_str(&self, ctx: &NodeContext) -> String {
         fn stringify(value: &ValueDefinition) -> String {
             match value {
-                ValueDefinition::LiteralValue(Token { raw_value, .. })
-                | ValueDefinition::Expression(Token { raw_value, .. })
-                | ValueDefinition::Identifier(Token { raw_value, .. }) => raw_value.to_owned(),
+                ValueDefinition::LiteralValue(v) => v.to_string(),
+                ValueDefinition::Expression(e) => format!("{{{}}}", e),
+                ValueDefinition::DoubleBinding(i) | ValueDefinition::Identifier(i) => i.to_string(),
                 ValueDefinition::Block(LiteralBlockDefinition { elements, .. }) => {
                     let mut block = String::new();
                     write!(block, "{{").unwrap();
                     for e in elements {
                         match e {
-                            SettingElement::Setting(Token { raw_value, .. }, value) => {
-                                write!(block, "{}: {} ", raw_value, stringify(value)).unwrap();
+                            SettingElement::Setting(Token { token_value, .. }, value) => {
+                                write!(block, "{}: {} ", token_value, stringify(value)).unwrap();
                             }
                             SettingElement::Comment(_) => (),
                         }
@@ -151,17 +205,16 @@ impl PropertyEditorData {
 
     pub fn set_value(&self, ctx: &NodeContext, val: &str) -> anyhow::Result<()> {
         // save-point before property edit
-        let mut t = model::with_action_context(ctx, |ac| ac.transaction("updating property"));
+        let t = model::with_action_context(ctx, |ac| ac.transaction("updating property"));
         t.run(|| {
             match self.with_node_def(ctx, |mut node| {
-                node.set_property(&self.name, val)?;
+                node.set_property(&self.name, val.trim())?;
                 node.save().map_err(|e| anyhow!("{:?}", e)).map(|_| ())
             }) {
                 Some(res) => res,
                 None => Err(anyhow!("has no definition")),
             }
-        });
-        model::with_action_context(ctx, |ac| t.finish(ac))
+        })
     }
 
     pub fn with_node_def<T>(
@@ -174,7 +227,7 @@ impl PropertyEditorData {
             UniqueTemplateNodeIdentifier::build(self.stid.clone(), self.snid.clone()),
             // TODO how to handle this? The UI should probably show in some way
             // if this already contains an expression, and if so not show the normal editor
-            false,
+            true,
         )?;
         Some(f(node_definition))
     }

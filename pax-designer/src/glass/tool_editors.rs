@@ -53,7 +53,7 @@ impl TextEditTool {
         let text_binding = Property::default();
         match import_path.as_ref().map(|v| v.as_str()) {
             Some("pax_std::core::text::Text") => {
-                let node = ctx.get_glass_node_by_global_id(&uid);
+                let node = ctx.get_glass_node_by_global_id(&uid).unwrap();
 
                 node.raw_node_interface.with_properties(|text: &mut Text| {
                     text.editable.replace_with(Property::new(true));
@@ -76,7 +76,7 @@ impl ToolBehavior for TextEditTool {
                 return ControlFlow::Continue(());
             }
         }
-        let node = ctx.get_glass_node_by_global_id(&self.uid);
+        let node = ctx.get_glass_node_by_global_id(&self.uid).unwrap();
         node.raw_node_interface.with_properties(|text: &mut Text| {
             text.editable.replace_with(Property::new(false));
         });

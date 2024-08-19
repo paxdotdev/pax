@@ -1,3 +1,4 @@
+use pax_engine::pax_manifest::TypeId;
 use pax_engine::{api::*, math::Point2, *};
 use pax_std::*;
 use std::sync::Mutex;
@@ -62,10 +63,26 @@ impl DesignerContextMenu {
 
     pub fn create_component(&mut self, ctx: &NodeContext, _args: Event<Click>) {
         model::perform_action(&SelectedIntoNewComponent {}, ctx);
+        self.close_menu();
     }
 
     pub fn group(&mut self, ctx: &NodeContext, _args: Event<Click>) {
-        model::perform_action(&GroupSelected {}, ctx);
+        model::perform_action(
+            &GroupSelected {
+                new_parent_type_id: &TypeId::build_singleton("pax_std::core::group::Group", None),
+            },
+            ctx,
+        );
+        self.close_menu();
+    }
+
+    pub fn group_link(&mut self, ctx: &NodeContext, _args: Event<Click>) {
+        model::perform_action(
+            &GroupSelected {
+                new_parent_type_id: &TypeId::build_singleton("pax_std::core::link::Link", None),
+            },
+            ctx,
+        );
         self.close_menu();
     }
 

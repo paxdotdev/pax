@@ -1,6 +1,6 @@
-<ColorPicker height=30px x=72% anchor_x=0% width=25% bind:color=self.font_color/>
-<Dropdown width=70% class=input options={self.font_families} bind:selected_id=font_family_index/>
-<Dropdown y=40px width=70% class=input options={self.font_weights} bind:selected_id=font_weight_index/>
+<ColorPicker height=30px x=72% anchor_x=0% width=25% color=bind:self.font_color/>
+<Dropdown width=70% class=input options={self.font_families} selected_id=bind:font_family_index/>
+<Dropdown y=40px width=70% class=input options={self.font_weights} selected_id=bind:font_weight_index/>
 <Textbox y=40px anchor_x=0% class=input x=72% width=25% text=font_size @textbox_change=size_change/>
 <Group y=80px>
     <Group height=30px width=30px @click=h_align_left>

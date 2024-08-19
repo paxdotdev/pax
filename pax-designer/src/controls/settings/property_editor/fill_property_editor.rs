@@ -39,9 +39,8 @@ impl FillPropertyEditor {
                 external.set(true);
                 let value = pax_engine::pax_lang::from_pax(&data.get().get_value_as_str(&ctxc));
                 if let Ok(value) = value {
-                    let color: Color = Color::try_coerce(value)
-                        .unwrap_or_default();
-                    return color
+                    let color: Color = Color::try_coerce(value).unwrap_or_default();
+                    return color;
                 }
                 Color::default()
             },

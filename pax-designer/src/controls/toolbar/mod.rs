@@ -62,8 +62,12 @@ thread_local! {
             ToolbarEntry {
                 items: vec![
                     ToolbarItem {
+                        icon: "assets/icons/toolbar/icon-09-pointer-percent.png",
+                        event: ToolbarEvent::SelectTool(Tool::PointerPercent)
+                    },
+                    ToolbarItem {
                         icon: "assets/icons/toolbar/icon-09-pointer.png",
-                        event: ToolbarEvent::SelectTool(Tool::Pointer)
+                        event: ToolbarEvent::SelectTool(Tool::PointerPixels)
                     }
                 ]
             },

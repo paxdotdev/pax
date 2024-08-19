@@ -16,11 +16,18 @@ if self.glass_active {
             // Stage has a fixed size, regardless of window size
             <Group width={(self.stage.width)px} height={(self.stage.height)px} id=stage>
                 // The example project replaces all of the children of the project_container
+<<<<<<< ours
                 <Group id=project_container>
                     <InlineFrame />
+=======
+                <Group id=project_container _suspended=true>
+                    <Example
+                        id=userland_project
+                    />
+>>>>>>> theirs
                 </Group>
                 <Rectangle width={self.stage.width} height={self.stage.height} fill={self.stage.color}/>
-                <Text id=annot text={self.stage.height} x=50% y={100% + 30px}/>
+                // <Text id=annot text={self.stage.height} x=50% y={100% + 30px}/>
             </Group>
         </Group>
     </Group>
