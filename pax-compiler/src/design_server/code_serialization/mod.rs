@@ -6,15 +6,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use pax_lang::interpreter::PaxExpression;
 use serde_derive::{Serialize, Deserialize};
 
 use syn::{parse_file, spanned::Spanned, visit::Visit, Item};
 use tera::{Context, Tera};
 
 use include_dir::{include_dir, Dir};
+
 use pax_manifest::{
-    ComponentDefinition, PaxType, SettingElement, SettingsBlockElement, TemplateNodeDefinition,
-    ValueDefinition,
+    pax_runtime_api::PaxValue, ComponentDefinition, PaxType,
 };
 
 use crate::{
@@ -31,11 +32,46 @@ static MACROS_TEMPLATE: &str = "macros.tera";
 #[allow(unused)]
 static RUST_FILE_SERIALIZATION_TEMPLATE: &str = "rust-file-serialization.tera";
 
-/// Serialize a component to a string
-pub fn press_code_serialization_template(mut args: ComponentDefinition) -> String {
-    unmerge_settings(&mut args);
+fn to_pax_value(args: &HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
+    match args.get("value") {
+        Some(val) => {
+            let value: Result<PaxValue, serde_json::Error> = serde_json::from_value(val.clone());
+            if let Ok(value) = value {
+                return Ok(tera::Value::String(value.to_string()));
+            }
+            Err(tera::Error::msg("Failed to deserialize value to PaxValue"))
+        }
+        None => Err(tera::Error::msg(
+            "No value provided to to_pax_value function",
+        )),
+    }
+}
 
+fn to_pax_expression(args: &HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
+    match args.get("value") {
+        Some(val) => {
+            let value: Result<PaxExpression, serde_json::Error> =
+                serde_json::from_value(val.clone());
+            if let Ok(value) = value {
+                return Ok(tera::Value::String(value.to_string()));
+            }
+            Err(tera::Error::msg(
+                "Failed to deserialize value to PaxExpression",
+            ))
+        }
+        None => Err(tera::Error::msg(
+            "No value provided to to_pax_expression function",
+        )),
+    }
+}
+
+/// Serialize a component to a string
+pub fn press_code_serialization_template(args: ComponentDefinition) -> String {
     let mut tera = Tera::default();
+
+    tera.register_function("to_pax_value", to_pax_value);
+    tera.register_function("to_pax_expression", to_pax_expression);
+
     tera.add_raw_template(
         MACROS_TEMPLATE,
         TEMPLATE_DIR
@@ -62,6 +98,7 @@ pub fn press_code_serialization_template(mut args: ComponentDefinition) -> Strin
     let template = tera
         .render(MANIFEST_CODE_SERIALIZATION_TEMPLATE, &context)
         .expect("Failed to render template");
+
     // Format component
     format_pax_template(template).expect("Failed to format template")
 }
@@ -220,61 +257,4 @@ fn insert_at_line(s: &mut String, line_number: usize, content_to_insert: &str) {
 
     // Rejoin the lines and update the original string
     *s = lines.join("\n");
-}
-
-/// Unmerge settings block settings from inline settings
-fn unmerge_settings(component: &mut ComponentDefinition) {
-    let settings_map = get_settings_map(&component.settings);
-    if let Some(template_nodes) = &mut component.template {
-        for template_node in template_nodes.get_nodes_mut() {
-            unmerge_tnd_settings(template_node, &settings_map);
-        }
-    }
-}
-
-/// Returns a hashset of all settings for a relevant selector
-fn get_settings_map(
-    settings: &Option<Vec<SettingsBlockElement>>,
-) -> HashMap<String, HashSet<SettingElement>> {
-    if let Some(settings) = settings {
-        let mut settings_map: HashMap<String, HashSet<SettingElement>> = HashMap::new();
-        for setting in settings.iter() {
-            if let SettingsBlockElement::SelectorBlock(selector, selector_settings) = setting {
-                let mut settings: HashSet<SettingElement> = HashSet::new();
-                for setting in &selector_settings.elements {
-                    if let SettingElement::Setting(_, _) = setting {
-                        settings.insert(setting.clone());
-                    }
-                }
-                let mut raw_selector = selector.raw_value.clone();
-                raw_selector.remove(0);
-                settings_map.insert(raw_selector, settings);
-            }
-        }
-        settings_map
-    } else {
-        HashMap::new()
-    }
-}
-
-/// Removes settings block settings from a template node definition
-fn unmerge_tnd_settings(
-    tnd: &mut TemplateNodeDefinition,
-    settings: &HashMap<String, HashSet<SettingElement>>,
-) {
-    let mut settings_to_remove: HashSet<SettingElement> = HashSet::new();
-    if let Some(inline_settings) = &mut tnd.settings {
-        inline_settings.iter().for_each(|setting| match setting {
-            SettingElement::Setting(_, ValueDefinition::Identifier(v))
-            | SettingElement::Setting(_, ValueDefinition::LiteralValue(v)) => {
-                if let Some(selector_settings) = settings.get(v.raw_value.as_str()) {
-                    settings_to_remove.extend(selector_settings.clone());
-                }
-            }
-            _ => {}
-        });
-        if !settings_to_remove.is_empty() {
-            inline_settings.retain(|setting| !settings_to_remove.contains(setting));
-        }
-    }
 }
