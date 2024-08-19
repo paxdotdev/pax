@@ -5,12 +5,16 @@ edition = "2021"
 default-run = "run"
 
 [dependencies]
-serde_json = {version = "1.0.95", optional = true}
 pax-engine = { version = "0.23.0", path="../../../pax-engine" }
 pax-std = { version = "0.23.0", path="../../../pax-std"}
+pax-designer = {version = "0.23.0", path="../../../pax-designer"}
+pax-designtime = {version = "0.23.0", path="../../../pax-designtime"}
+
+serde_json = {version = "1.0.95", optional = true}
 rand = { version = "0.8.5", features = ["getrandom"] }
 getrandom = { version = "0.2.15", features = ["js"] }
 rand_distr = { version = "0.4" }
+
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -19,15 +23,16 @@ name = "paxcartridge"
 [[bin]]
 name = "parser"
 path = "src/lib.rs"
-required-features = ["parser"]
+required-features = ["parser", "designtime"]
 
 [[bin]]
 name = "run"
 path = "bin/run.rs"
 
 [features]
-parser = ["pax-std/parser"]
-designtime = ["pax-engine/designtime"]
+default = ["designtime"]
+parser = ["pax-std/parser", "pax-designer/parser"]
+designtime = ["pax-engine/designtime", "pax-std/designtime"]
 web = ["pax-engine/web"]
 macos = ["pax-engine/macos"]
 ios = ["pax-engine/ios"]
@@ -38,3 +43,4 @@ opt-level = "z"
 
 [profile.dev.package."*"]
 debug = false
+opt-level = 2
