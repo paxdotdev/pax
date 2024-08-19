@@ -722,8 +722,6 @@ impl PaxChassisWeb {
                         let mut engine = borrow_mut!(self.engine);
 
                         ExpandedNode::initialize_root(mc, &engine.runtime_context);
-                        // engine.replace_main_template_instance_node(Rc::clone(&instance_node));
-                        // engine.remount_main_template_expanded_node(Rc::clone(&instance_node));
                     }
                     ReloadType::FullPlay => {
                         if let Some(instance_node) = self
