@@ -11,8 +11,12 @@ use pax_engine::{
 use crate::math::coordinate_spaces::Glass;
 
 use self::coordinate_spaces::World;
+pub mod approx;
 pub mod intent_snapper;
 
+impl Interpolatable for SizeUnit {}
+
+// TODO replace this with manifests Unit struct
 #[derive(PartialEq, Default, Clone, Copy)]
 pub enum SizeUnit {
     Pixels,

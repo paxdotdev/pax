@@ -7,7 +7,7 @@ use pax_engine::api::Interpolatable;
 use crate::model::action::orm::{RedoRequested, SerializeRequested, UndoRequested};
 use crate::{controls::toolbar, glass, llm_interface::OpenLLMPrompt};
 
-use super::action::orm::{CopySelected, Paste};
+use super::action::orm::{Copy, Paste};
 use super::{
     action::{self, orm::DeleteSelected, world, Action, ActionContext},
     Component, Tool,
@@ -84,8 +84,36 @@ impl InputMapper {
                 UndoRedoAction
             })),
             (&InputEvent::Serialize, Dir::Down) => Some(Box::new(SerializeRequested {})),
-            (&InputEvent::Copy, Dir::Down) => Some(Box::new(CopySelected)),
-            (&InputEvent::Paste, Dir::Down) => Some(Box::new(Paste)),
+            (&InputEvent::Copy, Dir::Down) => Some(Box::new({
+                struct CopySelected;
+                impl Action for CopySelected {
+                    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+                        let ids = ctx.app_state.selected_template_node_ids.get();
+                        let subtrees = Copy { ids: &ids }.perform(ctx)?;
+                        ctx.app_state.clip_board.set(subtrees);
+                        Ok(())
+                    }
+                }
+                CopySelected
+            })),
+            (&InputEvent::Paste, Dir::Down) => Some(Box::new({
+                struct PasteClipboard;
+
+                impl Action for PasteClipboard {
+                    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+                        let t = ctx.transaction("paste");
+                        let subtrees = ctx.app_state.clip_board.get();
+                        t.run(|| {
+                            Paste {
+                                subtrees: &subtrees,
+                            }
+                            .perform(ctx)
+                        })
+                        .map(|_| ())
+                    }
+                }
+                PasteClipboard
+            })),
             _ => None,
         }
     }

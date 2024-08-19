@@ -33,16 +33,15 @@ impl CornerRadiiPropertyEditor {
             });
         }
         let data = self.data.clone();
-        let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
-        let deps = [data.untyped(), manifest_ver.untyped()];
+        let deps = [data.untyped()];
         let ctx = ctx.clone();
         self.corner_radii.replace_with(Property::computed(
             move || {
                 let value = pax_engine::pax_lang::from_pax(&data.get().get_value_as_str(&ctx));
                 if let Ok(value) = value {
-                    let rad: RectangleCornerRadii = RectangleCornerRadii::try_coerce(value)
-                        .unwrap_or_default();
-                    return rad
+                    let rad: RectangleCornerRadii =
+                        RectangleCornerRadii::try_coerce(value).unwrap_or_default();
+                    return rad;
                 }
                 RectangleCornerRadii::default()
             },

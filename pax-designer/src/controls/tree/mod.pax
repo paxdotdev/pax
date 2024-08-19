@@ -1,26 +1,34 @@
-for (obj, i) in self.tree_objects {
-	<TreeObj
-		 ind={obj.ind}
-		 y={(40 + i*42)px}
-		 anchor_x=0%
-		 anchor_y=0%
-		 x={(obj.indent_level*6)%}
-		 is_selected={obj.is_selected}
-		 height=40px
-		 name={obj.name}
-		 is_not_leaf={obj.is_not_leaf}
-		 is_collapsed={obj.is_collapsed}
-		 width={(100.0 - obj.indent_level*6)%}
-		 image_path={obj.image_path}
-	/>
-}
-if self.dragging {
-    <Rectangle y={(80 + self.drag_id*42)px} height=2px fill=WHITE/>
-}
+
+<Scroller scroll_height={(Math::len(self.tree_objects)*42 + 42)px}>
+	for (obj, i) in self.tree_objects {
+		<TreeObj
+			 ind={obj.ind}
+			 y={(40 + i*42)px}
+			 anchor_x=0%
+			 anchor_y=0%
+			 x={(obj.indent_level*6)%}
+			 is_selected={obj.is_selected}
+			 height=40px
+			 name={obj.name}
+			 is_container={obj.is_container}
+			 width={(100.0 - obj.indent_level*6)%}
+			 image_path={obj.image_path}
+			uid={obj.node_id}
+		/>
+	}
+	if self.dragging {
+	    <Rectangle
+			x={(self.drag_indent*6)%}
+			anchor_x=0%
+			width={(100 - self.drag_indent*6)%}
+			y={(80 + self.drag_id*42)px}
+			height=2px fill=WHITE
+		/>
+	}
+</Scroller>
 <Rectangle fill=TRANSPARENT/>
 
 @settings {
 	@mount: on_mount
 	@pre_render: pre_render
-	@mouse_up: mouse_up
 }

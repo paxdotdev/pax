@@ -1,4 +1,7 @@
-use crate::model::{tools::SelectNodes, ProjectMode};
+use crate::model::{
+    tools::{SelectMode, SelectNodes},
+    ProjectMode,
+};
 use pax_engine::api::*;
 use pax_engine::*;
 
@@ -45,7 +48,7 @@ impl ProjectModeToggle {
         model::perform_action(
             &SelectNodes {
                 ids: &[],
-                force_deselection_of_others: true,
+                mode: SelectMode::DiscardOthers,
             },
             ctx,
         );

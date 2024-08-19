@@ -9,7 +9,7 @@ use pax_std::*;
 use crate::controls::settings::color_picker::ColorPicker;
 use crate::controls::settings::AREAS_PROP;
 use crate::model;
-use crate::model::action::orm::SetNodeProperties;
+use crate::model::action::orm::SetNodeLayoutProperties;
 
 use super::PropertyEditorData;
 
@@ -88,8 +88,7 @@ impl TextStylePropertyEditor {
         ));
 
         let data = self.data.clone();
-        let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
-        let deps = [data.untyped(), manifest_ver.untyped()];
+        let deps = [data.untyped()];
         let cctx = ctx.clone();
         self.auto.replace_with(Property::computed(
             move || {
@@ -110,9 +109,8 @@ impl TextStylePropertyEditor {
                 external_change.set(true);
                 let value = pax_engine::pax_lang::from_pax(&data.get().get_value_as_str(&cctx));
                 if let Ok(value) = value {
-                    let style: TextStyle = TextStyle::try_coerce(value)
-                        .unwrap_or_default();
-                    return style
+                    let style: TextStyle = TextStyle::try_coerce(value).unwrap_or_default();
+                    return style;
                 }
                 TextStyle::default()
             },
@@ -216,10 +214,9 @@ impl TextStylePropertyEditor {
                 let font_size_value = pax_engine::pax_lang::from_pax(&font_size.get());
                 let mut font_size = Size::default();
                 if !font_size_value.is_err() {
-                    font_size = Size::try_coerce(font_size_value.unwrap())
-                    .unwrap_or_default();
+                    font_size = Size::try_coerce(font_size_value.unwrap()).unwrap_or_default();
                 }
-               
+
                 let h_align = match h_align_index.get() {
                     0 => TextAlignHorizontal::Left,
                     1 => TextAlignHorizontal::Center,
@@ -342,7 +339,7 @@ impl TextStylePropertyEditor {
         let data = self.data.get();
         let uid = UniqueTemplateNodeIdentifier::build(data.stid, data.snid);
         model::perform_action(
-            &SetNodeProperties {
+            &SetNodeLayoutProperties {
                 id: &uid,
                 properties: &LayoutProperties {
                     width: Some(Size::default()),

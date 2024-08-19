@@ -1,5 +1,7 @@
 <Image id=logo source=ImageSource::Url("assets/pax-designer-white.png") @click=handle_logo_click />
-<Image id=face source=ImageSource::Url("assets/zface.png")/>
+<Link id=face url="https://docs.pax.dev/">
+    <Image source=ImageSource::Url("assets/zface.png")/>
+</Link>
 
 @settings {
     #logo {

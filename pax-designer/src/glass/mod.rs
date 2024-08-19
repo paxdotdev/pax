@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use pax_engine::api::Fill;
 use pax_engine::api::*;
 use pax_engine::layout::TransformAndBounds;
-use pax_engine::math::{Point2, Vector2};
+use pax_engine::math::{Point2, Transform2, Vector2};
 use pax_engine::*;
 use pax_manifest::{PaxType, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
 use pax_std::*;
@@ -38,8 +38,9 @@ pub struct Glass {
     pub on_tool_change: Property<bool>,
     // NOTE: these can be removed when for loops support nested calls:
     // self.tool_visual.snap_lines.vertical/self.tool_visual.snap_lines.horizontal
-    pub tool_visual_snap_lines_vertical: Property<Vec<f64>>,
-    pub tool_visual_snap_lines_horizontal: Property<Vec<f64>>,
+    pub tool_visual_snap_lines_vertical: Property<Vec<SnapLine>>,
+    pub tool_visual_snap_lines_horizontal: Property<Vec<SnapLine>>,
+    pub tool_visual_snap_lines_points: Property<Vec<Vec<f64>>>,
 }
 
 impl Glass {
@@ -55,6 +56,7 @@ impl Glass {
         });
         let tool_visual_snap_lines_vertical = self.tool_visual_snap_lines_vertical.clone();
         let tool_visual_snap_lines_horizontal = self.tool_visual_snap_lines_horizontal.clone();
+        let tool_visual_snap_lines_points = self.tool_visual_snap_lines_points.clone();
         let ctx = ctx.clone();
         self.on_tool_change.replace_with(Property::computed(
             move || {
@@ -73,10 +75,16 @@ impl Glass {
                         move || tv.get().snap_lines.horizontal,
                         &deps,
                     ));
+                    let tv = tool_visual_state.clone();
+                    tool_visual_snap_lines_points.replace_with(Property::computed(
+                        move || tv.get().snap_lines.points,
+                        &deps,
+                    ));
                     tool_visual_state
                 } else {
                     tool_visual_snap_lines_vertical.replace_with(Property::default());
                     tool_visual_snap_lines_horizontal.replace_with(Property::default());
+                    tool_visual_snap_lines_points.replace_with(Property::default());
                     // Default ToolVisualziation behavior
                     let deps = [mouse_pos.untyped(), world_transform.untyped()];
                     let mouse_pos = mouse_pos.clone();
@@ -113,7 +121,7 @@ impl Glass {
         ));
     }
 
-    pub fn on_pre_render(&mut self, _ctx: &NodeContext) {
+    pub fn on_pre_render(&mut self, ctx: &NodeContext) {
         // update if dirty
         self.on_tool_change.get();
     }
@@ -169,7 +177,7 @@ impl Glass {
                         if let Some(hit) = hit {
                             if let Err(e) = (SelectNodes {
                                 ids: &[hit.global_id().unwrap().get_template_node_id()],
-                                force_deselection_of_others: false,
+                                mode: model::tools::SelectMode::Dynamic,
                             }
                             .perform(ac))
                             {
@@ -180,7 +188,7 @@ impl Glass {
                         // for now only scroller needs somewhat special behavior
                         // might want to create more general double click framework at some point
                         if path.contains("Scroller") {
-                            let node = ac.get_glass_node_by_global_id(&uid);
+                            let node = ac.get_glass_node_by_global_id(&uid).unwrap();
                             let open_containers = ac.derived_state.open_container.clone();
                             let id = node.id.clone();
                             node.raw_node_interface
@@ -233,12 +241,14 @@ impl Glass {
         });
     }
 
-    pub fn handle_key_down(&mut self, ctx: &NodeContext, args: Event<KeyDown>) {
-        model::process_keyboard_input(ctx, Dir::Down, args.keyboard.key.clone());
+    pub fn handle_key_down(&mut self, ctx: &NodeContext, event: Event<KeyDown>) {
+        event.prevent_default();
+        model::process_keyboard_input(ctx, Dir::Down, event.keyboard.key.clone());
     }
 
-    pub fn handle_key_up(&mut self, ctx: &NodeContext, args: Event<KeyUp>) {
-        model::process_keyboard_input(ctx, Dir::Up, args.keyboard.key.clone());
+    pub fn handle_key_up(&mut self, ctx: &NodeContext, event: Event<KeyUp>) {
+        event.prevent_default();
+        model::process_keyboard_input(ctx, Dir::Up, event.keyboard.key.clone());
     }
 
     pub fn handle_drop(&mut self, ctx: &NodeContext, event: Event<Drop>) {
@@ -333,13 +343,20 @@ impl Action for SetEditingComponent {
 pub struct ToolVisualizationState {
     pub rect_tool: RectTool,
     pub outline: Vec<PathElement>,
-    pub snap_lines: SnapLines,
+    pub snap_lines: SnapInfo,
 }
 
 #[pax]
-pub struct SnapLines {
-    pub vertical: Vec<f64>,
-    pub horizontal: Vec<f64>,
+pub struct SnapInfo {
+    pub vertical: Vec<SnapLine>,
+    pub horizontal: Vec<SnapLine>,
+    pub points: Vec<Vec<f64>>,
+}
+
+#[pax]
+pub struct SnapLine {
+    pub line: f64,
+    pub color: Color,
 }
 
 #[pax]

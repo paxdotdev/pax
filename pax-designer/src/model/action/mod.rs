@@ -34,29 +34,29 @@ pub mod world;
 
 #[derive(Default)]
 pub struct UndoRedoStack {
-    undo_stack: Vec<usize>,
-    redo_stack: Vec<usize>,
+    undo_stack: RefCell<Vec<usize>>,
+    redo_stack: RefCell<Vec<usize>>,
 }
 
 impl UndoRedoStack {
-    pub fn push(&mut self, undo_id: usize) {
-        self.undo_stack.push(undo_id);
-        self.redo_stack.clear();
+    pub fn push(&self, undo_id: usize) {
+        borrow_mut!(self.undo_stack).push(undo_id);
+        borrow_mut!(self.redo_stack).clear();
     }
 
-    fn undo(&mut self, orm: &mut PaxManifestORM) -> Option<()> {
+    fn undo(&self, orm: &mut PaxManifestORM) -> Option<()> {
         let curr_id = orm.get_last_undo_id()?;
-        let undo_id = self.undo_stack.pop()?;
+        let undo_id = borrow_mut!(self.undo_stack).pop()?;
         orm.undo_until(undo_id).ok()?;
-        self.redo_stack.push(curr_id);
+        borrow_mut!(self.redo_stack).push(curr_id);
         Some(())
     }
 
-    fn redo(&mut self, orm: &mut PaxManifestORM) -> Option<()> {
+    fn redo(&self, orm: &mut PaxManifestORM) -> Option<()> {
         let curr_id = orm.get_last_undo_id()?;
-        let redo_id = self.redo_stack.pop()?;
+        let redo_id = borrow_mut!(self.redo_stack).pop()?;
         orm.redo_including(redo_id).ok()?;
-        self.undo_stack.push(curr_id);
+        borrow_mut!(self.undo_stack).push(curr_id);
         Some(())
     }
 }
@@ -69,7 +69,7 @@ pub struct ActionContext<'a> {
     pub engine_context: &'a NodeContext,
     pub app_state: &'a mut AppState,
     pub derived_state: &'a DerivedAppState,
-    pub undo_stack: &'a mut UndoRedoStack,
+    pub undo_stack: &'a Rc<UndoRedoStack>,
 }
 
 impl ActionContext<'_> {
@@ -170,51 +170,56 @@ impl ActionContext<'_> {
         }
     }
 
-    pub fn get_glass_node_by_global_id(&mut self, uid: &UniqueTemplateNodeIdentifier) -> GlassNode {
+    pub fn get_glass_node_by_global_id(
+        &mut self,
+        uid: &UniqueTemplateNodeIdentifier,
+    ) -> Result<GlassNode> {
         let node_interface = self
             .engine_context
             .get_nodes_by_global_id(uid.clone())
             .into_iter()
             .max()
-            .unwrap();
-        GlassNode::new(&node_interface, &self.glass_transform())
+            .ok_or(anyhow!(
+                "couldn't find node in engine (has a designer update tick passed?)"
+            ))?;
+        Ok(GlassNode::new(&node_interface, &self.glass_transform()))
     }
 
     pub fn transaction(&mut self, user_action_message: &str) -> Transaction {
-        Transaction::new(&self.engine_context.designtime, user_action_message)
+        Transaction::new(&self, user_action_message)
     }
 }
 
 pub struct Transaction {
     before_undo_id: usize,
     design_time: Rc<RefCell<DesigntimeManager>>,
+    undo_stack: Rc<UndoRedoStack>,
     result: RefCell<Result<()>>,
-    finished: bool,
     user_action_message: String,
 }
 
 impl Transaction {
-    pub fn new(designtime: &Rc<RefCell<DesigntimeManager>>, user_action_message: &str) -> Self {
-        let design_time = Rc::clone(&designtime);
+    pub fn new(ctx: &ActionContext, user_action_message: &str) -> Self {
+        let design_time = Rc::clone(&ctx.engine_context.designtime);
         let before_undo_id = borrow!(design_time)
             .get_orm()
             .get_last_undo_id()
             .unwrap_or(0);
         Self {
+            undo_stack: Rc::clone(&ctx.undo_stack),
             before_undo_id,
             design_time,
             result: RefCell::new(Ok(())),
-            finished: false,
             user_action_message: user_action_message.to_owned(),
         }
     }
 
-    pub fn run(&self, t: impl FnOnce() -> Result<()>) {
+    pub fn run<V>(&self, t: impl FnOnce() -> Result<V>) -> Result<V> {
         if borrow!(self.result).is_err() {
-            return;
+            return Err(anyhow!("prior transaction operation failed"));
         }
         match t() {
-            Ok(()) => (),
+            Ok(v) => Ok(v),
             Err(e) => {
                 // TODO improve: this is weird for certain kinds of errors (for
                 // example internal ones), find more general framework.
@@ -231,20 +236,9 @@ impl Transaction {
                     .undo_until(self.before_undo_id)
                     .ok()
                     .unwrap();
+                Err(e)
             }
         }
-    }
-
-    pub fn finish(&mut self, ctx: &mut ActionContext) -> Result<()> {
-        if self.finished {
-            return Err(anyhow!(
-                "called finish twice on transaction {:?}",
-                self.user_action_message
-            ));
-        }
-        self.finished = true;
-        ctx.undo_stack.push(self.before_undo_id);
-        std::mem::replace(&mut *borrow_mut!(self.result), Ok(()))
     }
 }
 
@@ -254,11 +248,8 @@ impl Transaction {
 // transaction as well (revert changes and don't push to undo stack)
 impl Drop for Transaction {
     fn drop(&mut self) {
-        if !self.finished {
-            panic!(
-                "transaction {:?} was dropped without calling \".finish\"",
-                self.user_action_message
-            );
+        if borrow!(self.result).is_ok() {
+            self.undo_stack.push(self.before_undo_id);
         }
     }
 }

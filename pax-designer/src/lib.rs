@@ -1,7 +1,11 @@
 #![allow(unused_imports)]
 
 use anyhow::anyhow;
-use pax_engine::{api::*, math::Point2, *};
+use pax_engine::{
+    api::*,
+    math::{Point2, Transform2, Vector2},
+    *,
+};
 use pax_manifest::TypeId;
 use pax_std::*;
 use std::sync::Mutex;
@@ -26,7 +30,7 @@ pub mod model;
 pub mod project_mode_toggle;
 
 use context_menu::DesignerContextMenu;
-use controls::Controls;
+use controls::{tree, Controls};
 use glass::Glass;
 use llm_interface::LLMInterface;
 use message_log_display::MessageLogDisplay;
@@ -68,11 +72,30 @@ impl PaxDesigner {
 
         // used to show "loading screen"
         let manifest_load_state = borrow!(ctx.designtime).get_manifest_loaded_from_server_prop();
+        let ctx = ctx.clone();
         let deps = [manifest_load_state.untyped()];
         self.manifest_loaded_from_server
             .replace_with(Property::computed(
                 move || {
-                    log::debug!("manifest load state: {}", manifest_load_state.get());
+                    // when manifests load, set transform of glass to fit scene
+                    model::read_app_state(|app_state| {
+                        let stage = app_state.stage.get();
+                        let (w, h) = ctx
+                            .get_nodes_by_id(DESIGNER_GLASS_ID)
+                            .into_iter()
+                            .next()
+                            .unwrap()
+                            .transform_and_bounds()
+                            .get()
+                            .bounds;
+                        app_state
+                            .glass_to_world_transform
+                            .set(Transform2::translate(Vector2::new(
+                                (stage.width as f64 - w) / 2.0,
+                                (stage.height as f64 - h) / 2.0,
+                            )));
+                    });
+
                     manifest_load_state.get()
                 },
                 &deps,
@@ -132,17 +155,25 @@ impl PaxDesigner {
         );
     }
 
-    pub fn handle_mouse_up(&mut self, ctx: &NodeContext, args: Event<MouseUp>) {
-        let prevent_default = || args.prevent_default();
+    pub fn handle_mouse_up(&mut self, ctx: &NodeContext, event: Event<MouseUp>) {
+        // TODO: the below todos refer to the original locations of these event handlers.
+        // long term some form of pointer capture would be useful to allow
+        // the elements to keep listening to mouse ups outside of the objects.
+        // see: https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events#capturing_the_pointer
+
+        let prevent_default = || event.prevent_default();
+        // NOTE: this was originally on glass
         model::perform_action(
             &crate::model::action::pointer::MouseEntryPointAction {
                 prevent_default: &prevent_default,
                 event: Pointer::Up,
-                button: args.mouse.button.clone(),
-                point: Point2::new(args.mouse.x, args.mouse.y),
+                button: event.mouse.button.clone(),
+                point: Point2::new(event.mouse.x, event.mouse.y),
             },
             ctx,
         );
+        // NOTE: this was originally on tree view
+        tree::trigger_global_mouseup();
     }
 }
 

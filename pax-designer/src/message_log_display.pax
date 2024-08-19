@@ -1,6 +1,6 @@
 if self.message_visible {
-	<Group x=50% width=40% height=60px y=100px @mouse_move=self.mouse_move>
-		<Text text=message class=message width=100% height=100%/>
+	<Group x=50% width=50% height=70px y=100px @mouse_move=self.mouse_move>
+		<Text text=message class=message x=50% width=80% height=100%/>
 		<Rectangle fill={rgba(0, 0, 0, self.opacity)}
 		    corner_radii={RectangleCornerRadii::radii(5.0,5.0,5.0,5.0)}
 		/>
