@@ -1,13 +1,16 @@
+use std::panic::Location;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     env,
     time::Duration,
 };
-use std::panic::Location;
 
 use actix_web::{web::Data, App};
 use pax_compiler::design_server::{web_socket, AppState};
-use pax_manifest::{ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, LocationInfo, PaxManifest, SettingsBlockElement, TemplateNodeDefinition, Token, TokenType, TypeId};
+use pax_manifest::{
+    ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, LocationInfo, PaxManifest,
+    SettingsBlockElement, TemplateNodeDefinition, Token, TokenType, TypeId,
+};
 
 const EXPECTED_PAX: &str = "// Hello world
 <SpecialComponent />
@@ -65,7 +68,13 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
                     LiteralBlockDefinition::new(vec![]),
                 ),
                 SettingsBlockElement::Handler(
-                    Token::new_with_raw_value("@existing_handler".to_string(), "@existing_handler".to_string(), TokenType::EventId, LocationInfo::default(), ""),
+                    Token::new_with_raw_value(
+                        "@existing_handler".to_string(),
+                        "@existing_handler".to_string(),
+                        TokenType::EventId,
+                        LocationInfo::default(),
+                        "",
+                    ),
                     vec![Token::new_without_location("handler_action".to_string())],
                 ),
             ]),

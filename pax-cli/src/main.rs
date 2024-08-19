@@ -232,8 +232,11 @@ fn perform_nominal_action(
             match args.subcommand() {
                 ("parse", Some(args)) => {
                     let path = args.value_of("path").unwrap().to_string(); //default value "."
-                    let output =
-                        &pax_compiler::run_parser_binary(&PathBuf::from(path), process_child_ids, false);
+                    let output = &pax_compiler::run_parser_binary(
+                        &PathBuf::from(path),
+                        process_child_ids,
+                        false,
+                    );
 
                     // Forward both stdout and stderr
                     std::io::stderr()

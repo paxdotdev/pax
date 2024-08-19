@@ -1,11 +1,11 @@
-use std::net::TcpListener;
-use std::path::PathBuf;
-use actix_web::{App, HttpServer};
+use crate::helpers::PAX_BADGE;
 use actix_web::middleware::Logger;
+use actix_web::{App, HttpServer};
 use colored::Colorize;
 use env_logger;
 use std::io::Write;
-use crate::helpers::PAX_BADGE;
+use std::net::TcpListener;
+use std::path::PathBuf;
 
 pub fn start_server(fs_path: PathBuf) -> std::io::Result<()> {
     // Initialize logging
@@ -34,9 +34,9 @@ pub fn start_server(fs_path: PathBuf) -> std::io::Result<()> {
                         actix_files::Files::new("/*", fs_path.clone()).index_file("index.html"),
                     )
                 })
-                    .bind(("127.0.0.1", port))
-                    .expect("Error binding to address")
-                    .workers(2);
+                .bind(("127.0.0.1", port))
+                .expect("Error binding to address")
+                .workers(2);
             } else {
                 port += 1; // Try the next port
             }

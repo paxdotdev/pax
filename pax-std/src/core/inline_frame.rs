@@ -1,5 +1,7 @@
 use pax_engine::{pax, Property};
-use pax_runtime::{BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
+use pax_runtime::{
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
+};
 use std::rc::Rc;
 
 use pax_runtime::api::Layer;
@@ -17,8 +19,8 @@ pub struct InlineFrameInstance {
 
 impl InstanceNode for InlineFrameInstance {
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
-        where
-            Self: Sized,
+    where
+        Self: Sized,
     {
         Rc::new(Self {
             base: BaseInstance::new(
@@ -39,8 +41,11 @@ impl InstanceNode for InlineFrameInstance {
         expanded_node: Option<&pax_runtime::ExpandedNode>,
     ) -> std::fmt::Result {
         match expanded_node {
-            Some(expanded_node) => expanded_node
-                .with_properties_unwrapped(|_g: &mut InlineFrame| f.debug_struct("InlineFrame").finish()),
+            Some(expanded_node) => {
+                expanded_node.with_properties_unwrapped(|_g: &mut InlineFrame| {
+                    f.debug_struct("InlineFrame").finish()
+                })
+            }
             None => f.debug_struct("InlineFrame").finish_non_exhaustive(),
         }
     }
@@ -51,9 +56,9 @@ impl InstanceNode for InlineFrameInstance {
 
     fn handle_mount(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, ctx: &Rc<RuntimeContext>) {
         let foo = ctx.userland_root_expanded_node.clone();
-        expanded_node.children.replace_with(Property::computed(move ||{
-            vec![foo.get().upgrade().unwrap()]
-        },&[ctx.userland_root_expanded_node.untyped()]));
+        expanded_node.children.replace_with(Property::computed(
+            move || vec![foo.get().upgrade().unwrap()],
+            &[ctx.userland_root_expanded_node.untyped()],
+        ));
     }
-
 }

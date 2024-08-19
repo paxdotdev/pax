@@ -4,10 +4,10 @@ mod parsing;
 mod templating;
 use std::fs::{File, OpenOptions};
 use std::io::Read;
-use std::str::FromStr;
-use std::{env, fs, path::PathBuf};
+use std::io::Write;
 use std::path::Path;
-use std::io::Write; // Necessary for `writeln!` macro to work
+use std::str::FromStr;
+use std::{env, fs, path::PathBuf}; // Necessary for `writeln!` macro to work
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
@@ -20,16 +20,13 @@ use templating::{
 
 use sailfish::TemplateOnce;
 
-const CRATES_WHERE_WE_DONT_PARSE_DESIGNER : &[&str] = &[
-    "pax-designer",
-    "pax-std",
-    "pax-runtime",
-];
+const CRATES_WHERE_WE_DONT_PARSE_DESIGNER: &[&str] = &["pax-designer", "pax-std", "pax-runtime"];
 
 fn is_root_crate() -> bool {
-    let is_not_blacklisted = !CRATES_WHERE_WE_DONT_PARSE_DESIGNER.contains(&std::env::var("CARGO_PKG_NAME").unwrap_or_default().as_str());
-    let worm_dir = unsafe { WORM_ROOT_CARGO_MANIFEST_DIR.as_ref().unwrap()}.as_str();
-    let is_root_crate = worm_dir == env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());;
+    let is_not_blacklisted = !CRATES_WHERE_WE_DONT_PARSE_DESIGNER
+        .contains(&std::env::var("CARGO_PKG_NAME").unwrap_or_default().as_str());
+    let worm_dir = unsafe { WORM_ROOT_CARGO_MANIFEST_DIR.as_ref().unwrap() }.as_str();
+    let is_root_crate = worm_dir == env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
     is_not_blacklisted && is_root_crate
 }
 
@@ -299,7 +296,6 @@ fn get_internal_definitions_from_tokens(data: &Data) -> InternalDefinitions {
     ret
 }
 
-
 /* Context:
 [ ] Issue: we are including cartridge.partial.rs across every #[main], which e.g. causes build of pax-designer to fail
         when running Fireworks.
@@ -330,14 +326,11 @@ static mut ROOT_CRATE_PKG_NAME: Option<String> = None;
 // And to doubly verify: this first time this is run, CARGO_PKG_NAME should be the root crate being built?
 // [ ] I should add a println! to the build script to verify this.
 
-
-
-
 const FILE_NAME: &'static str = "pax_macro_writeln.txt";
 
 fn pax_macro_writeln(content: &str) {
     // get cargo_manifest path:
-    let cargo_manifest = unsafe { WORM_ROOT_CARGO_MANIFEST_DIR.as_ref().unwrap().to_string()};
+    let cargo_manifest = unsafe { WORM_ROOT_CARGO_MANIFEST_DIR.as_ref().unwrap().to_string() };
     let full_path = Path::new(&cargo_manifest).join(FILE_NAME);
 
     //create file if it doesn't exist:
@@ -347,13 +340,9 @@ fn pax_macro_writeln(content: &str) {
     }
 
     //append to file
-    let mut file = OpenOptions::new()
-        .append(true)
-        .open(full_path)
-        .unwrap();
+    let mut file = OpenOptions::new().append(true).open(full_path).unwrap();
     let _ = writeln!(file, "{}", content);
 }
-
 
 fn pax_full_component(
     raw_pax: String,
@@ -608,7 +597,6 @@ pub fn pax(
         } else {
             Path::new(&root).join("src/").join(&file_name)
         };
-
 
         // generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
         let name = Ident::new(&pascal_identifier, Span::call_site());

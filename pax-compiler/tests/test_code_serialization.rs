@@ -4,10 +4,10 @@ use std::io::{self, Read};
 
 use std::sync::{Arc, Mutex};
 
+use pax_compiler::design_server::code_serialization::serialize_component_to_file;
 use pax_compiler::formatting::format_file;
 use pax_compiler::helpers::clear_inlined_template;
 use pax_compiler::run_parser_binary;
-use pax_compiler::design_server::code_serialization::serialize_component_to_file;
 use pax_manifest::PaxManifest;
 
 fn setup_test_project() {
@@ -59,7 +59,7 @@ fn test_code_serializaton() {
     let output = run_parser_binary(
         &std::path::PathBuf::from(path_str),
         Arc::clone(&process_child_ids),
-        false
+        false,
     );
 
     let out = String::from_utf8(output.stdout).unwrap();
