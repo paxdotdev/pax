@@ -1,7 +1,5 @@
-use crate::design_server::llm::constants::TRAINING_DATA_PATH;
 use crate::design_server::{
     code_serialization::serialize_component_to_file,
-    llm::constants::{TRAINING_DATA_BEFORE_REQUEST, TRAINING_DATA_REQUEST},
     AppState, FileContent, LLMHelpResponseMessage, WatcherFileChanged,
 };
 

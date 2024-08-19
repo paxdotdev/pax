@@ -25,7 +25,6 @@ use crate::model::action::orm::{MoveNode, NodeLayoutSettings};
 use crate::model::action::Action;
 use crate::model::tools::SelectNodes;
 use crate::model::{self, GlassNode};
-use crate::ROOT_PROJECT_ID;
 
 #[pax]
 #[file("controls/tree/mod.pax")]
@@ -305,10 +304,7 @@ impl Tree {
                 .map(|t| UniqueTemplateNodeIdentifier::build(comp_id.clone(), t.node_id.clone()))
                 .unwrap_or(
                     ctx.engine_context
-                        .get_nodes_by_id(ROOT_PROJECT_ID)
-                        .into_iter()
-                        .next()
-                        .unwrap()
+                        .get_userland_root_expanded_node()
                         .global_id()
                         .unwrap(),
                 );

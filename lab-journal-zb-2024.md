@@ -228,6 +228,10 @@ cd pax
 git apply --3way ../pax-designer.patch
 git apply --3way ../pax-design-server.patch
 
+[Solution]
+Manually edited paths in patch file to apply changes to updated locations in new repo
+used `--reject` to allow the merge to continue, dumping .rej files that I could patch manually
+
     [ ] UI cleanup pass
         [ ] icon tightening (make more outlines, less solids)
 
