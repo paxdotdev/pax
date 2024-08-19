@@ -327,18 +327,3 @@ fn build_llm_request(request: LLMRequestMessage) -> String {
     ));
     req
 }
-
-fn _record_request_training_data(help_request: &LLMHelpRequest, request_id: &str) {
-    let folder_path = format!("{}{}", TRAINING_DATA_PATH, request_id);
-    fs::create_dir_all(&folder_path).unwrap();
-    // get a string for the date today using std
-    serialize_component_to_file(
-        &help_request.component.clone(),
-        format!("{}/{}", &folder_path, TRAINING_DATA_BEFORE_REQUEST),
-    );
-    fs::write(
-        format!("{}/{}", &folder_path, TRAINING_DATA_REQUEST),
-        help_request.request.clone(),
-    )
-    .unwrap();
-}

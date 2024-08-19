@@ -63,24 +63,12 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
             template: Some(template),
             settings: Some(vec![
                 SettingsBlockElement::SelectorBlock(
-                    Token::new_with_raw_value(
-                        "#existing_selector".to_string(),
-                        "#existing_selector".to_string(),
-                        TokenType::Selector,
-                        LocationInfo::default(),
-                        ""
-                    ),
+                    Token::new_without_location("#existing_selector".to_string()),
                     LiteralBlockDefinition::new(vec![]),
                 ),
                 SettingsBlockElement::Handler(
                     Token::new_with_raw_value("@existing_handler".to_string(), "@existing_handler".to_string(), TokenType::EventId, LocationInfo::default(), ""),
-                    vec![Token::new_with_raw_value(
-                        "handler_action".to_string(),
-                        "handler_action".to_string(),
-                        TokenType::Handler,
-                        LocationInfo::default(),
-                        "",
-                    )],
+                    vec![Token::new_without_location("handler_action".to_string())],
                 ),
             ]),
         },

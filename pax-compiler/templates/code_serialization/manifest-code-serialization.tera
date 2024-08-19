@@ -9,19 +9,19 @@
 @settings {
     {% for settings_block_element in settings %}
         {% if settings_block_element.SelectorBlock %}
-            {{settings_block_element.SelectorBlock.0.raw_value}}{{macros::render_literal_block(lb=settings_block_element.SelectorBlock.1)}},
+            {{settings_block_element.SelectorBlock.0.token_value}}{{macros::render_literal_block(lb=settings_block_element.SelectorBlock.1)}},
         {% elif settings_block_element.Comment %}
             {{settings_block_element.Comment}}}
         {% elif settings_block_element.Handler %}
-            {{settings_block_element.Handler.0.raw_value}}:
+            {{settings_block_element.Handler.0.token_value}}:
             {% if  settings_block_element.Handler.1 | length() >  1 %}
                 [
                     {% for handler in settings_block_element.Handler.1 %}
-                        {{handler.raw_value}} {%- if not loop.last -%},{% endif -%}
+                        {{handler.token_value}} {%- if not loop.last -%},{% endif -%}
                     {% endfor %}
                 ]
             {% else %}
-                {{settings_block_element.Handler.1[0].raw_value}}
+                {{settings_block_element.Handler.1[0].token_value}}
             {% endif %}
         {% endif %}
     {% endfor %}
