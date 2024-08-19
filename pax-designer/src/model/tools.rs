@@ -419,74 +419,6 @@ impl ToolBehavior for MovingTool {
                 return ControlFlow::Continue(());
             }
 
-<<<<<<< ours
-                    let glass_slot_hit = GlassNode::new(&slot_hit, &ctx.glass_transform());
-                    let _ = transaction.run(|| {
-                        MoveNode {
-                            node_id: &item.id,
-                            new_parent_uid: &container.global_id().unwrap(),
-                            index: pax_engine::pax_manifest::TreeIndexPosition::At(
-                                new_index.unwrap(),
-                            ),
-                            // TODO try to make this the "future calculated position
-                            // after ORM updates" instead. might be possible to
-                            // subscribe to manifest changes, and update the bounds
-                            // whenever that happens, but still takes 2 ticks (manifest
-                            // update -> recalc bounds -> manifest update). Leave as
-                            // this for now as the problem is only visible from first
-                            // movement over a new slot to the next mouse-move op WHEN
-                            // the slot bounds will change as a consequence of movement.
-                            node_layout: NodeLayoutSettings::KeepScreenBounds {
-                                node_transform_and_bounds: &(move_translation
-                                    * item.transform_and_bounds),
-                                parent_transform_and_bounds: &glass_slot_hit
-                                    .transform_and_bounds
-                                    .get(),
-                                node_decomposition_config: &item
-                                    .layout_properties
-                                    .into_decomposition_config(),
-                            },
-                        }
-                        .perform(ctx)
-                    });
-                } else if !curr_render_container_glass
-                    .transform_and_bounds
-                    .get()
-                    .contains_point(point)
-                    && ctx
-                        .engine_context
-                        .get_userland_root_expanded_node()
-                        != curr_slot
-                {
-                    let container_parent = curr_node
-                        .raw_node_interface
-                        .template_parent()
-                        .unwrap()
-                        .template_parent()
-                        .unwrap();
-                    let container_parent =
-                        GlassNode::new(&container_parent, &ctx.glass_transform());
-                    if let Err(_) = transaction.run(|| {
-                        MoveNode {
-                            node_id: &item.id,
-                            new_parent_uid: &container_parent.id,
-                            index: pax_engine::pax_manifest::TreeIndexPosition::Top,
-                            node_layout: NodeLayoutSettings::KeepScreenBounds {
-                                node_transform_and_bounds: &(move_translation
-                                    * item.transform_and_bounds),
-                                parent_transform_and_bounds: &container_parent
-                                    .transform_and_bounds
-                                    .get(),
-                                node_decomposition_config: &item
-                                    .layout_properties
-                                    .into_decomposition_config(),
-                            },
-                        }
-                        .perform(ctx)
-                    }) {
-                        return ControlFlow::Break(());
-                    };
-=======
             let glass_slot_hit = GlassNode::new(&slot_hit, &ctx.glass_transform());
             let _ = transaction.run(|| {
                 MoveNode {
@@ -508,7 +440,6 @@ impl ToolBehavior for MovingTool {
                             .layout_properties
                             .into_decomposition_config(),
                     },
->>>>>>> theirs
                 }
                 .perform(ctx)
             });
@@ -518,10 +449,7 @@ impl ToolBehavior for MovingTool {
             .contains_point(point)
             && ctx
                 .engine_context
-                .get_nodes_by_id(ROOT_PROJECT_ID)
-                .into_iter()
-                .next()
-                .unwrap()
+                .get_userland_root_expanded_node()
                 != curr_slot
         {
             let container_parent = curr_node
