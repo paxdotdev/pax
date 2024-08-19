@@ -212,10 +212,16 @@ finally, userland depends on pax-engine, and gets both crates
     make it a combination of that special wrapper component's typeid
     and tnid(0) (the root)
 
-todo!("add wrapper component with single template node: a def for an instance of the main userland component");
-//can give the wrapper component a spurious typeid
-//TypeId::build_singleton with some spurious import path or e.g. "ROOT_COMPONENT",
-// also give it a pascal id like RootComponent
+    ```
+    todo!("add wrapper component with single template node: a def for an instance of the main userland component");
+    //can give the wrapper component a spurious typeid
+    //TypeId::build_singleton with some spurious import path or e.g. "ROOT_COMPONENT",
+    // also give it a pascal id like RootComponent
+    ```
+    
+    Next up: apply patches for pax-designer and pax-design-server
+    Clean up
+    Make PR
 
 
     [ ] support non-designtime builds (esp. release)
