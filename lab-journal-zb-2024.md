@@ -62,7 +62,7 @@ Date:   Mon Aug 12 15:45:14 2024 +0700
     draft of macro init logic
 
 
-[ ] Init logic
+[x] Init logic
 [x] Macro init logic (compiletime)
 [x] Issue: can't export pax_engine::pax_designer (circ. ref., because pax-designer depends on pax-engine)
 - could import pax-designer directly from userland, but adds to boilerplate
@@ -167,7 +167,7 @@ finally, userland depends on pax-engine, and gets both crates
         [x] add to designer in both places currently exists (see stubbed TODOs)
         [x] handle transition between DTITs as elegantly as possible (set children statefully a la frame?)
 
-    [ ] run design_server instead of static server
+    [x] run design_server instead of static server
         [x] refactor and consolidate divergent building:: vs design_server:: logic
             [x] assess what else is exposed&expected (e.g. websockets, priv. agent)
             [x] figure out  `std::env::set_var("PAX_WORKSPACE_ROOT", "../pax");`
@@ -175,7 +175,7 @@ finally, userland depends on pax-engine, and gets both crates
                 [x] must also solve async runtime (since not using tokio::main)
             [-] bolt onto existing static serve logic (e.g. with port-seeking)
                 [-] refactor use of static server from `building` => `design_server`
-        [ ] figure out port coordination + autoport (or fall back to fixed)
+        [ ] [NOTE: still unresolved] figure out port coordination + autoport (or fall back to fixed)
             [-] client-side, should be able to query port of current URL / file?  
                 window.location.port, 
                 or maybe even just a relative path
@@ -188,7 +188,6 @@ finally, userland depends on pax-engine, and gets both crates
 
     [x] solve `root.global_id().unwrap()` — sometimes global_id is None; why?
         - this blocks e.g. instantiating a Rect, probably also selection
-
 
         - observation: global_id() is None because we fail to build_template_node
         - likely: related to edge case of root_expanded_node not having a containing component ID
@@ -212,28 +211,29 @@ finally, userland depends on pax-engine, and gets both crates
     make it a combination of that special wrapper component's typeid
     and tnid(0) (the root)
 
-    [ ] support non-designtime builds (esp. release)
-
     [x] solve assets (can we merge all? do we need to coordinate across `#[main]`s somehow?)
         - wj: store fs paths in manifest?
             - for any #[main] component, can "stamp" asset fs path into manifest, place on FS to check for assets at build time
         - had to do some macro wrangling / surfing, but got there
 
-    [ ] one more merge from dev; prepare PR
-        [ ] Previously patched up to `7767d5d4396ac8023cc456d6dda63151e076cd04`
+    [x] one more merge from dev; prepare PR
+        [x] Previously patched up to `7767d5d4396ac8023cc456d6dda63151e076cd04`
 
-git format-patch 7767d5d4396ac8023cc456d6dda63151e076cd04..HEAD --stdout -- pax-designer > pax-designer.patch
-git format-patch 7767d5d4396ac8023cc456d6dda63151e076cd04..HEAD --stdout -- pax-design-server > pax-design-server.patch
-cd pax
-git apply --3way ../pax-designer.patch
-git apply --3way ../pax-design-server.patch
-
-[Solution]
-Manually edited paths in patch file to apply changes to updated locations in new repo
-used `--reject` to allow the merge to continue, dumping .rej files that I could patch manually
+            git format-patch 7767d5d4396ac8023cc456d6dda63151e076cd04..HEAD --stdout -- pax-designer > pax-designer.patch
+            git format-patch 7767d5d4396ac8023cc456d6dda63151e076cd04..HEAD --stdout -- pax-design-server > pax-design-server.patch
+            cd pax
+            git apply --3way ../pax-designer.patch
+            git apply --3way ../pax-design-server.patch
+            
+            [Solution]
+            Manually edited paths in patch file to apply changes to updated locations in new repo
+            used `--reject` to allow the merge to continue, dumping .rej files that I could patch manually
 
     [ ] UI cleanup pass
-        [ ] icon tightening (make more outlines, less solids)
+    
+    [ ] Auto-port selection + coordination
+
+    [ ] support non-designtime builds (esp. release)
 
     [ ] Module cleanup pass
         [ ] pax_main
