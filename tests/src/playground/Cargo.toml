@@ -1,12 +1,14 @@
 [package]
 name = "playground"
-version = "0.15.5"
+version = "0.22.0"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-engine = { version = "0.22.0", path="../../../pax-engine" }
-pax-std = { version = "0.22.0", path="../../../pax-std"}
+pax-engine = { version = "0.23.0", path="../../../pax-engine" }
+pax-std = { version = "0.23.0", path="../../../pax-std"}
+pax-designer = {version = "0.23.0", path="../../../pax-designer"}
+pax-designtime = {version = "0.23.0", path="../../../pax-designtime"}
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -15,16 +17,24 @@ name = "paxcartridge"
 [[bin]]
 name = "parser"
 path = "src/lib.rs"
-required-features = ["parser"]
+required-features = ["parser", "designtime"]
 
 [[bin]]
 name = "run"
 path = "bin/run.rs"
 
 [features]
-parser = ["pax-std/parser"]
-designtime = ["pax-engine/designtime"]
+default = ["designtime"]
+parser = ["pax-std/parser", "pax-designer/parser"]
+designtime = ["pax-engine/designtime", "pax-std/designtime"]
 web = ["pax-engine/web"]
 macos = ["pax-engine/macos"]
 ios = ["pax-engine/ios"]
 
+[profile.release]
+lto = true
+opt-level = "z"
+
+[profile.dev.package."*"]
+debug = false
+opt-level = 2

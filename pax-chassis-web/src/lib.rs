@@ -41,9 +41,9 @@ use serde_json;
 use {pax_designtime::orm::ReloadType, pax_designtime::DesigntimeManager};
 
 #[cfg(feature = "designtime")]
-const USERLAND_PROJECT_ID: &str = "userland_project";
+const USERLAND_COMPONENT_ROOT: &str = "USERLAND_COMPONENT_ROOT";
 #[cfg(feature = "designtime")]
-const RUNNING_PROJECT_ID: &str = "running_project";
+const DESIGNER_COMPONENT_ROOT: &str = "DESIGNER_COMPONENT_ROOT";
 
 #[wasm_bindgen]
 pub fn wasm_memory() -> JsValue {
@@ -54,9 +54,6 @@ pub fn wasm_memory() -> JsValue {
 pub struct PaxChassisWeb {
     drawing_contexts: Renderer<WebRenderContext<'static>>,
     engine: Rc<RefCell<PaxEngine>>,
-    #[cfg(feature = "designtime")]
-    definition_to_instance_traverser:
-        Box<dyn pax_runtime::cartridge::DefinitionToInstanceTraverser>,
     #[cfg(feature = "designtime")]
     userland_definition_to_instance_traverser:
         Box<dyn pax_runtime::cartridge::DefinitionToInstanceTraverser>,
@@ -88,9 +85,9 @@ impl PaxChassisWeb {
             .expect("no search exists");
 
         let main_component_instance =
-            designer_definition_to_instance_traverser.get_main_component();
+            designer_definition_to_instance_traverser.get_main_component(DESIGNER_COMPONENT_ROOT);
         let userland_main_component_instance =
-            userland_definition_to_instance_traverser.get_main_component();
+            userland_definition_to_instance_traverser.get_main_component(USERLAND_COMPONENT_ROOT);
 
         let designtime_manager = userland_definition_to_instance_traverser
             .get_designtime_manager(query_string)
@@ -107,7 +104,6 @@ impl PaxChassisWeb {
         Self {
             engine: engine_container,
             drawing_contexts: Renderer::new(),
-            definition_to_instance_traverser: designer_definition_to_instance_traverser,
             userland_definition_to_instance_traverser,
             designtime_manager,
             last_manifest_version_rendered: 0,
@@ -448,8 +444,7 @@ impl PaxChassisWeb {
                         is_repeat: args.is_repeat,
                     },
                 };
-                engine.global_dispatch_key_down(args_key_down);
-                false
+                engine.global_dispatch_key_down(args_key_down)
             }
             NativeInterrupt::KeyUp(args) => {
                 let modifiers = args
@@ -464,8 +459,7 @@ impl PaxChassisWeb {
                         is_repeat: args.is_repeat,
                     },
                 };
-                engine.global_dispatch_key_up(args_key_up);
-                false
+                engine.global_dispatch_key_up(args_key_up)
             }
             NativeInterrupt::KeyPress(args) => {
                 let modifiers = args
@@ -480,8 +474,7 @@ impl PaxChassisWeb {
                         is_repeat: args.is_repeat,
                     },
                 };
-                engine.global_dispatch_key_press(args_key_press);
-                false
+                engine.global_dispatch_key_press(args_key_press)
             }
             NativeInterrupt::DoubleClick(args) => {
                 let prospective_hit = engine
@@ -714,24 +707,22 @@ impl PaxChassisWeb {
         if current_manifest_version.get() != self.last_manifest_version_rendered {
             for reload_type in reload_queue {
                 match reload_type {
+                    // This and FullPlay are now the same: TODO join?
                     ReloadType::FullEdit => {
-                        let mc = self
-                            .userland_definition_to_instance_traverser
-                            .get_main_component();
-
                         let mut engine = borrow_mut!(self.engine);
-
-                        ExpandedNode::initialize_root(mc, &engine.runtime_context);
+                        let root = self
+                            .userland_definition_to_instance_traverser
+                            .get_main_component(USERLAND_COMPONENT_ROOT)
+                            as Rc<dyn pax_runtime::InstanceNode>;
+                        engine.partial_update_expanded_node(Rc::clone(&root));
                     }
                     ReloadType::FullPlay => {
-                        if let Some(instance_node) = self
+                        let root = self
                             .userland_definition_to_instance_traverser
-                            .get_template_node_by_id(RUNNING_PROJECT_ID)
-                        {
-                            let mut engine = borrow_mut!(self.engine);
-                            engine.replace_main_template_instance_node(Rc::clone(&instance_node));
-                            engine.remount_main_template_expanded_node(Rc::clone(&instance_node));
-                        }
+                            .get_main_component(USERLAND_COMPONENT_ROOT)
+                            as Rc<dyn pax_runtime::InstanceNode>;
+                        let mut engine = borrow_mut!(self.engine);
+                        engine.partial_update_expanded_node(Rc::clone(&root));
                     }
                     ReloadType::Partial(uni) => {
                         let instance_node = self
