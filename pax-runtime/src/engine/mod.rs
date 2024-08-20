@@ -60,8 +60,6 @@ pub struct PaxEngine {
     pub runtime_context: Rc<RuntimeContext>,
     pub root_expanded_node: Rc<ExpandedNode>,
     main_component_instance: Rc<ComponentInstance>,
-    #[cfg(feature = "designtime")]
-    userland_main_component_instance: Rc<ComponentInstance>,
 }
 
 pub enum HandlerLocation {
@@ -275,16 +273,13 @@ impl PaxEngine {
             designtime: designtime.clone(),
         };
 
-        let mut runtime_context = Rc::new(RuntimeContext::new(globals));
-
         //Must register userland node first, because this will mount component trees (calling .mount)
         //Because InlineFrame's mount logic assumes that the "iframe" component is already registered and available
         //on runtime context, it must first be registered (here)
-        let userland_root_expanded_node = ExpandedNode::initialize_root(
-            Rc::clone(&userland_main_component_instance),
-            &mut runtime_context,
-        );
-        runtime_context.register_userland_root_expanded_node(&userland_root_expanded_node);
+        let mut runtime_context = Rc::new(RuntimeContext::new(
+            globals,
+            userland_main_component_instance,
+        ));
 
         let root_expanded_node = ExpandedNode::initialize_root(
             Rc::clone(&designer_main_component_instance),
@@ -296,69 +291,10 @@ impl PaxEngine {
             runtime_context,
             root_expanded_node,
             main_component_instance: designer_main_component_instance,
-            userland_main_component_instance: userland_main_component_instance,
         }
     }
 
-    /// Replace an instance node in the main component's template
-    pub fn replace_main_template_instance_node(&mut self, new_instance: Rc<dyn InstanceNode>) {
-        for temp in borrow!(self.main_component_instance.template).iter() {
-            replace_instance_node_at(&temp, &new_instance);
-        }
-
-        fn replace_instance_node_at(
-            parent: &Rc<dyn InstanceNode>,
-            new_instance: &Rc<dyn InstanceNode>,
-        ) {
-            let mut instance_nodes = borrow_mut!(parent.base().get_instance_children());
-            for node in instance_nodes.iter_mut() {
-                if node.base().template_node_identifier
-                    == new_instance.base().template_node_identifier
-                {
-                    *node = Rc::clone(&new_instance);
-                } else {
-                    replace_instance_node_at(node, new_instance)
-                }
-            }
-        }
-    }
-
-    pub fn remount_main_template_expanded_node(&mut self, new_instance: Rc<dyn InstanceNode>) {
-        let unique_id = new_instance
-            .base()
-            .template_node_identifier
-            .clone()
-            .expect("new instance node has unique identifier");
-        Self::recurse_remount_main_template_expanded_node(
-            &self.root_expanded_node,
-            &unique_id,
-            &mut self.runtime_context,
-        );
-    }
-
-    /// Remounts an expanded node (&siblings) in the main component's template
-    pub fn recurse_remount_main_template_expanded_node(
-        parent: &Rc<ExpandedNode>,
-        id: &UniqueTemplateNodeIdentifier,
-        ctx: &Rc<RuntimeContext>,
-    ) {
-        parent.compute_flattened_slot_children();
-        if parent.children.get().iter().any(|node| {
-            borrow!(node.instance_node)
-                .base()
-                .template_node_identifier
-                .as_ref()
-                .is_some_and(|i| i == id)
-        }) {
-            let parent_template = Rc::clone(&*borrow!(parent.instance_node));
-            parent.recreate_with_new_data(parent_template, ctx);
-        } else {
-            for child in parent.children.get().iter() {
-                Self::recurse_remount_main_template_expanded_node(child, id, ctx);
-            }
-        }
-    }
-
+    #[cfg(feature = "designtime")]
     pub fn partial_update_expanded_node(&mut self, new_instance: Rc<dyn InstanceNode>) {
         // update the expanded nodes that just got a new instance node
         let unique_id = new_instance
@@ -371,6 +307,14 @@ impl PaxEngine {
             .runtime_context
             .get_expanded_nodes_by_global_ids(&unique_id);
         for node in nodes {
+            if new_instance.base().template_node_identifier
+                == borrow!(self.runtime_context.userland_frame_instance_node)
+                    .base()
+                    .template_node_identifier
+            {
+                *borrow_mut!(self.runtime_context.userland_frame_instance_node) =
+                    Rc::clone(&new_instance);
+            }
             node.recreate_with_new_data(new_instance.clone(), &self.runtime_context);
         }
     }
@@ -474,36 +418,42 @@ impl PaxEngine {
         });
     }
 
-    pub fn global_dispatch_key_down(&self, args: KeyDown) {
+    pub fn global_dispatch_key_down(&self, args: KeyDown) -> bool {
+        let mut prevent_default = false;
         self.root_expanded_node
             .recurse_visit_postorder(&mut |expanded_node| {
-                expanded_node.dispatch_key_down(
+                prevent_default |= expanded_node.dispatch_key_down(
                     Event::new(args.clone()),
                     &self.runtime_context.globals(),
                     &self.runtime_context,
                 );
             });
+        prevent_default
     }
 
-    pub fn global_dispatch_key_up(&self, args: KeyUp) {
+    pub fn global_dispatch_key_up(&self, args: KeyUp) -> bool {
+        let mut prevent_default = false;
         self.root_expanded_node
             .recurse_visit_postorder(&mut |expanded_node| {
-                expanded_node.dispatch_key_up(
+                prevent_default |= expanded_node.dispatch_key_up(
                     Event::new(args.clone()),
                     &self.runtime_context.globals(),
                     &self.runtime_context,
                 );
             });
+        prevent_default
     }
 
-    pub fn global_dispatch_key_press(&self, args: KeyPress) {
+    pub fn global_dispatch_key_press(&self, args: KeyPress) -> bool {
+        let mut prevent_default = false;
         self.root_expanded_node
             .recurse_visit_postorder(&mut |expanded_node| {
-                expanded_node.dispatch_key_press(
+                prevent_default |= expanded_node.dispatch_key_press(
                     Event::new(args.clone()),
                     &self.runtime_context.globals(),
                     &self.runtime_context,
                 );
             });
+        prevent_default
     }
 }

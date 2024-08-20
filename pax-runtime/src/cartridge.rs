@@ -31,13 +31,13 @@ pub trait DefinitionToInstanceTraverser {
         project_query: String,
     ) -> std::option::Option<std::rc::Rc<RefCell<pax_designtime::DesigntimeManager>>>;
 
-    fn get_main_component(&self) -> std::rc::Rc<crate::ComponentInstance> {
+    fn get_main_component(&self, id: &str) -> std::rc::Rc<crate::ComponentInstance> {
         let main_component_type_id = {
             let manifest = self.get_manifest();
             manifest.main_component_type_id.clone()
         };
 
-        let wrapper_type_id = TypeId::build_singleton("ROOT_COMPONENT", Some("RootComponent"));
+        let wrapper_type_id = TypeId::build_singleton(id, Some("RootComponent"));
 
         let mut args = self.build_component_args(&main_component_type_id);
         args.template_node_identifier = Some(pax_manifest::UniqueTemplateNodeIdentifier::build(

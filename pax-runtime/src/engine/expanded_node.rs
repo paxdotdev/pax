@@ -192,17 +192,7 @@ impl ExpandedNode {
         );
         let root_node = Self::new(template, root_env, ctx, Weak::new(), Weak::new());
         Rc::clone(&root_node).recurse_mount(ctx);
-        let globals = ctx.globals();
-        let container_transform_and_bounds = globals.viewport.clone();
-        let layout_properties = root_node.layout_properties();
-        let transform_and_bounds = compute_tab(
-            layout_properties,
-            Property::default(),
-            container_transform_and_bounds,
-        );
-        root_node
-            .transform_and_bounds
-            .replace_with(transform_and_bounds);
+        root_node.bind_to_parent_bounds(ctx);
         root_node
     }
 
@@ -281,7 +271,7 @@ impl ExpandedNode {
 
         Rc::clone(self).recurse_mount(context);
         Rc::clone(self).recurse_update(context);
-        self.bind_to_parent_bounds();
+        self.bind_to_parent_bounds(context);
     }
 
     /// Returns whether this node is a descendant of the ExpandedNode described by `other_expanded_node_id` (id)
@@ -365,16 +355,18 @@ impl ExpandedNode {
             }
             for child in new_children.iter() {
                 Rc::clone(child).recurse_mount(context);
-                child.bind_to_parent_bounds();
+                child.bind_to_parent_bounds(context);
             }
         }
         *curr_children = new_children.clone();
         new_children
     }
 
-    fn bind_to_parent_bounds(self: &Rc<Self>) {
-        let parent = borrow!(self.render_parent).upgrade().unwrap();
-        let parent_transform_and_bounds = parent.transform_and_bounds.clone();
+    fn bind_to_parent_bounds(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
+        let parent_transform_and_bounds = borrow!(self.render_parent)
+            .upgrade()
+            .map(|n| n.transform_and_bounds.clone())
+            .unwrap_or_else(|| ctx.globals().viewport);
         let common_props = borrow!(self.common_properties);
         let extra_transform = borrow!(common_props).transform.clone();
 
