@@ -76,9 +76,7 @@ impl pax_engine::pax_runtime::ComponentFactory for {{component.pascal_identifier
                                 },
                                 pax_engine::pax_manifest::ValueDefinition::Block(block) => {
                                     let cloned_stack = stack_frame.clone();
-                                    properties.{{property.name}}.replace_with(
-                                        Property::new_with_name({{property.property_type.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, cloned_stack.clone()), "block")
-                                    );
+                                    properties.{{property.name}}.replace_with({{property.property_type.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, cloned_stack.clone()));
                                 }
                                 _ => unreachable!("Invalid value definition for {{property.name}}")
                             }
@@ -174,10 +172,11 @@ struct {{active_type.type_id._type_id_escaped}}TypeFactory{}
 
 impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
 
-    type Output={{active_type.type_id._type_id}};
+    type Output=Property<{{active_type.type_id._type_id}}>;
 
     fn build_type(&self, args: &pax_engine::pax_manifest::LiteralBlockDefinition, stack_frame: std::rc::Rc<pax_engine::pax_runtime::RuntimePropertiesStackFrame>) -> Self::Output {
         let mut properties: {{active_type.type_id._type_id}} = Default::default();
+        let mut deps = vec![];
         for setting in &args.elements {
             if let pax_engine::pax_manifest::SettingElement::Setting(k, vd) = setting {
                 match k.token_value.as_str() {
@@ -194,7 +193,9 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                     pax_engine::pax_manifest::ValueDefinition::DoubleBinding(identifier) => {
                                         let identifier = identifier.name.clone();
                                         let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier).expect(&format!("failed to resolve identifier: {}", &identifier));
-                                        Property::new_from_untyped(untyped_property.clone())
+                                        let ret = Property::new_from_untyped(untyped_property.clone());
+                                        deps.push(ret.untyped());
+                                        ret
                                     },
                                     pax_engine::pax_manifest::ValueDefinition::Identifier(ident)  => {
                                         let variable = if let Some(p) = stack_frame.resolve_symbol_as_variable(&ident.name) {
@@ -205,14 +206,16 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                         let name = ident.name.clone();
                                         let untyped = variable.get_untyped_property().clone();
                                         let cloned_variable = variable.clone();
-                                        Property::computed_with_name(
+                                        let ret = Property::computed_with_name(
                                             move || {
                                                 let new_value = cloned_variable.get_as_pax_value();
                                                 <{{prop.type_id._type_id}}>::try_coerce(new_value).unwrap()
                                             },
                                             &[untyped],
                                             &name,
-                                        )
+                                        );
+                                        deps.push(ret.untyped());
+                                        ret
                                     }
                                     pax_engine::pax_manifest::ValueDefinition::Expression(info) =>
                                     {
@@ -226,7 +229,7 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                         }
                                         let cloned_stack = stack_frame.clone();
                                         let cloned_ast = info.expression.clone();
-                                        Property::computed_with_name(
+                                        let ret = Property::computed_with_name(
                                             move || {
                                                 let new_value = cloned_ast
                                                     .compute(cloned_stack.clone())
@@ -244,10 +247,14 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                             },
                                             &dependents,
                                             "{{prop.name}}",
-                                        )
+                                        );
+                                        deps.push(ret.untyped());
+                                        ret
                                     },
                                     pax_engine::pax_manifest::ValueDefinition::Block(block) => {
-                                        Property::new_with_name({{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, stack_frame.clone()), "block")
+                                        let ret = {{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, stack_frame.clone());
+                                        deps.push(ret.untyped());
+                                        ret
                                     }
                                     _ => unreachable!("Invalid value definition for {{prop.name}}")
                                 };
@@ -256,9 +263,6 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                     pax_engine::pax_manifest::ValueDefinition::LiteralValue(lv) => {
                                         <{{prop.type_id._type_id}}>::try_coerce(lv.clone()).unwrap()
                                     },
-                                    pax_engine::pax_manifest::ValueDefinition::Block(block) => {
-                                        {{prop.type_id._type_id_escaped}}TypeFactory{}.build_type(args, stack_frame.clone())
-                                    }
                                     _ => unreachable!("Invalid value definition for {{prop.name}}")
                                 };
                             {% endif %}
@@ -270,7 +274,19 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
             
             }
         }
-        properties
+        Property::computed_with_name(
+            move || {
+                let cloned_prop = properties.clone();
+                {%- for prop in active_type.property_definitions -%}
+                    {%- if prop.flags.is_property_wrapped %}
+                    cloned_prop.{{prop.name}}.get();
+                    {%- endif -%}
+                {%- endfor %}
+                cloned_prop
+            },
+            &deps,
+            "computed"
+        )
     }
 }
 

@@ -895,6 +895,18 @@ impl Interpolatable for i64 {
     }
 }
 
+impl Interpolatable for i128 {
+    fn interpolate(&self, other: &i128, t: f64) -> i128 {
+        (*self as f64 + (*other - self) as f64 * t) as i128
+    }
+}
+
+impl Interpolatable for u128 {
+    fn interpolate(&self, other: &u128, t: f64) -> u128 {
+        (*self as f64 + (*other - self) as f64 * t) as u128
+    }
+}
+
 impl Interpolatable for u64 {
     fn interpolate(&self, other: &u64, t: f64) -> u64 {
         (*self as f64 + (*other - self) as f64 * t) as u64
