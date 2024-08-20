@@ -14,7 +14,7 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
-use crate::{ExpandedNode, Globals};
+use crate::{ComponentInstance, ExpandedNode, Globals, InstanceNode};
 
 impl Interpolatable for ExpandedNodeIdentifier {}
 
@@ -35,7 +35,9 @@ pub struct RuntimeContext {
     globals: RefCell<Globals>,
     root_expanded_node: RefCell<Weak<ExpandedNode>>,
     #[cfg(feature = "designtime")]
-    pub userland_root_expanded_node: pax_runtime_api::Property<Weak<ExpandedNode>>,
+    pub userland_frame_instance_node: RefCell<Rc<dyn InstanceNode>>,
+    #[cfg(feature = "designtime")]
+    pub userland_root_expanded_node: RefCell<Option<Rc<ExpandedNode>>>,
     node_cache: RefCell<NodeCache>,
     queued_custom_events: RefCell<Vec<(Rc<ExpandedNode>, &'static str)>>,
     queued_renders: RefCell<Vec<Rc<ExpandedNode>>>,
@@ -79,13 +81,27 @@ impl NodeCache {
 }
 
 impl RuntimeContext {
+    #[cfg(not(feature = "designtime"))]
     pub fn new(globals: Globals) -> Self {
         Self {
             next_uid: Cell::new(ExpandedNodeIdentifier(0)),
             messages: RefCell::new(Vec::new()),
             globals: RefCell::new(globals),
             root_expanded_node: RefCell::new(Weak::new()),
-            #[cfg(feature = "designtime")]
+            node_cache: RefCell::new(NodeCache::new()),
+            queued_custom_events: Default::default(),
+            queued_renders: Default::default(),
+        }
+    }
+
+    #[cfg(feature = "designtime")]
+    pub fn new(globals: Globals, userland: Rc<ComponentInstance>) -> Self {
+        Self {
+            next_uid: Cell::new(ExpandedNodeIdentifier(0)),
+            messages: RefCell::new(Vec::new()),
+            globals: RefCell::new(globals),
+            root_expanded_node: RefCell::new(Weak::new()),
+            userland_frame_instance_node: RefCell::new(userland),
             userland_root_expanded_node: Default::default(),
             node_cache: RefCell::new(NodeCache::new()),
             queued_custom_events: Default::default(),
@@ -95,11 +111,6 @@ impl RuntimeContext {
 
     pub fn register_root_expanded_node(&self, root: &Rc<ExpandedNode>) {
         *borrow_mut!(self.root_expanded_node) = Rc::downgrade(root);
-    }
-
-    #[cfg(feature = "designtime")]
-    pub fn register_userland_root_expanded_node(&self, root: &Rc<ExpandedNode>) {
-        self.userland_root_expanded_node.set(Rc::downgrade(root));
     }
 
     pub fn add_to_cache(&self, node: &Rc<ExpandedNode>) {
@@ -259,7 +270,12 @@ impl RuntimeContext {
 
     #[cfg(feature = "designtime")]
     pub fn get_userland_root_expanded_node(&self) -> Option<Rc<ExpandedNode>> {
-        Some(self.userland_root_expanded_node.get().upgrade().unwrap())
+        borrow!(self.userland_root_expanded_node).clone()
+    }
+
+    #[cfg(feature = "designtime")]
+    pub fn get_userland_root_instance_node(&self) -> Option<Rc<dyn InstanceNode>> {
+        Some(borrow!(self.userland_frame_instance_node).clone())
     }
 
     pub fn get_root_expanded_node(&self) -> Option<Rc<ExpandedNode>> {

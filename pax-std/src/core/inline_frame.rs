@@ -1,8 +1,10 @@
-use pax_engine::{pax, Property};
+use pax_engine::{api::pax_value::ToFromPaxAny, pax, Property};
+use pax_message::{borrow, borrow_mut};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
+    RuntimePropertiesStackFrame,
 };
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
 use pax_runtime::api::Layer;
 
@@ -55,10 +57,18 @@ impl InstanceNode for InlineFrameInstance {
     }
 
     fn handle_mount(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, ctx: &Rc<RuntimeContext>) {
-        let foo = ctx.userland_root_expanded_node.clone();
-        expanded_node.children.replace_with(Property::computed(
-            move || vec![foo.get().upgrade().unwrap()],
-            &[ctx.userland_root_expanded_node.untyped()],
-        ));
+        let instance_node = Rc::clone(&*borrow!(ctx.userland_frame_instance_node));
+        let children_with_envs = vec![(
+            instance_node,
+            RuntimePropertiesStackFrame::new(
+                HashMap::new(),
+                Rc::new(pax_message::RefCell::new(().to_pax_any())),
+            ),
+        )];
+
+        let new_children =
+            expanded_node.generate_children(children_with_envs, ctx, &expanded_node.parent_frame);
+        *borrow_mut!(ctx.userland_root_expanded_node) = Some(Rc::clone(&new_children[0].clone()));
+        expanded_node.children.set(new_children);
     }
 }
