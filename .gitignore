@@ -26,3 +26,5 @@ Cargo.lock
 ## VScode project configuration files
 .vscode/
 
+pax-chassis-web/interface/
+pax-chassis-web/interface/
