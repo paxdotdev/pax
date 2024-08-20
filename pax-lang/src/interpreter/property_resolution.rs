@@ -34,11 +34,7 @@ impl DependencyCollector for PaxPrimary {
             PaxPrimary::FunctionCall(f) => f.collect_dependencies(),
             PaxPrimary::Object(o) => o
                 .iter()
-                .flat_map(|(k, v)| {
-                    let mut deps = v.collect_dependencies();
-                    deps.push(k.clone());
-                    deps
-                })
+                .flat_map(|(_, v)| v.collect_dependencies())
                 .collect(),
             PaxPrimary::Enum(_, args) => {
                 args.iter().flat_map(|a| a.collect_dependencies()).collect()
