@@ -1,6 +1,6 @@
 [package]
 name = "breakout"
-version = "0.15.5"
+version = "0.23.0"
 edition = "2021"
 default-run = "run"
 
