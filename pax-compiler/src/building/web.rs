@@ -55,15 +55,16 @@ pub fn build_web_project_with_cartridge(
                 .to_str()
                 .unwrap(),
         )
-        .arg("--features").arg("web")
+        .arg("--features=web")
         .env("PAX_DIR", &pax_dir)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
 
-    if is_release {
+    if is_release || cfg!(not(debug_assertions)) {
         cmd.arg("--release");
+    } else {
+        cmd.arg("--dev");
     }
-
     if ctx.should_run_designer {
         cmd.arg("--features").arg("designer");
     }
