@@ -402,7 +402,7 @@ pub fn run_parser_binary(
         .stderr(std::process::Stdio::piped());
 
     if should_run_designer {
-         cmd.arg("--features").arg("designer");
+        cmd.arg("--features").arg("designer");
     }
 
     #[cfg(unix)]

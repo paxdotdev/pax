@@ -30,11 +30,11 @@ fn is_root_crate() -> bool {
     is_not_blacklisted && is_root_crate
 }
 
+use pax_runtime::PaxEngine;
 use syn::{
     parse_macro_input, Data, DeriveInput, Field, Fields, FnArg, GenericArgument, ImplItem,
     ImplItemMethod, ItemFn, ItemImpl, Lit, Meta, PatType, PathArguments, Signature, Token, Type,
 };
-use pax_runtime::PaxEngine;
 
 fn pax_primitive(
     input_parsed: &DeriveInput,
@@ -461,7 +461,7 @@ fn parse_config(attrs: &mut Vec<syn::Attribute>) -> Config {
                         }
                     }
                 }
-            },
+            }
             Some(s) if s == "engine_import_prefix" => {
                 if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
                     if let Some(nested_meta) = meta_list.nested.first() {
@@ -471,7 +471,7 @@ fn parse_config(attrs: &mut Vec<syn::Attribute>) -> Config {
                         }
                     }
                 }
-            },
+            }
             Some(s) if s == "primitive" => {
                 if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
                     if let Some(nested_meta) = meta_list.nested.first() {
