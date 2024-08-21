@@ -53,6 +53,7 @@ pub const ALL_PKGS: &[&str] = &[
     "pax-cli",
     "pax-compiler",
     "pax-designtime",
+    "pax-kit",
     "pax-runtime",
     "pax-runtime-api",
     "pax-engine",
