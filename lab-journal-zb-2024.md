@@ -297,13 +297,13 @@ would enforce that pax_engine is a nice thin wrapper; nothing contained directly
 
     [x] update examples cargo.tomls
 
-    [ ] fix pax-cli build x {force non-designer}
+    [ ] fix pax-cli `build` x {non-designer}
 
     [ ] testing
         [x] designtime / nondesigntime builds
         [ ] libdev vs. in-the-wild (CLI flow)
 
-    [ ] build times vs. runtime perf
+    [-] build times vs. runtime perf
         balance flags; wrap inside pax_kit, manually test
     
 
