@@ -387,7 +387,7 @@ pub fn perform_create(ctx: &CreateContext) {
 pub fn run_parser_binary(
     project_path: &PathBuf,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
-    with_designtime: bool,
+    should_run_designer: bool,
 ) -> Output {
     let mut cmd = Command::new("cargo");
     cmd.current_dir(project_path)
@@ -401,8 +401,8 @@ pub fn run_parser_binary(
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
-    if with_designtime {
-        cmd.arg("--features").arg("designtime");
+    if ! should_run_designer {
+         cmd.arg("--features").arg("designer");
     }
 
     #[cfg(unix)]
