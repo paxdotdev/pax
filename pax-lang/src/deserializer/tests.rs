@@ -100,7 +100,7 @@ fn test_vec() {
 #[test]
 fn test_enum() {
     let enum_pax = "Test::Enum(10, 20, 30)".to_string();
-    let expected = PaxValue::Enum(
+    let expected = PaxValue::Enum("Test".to_string(),
         "Enum".to_string(),
         vec![
             PaxValue::Numeric(Numeric::I64(10)),
@@ -152,6 +152,7 @@ fn test_complex_vec() {
 fn test_complex_enum() {
     let enum_pax = "Test::Enum(10, 20, 30, [40, 50], { a: 60 })".to_string();
     let expected = PaxValue::Enum(
+        "Test".to_string(),
         "Enum".to_string(),
         vec![
             PaxValue::Numeric(Numeric::I64(10)),

@@ -264,7 +264,7 @@ impl HelperFunctions for PaxType {}
 impl CoercionRules for PaxType {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         match value {
-            PaxValue::Enum(variant, args) => match variant.as_str() {
+            PaxValue::Enum(name, variant, args) => match variant.as_str() {
                 "If" => Ok(PaxType::If),
                 "Slot" => Ok(PaxType::Slot),
                 "Repeat" => Ok(PaxType::Repeat),
@@ -311,42 +311,47 @@ impl CoercionRules for PaxType {
 impl ToPaxValue for PaxType {
     fn to_pax_value(self) -> PaxValue {
         match self {
-            PaxType::If => PaxValue::Enum("If".to_string(), vec![]),
-            PaxType::Slot => PaxValue::Enum("Slot".to_string(), vec![]),
-            PaxType::Repeat => PaxValue::Enum("Repeat".to_string(), vec![]),
-            PaxType::Comment => PaxValue::Enum("Comment".to_string(), vec![]),
+            PaxType::If => PaxValue::Enum("PaxType".to_string(),"If".to_string(), vec![]),
+            PaxType::Slot => PaxValue::Enum("PaxType".to_string(),"Slot".to_string(), vec![]),
+            PaxType::Repeat => PaxValue::Enum("PaxType".to_string(),"Repeat".to_string(), vec![]),
+            PaxType::Comment => PaxValue::Enum("PaxType".to_string(),"Comment".to_string(), vec![]),
             PaxType::BlankComponent { pascal_identifier } => PaxValue::Enum(
+                "PaxType".to_string(),
                 "BlankComponent".to_string(),
                 vec![pascal_identifier.to_pax_value()],
             ),
             PaxType::Primitive { pascal_identifier } => PaxValue::Enum(
+                "PaxType".to_string(),
                 "Primitive".to_string(),
                 vec![pascal_identifier.to_pax_value()],
             ),
             PaxType::Singleton { pascal_identifier } => PaxValue::Enum(
+                "PaxType".to_string(),
                 "Singleton".to_string(),
                 vec![pascal_identifier.to_pax_value()],
             ),
             PaxType::Range { identifier } => {
-                PaxValue::Enum("Range".to_string(), vec![identifier.to_pax_value()])
+                PaxValue::Enum("PaxType".to_string(),
+                "Range".to_string(), vec![identifier.to_pax_value()])
             }
             PaxType::Option { identifier } => {
-                PaxValue::Enum("Option".to_string(), vec![identifier.to_pax_value()])
+                PaxValue::Enum("PaxType".to_string(),"Option".to_string(), vec![identifier.to_pax_value()])
             }
             PaxType::Vector { elem_identifier } => {
-                PaxValue::Enum("Vector".to_string(), vec![elem_identifier.to_pax_value()])
+                PaxValue::Enum("PaxType".to_string(),"Vector".to_string(), vec![elem_identifier.to_pax_value()])
             }
             PaxType::Map {
                 key_identifier,
                 value_identifier,
             } => PaxValue::Enum(
+                "PaxType".to_string(),
                 "Map".to_string(),
                 vec![
                     key_identifier.to_pax_value(),
                     value_identifier.to_pax_value(),
                 ],
             ),
-            PaxType::Unknown => PaxValue::Enum("Unknown".to_string(), vec![]),
+            PaxType::Unknown => PaxValue::Enum("PaxType".to_string(),"Unknown".to_string(), vec![]),
         }
     }
 }
