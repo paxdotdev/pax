@@ -1,0 +1,15 @@
+[package]
+name = "pax-kit"
+version = "0.23.0"
+edition = "2021"
+
+[dependencies]
+pax-engine = { path = "../pax-engine", version = "0.23.0"}
+pax-designer = { path = "../pax-designer", version = "0.23.0", optional=true }
+
+[features]
+default = ["designer", "web"]
+designer = ["dep:pax-designer", "pax-engine/designtime", "pax-designer/designtime"]
+web = ["pax-engine/web"]
+ios = ["pax-engine/ios"]
+macos = ["pax-engine/macos"]

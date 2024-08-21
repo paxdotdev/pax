@@ -15,6 +15,7 @@ members = [
     "pax-compiler",
     "pax-designtime",
     "pax-engine",
+    "pax-kit",
     "pax-lang",
     "pax-language-server",
     "pax-macro",
