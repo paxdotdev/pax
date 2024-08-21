@@ -27,10 +27,3 @@ web = ["pax-kit/web"]
 macos = ["pax-kit/macos"]
 ios = ["pax-kit/ios"]
 
-[profile.release]
-lto = true
-opt-level = "z"
-
-[profile.dev.package."*"]
-debug = false
-opt-level = 2
