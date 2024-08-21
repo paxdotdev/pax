@@ -6,8 +6,8 @@ default-run = "run"
 include = ["assets/**/*"]
 
 [dependencies]
-pax-engine = { version = "0.23.0" , path = "../pax-engine" }
-pax-std = { version = "0.23.0" , path = "../pax-std" }
+pax-engine = { version = "0.23.0" , path = "../pax-engine", features = ["designtime"] }
+pax-std = { version = "0.23.0" , path = "../pax-std", features = ["designtime"] }
 pax-designtime = {version = "0.23.0", path = "../pax-designtime"}
 anyhow = "1.0.79"
 
@@ -26,7 +26,7 @@ path = "bin/run.rs"
 [features]
 default = ["designtime"]
 parser = ["pax-std/parser"]
-designtime = ["pax-engine/designtime", "pax-std/designtime"]
+designtime = [] #no-op feature; designtime is hardwired for pax-designer
 web = ["pax-engine/web"]
 macos = ["pax-engine/macos"]
 ios = ["pax-engine/ios"]
