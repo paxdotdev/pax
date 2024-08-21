@@ -29,7 +29,7 @@ use crate::common::patch_if_needed;
 
 /// Renders text in a platform-native way
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[primitive("pax_std::core::text::TextInstance")]
 pub struct Text {
     pub editable: Property<bool>,
@@ -234,7 +234,7 @@ impl InstanceNode for TextInstance {
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[custom(Default)]
 pub struct TextStyle {
     #[serde(default)]
@@ -349,7 +349,7 @@ impl PartialEq<TextStyleMessage> for TextStyle {
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[custom(Default)]
 pub enum Font {
     Web(String, String, FontStyle, FontWeight),
@@ -364,7 +364,7 @@ impl Default for Font {
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 pub enum FontStyle {
     #[default]
     Normal,
@@ -373,7 +373,7 @@ pub enum FontStyle {
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[derive(PartialEq)]
 pub enum FontWeight {
     Thin,
@@ -389,7 +389,7 @@ pub enum FontWeight {
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 pub enum TextAlignHorizontal {
     #[default]
     Left,
@@ -398,7 +398,7 @@ pub enum TextAlignHorizontal {
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 pub enum TextAlignVertical {
     #[default]
     Top,
