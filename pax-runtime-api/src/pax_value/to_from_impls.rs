@@ -111,13 +111,21 @@ impl<T: ToPaxValue + PropertyValue> ToPaxValue for Property<T> {
 impl ToPaxValue for Fill {
     fn to_pax_value(self) -> PaxValue {
         match self {
-            Fill::Solid(color) => PaxValue::Enum("Fill".to_string(),"Solid".to_string(), vec![color.to_pax_value()]),
-            Fill::LinearGradient(gradient) => {
-                PaxValue::Enum("Fill".to_string(), "LinearGradient".to_string(), vec![gradient.to_pax_value()])
-            }
-            Fill::RadialGradient(gradient) => {
-                PaxValue::Enum("Fill".to_string(), "RadialGradient".to_string(), vec![gradient.to_pax_value()])
-            }
+            Fill::Solid(color) => PaxValue::Enum(
+                "Fill".to_string(),
+                "Solid".to_string(),
+                vec![color.to_pax_value()],
+            ),
+            Fill::LinearGradient(gradient) => PaxValue::Enum(
+                "Fill".to_string(),
+                "LinearGradient".to_string(),
+                vec![gradient.to_pax_value()],
+            ),
+            Fill::RadialGradient(gradient) => PaxValue::Enum(
+                "Fill".to_string(),
+                "RadialGradient".to_string(),
+                vec![gradient.to_pax_value()],
+            ),
         }
     }
 }
@@ -125,15 +133,21 @@ impl ToPaxValue for Fill {
 impl ToPaxValue for ColorChannel {
     fn to_pax_value(self) -> PaxValue {
         match self {
-            ColorChannel::Rotation(rot) => {
-                PaxValue::Enum("ColorChannel".to_string(),"Rotation".to_string(), vec![rot.to_pax_value()])
-            }
-            ColorChannel::Percent(perc) => {
-                PaxValue::Enum("ColorChannel".to_string(),"Percent".to_string(), vec![perc.to_pax_value()])
-            }
-            ColorChannel::Integer(num) => {
-                PaxValue::Enum("ColorChannel".to_string(),"Integer".to_string(), vec![num.to_pax_value()])
-            }
+            ColorChannel::Rotation(rot) => PaxValue::Enum(
+                "ColorChannel".to_string(),
+                "Rotation".to_string(),
+                vec![rot.to_pax_value()],
+            ),
+            ColorChannel::Percent(perc) => PaxValue::Enum(
+                "ColorChannel".to_string(),
+                "Percent".to_string(),
+                vec![perc.to_pax_value()],
+            ),
+            ColorChannel::Integer(num) => PaxValue::Enum(
+                "ColorChannel".to_string(),
+                "Integer".to_string(),
+                vec![num.to_pax_value()],
+            ),
         }
     }
 }

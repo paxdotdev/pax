@@ -54,8 +54,9 @@ fn to_pax_expression(args: &HashMap<String, tera::Value>) -> tera::Result<tera::
                 return Ok(tera::Value::String(value.expression.to_string()));
             }
             Err(tera::Error::msg(format!(
-                "Failed to deserialize value to PaxExpression: {:?}", val),
-            ))
+                "Failed to deserialize value to PaxExpression: {:?}",
+                val
+            )))
         }
         None => Err(tera::Error::msg(
             "No value provided to to_pax_expression function",
