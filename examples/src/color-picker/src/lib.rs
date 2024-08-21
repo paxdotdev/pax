@@ -1,12 +1,10 @@
-use pax_engine::api::*;
-use pax_engine::math::{Point2, Vector2};
-use pax_engine::*;
-use pax_std::*;
+use pax_kit::*;
+use pax_kit::math::*;
 
 #[pax]
 #[main]
 #[file("color_picker.pax")]
-pub struct ColorPicker {
+pub struct ColorPickerExample {
     pub color: Property<Color>,
 
     // ---------color palette picker------------
@@ -33,7 +31,7 @@ pub struct ColorPicker {
     pub cycle_detection: Property<bool>,
 }
 
-impl ColorPicker {
+impl ColorPickerExample {
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
         let color = self.color.clone();
         self.hue_slider_image_data.set(hue_slider().to_vec());
