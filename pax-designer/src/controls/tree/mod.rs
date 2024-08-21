@@ -6,7 +6,9 @@ use pax_manifest::{
     ComponentTemplate, PaxType, TemplateNodeId, TreeIndexPosition, TypeId,
     UniqueTemplateNodeIdentifier,
 };
-use pax_std::{RefCell, *};
+use pax_std::*;
+
+pax_engine::pax_message::use_RefCell!();
 
 use std::cell::OnceCell;
 use std::rc::Rc;
