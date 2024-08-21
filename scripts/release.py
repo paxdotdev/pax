@@ -33,6 +33,7 @@ PACKAGES = [
     "pax-designtime",
     "pax-designer",
     "pax-generation",
+    "pax-kit",
     "pax-runtime",
     "pax-runtime-api",
     "pax-engine",
