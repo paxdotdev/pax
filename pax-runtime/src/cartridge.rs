@@ -19,13 +19,13 @@ pub trait DefinitionToInstanceTraverser {
     where
         Self: Sized;
 
-    #[cfg(not(feature = "designtime"))]
+    #[cfg(not(any(feature = "designer", feature = "designtime")))]
     fn get_manifest(&self) -> &pax_manifest::PaxManifest;
 
-    #[cfg(feature = "designtime")]
+    #[cfg(any(feature = "designer", feature = "designtime"))]
     fn get_manifest(&self) -> std::cell::Ref<pax_manifest::PaxManifest>;
 
-    #[cfg(feature = "designtime")]
+    #[cfg(any(feature = "designer", feature = "designtime"))]
     fn get_designtime_manager(
         &self,
         project_query: String,

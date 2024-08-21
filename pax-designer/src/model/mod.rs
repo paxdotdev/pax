@@ -154,7 +154,7 @@ pub struct Model {
 
 impl Model {
     pub fn init(ctx: &NodeContext) {
-        let main_component_id = (*ctx.designtime).ref_cell.borrow_mut().get_manifest().main_component_type_id.clone();
+        let main_component_id = (*ctx.designtime).borrow_mut().get_manifest().main_component_type_id.clone();
         let app_state = Self::create_initial_app_state(main_component_id);
         let derived_state = Self::create_derived_state(ctx, &app_state);
 
