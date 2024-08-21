@@ -231,7 +231,7 @@ would enforce that pax_engine is a nice thin wrapper; nothing contained directly
 
 [ ] Auto-port selection + coordination / scanning / handshake
 
-[ ] Module cleanup pass
+[x] Module cleanup pass
     [x] pax_kit naming
             engine
                 api
