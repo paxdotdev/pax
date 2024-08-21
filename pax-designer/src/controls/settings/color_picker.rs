@@ -4,6 +4,7 @@ use pax_engine::*;
 use pax_std::*;
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[file("controls/settings/color_picker.pax")]
 pub struct ColorPicker {
     pub color: Property<Color>,

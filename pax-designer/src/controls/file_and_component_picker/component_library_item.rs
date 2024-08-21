@@ -26,12 +26,14 @@ use math::Point2;
 use super::SetLibraryState;
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[file("controls/file_and_component_picker/component_library_item.pax")]
 pub struct ComponentLibraryItem {
     pub data: Property<ComponentLibraryItemData>,
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 pub struct ComponentLibraryItemData {
     pub name: String,
     pub file_path: String,

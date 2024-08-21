@@ -8,6 +8,7 @@ use crate::controls::settings::AREAS_PROP;
 use super::PropertyEditorData;
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[file("controls/settings/property_editor/border_radius_property_editor.pax")]
 pub struct BorderRadiusPropertyEditor {
     pub data: Property<PropertyEditorData>,

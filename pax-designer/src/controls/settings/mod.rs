@@ -11,6 +11,7 @@ pub mod property_editor;
 use property_editor::PropertyEditor;
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[file("controls/settings/mod.pax")]
 pub struct Settings {
     pub is_component_selected: Property<bool>,
@@ -22,6 +23,7 @@ pub struct Settings {
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[custom(Imports)]
 pub struct PropertyArea {
     pub vertical_space: f64,

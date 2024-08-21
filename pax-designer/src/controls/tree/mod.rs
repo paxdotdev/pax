@@ -27,6 +27,7 @@ use crate::model::tools::SelectNodes;
 use crate::model::{self, GlassNode};
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[file("controls/tree/mod.pax")]
 pub struct Tree {
     pub tree_objects: Property<Vec<FlattenedTreeEntry>>,
@@ -132,6 +133,7 @@ impl TreeEntry {
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[custom(Imports)]
 pub struct FlattenedTreeEntry {
     pub name: String,

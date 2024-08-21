@@ -9,6 +9,7 @@ use super::PropertyEditorData;
 use pax_std::*;
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[file("controls/settings/property_editor/fill_property_editor.pax")]
 pub struct FillPropertyEditor {
     pub data: Property<PropertyEditorData>,

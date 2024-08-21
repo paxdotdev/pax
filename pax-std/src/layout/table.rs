@@ -7,6 +7,7 @@ use std::iter;
 const PIXEL_ALIGN_FACTOR: f64 = 1.0;
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[inlined(
 for i in 0..self.slots {
     slot(i)
@@ -43,6 +44,7 @@ impl Table {
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[inlined(
 <Group anchor_y=0% y={self.y_pos} height={self.height} width=100%>
     for i in 0..self.slots {
@@ -90,6 +92,7 @@ impl Row {
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[inlined(
 <Group anchor_x=0% x={self.x_pos} width={self.width} height=100%>
     for i in 0..self.slots {
@@ -137,6 +140,7 @@ impl Col {
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[inlined(
 <Group
     anchor_x=0%
@@ -224,6 +228,7 @@ impl Span {
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[inlined(
 <Group
     anchor_x=0%

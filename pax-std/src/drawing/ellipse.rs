@@ -11,6 +11,7 @@ use std::rc::Rc;
 
 /// A basic 2D vector ellipse
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[primitive("pax_std::drawing::ellipse::EllipseInstance")]
 pub struct Ellipse {
     pub stroke: Property<Stroke>,

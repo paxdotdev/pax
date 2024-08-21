@@ -16,6 +16,7 @@ use crate::common::patch_if_needed;
 
 /// A platform-native text input field
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[primitive("pax_std::forms::textbox::TextboxInstance")]
 #[custom(Default)]
 pub struct Textbox {

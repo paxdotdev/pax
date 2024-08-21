@@ -14,6 +14,7 @@ use std::rc::Rc;
 
 /// A basic 2D vector rectangle
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[primitive("pax_std::drawing::rectangle::RectangleInstance")]
 pub struct Rectangle {
     pub stroke: Property<Stroke>,
@@ -125,6 +126,7 @@ impl InstanceNode for RectangleInstance {
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[has_helpers]
 pub struct RectangleCornerRadii {
     pub top_left: Property<Numeric>,

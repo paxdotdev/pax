@@ -21,6 +21,7 @@ use crate::common::patch_if_needed;
 /// When both scrolling axes are disabled, `Scroller` acts exactly like a `Frame`, with a possibly-
 /// transformed `Group` surrounding its contents.
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[primitive("pax_std::core::scrollbar::ScrollbarInstance")]
 pub struct Scrollbar {
     pub size_inner_pane_x: Property<Size>,
