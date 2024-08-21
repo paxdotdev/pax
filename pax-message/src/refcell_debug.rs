@@ -76,21 +76,27 @@
 //         pub use pax_runtime_api::RefCell;
 //     )}
 // } else {
-    #[macro_export]
-    macro_rules! borrow {(
+#[macro_export]
+macro_rules! borrow {
+    (
         $ref_cell:expr
-    ) => (
+    ) => {
         $ref_cell.borrow()
-    )}
+    };
+}
 
-    #[macro_export]
-    macro_rules! borrow_mut {(
+#[macro_export]
+macro_rules! borrow_mut {
+    (
         $ref_cell:expr
-    ) => (
+    ) => {
         $ref_cell.borrow_mut()
-    )}
-    #[macro_export]
-    macro_rules! use_RefCell {() => (
+    };
+}
+#[macro_export]
+macro_rules! use_RefCell {
+    () => {
         use ::core::cell::RefCell;
-    )}
+    };
+}
 // }}
