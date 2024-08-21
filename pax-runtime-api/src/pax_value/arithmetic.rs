@@ -30,6 +30,12 @@ impl Add for PaxValue {
             | (PaxValue::Numeric(b), PaxValue::Bool(a)) => {
                 (Numeric::I64(a as i64) + b).to_pax_value()
             }
+            (PaxValue::Size(a), PaxValue::Numeric(b))
+            | (PaxValue::Numeric(b), PaxValue::Size(a)) => match a {
+                Size::Pixels(px) => Size::Pixels(px + b).to_pax_value(),
+                Size::Percent(per) => Size::Percent(per + b).to_pax_value(),
+                Size::Combined(px, per) => Size::Combined(px + b, per + b).to_pax_value(),
+            },
             (a, b) => panic!("can't add {:?} and {:?}", a, b),
         }
     }
@@ -45,6 +51,12 @@ impl Mul for PaxValue {
             | (PaxValue::Numeric(b), PaxValue::Bool(a)) => {
                 (Numeric::I64(a as i64) * b).to_pax_value()
             }
+            (PaxValue::Size(a), PaxValue::Numeric(b))
+            | (PaxValue::Numeric(b), PaxValue::Size(a)) => match a {
+                Size::Pixels(px) => Size::Pixels(px * b).to_pax_value(),
+                Size::Percent(per) => Size::Percent(per * b).to_pax_value(),
+                Size::Combined(px, per) => Size::Combined(px * b, per * b).to_pax_value(),
+            },
             (a, b) => panic!("can't multiply {:?} and {:?}", a, b),
         }
     }
@@ -61,6 +73,12 @@ impl Sub for PaxValue {
             (PaxValue::Percent(a), PaxValue::Percent(b)) => (Percent(a.0 - b.0)).to_pax_value(),
             (PaxValue::Percent(a), PaxValue::Size(b)) => (Size::Percent(a.0) - b).to_pax_value(),
             (PaxValue::Size(a), PaxValue::Percent(b)) => (a - Size::Percent(b.0)).to_pax_value(),
+            (PaxValue::Size(a), PaxValue::Numeric(b))
+            | (PaxValue::Numeric(b), PaxValue::Size(a)) => match a {
+                Size::Pixels(px) => Size::Pixels(px - b).to_pax_value(),
+                Size::Percent(per) => Size::Percent(per - b).to_pax_value(),
+                Size::Combined(px, per) => Size::Combined(px - b, per - b).to_pax_value(),
+            },
             (a, b) => panic!("can't subtract {:?} and {:?}", a, b),
         }
     }
@@ -72,6 +90,12 @@ impl Div for PaxValue {
     fn div(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => (a / b).to_pax_value(),
+            (PaxValue::Size(a), PaxValue::Numeric(b))
+            | (PaxValue::Numeric(b), PaxValue::Size(a)) => match a {
+                Size::Pixels(px) => Size::Pixels(px / b).to_pax_value(),
+                Size::Percent(per) => Size::Percent(per / b).to_pax_value(),
+                Size::Combined(px, per) => Size::Combined(px / b, per / b).to_pax_value(),
+            },
             (a, b) => panic!("can't divide {:?} and {:?}", a, b),
         }
     }

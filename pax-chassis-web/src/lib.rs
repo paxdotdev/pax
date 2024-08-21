@@ -40,7 +40,6 @@ use serde_json;
 #[cfg(feature = "designtime")]
 use {pax_designtime::orm::ReloadType, pax_designtime::DesigntimeManager};
 
-#[cfg(feature = "designtime")]
 const USERLAND_COMPONENT_ROOT: &str = "USERLAND_COMPONENT_ROOT";
 #[cfg(feature = "designtime")]
 const DESIGNER_COMPONENT_ROOT: &str = "DESIGNER_COMPONENT_ROOT";
@@ -116,7 +115,8 @@ impl PaxChassisWeb {
     ) -> Self {
         let (width, height, os_info) = Self::init_common();
 
-        let main_component_instance = definition_to_instance_traverser.get_main_component();
+        let main_component_instance =
+            definition_to_instance_traverser.get_main_component(USERLAND_COMPONENT_ROOT);
         let engine = pax_runtime::PaxEngine::new(
             main_component_instance,
             (width, height),
