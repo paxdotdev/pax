@@ -17,7 +17,7 @@
             main_component_type_id: ctx.main_component_type_id,
             type_table: ctx.type_table,
             assets_dirs: ctx.assets_dirs,
-            //engine_import_prefix: "<%= engine_import_prefix %>",
+            engine_import_prefix: "<%= engine_import_prefix %>".to_string(),
         };
 
         <% if is_root_crate { %>
@@ -32,6 +32,7 @@
                     main_component_type_id: ctx.main_component_type_id,
                     type_table: ctx.type_table,
                     assets_dirs: ctx.assets_dirs,
+                    engine_import_prefix: "<%= engine_import_prefix %>".to_string(),
                 };
 
                 //Send data back to parent process by printing to stdout

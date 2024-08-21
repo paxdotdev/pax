@@ -38,7 +38,7 @@ pub struct {{ cartridge_struct_id }} {}
 impl {{ engine_import_prefix }}::pax_runtime::cartridge::PaxCartridge for {{ cartridge_struct_id }} {
 }
 {% for c in components -%}
-    {{ macros::render_component_factory(component=c) }}
+    {{ macros::render_component_factory(component=c, engine_import_prefix=engine_import_prefix) }}
 {%- endfor %}
 
 trait TypeFactory {
@@ -47,7 +47,7 @@ trait TypeFactory {
     fn build_type(&self, args: &{{ engine_import_prefix }}::pax_manifest::LiteralBlockDefinition, stack_frame: std::rc::Rc<{{ engine_import_prefix }}::pax_runtime::RuntimePropertiesStackFrame>) -> Self::Output;
 }
 {% for key, value in type_table -%}
-    {{ macros::render_type_factory(type_table=type_table, active_type=value) }}
+    {{ macros::render_type_factory(type_table=type_table, active_type=value, engine_import_prefix=engine_import_prefix) }}
 {%- endfor %}
 
 

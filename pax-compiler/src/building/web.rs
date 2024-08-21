@@ -66,7 +66,7 @@ pub fn build_web_project_with_cartridge(
         cmd.arg("--dev");
     }
     if ctx.should_run_designer {
-        cmd.arg("--features").arg("designtime");
+        cmd.arg("--features").arg("designer");
     }
 
     #[cfg(unix)]

@@ -6,6 +6,8 @@ use pax_runtime::{
 };
 use std::{collections::HashMap, rc::Rc};
 
+pax_message::use_RefCell!();
+
 use pax_runtime::api::Layer;
 
 /// Allows embedding another Pax #[main] component with
@@ -63,7 +65,7 @@ impl InstanceNode for InlineFrameInstance {
             instance_node,
             RuntimePropertiesStackFrame::new(
                 HashMap::new(),
-                Rc::new(pax_message::RefCell::new(().to_pax_any())),
+                Rc::new(RefCell::new(().to_pax_any())),
             ),
         )];
 

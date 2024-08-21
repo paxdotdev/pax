@@ -1,7 +1,7 @@
 use std::ops::Range;
 use std::rc::Rc;
 
-use pax_message::RefCell;
+use std::cell::RefCell;
 
 use super::ImplToFromPaxAny;
 use super::Numeric;

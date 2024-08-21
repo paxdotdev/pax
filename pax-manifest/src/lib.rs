@@ -27,7 +27,12 @@ pub struct PaxManifest {
     pub main_component_type_id: TypeId,
     #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]
     pub type_table: TypeTable,
+    /// Compiler metadata: list of fully qualified asset directories, gathered during compiletime,
+    /// from which assets will be copied for bundling into executable binaries
     pub assets_dirs: Vec<String>,
+    /// Compiler metadata: the import prefix for the engine module, `pax_kit::pax_engine` by default
+    /// but parameterizable for integrating with pax_engine directly, e.g. pax_std and pax_designer
+    pub engine_import_prefix: String,
 }
 
 impl PaxManifest {
