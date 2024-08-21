@@ -243,9 +243,41 @@ finally, userland depends on pax-engine, and gets both crates
                 etc.
             designer
             pub use pax_engine::* ???
+
+        Possible names for bundled userland crate:
+              pax_sdk
+              pax_api
+              pax_kit
+              pax_main
+              pax_all
+              pax_tools
+        
+          trying out pax_kit: 
+          pax_kit is designer plus engine
+          engine is what it is (pub use * it for api forwarding) 
+        
+        [ ] use pax-kit in userland and in examples
+            pax-kit should not be a dependency of any crate in the monorepo, expect for pax-designer (which is a userland crate)
+
+        [ ] codegen: deal with the hard-coded assumed root symbol (pax_engine)
+
+            need to parameterize this symbol in order to support designer libdev (or can this be reflected automatically from pax-macro? detect module path of pax-macro itself, use that prefix for codegen)
+
+            start here, in pax-macro/src/lib.rs: `let path = module_path!();`
+
+            then find/replace/parameterize through templates (check both stpl and tera)
+ 
+        [ ] achieve non-designtime builds
+
         [ ] shuttle feature flags:  features=["designer"] => designtime feat + dynamic deps (pax-designer)
+            update features & optional deps to include / exclude designer
+
+        [ ] testing
+            designtime / nondesigntime builds
+            libdev vs. in-the-wild (CLI flow)
 
 
+    
         
         
         
