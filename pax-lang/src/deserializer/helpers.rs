@@ -1,4 +1,3 @@
-use pax_runtime_api::PaxValue;
 use pest::iterators::{Pair, Pairs};
 use serde::{
     de::{self, DeserializeSeed, EnumAccess, MapAccess, SeqAccess, VariantAccess, Visitor},
@@ -100,10 +99,10 @@ impl<'de> VariantAccess<'de> for PaxEnum<'de> {
             while enum_pairs.len() > 3 {
                 enum_pairs.next();
             }
-            let _ = enum_pairs.next();
-            if enum_pairs.len() == 1 {
+            if enum_pairs.len() == 2 {
+                let name = enum_pairs.next().unwrap().as_str();
                 let variant = enum_pairs.next().unwrap().as_str();
-                return visitor.visit_seq(UnitVariant::new(variant));
+                return visitor.visit_seq(UnitVariant::new(name, variant));
             }
             return visitor.visit_seq(PaxSeq::new(enum_pairs));
         }
@@ -316,15 +315,17 @@ impl<'de> de::Deserializer<'de> for PaxNumeric<'de> {
 }
 
 pub struct UnitVariant<'de> {
+    name: &'de str,
     variant: &'de str,
-    read_variant: bool,
+    arg_read_count: usize,
 }
 
 impl<'de> UnitVariant<'de> {
-    pub fn new(variant: &'de str) -> Self {
+    pub fn new(name: &'de str, variant: &'de str) -> Self {
         UnitVariant {
+            name,
             variant,
-            read_variant: false,
+            arg_read_count: 0,
         }
     }
 }
@@ -336,11 +337,12 @@ impl<'de> SeqAccess<'de> for UnitVariant<'de> {
     where
         T: DeserializeSeed<'de>,
     {
-        if !self.read_variant {
-            self.read_variant = true;
-            Ok(Some(
-                seed.deserialize(StringDeserializer::new(self.variant))?,
-            ))
+        if self.arg_read_count == 0 {
+            self.arg_read_count += 1;
+            Ok(Some(seed.deserialize(StringDeserializer::new(self.name))?))
+        } else if self.arg_read_count == 1 {
+            self.arg_read_count += 1;
+            Ok(Some(seed.deserialize(StringDeserializer::new(self.variant))?))
         } else {
             Ok(Some(seed.deserialize(EmptyListDeserializer {})?))
         }

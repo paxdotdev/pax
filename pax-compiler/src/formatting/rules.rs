@@ -84,7 +84,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::matched_tag => vec![Box::new(MatchTagDefaultRule)],
         Rule::inner_nodes => vec![Box::new(InnerNodesDefaultRule)],
         Rule::attribute_key_value_pair => vec![Box::new(AttributeKeyValuePairDefaultRule)],
-        Rule::attribute_event_binding => vec![Box::new(AttributeEventBindingDefaultRule)],
+        Rule::attribute_event_binding | Rule:: double_binding => vec![Box::new(AttributeDoubleEventBindingDefaultRule)],
         Rule::settings_block_declaration => vec![Box::new(SettingsBlockDeclarationDefaultRule)],
         Rule::settings_event_binding => vec![Box::new(SettingsEventBindingDefaultRule)],
         Rule::selector_block => vec![Box::new(SelectorBlockDefaultRule)],
@@ -144,7 +144,6 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
 
         Rule::identifier
         | Rule::pascal_identifier
-        | Rule::double_binding
         | Rule::statement_for_predicate_declaration
         | Rule::statement_for_source
         | Rule::comment
@@ -336,9 +335,9 @@ impl FormattingRule for AttributeKeyValuePairDefaultRule {
 }
 
 #[derive(Clone)]
-struct AttributeEventBindingDefaultRule;
+struct AttributeDoubleEventBindingDefaultRule;
 
-impl FormattingRule for AttributeEventBindingDefaultRule {
+impl FormattingRule for AttributeDoubleEventBindingDefaultRule {
     fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
         let mut formatted_node = String::new();
         let key = children[0].formatted_node.clone();

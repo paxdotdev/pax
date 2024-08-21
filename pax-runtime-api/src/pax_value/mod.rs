@@ -35,7 +35,7 @@ pub enum PaxValue {
     Vec(Vec<PaxValue>),
     Range(Box<PaxValue>, Box<PaxValue>),
     Object(HashMap<String, PaxValue>),
-    Enum(String, Vec<PaxValue>),
+    Enum(String ,String, Vec<PaxValue>),
 }
 
 // Make sure Enum looks like an enum and vec looks like a vec
@@ -74,15 +74,20 @@ impl Display for PaxValue {
                 }
                 write!(f, "}}")
             }
-            PaxValue::Enum(name, values) => {
-                write!(f, "{}(", name)?;
-                for (i, val) in values.iter().enumerate() {
-                    if i != 0 {
-                        write!(f, ", ")?;
+            PaxValue::Enum(name, variant, values) => {
+                // write out the enum like StackerDirection::Horizontal or Font::System(arg)
+                write!(f, "{}::{}", name, variant)?;
+                if !values.is_empty() {
+                    write!(f, "(")?;
+                    for (i, val) in values.iter().enumerate() {
+                        if i != 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}", val)?;
                     }
-                    write!(f, "{}", val)?;
+                    write!(f, ")")?;
                 }
-                write!(f, ")")
+                Ok(())
             }
         }
     }

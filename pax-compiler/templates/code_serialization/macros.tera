@@ -6,7 +6,7 @@
     {% elif cfd.repeat_predicate_definition %}
         for 
         {% if cfd.repeat_predicate_definition.ElemId %}
-            {{cfd.repeat_predicate_definition.ElemId.token_value}}
+            {{cfd.repeat_predicate_definition.ElemId}}
         {% endif %}
         {% if cfd.repeat_predicate_definition.ElemIdIndexId %}
             ({{cfd.repeat_predicate_definition.ElemIdIndexId.0}}, {{cfd.repeat_predicate_definition.ElemIdIndexId.1.raw_value}})

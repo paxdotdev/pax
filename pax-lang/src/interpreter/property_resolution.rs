@@ -36,7 +36,7 @@ impl DependencyCollector for PaxPrimary {
                 .iter()
                 .flat_map(|(_, v)| v.collect_dependencies())
                 .collect(),
-            PaxPrimary::Enum(_, args) => {
+            PaxPrimary::Enum(_, _, args) => {
                 args.iter().flat_map(|a| a.collect_dependencies()).collect()
             }
             PaxPrimary::Range(start, end) => {

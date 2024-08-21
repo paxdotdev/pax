@@ -110,12 +110,12 @@ impl Computable for PaxPrimary {
                     Ok(expr_val)
                 }
             }
-            PaxPrimary::Enum(variant, args) => {
+            PaxPrimary::Enum(name, variant, args) => {
                 let args = args
                     .iter()
                     .map(|a| a.compute(idr.clone()))
                     .collect::<Result<Vec<PaxValue>, String>>()?;
-                Ok(PaxValue::Enum(variant.clone(), args))
+                Ok(PaxValue::Enum(name.clone(), variant.clone(), args))
             }
         }
     }

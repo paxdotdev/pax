@@ -308,7 +308,7 @@ impl <%= engine_import_path %>::api::CoercionRules for <%= pascal_identifier %> 
     fn try_coerce(value: <%= engine_import_path %>::PaxValue) -> Result<Self, String> {
             <% if let InternalDefinitions::Enum(variant_definitions) = &internal_definitions { %>
                 match value {
-                    <%= engine_import_path %>::PaxValue::Enum(variant_name, values) => {
+                    <%= engine_import_path %>::PaxValue::Enum(_, variant_name, values) => {
                         match variant_name.as_str() {
                             <% for vd in variant_definitions { %>
                                 "<%= vd.variant_name %>" => {
@@ -368,6 +368,7 @@ impl <%= engine_import_path %>::api::ToPaxValue for <%= pascal_identifier %> {
                         )
                         <% } %> => {
                             <%= engine_import_path %>::PaxValue::Enum(
+                                "<%= pascal_identifier %>".to_string(),
                                 "<%= vd.variant_name %>".to_string(),
                                 vec![
                                     <% for spd in &vd.variant_fields { %>
