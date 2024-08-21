@@ -232,7 +232,7 @@ would enforce that pax_engine is a nice thin wrapper; nothing contained directly
 [ ] Auto-port selection + coordination / scanning / handshake
 
 [ ] Module cleanup pass
-    [ ] pax_kit
+    [x] pax_kit naming
             engine
                 api
                 manifest
@@ -252,55 +252,57 @@ would enforce that pax_engine is a nice thin wrapper; nothing contained directly
         pax_kit is designer plus engine
         engine is what it is (pub use * it for api forwarding) 
     
-        [x] use pax-kit in userland and in examples (start with fireworks)
-            pax-kit should not be a dependency of any crate in the monorepo, expect for pax-designer (which is a userland crate)
+    [x] use pax-kit in userland and in examples (start with fireworks)
+        pax-kit should not be a dependency of any crate in the monorepo, expect for pax-designer (which is a userland crate)
 
-            the pax-std puzzle: should we bundle pax_std inside pax_kit?  (probably?)
-            this forms a wrinkle where we link primitive instances vs. properties structs
+        the pax-std puzzle: should we bundle pax_std inside pax_kit?  (probably?)
+        this forms a wrinkle where we link primitive instances vs. properties structs
 
-            e.g.
-            ```
-            #[pax]
-            #[primitive("pax_std::core::inline_frame::InlineFrameInstance")]
-            ```
+        e.g.
+        ```
+        #[pax]
+        #[primitive("pax_std::core::inline_frame::InlineFrameInstance")]
+        ```
 
-            [is this linking necessary anymore????? can we consolidate these structs? doing this should solve the wrinkle]
-            [yet another, possibly far simpler option is to hard-code the `pax_kit::` prefix on primitives] 
+        [is this linking necessary anymore????? can we consolidate these structs? doing this should solve the wrinkle]
+        [yet another, possibly far simpler option is to hard-code the `pax_kit::` prefix on primitives] 
 
 
-        [x] codegen: deal with the hard-coded assumed root symbol (pax_engine)
+    [x] codegen: deal with the hard-coded assumed root symbol (pax_engine)
 
-            need to parameterize this symbol in order to support designer libdev (or can this be reflected automatically from pax-macro? detect module path of pax-macro itself, use that prefix for codegen)
+        need to parameterize this symbol in order to support designer libdev (or can this be reflected automatically from pax-macro? detect module path of pax-macro itself, use that prefix for codegen)
 
-            must parameterize separately, to make its way to Tera (compiletime)
+        must parameterize separately, to make its way to Tera (compiletime)
 
-            alternatively... maybe we can get away with swapping to pax_kit for now?  This seemingly only doesn't solve pax-designer running standalone, but that may be a non-goal
+        alternatively... maybe we can get away with swapping to pax_kit for now?  This seemingly only doesn't solve pax-designer running standalone, but that may be a non-goal
 
-            start here, in pax-macro/src/lib.rs: `let path = module_path!();`
+        start here, in pax-macro/src/lib.rs: `let path = module_path!();`
 
-            then find/replace/parameterize through templates (check both stpl and tera)
+        then find/replace/parameterize through templates (check both stpl and tera)
 
-            another pax-std puzzle:  pax-std depends on pax-engine, (which is reasonable, as opposed to depending on pax-kit) — but this messes with codegen,
-            when we assume pax_kit is in scope e.g. by codegenning `pax_kit::pax_engine::`...
-            in other words, pax-std needs to codegen a different prefix than userland (pax-designer probably needs to do the same)
-            one way to do this is with a macro param, something like:
-            ```
-            #[pax]
-            #[engine_import_prefix("pax_engine::")]
-            ```
-            problematically, this probably needs to be sorted / split
+        another pax-std puzzle:  pax-std depends on pax-engine, (which is reasonable, as opposed to depending on pax-kit) — but this messes with codegen,
+        when we assume pax_kit is in scope e.g. by codegenning `pax_kit::pax_engine::`...
+        in other words, pax-std needs to codegen a different prefix than userland (pax-designer probably needs to do the same)
+        one way to do this is with a macro param, something like:
+        ```
+        #[pax]
+        #[engine_import_prefix("pax_engine::")]
+        ```
+        problematically, this probably needs to be sorted / split
 
-        [ ] achieve non-designtime builds
+    [x] achieve non-designtime builds
 
-            [x] shuttle feature flags:  features=["designer"] => designtime feat + dynamic deps (pax-designer)
-                update features & optional deps to include / exclude designer
+        [x] shuttle feature flags:  features=["designer"] => designtime feat + dynamic deps (pax-designer)
+            update features & optional deps to include / exclude designer
 
-        [ ] testing
-            designtime / nondesigntime builds
-            libdev vs. in-the-wild (CLI flow)
+    [ ] update examples cargo.tomls
 
-        [ ] build times vs. runtime perf
-            balance flags; wrap inside pax_kit, manually test
+    [ ] testing
+        [ ] designtime / nondesigntime builds
+        [ ] libdev vs. in-the-wild (CLI flow)
+
+    [ ] build times vs. runtime perf
+        balance flags; wrap inside pax_kit, manually test
     
         
         
