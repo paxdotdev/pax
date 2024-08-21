@@ -110,10 +110,11 @@ impl PropertyEditor {
         let is_literal = self.is_literal.clone();
         let deps = [is_literal.untyped()];
         self.fx_text_color.replace_with(Property::computed(
-            move || match is_literal.get() {
+            move || {
+                match is_literal.get() {
                 true => Color::WHITE,
                 false => Color::rgb(207.into(), 31.into(), 201.into()),
-            },
+            }},
             &deps,
         ));
         let is_literal = self.is_literal.clone();

@@ -36,7 +36,7 @@
         bind:{{ vd.DoubleBinding.name }}
     {% endif %}
     {% if vd.EventBindingTarget %}
-        {{ vd.EventBindingTarget.token_value }}
+        {{ vd.EventBindingTarget.name }}
     {% endif %}
 {% endmacro %}
 
