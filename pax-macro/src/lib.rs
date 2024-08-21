@@ -40,7 +40,7 @@ fn pax_primitive(
     input_parsed: &DeriveInput,
     primitive_instance_import_path: String,
     is_custom_interpolatable: bool,
-    engine_import_prefix: String,
+    engine_import_path: String,
 ) -> proc_macro2::TokenStream {
     let _original_tokens = quote! { #input_parsed }.to_string();
     let pascal_identifier = input_parsed.ident.to_string();
@@ -63,7 +63,7 @@ fn pax_primitive(
         is_custom_interpolatable,
         is_root_crate: is_root_crate(),
         is_enum,
-        engine_import_prefix,
+        engine_import_path,
     }
     .render_once()
     .unwrap()
@@ -75,7 +75,7 @@ fn pax_primitive(
 fn pax_struct_only_component(
     input_parsed: &DeriveInput,
     is_custom_interpolatable: bool,
-    engine_import_prefix: String,
+    engine_import_path: String,
 ) -> proc_macro2::TokenStream {
     let pascal_identifier = input_parsed.ident.to_string();
     let is_enum = match &input_parsed.data {
@@ -96,7 +96,7 @@ fn pax_struct_only_component(
         is_root_crate: is_root_crate(),
         is_custom_interpolatable,
         is_enum,
-        engine_import_prefix,
+        engine_import_path,
     }
     .render_once()
     .unwrap()
@@ -356,7 +356,7 @@ fn pax_full_component(
     include_fix: Option<TokenStream>,
     is_custom_interpolatable: bool,
     associated_pax_file_path: Option<PathBuf>,
-    engine_import_prefix: String,
+    engine_import_path: String,
 ) -> proc_macro2::TokenStream {
     let pascal_identifier = input_parsed.ident.to_string();
     let is_enum = match &input_parsed.data {
@@ -407,7 +407,7 @@ fn pax_full_component(
         is_root_crate: is_root_crate(),
         is_custom_interpolatable,
         is_enum,
-        engine_import_prefix,
+        engine_import_path,
     }
     .render_once()
     .unwrap()
@@ -430,7 +430,7 @@ struct Config {
     file_path: Option<String>,
     inlined_contents: Option<String>,
     custom_values: Option<Vec<String>>,
-    engine_import_prefix: Option<String>,
+    engine_import_path: Option<String>,
     primitive_instance_import_path: Option<String>,
     is_primitive: bool,
     has_helpers: bool,
@@ -443,7 +443,7 @@ fn parse_config(attrs: &mut Vec<syn::Attribute>) -> Config {
         inlined_contents: None,
         custom_values: None,
         primitive_instance_import_path: None,
-        engine_import_prefix: None,
+        engine_import_path: None,
         is_primitive: false,
         has_helpers: false,
     };
@@ -462,11 +462,11 @@ fn parse_config(attrs: &mut Vec<syn::Attribute>) -> Config {
                     }
                 }
             }
-            Some(s) if s == "engine_import_prefix" => {
+            Some(s) if s == "engine_import_path" => {
                 if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
                     if let Some(nested_meta) = meta_list.nested.first() {
-                        if let syn::NestedMeta::Lit(Lit::Str(engine_import_prefix)) = nested_meta {
-                            config.engine_import_prefix = Some(engine_import_prefix.value());
+                        if let syn::NestedMeta::Lit(Lit::Str(engine_import_path)) = nested_meta {
+                            config.engine_import_path = Some(engine_import_path.value());
                             return false;
                         }
                     }
@@ -593,7 +593,7 @@ pub fn pax(
 
     let mut is_custom_interpolatable = false;
 
-    let engine_import_prefix = match config.engine_import_prefix {
+    let engine_import_path = match config.engine_import_path {
         Some(prefix) => prefix,
         None => "pax_kit::pax_engine".to_string(),
     };
@@ -636,7 +636,7 @@ pub fn pax(
             Some(include_fix),
             is_custom_interpolatable,
             associated_pax_file,
-            engine_import_prefix,
+            engine_import_path,
         )
     } else if is_pax_inlined {
         let contents = config.inlined_contents.unwrap();
@@ -648,17 +648,17 @@ pub fn pax(
             None,
             is_custom_interpolatable,
             None,
-            engine_import_prefix,
+            engine_import_path,
         )
     } else if config.is_primitive {
         pax_primitive(
             &input,
             config.primitive_instance_import_path.unwrap(),
             is_custom_interpolatable,
-            engine_import_prefix,
+            engine_import_path,
         )
     } else {
-        pax_struct_only_component(&input, is_custom_interpolatable, engine_import_prefix)
+        pax_struct_only_component(&input, is_custom_interpolatable, engine_import_path)
     };
 
     let derives: proc_macro2::TokenStream = trait_impls

@@ -5,43 +5,43 @@
     // also returns the parsed, serialized PaxManifest via stdio (println)
     #[cfg(feature = "parser")]
     pub fn main() {
-        let mut ctx = <%= engine_import_prefix %>::pax_manifest::parsing::ParsingContext::default();
+        let mut ctx = <%= engine_import_path %>::pax_manifest::parsing::ParsingContext::default();
 
-        <%= engine_import_prefix %>::api::Functions::register_all_functions();
+        <%= engine_import_path %>::api::Functions::register_all_functions();
 
-        ctx.main_component_type_id = <<%= pascal_identifier %> as <%= engine_import_prefix %>::pax_manifest::parsing::Reflectable>::get_type_id();
-        let (mut ctx, _) = <<%= pascal_identifier %> as <%= engine_import_prefix %>::pax_manifest::parsing::Reflectable>::parse_to_manifest(ctx);
+        ctx.main_component_type_id = <<%= pascal_identifier %> as <%= engine_import_path %>::pax_manifest::parsing::Reflectable>::get_type_id();
+        let (mut ctx, _) = <<%= pascal_identifier %> as <%= engine_import_path %>::pax_manifest::parsing::Reflectable>::parse_to_manifest(ctx);
 
-        let userland_manifest = <%= engine_import_prefix %>::pax_manifest::PaxManifest {
+        let userland_manifest = <%= engine_import_path %>::pax_manifest::PaxManifest {
             components: ctx.component_definitions,
             main_component_type_id: ctx.main_component_type_id,
             type_table: ctx.type_table,
             assets_dirs: ctx.assets_dirs,
-            engine_import_prefix: "<%= engine_import_prefix %>".to_string(),
+            engine_import_path: "<%= engine_import_path %>".to_string(),
         };
 
         <% if is_root_crate { %>
             #[cfg(any(feature = "designer", feature = "designtime"))]
             {
-                let mut ctx = <%= engine_import_prefix %>::pax_manifest::parsing::ParsingContext::default();
-                ctx.main_component_type_id = <%= engine_import_prefix %>::pax_manifest::TypeId::build_singleton("pax_designer::PaxDesigner", Some("PaxDesigner"));
-                let (mut ctx, _) = <pax_designer::PaxDesigner as <%= engine_import_prefix %>::pax_manifest::parsing::Reflectable>::parse_to_manifest(ctx);
+                let mut ctx = <%= engine_import_path %>::pax_manifest::parsing::ParsingContext::default();
+                ctx.main_component_type_id = <%= engine_import_path %>::pax_manifest::TypeId::build_singleton("pax_designer::PaxDesigner", Some("PaxDesigner"));
+                let (mut ctx, _) = <pax_designer::PaxDesigner as <%= engine_import_path %>::pax_manifest::parsing::Reflectable>::parse_to_manifest(ctx);
 
-                let designer_manifest = <%= engine_import_prefix %>::pax_manifest::PaxManifest {
+                let designer_manifest = <%= engine_import_path %>::pax_manifest::PaxManifest {
                     components: ctx.component_definitions,
                     main_component_type_id: ctx.main_component_type_id,
                     type_table: ctx.type_table,
                     assets_dirs: ctx.assets_dirs,
-                    engine_import_prefix: "<%= engine_import_prefix %>".to_string(),
+                    engine_import_path: "<%= engine_import_path %>".to_string(),
                 };
 
                 //Send data back to parent process by printing to stdout
                 //Note presence of second manifest when designtime (manifest for PaxDesigner)
-                println!("{}", &<%= engine_import_prefix %>::serde_json::to_string_pretty(&vec![userland_manifest, designer_manifest]).unwrap());
+                println!("{}", &<%= engine_import_path %>::serde_json::to_string_pretty(&vec![userland_manifest, designer_manifest]).unwrap());
             }
 
             #[cfg(not(any(feature = "designer", feature = "designtime")))]<% } %>
-            println!("{}", &<%= engine_import_prefix %>::serde_json::to_string_pretty(&vec![userland_manifest]).unwrap());
+            println!("{}", &<%= engine_import_path %>::serde_json::to_string_pretty(&vec![userland_manifest]).unwrap());
             std::process::exit(0);
 
     }
@@ -53,19 +53,19 @@
 
     //Platform-specific mount logic for #[main] component
     #[cfg(feature = "web")]
-    use <%= engine_import_prefix %>::wasm_bindgen::prelude::*;
+    use <%= engine_import_path %>::wasm_bindgen::prelude::*;
     #[cfg(feature = "web")]
-    use <%= engine_import_prefix %>::wasm_bindgen_futures;
+    use <%= engine_import_path %>::wasm_bindgen_futures;
     #[cfg(feature = "web")]
     #[wasm_bindgen]
     pub async fn pax_init() -> JsValue {
-        std::panic::set_hook(Box::new(<%= engine_import_prefix %>::pax_chassis_web::console_error_panic_hook::hook));
+        std::panic::set_hook(Box::new(<%= engine_import_path %>::pax_chassis_web::console_error_panic_hook::hook));
         // setup logging
         #[cfg(debug_assertions)]
-        <%= engine_import_prefix %>::pax_chassis_web::console_log::init_with_level(<%= engine_import_prefix %>::log::Level::Debug)
+        <%= engine_import_path %>::pax_chassis_web::console_log::init_with_level(<%= engine_import_path %>::log::Level::Debug)
             .expect("console_log::init_with_level initialized correctly");
         #[cfg(not(debug_assertions))]
-        <%= engine_import_prefix %>::pax_chassis_web::console_log::init_with_level(<%= engine_import_prefix %>::log::Level::Error)
+        <%= engine_import_path %>::pax_chassis_web::console_log::init_with_level(<%= engine_import_path %>::log::Level::Error)
             .expect("console_log::init_with_level initialized correctly");
 
 
@@ -74,7 +74,7 @@
         {
             let manifest = init_manifest();
             let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest);
-            JsValue::from(<%= engine_import_prefix %>::pax_chassis_web::PaxChassisWeb::new(definition_to_instance_traverser).await)
+            JsValue::from(<%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new(definition_to_instance_traverser).await)
         }
 
         #[cfg(any(feature = "designer", feature = "designtime"))]
@@ -85,19 +85,19 @@
             let designer_manifest = init_designer_manifest();
             let designer_definition_to_instance_traverser = init_definition_to_instance_traverser(designer_manifest);
 
-            JsValue::from(<%= engine_import_prefix %>::pax_chassis_web::PaxChassisWeb::new(userland_definition_to_instance_traverser, designer_definition_to_instance_traverser).await)
+            JsValue::from(<%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new(userland_definition_to_instance_traverser, designer_definition_to_instance_traverser).await)
         }
 
     }
 
     //cdylib exports
     #[cfg(feature = "web")]
-    pub use <%= engine_import_prefix %>::pax_chassis_web::*;
+    pub use <%= engine_import_path %>::pax_chassis_web::*;
 
     #[cfg(any(feature = "macos", feature="ios"))]
     #[no_mangle]
-    pub extern "C" fn pax_init() -> *mut <%= engine_import_prefix %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
-        <%= engine_import_prefix %>::pax_chassis_common::env_logger::init();
+    pub extern "C" fn pax_init() -> *mut <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
+        <%= engine_import_path %>::pax_chassis_common::env_logger::init();
 
         let manifest = init_manifest();
         let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest);
@@ -107,7 +107,7 @@
         //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
         //engine can be passed back to Swift via the C (FFI) bridge
         //This could presumably be cleaned up -- see `pax_dealloc_engine`
-        let engine: std::mem::ManuallyDrop<Box<<%= engine_import_prefix %>::pax_runtime::engine::PaxEngine>> = std::mem::ManuallyDrop::new(Box::new(<%= engine_import_prefix %>::pax_runtime::engine::PaxEngine::new(
+        let engine: std::mem::ManuallyDrop<Box<<%= engine_import_path %>::pax_runtime::engine::PaxEngine>> = std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_runtime::engine::PaxEngine::new(
             main_component_instance,
             (1.0, 1.0),
             Platform::Native,
@@ -117,7 +117,7 @@
             OS::IPhone,
         )));
 
-        let container = std::mem::ManuallyDrop::new(Box::new(<%= engine_import_prefix %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
+        let container = std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
             _engine: Box::into_raw(std::mem::ManuallyDrop::into_inner(engine)),
         }));
 
@@ -126,16 +126,16 @@
 
     //cdylib exports
     #[cfg(any(feature = "macos", feature="ios"))]
-    pub use <%= engine_import_prefix %>::pax_chassis_common::*;
+    pub use <%= engine_import_path %>::pax_chassis_common::*;
 
 <% } %>
 
 <% if !is_custom_interpolatable { %>
-    impl <%= engine_import_prefix %>::api::Interpolatable for <%= pascal_identifier %> {}
+    impl <%= engine_import_path %>::api::Interpolatable for <%= pascal_identifier %> {}
 <% } %>
 
 #[cfg(feature = "parser")]
-impl <%= engine_import_prefix %>::pax_manifest::parsing::Reflectable for <%= pascal_identifier %> {
+impl <%= engine_import_path %>::pax_manifest::parsing::Reflectable for <%= pascal_identifier %> {
 
     fn get_self_pascal_identifier() -> String {
         "<%= pascal_identifier %>".to_string()
@@ -150,14 +150,14 @@ impl <%= engine_import_prefix %>::pax_manifest::parsing::Reflectable for <%= pas
                 PASCAL_IDENTIFIER
             }
         };
-        <%= engine_import_prefix %>::pax_manifest::parsing::clean_module_path(module_path!()) + "::" + &chopped_type
+        <%= engine_import_path %>::pax_manifest::parsing::clean_module_path(module_path!()) + "::" + &chopped_type
     }
 
-    fn get_type_id() -> <%= engine_import_prefix %>::pax_manifest::TypeId {
-       <%= engine_import_prefix %>::pax_manifest::TypeId::build_singleton(&Self::get_import_path(), Some(&Self::get_self_pascal_identifier()))
+    fn get_type_id() -> <%= engine_import_path %>::pax_manifest::TypeId {
+       <%= engine_import_path %>::pax_manifest::TypeId::build_singleton(&Self::get_import_path(), Some(&Self::get_self_pascal_identifier()))
     }
 
-    fn parse_to_manifest(mut ctx: <%= engine_import_prefix %>::pax_manifest::parsing::ParsingContext) -> (<%= engine_import_prefix %>::pax_manifest::parsing::ParsingContext, Vec<<%= engine_import_prefix %>::pax_manifest::PropertyDefinition>) {
+    fn parse_to_manifest(mut ctx: <%= engine_import_path %>::pax_manifest::parsing::ParsingContext) -> (<%= engine_import_path %>::pax_manifest::parsing::ParsingContext, Vec<<%= engine_import_path %>::pax_manifest::PropertyDefinition>) {
          <% if args_full_component.as_ref().is_some() { %>
             <% if args_full_component.as_ref().unwrap().error_message.is_some() { %>
                 //Error message for main component
@@ -189,7 +189,7 @@ impl <%= engine_import_prefix %>::pax_manifest::parsing::Reflectable for <%= pas
 
 
         let self_type_id = <%= pascal_identifier %>::get_type_id();
-        let mut property_definitions : Vec<<%= engine_import_prefix %>::pax_manifest::PropertyDefinition> = vec![];
+        let mut property_definitions : Vec<<%= engine_import_path %>::pax_manifest::PropertyDefinition> = vec![];
 
         // Populate `PropertyDefinition`s
         <% if let InternalDefinitions::Struct(static_property_definitions) = &internal_definitions { %>
@@ -202,16 +202,16 @@ impl <%= engine_import_prefix %>::pax_manifest::parsing::Reflectable for <%= pas
                 <% for scoped_resolvable_type in &spd.scoped_resolvable_types { %>
 
                     //Parse each scoped resolvable type, but no need to track the child property_definitions like we did for the root scoped resolvable type
-                    < <%= scoped_resolvable_type %> as <%= engine_import_prefix %>::api::HelperFunctions>::register_all_functions();
+                    < <%= scoped_resolvable_type %> as <%= engine_import_path %>::api::HelperFunctions>::register_all_functions();
                     let (mut ctx, _) = <%= scoped_resolvable_type %>::parse_to_manifest(ctx);
                 <% } %>
 
                 let property_type_id = <%= spd.root_scoped_resolvable_type %>::get_type_id();
 
-                let mut flags = <%= engine_import_prefix %>::pax_manifest::PropertyDefinitionFlags::default();
+                let mut flags = <%= engine_import_path %>::pax_manifest::PropertyDefinitionFlags::default();
                 flags.is_property_wrapped = <%= spd.is_property_wrapped %>;
                 flags.is_enum = <%= spd.is_enum %>;
-                property_definitions.push(<%= engine_import_prefix %>::pax_manifest::PropertyDefinition {
+                property_definitions.push(<%= engine_import_path %>::pax_manifest::PropertyDefinition {
                     name: "<%= spd.field_name %>".to_string(),
                     type_id: property_type_id,
                     flags,
@@ -251,7 +251,7 @@ impl <%= engine_import_prefix %>::pax_manifest::parsing::Reflectable for <%= pas
                 let PASCAL_IDENTIFIER = "<%= pascal_identifier %>";
                 let import_path = <%= pascal_identifier %>::get_import_path();
 
-                let (mut ctx, self_type_definition) =  <%= engine_import_prefix %>::pax_manifest::parsing::assemble_type_definition(
+                let (mut ctx, self_type_definition) =  <%= engine_import_path %>::pax_manifest::parsing::assemble_type_definition(
                     ctx,
                     property_definitions.clone(),
                     None,
@@ -267,27 +267,27 @@ impl <%= engine_import_prefix %>::pax_manifest::parsing::Reflectable for <%= pas
 
                     let template_map = ctx.template_map.clone();
                     let (mut ctx, comp_def) =
-                        <%= engine_import_prefix %>::pax_manifest::parsing::assemble_component_definition(
+                        <%= engine_import_path %>::pax_manifest::parsing::assemble_component_definition(
                             ctx,
                             &raw_pax,
                             <%= args_full_component.as_ref().unwrap().is_main_component %>,
                             template_map,
-                            &<%= engine_import_prefix %>::pax_manifest::parsing::clean_module_path(module_path!()),
+                            &<%= engine_import_path %>::pax_manifest::parsing::clean_module_path(module_path!()),
                             self_type_id.clone(),
                             &component_source_file_path,
                         );
                 <% } %>
                 <% if args_struct_only_component.as_ref().is_some() { %>
                     let (mut ctx, comp_def) =
-                        <%= engine_import_prefix %>::pax_manifest::parsing::assemble_struct_only_component_definition(
+                        <%= engine_import_path %>::pax_manifest::parsing::assemble_struct_only_component_definition(
                             ctx,
-                            &<%= engine_import_prefix %>::pax_manifest::parsing::clean_module_path(module_path!()),
+                            &<%= engine_import_path %>::pax_manifest::parsing::clean_module_path(module_path!()),
                             self_type_id.clone(),
                         );
                 <% } %>
                 <% if args_primitive.as_ref().is_some() { %>
-                    let comp_def = <%= engine_import_prefix %>::pax_manifest::parsing::assemble_primitive_definition(
-                        &<%= engine_import_prefix %>::pax_manifest::parsing::clean_module_path(module_path!()),
+                    let comp_def = <%= engine_import_path %>::pax_manifest::parsing::assemble_primitive_definition(
+                        &<%= engine_import_path %>::pax_manifest::parsing::clean_module_path(module_path!()),
                         "<%=  args_primitive.as_ref().unwrap().primitive_instance_import_path  %>".to_string(),
                         self_type_id.clone(),
                     );
@@ -304,11 +304,11 @@ impl <%= engine_import_prefix %>::pax_manifest::parsing::Reflectable for <%= pas
 
 }
 
-impl <%= engine_import_prefix %>::api::CoercionRules for <%= pascal_identifier %> {
-    fn try_coerce(value: <%= engine_import_prefix %>::PaxValue) -> Result<Self, String> {
+impl <%= engine_import_path %>::api::CoercionRules for <%= pascal_identifier %> {
+    fn try_coerce(value: <%= engine_import_path %>::PaxValue) -> Result<Self, String> {
             <% if let InternalDefinitions::Enum(variant_definitions) = &internal_definitions { %>
                 match value {
-                    <%= engine_import_prefix %>::PaxValue::Enum(variant_name, values) => {
+                    <%= engine_import_path %>::PaxValue::Enum(variant_name, values) => {
                         match variant_name.as_str() {
                             <% for vd in variant_definitions { %>
                                 "<%= vd.variant_name %>" => {
@@ -317,7 +317,7 @@ impl <%= engine_import_prefix %>::api::CoercionRules for <%= pascal_identifier %
                                     <% if vd.variant_fields.len() > 0 { %>
                                     (
                                         <% for spd in &vd.variant_fields { %>
-                                            <<%=spd.root_scoped_resolvable_type%> as <%= engine_import_prefix %>::api::CoercionRules>::try_coerce(values.next().unwrap().clone())?,
+                                            <<%=spd.root_scoped_resolvable_type%> as <%= engine_import_path %>::api::CoercionRules>::try_coerce(values.next().unwrap().clone())?,
                                         <% } %>
                                     )
                                     <% } %>
@@ -331,13 +331,13 @@ impl <%= engine_import_prefix %>::api::CoercionRules for <%= pascal_identifier %
                 }
             <% } else if let InternalDefinitions::Struct(static_property_definitions) = &internal_definitions { %>
                 match value {
-                    <%= engine_import_prefix %>::PaxValue::Object(map) => {
+                    <%= engine_import_path %>::PaxValue::Object(map) => {
                         let mut map = map;
                         let mut ret = Self::default();
                         <% for spd in static_property_definitions { %>
                             // check if the map contains the field
                             if let Some(value) = map.get("<%= spd.field_name %>") {
-                                let value = <<%=spd.root_scoped_resolvable_type%> as <%= engine_import_prefix %>::api::CoercionRules>::try_coerce(value.clone())?;
+                                let value = <<%=spd.root_scoped_resolvable_type%> as <%= engine_import_path %>::api::CoercionRules>::try_coerce(value.clone())?;
                                 // if property wrapped set it to Property::new(value)
                                 <% if spd.is_property_wrapped { %>
                                     ret.<%= spd.field_name %> = Property::new(value);
@@ -354,8 +354,8 @@ impl <%= engine_import_prefix %>::api::CoercionRules for <%= pascal_identifier %
     }
 }
 
-impl <%= engine_import_prefix %>::api::ToPaxValue for <%= pascal_identifier %> {
-    fn to_pax_value(self) -> <%= engine_import_prefix %>::PaxValue {
+impl <%= engine_import_path %>::api::ToPaxValue for <%= pascal_identifier %> {
+    fn to_pax_value(self) -> <%= engine_import_path %>::PaxValue {
          <% if let InternalDefinitions::Enum(variant_definitions) = &internal_definitions { %>
                 match self {
                     <% for vd in variant_definitions { %>
@@ -367,11 +367,11 @@ impl <%= engine_import_prefix %>::api::ToPaxValue for <%= pascal_identifier %> {
                             <% } %>
                         )
                         <% } %> => {
-                            <%= engine_import_prefix %>::PaxValue::Enum(
+                            <%= engine_import_path %>::PaxValue::Enum(
                                 "<%= vd.variant_name %>".to_string(),
                                 vec![
                                     <% for spd in &vd.variant_fields { %>
-                                        <<%=spd.root_scoped_resolvable_type%> as <%= engine_import_prefix %>::api::ToPaxValue>::to_pax_value(<%= spd.field_name %>),
+                                        <<%=spd.root_scoped_resolvable_type%> as <%= engine_import_path %>::api::ToPaxValue>::to_pax_value(<%= spd.field_name %>),
                                     <% } %>
                                 ].into_iter().collect()
                             )
@@ -380,13 +380,13 @@ impl <%= engine_import_prefix %>::api::ToPaxValue for <%= pascal_identifier %> {
                 }
 
             <% } else if let InternalDefinitions::Struct(static_property_definitions) = &internal_definitions { %>
-                <%= engine_import_prefix %>::PaxValue::Object(
+                <%= engine_import_path %>::PaxValue::Object(
                     vec![
                         <% for spd in static_property_definitions { %>
                             <% if spd.is_property_wrapped { %>
-                                ("<%= spd.field_name %>".to_string(), <<%=spd.root_scoped_resolvable_type%> as <%= engine_import_prefix %>::api::ToPaxValue>::to_pax_value(self.<%= spd.field_name %>.get())),
+                                ("<%= spd.field_name %>".to_string(), <<%=spd.root_scoped_resolvable_type%> as <%= engine_import_path %>::api::ToPaxValue>::to_pax_value(self.<%= spd.field_name %>.get())),
                             <% } else { %>
-                                ("<%= spd.field_name %>".to_string(), <<%=spd.root_scoped_resolvable_type%> as <%= engine_import_prefix %>::api::ToPaxValue>::to_pax_value(self.<%= spd.field_name %>)),
+                                ("<%= spd.field_name %>".to_string(), <<%=spd.root_scoped_resolvable_type%> as <%= engine_import_path %>::api::ToPaxValue>::to_pax_value(self.<%= spd.field_name %>)),
                             <% } %>
                         <% } %>
                     ].into_iter().collect()

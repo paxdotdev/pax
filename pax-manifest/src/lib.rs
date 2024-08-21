@@ -32,7 +32,7 @@ pub struct PaxManifest {
     pub assets_dirs: Vec<String>,
     /// Compiler metadata: the import prefix for the engine module, `pax_kit::pax_engine` by default
     /// but parameterizable for integrating with pax_engine directly, e.g. pax_std and pax_designer
-    pub engine_import_prefix: String,
+    pub engine_import_path: String,
 }
 
 impl PaxManifest {

@@ -39,7 +39,7 @@ pub fn generate_cartridge_partial_rs(
             } else {
                 "{}".to_string()
             },
-            engine_import_prefix: userland_manifest.engine_import_prefix.clone(),
+            engine_import_path: userland_manifest.engine_import_path.clone(),
         },
     );
 

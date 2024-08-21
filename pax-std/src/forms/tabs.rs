@@ -5,7 +5,7 @@ use std::cmp::Ordering;
 use std::iter;
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[inlined(
     <Group x=50% height=30px width={100%-4px} @click=on_click>
     	for (name, i) in self.names_filled {

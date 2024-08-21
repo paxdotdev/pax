@@ -17,7 +17,7 @@ use crate::common::patch_if_needed;
 /// An Image (decoded by chassis), drawn to the bounds specified
 /// by `size`, transformed by `transform`
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[primitive("pax_std::core::image::ImageInstance")]
 pub struct Image {
     pub source: Property<ImageSource>,
@@ -25,7 +25,7 @@ pub struct Image {
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 pub enum ImageSource {
     #[default]
     Empty,
@@ -214,7 +214,7 @@ impl InstanceNode for ImageInstance {
 
 /// Image fit/layout options
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 pub enum ImageFit {
     /// Scale the image to perfectly fit within it's bounds vertically
     FillVertical,

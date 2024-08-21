@@ -1,53 +1,53 @@
 {% import "macros.tera" as macros %}
 
-use {{ engine_import_prefix }}::api as pax_runtime_api;
-use {{ engine_import_prefix }}::pax_runtime::InstanceNode;
-use {{ engine_import_prefix }}::pax_runtime::DefinitionToInstanceTraverser;
-use {{ engine_import_prefix }}::api::pax_value::ToFromPaxAny;
-use {{ engine_import_prefix }}::pax_lang::Computable;
-use {{ engine_import_prefix }}::pax_lang::DependencyCollector;
+use {{ engine_import_path }}::api as pax_runtime_api;
+use {{ engine_import_path }}::pax_runtime::InstanceNode;
+use {{ engine_import_path }}::pax_runtime::DefinitionToInstanceTraverser;
+use {{ engine_import_path }}::api::pax_value::ToFromPaxAny;
+use {{ engine_import_path }}::pax_lang::Computable;
+use {{ engine_import_path }}::pax_lang::DependencyCollector;
 use std::any::Any;
 use std::marker::PhantomData;
 use std::cell::Cell as CellStd;
 
 use_RefCell!();
 
-fn init_cartridge() -> Box<dyn {{ engine_import_prefix }}::pax_runtime::cartridge::PaxCartridge> {
+fn init_cartridge() -> Box<dyn {{ engine_import_path }}::pax_runtime::cartridge::PaxCartridge> {
     Box::new({{ cartridge_struct_id }} {})
 }
 
 fn init_manifest() -> pax_manifest::PaxManifest {
     let userland_manifest_json = r#######"{{userland_manifest_json}}"#######;
-    let manifest : {{ engine_import_prefix }}::pax_manifest::PaxManifest = {{ engine_import_prefix }}::serde_json::from_str(userland_manifest_json).unwrap();
+    let manifest : {{ engine_import_path }}::pax_manifest::PaxManifest = {{ engine_import_path }}::serde_json::from_str(userland_manifest_json).unwrap();
     manifest
 }
 
 #[cfg(any(feature = "designer", feature = "designtime"))]
-fn init_designer_manifest() -> {{ engine_import_prefix }}::pax_manifest::PaxManifest {
+fn init_designer_manifest() -> {{ engine_import_path }}::pax_manifest::PaxManifest {
     let designer_manifest_json = r#######"{{designer_manifest_json}}"#######;
-    let designer_manifest : {{ engine_import_prefix }}::pax_manifest::PaxManifest = {{ engine_import_prefix }}::serde_json::from_str(designer_manifest_json).unwrap();
+    let designer_manifest : {{ engine_import_path }}::pax_manifest::PaxManifest = {{ engine_import_path }}::serde_json::from_str(designer_manifest_json).unwrap();
     designer_manifest
 }
 
-fn init_definition_to_instance_traverser(initial_manifest: pax_manifest::PaxManifest) -> Box<dyn {{ engine_import_prefix }}::pax_runtime::cartridge::DefinitionToInstanceTraverser> {
+fn init_definition_to_instance_traverser(initial_manifest: pax_manifest::PaxManifest) -> Box<dyn {{ engine_import_path }}::pax_runtime::cartridge::DefinitionToInstanceTraverser> {
     Box::new({{ definition_to_instance_traverser_struct_id }}::new(initial_manifest))
 }
 
 pub struct {{ cartridge_struct_id }} {}
 
-impl {{ engine_import_prefix }}::pax_runtime::cartridge::PaxCartridge for {{ cartridge_struct_id }} {
+impl {{ engine_import_path }}::pax_runtime::cartridge::PaxCartridge for {{ cartridge_struct_id }} {
 }
 {% for c in components -%}
-    {{ macros::render_component_factory(component=c, engine_import_prefix=engine_import_prefix) }}
+    {{ macros::render_component_factory(component=c, engine_import_path=engine_import_path) }}
 {%- endfor %}
 
 trait TypeFactory {
     type Output: Default + Clone;
 
-    fn build_type(&self, args: &{{ engine_import_prefix }}::pax_manifest::LiteralBlockDefinition, stack_frame: std::rc::Rc<{{ engine_import_prefix }}::pax_runtime::RuntimePropertiesStackFrame>) -> Self::Output;
+    fn build_type(&self, args: &{{ engine_import_path }}::pax_manifest::LiteralBlockDefinition, stack_frame: std::rc::Rc<{{ engine_import_path }}::pax_runtime::RuntimePropertiesStackFrame>) -> Self::Output;
 }
 {% for key, value in type_table -%}
-    {{ macros::render_type_factory(type_table=type_table, active_type=value, engine_import_prefix=engine_import_prefix) }}
+    {{ macros::render_type_factory(type_table=type_table, active_type=value, engine_import_path=engine_import_path) }}
 {%- endfor %}
 
 
@@ -59,22 +59,22 @@ pub fn register_helper_functions() {
 
 pub struct {{ definition_to_instance_traverser_struct_id }} {
     #[cfg(not(any(feature = "designer", feature = "designtime")))]
-    manifest: {{ engine_import_prefix }}::pax_manifest::PaxManifest,
+    manifest: {{ engine_import_path }}::pax_manifest::PaxManifest,
     #[cfg(any(feature = "designer", feature = "designtime"))]
-    designtime_manager: std::rc::Rc<RefCell<{{ engine_import_prefix }}::pax_designtime::DesigntimeManager>>,
+    designtime_manager: std::rc::Rc<RefCell<{{ engine_import_path }}::pax_designtime::DesigntimeManager>>,
 }
 
-impl {{ engine_import_prefix }}::pax_runtime::DefinitionToInstanceTraverser for {{ definition_to_instance_traverser_struct_id }} {
+impl {{ engine_import_path }}::pax_runtime::DefinitionToInstanceTraverser for {{ definition_to_instance_traverser_struct_id }} {
 
-    fn get_component_factory(&self, type_id: &{{ engine_import_prefix }}::pax_manifest::TypeId) -> Option<Box<dyn {{ engine_import_prefix }}::pax_runtime::cartridge::ComponentFactory>> {
+    fn get_component_factory(&self, type_id: &{{ engine_import_path }}::pax_manifest::TypeId) -> Option<Box<dyn {{ engine_import_path }}::pax_runtime::cartridge::ComponentFactory>> {
         if type_id.is_blank_component() {
-            return Some(Box::new(BlankComponentFactory{}) as Box<dyn {{ engine_import_prefix }}::pax_runtime::ComponentFactory>);
+            return Some(Box::new(BlankComponentFactory{}) as Box<dyn {{ engine_import_path }}::pax_runtime::ComponentFactory>);
         }
 
         match type_id.get_unique_identifier().as_str() {
             {% for component in components %}
             "{{component.type_id._type_id}}" => {
-                Some(Box::new({{component.pascal_identifier}}Factory{}) as Box<dyn {{ engine_import_prefix }}::pax_runtime::ComponentFactory>)
+                Some(Box::new({{component.pascal_identifier}}Factory{}) as Box<dyn {{ engine_import_path }}::pax_runtime::ComponentFactory>)
             },
             {% endfor %}
             _ => None
@@ -91,7 +91,7 @@ impl {{ engine_import_prefix }}::pax_runtime::DefinitionToInstanceTraverser for 
     #[cfg(any(feature = "designer", feature = "designtime"))]
     fn new(manifest: pax_manifest::PaxManifest) -> Self {
         register_helper_functions();
-        let designtime_manager = std::rc::Rc::new(RefCell::new({{ engine_import_prefix }}::pax_designtime::DesigntimeManager::new(manifest)));
+        let designtime_manager = std::rc::Rc::new(RefCell::new({{ engine_import_path }}::pax_designtime::DesigntimeManager::new(manifest)));
         Self {
             designtime_manager,
         }
@@ -109,7 +109,7 @@ impl {{ engine_import_prefix }}::pax_runtime::DefinitionToInstanceTraverser for 
     }
 
     #[cfg(any(feature = "designer", feature = "designtime"))]
-    fn get_designtime_manager(&self, project_query: String) -> std::option::Option<std::rc::Rc<RefCell<{{ engine_import_prefix }}::pax_designtime::DesigntimeManager>>> {
+    fn get_designtime_manager(&self, project_query: String) -> std::option::Option<std::rc::Rc<RefCell<{{ engine_import_path }}::pax_designtime::DesigntimeManager>>> {
         borrow_mut!(self.designtime_manager).set_project(project_query);
         Some(self.designtime_manager.clone())
     }

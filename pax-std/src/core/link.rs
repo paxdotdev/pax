@@ -4,7 +4,7 @@ use pax_engine::*;
 use pax_runtime::api::NodeContext;
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[inlined(
     for i in 0..self._slot_children {
         slot(i)
@@ -23,7 +23,7 @@ pub struct Link {
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 pub enum Target {
     #[default]
     Current,

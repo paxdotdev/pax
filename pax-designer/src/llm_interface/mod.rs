@@ -10,7 +10,7 @@ use crate::model::{
     input::InputEvent,
 };
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[file("llm_interface/mod.pax")]
 pub struct LLMInterface {
     pub visible: Property<bool>,

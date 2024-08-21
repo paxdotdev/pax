@@ -17,7 +17,7 @@ use crate::common::patch_if_needed;
 
 /// A platform-native dropdown list
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[primitive("pax_std::forms::dropdown::DropdownInstance")]
 #[custom(Default)]
 pub struct Dropdown {

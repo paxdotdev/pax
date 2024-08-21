@@ -13,7 +13,7 @@ use component_library_item::{ComponentLibraryItem, ComponentLibraryItemData};
 use pax_std::*;
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[file("controls/file_and_component_picker/mod.pax")]
 pub struct FileAndComponentPicker {
     pub library_active: Property<bool>,

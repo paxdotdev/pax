@@ -32,7 +32,7 @@ use outline::PathOutline;
 use wireframe_editor::WireframeEditor;
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[file("glass/mod.pax")]
 pub struct Glass {
     pub tool_visual: Property<ToolVisualizationState>,
@@ -341,7 +341,7 @@ impl Action for SetEditingComponent {
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 pub struct ToolVisualizationState {
     pub rect_tool: RectTool,
     pub outline: Vec<PathElement>,
@@ -349,7 +349,7 @@ pub struct ToolVisualizationState {
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 pub struct SnapInfo {
     pub vertical: Vec<SnapLine>,
     pub horizontal: Vec<SnapLine>,
@@ -357,14 +357,14 @@ pub struct SnapInfo {
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 pub struct SnapLine {
     pub line: f64,
     pub color: Color,
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[custom(Default)]
 pub struct RectTool {
     pub x: Size,

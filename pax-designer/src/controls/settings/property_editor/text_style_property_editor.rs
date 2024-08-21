@@ -14,7 +14,7 @@ use crate::model::action::orm::SetNodeLayoutProperties;
 use super::PropertyEditorData;
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[file("controls/settings/property_editor/text_style_property_editor.pax")]
 pub struct TextStylePropertyEditor {
     pub data: Property<PropertyEditorData>,

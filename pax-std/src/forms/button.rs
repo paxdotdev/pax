@@ -15,7 +15,7 @@ use crate::common::patch_if_needed;
 use crate::TextStyle;
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[primitive("pax_std::forms::button::ButtonInstance")]
 #[custom(Default)]
 pub struct Button {

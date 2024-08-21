@@ -44,7 +44,7 @@ pub struct TemplateArgsCodegenCartridgeSnippet {
     pub designer_manifest_json: String,
 
     /// Customizable import path for pax_engine, for codegen
-    pub engine_import_prefix: String,
+    pub engine_import_path: String,
 }
 
 #[allow(unused)]

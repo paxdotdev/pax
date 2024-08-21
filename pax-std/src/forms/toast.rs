@@ -9,7 +9,7 @@ use std::iter;
 const IN_OUT_TIME: u64 = 10;
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[inlined(
     if self.shown {
         <Group x=100% y={y_pos} width=400px height={height}>
