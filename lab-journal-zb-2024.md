@@ -292,7 +292,7 @@ would enforce that pax_engine is a nice thin wrapper; nothing contained directly
 
         [ ] achieve non-designtime builds
 
-            [ ] shuttle feature flags:  features=["designer"] => designtime feat + dynamic deps (pax-designer)
+            [x] shuttle feature flags:  features=["designer"] => designtime feat + dynamic deps (pax-designer)
                 update features & optional deps to include / exclude designer
 
         [ ] testing
