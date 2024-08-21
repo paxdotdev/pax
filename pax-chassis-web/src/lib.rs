@@ -37,11 +37,11 @@ use pax_runtime::api::{
 };
 use serde_json;
 
-#[cfg(feature = "designtime")]
+#[cfg(any(feature = "designtime", feature = "designer"))]
 use {pax_designtime::orm::ReloadType, pax_designtime::DesigntimeManager};
 
 const USERLAND_COMPONENT_ROOT: &str = "USERLAND_COMPONENT_ROOT";
-#[cfg(feature = "designtime")]
+#[cfg(any(feature = "designtime", feature = "designer"))]
 const DESIGNER_COMPONENT_ROOT: &str = "DESIGNER_COMPONENT_ROOT";
 
 #[wasm_bindgen]
@@ -53,12 +53,12 @@ pub fn wasm_memory() -> JsValue {
 pub struct PaxChassisWeb {
     drawing_contexts: Renderer<WebRenderContext<'static>>,
     engine: Rc<RefCell<PaxEngine>>,
-    #[cfg(feature = "designtime")]
+    #[cfg(any(feature = "designtime", feature = "designer"))]
     userland_definition_to_instance_traverser:
         Box<dyn pax_runtime::cartridge::DefinitionToInstanceTraverser>,
-    #[cfg(feature = "designtime")]
+    #[cfg(any(feature = "designtime", feature = "designer"))]
     designtime_manager: Rc<RefCell<DesigntimeManager>>,
-    #[cfg(feature = "designtime")]
+    #[cfg(any(feature = "designtime", feature = "designer"))]
     last_manifest_version_rendered: usize,
 }
 
@@ -71,7 +71,7 @@ pub struct InterruptResult {
 //                  the second for FFI-exposed functions
 
 impl PaxChassisWeb {
-    #[cfg(feature = "designtime")]
+    #[cfg(any(feature = "designtime", feature = "designer"))]
     pub async fn new(
         userland_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
         designer_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
@@ -109,7 +109,7 @@ impl PaxChassisWeb {
         }
     }
 
-    #[cfg(not(feature = "designtime"))]
+    #[cfg(not(any(feature = "designtime", feature = "designer")))]
     pub async fn new(
         definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
@@ -696,7 +696,7 @@ impl PaxChassisWeb {
         }
     }
 
-    #[cfg(feature = "designtime")]
+    #[cfg(any(feature = "designtime", feature = "designer"))]
     pub fn update_userland_component(&mut self) {
         let current_manifest_version = borrow!(self.designtime_manager).get_manifest_version();
         let mut reload_queue = borrow_mut!(self.designtime_manager).take_reload_queue();
@@ -740,21 +740,21 @@ impl PaxChassisWeb {
         }
     }
 
-    #[cfg(feature = "designtime")]
+    #[cfg(any(feature = "designtime", feature = "designer"))]
     pub fn handle_recv_designtime(&mut self) {
         borrow_mut!(self.designtime_manager)
             .handle_recv()
             .expect("couldn't handle recv");
     }
 
-    #[cfg(feature = "designtime")]
+    #[cfg(any(feature = "designtime", feature = "designer"))]
     pub fn designtime_tick(&mut self) {
         self.handle_recv_designtime();
         self.update_userland_component();
     }
 
     pub fn tick(&mut self) -> MemorySlice {
-        #[cfg(feature = "designtime")]
+        #[cfg(any(feature = "designtime", feature = "designer"))]
         self.designtime_tick();
 
         let message_queue = borrow_mut!(self.engine).tick();

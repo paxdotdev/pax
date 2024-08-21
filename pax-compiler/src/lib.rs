@@ -401,7 +401,7 @@ pub fn run_parser_binary(
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
-    if ! should_run_designer {
+    if should_run_designer {
          cmd.arg("--features").arg("designer");
     }
 
