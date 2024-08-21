@@ -19,6 +19,7 @@ pax-chassis-web = {version = "0.23.0", path="../pax-chassis-web", optional=true 
 pax-chassis-macos = {version = "0.23.0", path="../pax-chassis-macos", optional=true }
 pax-chassis-ios = {version = "0.23.0", path="../pax-chassis-ios", optional=true }
 pax-chassis-common = {version = "0.23.0", path="../pax-chassis-common", optional=true }
+pax-designtime = {version = "0.23.0", path = "../pax-designtime", optional=true}
 console_log = {version = "1.0.0", optional = true }
 console_error_panic_hook = { version = "0.1.6", optional = true }
 serde_json = {version = "1.0.95"}
@@ -27,7 +28,7 @@ wasm-bindgen-futures = {version = "0.4.42", optional=true}
 log = "0.4.20"
 
 [features]
-designtime = ["pax-runtime/designtime", "pax-chassis-web?/designtime", "pax-chassis-macos?/designtime", "pax-chassis-ios?/designtime", "pax-macro/designtime"]
+designtime = ["dep:pax-designtime", "pax-runtime/designtime", "pax-chassis-web?/designtime", "pax-chassis-macos?/designtime", "pax-chassis-ios?/designtime", "pax-macro/designtime"]
 web = ["dep:pax-chassis-web", "dep:wasm-bindgen", "dep:wasm-bindgen-futures"]
 macos = ["dep:pax-chassis-macos", "dep:pax-chassis-common"]
 ios = ["dep:pax-chassis-ios", "dep:pax-chassis-common"]

@@ -18,6 +18,9 @@ pub use pax_runtime::layout;
 pub use pax_runtime::rendering;
 pub use pax_runtime::Slot;
 
+#[cfg(feature="designtime")]
+pub use pax_designtime;
+
 #[cfg(feature = "web")]
 pub use {pax_chassis_web, wasm_bindgen, wasm_bindgen_futures};
 
