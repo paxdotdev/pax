@@ -3,12 +3,10 @@
 pub mod path_animation;
 use path_animation::PathAnimation;
 
-use pax_engine::api::*;
-use pax_engine::*;
-use pax_std::*;
+use pax_kit::*;
 
-use pax_engine::math::Generic;
-use pax_engine::math::Point2;
+use pax_kit::pax_engine::math::Generic;
+use pax_kit::pax_engine::math::Point2;
 
 #[pax]
 #[main]

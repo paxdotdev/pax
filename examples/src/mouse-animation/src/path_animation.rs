@@ -1,12 +1,10 @@
 #![allow(unused_imports)]
 
-use pax_engine::api::*;
-use pax_engine::*;
-use pax_std::*;
+use pax_kit::*;
 
 use ::core::f64::consts::PI;
-use pax_engine::math::Generic;
-use pax_engine::math::Point2;
+use pax_kit::pax_engine::math::Generic;
+use pax_kit::pax_engine::math::Point2;
 
 #[pax]
 #[custom(Default)]
