@@ -19,7 +19,3 @@ macos = ["pax-engine/macos"]
 [profile.release]
 lto = true
 opt-level = "z"
-
-[profile.dev]
-debug = false
-opt-level = 1

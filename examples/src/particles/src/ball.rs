@@ -1,7 +1,5 @@
-use pax_engine::api::*;
-use pax_engine::*;
+use pax_kit::*;
 
-use pax_std::*;
 use rand::random;
 
 #[pax]
