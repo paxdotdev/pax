@@ -960,58 +960,8 @@ pub struct Timeline {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Layer {
     Native,
-    Scroller,
     Canvas,
     DontCare,
-}
-
-/// Captures information about z-index during render node traversal
-/// Used for generating chassis side rendering architecture
-#[derive(Debug, Clone)]
-pub struct OcclusionLayerGen {
-    canvas_index: u32,
-    layer: Layer,
-    #[allow(dead_code)]
-    parent_scroller: Option<Vec<u32>>,
-}
-
-impl OcclusionLayerGen {
-    pub fn new(scroller_id: Option<Vec<u32>>) -> Self {
-        OcclusionLayerGen {
-            canvas_index: 0,
-            layer: Layer::Canvas,
-            parent_scroller: scroller_id,
-        }
-    }
-
-    pub fn get_level(&mut self) -> u32 {
-        self.canvas_index
-    }
-
-    pub fn get_current_layer(&mut self) -> Layer {
-        self.layer.clone()
-    }
-    pub fn update_z_index(&mut self, layer: Layer) {
-        match layer {
-            Layer::DontCare => {}
-            _ => {
-                if self.layer != layer {
-                    if layer == Layer::Canvas || layer == Layer::Scroller {
-                        self.canvas_index += 1;
-                    }
-                }
-                self.layer = layer.clone();
-            }
-        }
-    }
-
-    pub fn assemble_canvas_id(scroller_id: Option<Vec<u32>>, z_index: u32) -> String {
-        if let Some(id) = scroller_id {
-            format!("{:?}_{}", id, z_index)
-        } else {
-            format!("{}", z_index)
-        }
-    }
 }
 
 /// Raw Percent type, which we use for serialization and dynamic traversal.  At the time
