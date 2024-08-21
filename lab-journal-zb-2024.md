@@ -295,19 +295,49 @@ would enforce that pax_engine is a nice thin wrapper; nothing contained directly
         [x] shuttle feature flags:  features=["designer"] => designtime feat + dynamic deps (pax-designer)
             update features & optional deps to include / exclude designer
 
-    [ ] update examples cargo.tomls
+    [x] update examples cargo.tomls
+
+    [ ] fix pax-cli build x {force non-designer}
 
     [ ] testing
-        [ ] designtime / nondesigntime builds
+        [x] designtime / nondesigntime builds
         [ ] libdev vs. in-the-wild (CLI flow)
 
     [ ] build times vs. runtime perf
         balance flags; wrap inside pax_kit, manually test
     
-        
-        
-        
 
+Testing build time of spacegame using:
+`cargo clean && time ./pax run`
+
+
+Run 1: debug profile (debug = false) on pax-kit
+
+./pax run  183.49s user 21.86s system 247% cpu 1:22.93 total
+
+Run 2: package."*" debug profile (debug = false) on spacegame
+
+./pax run  73.12s user 12.47s system 130% cpu 1:05.45 total
+
+Run 3: no debug profiles again:
+
+./pax run  163.10s user 18.70s system 238% cpu 1:16.15 total
+
+Run 4: no debug profiles; remove cfg! check for --release flag in pax-compiler:
+
+./pax run  140.68s user 16.38s system 251% cpu 1:02.57 total
+        
+Run 5: don't pass --dev in for wasm-pack
+
+./pax run  338.04s user 19.93s system 299% cpu 1:59.66 total
+
+Run 6: no changes
+
+./pax run  340.34s user 20.21s system 309% cpu 1:56.60 total
+
+Run 7: set profile.dev => debug = false in pax-lang only
+
+./pax run  331.71s user 19.82s system 297% cpu 1:58.32 total
 
 
 
