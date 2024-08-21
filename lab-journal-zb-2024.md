@@ -232,7 +232,7 @@ would enforce that pax_engine is a nice thin wrapper; nothing contained directly
 [ ] Auto-port selection + coordination / scanning / handshake
 
 [ ] Module cleanup pass
-    [ ] pax_main
+    [ ] pax_kit
             engine
                 api
                 manifest
@@ -268,7 +268,7 @@ would enforce that pax_engine is a nice thin wrapper; nothing contained directly
             [yet another, possibly far simpler option is to hard-code the `pax_kit::` prefix on primitives] 
 
 
-        [ ] codegen: deal with the hard-coded assumed root symbol (pax_engine)
+        [x] codegen: deal with the hard-coded assumed root symbol (pax_engine)
 
             need to parameterize this symbol in order to support designer libdev (or can this be reflected automatically from pax-macro? detect module path of pax-macro itself, use that prefix for codegen)
 
