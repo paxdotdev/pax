@@ -24,4 +24,4 @@ serde_json = {version="1.0.95", optional = true}
 
 [features]
 parser = ["dep:serde_json"]
-designtime = ["pax-engine/designtime"]
+designtime = ["pax-engine/designtime", "pax-runtime/designtime"]

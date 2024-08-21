@@ -22,7 +22,7 @@ fn init_manifest() -> pax_manifest::PaxManifest {
     manifest
 }
 
-#[cfg(feature = "designtime")]
+#[cfg(any(feature = "designer", feature = "designtime"))]
 fn init_designer_manifest() -> {{ engine_import_prefix }}::pax_manifest::PaxManifest {
     let designer_manifest_json = r#######"{{designer_manifest_json}}"#######;
     let designer_manifest : {{ engine_import_prefix }}::pax_manifest::PaxManifest = {{ engine_import_prefix }}::serde_json::from_str(designer_manifest_json).unwrap();
@@ -43,7 +43,7 @@ impl {{ engine_import_prefix }}::pax_runtime::cartridge::PaxCartridge for {{ car
 
 trait TypeFactory {
     type Output: Default + Clone;
-    
+
     fn build_type(&self, args: &{{ engine_import_prefix }}::pax_manifest::LiteralBlockDefinition, stack_frame: std::rc::Rc<{{ engine_import_prefix }}::pax_runtime::RuntimePropertiesStackFrame>) -> Self::Output;
 }
 {% for key, value in type_table -%}
@@ -58,9 +58,9 @@ pub fn register_helper_functions() {
 }
 
 pub struct {{ definition_to_instance_traverser_struct_id }} {
-    #[cfg(not(feature = "designtime"))]
+    #[cfg(not(any(feature = "designer", feature = "designtime")))]
     manifest: {{ engine_import_prefix }}::pax_manifest::PaxManifest,
-    #[cfg(feature = "designtime")]
+    #[cfg(any(feature = "designer", feature = "designtime"))]
     designtime_manager: std::rc::Rc<RefCell<pax_designtime::DesigntimeManager>>,
 }
 
@@ -81,15 +81,14 @@ impl {{ engine_import_prefix }}::pax_runtime::DefinitionToInstanceTraverser for 
         }
     }
 
-
-    #[cfg(not(feature = "designtime"))]
+    #[cfg(not(any(feature = "designer", feature = "designtime")))]
     fn new(manifest: pax_manifest::PaxManifest) -> Self {
         register_helper_functions();
         Self {
             manifest,
         }
     }
-    #[cfg(feature = "designtime")]
+    #[cfg(any(feature = "designer", feature = "designtime"))]
     fn new(manifest: pax_manifest::PaxManifest) -> Self {
         register_helper_functions();
         let designtime_manager = std::rc::Rc::new(RefCell::new(pax_designtime::DesigntimeManager::new(manifest)));
@@ -98,18 +97,18 @@ impl {{ engine_import_prefix }}::pax_runtime::DefinitionToInstanceTraverser for 
         }
     }
 
-    #[cfg(not(feature = "designtime"))]
+    #[cfg(not(any(feature = "designer", feature = "designtime")))]
     fn get_manifest(&self) ->  &pax_manifest::PaxManifest {
         &self.manifest
     }
-    #[cfg(feature = "designtime")]
+    #[cfg(any(feature = "designer", feature = "designtime"))]
     fn get_manifest(&self) ->  std::cell::Ref<pax_manifest::PaxManifest> {
         std::cell::Ref::map(borrow!(self.designtime_manager), |manager| {
             manager.get_manifest()
         })
     }
 
-    #[cfg(feature = "designtime")]
+    #[cfg(any(feature = "designer", feature = "designtime"))]
     fn get_designtime_manager(&self, project_query: String) -> std::option::Option<std::rc::Rc<RefCell<pax_designtime::DesigntimeManager>>> {
         borrow_mut!(self.designtime_manager).set_project(project_query);
         Some(self.designtime_manager.clone())

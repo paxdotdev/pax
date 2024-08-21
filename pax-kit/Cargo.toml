@@ -10,8 +10,8 @@ pax-std = { path = "../pax-std", version = "0.23.0" }
 
 [features]
 default = ["designer", "web"]
-designer = ["dep:pax-designer", "pax-engine/designtime", "pax-designer/designtime", "pax-std/designtime"]
-parser = ["pax-std/parser", "pax-designer/parser"]
+designer = ["dep:pax-designer", "pax-engine/designtime", "pax-designer?/designtime", "pax-std/designtime"]
+parser = ["pax-std/parser", "pax-designer?/parser"]
 web = ["pax-engine/web"]
 ios = ["pax-engine/ios"]
 macos = ["pax-engine/macos"]
