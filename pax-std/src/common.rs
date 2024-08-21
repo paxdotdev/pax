@@ -2,6 +2,7 @@ pub use pax_engine::api::Size;
 use pax_engine::*;
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[derive(Copy)]
 pub struct Point {
     pub x: Size,

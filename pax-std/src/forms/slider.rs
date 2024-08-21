@@ -17,6 +17,7 @@ use crate::common::patch_if_needed;
 
 /// A platform-native Slider control
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[primitive("pax_std::forms::slider::SliderInstance")]
 #[custom(Default)]
 pub struct Slider {

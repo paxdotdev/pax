@@ -28,6 +28,7 @@ use text_style_property_editor::TextStylePropertyEditor;
 use crate::model;
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[file("controls/settings/property_editor/mod.pax")]
 pub struct PropertyEditor {
     pub name: Property<String>,
@@ -149,6 +150,7 @@ impl PropertyEditor {
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 pub struct PropertyEditorData {
     // this is used  by the custom properties to communicate back to the
     // settings editor to set its height

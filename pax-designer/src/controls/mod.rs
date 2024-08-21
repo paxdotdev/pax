@@ -16,5 +16,6 @@ use toolbar::Toolbar;
 use tree::Tree;
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[file("controls/mod.pax")]
 pub struct Controls {}

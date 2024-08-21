@@ -9,6 +9,7 @@ use std::rc::Rc;
 use super::TREE_HIDDEN_NODES;
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[file("controls/tree/treeobj.pax")]
 pub struct TreeObj {
     pub ind: Property<Numeric>,

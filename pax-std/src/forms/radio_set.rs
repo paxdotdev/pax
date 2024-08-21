@@ -17,6 +17,7 @@ use crate::common::patch_if_needed;
 
 /// A platform-native radio set list
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[primitive("pax_std::forms::radio_set::RadioSetInstance")]
 #[custom(Default)]
 pub struct RadioSet {

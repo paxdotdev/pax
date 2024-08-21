@@ -9,6 +9,7 @@ use std::collections::HashMap;
 
 /// A scrolling container for arbitrary content.
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[inlined(
     <Frame _clip_content={self._clip_content}>
         <Scrollbar
@@ -79,6 +80,7 @@ impl Default for Scroller {
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 pub struct PlatformSpecificScrollParams {
     // constant decrease in momentum over time
     pub deacceleration: f64,

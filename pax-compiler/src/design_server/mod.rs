@@ -295,7 +295,7 @@ struct AiMessage {
     message: String,
 }
 
-fn create_run_context() -> RunContext {
+fn create_designer_run_context() -> RunContext {
     RunContext {
         target: RunTarget::Web,
         project_path: PathBuf::from("../pax-designer".to_string()),
@@ -309,7 +309,7 @@ fn create_run_context() -> RunContext {
 }
 
 fn perform_build() -> std::io::Result<(PaxManifest, Option<PathBuf>)> {
-    let ctx = create_run_context();
+    let ctx = create_designer_run_context();
     crate::perform_build(&ctx).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
 }
 

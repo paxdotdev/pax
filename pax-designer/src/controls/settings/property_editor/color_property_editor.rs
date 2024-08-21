@@ -9,6 +9,7 @@ use super::PropertyEditorData;
 use pax_std::*;
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[file("controls/settings/property_editor/color_property_editor.pax")]
 pub struct ColorPropertyEditor {
     pub data: Property<PropertyEditorData>,

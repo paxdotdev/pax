@@ -5,6 +5,7 @@ use std::cmp::Ordering;
 use std::iter;
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[inlined(
     <Group
         @mouse_down=on_mouse_down
@@ -40,6 +41,7 @@ pub struct Resizable {
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 pub enum ResizableDirection {
     Vertical,
     #[default]
@@ -47,6 +49,7 @@ pub enum ResizableDirection {
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 pub struct Section {
     pub x: Size,
     pub y: Size,

@@ -10,6 +10,7 @@ use pax_std::*;
 use crate::{model, ProjectMsg};
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[file("project_mode_toggle/mod.pax")]
 pub struct ProjectModeToggle {
     pub edit_mode: Property<bool>,

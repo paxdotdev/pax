@@ -12,6 +12,7 @@ use pax_runtime::api::Layer;
 /// a separate manifest via a separate DefinitionToInstanceTraverser
 /// Useful at least for embedding userland projects inside pax-designer; may be useful for other purposes
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[primitive("pax_std::core::inline_frame::InlineFrameInstance")]
 pub struct InlineFrame {}
 

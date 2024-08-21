@@ -23,6 +23,7 @@ use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
 /// a [`Group`] will generally be a more performant and otherwise-equivalent
 /// to [`Frame`], since `[Frame]` creates a clipping mask.
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[primitive("pax_std::core::frame::FrameInstance")]
 #[custom(Default)]
 pub struct Frame {

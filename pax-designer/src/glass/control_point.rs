@@ -26,6 +26,7 @@ use crate::model::action::{Action, ActionContext, Transaction};
 use crate::model::input::Dir;
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[file("glass/control_point.pax")]
 pub struct ControlPoint {
     pub data: Property<ControlPointDef>,
@@ -208,12 +209,14 @@ impl ControlPoint {
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 pub struct ControlPointDef {
     pub point: GlassPoint,
     pub styling: ControlPointStyling,
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 pub struct ControlPointStyling {
     pub affected_by_transform: bool,
     pub round: bool,

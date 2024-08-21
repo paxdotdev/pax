@@ -14,13 +14,14 @@ name = "paxcartridge"
 [[bin]]
 name = "parser"
 path = "src/lib.rs"
-required-features = ["parser"]
+required-features = ["parser", "designer"]
 
 [[bin]]
 name = "run"
 path = "bin/run.rs"
 
 [features]
+default = ["designer"]
 designer = ["pax-kit/designer"]
 parser = ["pax-kit/parser"]
 web = ["pax-kit/web"]

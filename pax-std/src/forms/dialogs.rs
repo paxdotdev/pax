@@ -7,6 +7,7 @@ use std::cmp::Ordering;
 use std::iter;
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[inlined(
     if self.open {
         <Group x=50% y=50% width=300px height=170px>
