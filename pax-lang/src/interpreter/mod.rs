@@ -344,8 +344,11 @@ fn recurse_pratt_parse(
                     let exp = PaxExpression::Primary(Box::new(PaxPrimary::FunctionCall(value)));
                     Ok(exp)
                 } else {
-                    let exp =
-                        PaxExpression::Primary(Box::new(PaxPrimary::Enum(scope, function_name, args)));
+                    let exp = PaxExpression::Primary(Box::new(PaxPrimary::Enum(
+                        scope,
+                        function_name,
+                        args,
+                    )));
                     Ok(exp)
                 }
             }

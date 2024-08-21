@@ -353,7 +353,7 @@ pub fn parse_value_definition(value: Pair<Rule>) -> ValueDefinition {
                 }
                 _ => {
                     let literal = from_pax(inner.as_str())
-                        .expect(&format!("Unable to parse literal: {:?}", inner.as_str()));
+                        .expect(&format!("Unable to parse literal: {:?}", inner));
                     ValueDefinition::LiteralValue(literal)
                 }
             }

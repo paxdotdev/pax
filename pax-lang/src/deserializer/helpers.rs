@@ -342,7 +342,9 @@ impl<'de> SeqAccess<'de> for UnitVariant<'de> {
             Ok(Some(seed.deserialize(StringDeserializer::new(self.name))?))
         } else if self.arg_read_count == 1 {
             self.arg_read_count += 1;
-            Ok(Some(seed.deserialize(StringDeserializer::new(self.variant))?))
+            Ok(Some(
+                seed.deserialize(StringDeserializer::new(self.variant))?,
+            ))
         } else {
             Ok(Some(seed.deserialize(EmptyListDeserializer {})?))
         }

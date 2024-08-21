@@ -35,7 +35,7 @@ pub enum PaxValue {
     Vec(Vec<PaxValue>),
     Range(Box<PaxValue>, Box<PaxValue>),
     Object(HashMap<String, PaxValue>),
-    Enum(String ,String, Vec<PaxValue>),
+    Enum(String, String, Vec<PaxValue>),
 }
 
 // Make sure Enum looks like an enum and vec looks like a vec
