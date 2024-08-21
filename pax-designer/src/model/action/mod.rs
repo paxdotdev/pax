@@ -24,7 +24,8 @@ use pax_engine::{
 };
 use pax_engine::{log, Property};
 use pax_std::drawing::rectangle::Rectangle;
-use pax_std::RefCell;
+
+pax_engine::pax_message::use_RefCell!();
 
 use crate::math::coordinate_spaces::Glass;
 

@@ -42,6 +42,9 @@ pub struct TemplateArgsCodegenCartridgeSnippet {
 
     // JSON string representation of the manifest, used at least for designtime builds
     pub designer_manifest_json: String,
+
+    /// Customizable import path for pax_engine, for codegen
+    pub engine_import_prefix: String,
 }
 
 #[allow(unused)]
