@@ -339,6 +339,11 @@ Run 7: set profile.dev => debug = false in pax-lang only
 
 ./pax run  331.71s user 19.82s system 297% cpu 1:58.32 total
 
+Run 8: revert changes to pax-compiler/src/building/web.rs
+
+./pax run  209.13s user 23.50s system 272% cpu 1:25.40 total
+./pax run  180.52s user 21.31s system 242% cpu 1:23.23 total
+
 
 
 
