@@ -17,7 +17,7 @@ use std::rc::Rc;
 
 /// A basic 2D vector path for arbitrary Bézier / line-segment chains
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[primitive("pax_std::drawing::path::PathInstance")]
 pub struct Path {
     pub elements: Property<Vec<PathElement>>,
@@ -217,7 +217,7 @@ pub struct PathContext {
 impl Store for PathContext {}
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[inlined( @settings { @mount: on_mount @pre_render: pre_render @unmount: on_unmount })]
 pub struct PathPoint {
     pub x: Property<Size>,
@@ -269,7 +269,7 @@ impl PathPoint {
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[inlined( @settings { @mount: on_mount @pre_render: pre_render @unmount: on_unmount })]
 pub struct PathLine {
     pub on_change: Property<bool>,
@@ -316,7 +316,7 @@ impl PathLine {
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[inlined( @settings { @mount: on_mount @pre_render: pre_render @unmount: on_unmount })]
 pub struct PathClose {
     pub on_change: Property<bool>,
@@ -364,7 +364,7 @@ impl PathClose {
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[inlined( @settings { @mount: on_mount @pre_render: pre_render @unmount: on_unmount })]
 pub struct PathCurve {
     pub x: Property<Size>,
@@ -416,7 +416,7 @@ impl PathCurve {
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[has_helpers]
 pub enum PathElement {
     #[default]

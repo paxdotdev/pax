@@ -7,7 +7,7 @@ use pax_runtime::api::Layer;
 /// Gathers a set of children underneath a single render node:
 /// useful for composing transforms and simplifying render trees.
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[primitive("pax_std::core::group::GroupInstance")]
 pub struct Group {}
 

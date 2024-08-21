@@ -441,7 +441,7 @@ pub enum ProjectMode {
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 pub struct StageInfo {
     pub width: u32,
     pub height: u32,

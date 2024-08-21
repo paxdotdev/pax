@@ -16,7 +16,7 @@ use crate::common::patch_if_needed;
 
 /// A platform-native checkbox element
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[primitive("pax_std::forms::checkbox::CheckboxInstance")]
 #[custom(Default)]
 pub struct Checkbox {

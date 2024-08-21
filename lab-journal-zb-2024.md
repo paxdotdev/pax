@@ -286,7 +286,7 @@ would enforce that pax_engine is a nice thin wrapper; nothing contained directly
         one way to do this is with a macro param, something like:
         ```
         #[pax]
-        #[engine_import_prefix("pax_engine::")]
+        #[engine_import_path("pax_engine::")]
         ```
         problematically, this probably needs to be sorted / split
 

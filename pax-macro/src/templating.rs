@@ -64,5 +64,5 @@ pub struct TemplateArgsDerivePax {
     /// Used to specify a custom import prefix for codegen, if importing pax_engine
     /// via anything other than pax_kit::pax_engine (e.g. for pax-std and pax-designer, which
     /// import pax_engine directly)
-    pub engine_import_prefix: String,
+    pub engine_import_path: String,
 }

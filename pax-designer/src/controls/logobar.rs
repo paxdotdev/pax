@@ -7,7 +7,7 @@ use crate::model;
 use crate::model::action::orm::SerializeRequested;
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[file("controls/logobar.pax")]
 pub struct Logobar {}
 

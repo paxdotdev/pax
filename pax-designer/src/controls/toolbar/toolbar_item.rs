@@ -9,7 +9,7 @@ use std::sync::mpsc::channel;
 use super::ToolbarItemView;
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[file("controls/toolbar/toolbar_item.pax")]
 pub struct ToolbarItemVisual {
     pub data: Property<ToolbarItemView>,

@@ -27,7 +27,7 @@ pub mod editor_generation;
 use self::editor_generation::Editor;
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 #[file("glass/wireframe_editor.pax")]
 pub struct WireframeEditor {
     pub control_points: Property<Vec<ControlPointDef>>,
@@ -140,7 +140,7 @@ impl WireframeEditor {
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 pub struct GlassPoint {
     pub x: f64,
     pub y: f64,
@@ -168,7 +168,7 @@ impl From<(Point2<Glass>, Point2<Glass>)> for BoundingSegment {
 }
 
 #[pax]
-#[engine_import_prefix("pax_engine")]
+#[engine_import_path("pax_engine")]
 pub struct BoundingSegment {
     pub x0: f64,
     pub y0: f64,
