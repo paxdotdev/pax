@@ -61,7 +61,7 @@ pub struct {{ definition_to_instance_traverser_struct_id }} {
     #[cfg(not(any(feature = "designer", feature = "designtime")))]
     manifest: {{ engine_import_prefix }}::pax_manifest::PaxManifest,
     #[cfg(any(feature = "designer", feature = "designtime"))]
-    designtime_manager: std::rc::Rc<RefCell<pax_designtime::DesigntimeManager>>,
+    designtime_manager: std::rc::Rc<RefCell<{{ engine_import_prefix }}::pax_designtime::DesigntimeManager>>,
 }
 
 impl {{ engine_import_prefix }}::pax_runtime::DefinitionToInstanceTraverser for {{ definition_to_instance_traverser_struct_id }} {
@@ -91,7 +91,7 @@ impl {{ engine_import_prefix }}::pax_runtime::DefinitionToInstanceTraverser for 
     #[cfg(any(feature = "designer", feature = "designtime"))]
     fn new(manifest: pax_manifest::PaxManifest) -> Self {
         register_helper_functions();
-        let designtime_manager = std::rc::Rc::new(RefCell::new(pax_designtime::DesigntimeManager::new(manifest)));
+        let designtime_manager = std::rc::Rc::new(RefCell::new({{ engine_import_prefix }}::pax_designtime::DesigntimeManager::new(manifest)));
         Self {
             designtime_manager,
         }
@@ -109,7 +109,7 @@ impl {{ engine_import_prefix }}::pax_runtime::DefinitionToInstanceTraverser for 
     }
 
     #[cfg(any(feature = "designer", feature = "designtime"))]
-    fn get_designtime_manager(&self, project_query: String) -> std::option::Option<std::rc::Rc<RefCell<pax_designtime::DesigntimeManager>>> {
+    fn get_designtime_manager(&self, project_query: String) -> std::option::Option<std::rc::Rc<RefCell<{{ engine_import_prefix }}::pax_designtime::DesigntimeManager>>> {
         borrow_mut!(self.designtime_manager).set_project(project_query);
         Some(self.designtime_manager.clone())
     }
