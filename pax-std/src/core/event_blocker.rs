@@ -15,6 +15,7 @@ use pax_runtime::{
 use_RefCell!();
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[primitive("pax_std::core::event_blocker::EventBlockerInstance")]
 pub struct EventBlocker {}
 

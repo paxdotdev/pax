@@ -12,6 +12,7 @@ use pax_engine::api::Stroke;
 use pax_std::*;
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[file("controls/settings/property_editor/stroke_property_editor.pax")]
 pub struct StrokePropertyEditor {
     pub data: Property<PropertyEditorData>,

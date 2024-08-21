@@ -19,6 +19,7 @@ use anyhow::Result;
 use toolbar_item::ToolbarItemVisual;
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[file("controls/toolbar/mod.pax")]
 pub struct Toolbar {
     pub selected_ind: Property<usize>,
@@ -27,6 +28,7 @@ pub struct Toolbar {
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 pub struct ToolbarItemView {
     pub background: bool,
     pub icon: String,
@@ -47,6 +49,7 @@ struct ToolbarItem {
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[derive(PartialEq)]
 pub enum ToolbarClickEvent {
     Select(usize, usize),

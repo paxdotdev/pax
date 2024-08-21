@@ -9,6 +9,7 @@ use pax_runtime::api::NodeContext;
 /// each node.  `Stacker`s can be stacked inside of each other, horizontally
 /// and vertically, along with percentage-based positioning and `Transform2D.anchor` to compose any rectilinear 2D layout.
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[custom(Default)]
 #[inlined(
     for (cell_spec, i) in self._cell_specs {
@@ -157,6 +158,7 @@ impl Stacker {
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 pub struct StackerCell {
     pub x_px: f64,
     pub y_px: f64,
@@ -165,6 +167,7 @@ pub struct StackerCell {
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 pub enum StackerDirection {
     #[default]
     Vertical,

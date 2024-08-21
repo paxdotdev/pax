@@ -31,6 +31,7 @@ pub fn log(message: DesignerLogMsg) {
 }
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[file("message_log_display.pax")]
 pub struct MessageLogDisplay {
     pub message: Property<String>,

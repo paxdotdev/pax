@@ -10,6 +10,7 @@ use crate::model::action::orm::SelectedIntoNewComponent;
 use crate::model::action::{Action, ActionContext};
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[file("context_menu/mod.pax")]
 pub struct DesignerContextMenu {
     pub visible: Property<bool>,

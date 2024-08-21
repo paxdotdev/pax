@@ -49,6 +49,7 @@ pub const DESIGNER_GLASS_ID: &str = "designer_glass";
 
 
 #[pax]
+#[engine_import_prefix("pax_engine")]
 #[main]
 #[file("lib.pax")]
 pub struct PaxDesigner {
