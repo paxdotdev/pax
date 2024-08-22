@@ -1,7 +1,4 @@
-use std::{
-    rc::Rc,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use std::rc::Rc;
 
 use pax_message::{borrow, OcclusionPatch};
 use pax_runtime_api::{Layer, Window};
@@ -9,8 +6,6 @@ use pax_runtime_api::{Layer, Window};
 use crate::{node_interface::NodeLocal, ExpandedNode, RuntimeContext, TransformAndBounds};
 
 use super::expanded_node::Occlusion;
-
-static DEBUG_ON: AtomicBool = AtomicBool::new(false);
 
 #[derive(Clone, Copy, Debug)]
 pub struct OcclusionBox {
@@ -31,15 +26,6 @@ impl OcclusionBox {
         true
     }
 
-    fn union(self, other: Self) -> Self {
-        Self {
-            x1: self.x1.min(other.x1),
-            y1: self.y1.min(other.y1),
-            x2: self.x2.max(other.x2),
-            y2: self.y2.max(other.y2),
-        }
-    }
-
     fn new_from_transform_and_bounds(t_and_b: TransformAndBounds<NodeLocal, Window>) -> Self {
         let corners = t_and_b.corners();
         let mut x2 = f64::MIN;
@@ -56,146 +42,81 @@ impl OcclusionBox {
     }
 }
 
-#[derive(Default, Clone, Debug)]
-struct OcclusionSet {
-    bounds_native: Option<OcclusionBox>,
-    bounds_canvas: Option<OcclusionBox>,
-    pub layers_needed: u32,
-}
-
-struct NodeOcclusionData {
-    occlusion_set: OcclusionSet,
-    node: Rc<ExpandedNode>,
-    children: Vec<(NodeOcclusionData, u32)>,
-}
-
-impl std::fmt::Debug for NodeOcclusionData {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("N")
-            .field("s", &self.occlusion_set.layers_needed)
-            .field("c", &self.children)
-            .finish()
-    }
-}
-
-impl OcclusionSet {
-    fn merge_above(&mut self, above: &Self) -> u32 {
-        let mut layers_needed = self.layers_needed.max(above.layers_needed);
-        let mut above_draw_container_offset = self.layers_needed;
-        if let (Some(below_native), Some(above_canvas)) = (self.bounds_native, above.bounds_canvas)
-        {
-            if below_native.intersects(&above_canvas) {
-                layers_needed = self.layers_needed + above.layers_needed + 1;
-                above_draw_container_offset = self.layers_needed + 1;
-            }
-        }
-        let bounds_native = match (self.bounds_native, above.bounds_native) {
-            (None, None) => None,
-            (Some(o), None) | (None, Some(o)) => Some(o),
-            (Some(a), Some(b)) => Some(a.union(b)),
-        };
-        let bounds_canvas = match (self.bounds_canvas, above.bounds_canvas) {
-            (None, None) => None,
-            (Some(o), None) | (None, Some(o)) => Some(o),
-            (Some(a), Some(b)) => Some(a.union(b)),
-        };
-        *self = Self {
-            bounds_native,
-            bounds_canvas,
-            layers_needed,
-        };
-        above_draw_container_offset
-    }
-}
-
 pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
-    let occlusion_data = calculate_occlusion_data(&root_node);
+    let mut occlusion_stack = vec![];
     let mut z_index = 0;
-    let mut max_layer = 0;
-    update_node_occlusion_recursive(occlusion_data, ctx, 0, false, &mut z_index, &mut max_layer);
+    update_node_occlusion_recursive(root_node, &mut occlusion_stack, ctx, false, &mut z_index);
+    let max_layer = occlusion_stack
+        .iter()
+        .map(|(_, v, _)| *v)
+        .max()
+        .unwrap_or(0);
     ctx.enqueue_native_message(pax_message::NativeMessage::ShrinkLayersTo(max_layer));
 }
 
+// runtime is O(n^2) atm, could be improved by quadtree, or find an approximation
+// method using the tree structure that works well.
 fn update_node_occlusion_recursive(
-    occlusion_data: NodeOcclusionData,
+    node: &Rc<ExpandedNode>,
+    occlusion_stack: &mut Vec<(Layer, u32, OcclusionBox)>,
     ctx: &RuntimeContext,
-    layer_offset: u32,
     clipping: bool,
     z_index: &mut i32,
-    max_layer: &mut u32,
 ) {
-    let node = &occlusion_data.node;
-    for (child, offset) in occlusion_data.children {
-        let cp = child.node.get_common_properties();
+    for child in node.children.get().iter().rev() {
+        let cp = child.get_common_properties();
         let cp = borrow!(cp);
         let unclippable = cp.unclippable.get().unwrap_or(false);
-        let clips = borrow!(child.node.instance_node).clips_content(&child.node);
+        let clips = borrow!(child.instance_node).clips_content(&child);
         update_node_occlusion_recursive(
             child,
+            occlusion_stack,
             ctx,
-            layer_offset + offset,
             (clipping | clips) & !unclippable,
             z_index,
-            max_layer,
         );
     }
 
-    *max_layer = (*max_layer).max(layer_offset);
-    let new_occlusion = Occlusion {
-        occlusion_layer_id: layer_offset,
-        z_index: *z_index,
-        parent_frame: occlusion_data
-            .node
-            .parent_frame
-            .get()
-            .filter(|_| clipping)
-            .map(|v| v.to_u32()),
-    };
     let layer = borrow!(node.instance_node).base().flags().layer;
-    if (layer == Layer::Native || borrow!(node.instance_node).clips_content(&node))
-        && node.occlusion.get() != new_occlusion
-    {
-        let occlusion_patch = OcclusionPatch {
-            id: node.id.to_u32(),
-            z_index: new_occlusion.z_index,
-            occlusion_layer_id: new_occlusion.occlusion_layer_id,
-            parent_frame: new_occlusion.parent_frame,
-        };
-        ctx.enqueue_native_message(pax_message::NativeMessage::OcclusionUpdate(occlusion_patch));
-    }
-    node.occlusion.set(new_occlusion);
-    *z_index += 1;
-}
+    if layer != Layer::DontCare {
+        let occlusion_box =
+            OcclusionBox::new_from_transform_and_bounds(node.transform_and_bounds.get());
+        let mut occlusion_index = 0;
 
-fn calculate_occlusion_data(node: &Rc<ExpandedNode>) -> NodeOcclusionData {
-    let mut occlusion_set_self = OcclusionSet::default();
-    let instance_node = borrow!(node.instance_node);
-    let layer = instance_node.base().flags().layer;
-    match layer {
-        pax_runtime_api::Layer::Native => {
-            occlusion_set_self.bounds_native = Some(OcclusionBox::new_from_transform_and_bounds(
-                node.transform_and_bounds.get(),
-            ))
+        for (layer_type, occl_id, occl_box) in occlusion_stack.iter().rev() {
+            if occlusion_box.intersects(occl_box) {
+                occlusion_index = match (layer, layer_type) {
+                    (Layer::Canvas, Layer::Native) => *occl_id + 1,
+                    _ => *occl_id,
+                };
+                break;
+            }
         }
-        pax_runtime_api::Layer::Canvas => {
-            occlusion_set_self.bounds_canvas = Some(OcclusionBox::new_from_transform_and_bounds(
-                node.transform_and_bounds.get(),
-            ))
+        occlusion_stack.push((layer, occlusion_index, occlusion_box));
+
+        let new_occlusion = Occlusion {
+            occlusion_layer_id: occlusion_index,
+            z_index: *z_index,
+            parent_frame: node
+                .parent_frame
+                .get()
+                .filter(|_| clipping)
+                .map(|v| v.to_u32()),
+        };
+        if (layer == Layer::Native || borrow!(node.instance_node).clips_content(&node))
+            && node.occlusion.get() != new_occlusion
+        {
+            let occlusion_patch = OcclusionPatch {
+                id: node.id.to_u32(),
+                z_index: new_occlusion.z_index,
+                occlusion_layer_id: new_occlusion.occlusion_layer_id,
+                parent_frame: new_occlusion.parent_frame,
+            };
+            ctx.enqueue_native_message(pax_message::NativeMessage::OcclusionUpdate(
+                occlusion_patch,
+            ));
         }
-        pax_runtime_api::Layer::DontCare => (),
-    }
-    let mut combined = OcclusionSet::default();
-    let mut children = vec![];
-    for child in node.children.get().iter().rev() {
-        let child_data = calculate_occlusion_data(&child);
-        let container_occlusion_offset = combined.merge_above(&child_data.occlusion_set);
-        children.push((child_data, container_occlusion_offset));
-    }
-    combined.merge_above(&occlusion_set_self);
-    if combined.layers_needed < children.iter().map(|(_, v)| *v).max().unwrap_or(0) {}
-    NodeOcclusionData {
-        occlusion_set: combined,
-        node: Rc::clone(&node),
-        children,
+        node.occlusion.set(new_occlusion);
+        *z_index += 1;
     }
 }

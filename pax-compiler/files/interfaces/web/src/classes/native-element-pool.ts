@@ -81,7 +81,12 @@ export class NativeElementPool {
     occlusionUpdate(patch: OcclusionUpdatePatch) {
         let node: HTMLElement = this.nodesLookup.get(patch.id!)!;
         if (node){
+            // scroll resets when moved, avoid this.
+            let left = node.scrollLeft;
+            let top = node.scrollTop;
             this.layers.addElement(node, patch.parentFrame, patch.occlusionLayerId!);
+            node.scrollLeft = left;
+            node.scrollTop = top;
             node.style.zIndex = patch.zIndex!.toString();
             const focusableElements = node.querySelectorAll('input, button, select, textarea, a[href]');
             focusableElements.forEach((element, _index) => {
