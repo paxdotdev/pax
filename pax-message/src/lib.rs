@@ -45,6 +45,7 @@ pub enum NativeMessage {
     ScrollerDelete(u32),
     ImageLoad(ImagePatch),
     LayerAdd(LayerAddPatch), //FUTURE: native form controls
+    ShrinkLayersTo(u32),
     OcclusionUpdate(OcclusionPatch),
     Navigate(NavigationPatch),
 }
