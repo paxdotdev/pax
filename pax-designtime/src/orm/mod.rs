@@ -346,6 +346,7 @@ impl PaxManifestORM {
         template: ComponentTemplate,
     ) -> Result<usize, String> {
         let command = template::ReplaceTemplateRequest::new(component_type_id, template);
+        log::warn!("replace_template");
         let resp = self.execute_command(command)?;
         Ok(resp.get_id())
     }

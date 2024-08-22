@@ -134,7 +134,7 @@ pub fn build_web_project_with_cartridge(
             dotenv().ok();
             let _ = crate::design_server::start_server(
                 build_dest.to_str().unwrap(),
-                build_src.to_str().unwrap(),
+                pax_dir.parent().unwrap().to_str().unwrap(),
                 manifest,
             );
         } else {
