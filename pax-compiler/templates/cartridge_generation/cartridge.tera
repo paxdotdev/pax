@@ -90,7 +90,6 @@ impl {{ engine_import_path }}::pax_runtime::DefinitionToInstanceTraverser for {{
     #[cfg(any(feature = "designer", feature = "designtime"))]
     fn new(manifest: pax_manifest::PaxManifest) -> Self {
         register_helper_functions();
-        log::warn!("creating DefinitionToInstanceTraverser");
         let designtime_manager = if !manifest.is_designer() {
             Some(std::rc::Rc::new(RefCell::new({{ engine_import_path }}::pax_designtime::DesigntimeManager::new(manifest.clone()))))
         } else {
