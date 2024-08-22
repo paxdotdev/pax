@@ -27,7 +27,7 @@
         {{self::render_literal_block(lb=vd.Block)}}
     {% endif %}
     {% if vd.Expression %}
-        { {{to_pax_expression(value=vd.Expression.expression)}} }
+        { {{to_pax_expression(value=vd.Expression)}} }
     {% endif %}
     {% if vd.Identifier %}
         {{ vd.Identifier.name }}
