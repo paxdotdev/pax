@@ -91,7 +91,7 @@ impl Display for PaxPrimary {
                 Ok(())
             }
             PaxPrimary::FunctionCall(fc) => {
-               write!(f, "{}::{}", fc.scope, fc.function_name)?;
+                write!(f, "{}::{}", fc.scope, fc.function_name)?;
                 if !fc.args.is_empty() {
                     write!(f, "(")?;
                     for (i, arg) in fc.args.iter().enumerate() {
