@@ -75,8 +75,11 @@ impl Display for PaxValue {
                 write!(f, "}}")
             }
             PaxValue::Enum(name, variant, values) => {
-                // write out the enum like StackerDirection::Horizontal or Font::System(arg)
-                write!(f, "{}::{}", name, variant)?;
+                if name == "Color" {
+                    write!(f, "{}", variant)?;
+                } else {
+                    write!(f, "{}::{}", name, variant)?;
+                }
                 if !values.is_empty() {
                     write!(f, "(")?;
                     for (i, val) in values.iter().enumerate() {

@@ -148,17 +148,13 @@ impl DesigntimeManager {
 
     pub fn handle_recv(&mut self) -> anyhow::Result<()> {
         let current_manifest_version = self.orm.get_manifest_version().get();
-        // if current_manifest_version != self.last_written_manifest_version
-        //     && current_manifest_version % 5 == 0
-        // {
-        //     if self.priv_agent_connection.borrow().alive {
-        //         self.send_component_update(&TypeId::build_singleton(
-        //             "designer_project::Example",
-        //             None,
-        //         ))?;
-        //     }
-        //     self.last_written_manifest_version = current_manifest_version;
-        // }
+        if current_manifest_version != self.last_written_manifest_version
+        {
+            if self.priv_agent_connection.borrow().alive {
+                self.send_component_update(&self.get_manifest().main_component_type_id.clone())?;
+            }
+            self.last_written_manifest_version = current_manifest_version;
+        }
         self.priv_agent_connection
             .borrow_mut()
             .handle_recv(&mut self.orm)
