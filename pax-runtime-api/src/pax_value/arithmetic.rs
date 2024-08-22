@@ -127,7 +127,7 @@ impl PartialEq for PaxValue {
             (PaxValue::Option(a), PaxValue::Option(b)) => a == b,
             (PaxValue::Vec(a), PaxValue::Vec(b)) => a == b,
             (PaxValue::Object(a), PaxValue::Object(b)) => a == b,
-            (PaxValue::Enum(a, b), PaxValue::Enum(c, d)) => a == c && b == d,
+            (PaxValue::Enum(a, b, c), PaxValue::Enum(d, e, f)) => a == d && b == e && c == f,
             (PaxValue::Range(a, b), PaxValue::Range(c, d)) => a == c && b == d,
             (a, b) => panic!("can't compare {:?} and {:?}", a, b),
         }

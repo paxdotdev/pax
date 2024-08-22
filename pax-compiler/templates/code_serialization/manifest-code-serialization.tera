@@ -13,7 +13,7 @@
         {% elif settings_block_element.Comment %}
             {{settings_block_element.Comment}}}
         {% elif settings_block_element.Handler %}
-            {{settings_block_element.Handler.0.token_value}}:
+            @{{settings_block_element.Handler.0.token_value}}:
             {% if  settings_block_element.Handler.1 | length() >  1 %}
                 [
                     {% for handler in settings_block_element.Handler.1 %}

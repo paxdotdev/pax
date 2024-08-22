@@ -1,26 +1,26 @@
-<Group width=80% height=80% x=50% y=50% >
-    <Stacker> 
+<Group width=80% height=80% x=50% y=50%>
+    <Stacker>
         <Stacker>
-            <Text text="Welcome to the Game of Life" class=h1 x=50% />
+            <Text text="Welcome to the Game of Life" class=h1 x=50%/>
             <Frame width=300px height=50px x=50%>
                 <Stacker direction=StackerDirection::Horizontal>
-                    <Button label="Start" class=btn @button_click=start />
-                    <Button label="Stop" class=btn  @button_click=stop />
-                    <Button label="Reset" class=btn @button_click=reset />
+                    <Button label="Start" class=btn @button_click=start/>
+                    <Button label="Stop" class=btn @button_click=stop/>
+                    <Button label="Reset" class=btn @button_click=reset/>
                 </Stacker>
             </Frame>
             <Frame width=300px height=50px x=50%>
-                <SpeedControl speed=bind:speed />
+                <SpeedControl speed=bind:speed/>
             </Frame>
             <Frame width=300px height=60px x=50%>
-                <ColorControl selected_color=bind:color />
+                <ColorControl selected_color=bind:color/>
             </Frame>
         </Stacker>
         <Stacker>
             for i in 0..10 {
-                <Stacker direction=StackerDirection::Horizontal >
+                <Stacker direction=StackerDirection::Horizontal>
                     for j in 0..10 {
-                        <Cell cells=bind:cells row=i col=j color=bind:color />
+                        <Cell cells=bind:cells row=i col=j color=bind:color/>
                     }
                 </Stacker>
             }
@@ -32,23 +32,22 @@
     @tick: tick
     .h1 {
         style: {
-                font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold),
-                font_size: 64px,
-                fill: BLACK,
-                align_vertical: TextAlignVertical::Center,
-                align_horizontal: TextAlignHorizontal::Center,
-                align_multiline: TextAlignHorizontal::Center
+            font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold)
+            font_size: 64px
+            fill: BLACK
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
         }
     }
     .btn {
         style: {
-                font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold),
-                font_size: 24px,
-                fill: BLACK,
-                align_vertical: TextAlignVertical::Center,
-                align_horizontal: TextAlignHorizontal::Center,
-                align_multiline: TextAlignHorizontal::Center
+            font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold)
+            font_size: 24px
+            fill: BLACK
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
         }
     }
-    
 }

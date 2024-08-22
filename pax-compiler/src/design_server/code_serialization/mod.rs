@@ -14,7 +14,7 @@ use tera::{Context, Tera};
 
 use include_dir::{include_dir, Dir};
 
-use pax_manifest::{pax_runtime_api::PaxValue, ComponentDefinition, PaxType};
+use pax_manifest::{pax_runtime_api::PaxValue, ComponentDefinition, ExpressionInfo, PaxType};
 
 use crate::{
     formatting::format_pax_template,
@@ -48,14 +48,15 @@ fn to_pax_value(args: &HashMap<String, tera::Value>) -> tera::Result<tera::Value
 fn to_pax_expression(args: &HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
     match args.get("value") {
         Some(val) => {
-            let value: Result<PaxExpression, serde_json::Error> =
+            let value: Result<ExpressionInfo, serde_json::Error> =
                 serde_json::from_value(val.clone());
             if let Ok(value) = value {
-                return Ok(tera::Value::String(value.to_string()));
+                return Ok(tera::Value::String(value.expression.to_string()));
             }
-            Err(tera::Error::msg(
-                "Failed to deserialize value to PaxExpression",
-            ))
+            Err(tera::Error::msg(format!(
+                "Failed to deserialize value to PaxExpression: {:?}",
+                val
+            )))
         }
         None => Err(tera::Error::msg(
             "No value provided to to_pax_expression function",
