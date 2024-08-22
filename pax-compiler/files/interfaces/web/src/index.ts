@@ -128,7 +128,10 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
 
 export function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
     messages?.forEach((unwrapped_msg) => {
-        if(unwrapped_msg["OcclusionUpdate"]) {
+        if(unwrapped_msg["ShrinkLayersTo"]) {
+            let layers_needed = unwrapped_msg["ShrinkLayersTo"];
+            nativePool.layers.shrinkTo(layers_needed);
+        } else if(unwrapped_msg["OcclusionUpdate"]) {
             let msg = unwrapped_msg["OcclusionUpdate"]
             let patch: OcclusionUpdatePatch = objectManager.getFromPool(OCCLUSION_UPDATE_PATCH);
             patch.fromPatch(msg);

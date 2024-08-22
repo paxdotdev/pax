@@ -178,8 +178,12 @@ impl InstanceNode for ScrollbarInstance {
     ) {
         if let NativeInterrupt::Scrollbar(args) = interrupt {
             expanded_node.with_properties_unwrapped(|props: &mut Scrollbar| {
-                props.scroll_x.set(args.scroll_x);
-                props.scroll_y.set(args.scroll_y);
+                if (props.scroll_x.get() - args.scroll_x) > 1e-4 {
+                    props.scroll_x.set(args.scroll_x);
+                }
+                if (props.scroll_y.get() - args.scroll_y) > 1e-4 {
+                    props.scroll_y.set(args.scroll_y);
+                }
             });
         }
     }
