@@ -12,6 +12,7 @@ use std::rc::Rc;
 pub mod toolbar_item;
 use crate::llm_interface::OpenLLMPrompt;
 use crate::math::coordinate_spaces::Glass;
+use crate::math::SizeUnit;
 use crate::model::action::{Action, ActionContext};
 use crate::model::{self, Component, ProjectMode, Tool, ToolBehavior};
 use crate::ProjectMsg;
@@ -275,6 +276,13 @@ pub struct SelectTool {
 
 impl Action for SelectTool {
     fn perform(&self, ctx: &mut model::action::ActionContext) -> Result<()> {
+        // set px/percent mode if a new pointer tool is selected,
+        // is there some better way of persisting this? (tool stack?)
+        match self.tool {
+            Tool::PointerPercent => ctx.app_state.unit_mode.set(SizeUnit::Percent),
+            Tool::PointerPixels => ctx.app_state.unit_mode.set(SizeUnit::Pixels),
+            _ => (),
+        }
         ctx.app_state.selected_tool.set(self.tool);
         Ok(())
     }
