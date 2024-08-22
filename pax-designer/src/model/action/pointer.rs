@@ -11,7 +11,7 @@ use crate::model::tools::{CreateComponentTool, MovingTool, MultiSelectTool};
 use crate::model::Component;
 use crate::model::{action, Tool};
 use crate::model::{AppState, StageInfo};
-use crate::{SetStage};
+use crate::SetStage;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::{borrow, Color, MouseButton, Window};
@@ -62,11 +62,6 @@ impl Action for MouseEntryPointAction<'_> {
                 (MouseButton::Left, false) => match ctx.app_state.selected_tool.get() {
                     mode @ (Tool::PointerPercent | Tool::PointerPixels) => {
                         (self.prevent_default)();
-                        ctx.app_state.unit_mode.set(match mode {
-                            Tool::PointerPercent => SizeUnit::Percent,
-                            Tool::PointerPixels => SizeUnit::Pixels,
-                            _ => unreachable!("matched on above"),
-                        });
                         if let Some(hit) = ctx.raycast_glass(point_glass, RaycastMode::Top, &[]) {
                             tool_behavior.set(Some(Rc::new(RefCell::new(MovingTool::new(
                                 ctx,

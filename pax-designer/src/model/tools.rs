@@ -21,7 +21,7 @@ use crate::math::{
 use crate::model::action::orm::{MoveNode, NodeLayoutSettings};
 use crate::model::Tool;
 use crate::model::{AppState, ToolBehavior};
-use crate::{SetStage};
+use crate::SetStage;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::math::Transform2;
@@ -447,10 +447,7 @@ impl ToolBehavior for MovingTool {
             .transform_and_bounds
             .get()
             .contains_point(point)
-            && ctx
-                .engine_context
-                .get_userland_root_expanded_node()
-                != curr_slot
+            && ctx.engine_context.get_userland_root_expanded_node() != curr_slot
         {
             let container_parent = curr_node
                 .raw_node_interface
@@ -562,9 +559,7 @@ impl ToolBehavior for MultiSelectTool {
 
     fn pointer_move(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
         self.bounds.set(AxisAlignedBox::new(self.p1, point));
-        let project_root = ctx
-            .engine_context
-            .get_userland_root_expanded_node();
+        let project_root = ctx.engine_context.get_userland_root_expanded_node();
         let selection_box = TransformAndBounds {
             transform: self.bounds.get().as_transform(),
             bounds: (1.0, 1.0),
