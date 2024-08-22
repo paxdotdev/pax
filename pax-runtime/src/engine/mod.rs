@@ -138,7 +138,9 @@ impl<R: piet::RenderContext> Renderer<R> {
 
 impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
     fn fill(&mut self, layer: &str, path: kurbo::BezPath, brush: &piet_common::PaintBrush) {
-        self.backends.get_mut(layer).unwrap().fill(path, brush);
+        if let Some(layer) = self.backends.get_mut(layer) {
+            layer.fill(path, brush);
+        }
     }
 
     fn stroke(
@@ -148,34 +150,33 @@ impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
         brush: &piet_common::PaintBrush,
         width: f64,
     ) {
-        self.backends
-            .get_mut(layer)
-            .unwrap()
-            .stroke(path, brush, width);
+        if let Some(layer) = self.backends.get_mut(layer) {
+            layer.stroke(path, brush, width);
+        }
     }
 
     fn save(&mut self, layer: &str) {
-        self.backends
-            .get_mut(layer)
-            .unwrap()
-            .save()
-            .expect("failed to save piet state");
+        if let Some(layer) = self.backends.get_mut(layer) {
+            let _ = layer.save();
+        }
     }
 
     fn transform(&mut self, layer: &str, affine: Affine) {
-        self.backends.get_mut(layer).unwrap().transform(affine);
+        if let Some(layer) = self.backends.get_mut(layer) {
+            layer.transform(affine);
+        }
     }
 
     fn clip(&mut self, layer: &str, path: kurbo::BezPath) {
-        self.backends.get_mut(layer).unwrap().clip(path);
+        if let Some(layer) = self.backends.get_mut(layer) {
+            layer.clip(path);
+        }
     }
 
     fn restore(&mut self, layer: &str) {
-        self.backends
-            .get_mut(layer)
-            .unwrap()
-            .restore()
-            .expect("failed to restore piet state");
+        if let Some(layer) = self.backends.get_mut(layer) {
+            let _ = layer.restore();
+        }
     }
 
     fn load_image(&mut self, path: &str, buf: &[u8], width: usize, height: usize) {
@@ -201,11 +202,9 @@ impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
         let Some(data) = self.image_map.get(image_path) else {
             return;
         };
-        self.backends.get_mut(layer).unwrap().draw_image(
-            &data.img,
-            rect,
-            InterpolationMode::Bilinear,
-        );
+        if let Some(layer) = self.backends.get_mut(layer) {
+            layer.draw_image(&data.img, rect, InterpolationMode::Bilinear);
+        }
     }
 
     fn layers(&self) -> Vec<&str> {

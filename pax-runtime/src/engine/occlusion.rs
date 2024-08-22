@@ -80,16 +80,10 @@ impl std::fmt::Debug for NodeOcclusionData {
 
 impl OcclusionSet {
     fn merge_above(&mut self, above: &Self) -> u32 {
-        if DEBUG_ON.load(Ordering::Relaxed) {
-            log::debug!("Merging: {:?}, {:?}", self, above);
-        }
         let mut layers_needed = self.layers_needed.max(above.layers_needed);
         let mut above_draw_container_offset = self.layers_needed;
         if let (Some(below_native), Some(above_canvas)) = (self.bounds_native, above.bounds_canvas)
         {
-            if DEBUG_ON.load(Ordering::Relaxed) {
-                log::debug!("merge_above: bellow native, above canvas");
-            }
             if below_native.intersects(&above_canvas) {
                 layers_needed = self.layers_needed + above.layers_needed + 1;
                 above_draw_container_offset = self.layers_needed + 1;
@@ -105,9 +99,6 @@ impl OcclusionSet {
             (Some(o), None) | (None, Some(o)) => Some(o),
             (Some(a), Some(b)) => Some(a.union(b)),
         };
-        if DEBUG_ON.load(Ordering::Relaxed) {
-            log::debug!("merge done");
-        }
         *self = Self {
             bounds_native,
             bounds_canvas,
@@ -118,19 +109,11 @@ impl OcclusionSet {
 }
 
 pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
-    #[cfg(feature = "designtime")]
-    {
-        let usr_node = borrow!(ctx.userland_root_expanded_node);
-        if let Some(node) = &*usr_node {
-            // DEBUG_ON.store(true, Ordering::Relaxed);
-            let dummy_data = calculate_occlusion_data(&node);
-            // DEBUG_ON.store(false, Ordering::Relaxed);
-            log::debug!("tree: {:#?}", dummy_data);
-        }
-    }
     let occlusion_data = calculate_occlusion_data(&root_node);
     let mut z_index = 0;
-    update_node_occlusion_recursive(occlusion_data, ctx, 0, false, &mut z_index);
+    let mut max_layer = 0;
+    update_node_occlusion_recursive(occlusion_data, ctx, 0, false, &mut z_index, &mut max_layer);
+    ctx.enqueue_native_message(pax_message::NativeMessage::ShrinkLayersTo(max_layer));
 }
 
 fn update_node_occlusion_recursive(
@@ -139,6 +122,7 @@ fn update_node_occlusion_recursive(
     layer_offset: u32,
     clipping: bool,
     z_index: &mut i32,
+    max_layer: &mut u32,
 ) {
     let node = &occlusion_data.node;
     for (child, offset) in occlusion_data.children {
@@ -152,9 +136,11 @@ fn update_node_occlusion_recursive(
             layer_offset + offset,
             (clipping | clips) & !unclippable,
             z_index,
+            max_layer,
         );
     }
 
+    *max_layer = (*max_layer).max(layer_offset);
     let new_occlusion = Occlusion {
         occlusion_layer_id: layer_offset,
         z_index: *z_index,
@@ -203,12 +189,10 @@ fn calculate_occlusion_data(node: &Rc<ExpandedNode>) -> NodeOcclusionData {
     for child in node.children.get().iter().rev() {
         let child_data = calculate_occlusion_data(&child);
         let container_occlusion_offset = combined.merge_above(&child_data.occlusion_set);
-        if DEBUG_ON.load(Ordering::Relaxed) {
-            log::debug!("accum combined: {:?}", combined);
-        }
         children.push((child_data, container_occlusion_offset));
     }
     combined.merge_above(&occlusion_set_self);
+    if combined.layers_needed < children.iter().map(|(_, v)| *v).max().unwrap_or(0) {}
     NodeOcclusionData {
         occlusion_set: combined,
         node: Rc::clone(&node),
