@@ -44,7 +44,6 @@ impl Debug for DesigntimeManager {
 
 impl DesigntimeManager {
     pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Self {
-        log::warn!("Creating a Designtime manager");
         let priv_agent = Rc::new(RefCell::new(
             PrivilegedAgentConnection::new(priv_addr)
                 .expect("couldn't connect to privileged agent"),
