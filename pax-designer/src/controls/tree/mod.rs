@@ -81,6 +81,8 @@ enum Desc {
     Image,
     Slider,
     Dropdown,
+    If,
+    For,
 }
 
 impl Desc {
@@ -101,6 +103,8 @@ impl Desc {
             Desc::Image => ("Image", "13-image", false),
             Desc::Slider => ("Slider", "14-slider", false),
             Desc::Dropdown => ("Dropdown", "15-dropdown", false),
+            Desc::If => ("If", "08-component", true),
+            Desc::For => ("For", "08-component", true),
         };
         (
             name.to_owned(),
@@ -149,29 +153,6 @@ pub struct FlattenedTreeEntry {
 }
 
 impl Tree {
-    // TODO re-implement tree collapsing. Do collapsed state as separate prop
-    // that visible_tree_objects can listen to, and that is updated by changes
-    // in click_msg
-    // TreeMsg::ArrowClicked(sender) => {
-    //     tree[sender].is_collapsed = !tree[sender].is_collapsed;
-    //     let collapsed = tree[sender].is_collapsed;
-    //     for i in (sender + 1)..tree.len() {
-    //         if tree[sender].indent_level < tree[i].indent_level {
-    //             tree[i].is_visible = !collapsed;
-    //             tree[i].is_collapsed = collapsed;
-    //         } else {
-    //             break;
-    //         }
-    //     }
-    //     self.visible_tree_objects.set(
-    //         self.tree_objects
-    //             .get()
-    //             .iter()
-    //             .filter(|o| o.is_visible)
-    //             .cloned()
-    //             .collect(),
-    //     );
-    // }
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         model::read_app_state(|app_state| {
             let type_id = app_state.selected_component_id.clone();
@@ -436,24 +417,30 @@ fn to_tree(tnid: &TemplateNodeId, component_template: &ComponentTemplate) -> Opt
 }
 
 fn resolve_tree_type(type_id: TypeId) -> Desc {
-    let Some(import_path) = type_id.import_path() else {
-        return Desc::Component(format!("{}", type_id.get_pax_type()));
-    };
-    match import_path.trim_start_matches("pax_std::") {
-        "core::group::Group" => Desc::Group,
-        "core::frame::Frame" => Desc::Frame,
-        "drawing::ellipse::Ellipse" => Desc::Ellipse,
-        "core::text::Text" => Desc::Text,
-        "layout::stacker::Stacker" => Desc::Stacker,
-        "drawing::rectangle::Rectangle" => Desc::Rectangle,
-        "drawing::path::Path" => Desc::Path,
-        "forms::textbox::Textbox" => Desc::Textbox,
-        "forms::checkbox::Checkbox" => Desc::Checkbox,
-        "core::scroller::Scroller" => Desc::Scroller,
-        "forms::button::Button" => Desc::Button,
-        "core::image::Image" => Desc::Image,
-        "forms::slider::Slider" => Desc::Slider,
-        "forms::dropdown::Dropdown" => Desc::Dropdown,
-        _ => Desc::Component(format!("{}", type_id.get_pax_type())),
+    match type_id.get_pax_type() {
+        PaxType::If => Desc::If,
+        PaxType::Repeat => Desc::For,
+        _ => {
+            let Some(import_path) = type_id.import_path() else {
+                return Desc::Component(format!("{}", type_id.get_pax_type()));
+            };
+            match import_path.trim_start_matches("pax_std::") {
+                "core::group::Group" => Desc::Group,
+                "core::frame::Frame" => Desc::Frame,
+                "drawing::ellipse::Ellipse" => Desc::Ellipse,
+                "core::text::Text" => Desc::Text,
+                "layout::stacker::Stacker" => Desc::Stacker,
+                "drawing::rectangle::Rectangle" => Desc::Rectangle,
+                "drawing::path::Path" => Desc::Path,
+                "forms::textbox::Textbox" => Desc::Textbox,
+                "forms::checkbox::Checkbox" => Desc::Checkbox,
+                "core::scroller::Scroller" => Desc::Scroller,
+                "forms::button::Button" => Desc::Button,
+                "core::image::Image" => Desc::Image,
+                "forms::slider::Slider" => Desc::Slider,
+                "forms::dropdown::Dropdown" => Desc::Dropdown,
+                _ => Desc::Component(format!("{}", type_id.get_pax_type())),
+            }
+        }
     }
 }
