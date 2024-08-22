@@ -41,6 +41,50 @@ where
     fn try_coerce(value: PaxValue) -> Result<Self, String>;
 }
 
+// #[allow(non_camel_case_types)]
+// #[derive(Default, Clone, Serialize, Deserialize, Debug, PartialEq)]
+// pub enum Color {
+//     /// Models a color in the RGB space, with an alpha channel of 100%
+//     rgb(ColorChannel, ColorChannel, ColorChannel),
+//     /// Models a color in the RGBA space
+//     rgba(ColorChannel, ColorChannel, ColorChannel, ColorChannel),
+
+//     /// Models a color in the HSL space.
+//     hsl(Rotation, ColorChannel, ColorChannel),
+//     /// Models a color in the HSLA space.
+//     hsla(Rotation, ColorChannel, ColorChannel, ColorChannel),
+
+//     #[default]
+//     SLATE,
+//     GRAY,
+//     ZINC,
+//     NEUTRAL,
+//     STONE,
+//     RED,
+//     ORANGE,
+//     AMBER,
+//     YELLOW,
+//     LIME,
+//     GREEN,
+//     EMERALD,
+//     TEAL,
+//     CYAN,
+//     SKY,
+//     BLUE,
+//     INDIGO,
+//     VIOLET,
+//     PURPLE,
+//     FUCHSIA,
+//     PINK,
+//     ROSE,
+//     BLACK,
+//     WHITE,
+//     TRANSPARENT,
+//     NONE,
+// }
+
+
+
 // Fill is a type that other types (Color) can be coerced into, thus the default
 // from to pax macro isn't enough (only translates directly back and forth, and returns
 // an error if it contains any other type)

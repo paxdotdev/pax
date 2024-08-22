@@ -7,7 +7,7 @@
 @settings {
     @tick: handle_tick
     .rect {
-        fill: {Color::hsl((i * 5.00 + ticks)deg, 85%, 55%)}
+        fill: {hsl((i * 5.00 + ticks)deg, 85%, 55%)}
         rotate: {((i * rotation * 40) + (ticks / 1.50))deg}
         scale_x: {(50 * (0.75 + (i * i * 0.08 * rotation)) * (1 - ((rotation / 3) + i / 100.00)))%}
         scale_y: {(50 * (0.75 + (i * i * 0.08 * rotation)) * (1 - ((rotation / 3) + i / 100.00)))%}

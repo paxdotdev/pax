@@ -36,6 +36,14 @@ pub struct PaxManifest {
 }
 
 impl PaxManifest {
+
+    pub fn is_designer(&self) -> bool {
+        if let Some(identifier) = self.main_component_type_id.get_pascal_identifier() {
+            return identifier == "PaxDesigner"
+        }
+        false
+    }
+
     pub fn get_template_node(
         &self,
         uni: &UniqueTemplateNodeIdentifier,
