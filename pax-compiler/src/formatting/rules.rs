@@ -103,8 +103,10 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
             Box::new(IdentifierCallMultiLineRule),
             Box::new(IdentifierCallDefaultRule),
         ],
-        | Rule::literal_color_space_func
-        | Rule::xo_color_space_func => vec![Box::new(ColorFunctionMultiLineRule), Box::new(ColorFunctionDefaultRule)],
+        Rule::literal_color_space_func | Rule::xo_color_space_func => vec![
+            Box::new(ColorFunctionMultiLineRule),
+            Box::new(ColorFunctionDefaultRule),
+        ],
         Rule::event_id => vec![Box::new(EventIdDefaultRule)],
         Rule::literal_enum_args_list
         | Rule::xo_enum_or_function_args_list
@@ -636,12 +638,7 @@ impl FormattingRule for ColorFunctionMultiLineRule {
 
     fn format(&self, node: Pair<Rule>, children: Vec<Child>) -> String {
         let mut formatted_node = String::new();
-        let func = node
-        .as_str()
-        .trim()
-        .split("(")
-        .next()
-        .unwrap();
+        let func = node.as_str().trim().split("(").next().unwrap();
 
         formatted_node.push_str(func);
         formatted_node.push_str("(");
@@ -665,12 +662,7 @@ struct ColorFunctionDefaultRule;
 impl FormattingRule for ColorFunctionDefaultRule {
     fn format(&self, node: Pair<Rule>, children: Vec<Child>) -> String {
         let mut formatted_node = String::new();
-        let func = node
-        .as_str()
-        .trim()
-        .split("(")
-        .next()
-        .unwrap();
+        let func = node.as_str().trim().split("(").next().unwrap();
 
         formatted_node.push_str(func);
         formatted_node.push_str("(");
