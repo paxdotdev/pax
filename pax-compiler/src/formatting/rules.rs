@@ -27,9 +27,10 @@ pub const INFIX_OPERATORS: [Rule; 16] = [
     Rule::xo_tern_else,
 ];
 
-pub const PRIMARY_OPERANDS: [Rule; 8] = [
+pub const PRIMARY_OPERANDS: [Rule; 9] = [
     Rule::expression_grouped,
     Rule::xo_enum_or_function_call,
+    Rule::xo_color_space_func,
     Rule::xo_object,
     Rule::xo_range,
     Rule::xo_tuple,
@@ -102,6 +103,8 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
             Box::new(IdentifierCallMultiLineRule),
             Box::new(IdentifierCallDefaultRule),
         ],
+        | Rule::literal_color_space_func
+        | Rule::xo_color_space_func => vec![Box::new(ColorFunctionMultiLineRule), Box::new(ColorFunctionDefaultRule)],
         Rule::event_id => vec![Box::new(EventIdDefaultRule)],
         Rule::literal_enum_args_list
         | Rule::xo_enum_or_function_args_list
@@ -167,8 +170,6 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::xo_tern_then
         | Rule::xo_tern_else
         | Rule::xo_range
-        | Rule::literal_color_space_func
-        | Rule::xo_color_space_func
         | Rule::literal_color_const
         | Rule::literal_some
         | Rule::literal_none
@@ -626,6 +627,65 @@ impl FormattingRule for IdentifierCallDefaultRule {
 }
 
 #[derive(Clone)]
+struct ColorFunctionMultiLineRule;
+
+impl FormattingRule for ColorFunctionMultiLineRule {
+    fn is_applicable(&self, children: Vec<Child>) -> bool {
+        has_multi_line_children(&children) || children_longer_than_line_limit(&children)
+    }
+
+    fn format(&self, node: Pair<Rule>, children: Vec<Child>) -> String {
+        let mut formatted_node = String::new();
+        let func = node
+        .as_str()
+        .trim()
+        .split("(")
+        .next()
+        .unwrap();
+
+        formatted_node.push_str(func);
+        formatted_node.push_str("(");
+        let elements = children
+            .iter()
+            .map(|child| child.formatted_node.clone())
+            .collect::<Vec<String>>()
+            .join(",\n");
+
+        formatted_node.push_str(&elements);
+
+        formatted_node.push_str(")");
+
+        formatted_node
+    }
+}
+
+#[derive(Clone)]
+struct ColorFunctionDefaultRule;
+
+impl FormattingRule for ColorFunctionDefaultRule {
+    fn format(&self, node: Pair<Rule>, children: Vec<Child>) -> String {
+        let mut formatted_node = String::new();
+        let func = node
+        .as_str()
+        .trim()
+        .split("(")
+        .next()
+        .unwrap();
+
+        formatted_node.push_str(func);
+        formatted_node.push_str("(");
+        let elements = children
+            .iter()
+            .map(|child| child.formatted_node.clone())
+            .collect::<Vec<String>>()
+            .join(", ");
+        formatted_node.push_str(&elements);
+        formatted_node.push_str(")");
+        formatted_node
+    }
+}
+
+#[derive(Clone)]
 struct ArgsListMultiLineRule;
 
 impl FormattingRule for ArgsListMultiLineRule {
@@ -676,7 +736,7 @@ impl FormattingRule for ExpressionBodyMultiLineRule {
                 current_line = String::new();
                 current_line.push_str(&child.formatted_node);
                 current_line.push_str(" ");
-            } else if is_primary_operand(&child) {
+            } else {
                 current_line.push_str(&child.formatted_node);
                 if first_line {
                     formatted_node.push_str(&current_line);
@@ -705,7 +765,7 @@ impl FormattingRule for ExpressionBodyDefaultRule {
                 formatted_node.push_str(" ");
                 formatted_node.push_str(&child.formatted_node);
                 formatted_node.push_str(" ");
-            } else if is_primary_operand(&child) {
+            } else {
                 formatted_node.push_str(&child.formatted_node);
             }
         }

@@ -114,7 +114,6 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
                         );
 
                         let mut new_template = tpc.template;
-                        new_template.merge_with_settings(&Some(settings));
 
                         // update the manifest with this new template
                         let comp = manifest.components.get_mut(&self_type_id).unwrap();

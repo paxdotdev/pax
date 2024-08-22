@@ -19,7 +19,9 @@ pub struct PrivilegedAgentConnection {
 
 impl PrivilegedAgentConnection {
     pub fn new(addr: SocketAddr) -> Result<Self> {
-        let (sender, recver) = ewebsock::connect(format!("ws://{}/ws", addr))
+        let url = format!("ws://{}/ws", addr);
+        log::warn!("Connecting to privileged agent at {}", url);
+        let (sender, recver) = ewebsock::connect(url)
             .map_err(|_| anyhow!("couldn't create socket connection"))?;
         Ok(Self {
             sender,

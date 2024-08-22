@@ -91,7 +91,12 @@ impl Display for PaxPrimary {
                 Ok(())
             }
             PaxPrimary::FunctionCall(fc) => {
-                write!(f, "{}::{}", fc.scope, fc.function_name)?;
+                if fc.scope == "Color" {
+                    write!(f, "{}", fc.function_name)?;
+                } else {
+                    write!(f, "{}::{}", fc.scope, fc.function_name)?;
+                }
+                
                 if !fc.args.is_empty() {
                     write!(f, "(")?;
                     for (i, arg) in fc.args.iter().enumerate() {
@@ -118,7 +123,11 @@ impl Display for PaxPrimary {
                 Ok(())
             }
             PaxPrimary::Enum(name, e, a) => {
-                write!(f, "{}::{}", name, e)?;
+                if name == "Color" {
+                    write!(f, "{}", e)?;
+                } else {
+                    write!(f, "{}::{}", name, e)?;
+                }
                 if !a.is_empty() {
                     write!(f, "(")?;
                     for (i, arg) in a.iter().enumerate() {
