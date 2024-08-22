@@ -52,7 +52,7 @@ pub enum PaxPrimary {
     Identifier(PaxIdentifier, Vec<PaxAccessor>),
     FunctionCall(PaxFunctionCall),
     Object(HashMap<String, PaxExpression>),
-    Enum(String, Vec<PaxExpression>),
+    Enum(String, String, Vec<PaxExpression>),
     Range(PaxExpression, PaxExpression),
     Tuple(Vec<PaxExpression>),
     List(Vec<PaxExpression>),
@@ -117,13 +117,17 @@ impl Display for PaxPrimary {
                 write!(f, "}}")?;
                 Ok(())
             }
-            PaxPrimary::Enum(e, a) => {
-                write!(f, "{}(", e)?;
-                for (i, arg) in a.iter().enumerate() {
-                    write!(f, "{}", arg)?;
-                    if i != a.len() - 1 {
-                        write!(f, ", ")?;
+            PaxPrimary::Enum(name, e, a) => {
+                write!(f, "{}::{}", name, e)?;
+                if !a.is_empty() {
+                    write!(f, "(")?;
+                    for (i, arg) in a.iter().enumerate() {
+                        write!(f, "{}", arg)?;
+                        if i != a.len() - 1 {
+                            write!(f, ", ")?;
+                        }
                     }
+                    write!(f, ")")?;
                 }
                 Ok(())
             }
@@ -340,8 +344,11 @@ fn recurse_pratt_parse(
                     let exp = PaxExpression::Primary(Box::new(PaxPrimary::FunctionCall(value)));
                     Ok(exp)
                 } else {
-                    let exp =
-                        PaxExpression::Primary(Box::new(PaxPrimary::Enum(function_name, args)));
+                    let exp = PaxExpression::Primary(Box::new(PaxPrimary::Enum(
+                        scope,
+                        function_name,
+                        args,
+                    )));
                     Ok(exp)
                 }
             }

@@ -48,7 +48,7 @@ impl CoercionRules for Fill {
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
         Ok(match pax_value.clone() {
             PaxValue::Color(color) => Fill::Solid(color),
-            PaxValue::Enum(variant, args) => match variant.as_str() {
+            PaxValue::Enum(_, variant, args) => match variant.as_str() {
                 "Solid" => {
                     let color = Color::try_coerce(args[0].clone())?;
                     Fill::Solid(color)
@@ -260,7 +260,7 @@ impl CoercionRules for ColorChannel {
             PaxValue::Rotation(rot) => ColorChannel::Rotation(rot),
             PaxValue::Percent(perc) => ColorChannel::Percent(perc.0),
             PaxValue::Numeric(num) => ColorChannel::Integer(num),
-            PaxValue::Enum(variant, args) => match variant.as_str() {
+            PaxValue::Enum(_, variant, args) => match variant.as_str() {
                 "Rotation" => {
                     let rot = Rotation::try_coerce(args[0].clone())?;
                     ColorChannel::Rotation(rot)

@@ -85,6 +85,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::inner_nodes => vec![Box::new(InnerNodesDefaultRule)],
         Rule::attribute_key_value_pair => vec![Box::new(AttributeKeyValuePairDefaultRule)],
         Rule::attribute_event_binding => vec![Box::new(AttributeEventBindingDefaultRule)],
+        Rule::double_binding => vec![Box::new(AttributeDoubleBindingDefaultRule)],
         Rule::settings_block_declaration => vec![Box::new(SettingsBlockDeclarationDefaultRule)],
         Rule::settings_event_binding => vec![Box::new(SettingsEventBindingDefaultRule)],
         Rule::selector_block => vec![Box::new(SelectorBlockDefaultRule)],
@@ -144,7 +145,6 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
 
         Rule::identifier
         | Rule::pascal_identifier
-        | Rule::double_binding
         | Rule::statement_for_predicate_declaration
         | Rule::statement_for_source
         | Rule::comment
@@ -261,9 +261,11 @@ impl FormattingRule for OpenTagDefaultRule {
         let mut formatted_node = String::new();
         formatted_node.push_str("<");
         formatted_node.push_str(&children[0].formatted_node);
-        formatted_node.push_str(" ");
-        formatted_node
-            .push_str(greedy_append_with_line_limit(children[1..].to_vec(), " ").as_str());
+        if children.len() > 1 {
+            formatted_node.push_str(" ");
+            formatted_node
+                .push_str(greedy_append_with_line_limit(children[1..].to_vec(), " ").as_str());
+        }
         formatted_node.push_str(">");
         formatted_node
     }
@@ -344,6 +346,19 @@ impl FormattingRule for AttributeEventBindingDefaultRule {
         let key = children[0].formatted_node.clone();
         let value = children[1].formatted_node.clone();
         formatted_node.push_str(&format!("{}={}", key, value).as_str());
+        formatted_node
+    }
+}
+
+#[derive(Clone)]
+struct AttributeDoubleBindingDefaultRule;
+
+impl FormattingRule for AttributeDoubleBindingDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        let mut formatted_node = String::new();
+        let key = children[0].formatted_node.clone();
+        let value = children[1].formatted_node.clone();
+        formatted_node.push_str(&format!("{}=bind:{}", key, value).as_str());
         formatted_node
     }
 }
@@ -486,7 +501,6 @@ impl FormattingRule for crate::formatting::rules::SettingsEventBindingDefaultRul
         children.get(0).unwrap().formatted_node.clone()
             + ": "
             + &children.get(1).unwrap().formatted_node
-            + ","
     }
 }
 
