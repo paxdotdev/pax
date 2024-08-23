@@ -28,10 +28,10 @@ members = [
 
 exclude = [
     "pax-compiler/files",
-    "pax-designer", # cannot build workspace without designtime when this is present in workspace (because it hard-codes designtime=on)
     "examples",
     "tests",
     "pax-generation",
+    "pax-designer", # cannot build workspace without designtime when this is present in workspace (because it hard-codes designtime=on)
 ]
 
 [profile.release]

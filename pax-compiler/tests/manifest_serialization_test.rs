@@ -70,13 +70,7 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
                     LiteralBlockDefinition::new(vec![]),
                 ),
                 SettingsBlockElement::Handler(
-                    Token::new_with_raw_value(
-                        "@existing_handler".to_string(),
-                        "@existing_handler".to_string(),
-                        TokenType::EventId,
-                        LocationInfo::default(),
-                        "",
-                    ),
+                    Token::new_without_location("@existing_handler".to_string()),
                     vec![Token::new_without_location("handler_action".to_string())],
                 ),
             ]),
@@ -88,6 +82,7 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
         main_component_type_id: component_type_id,
         type_table: HashMap::new(),
         assets_dirs: vec![],
+        engine_import_path: "".to_string(),
     }
 }
 

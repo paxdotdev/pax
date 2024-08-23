@@ -42,6 +42,7 @@ pub struct Glass {
     pub tool_visual_snap_lines_vertical: Property<Vec<SnapLine>>,
     pub tool_visual_snap_lines_horizontal: Property<Vec<SnapLine>>,
     pub tool_visual_snap_lines_points: Property<Vec<Vec<f64>>>,
+    pub tool_visual_event_blocker_active: Property<bool>,
 }
 
 impl Glass {
@@ -58,6 +59,7 @@ impl Glass {
         let tool_visual_snap_lines_vertical = self.tool_visual_snap_lines_vertical.clone();
         let tool_visual_snap_lines_horizontal = self.tool_visual_snap_lines_horizontal.clone();
         let tool_visual_snap_lines_points = self.tool_visual_snap_lines_points.clone();
+        let tool_visual_event_blocker_active = self.tool_visual_event_blocker_active.clone();
         let ctx = ctx.clone();
         self.on_tool_change.replace_with(Property::computed(
             move || {
@@ -81,11 +83,17 @@ impl Glass {
                         move || tv.get().snap_lines.points,
                         &deps,
                     ));
+                    let tv = tool_visual_state.clone();
+                    tool_visual_event_blocker_active.replace_with(Property::computed(
+                        move || tv.get().event_blocker_active,
+                        &deps,
+                    ));
                     tool_visual_state
                 } else {
                     tool_visual_snap_lines_vertical.replace_with(Property::default());
                     tool_visual_snap_lines_horizontal.replace_with(Property::default());
                     tool_visual_snap_lines_points.replace_with(Property::default());
+                    tool_visual_event_blocker_active.replace_with(Property::new(true));
                     // Default ToolVisualziation behavior
                     let deps = [mouse_pos.untyped(), world_transform.untyped()];
                     let mouse_pos = mouse_pos.clone();
@@ -111,6 +119,7 @@ impl Glass {
                                     })
                                     .unwrap_or_default(),
                                 snap_lines: Default::default(),
+                                event_blocker_active: true,
                             }
                         },
                         &deps,
@@ -261,8 +270,7 @@ impl Glass {
                 log::info!("sent file to server!!");
             };
         }
-        let parent = ctx
-            .get_userland_root_expanded_node();
+        let parent = ctx.get_userland_root_expanded_node();
         model::with_action_context(ctx, |ac| {
             let parent = GlassNode::new(&parent, &ac.glass_transform());
             let cw = ac.glass_transform().get() * Point2::new(event.args.x, event.args.y);
@@ -314,9 +322,7 @@ impl Action for SetEditingComponent {
         // TODO set stage defaults for opened component using "SetStage" action
 
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        let node = ctx
-            .engine_context
-            .get_userland_root_expanded_node();
+        let node = ctx.engine_context.get_userland_root_expanded_node();
         let mut builder = dt
             .get_orm_mut()
             .get_node(
@@ -342,10 +348,29 @@ impl Action for SetEditingComponent {
 
 #[pax]
 #[engine_import_path("pax_engine")]
+#[custom(Default)]
 pub struct ToolVisualizationState {
+    // rectangle drawing tool. Used during object creation
+    // and for multi-select
     pub rect_tool: RectTool,
+    // Highlight around an object when mouse is over
     pub outline: Vec<PathElement>,
+
     pub snap_lines: SnapInfo,
+    // only dissabled when we need to interact with the nodes in the glass,
+    // for example when editing text
+    pub event_blocker_active: bool,
+}
+
+impl Default for ToolVisualizationState {
+    fn default() -> Self {
+        Self {
+            rect_tool: Default::default(),
+            outline: Default::default(),
+            snap_lines: Default::default(),
+            event_blocker_active: true,
+        }
+    }
 }
 
 #[pax]

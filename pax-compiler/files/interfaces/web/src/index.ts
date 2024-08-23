@@ -127,6 +127,7 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
 
 
 export function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
+    (nativePool.layers.parent as HTMLElement).hidden = true;
     messages?.forEach((unwrapped_msg) => {
         if(unwrapped_msg["ShrinkLayersTo"]) {
             let layers_needed = unwrapped_msg["ShrinkLayersTo"];
@@ -277,6 +278,7 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             patch.fromPatch(msg);
             nativePool.navigate(patch)
         }
-    })
+    });
+    (nativePool.layers.parent as HTMLElement).hidden = false;
 }
 
