@@ -14,7 +14,6 @@ include = [
     "README.md",
 ]
 
-
 [features]
 default = ["json"]
 json = ["serde_json"]
