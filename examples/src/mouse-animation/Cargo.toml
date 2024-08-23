@@ -1,11 +1,11 @@
 [package]
 name = "mouse-animation"
-version = "0.30.0"
+version = "0.31.0"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-kit = { version = "0.30.0", path="../../../pax-kit", features = ["designer"] }
+pax-kit = { version = "0.31.0", path="../../../pax-kit", features = ["designer"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
