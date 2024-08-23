@@ -1,13 +1,13 @@
 [package]
 name = "slot-particles"
-version = "0.24.0"
+version = "0.25.0"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
 rand = { version = "0.8.5" }
 getrandom = { version = "0.2.15", features = ["js"] }
-pax-kit = { version = "0.24.0", path="../../../pax-kit", features = ["designer"] }
+pax-kit = { version = "0.25.0", path="../../../pax-kit", features = ["designer"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
