@@ -5,7 +5,6 @@ use pax_runtime::{
     InstantiationArgs, RuntimeContext,
 };
 
-use pax_runtime::api as pax_runtime_api;
 use_RefCell!();
 use pax_runtime::api::*;
 

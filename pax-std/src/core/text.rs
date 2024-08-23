@@ -1,4 +1,3 @@
-use api::HelperFunctions;
 use pax_runtime::{
     BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
     InstantiationArgs, RuntimeContext,
@@ -8,14 +7,13 @@ use pax_engine::api::{Color, Layer, Numeric, Property, RenderContext, Size};
 use pax_engine::*;
 
 use pax_message::{
-    AnyCreatePatch, ColorMessage, FontPatch, FontStyleMessage, FontWeightMessage, LocalFontMessage,
-    SystemFontMessage, TextAlignHorizontalMessage, TextAlignVerticalMessage, TextPatch,
-    TextStyleMessage, WebFontMessage,
+    AnyCreatePatch, ColorMessage, FontPatch, FontStyleMessage, FontWeightMessage,
+    TextAlignHorizontalMessage, TextAlignVerticalMessage, TextPatch, TextStyleMessage,
+    WebFontMessage,
 };
 
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
 
-use pax_runtime::api as pax_runtime_api;
 use_RefCell!();
 use std::collections::HashMap;
 use std::rc::Rc;

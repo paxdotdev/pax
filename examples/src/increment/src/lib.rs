@@ -11,12 +11,12 @@ pub struct Example {
 }
 
 impl Example {
-    pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
+    pub fn handle_pre_render(&mut self, _ctx: &NodeContext) {
         let old_ticks = self.ticks.get();
         self.ticks.set((old_ticks + 1) % 255);
     }
 
-    pub fn increment(&mut self, ctx: &NodeContext, args: Event<Click>) {
+    pub fn increment(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
         let old_num_clicks = self.num_clicks.get();
         self.num_clicks.set(old_num_clicks + 1);
     }

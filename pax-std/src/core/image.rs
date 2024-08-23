@@ -4,7 +4,6 @@ use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
 use pax_runtime::{api::Property, api::RenderContext, ExpandedNodeIdentifier};
 use std::collections::{HashMap, HashSet};
 
-use pax_runtime::api as pax_runtime_api;
 use_RefCell!();
 use pax_message::ImagePatch;
 use pax_runtime::{
@@ -113,7 +112,7 @@ impl InstanceNode for ImageInstance {
                                     );
                                 }
                             }
-                            ImageSource::Data(_width, _height, data) => {
+                            ImageSource::Data(_width, _height, _data) => {
                                 // insert to notify during render it needs to reload
                                 borrow_mut!(needs_to_load_data).insert(expanded_node.id.clone());
                             }

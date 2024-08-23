@@ -1,9 +1,6 @@
 use crate::*;
 use pax_lang::interpreter::parse_pax_expression_from_pair;
-use pax_lang::{
-    from_pax, get_pax_pratt_parser, parse_pax_expression, parse_pax_str, Pair, Pairs, PaxParser,
-    PrattParser, Rule, Span,
-};
+use pax_lang::{from_pax, parse_pax_expression, parse_pax_str, Pair, Pairs, Rule, Span};
 use pax_runtime_api::{Color, Fill, Size, Stroke};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
@@ -58,7 +55,7 @@ fn recurse_visit_tag_pairs_for_template(
                         .to_string(),
                     Some(&pascal_identifier.to_string()),
                 ),
-                settings: parse_inline_attribute_from_final_pairs_of_tag(open_tag, pax),
+                settings: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
                 raw_comment_string: None,
                 control_flow_settings: None,
             };
@@ -100,7 +97,7 @@ fn recurse_visit_tag_pairs_for_template(
             };
             let template_node = TemplateNodeDefinition {
                 type_id,
-                settings: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs, pax),
+                settings: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs),
                 raw_comment_string: None,
                 control_flow_settings: None,
             };
@@ -265,7 +262,7 @@ fn parse_literal_function(literal_function_full: Pair<Rule>) -> Token {
     literal_function_token
 }
 
-fn parse_event_id(event_id_full: Pair<Rule>, pax: &str) -> Token {
+fn parse_event_id(event_id_full: Pair<Rule>) -> Token {
     let event_id = event_id_full.clone().into_inner().next().unwrap();
 
     let event_id_location = span_to_location(&event_id.as_span());
@@ -275,7 +272,6 @@ fn parse_event_id(event_id_full: Pair<Rule>, pax: &str) -> Token {
 
 fn parse_inline_attribute_from_final_pairs_of_tag(
     final_pairs_of_tag: Pairs<Rule>,
-    pax: &str,
 ) -> Option<Vec<SettingElement>> {
     let vec: Vec<SettingElement> = final_pairs_of_tag
         .map(|attribute_key_value_pair| {
@@ -305,8 +301,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                     let mut kv = attribute_key_value_pair.into_inner();
                     let mut attribute_event_binding = kv.next().unwrap().into_inner();
 
-                    let event_id_token =
-                        parse_event_id(attribute_event_binding.next().unwrap(), pax);
+                    let event_id_token = parse_event_id(attribute_event_binding.next().unwrap());
 
                     let literal_function = attribute_event_binding.next().unwrap().as_str();
                     SettingElement::Setting(
@@ -432,7 +427,6 @@ fn derive_value_definition_from_literal_object_pair(
 }
 
 pub fn parse_settings_from_component_definition_string(
-    pax: &str,
     pax_component_definition: Pair<Rule>,
 ) -> Vec<SettingsBlockElement> {
     let mut settings: Vec<SettingsBlockElement> = vec![];
@@ -452,7 +446,6 @@ pub fn parse_settings_from_component_definition_string(
                                         top_level_settings_block_entity.into_inner();
                                     let event_id_token = parse_event_id(
                                         settings_event_binding_pairs.next().unwrap(),
-                                        pax,
                                     );
                                     let literal_function_token = parse_literal_function(
                                         settings_event_binding_pairs.next().unwrap(),
@@ -578,7 +571,7 @@ pub fn assemble_component_definition(
     //populate template_node_definitions vec, needed for traversing node tree at codegen-time
     ctx.template_node_definitions = tpc.template.clone();
 
-    let settings = parse_settings_from_component_definition_string(pax, ast);
+    let settings = parse_settings_from_component_definition_string(ast);
 
     let new_def = ComponentDefinition {
         is_primitive: false,

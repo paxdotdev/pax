@@ -1,10 +1,9 @@
 #![allow(dead_code)]
 
+#[allow(unused)]
 use crate::*;
 use pax_engine::api::*;
 use pax_engine::*;
-use std::cmp::Ordering;
-use std::iter;
 
 #[pax]
 #[engine_import_path("pax_engine")]
