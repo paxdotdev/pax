@@ -27,3 +27,7 @@ web = ["pax-kit/web"]
 macos = ["pax-kit/macos"]
 ios = ["pax-kit/ios"]
 
+[profile.dev]
+opt-level = 2
+debug = false
+
