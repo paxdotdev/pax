@@ -1,11 +1,11 @@
 [package]
 name = "increment"
-version = "0.15.5"
+version = "0.24.0"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-kit = { version = "0.23.0", path="../../../pax-kit", features = ["designer"] }
+pax-kit = { version = "0.24.0", path="../../../pax-kit", features = ["designer"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

@@ -128,7 +128,7 @@ def topological_sort(source):
 for root in root_packages:
     order = topological_sort(root)
 
-    for elem in ["."] + order: //addition of "." hits the root workspace Cargo.toml with the version update
+    for elem in ["."] + order:
         with open("{}/Cargo.toml".format(elem), 'r') as file:
             doc = tomlkit.parse(file.read())
 
@@ -138,11 +138,12 @@ for root in root_packages:
 
         doc['package']['version'] = NEW_VERSION
 
-        for dep in doc['dependencies']:
-            if dep in PACKAGE_NAMES:
-                dep_table = doc['dependencies'][dep]
-                if isinstance(dep_table, tomlkit.items.InlineTable):
-                    dep_table['version'] = NEW_VERSION
+        if 'dependencies' in doc:
+            for dep in doc['dependencies']:
+                if dep in PACKAGE_NAMES:
+                    dep_table = doc['dependencies'][dep]
+                    if isinstance(dep_table, tomlkit.items.InlineTable):
+                        dep_table['version'] = NEW_VERSION
 
         with open("{}/Cargo.toml".format(elem), 'w') as file:
             file.write(tomlkit.dumps(doc))
