@@ -1,3 +1,4 @@
+#[allow(unused)]
 use crate::*;
 use pax_engine::pax;
 /// A blank component, roughly an alias for <Group />, used in cases where

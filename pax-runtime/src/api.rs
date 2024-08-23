@@ -11,8 +11,8 @@ pub use pax_runtime_api::*;
 
 #[cfg(feature = "designtime")]
 use {
-    crate::node_interface::NodeInterface, crate::HandlerLocation,
-    pax_designtime::DesigntimeManager, pax_manifest::UniqueTemplateNodeIdentifier,
+    crate::node_interface::NodeInterface, pax_designtime::DesigntimeManager,
+    pax_manifest::UniqueTemplateNodeIdentifier,
 };
 
 #[derive(Clone)]

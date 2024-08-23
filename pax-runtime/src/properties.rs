@@ -14,7 +14,10 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
-use crate::{ComponentInstance, ExpandedNode, Globals, InstanceNode};
+use crate::{ExpandedNode, Globals};
+
+#[cfg(feature = "designtime")]
+use crate::{ComponentInstance, InstanceNode};
 
 impl Interpolatable for ExpandedNodeIdentifier {}
 

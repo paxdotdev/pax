@@ -1,4 +1,4 @@
-use pax_engine::{api::pax_value::ToFromPaxAny, pax, Property};
+use pax_engine::{api::pax_value::ToFromPaxAny, pax};
 use pax_message::{borrow, borrow_mut};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,

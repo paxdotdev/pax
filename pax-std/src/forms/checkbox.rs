@@ -1,5 +1,4 @@
 use pax_message::{AnyCreatePatch, CheckboxPatch};
-use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::{Layer, Property};
 use pax_runtime::{
     BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,

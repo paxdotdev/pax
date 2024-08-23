@@ -271,7 +271,7 @@ impl HelperFunctions for PaxType {}
 impl CoercionRules for PaxType {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         match value {
-            PaxValue::Enum(name, variant, args) => match variant.as_str() {
+            PaxValue::Enum(_name, variant, args) => match variant.as_str() {
                 "If" => Ok(PaxType::If),
                 "Slot" => Ok(PaxType::Slot),
                 "Repeat" => Ok(PaxType::Repeat),
@@ -1596,10 +1596,6 @@ impl Hash for Token {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.token_value.hash(state)
     }
-}
-
-fn get_line(s: &str, line_number: usize) -> Option<&str> {
-    s.lines().nth(line_number)
 }
 
 impl Token {

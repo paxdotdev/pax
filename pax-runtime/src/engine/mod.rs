@@ -1,22 +1,16 @@
 use crate::{api::Property, ExpandedNodeIdentifier, TransformAndBounds};
 use_RefCell!();
 use std::collections::HashMap;
-use std::iter;
 use std::rc::Rc;
 
 use kurbo::Affine;
-use pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_message::{NativeMessage, OcclusionPatch};
-use pax_runtime_api::{
-    borrow, borrow_mut, math::Transform2, pax_value::PaxAny, use_RefCell, Event, Window, OS,
-};
+use pax_message::NativeMessage;
+use pax_runtime_api::{pax_value::PaxAny, use_RefCell, Event, Window, OS};
 
-use crate::api::{KeyDown, KeyPress, KeyUp, Layer, NodeContext, RenderContext};
+use crate::api::{KeyDown, KeyPress, KeyUp, NodeContext, RenderContext};
 use piet::InterpolationMode;
 
-use crate::{
-    ComponentInstance, ExpressionContext, InstanceNode, RuntimeContext, RuntimePropertiesStackFrame,
-};
+use crate::{ComponentInstance, RuntimeContext};
 use pax_runtime_api::Platform;
 
 pub mod node_interface;
@@ -31,11 +25,14 @@ pub mod occlusion;
 mod expanded_node;
 pub use expanded_node::ExpandedNode;
 
-use self::expanded_node::Occlusion;
 use self::node_interface::NodeLocal;
 
 #[cfg(feature = "designtime")]
-use {pax_designtime::DesigntimeManager, pax_runtime_api::properties};
+use {
+    crate::InstanceNode,
+    pax_designtime::DesigntimeManager,
+    pax_runtime_api::{borrow, borrow_mut},
+};
 
 #[derive(Clone)]
 pub struct Globals {
@@ -60,7 +57,6 @@ impl std::fmt::Debug for Globals {
 pub struct PaxEngine {
     pub runtime_context: Rc<RuntimeContext>,
     pub root_expanded_node: Rc<ExpandedNode>,
-    main_component_instance: Rc<ComponentInstance>,
 }
 
 pub enum HandlerLocation {
@@ -223,6 +219,7 @@ impl PaxEngine {
         platform: Platform,
         os: OS,
     ) -> Self {
+        use crate::api::math::Transform2;
         use pax_runtime_api::{properties, Functions};
         Functions::register_all_functions();
 
@@ -245,7 +242,6 @@ impl PaxEngine {
         PaxEngine {
             runtime_context,
             root_expanded_node: root_node,
-            main_component_instance,
         }
     }
 
@@ -290,7 +286,6 @@ impl PaxEngine {
         PaxEngine {
             runtime_context,
             root_expanded_node,
-            main_component_instance: designer_main_component_instance,
         }
     }
 

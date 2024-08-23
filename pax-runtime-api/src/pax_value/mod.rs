@@ -1,8 +1,5 @@
-use crate::{
-    properties::PropertyValue, Color, ColorChannel, Fill, Interpolatable, Percent, Rotation, Size,
-    Stroke, Transform2D,
-};
-use std::{any::Any, collections::HashMap, default, fmt::Display};
+use crate::{Color, Interpolatable, Percent, Rotation, Size};
+use std::{any::Any, collections::HashMap, fmt::Display};
 
 use self::numeric::Numeric;
 pub use coercion_impls::CoercionRules;
