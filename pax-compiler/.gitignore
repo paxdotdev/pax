@@ -1,6 +1,6 @@
-pax-app-macos.xcodeproj
-node_modules
-pax-interface-web.js
-pax-interface-web.css
-.DS_Store
-package-lock.json
+files/interfaces/macos/pax-app-macos/pax-app-macos.xcodeproj/xcuserdata
+files/interfaces/web/node_modules
+files/interfaces/web/pax-interface-web.js
+files/interfaces/web/pax-interface-web.css
+src/.DS_Store
+files/interfaces/web/package-lock.json
