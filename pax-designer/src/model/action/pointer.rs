@@ -7,7 +7,7 @@ use crate::math::coordinate_spaces::Glass;
 use crate::math::SizeUnit;
 use crate::model::action::world::Pan;
 use crate::model::input::{InputEvent, ModifierKey};
-use crate::model::tools::{CreateComponentTool, MovingTool, MultiSelectTool};
+use crate::model::tools::{CreateComponentTool, MovingTool, MultiSelectTool, ZoomToFitTool};
 use crate::model::Component;
 use crate::model::{action, Tool};
 use crate::model::{AppState, StageInfo};
@@ -38,6 +38,7 @@ impl Action for MouseEntryPointAction<'_> {
         let point_glass = ctx.glass_transform().get() * self.point;
         ctx.app_state.mouse_position.set(point_glass);
         let spacebar = ctx.app_state.modifiers.get().contains(&ModifierKey::Space);
+        let zoom = ctx.app_state.modifiers.get().contains(&ModifierKey::Z);
         let tool_behavior = ctx.app_state.tool_behavior.clone();
         // Open context menu on right mouse button click no matter what
         if matches!(
@@ -54,9 +55,24 @@ impl Action for MouseEntryPointAction<'_> {
 
         // If no tool is active, activate a tool on mouse down
         if matches!(self.event, Pointer::Down) && tool_behavior.get().is_none() {
-            match (&self.button, spacebar) {
-                (MouseButton::Left, false) => match ctx.app_state.selected_tool.get() {
-                    mode @ (Tool::PointerPercent | Tool::PointerPixels) => {
+            match &self.button {
+                MouseButton::Left if zoom => {
+                    tool_behavior.set(Some(Rc::new(RefCell::new(ZoomToFitTool::new(point_glass)))));
+                }
+                MouseButton::Left if spacebar => {
+                    tool_behavior.set(Some(Rc::new(RefCell::new(Pan {
+                        start_point: point_glass,
+                        original_transform: ctx.app_state.glass_to_world_transform.get(),
+                    }))));
+                }
+                MouseButton::Middle => {
+                    tool_behavior.set(Some(Rc::new(RefCell::new(Pan {
+                        start_point: point_glass,
+                        original_transform: ctx.app_state.glass_to_world_transform.get(),
+                    }))));
+                }
+                MouseButton::Left => match ctx.app_state.selected_tool.get() {
+                    Tool::PointerPercent | Tool::PointerPixels => {
                         (self.prevent_default)();
                         if let Some(hit) = ctx.raycast_glass(point_glass, RaycastMode::Top, &[]) {
                             tool_behavior.set(Some(Rc::new(RefCell::new(MovingTool::new(
@@ -172,12 +188,6 @@ impl Action for MouseEntryPointAction<'_> {
                         log::warn!("tool has no implemented behavior");
                     }
                 },
-                (MouseButton::Left, true) | (MouseButton::Middle, _) => {
-                    tool_behavior.set(Some(Rc::new(RefCell::new(Pan {
-                        start_point: point_glass,
-                        original_transform: ctx.app_state.glass_to_world_transform.get(),
-                    }))));
-                }
                 _ => (),
             };
         }

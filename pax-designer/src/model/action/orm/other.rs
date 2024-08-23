@@ -1,10 +1,13 @@
+use crate::controls::settings::property_editor::fill_property_editor::color_to_str;
+use crate::controls::settings::property_editor::stringify_value_definition;
+use crate::controls::settings::property_editor::stroke_property_editor::stroke_as_str;
 use crate::model::action::{Action, ActionContext};
 use crate::model::input::ModifierKey;
 use anyhow::anyhow;
 use anyhow::Result;
 use pax_engine::api::{borrow_mut, Fill, Stroke};
 use pax_engine::pax_manifest::{UniqueTemplateNodeIdentifier, ValueDefinition};
-use pax_engine::{CoercionRules, Property};
+use pax_engine::{log, CoercionRules, Property};
 
 pub struct SwapFillStrokeAction;
 
@@ -34,25 +37,23 @@ impl Action for SwapFillStrokeAction {
                     )
                     .unwrap();
                 let props = node.get_all_properties();
+                log::debug!("all props: {:#?}", props);
                 let stroke = props
                     .iter()
                     .find_map(|(p, v)| (p.name == "stroke").then_some(v));
                 let fill = props
                     .iter()
                     .find_map(|(p, v)| (p.name == "fill").then_some(v));
-                let (
-                    Some(Some(ValueDefinition::LiteralValue(stroke))),
-                    Some(Some(ValueDefinition::LiteralValue(fill))),
-                ) = (stroke, fill)
-                else {
+                let (Some(Some(stroke)), Some(Some(fill))) = (stroke, fill) else {
                     return Err(anyhow!("object doesn't have stroke and fill"));
                 };
-                let stroke = Stroke::try_coerce(stroke.clone())
+                let stroke = pax_engine::pax_lang::from_pax(&stringify_value_definition(stroke))
+                    .map(|v| Stroke::try_coerce(v))?
                     .map_err(|e| anyhow!("failed to get stroke {e}"))?;
-                let fill = Fill::try_coerce(fill.clone())
-                    .map_err(|e| anyhow!("failed to get stroke {e}"))?;
+                let fill = pax_engine::pax_lang::from_pax(&stringify_value_definition(fill))
+                    .map(|v| Fill::try_coerce(v))?
+                    .map_err(|e| anyhow!("failed to get fill {e}"))?;
 
-                let new_fill = Fill::Solid(stroke.color.get());
                 let new_stroke = Stroke {
                     color: Property::new(match fill {
                         Fill::Solid(color) => color,
@@ -70,8 +71,15 @@ impl Action for SwapFillStrokeAction {
                     }),
                     ..stroke
                 };
-                node.set_typed_property("stroke", new_stroke)?;
-                node.set_typed_property("fill", new_fill)?;
+                let stroke_str = stroke_as_str(
+                    new_stroke.color.get(),
+                    new_stroke.width.get().expect_pixels().to_float(),
+                );
+                let fill_str = color_to_str(stroke.color.get());
+                node.set_property("stroke", &stroke_str)?;
+                node.set_property("fill", &fill_str)?;
+                node.save()
+                    .map_err(|e| anyhow!("failed to swap fill/stroke: {e}"))?;
             }
             Ok(())
         })

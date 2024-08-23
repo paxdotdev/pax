@@ -3,6 +3,7 @@ use std::rc::Rc;
 use pax_engine::api::{pax_value::ToFromPaxAny, *};
 use pax_engine::*;
 
+use crate::controls::settings::property_editor::fill_property_editor::color_to_str;
 use crate::controls::settings::AREAS_PROP;
 
 use super::PropertyEditorData;
@@ -48,9 +49,8 @@ impl StrokePropertyEditor {
                 external.set(true);
                 let value = pax_engine::pax_lang::from_pax(&data.get().get_value_as_str(&ctxc));
                 if let Ok(value) = value {
-                    let stroke: Stroke = Stroke::try_coerce(value)
-                        .unwrap_or_default();
-                    return stroke
+                    let stroke: Stroke = Stroke::try_coerce(value).unwrap_or_default();
+                    return stroke;
                 }
                 Stroke::default()
             },
@@ -86,16 +86,7 @@ impl StrokePropertyEditor {
                 let color = color.get();
                 let stroke_width = stroke_width.get();
                 if !external.get() {
-                    let rgba = color.to_rgba_0_1();
-                    let col_str = format!(
-                        "rgba({}, {}, {}, {})",
-                        (rgba[0] * 255.0) as u8,
-                        (rgba[1] * 255.0) as u8,
-                        (rgba[2] * 255.0) as u8,
-                        (rgba[3] * 255.0) as u8
-                    );
-                    let stroke_str =
-                        format!("{{color: {} width: {:.1}px }}", col_str, stroke_width);
+                    let stroke_str = stroke_as_str(color, stroke_width);
                     if let Err(e) = data.get().set_value(&ctxc, &stroke_str) {
                         log::warn!("failed to set fill color: {e}");
                     }
@@ -118,4 +109,9 @@ impl StrokePropertyEditor {
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
         self.property_listener.get();
     }
+}
+
+pub fn stroke_as_str(color: Color, stroke_width: f64) -> String {
+    let col_str = color_to_str(color);
+    format!("{{color: {} width: {:.1}px }}", col_str, stroke_width)
 }

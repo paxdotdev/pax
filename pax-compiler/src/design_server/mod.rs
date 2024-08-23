@@ -8,8 +8,6 @@ use actix_web_actors::ws;
 use colored::Colorize;
 use pax_generation::{AIModel, PaxAppGenerator};
 use serde_json::json;
-use serde_with::serde::de::Deserialize;
-use serde_with::serde::ser::Serialize;
 use std::net::TcpListener;
 use std::{env, fs};
 

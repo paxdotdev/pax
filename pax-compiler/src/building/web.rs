@@ -5,20 +5,14 @@ use crate::helpers::{
 use crate::{copy_dir_recursively, RunContext, RunTarget};
 
 use color_eyre::eyre;
-use colored::Colorize;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 
-use actix_web::middleware::Logger;
-use actix_web::{App, HttpServer};
 use dotenv::dotenv;
-use env_logger;
 use eyre::eyre;
 use pax_manifest::PaxManifest;
-use std::io::Write;
-use std::net::TcpListener;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
 

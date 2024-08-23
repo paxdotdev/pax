@@ -111,11 +111,10 @@ impl PropertyEditor {
         let is_literal = self.is_literal.clone();
         let deps = [is_literal.untyped()];
         self.fx_text_color.replace_with(Property::computed(
-            move || {
-                match is_literal.get() {
+            move || match is_literal.get() {
                 true => Color::WHITE,
                 false => Color::rgb(207.into(), 31.into(), 201.into()),
-            }},
+            },
             &deps,
         ));
         let is_literal = self.is_literal.clone();
@@ -178,31 +177,8 @@ impl PropertyEditorData {
     }
 
     pub fn get_value_as_str(&self, ctx: &NodeContext) -> String {
-        fn stringify(value: &ValueDefinition) -> String {
-            match value {
-                ValueDefinition::LiteralValue(v) => v.to_string(),
-                ValueDefinition::Expression(e) => format!("{{{}}}", e),
-                ValueDefinition::DoubleBinding(i) | ValueDefinition::Identifier(i) => i.to_string(),
-                ValueDefinition::Block(LiteralBlockDefinition { elements, .. }) => {
-                    let mut block = String::new();
-                    write!(block, "{{").unwrap();
-                    for e in elements {
-                        match e {
-                            SettingElement::Setting(Token { token_value, .. }, value) => {
-                                write!(block, "{}: {} ", token_value, stringify(value)).unwrap();
-                            }
-                            SettingElement::Comment(_) => (),
-                        }
-                    }
-                    write!(block, "}}").unwrap();
-                    block
-                }
-                _ => "(UNSUPPORTED BINDING TYPE)".to_owned(),
-            }
-        }
-
         self.get_value(ctx)
-            .map(|v| stringify(&v))
+            .map(|v| stringify_value_definition(&v))
             .unwrap_or_default()
     }
 
@@ -233,5 +209,34 @@ impl PropertyEditorData {
             true,
         )?;
         Some(f(node_definition))
+    }
+}
+
+pub fn stringify_value_definition(value: &ValueDefinition) -> String {
+    match value {
+        ValueDefinition::LiteralValue(v) => v.to_string(),
+        ValueDefinition::Expression(e) => format!("{{{}}}", e),
+        ValueDefinition::DoubleBinding(i) | ValueDefinition::Identifier(i) => i.to_string(),
+        ValueDefinition::Block(LiteralBlockDefinition { elements, .. }) => {
+            let mut block = String::new();
+            write!(block, "{{").unwrap();
+            for e in elements {
+                match e {
+                    SettingElement::Setting(Token { token_value, .. }, value) => {
+                        write!(
+                            block,
+                            "{}: {} ",
+                            token_value,
+                            stringify_value_definition(value)
+                        )
+                        .unwrap();
+                    }
+                    SettingElement::Comment(_) => (),
+                }
+            }
+            write!(block, "}}").unwrap();
+            block
+        }
+        _ => "(UNSUPPORTED BINDING TYPE)".to_owned(),
     }
 }

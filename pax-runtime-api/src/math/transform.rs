@@ -142,14 +142,14 @@ impl<WFrom: Space, WTo: Space> Transform2<WFrom, WTo> {
 }
 
 #[derive(PartialEq, Clone)]
-pub struct Parts {
+pub struct TransformParts {
     pub origin: Vector2,
     pub scale: Vector2,
     pub skew: Vector2,
     pub rotation: f64,
 }
 
-impl<F: Space, W: Space> Into<Transform2<F, W>> for Parts {
+impl<F: Space, W: Space> Into<Transform2<F, W>> for TransformParts {
     fn into(self) -> Transform2<F, W> {
         (Transform2::<Generic>::translate(self.origin)
             * Transform2::rotate(self.rotation)
@@ -160,8 +160,8 @@ impl<F: Space, W: Space> Into<Transform2<F, W>> for Parts {
 }
 
 /// NOTE: the returned parts.skew.y will always be equal to 0,
-impl<F: Space, T: Space> Into<Parts> for Transform2<F, T> {
-    fn into(self) -> Parts {
+impl<F: Space, T: Space> Into<TransformParts> for Transform2<F, T> {
+    fn into(self) -> TransformParts {
         let [a, b, c, d, e, f] = self.m;
         let angle = f64::atan2(b, a);
         let denom = a.powi(2) + b.powi(2);
@@ -169,7 +169,7 @@ impl<F: Space, T: Space> Into<Parts> for Transform2<F, T> {
         let scale_y = (a * d - c * b) / scale_x;
         let skew_x = (a * c + b * d) / denom;
 
-        Parts {
+        TransformParts {
             origin: Vector2::new(e, f),
             scale: Vector2::new(scale_x, scale_y),
             skew: Vector2::new(skew_x, 0.0),
@@ -178,7 +178,7 @@ impl<F: Space, T: Space> Into<Parts> for Transform2<F, T> {
     }
 }
 
-impl std::fmt::Debug for Parts {
+impl std::fmt::Debug for TransformParts {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Parts")
             .field("origin", &self.origin)
@@ -238,7 +238,7 @@ mod tests {
 
     use crate::math::{Generic, Vector2};
 
-    use super::{Parts, Transform2};
+    use super::{Transform2, TransformParts};
 
     #[test]
     fn from_to_parts() {
@@ -266,14 +266,14 @@ mod tests {
                         Vector2::new(-0.55, 0.0),
                         Vector2::new(100.0, 0.0),
                     ] {
-                        let parts = Parts {
+                        let parts = TransformParts {
                             origin,
                             scale,
                             rotation,
                             skew,
                         };
                         let transform: Transform2 = parts.clone().into();
-                        let new_parts: Parts = transform.into();
+                        let new_parts: TransformParts = transform.into();
                         assert!((parts.skew - new_parts.skew).length() < 1e-3);
                         assert!((parts.origin - new_parts.origin).length() < 1e-3);
                         assert!((parts.scale - new_parts.scale).length() < 1e-3);
@@ -291,7 +291,7 @@ mod tests {
     #[test]
     fn test_scale_and_resize() {
         let transform = Transform2::<Generic>::new([1.0, 0.4, 0.8, 0.2, 0.1, 0.5]);
-        let mut parts: Parts = transform.into();
+        let mut parts: TransformParts = transform.into();
         parts.scale.x = 2.6 * parts.scale.x;
         parts.scale.y = 1.8 * parts.scale.y;
         let res_transform: Transform2<Generic> = parts.into();
