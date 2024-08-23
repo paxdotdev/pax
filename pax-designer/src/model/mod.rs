@@ -52,6 +52,7 @@ pub use selection_state::*;
 use self::action::pointer::MouseEntryPointAction;
 use self::action::pointer::Pointer;
 use self::action::UndoRedoStack;
+use self::input::ModifierKeySet;
 use self::input::{Dir, InputEvent, InputMapper};
 
 /// Represents the global source-of-truth for the desinger.
@@ -120,7 +121,7 @@ pub struct AppState {
     //---------------keyboard----------------
     /// Currently pressed keys, used mostly for querying modifier key state
     /// INVALID_IF: no invalid states
-    pub keys_pressed: Property<HashSet<InputEvent>>,
+    pub modifiers: Property<ModifierKeySet>,
 
     //--------------settings-----------------
     /// Input mapper is responsible for keeping track of
@@ -154,7 +155,11 @@ pub struct Model {
 
 impl Model {
     pub fn init(ctx: &NodeContext) {
-        let main_component_id = (*ctx.designtime).borrow_mut().get_manifest().main_component_type_id.clone();
+        let main_component_id = (*ctx.designtime)
+            .borrow_mut()
+            .get_manifest()
+            .main_component_type_id
+            .clone();
         let app_state = Self::create_initial_app_state(main_component_id);
         let derived_state = Self::create_derived_state(ctx, &app_state);
 
@@ -168,7 +173,6 @@ impl Model {
     }
 
     fn create_initial_app_state(main_component_type_id: TypeId) -> AppState {
-
         AppState {
             selected_component_id: Property::new(main_component_type_id),
             stage: Property::new(StageInfo {
@@ -302,8 +306,7 @@ impl Model {
                 if containers.len() == 1 {
                     containers.into_iter().next().unwrap()
                 } else {
-                    let root = ctx_cp
-                        .get_userland_root_expanded_node();
+                    let root = ctx_cp.get_userland_root_expanded_node();
                     root.global_id().unwrap()
                 }
             },
@@ -313,7 +316,7 @@ impl Model {
 }
 
 pub fn read_app_state<T>(closure: impl FnOnce(&AppState) -> T) -> T {
-    MODEL.with_borrow_mut(|model| closure(&model.as_ref().expect(INITIALIZED).app_state))
+    MODEL.with_borrow(|model| closure(&model.as_ref().expect(INITIALIZED).app_state))
 }
 
 pub fn with_action_context<R: 'static>(
@@ -355,21 +358,15 @@ pub fn process_keyboard_input(ctx: &NodeContext, dir: Dir, input: String) {
     let action = MODEL.with_borrow_mut(|model| -> anyhow::Result<Option<Box<dyn Action>>> {
         let raw_input = RawInput::try_from(input)?;
         let AppState {
-            ref mut input_mapper,
-            ref mut keys_pressed,
+            ref input_mapper,
+            ref modifiers,
             ..
-        } = &mut model.as_mut().expect(INITIALIZED).app_state;
+        } = model.as_ref().expect(INITIALIZED).app_state;
 
         let input_mapper = input_mapper.get();
         let event = input_mapper
-            .to_event(raw_input)
+            .to_event(raw_input, dir, modifiers.clone())
             .with_context(|| "no mapped input")?;
-        keys_pressed.update(|keys_pressed| {
-            match dir {
-                Dir::Down => keys_pressed.insert(event.clone()),
-                Dir::Up => keys_pressed.remove(event),
-            };
-        });
         let action = input_mapper.to_action(event, dir);
         Ok(action)
     });

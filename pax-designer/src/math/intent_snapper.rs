@@ -28,9 +28,7 @@ pub struct IntentSnapper {
 
 impl IntentSnapper {
     pub fn new_from_scene(ctx: &ActionContext, ignore: &[UniqueTemplateNodeIdentifier]) -> Self {
-        let root = ctx
-            .engine_context
-            .get_userland_root_expanded_node();
+        let root = ctx.engine_context.get_userland_root_expanded_node();
         let glass_transform = ctx.glass_transform().get();
         let glass_t_and_b = TransformAndBounds {
             transform: glass_transform,
@@ -61,10 +59,9 @@ impl IntentSnapper {
     }
 
     pub fn new(ctx: &ActionContext, snap_collection: SnapCollection) -> Self {
-        let keys = ctx.app_state.keys_pressed.clone();
+        let keys = ctx.app_state.modifiers.clone();
         let deps = [keys.untyped()];
-        let snap_enabled =
-            Property::computed(move || !keys.get().contains(&InputEvent::Meta), &deps);
+        let snap_enabled = Property::computed(move || !keys.get().control, &deps);
         Self {
             tol: 8.0,
             snap_set: snap_collection,

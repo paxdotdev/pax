@@ -37,11 +37,7 @@ impl Action for MouseEntryPointAction<'_> {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         let point_glass = ctx.glass_transform().get() * self.point;
         ctx.app_state.mouse_position.set(point_glass);
-        let spacebar = ctx
-            .app_state
-            .keys_pressed
-            .get()
-            .contains(&InputEvent::Space);
+        let spacebar = ctx.app_state.modifiers.get().space;
         let tool_behavior = ctx.app_state.tool_behavior.clone();
         // Open context menu on right mouse button click no matter what
         if matches!(

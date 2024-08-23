@@ -24,6 +24,7 @@ members = [
     "pax-runtime",
     "pax-runtime-api",
     "pax-std",
+    "pax-designer", # cannot build workspace without designtime when this is present in workspace (because it hard-codes designtime=on)
 ]
 
 exclude = [
@@ -31,7 +32,6 @@ exclude = [
     "examples",
     "tests",
     "pax-generation",
-    "pax-designer", # cannot build workspace without designtime when this is present in workspace (because it hard-codes designtime=on)
 ]
 
 [profile.release]
