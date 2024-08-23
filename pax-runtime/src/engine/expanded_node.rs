@@ -78,7 +78,7 @@ pub struct ExpandedNode {
     pub properties: RefCell<Rc<RefCell<PaxAny>>>,
 
     /// Each ExpandedNode has unique, computed `CommonProperties`
-    common_properties: RefCell<Rc<RefCell<CommonProperties>>>,
+    pub common_properties: RefCell<Rc<RefCell<CommonProperties>>>,
     /// Set by chassis, for for example text nodes that get resize info from an interrupt
     /// if a node doesn't have fixed bounds(width/height specified), this value is used instead.
     pub rendered_size: Property<Option<(f64, f64)>>,
@@ -207,7 +207,8 @@ impl ExpandedNode {
         let common_properties =
             (&template
                 .base()
-                .instance_prototypical_common_properties_factory)(env.clone());
+                .instance_prototypical_common_properties_factory)(env.clone(), None)
+            .unwrap();
 
         let mut property_scope = borrow!(*common_properties).retrieve_property_scope();
 
@@ -252,26 +253,15 @@ impl ExpandedNode {
     pub fn recreate_with_new_data(
         self: &Rc<Self>,
         template: Rc<dyn InstanceNode>,
-        context: &Rc<RuntimeContext>,
+        _context: &Rc<RuntimeContext>,
     ) {
-        Rc::clone(self).recurse_unmount(context);
-        let new_expanded_node = Self::new(
-            template.clone(),
+        *borrow_mut!(self.instance_node) = Rc::clone(&template);
+        (&template
+            .base()
+            .instance_prototypical_common_properties_factory)(
             Rc::clone(&self.stack),
-            context,
-            Weak::clone(&self.containing_component),
-            Weak::clone(&self.template_parent),
+            Some(Rc::clone(&self)),
         );
-        *borrow_mut!(self.instance_node) = Rc::clone(&*borrow!(new_expanded_node.instance_node));
-        *borrow_mut!(self.properties) = Rc::clone(&*borrow!(new_expanded_node.properties));
-        *borrow_mut!(self.properties_scope) = borrow!(new_expanded_node.properties_scope).clone();
-        *borrow_mut!(self.common_properties) =
-            Rc::clone(&*borrow!(new_expanded_node.common_properties));
-        self.occlusion.set(Default::default());
-
-        Rc::clone(self).recurse_mount(context);
-        Rc::clone(self).recurse_update(context);
-        self.bind_to_parent_bounds(context);
     }
 
     /// Returns whether this node is a descendant of the ExpandedNode described by `other_expanded_node_id` (id)
