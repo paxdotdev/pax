@@ -714,7 +714,7 @@ impl PaxChassisWeb {
                             .userland_definition_to_instance_traverser
                             .get_main_component(USERLAND_COMPONENT_ROOT)
                             as Rc<dyn pax_runtime::InstanceNode>;
-                        engine.partial_update_expanded_node(Rc::clone(&root));
+                        engine.full_reload_userland(root);
                     }
                     ReloadType::FullPlay => {
                         let root = self
@@ -722,7 +722,7 @@ impl PaxChassisWeb {
                             .get_main_component(USERLAND_COMPONENT_ROOT)
                             as Rc<dyn pax_runtime::InstanceNode>;
                         let mut engine = borrow_mut!(self.engine);
-                        engine.partial_update_expanded_node(Rc::clone(&root));
+                        engine.full_reload_userland(root);
                     }
                     ReloadType::Partial(uni) => {
                         let instance_node = self
