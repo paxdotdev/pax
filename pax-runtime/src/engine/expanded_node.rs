@@ -269,6 +269,31 @@ impl ExpandedNode {
         );
     }
 
+    pub fn fully_recreate_with_new_data(
+        self: &Rc<Self>,
+        template: Rc<dyn InstanceNode>,
+        context: &Rc<RuntimeContext>,
+    ) {
+        Rc::clone(self).recurse_unmount(context);
+        let new_expanded_node = Self::new(
+            template.clone(),
+            Rc::clone(&self.stack),
+            context,
+            Weak::clone(&self.containing_component),
+            Weak::clone(&self.template_parent),
+        );
+        *borrow_mut!(self.instance_node) = Rc::clone(&*borrow!(new_expanded_node.instance_node));
+        *borrow_mut!(self.properties) = Rc::clone(&*borrow!(new_expanded_node.properties));
+        *borrow_mut!(self.properties_scope) = borrow!(new_expanded_node.properties_scope).clone();
+        *borrow_mut!(self.common_properties) =
+            Rc::clone(&*borrow!(new_expanded_node.common_properties));
+        self.occlusion.set(Default::default());
+
+        Rc::clone(self).recurse_mount(context);
+        Rc::clone(self).recurse_update(context);
+        self.bind_to_parent_bounds(context);
+    }
+
     /// Returns whether this node is a descendant of the ExpandedNode described by `other_expanded_node_id` (id)
     /// Currently requires traversing linked list of ancestory, incurring a O(log(n)) cost for a tree of `n` elements.
     /// This could be mitigated with caching/memoization, perhaps by storing a HashSet on each ExpandedNode describing its ancestory chain.

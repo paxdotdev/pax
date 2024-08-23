@@ -173,8 +173,7 @@ pub trait DefinitionToInstanceTraverser {
                         let outer_ref = expanded_node.properties.borrow();
                         let rc = Rc::clone(&outer_ref);
                         let mut inner_ref = (*rc).borrow_mut();
-                        let mut cp =
-                            ConditionalProperties::mut_from_pax_any(&mut inner_ref).unwrap();
+                        let cp = ConditionalProperties::mut_from_pax_any(&mut inner_ref).unwrap();
                         cp.boolean_expression
                             .replace_with(Property::computed_with_name(
                                 move || {
