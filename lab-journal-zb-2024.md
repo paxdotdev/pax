@@ -227,10 +227,6 @@ would enforce that pax_engine is a nice thin wrapper; nothing contained directly
         Manually edited paths in patch file to apply changes to updated locations in new repo
         used `--reject` to allow the merge to continue, dumping .rej files that I could patch manually
 
-[ ] UI cleanup pass
-
-[ ] Auto-port selection + coordination / scanning / handshake
-
 [x] Module cleanup pass
     [x] pax_kit naming
             engine
@@ -290,45 +286,62 @@ would enforce that pax_engine is a nice thin wrapper; nothing contained directly
         ```
         problematically, this probably needs to be sorted / split
 
-    [x] achieve non-designtime builds
+[x] achieve non-designtime builds
 
-        [x] shuttle feature flags:  features=["designer"] => designtime feat + dynamic deps (pax-designer)
-            update features & optional deps to include / exclude designer
+    [x] shuttle feature flags:  features=["designer"] => designtime feat + dynamic deps (pax-designer)
+        update features & optional deps to include / exclude designer
 
     [x] update examples cargo.tomls
 
-    [ ] e2e journey: fix pax-cli `build` x {non-designer}
+[x] e2e journey: fix pax-cli `build` x {non-designer}
 
-        to test, run loop of publishing to crates.io and testing
+    to test, run loop of publishing to crates.io and testing
 
-        publishing pax-designer and pax-kit for the first time:
+    publishing pax-designer and pax-kit for the first time:
 
-        when publishing pax-designer:
+    when publishing pax-designer:
 
-        Packaged 60 files, 36.1MiB (35.6MiB compressed)
-        Uploading pax-designer v0.24.0 (/Users/zack/code/paxcorp/pax/pax-designer)
-        error: failed to publish to registry at https://crates.io
+    Packaged 60 files, 36.1MiB (35.6MiB compressed)
+    Uploading pax-designer v0.24.0 (/Users/zack/code/paxcorp/pax/pax-designer)
+    error: failed to publish to registry at https://crates.io
 
-        Caused by:
-        the remote server responded with an error (status 413 Payload Too Large): max upload size is: 10485760
+    Caused by:
+    the remote server responded with an error (status 413 Payload Too Large): max upload size is: 10485760
 
-        Seems we need to trim 36.1MiB down to 10MiB or so (or perhaps reach out to crates.io support for an ad-hoc limit raise)
+    Seems we need to trim 36.1MiB down to 10MiB or so (or perhaps reach out to crates.io support for an ad-hoc limit raise)
 
-        Turns out these guys were collectively ~33MiB:
+    Turns out these guys were collectively ~33MiB:
 
-        delete mode 100644 pax-designer/assets/images/map_paris.png
-        delete mode 100644 pax-designer/assets/images/map_sf.png
-        delete mode 100644 pax-designer/assets/images/remix-comp.png
+    delete mode 100644 pax-designer/assets/images/map_paris.png
+    delete mode 100644 pax-designer/assets/images/map_sf.png
+    delete mode 100644 pax-designer/assets/images/remix-comp.png
 
+    [ ] get a stable build
+    [ ] update get started docs with CLI commands
 
+    observation: pax-cli new works (copies template files) but copying the interface files for some reason does not?  (can we get around this by adding those files back to VCS?)
 
-    [ ] testing
-        [x] designtime / nondesigntime builds
-        [ ] libdev vs. in-the-wild (CLI flow)
+[ ] NUX ++
+    [ ] design project with text on stage as welcome tour, show the ropes
+        with text & images, all editable, ideally in layouts
+        [ ] describe ultrasync;
+        [ ] describe how to play / pause / resize
+    [ ] make pax-cli new also run
+        [ ] print message with link to project FS root
 
-    [-] build times vs. runtime perf
-        balance flags; wrap inside pax_kit, manually test
-    
+[ ] UI cleanup pass
+
+[ ] Auto-port selection + coordination / scanning / handshake 
+
+[ ] testing
+    [x] designtime / nondesigntime builds
+    [x] libdev vs. in-the-wild (CLI flow)
+    [ ] linux
+    [ ] windows
+
+[-] build times vs. runtime perf
+    balance flags; wrap inside pax_kit, manually test
+
 
 Testing build time of spacegame using:
 `cargo clean && time ./pax run`
