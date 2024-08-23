@@ -1,6 +1,6 @@
 use anyhow::Result;
 use pax_engine::api::*;
-use pax_engine::layout::LayoutProperties;
+use pax_engine::node_layout::LayoutProperties;
 use pax_engine::*;
 use pax_manifest::{
     ComponentTemplate, PaxType, TemplateNodeId, TreeIndexPosition, TypeId,

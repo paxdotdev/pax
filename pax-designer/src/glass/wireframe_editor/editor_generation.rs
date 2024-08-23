@@ -4,7 +4,7 @@ use std::{cell::RefCell, rc::Rc};
 use pax_engine::api::{borrow, borrow_mut, Color, Interpolatable};
 use pax_engine::math::TransformParts;
 use pax_engine::{
-    api::NodeContext, layout::TransformAndBounds, log, math::Point2, NodeInterface, Property,
+    api::NodeContext, log, math::Point2, node_layout::TransformAndBounds, NodeInterface, Property,
 };
 
 use crate::glass::control_point::{ControlPointTool, Snap};

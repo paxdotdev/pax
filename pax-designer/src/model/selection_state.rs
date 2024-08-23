@@ -1,11 +1,11 @@
+use pax_engine::api::{Axis, Interpolatable, Size, Window};
+use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_engine::{
-    layout::{LayoutProperties, TransformAndBounds},
     log,
     math::{Point2, Transform2, Vector2},
+    node_layout::{LayoutProperties, TransformAndBounds},
     NodeInterface, NodeLocal, Property,
 };
-use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_engine::api::{Axis, Interpolatable, Size, Window};
 
 use crate::math::{
     coordinate_spaces::{Glass, SelectionSpace},

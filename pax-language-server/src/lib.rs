@@ -349,10 +349,10 @@ impl Backend {
                     &mut classes,
                 );
                 self.pax_ast_cache
-                    .insert(path_str.clone().to_string(), nodes.clone());
+                    .insert(path_str.to_string(), nodes.clone());
 
                 self.pax_selector_map
-                    .insert(path_str.clone().to_string(), SelectorData { ids, classes });
+                    .insert(path_str.to_string(), SelectorData { ids, classes });
                 Vec::new()
             }
             Err(e) => {

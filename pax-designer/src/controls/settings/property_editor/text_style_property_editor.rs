@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use pax_engine::api::*;
-use pax_engine::layout::LayoutProperties;
+use pax_engine::node_layout::LayoutProperties;
 use pax_engine::*;
 use pax_manifest::*;
 use pax_std::*;

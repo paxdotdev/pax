@@ -17,9 +17,9 @@ use pax_engine::pax_manifest::{
     NodeLocation, TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier,
 };
 use pax_engine::{
-    layout::{LayoutProperties, TransformAndBounds},
     log,
     math::{Point2, Transform2},
+    node_layout::{LayoutProperties, TransformAndBounds},
     NodeInterface,
 };
 use pax_std::core::group::Group;

@@ -27,7 +27,8 @@ pub const INFIX_OPERATORS: [Rule; 16] = [
     Rule::xo_tern_else,
 ];
 
-pub const PRIMARY_OPERANDS: [Rule; 9] = [
+#[cfg(feature = "parser")]
+pub const _PRIMARY_OPERANDS: [Rule; 9] = [
     Rule::expression_grouped,
     Rule::xo_enum_or_function_call,
     Rule::xo_color_space_func,
@@ -969,8 +970,9 @@ fn is_infix(child: &Child) -> bool {
     INFIX_OPERATORS.contains(&child.node_type)
 }
 
+#[cfg(feature = "parser")]
 fn is_primary_operand(child: &Child) -> bool {
-    PRIMARY_OPERANDS.contains(&child.node_type)
+    _PRIMARY_OPERANDS.contains(&child.node_type)
 }
 
 fn children_longer_than_line_limit(children: &Vec<Child>) -> bool {

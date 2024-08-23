@@ -1,4 +1,5 @@
 //! Basic example of rendering in the browser
+#![allow(non_snake_case)]
 
 use js_sys::Uint8Array;
 use pax_message::ImageLoadInterruptArgs;

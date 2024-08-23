@@ -4,8 +4,8 @@ use std::rc::Rc;
 
 use model::action::orm::CreateComponent;
 use pax_engine::api::*;
-use pax_engine::layout::TransformAndBounds;
 use pax_engine::math::Vector2;
+use pax_engine::node_layout::TransformAndBounds;
 use pax_engine::*;
 use pax_manifest::TypeId;
 use pax_std::*;
@@ -59,9 +59,7 @@ impl ToolBehavior for DropComponent {
         let (w, h) = self.bounds_pixels;
         let v = Vector2::new(w, h) / 2.0;
         let bounds = AxisAlignedBox::new(point + v, point - v);
-        let parent = ctx
-            .engine_context
-            .get_userland_root_expanded_node();
+        let parent = ctx.engine_context.get_userland_root_expanded_node();
         let parent = GlassNode::new(&parent, &ctx.glass_transform());
         CreateComponent {
             parent_id: &parent.id,
