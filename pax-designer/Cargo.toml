@@ -1,14 +1,14 @@
 [package]
 name = "pax-designer"
-version = "0.26.0"
+version = "0.27.0"
 edition = "2021"
 default-run = "run"
 include = ["src/**/*", "assets/**/*"]
 
 [dependencies]
-pax-engine = { version = "0.26.0",  path = "../pax-engine", features = ["designtime"] }
-pax-std = { version = "0.26.0",  path = "../pax-std", features = ["designtime"] }
-pax-designtime = {version = "0.26.0", path = "../pax-designtime"}
+pax-engine = { version = "0.27.0",  path = "../pax-engine", features = ["designtime"] }
+pax-std = { version = "0.27.0",  path = "../pax-std", features = ["designtime"] }
+pax-designtime = {version = "0.27.0", path = "../pax-designtime"}
 anyhow = "1.0.79"
 
 [lib]
