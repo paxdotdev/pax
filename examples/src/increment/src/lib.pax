@@ -1,32 +1,21 @@
-<Rectangle height=13.67% y=37.79% width=9.12% x=5.50%/>
-<Rectangle width=6.52% height=10.54% y=94.07% x=53.63%/>
-<Rectangle x=14.21% y=7.76% width=7.33% height=7.37%/>
-<Rectangle x=53.10% y=7.93% height=9.41% width=7.58%/>
-<Rectangle y=93.97% width=6.30% x=14.05% height=12.13%/>
-<Rectangle width=17.90% x=48.08% height=30.67% y=54.77% stroke={
-    color: rgba(239, 16, 127, 255)
-    width: 5.00px
-} 
-    fill=rgba(32, 68, 241, 255) rotate=4.99deg/>
-<Group x=8.40% y=-3.22% width=6.65% height=16.19% @click=self.increment anchor_x=82.54% anchor_y=-49.79%>
-    <Text x=50% y=50% text={num_clicks + " clicks"} id=text/>
-    <Rectangle fill={rgb(ticks, 75, 150)} corner_radii={RectangleCornerRadii::radii(10.00, 10.00, 10.00, 10.00)}/>
-</Group>
-<Group x=71.27% y=-5.17% width=10.56% height=27.88% @click=self.increment anchor_x=82.54% anchor_y=-49.79%>
-    <Text x=50% y=50% text={num_clicks + " clicks"} id=text/>
-    <Rectangle fill={rgb(ticks, 75, 150)} corner_radii={RectangleCornerRadii::radii(10.00, 10.00, 10.00, 10.00)}/>
+<Group x=50% y=50% width=120px height=120px @click=self.increment >
+    <Text x=50% y=50% text={self.num_clicks + " clicks"} id=text />
+    <Rectangle
+        fill={rgb(ticks, 75, 150)}
+        corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+    />
 </Group>
 
 @settings {
-    @pre_render: handle_pre_render
+     @pre_render: handle_pre_render,
     #text {
         style: {
-            font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold)
-            font_size: 22px
-            fill: WHITE
-            align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Center
-            align_multiline: TextAlignHorizontal::Center
+                font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold),
+                font_size: 22px,
+                fill: WHITE,
+                align_vertical: TextAlignVertical::Center,
+                align_horizontal: TextAlignHorizontal::Center,
+                align_multiline: TextAlignHorizontal::Center
         }
     }
 }
