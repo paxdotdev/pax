@@ -21,8 +21,12 @@ pub type InstanceNodePtr = Rc<dyn InstanceNode>;
 pub type InstanceNodePtrList = RefCell<Vec<InstanceNodePtr>>;
 
 pub struct InstantiationArgs {
-    pub prototypical_common_properties_factory:
-        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>) -> Rc<RefCell<CommonProperties>>>,
+    pub prototypical_common_properties_factory: Box<
+        dyn Fn(
+            Rc<RuntimePropertiesStackFrame>,
+            Option<Rc<ExpandedNode>>,
+        ) -> Option<Rc<RefCell<CommonProperties>>>,
+    >,
     pub prototypical_properties_factory:
         Box<dyn Fn(Rc<RuntimePropertiesStackFrame>) -> Rc<RefCell<PaxAny>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
@@ -180,8 +184,12 @@ pub struct BaseInstance {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub instance_prototypical_properties_factory:
         Box<dyn Fn(Rc<RuntimePropertiesStackFrame>) -> Rc<RefCell<PaxAny>>>,
-    pub instance_prototypical_common_properties_factory:
-        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>) -> Rc<RefCell<CommonProperties>>>,
+    pub instance_prototypical_common_properties_factory: Box<
+        dyn Fn(
+            Rc<RuntimePropertiesStackFrame>,
+            Option<Rc<ExpandedNode>>,
+        ) -> Option<Rc<RefCell<CommonProperties>>>,
+    >,
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     pub properties_scope_factory:
         Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, Variable>>>,
