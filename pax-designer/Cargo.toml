@@ -1,6 +1,6 @@
 [package]
 name = "pax-designer"
-version = "0.34.0"
+version = "0.35.0"
 edition = "2021"
 default-run = "run"
 authors = ["Zack Brown <zack@pax.dev>","Warfa Jibril <warfa@pax.dev>","Samuel Selleck <samuel@pax.dev>"]
@@ -11,9 +11,9 @@ description = "Vector design tool for developing Pax user interfaces"
 include = ["src/**/*", "assets/**/*"]
 
 [dependencies]
-pax-engine = { version = "0.34.0",  path = "../pax-engine", features = ["designtime"] }
-pax-std = { version = "0.34.0",  path = "../pax-std", features = ["designtime"] }
-pax-designtime = {version = "0.34.0", path = "../pax-designtime"}
+pax-engine = { version = "0.35.0",  path = "../pax-engine", features = ["designtime"] }
+pax-std = { version = "0.35.0",  path = "../pax-std", features = ["designtime"] }
+pax-designtime = {version = "0.35.0", path = "../pax-designtime"}
 anyhow = "1.0.79"
 
 [lib]
