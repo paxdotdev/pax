@@ -54,11 +54,15 @@
         />
     </Group>
 
-    // this is the event-intercepting, invisible baselayer of glass
-    // — it must exist in order to intercept events from the rendering layer
-    // underneath (Note an alternative could be a flag passed to Group which
-    // toggles its `is_invisible_to_raycasting`)
-    <EventBlocker id=backing_plate @mouse_down=handle_mouse_down/>
+    // this is the event-intercepting, invisible baselayer of glass — it must
+    // exist in order to intercept events from the rendering layer underneath
+    <Rectangle fill=TRANSPARENT  @mouse_down=handle_mouse_down/>
+    // This blocks interaction with nodes underneath, such as native buttons
+    // displaying "hovered" state, etc. Needs to be disabled for for example
+    // text interaction
+    if self.tool_visual_event_blocker_active {
+        <EventBlocker id=backing_plate/>
+    }
 </Group>
 
 @settings {

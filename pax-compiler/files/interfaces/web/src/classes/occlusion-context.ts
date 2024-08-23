@@ -9,7 +9,7 @@ import { getQuadClipPolygonCommand } from "../utils/helpers";
 export class OcclusionLayerManager {
     private layers?: Layer[];
     private canvasMap?: Map<string, HTMLCanvasElement>;
-    private parent?: Element;
+    public parent?: Element;
     private objectManager: ObjectManager;
     private chassis?: PaxChassisWeb;
     private containers: Map<number, Container>;

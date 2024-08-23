@@ -126,6 +126,7 @@ impl ToolBehavior for ControlPointTool {
                     rect_tool: Default::default(),
                     outline: Default::default(),
                     snap_lines: snap_lines.get(),
+                    event_blocker_active: true,
                 },
                 &deps,
             )

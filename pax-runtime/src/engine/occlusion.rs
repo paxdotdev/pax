@@ -28,15 +28,15 @@ impl OcclusionBox {
 
     fn new_from_transform_and_bounds(t_and_b: TransformAndBounds<NodeLocal, Window>) -> Self {
         let corners = t_and_b.corners();
-        let mut x2 = f64::MIN;
-        let mut y2 = f64::MIN;
         let mut x1 = f64::MAX;
         let mut y1 = f64::MAX;
+        let mut x2 = f64::MIN;
+        let mut y2 = f64::MIN;
         for c in corners {
-            x2 = x2.max(c.x);
-            y2 = y2.max(c.y);
             x1 = x1.min(c.x);
             y1 = y1.min(c.y);
+            x2 = x2.max(c.x);
+            y2 = y2.max(c.y);
         }
         OcclusionBox { x1, y1, x2, y2 }
     }
@@ -46,19 +46,15 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
     let mut occlusion_stack = vec![];
     let mut z_index = 0;
     update_node_occlusion_recursive(root_node, &mut occlusion_stack, ctx, false, &mut z_index);
-    let max_layer = occlusion_stack
-        .iter()
-        .map(|(_, v, _)| *v)
-        .max()
-        .unwrap_or(0);
-    ctx.enqueue_native_message(pax_message::NativeMessage::ShrinkLayersTo(max_layer));
+    let max_layer = occlusion_stack.len();
+    ctx.enqueue_native_message(pax_message::NativeMessage::ShrinkLayersTo(max_layer as u32));
 }
 
 // runtime is O(n^2) atm, could be improved by quadtree, or find an approximation
 // method using the tree structure that works well.
 fn update_node_occlusion_recursive(
     node: &Rc<ExpandedNode>,
-    occlusion_stack: &mut Vec<(Layer, u32, OcclusionBox)>,
+    occlusion_stack: &mut Vec<(Vec<OcclusionBox>, Vec<OcclusionBox>)>,
     ctx: &RuntimeContext,
     clipping: bool,
     z_index: &mut i32,
@@ -78,24 +74,38 @@ fn update_node_occlusion_recursive(
     }
 
     let layer = borrow!(node.instance_node).base().flags().layer;
-    if layer != Layer::DontCare {
+    if layer != Layer::DontCare || borrow!(node.instance_node).clips_content(&node) {
         let occlusion_box =
             OcclusionBox::new_from_transform_and_bounds(node.transform_and_bounds.get());
         let mut occlusion_index = 0;
 
-        for (layer_type, occl_id, occl_box) in occlusion_stack.iter().rev() {
-            if occlusion_box.intersects(occl_box) {
-                occlusion_index = match (layer, layer_type) {
-                    (Layer::Canvas, Layer::Native) => *occl_id + 1,
-                    _ => *occl_id,
+        for (index, stack) in occlusion_stack.iter().enumerate().rev() {
+            if stack.0.iter().any(|box_| occlusion_box.intersects(box_)) {
+                occlusion_index = match layer {
+                    Layer::Canvas => index + 1,
+                    _ => index,
                 };
                 break;
             }
+            if stack.1.iter().any(|box_| occlusion_box.intersects(box_)) {
+                occlusion_index = index;
+                break;
+            }
         }
-        occlusion_stack.push((layer, occlusion_index, occlusion_box));
+
+        if occlusion_stack.len() <= occlusion_index {
+            occlusion_stack.push(Default::default());
+        }
+
+        let occl_layer = &mut occlusion_stack[occlusion_index];
+        let set = match layer {
+            Layer::Native => &mut occl_layer.0,
+            _ => &mut occl_layer.1,
+        };
+        set.push(occlusion_box);
 
         let new_occlusion = Occlusion {
-            occlusion_layer_id: occlusion_index,
+            occlusion_layer_id: occlusion_index as u32,
             z_index: *z_index,
             parent_frame: node
                 .parent_frame
@@ -103,6 +113,7 @@ fn update_node_occlusion_recursive(
                 .filter(|_| clipping)
                 .map(|v| v.to_u32()),
         };
+
         if (layer == Layer::Native || borrow!(node.instance_node).clips_content(&node))
             && node.occlusion.get() != new_occlusion
         {
