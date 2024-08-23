@@ -1,13 +1,13 @@
 [package]
 name = "particles"
-version = "0.31.0"
+version = "0.32.0"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
 rand = { version = "0.8.5" }
 getrandom = { version = "0.2.15", features = ["js"] }
-pax-kit = { version = "0.31.0", path="../../../pax-kit", features = ["designer"] }
+pax-kit = { version = "0.32.0", path="../../../pax-kit", features = ["designer"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
