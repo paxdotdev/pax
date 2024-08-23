@@ -314,6 +314,12 @@ would enforce that pax_engine is a nice thin wrapper; nothing contained directly
 
         Seems we need to trim 36.1MiB down to 10MiB or so (or perhaps reach out to crates.io support for an ad-hoc limit raise)
 
+        Turns out these guys were collectively ~33MiB:
+
+        delete mode 100644 pax-designer/assets/images/map_paris.png
+        delete mode 100644 pax-designer/assets/images/map_sf.png
+        delete mode 100644 pax-designer/assets/images/remix-comp.png
+
 
 
     [ ] testing
