@@ -32,6 +32,7 @@ mod tests {
             main_component_type_id: type_id,
             type_table: HashMap::new(),
             assets_dirs: vec![],
+            engine_import_path: "".to_string(),
         }
     }
 

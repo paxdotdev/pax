@@ -116,6 +116,9 @@ impl ToolBehavior for TextEditTool {
     }
 
     fn get_visual(&self) -> Property<super::ToolVisualizationState> {
-        Property::new(super::ToolVisualizationState::default())
+        Property::new(super::ToolVisualizationState {
+            event_blocker_active: false,
+            ..Default::default()
+        })
     }
 }

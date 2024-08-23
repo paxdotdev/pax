@@ -9,7 +9,7 @@ use actix_web::{web::Data, App};
 use pax_compiler::design_server::{web_socket, AppState};
 use pax_manifest::{
     ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, LocationInfo, PaxManifest,
-    SettingsBlockElement, TemplateNodeDefinition, Token, TokenType, TypeId,
+    SettingsBlockElement, TemplateNodeDefinition, Token, TypeId,
 };
 
 const EXPECTED_PAX: &str = "// Hello world

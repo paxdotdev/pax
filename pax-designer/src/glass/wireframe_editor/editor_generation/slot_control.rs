@@ -148,10 +148,7 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                 .transform_and_bounds
                 .get()
                 .contains_point(point)
-                && ctx
-                    .engine_context
-                    .get_userland_root_expanded_node()
-                    != curr_container
+                && ctx.engine_context.get_userland_root_expanded_node() != curr_container
             {
                 let container_parent = curr_container.template_parent().unwrap();
                 let container_parent = GlassNode::new(&container_parent, &ctx.glass_transform());
@@ -246,6 +243,7 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                             rect_tool: Default::default(),
                             outline,
                             snap_lines: Default::default(), // TODO snaplines impl (SIMILAR TO NORMAL MOVE?)
+                            event_blocker_active: true,
                         }
                     },
                     &deps,
@@ -313,9 +311,7 @@ pub fn raycast_slot(
     let all_elements_beneath_ray = ctx
         .engine_context
         .raycast(ctx.glass_transform().get().inverse() * point, true);
-    let root = ctx
-        .engine_context
-        .get_userland_root_expanded_node();
+    let root = ctx.engine_context.get_userland_root_expanded_node();
 
     let open_container = ctx.derived_state.open_container.get();
     let slot_hit = all_elements_beneath_ray

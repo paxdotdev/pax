@@ -4,18 +4,21 @@
 <Textbox y=40px anchor_x=0% class=input x=72% width=25% text=font_size @textbox_change=size_change/>
 <Group y=80px>
     <Group height=30px width=30px @click=h_align_left>
+        <EventBlocker/>
         <Text class=text text="L" width=100% height=100%/>
         <Rectangle fill={rgb(20 + 50 * (h_align_index == 0), 20 + 50 * (h_align_index == 0), 20 + 50 * (h_align_index == 0))}
 	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
         />
     </Group>
     <Group x=35px height=30px width=30px @click=h_align_center>
+        <EventBlocker/>
         <Text class=text text="C" width=100% height=100%/>
         <Rectangle fill={rgb(20 + 50 * (h_align_index == 1), 20 + 50 * (h_align_index == 1), 20 + 50 * (h_align_index == 1))}
 	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
         />
     </Group>
     <Group x=70px height=30px width=30px @click=h_align_right>
+        <EventBlocker/>
         <Text class=text text="R" width=100% height=100%/>
         <Rectangle fill={rgb(20 + 50 * (h_align_index == 2), 20 + 50 * (h_align_index == 2), 20 + 50 * (h_align_index == 2))}
 	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
@@ -23,18 +26,21 @@
     </Group>
 
     <Group x=110px height=30px width=30px @click=v_align_top>
+        <EventBlocker/>
         <Text class=text text="T" width=100% height=100%/>
         <Rectangle fill={rgb(20 + 50 * (v_align_index == 0), 20 + 50 * (v_align_index == 0), 20 + 50 * (v_align_index == 0))}
 	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
         />
     </Group>
     <Group x=145px height=30px width=30px @click=v_align_center>
+        <EventBlocker/>
         <Text class=text text="C" width=100% height=100%/>
         <Rectangle fill={rgb(20 + 50 * (v_align_index == 1), 20 + 50 * (v_align_index == 1), 20 + 50 * (v_align_index == 1))}
 	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
         />
     </Group>
     <Group x=180px height=30px width=30px @click=v_align_bottom>
+        <EventBlocker/>
         <Text class=text text="B" width=100% height=100%/>
         <Rectangle fill={rgb(20 + 50 * (v_align_index == 2), 20 + 50 * (v_align_index == 2), 20 + 50 * (v_align_index == 2))}
 	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
@@ -42,6 +48,7 @@
     </Group>
 
     <Group x=220px height=30px width=30px @click=set_auto_size>
+        <EventBlocker/>
         <Text class=text text="A" width=100% height=100%/>
         <Rectangle fill={rgb(20 + 50 * auto, 20 + 50 * auto, 20 + 50 * auto)}
 	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}

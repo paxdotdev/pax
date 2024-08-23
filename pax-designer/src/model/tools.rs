@@ -164,6 +164,7 @@ impl ToolBehavior for CreateComponentTool {
                     },
                     outline: Default::default(),
                     snap_lines: snap_lines.get(),
+                    event_blocker_active: true,
                 }
             },
             &deps,
@@ -267,7 +268,8 @@ impl MovingTool {
                     ToolVisualizationState {
                         rect_tool: Default::default(),
                         outline,
-                        snap_lines: snap_lines.get(), // TODO snapline impl
+                        snap_lines: snap_lines.get(),
+                        event_blocker_active: true,
                     }
                 } else {
                     Default::default()
@@ -635,6 +637,7 @@ impl ToolBehavior for MultiSelectTool {
                     },
                     outline: Default::default(),
                     snap_lines: Default::default(),
+                    event_blocker_active: true,
                 }
             },
             &deps,
