@@ -29,7 +29,7 @@ pub enum NodeType {
 #[derive(Debug, Clone)]
 pub struct IdentifierData {
     pub identifier: String,
-    pub is_pascal_identifier: bool,
+    pub _is_pascal_identifier: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -120,7 +120,7 @@ pub fn extract_positional_nodes(
                     end,
                     node_type: NodeType::Identifier(IdentifierData {
                         identifier,
-                        is_pascal_identifier: true,
+                        _is_pascal_identifier: true,
                     }),
                 });
             }
@@ -143,7 +143,7 @@ pub fn extract_positional_nodes(
                 end,
                 node_type: NodeType::Identifier(IdentifierData {
                     identifier,
-                    is_pascal_identifier: true,
+                    _is_pascal_identifier: true,
                 }),
             });
         }
@@ -154,7 +154,7 @@ pub fn extract_positional_nodes(
                 end,
                 node_type: NodeType::Identifier(IdentifierData {
                     identifier,
-                    is_pascal_identifier: true,
+                    _is_pascal_identifier: true,
                 }),
             });
         }
@@ -165,7 +165,7 @@ pub fn extract_positional_nodes(
                 end,
                 node_type: NodeType::Identifier(IdentifierData {
                     identifier,
-                    is_pascal_identifier: false,
+                    _is_pascal_identifier: false,
                 }),
             });
         }

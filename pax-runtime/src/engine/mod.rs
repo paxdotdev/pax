@@ -302,14 +302,6 @@ impl PaxEngine {
             .runtime_context
             .get_expanded_nodes_by_global_ids(&unique_id);
         for node in nodes {
-            if new_instance.base().template_node_identifier
-                == borrow!(self.runtime_context.userland_frame_instance_node)
-                    .base()
-                    .template_node_identifier
-            {
-                *borrow_mut!(self.runtime_context.userland_frame_instance_node) =
-                    Rc::clone(&new_instance);
-            }
             node.recreate_with_new_data(new_instance.clone(), &self.runtime_context);
         }
     }
@@ -320,10 +312,9 @@ impl PaxEngine {
             .as_ref()
             .map(Rc::clone)
             .unwrap();
-
-        Rc::clone(&node).recurse_unmount(&self.runtime_context);
-        node.recreate_with_new_data(new_userland_instance.clone(), &self.runtime_context);
-        Rc::clone(&node).recurse_mount(&self.runtime_context);
+        *borrow_mut!(self.runtime_context.userland_frame_instance_node) =
+            Rc::clone(&new_userland_instance);
+        node.fully_recreate_with_new_data(new_userland_instance.clone(), &self.runtime_context);
     }
 
     // NOTES: this is the order of different things being computed in recurse-expand-nodes
