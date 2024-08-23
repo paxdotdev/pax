@@ -5,7 +5,7 @@ use std::sync::Mutex;
 
 use crate::math::coordinate_spaces::Glass;
 use crate::model;
-use crate::model::action::orm::group_ungroup::{GroupSelected, UngroupSelected};
+use crate::model::action::orm::group_ungroup::{GroupSelected, GroupType, UngroupSelected};
 use crate::model::action::orm::SelectedIntoNewComponent;
 use crate::model::action::{Action, ActionContext};
 
@@ -70,7 +70,7 @@ impl DesignerContextMenu {
     pub fn group(&mut self, ctx: &NodeContext, _args: Event<Click>) {
         model::perform_action(
             &GroupSelected {
-                new_parent_type_id: &TypeId::build_singleton("pax_std::core::group::Group", None),
+                group_type: GroupType::Group,
             },
             ctx,
         );
@@ -80,7 +80,7 @@ impl DesignerContextMenu {
     pub fn group_link(&mut self, ctx: &NodeContext, _args: Event<Click>) {
         model::perform_action(
             &GroupSelected {
-                new_parent_type_id: &TypeId::build_singleton("pax_std::core::link::Link", None),
+                group_type: GroupType::Group,
             },
             ctx,
         );

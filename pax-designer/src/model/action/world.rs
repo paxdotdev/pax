@@ -2,6 +2,7 @@ use std::ops::ControlFlow;
 
 use super::{pointer::Pointer, Action, ActionContext};
 use crate::math::coordinate_spaces::{Glass, World};
+use crate::model::input::ModifierKey;
 use crate::model::{input::InputEvent, AppState, ToolBehavior};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
@@ -85,7 +86,7 @@ pub struct Zoom {
 
 impl Action for Zoom {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
-        if ctx.app_state.modifiers.get().meta {
+        if ctx.app_state.modifiers.get().contains(&ModifierKey::Meta) {
             let scale = if self.closer { 1.0 / 1.4 } else { 1.4 };
             ctx.app_state.glass_to_world_transform.update(|transform| {
                 *transform = *transform * Transform2::scale(scale);

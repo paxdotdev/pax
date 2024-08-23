@@ -9,7 +9,7 @@ use crate::math::{
     self, AxisAlignedBox, DecompositionConfiguration, GetUnit, IntoDecompositionConfiguration,
     RotationUnit, SizeUnit,
 };
-use crate::model::input::InputEvent;
+use crate::model::input::{InputEvent, ModifierKey};
 use crate::model::tools::{SelectMode, SelectNodes};
 use crate::model::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot};
 use crate::{math::BoxPoint, model, model::AppState};
@@ -35,6 +35,7 @@ use pax_engine::{
 use pax_engine::{log, NodeInterface, NodeLocal, Slot};
 use pax_std::layout::stacker::Stacker;
 pub mod group_ungroup;
+pub mod utils;
 
 pub struct CreateComponent<'a> {
     pub parent_id: &'a UniqueTemplateNodeIdentifier,
@@ -153,10 +154,13 @@ pub struct SetNodeLayoutProperties<'a> {
 impl Action for SetNodeLayoutProperties<'_> {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        let Some(mut builder) = dt
-            .get_orm_mut()
-            .get_node(self.id.clone(), ctx.app_state.modifiers.get().control)
-        else {
+        let Some(mut builder) = dt.get_orm_mut().get_node(
+            self.id.clone(),
+            ctx.app_state
+                .modifiers
+                .get()
+                .contains(&ModifierKey::Control),
+        ) else {
             return Err(anyhow!("can't move: node doesn't exist in orm"));
         };
 
@@ -364,8 +368,12 @@ pub struct Resize<'a> {
 
 impl Action for Resize<'_> {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
-        let (is_shift_key_down, is_alt_key_down) =
-            ctx.app_state.modifiers.read(|keys| (keys.alt, keys.shift));
+        let (is_shift_key_down, is_alt_key_down) = ctx.app_state.modifiers.read(|keys| {
+            (
+                keys.contains(&ModifierKey::Alt),
+                keys.contains(&ModifierKey::Shift),
+            )
+        });
 
         let bounds = self.initial_selection.total_bounds.bounds;
         let selection_space = self.initial_selection.total_bounds.transform
@@ -463,7 +471,7 @@ impl Action for RotateSelected<'_> {
         let curr = self.curr_pos - anchor_point;
         let mut rotation = start.angle_to(curr).get_as_degrees();
 
-        if ctx.app_state.modifiers.get().shift {
+        if ctx.app_state.modifiers.get().contains(&ModifierKey::Shift) {
             let original_rotation =
                 Into::<Parts>::into(self.initial_selection.total_bounds.transform)
                     .rotation

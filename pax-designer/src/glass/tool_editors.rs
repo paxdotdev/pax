@@ -5,7 +5,7 @@ use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_engine::{log, math::Point2, Property};
 use pax_std::core::text::Text;
 
-use crate::model::input::InputEvent;
+use crate::model::input::{InputEvent, ModifierKey};
 use crate::{
     math::coordinate_spaces::Glass,
     model::{
@@ -39,7 +39,13 @@ impl TextEditTool {
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
         let import_path = dt
             .get_orm_mut()
-            .get_node(uid.clone(), ctx.app_state.modifiers.get().control)
+            .get_node(
+                uid.clone(),
+                ctx.app_state
+                    .modifiers
+                    .get()
+                    .contains(&ModifierKey::Control),
+            )
             .expect("node exists")
             .get_type_id()
             .import_path();
@@ -77,10 +83,13 @@ impl ToolBehavior for TextEditTool {
 
         // commit text changes
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        if let Some(mut builder) = dt
-            .get_orm_mut()
-            .get_node(self.uid.clone(), ctx.app_state.modifiers.get().control)
-        {
+        if let Some(mut builder) = dt.get_orm_mut().get_node(
+            self.uid.clone(),
+            ctx.app_state
+                .modifiers
+                .get()
+                .contains(&ModifierKey::Control),
+        ) {
             builder
                 .set_typed_property("text", self.text_binding.get())
                 .unwrap();
