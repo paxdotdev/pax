@@ -1,26 +1,11 @@
-use std::panic::Location;
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    env,
-    time::Duration,
-};
+// use std::collections::{BTreeMap, HashMap};
 
 use actix_web::{web::Data, App};
 use pax_compiler::design_server::{web_socket, AppState};
-use pax_manifest::{
-    ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, LocationInfo, PaxManifest,
-    SettingsBlockElement, TemplateNodeDefinition, Token, TypeId,
-};
-
-const EXPECTED_PAX: &str = "// Hello world
-<SpecialComponent />
-
-@settings {
-    @existing_handler: handler_action,
-    #existing_selector {
-    
-    }
-}";
+// use pax_manifest::{
+//     ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, PaxManifest,
+//     SettingsBlockElement, TemplateNodeDefinition, Token, TypeId,
+// };
 
 pub fn get_test_server() -> actix_test::TestServer {
     actix_test::start(|| {
@@ -30,68 +15,74 @@ pub fn get_test_server() -> actix_test::TestServer {
     })
 }
 
-fn create_basic_manifest(source_path: String) -> PaxManifest {
-    let mut components = BTreeMap::new();
-    let component_type_id = TypeId::build_singleton("Component1", Some("Component1"));
-    let special_component_type_id =
-        TypeId::build_singleton("SpecialComponent", Some("SpecialComponent"));
-    let mut template = ComponentTemplate::new(component_type_id.clone(), Some(source_path));
+// fn create_basic_manifest(source_path: String) -> PaxManifest {
+//     let mut components = BTreeMap::new();
+//     let component_type_id = TypeId::build_singleton("Component1", Some("Component1"));
+//     let special_component_type_id =
+//         TypeId::build_singleton("SpecialComponent", Some("SpecialComponent"));
+//     let mut template = ComponentTemplate::new(component_type_id.clone(), Some(source_path));
 
-    template.add(TemplateNodeDefinition {
-        type_id: special_component_type_id,
-        control_flow_settings: None,
-        settings: None,
-        raw_comment_string: None,
-    });
+//     template.add(TemplateNodeDefinition {
+//         type_id: special_component_type_id,
+//         control_flow_settings: None,
+//         settings: None,
+//         raw_comment_string: None,
+//     });
 
-    // .add puts the node on the top of the template by default in line with designing
-    template.add(TemplateNodeDefinition {
-        type_id: TypeId::build_comment(),
-        control_flow_settings: None,
-        settings: None,
-        raw_comment_string: Some("// Hello world\n".to_owned()),
-    });
+//     // .add puts the node on the top of the template by default in line with designing
+//     template.add(TemplateNodeDefinition {
+//         type_id: TypeId::build_comment(),
+//         control_flow_settings: None,
+//         settings: None,
+//         raw_comment_string: Some("// Hello world\n".to_owned()),
+//     });
 
-    components.insert(
-        component_type_id.clone(),
-        ComponentDefinition {
-            type_id: component_type_id.clone(),
-            is_main_component: false,
-            is_primitive: false,
-            is_struct_only_component: false,
-            module_path: "module_path1".to_string(),
-            primitive_instance_import_path: None,
-            template: Some(template),
-            settings: Some(vec![
-                SettingsBlockElement::SelectorBlock(
-                    Token::new_without_location("#existing_selector".to_string()),
-                    LiteralBlockDefinition::new(vec![]),
-                ),
-                SettingsBlockElement::Handler(
-                    Token::new_with_raw_value(
-                        "@existing_handler".to_string(),
-                        "@existing_handler".to_string(),
-                        TokenType::EventId,
-                        LocationInfo::default(),
-                        "",
-                    ),
-                    vec![Token::new_without_location("handler_action".to_string())],
-                ),
-            ]),
-        },
-    );
+//     components.insert(
+//         component_type_id.clone(),
+//         ComponentDefinition {
+//             type_id: component_type_id.clone(),
+//             is_main_component: false,
+//             is_primitive: false,
+//             is_struct_only_component: false,
+//             module_path: "module_path1".to_string(),
+//             primitive_instance_import_path: None,
+//             template: Some(template),
+//             settings: Some(vec![
+//                 SettingsBlockElement::SelectorBlock(
+//                     Token::new_without_location("#existing_selector".to_string()),
+//                     LiteralBlockDefinition::new(vec![]),
+//                 ),
+//                 SettingsBlockElement::Handler(
+//                     Token::new_without_location("@existing_handler".to_string()),
+//                     vec![Token::new_without_location("handler_action".to_string())],
+//                 ),
+//             ]),
+//         },
+//     );
 
-    PaxManifest {
-        components,
-        main_component_type_id: component_type_id,
-        type_table: HashMap::new(),
-        assets_dirs: vec![],
-    }
-}
+//     PaxManifest {
+//         components,
+//         main_component_type_id: component_type_id,
+//         type_table: HashMap::new(),
+//         assets_dirs: vec![],
+//         engine_import_path: "".to_string(),
+//     }
+// }
 
 #[actix_web::test]
 async fn designtime_integration_test() {
+    todo!()
     // TODO add back once we figure out privileged agent connection structure
+
+    // const EXPECTED_PAX: &str = "// Hello world
+    // <SpecialComponent />
+
+    // @settings {
+    //     @existing_handler: handler_action,
+    //     #existing_selector {
+
+    //     }
+    // }";
 
     // let component_type_id = TypeId::build_singleton("Component1", Some("Component1"));
     // let current_dir = env::current_dir().expect("Failed to get current directory");

@@ -14,7 +14,7 @@ pub use pax_runtime::api::PaxValue;
 pub use pax_runtime::api::Property;
 pub use pax_runtime::api::ToPaxValue;
 pub use pax_runtime::engine::node_interface::*;
-pub use pax_runtime::layout;
+pub use pax_runtime::layout as node_layout;
 pub use pax_runtime::rendering;
 pub use pax_runtime::Slot;
 

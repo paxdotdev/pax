@@ -2,9 +2,9 @@ use std::iter;
 
 use pax_engine::{
     api::Color,
-    layout::TransformAndBounds,
     log,
     math::{Point2, Vector2},
+    node_layout::TransformAndBounds,
     pax_manifest::UniqueTemplateNodeIdentifier,
     NodeInterface, NodeLocal, Property,
 };

@@ -4,9 +4,9 @@ use pax_engine::api::{borrow, borrow_mut, Color};
 use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_engine::{
     api::NodeContext,
-    layout::TransformAndBounds,
     log,
     math::{Point2, Transform2},
+    node_layout::TransformAndBounds,
     NodeInterface, NodeLocal, Property, Slot,
 };
 use pax_std::stacker::Stacker;

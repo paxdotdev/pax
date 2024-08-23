@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap},
     env,
 };
 
@@ -9,8 +9,8 @@ use futures_util::SinkExt as _;
 use pax_compiler::design_server::{web_socket, AppState};
 use pax_designtime::messages::{AgentMessage, ManifestSerializationRequest};
 use pax_manifest::{
-    ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, LocationInfo, PaxManifest,
-    SettingsBlockElement, TemplateNodeDefinition, Token, TokenType, TypeId,
+    ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, PaxManifest,
+    SettingsBlockElement, TemplateNodeDefinition, Token, TypeId,
 };
 use rmp_serde::to_vec;
 

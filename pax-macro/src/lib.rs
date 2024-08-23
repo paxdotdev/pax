@@ -2,9 +2,8 @@ extern crate proc_macro;
 extern crate proc_macro2;
 mod parsing;
 mod templating;
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::io::Read;
-use std::io::Write;
 use std::path::Path;
 use std::str::FromStr;
 use std::{env, fs, path::PathBuf}; // Necessary for `writeln!` macro to work
@@ -30,10 +29,9 @@ fn is_root_crate() -> bool {
     is_not_blacklisted && is_root_crate
 }
 
-use pax_runtime::PaxEngine;
 use syn::{
     parse_macro_input, Data, DeriveInput, Field, Fields, FnArg, GenericArgument, ImplItem,
-    ImplItemMethod, ItemFn, ItemImpl, Lit, Meta, PatType, PathArguments, Signature, Token, Type,
+    ItemImpl, Lit, Meta, PatType, PathArguments, Signature, Token, Type,
 };
 
 fn pax_primitive(
@@ -315,7 +313,6 @@ fn get_internal_definitions_from_tokens(data: &Data) -> InternalDefinitions {
 // Task at hand: [ ] detect whether we are in the root crate of this build.
 //                 [ ] might be able to store a static mutable Option<root_crate_pkg_name>, a write-once-read-many (WORM) signal to the rest of the build.
 
-static mut ROOT_CRATE_PKG_NAME: Option<String> = None;
 //I should set this in the pax-macro crate, and then check it in the stpl template.
 //How can I access that env value, correctly reflecting the package being built (instead of pax-macro, this package) ?
 // [ ] I could set it in the build script, but that would require the user to add a build script to their project.
@@ -330,24 +327,6 @@ static mut ROOT_CRATE_PKG_NAME: Option<String> = None;
 // ```
 // And to doubly verify: this first time this is run, CARGO_PKG_NAME should be the root crate being built?
 // [ ] I should add a println! to the build script to verify this.
-
-const FILE_NAME: &'static str = "pax_macro_writeln.txt";
-
-fn pax_macro_writeln(content: &str) {
-    // get cargo_manifest path:
-    let cargo_manifest = unsafe { WORM_ROOT_CARGO_MANIFEST_DIR.as_ref().unwrap().to_string() };
-    let full_path = Path::new(&cargo_manifest).join(FILE_NAME);
-
-    //create file if it doesn't exist:
-    if !full_path.exists() {
-        let mut file = File::create(&full_path).unwrap();
-        let _ = writeln!(file, "{}", "");
-    }
-
-    //append to file
-    let mut file = OpenOptions::new().append(true).open(full_path).unwrap();
-    let _ = writeln!(file, "{}", content);
-}
 
 fn pax_full_component(
     raw_pax: String,

@@ -42,10 +42,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 use crate::helpers::{
-    get_host_crate_info, get_or_create_pax_directory, update_pax_dependency_versions,
-    INTERFACE_DIR_NAME, PAX_BADGE, PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME, PAX_CREATE_TEMPLATE,
-    PAX_IOS_INTERFACE_TEMPLATE, PAX_MACOS_INTERFACE_TEMPLATE, PAX_SWIFT_CARTRIDGE_TEMPLATE,
-    PAX_SWIFT_COMMON_TEMPLATE, PAX_WEB_INTERFACE_TEMPLATE,
+    get_or_create_pax_directory, update_pax_dependency_versions, INTERFACE_DIR_NAME, PAX_BADGE,
+    PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME, PAX_CREATE_TEMPLATE, PAX_IOS_INTERFACE_TEMPLATE,
+    PAX_MACOS_INTERFACE_TEMPLATE, PAX_SWIFT_CARTRIDGE_TEMPLATE, PAX_SWIFT_COMMON_TEMPLATE,
+    PAX_WEB_INTERFACE_TEMPLATE,
 };
 
 pub struct RunContext {
