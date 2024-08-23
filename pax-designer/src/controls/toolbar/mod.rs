@@ -151,7 +151,7 @@ thread_local! {
                 items: vec![
                     ToolbarItem {
                         icon: "assets/icons/toolbar/icon-16-speech.png",
-                        event: ToolbarEvent::PerformAction(Box::new(|| Box::new(OpenLLMPrompt { require_meta: false })))
+                        event: ToolbarEvent::PerformAction(Box::new(|| Box::new(OpenLLMPrompt)))
                     },
                 ]
             },

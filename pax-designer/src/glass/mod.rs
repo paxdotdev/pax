@@ -157,13 +157,9 @@ impl Glass {
                 selected_node_id.clone(),
             );
             let mut dt = borrow_mut!(ctx.designtime);
-            let builder = dt.get_orm_mut().get_node(
-                uid.clone(),
-                app_state
-                    .keys_pressed
-                    .get()
-                    .contains(&model::input::InputEvent::Control),
-            )?;
+            let builder = dt
+                .get_orm_mut()
+                .get_node(uid.clone(), app_state.modifiers.get().control)?;
             Some((builder.get_type_id(), uid))
         });
         if let Some((node_id, uid)) = info {

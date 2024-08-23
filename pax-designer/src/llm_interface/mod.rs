@@ -6,7 +6,7 @@ use pax_engine::*;
 use pax_std::*;
 
 use crate::model::{
-    action::{Action, ActionContext, orm::SerializeRequested },
+    action::{orm::SerializeRequested, Action, ActionContext},
     input::InputEvent,
 };
 #[pax]
@@ -17,16 +17,12 @@ pub struct LLMInterface {
     pub request: Property<String>,
 }
 
-pub struct OpenLLMPrompt {
-    pub require_meta: bool,
-}
+pub struct OpenLLMPrompt;
 
 impl Action for OpenLLMPrompt {
     fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
-        SerializeRequested {}.perform(ctx)?;
-        if !self.require_meta || ctx.app_state.keys_pressed.get().contains(&InputEvent::Meta) {
-            OPEN_LLM_PROMPT_PROP.with(|p| p.set(true));
-        }
+        SerializeRequested.perform(ctx)?;
+        OPEN_LLM_PROMPT_PROP.with(|p| p.set(true));
         Ok(())
     }
 }

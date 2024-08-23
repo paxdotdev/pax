@@ -75,12 +75,9 @@ impl ToolBehavior for CreateComponentTool {
         point: Point2<Glass>,
         ctx: &mut ActionContext,
     ) -> std::ops::ControlFlow<()> {
-        let is_shift_key_down = ctx
-            .app_state
-            .keys_pressed
-            .get()
-            .contains(&InputEvent::Shift);
-        let is_alt_key_down = ctx.app_state.keys_pressed.get().contains(&InputEvent::Alt);
+        let modifiers = ctx.app_state.modifiers.get();
+        let is_shift_key_down = modifiers.shift;
+        let is_alt_key_down = modifiers.alt;
         let offset = self.intent_snapper.snap(&[point]);
         self.bounds.set(
             AxisAlignedBox::new(self.origin, self.origin + Vector2::new(1.0, 1.0))
@@ -191,11 +188,7 @@ impl Action for SelectNodes<'_> {
         let deselect_others = match self.mode {
             SelectMode::KeepOthers => false,
             SelectMode::DiscardOthers => true,
-            SelectMode::Dynamic => !ctx
-                .app_state
-                .keys_pressed
-                .get()
-                .contains(&InputEvent::Shift),
+            SelectMode::Dynamic => !ctx.app_state.modifiers.get().shift,
         };
         if deselect_others {
             ids.clear();
@@ -308,7 +301,7 @@ impl ToolBehavior for MovingTool {
 
         if !self.has_moved {
             let t = ctx.transaction("moving object");
-            if ctx.app_state.keys_pressed.get().contains(&InputEvent::Alt) {
+            if ctx.app_state.modifiers.get().alt {
                 //copy paste object and leave newly created object behind
                 let ids = t.run(|| {
                     let subtrees = orm::Copy {
