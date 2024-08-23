@@ -20,7 +20,7 @@ use pax_designtime::{DesigntimeManager, Serializer};
 use pax_engine::api::{borrow, borrow_mut, Rotation};
 use pax_engine::api::{Axis, Percent};
 use pax_engine::layout::{LayoutProperties, TransformAndBounds};
-use pax_engine::math::{Generic, Parts, Transform2};
+use pax_engine::math::{Generic, Transform2, TransformParts};
 use pax_engine::pax_manifest::{
     NodeLocation, PaxType, TemplateNodeId, TreeIndexPosition, TreeLocation, TypeId,
     UniqueTemplateNodeIdentifier,
@@ -35,7 +35,7 @@ use pax_engine::{
 use pax_engine::{log, NodeInterface, NodeLocal, Slot};
 use pax_std::layout::stacker::Stacker;
 pub mod group_ungroup;
-pub mod utils;
+pub mod other;
 
 pub struct CreateComponent<'a> {
     pub parent_id: &'a UniqueTemplateNodeIdentifier,
@@ -116,7 +116,7 @@ impl Action for SelectedIntoNewComponent {
                     transform: world_transform,
                     bounds: (1.0, 1.0),
                 } * e.transform_and_bounds.get();
-                let parts: Parts = b.transform.into();
+                let parts: TransformParts = b.transform.into();
                 MoveToComponentEntry {
                     x: parts.origin.x,
                     y: parts.origin.y,
@@ -473,7 +473,7 @@ impl Action for RotateSelected<'_> {
 
         if ctx.app_state.modifiers.get().contains(&ModifierKey::Shift) {
             let original_rotation =
-                Into::<Parts>::into(self.initial_selection.total_bounds.transform)
+                Into::<TransformParts>::into(self.initial_selection.total_bounds.transform)
                     .rotation
                     .to_degrees();
             let total_rotation = (rotation + original_rotation).rem_euclid(360.0 - f64::EPSILON);

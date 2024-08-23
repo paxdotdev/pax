@@ -9,7 +9,7 @@ use actix::{spawn, Actor, AsyncContext, Handler, Running, StreamHandler};
 use actix_web::web::Data;
 use actix_web_actors::ws::{self};
 use pax_designtime::messages::{
-    AgentMessage, ComponentSerializationRequest, FileChangedNotification, LLMHelpRequest,
+    AgentMessage, ComponentSerializationRequest, FileChangedNotification,
     LoadFileToStaticDirRequest, LoadManifestResponse, ManifestSerializationRequest,
     UpdateTemplateRequest,
 };
@@ -17,7 +17,7 @@ use pax_generation::{AIModel, PaxAppGenerator};
 use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
 use std::os::unix::process::CommandExt;
 use std::process::Command;
-use std::{collections::HashMap, env, fs};
+use std::{collections::HashMap, env};
 
 use self::socket_message_accumulator::SocketMessageAccumulator;
 
@@ -102,7 +102,7 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
                             &content,
                         )
                         .expect("Unsuccessful parse");
-                        let settings =
+                        let _settings =
                             pax_manifest::parsing::parse_settings_from_component_definition_string(
                                 &content,
                                 ast.clone(),
@@ -113,7 +113,7 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
                             ast.clone(),
                         );
 
-                        let mut new_template = tpc.template;
+                        let new_template = tpc.template;
 
                         // update the manifest with this new template
                         let comp = manifest.components.get_mut(&self_type_id).unwrap();

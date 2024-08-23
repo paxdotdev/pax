@@ -20,9 +20,7 @@ use pax_runtime::{PaxEngine, Renderer};
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`
 //in order to be visible to Swift
 pub use pax_message::*;
-use pax_runtime::api::{
-    Click, Event, ModifierKey, MouseButton, MouseEventArgs, Platform, RenderContext, OS,
-};
+use pax_runtime::api::{Click, Event, ModifierKey, MouseButton, MouseEventArgs, RenderContext};
 
 /// Container data structure for PaxEngine, aggregated to support passing across C bridge
 #[repr(C)] //Exposed to Swift via PaxCartridge.h

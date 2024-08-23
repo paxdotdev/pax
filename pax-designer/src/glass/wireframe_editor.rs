@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use super::model::ToolBehavior;
 use pax_engine::api::*;
 use pax_engine::layout::TransformAndBounds;
-use pax_engine::math::{Generic, Parts, Point2, Transform2, Vector2};
+use pax_engine::math::{Generic, Point2, Transform2, TransformParts, Vector2};
 use pax_engine::Property;
 use pax_engine::*;
 use pax_manifest::{TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
@@ -131,7 +131,7 @@ impl WireframeEditor {
         let deps = [t_and_b.untyped()];
         object_rotation.replace_with(Property::computed(
             move || {
-                let parts: Parts = t_and_b.get().as_transform().into();
+                let parts: TransformParts = t_and_b.get().as_transform().into();
                 Rotation::Radians(parts.rotation.into())
             },
             &deps,

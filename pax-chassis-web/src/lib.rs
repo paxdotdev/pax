@@ -1,7 +1,6 @@
 //! Basic example of rendering in the browser
 
 use js_sys::Uint8Array;
-use log::Level;
 use pax_message::ImageLoadInterruptArgs;
 use pax_runtime::api::borrow;
 use pax_runtime::api::math::Point2;
@@ -11,13 +10,11 @@ use pax_runtime::api::Platform;
 use pax_runtime::api::RenderContext;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::OS;
-use pax_runtime::{DefinitionToInstanceTraverser, ExpandedNode};
+use pax_runtime::DefinitionToInstanceTraverser;
 use pax_runtime_api::borrow_mut;
 use pax_runtime_api::Event;
 use_RefCell!();
 
-use std::collections::HashMap;
-use std::hash::Hash;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;

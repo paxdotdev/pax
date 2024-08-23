@@ -7,8 +7,8 @@ mod transform;
 mod vector;
 
 pub use point::Point2;
-pub use transform::Parts;
 pub use transform::Transform2;
+pub use transform::TransformParts;
 pub use vector::Vector2;
 
 pub trait Space: 'static {}

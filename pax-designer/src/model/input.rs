@@ -10,7 +10,7 @@ use crate::model::action::orm::{RedoRequested, SerializeRequested, UndoRequested
 use crate::{controls::toolbar, glass, llm_interface::OpenLLMPrompt};
 
 use super::action::orm::group_ungroup::{GroupSelected, GroupType};
-use super::action::orm::utils::SwapFillStrokeAction;
+use super::action::orm::other::SwapFillStrokeAction;
 use super::action::orm::{Copy, Paste};
 use super::read_app_state;
 use super::{

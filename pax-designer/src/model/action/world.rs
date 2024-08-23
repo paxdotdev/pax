@@ -2,10 +2,14 @@ use std::ops::ControlFlow;
 
 use super::{pointer::Pointer, Action, ActionContext};
 use crate::math::coordinate_spaces::{Glass, World};
+use crate::math::AxisAlignedBox;
 use crate::model::input::ModifierKey;
 use crate::model::{input::InputEvent, AppState, ToolBehavior};
+use crate::DESIGNER_GLASS_ID;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
+use pax_engine::api::Window;
+use pax_engine::math::TransformParts;
 use pax_engine::{
     api::{Size, Transform2D},
     math::{Generic, Point2, Transform2, Vector2},
@@ -92,6 +96,31 @@ impl Action for Zoom {
                 *transform = *transform * Transform2::scale(scale);
             });
         }
+        Ok(())
+    }
+}
+
+pub struct ZoomToFit {
+    pub top_left: Point2<World>,
+    pub bottom_right: Point2<World>,
+}
+
+impl Action for ZoomToFit {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+        // let world_transform = ctx.app_state.glass_to_world_transform.get();
+        let glass_node = ctx
+            .engine_context
+            .get_nodes_by_id(DESIGNER_GLASS_ID)
+            .into_iter()
+            .next()
+            .unwrap();
+
+        let bounds = glass_node.transform_and_bounds().get().bounds;
+
+        // TODO improve this to make the viewport nicely placed after zoom in
+        let new_transform = Transform2::<Window, World>::translate(self.top_left.to_vector())
+            * Transform2::scale((self.bottom_right.x - self.top_left.x) / bounds.0);
+        ctx.app_state.glass_to_world_transform.set(new_transform);
         Ok(())
     }
 }

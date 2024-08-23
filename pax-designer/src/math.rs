@@ -4,7 +4,7 @@ use pax_engine::api::{Axis, Interpolatable, Percent, Rotation, Size};
 use pax_engine::{
     layout::{LayoutProperties, TransformAndBounds},
     log,
-    math::{Generic, Parts, Point2, Space, Transform2, Vector2},
+    math::{Generic, Point2, Space, Transform2, TransformParts, Vector2},
     NodeLocal,
 };
 
@@ -340,7 +340,7 @@ pub(crate) fn transform_and_bounds_decomposition<S: Space>(
         bounds: (1.0, 1.0),
     } * target_box.clone();
 
-    let mut parts: Parts = target_box.transform.into();
+    let mut parts: TransformParts = target_box.transform.into();
     let object_bounds = target_box.bounds;
 
     // flip sign of object bounds if negative, and apply a negative scaling instead

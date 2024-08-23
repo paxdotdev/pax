@@ -57,14 +57,7 @@ impl FillPropertyEditor {
             move || {
                 let color = color.get();
                 if !external.get() {
-                    let rgba = color.to_rgba_0_1();
-                    let col_str = format!(
-                        "rgba({}, {}, {}, {})",
-                        (rgba[0] * 255.0) as u8,
-                        (rgba[1] * 255.0) as u8,
-                        (rgba[2] * 255.0) as u8,
-                        (rgba[3] * 255.0) as u8
-                    );
+                    let col_str = color_to_str(color);
                     if let Err(e) = data.get().set_value(&ctxc, &col_str) {
                         log::warn!("failed to set fill color: {e}");
                     }
@@ -79,4 +72,16 @@ impl FillPropertyEditor {
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
         self.property_listener.get();
     }
+}
+
+pub fn color_to_str(color: Color) -> String {
+    let rgba = color.to_rgba_0_1();
+    let col_str = format!(
+        "rgba({}, {}, {}, {})",
+        (rgba[0] * 255.0) as u8,
+        (rgba[1] * 255.0) as u8,
+        (rgba[2] * 255.0) as u8,
+        (rgba[3] * 255.0) as u8
+    );
+    col_str
 }

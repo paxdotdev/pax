@@ -2,7 +2,7 @@ use std::ops::Mul;
 
 #[allow(unused)]
 use pax_runtime_api::math::Generic;
-use pax_runtime_api::math::{Parts, Point2, Space};
+use pax_runtime_api::math::{Point2, Space, TransformParts};
 use pax_runtime_api::{Interpolatable, Percent, Property, Rotation, Window};
 
 use crate::api::math::{Transform2, Vector2};
@@ -122,7 +122,7 @@ pub fn calculate_transform_and_bounds(
 
     let rotation = rotate.map(|s| s.get_as_radians()).unwrap_or(0.0);
 
-    let parts = Parts {
+    let parts = TransformParts {
         origin,
         scale,
         skew,
@@ -222,7 +222,7 @@ impl<F: Space, T: Space> TransformAndBounds<F, T> {
     }
 
     pub fn as_pure_size(self) -> Self {
-        let mut parts: Parts = self.transform.into();
+        let mut parts: TransformParts = self.transform.into();
         let bounds_x = std::mem::replace(&mut parts.scale.x, 1.0);
         let bounds_y = std::mem::replace(&mut parts.scale.y, 1.0);
         TransformAndBounds {
