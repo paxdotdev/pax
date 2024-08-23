@@ -11,7 +11,11 @@ use pax_engine::{
 
 use crate::{
     glass::{SnapInfo, SnapLine},
-    model::{action::ActionContext, input::InputEvent, GlassNode},
+    model::{
+        action::ActionContext,
+        input::{InputEvent, ModifierKey},
+        GlassNode,
+    },
 };
 
 use super::{
@@ -61,7 +65,8 @@ impl IntentSnapper {
     pub fn new(ctx: &ActionContext, snap_collection: SnapCollection) -> Self {
         let keys = ctx.app_state.modifiers.clone();
         let deps = [keys.untyped()];
-        let snap_enabled = Property::computed(move || !keys.get().control, &deps);
+        let snap_enabled =
+            Property::computed(move || !keys.get().contains(&ModifierKey::Meta), &deps);
         Self {
             tol: 8.0,
             snap_set: snap_collection,

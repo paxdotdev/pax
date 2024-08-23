@@ -52,7 +52,7 @@ pub use selection_state::*;
 use self::action::pointer::MouseEntryPointAction;
 use self::action::pointer::Pointer;
 use self::action::UndoRedoStack;
-use self::input::ModifierKeySet;
+use self::input::ModifierKey;
 use self::input::{Dir, InputEvent, InputMapper};
 
 /// Represents the global source-of-truth for the desinger.
@@ -121,7 +121,7 @@ pub struct AppState {
     //---------------keyboard----------------
     /// Currently pressed keys, used mostly for querying modifier key state
     /// INVALID_IF: no invalid states
-    pub modifiers: Property<ModifierKeySet>,
+    pub modifiers: Property<HashSet<ModifierKey>>,
 
     //--------------settings-----------------
     /// Input mapper is responsible for keeping track of

@@ -6,7 +6,7 @@ use crate::context_menu::ContextMenuMsg;
 use crate::math::coordinate_spaces::Glass;
 use crate::math::SizeUnit;
 use crate::model::action::world::Pan;
-use crate::model::input::InputEvent;
+use crate::model::input::{InputEvent, ModifierKey};
 use crate::model::tools::{CreateComponentTool, MovingTool, MultiSelectTool};
 use crate::model::Component;
 use crate::model::{action, Tool};
@@ -37,7 +37,7 @@ impl Action for MouseEntryPointAction<'_> {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         let point_glass = ctx.glass_transform().get() * self.point;
         ctx.app_state.mouse_position.set(point_glass);
-        let spacebar = ctx.app_state.modifiers.get().space;
+        let spacebar = ctx.app_state.modifiers.get().contains(&ModifierKey::Space);
         let tool_behavior = ctx.app_state.tool_behavior.clone();
         // Open context menu on right mouse button click no matter what
         if matches!(
