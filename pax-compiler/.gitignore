@@ -1,0 +1,6 @@
+pax-app-macos.xcodeproj
+node_modules
+pax-interface-web.js
+pax-interface-web.css
+.DS_Store
+package-lock.json
