@@ -26,8 +26,12 @@ pub struct InstantiationArgs {
             Option<Rc<ExpandedNode>>,
         ) -> Option<Rc<RefCell<CommonProperties>>>,
     >,
-    pub prototypical_properties_factory:
-        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>) -> Rc<RefCell<PaxAny>>>,
+    pub prototypical_properties_factory: Box<
+        dyn Fn(
+            Rc<RuntimePropertiesStackFrame>,
+            Option<Rc<ExpandedNode>>,
+        ) -> Option<Rc<RefCell<PaxAny>>>,
+    >,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub children: Option<InstanceNodePtrList>,
     pub component_template: Option<InstanceNodePtrList>,
@@ -181,8 +185,12 @@ pub trait InstanceNode {
 
 pub struct BaseInstance {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
-    pub instance_prototypical_properties_factory:
-        Box<dyn Fn(Rc<RuntimePropertiesStackFrame>) -> Rc<RefCell<PaxAny>>>,
+    pub instance_prototypical_properties_factory: Box<
+        dyn Fn(
+            Rc<RuntimePropertiesStackFrame>,
+            Option<Rc<ExpandedNode>>,
+        ) -> Option<Rc<RefCell<PaxAny>>>,
+    >,
     pub instance_prototypical_common_properties_factory: Box<
         dyn Fn(
             Rc<RuntimePropertiesStackFrame>,

@@ -3,14 +3,92 @@ struct {{component.pascal_identifier}}Factory{}
 
 impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pascal_identifier}}Factory {
 
-    fn build_default_properties(&self) -> Box<dyn Fn(std::rc::Rc<{{ engine_import_path }}::pax_runtime::RuntimePropertiesStackFrame>) -> std::rc::Rc<RefCell<{{ engine_import_path }}::api::pax_value::PaxAny>>> {
-        Box::new(|_| std::rc::Rc::new(RefCell::new({{component.type_id.import_path}}::default().to_pax_any())))
+    fn build_default_properties(&self) -> Box<dyn Fn(std::rc::Rc<{{ engine_import_path }}::pax_runtime::RuntimePropertiesStackFrame>, Option<std::rc::Rc<crate::pax_runtime::ExpandedNode>>) -> Option<std::rc::Rc<RefCell<{{ engine_import_path }}::api::pax_value::PaxAny>>>> {
+        Box::new(|_,_| Some(std::rc::Rc::new(RefCell::new({{component.type_id.import_path}}::default().to_pax_any()))))
     }
 
-    fn build_inline_properties(&self, defined_properties: std::collections::BTreeMap<String,{{ engine_import_path }}::pax_manifest::ValueDefinition>) -> Box<dyn Fn(std::rc::Rc<{{ engine_import_path }}::pax_runtime::RuntimePropertiesStackFrame>) -> std::rc::Rc<RefCell<{{ engine_import_path }}::api::pax_value::PaxAny>>> {
-       
-        Box::new(move |stack_frame | std::rc::Rc::new(RefCell::new(
-            {
+    fn build_inline_properties(&self, defined_properties: std::collections::BTreeMap<String,{{ engine_import_path }}::pax_manifest::ValueDefinition>) -> Box<dyn Fn(std::rc::Rc<{{ engine_import_path }}::pax_runtime::RuntimePropertiesStackFrame>, Option<std::rc::Rc<crate::pax_runtime::ExpandedNode>>) -> Option<std::rc::Rc<RefCell<{{ engine_import_path }}::api::pax_value::PaxAny>>>> {
+
+        Box::new(move |stack_frame, expanded_node | {
+            if let Some(expanded_node) = &expanded_node {
+                use std::borrow::Borrow;
+                let expanded_node = pax_message::borrow!(**expanded_node);
+                let outer_ref = pax_message::borrow!(expanded_node.properties);
+                let rc = std::rc::Rc::clone(&outer_ref);
+                let mut inner_ref = (*rc).borrow_mut();
+                let mut properties  = {{component.type_id.import_path}}::mut_from_pax_any(&mut inner_ref).unwrap();
+                {% for property in component.properties %}
+                if let Some(vd) = defined_properties.get("{{property.name}}") {
+                        match vd.clone() {
+                            {{ engine_import_path }}::pax_manifest::ValueDefinition::LiteralValue(lv) => {
+                                let value = <{{property.property_type.type_id._type_id}}>::try_coerce(lv.clone()).unwrap();
+                                properties.{{property.name}}.replace_with(Property::new_with_name(value, "{{property.name}}"));
+                            },
+                            {{ engine_import_path }}::pax_manifest::ValueDefinition::DoubleBinding(identifier) => {
+                                let identifier = identifier.name;
+                                let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier).expect(&format!("failed to resolve identifier: {}", &identifier));
+                                properties.{{property.name}} = Property::new_from_untyped(untyped_property.clone());
+                            },
+                            {{ engine_import_path }}::pax_manifest::ValueDefinition::Identifier(ident)  => {
+                                let variable = if let Some(p) = stack_frame.resolve_symbol_as_variable(&ident.name) {
+                                    p
+                                    } else {
+                                        panic!("Failed to resolve symbol {}", ident.name);
+                                    };
+                                    let name = ident.name.clone();
+                                    let untyped = variable.get_untyped_property().clone();
+                                    let cloned_variable = variable.clone();
+                                properties.{{property.name}} = Property::computed_with_name(
+                                        move || {
+                                            let new_value = cloned_variable.get_as_pax_value();
+                                            <{{property.property_type.type_id._type_id}}>::try_coerce(new_value).unwrap()
+                                        },
+                                        &[untyped],
+                                        &name,
+                                    );
+                            }
+                            
+                            {{ engine_import_path }}::pax_manifest::ValueDefinition::Expression(info) =>
+                            {
+                                let mut dependents = vec![];
+                                for dependency in &info.dependencies {
+                                    if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                                        dependents.push(p);
+                                    } else {
+                                        panic!("Failed to resolve symbol {}", dependency);
+                                    }
+                                }
+                                let cloned_stack = stack_frame.clone();
+                                properties.{{property.name}} = Property::computed_with_name(
+                                    move || {
+                                        let new_value = info.expression
+                                            .compute(cloned_stack.clone())
+                                            .expect(&format!("Failed to compute expr: {}", info.expression));
+                                        let coerced = <{{property.property_type.type_id._type_id}}>::try_coerce(new_value.clone());
+                                        let coerced = if let Err(e) = coerced {
+                                            panic!(
+                                                "Failed to coerce value: {},\n {:?}\n, {}\n",
+                                                e, new_value, info.expression
+                                            );
+                                        } else {
+                                            coerced.unwrap()
+                                        };
+                                        coerced
+                                    },
+                                    &dependents,
+                                    "{{property.name}}",
+                                );
+                            },
+                            {{ engine_import_path }}::pax_manifest::ValueDefinition::Block(block) => {
+                                let cloned_stack = stack_frame.clone();
+                                properties.{{property.name}}.replace_with({{property.property_type.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, cloned_stack.clone()));
+                            }
+                            _ => unreachable!("Invalid value definition for {{property.name}}")
+                        }
+                }
+            {% endfor %}
+                None
+            } else {
                 let mut properties = {{component.type_id.import_path}}::default();
                 {% for property in component.properties %}
                     if let Some(vd) = defined_properties.get("{{property.name}}") {
@@ -27,20 +105,20 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                                 {{ engine_import_path }}::pax_manifest::ValueDefinition::Identifier(ident)  => {
                                     let variable = if let Some(p) = stack_frame.resolve_symbol_as_variable(&ident.name) {
                                         p
-                                     } else {
-                                         panic!("Failed to resolve symbol {}", ident.name);
-                                     };
-                                     let name = ident.name.clone();
-                                     let untyped = variable.get_untyped_property().clone();
-                                     let cloned_variable = variable.clone();
+                                        } else {
+                                            panic!("Failed to resolve symbol {}", ident.name);
+                                        };
+                                        let name = ident.name.clone();
+                                        let untyped = variable.get_untyped_property().clone();
+                                        let cloned_variable = variable.clone();
                                     properties.{{property.name}} = Property::computed_with_name(
-                                         move || {
-                                             let new_value = cloned_variable.get_as_pax_value();
-                                             <{{property.property_type.type_id._type_id}}>::try_coerce(new_value).unwrap()
-                                         },
-                                         &[untyped],
-                                         &name,
-                                     );
+                                            move || {
+                                                let new_value = cloned_variable.get_as_pax_value();
+                                                <{{property.property_type.type_id._type_id}}>::try_coerce(new_value).unwrap()
+                                            },
+                                            &[untyped],
+                                            &name,
+                                        );
                                 }
                                 
                                 {{ engine_import_path }}::pax_manifest::ValueDefinition::Expression(info) =>
@@ -82,9 +160,10 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                             }
                     }
                 {% endfor %}
-                properties.to_pax_any()
+            Some(std::rc::Rc::new(RefCell::new(properties.to_pax_any())))
             }
-        )))
+        }
+        )
     }
 
     fn build_handler(&self,fn_name: &str) -> fn(std::rc::Rc<RefCell<{{ engine_import_path }}::api::pax_value::PaxAny>>, &NodeContext, Option::<{{ engine_import_path }}::api::pax_value::PaxAny>) {
