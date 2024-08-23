@@ -3,7 +3,6 @@
 //! The `code_generation` module provides structures and functions for generating Pax Cartridges
 //! from Pax Manifests. The `generate_and_overwrite_cartridge` function is the main entrypoint.
 
-use itertools::Itertools;
 use std::fs;
 
 use pax_manifest::{cartridge_generation::CommonProperty, PaxManifest};

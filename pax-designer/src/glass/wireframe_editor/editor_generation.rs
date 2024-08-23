@@ -2,7 +2,7 @@ use std::f64::consts::PI;
 use std::{cell::RefCell, rc::Rc};
 
 use pax_engine::api::{borrow, borrow_mut, Color, Interpolatable};
-use pax_engine::math::Parts;
+use pax_engine::math::TransformParts;
 use pax_engine::{
     api::NodeContext, layout::TransformAndBounds, log, math::Point2, NodeInterface, Property,
 };
@@ -172,9 +172,10 @@ impl Editor {
                         (&ac.derived_state.selection_state.get()).into();
 
                     // only snap if either no rotation or this is a corner point
-                    let rot = Into::<Parts>::into(initial_selection.total_bounds.transform)
-                        .rotation
-                        .rem_euclid(PI / 2.0);
+                    let rot =
+                        Into::<TransformParts>::into(initial_selection.total_bounds.transform)
+                            .rotation
+                            .rem_euclid(PI / 2.0);
                     let should_snap = (rot < 1e-2 || rot > PI / 2.0 - 1e-2)
                         || (anchor.x != 0.5 && anchor.y != 0.5);
 

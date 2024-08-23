@@ -1,12 +1,11 @@
 use core::panic;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fs::{self, File},
     io::{self, Write},
     path::{Path, PathBuf},
 };
 
-use pax_lang::interpreter::PaxExpression;
 use serde_derive::{Deserialize, Serialize};
 
 use syn::{parse_file, spanned::Spanned, visit::Visit, Item};

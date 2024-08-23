@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use super::action::orm::{self, CreateComponent, SetNodeLayout};
 use super::action::pointer::Pointer;
+use super::action::world::ZoomToFit;
 use super::action::{Action, ActionContext, RaycastMode, Transaction};
 use super::input::{InputEvent, ModifierKey};
 use super::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot, StageInfo};
@@ -631,6 +632,82 @@ impl ToolBehavior for MultiSelectTool {
                     outline: Default::default(),
                     snap_lines: Default::default(),
                     event_blocker_active: true,
+                }
+            },
+            &deps,
+        )
+    }
+}
+
+pub struct ZoomToFitTool {
+    origin: Point2<Glass>,
+    bounds: Property<AxisAlignedBox>,
+}
+
+impl ZoomToFitTool {
+    pub fn new(point: Point2<Glass>) -> Self {
+        Self {
+            origin: point,
+            bounds: Property::new(AxisAlignedBox::new(Point2::default(), Point2::default())),
+        }
+    }
+}
+
+impl ToolBehavior for ZoomToFitTool {
+    fn pointer_down(&mut self, _point: Point2<Glass>, _ctx: &mut ActionContext) -> ControlFlow<()> {
+        ControlFlow::Continue(())
+    }
+
+    fn pointer_move(&mut self, point: Point2<Glass>, _ctx: &mut ActionContext) -> ControlFlow<()> {
+        self.bounds.set(AxisAlignedBox::new(self.origin, point));
+        ControlFlow::Continue(())
+    }
+
+    fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
+        self.pointer_move(point, ctx);
+        let bounds = self.bounds.get();
+        if bounds.width() < 50.0 || bounds.height() < 50.0 {
+            return ControlFlow::Break(());
+        }
+
+        let glass_to_world = ctx.world_transform();
+        if let Err(e) = (ZoomToFit {
+            top_left: glass_to_world * bounds.top_left(),
+            bottom_right: glass_to_world * bounds.bottom_right(),
+        }
+        .perform(ctx))
+        {
+            log::warn!("failed to zoom: {e}");
+        };
+
+        ControlFlow::Break(())
+    }
+
+    fn keyboard(
+        &mut self,
+        _event: InputEvent,
+        _dir: super::input::Dir,
+        _ctx: &mut ActionContext,
+    ) -> ControlFlow<()> {
+        ControlFlow::Continue(())
+    }
+
+    fn get_visual(&self) -> Property<ToolVisualizationState> {
+        let bounds = self.bounds.clone();
+        let deps = [bounds.untyped()];
+        Property::computed(
+            move || {
+                let bounds = bounds.get();
+                ToolVisualizationState {
+                    rect_tool: RectTool {
+                        x: Size::Pixels(bounds.top_left().x.into()),
+                        y: Size::Pixels(bounds.top_left().y.into()),
+                        width: Size::Pixels(bounds.width().into()),
+                        height: Size::Pixels(bounds.height().into()),
+                        stroke: Color::rgba(0.into(), 20.into(), 200.into(), 200.into()),
+                        fill: Color::rgba(0.into(), 20.into(), 200.into(), 30.into()),
+                    },
+                    ..Default::default()
                 }
             },
             &deps,
