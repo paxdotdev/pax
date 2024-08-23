@@ -297,7 +297,24 @@ would enforce that pax_engine is a nice thin wrapper; nothing contained directly
 
     [x] update examples cargo.tomls
 
-    [ ] fix pax-cli `build` x {non-designer}
+    [ ] e2e journey: fix pax-cli `build` x {non-designer}
+
+        to test, run loop of publishing to crates.io and testing
+
+        publishing pax-designer and pax-kit for the first time:
+
+        when publishing pax-designer:
+
+        Packaged 60 files, 36.1MiB (35.6MiB compressed)
+        Uploading pax-designer v0.24.0 (/Users/zack/code/paxcorp/pax/pax-designer)
+        error: failed to publish to registry at https://crates.io
+
+        Caused by:
+        the remote server responded with an error (status 413 Payload Too Large): max upload size is: 10485760
+
+        Seems we need to trim 36.1MiB down to 10MiB or so (or perhaps reach out to crates.io support for an ad-hoc limit raise)
+
+
 
     [ ] testing
         [x] designtime / nondesigntime builds
@@ -343,6 +360,7 @@ Run 8: revert changes to pax-compiler/src/building/web.rs
 
 ./pax run  209.13s user 23.50s system 272% cpu 1:25.40 total
 ./pax run  180.52s user 21.31s system 242% cpu 1:23.23 total
+
 
 
 
