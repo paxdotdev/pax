@@ -1,7 +1,4 @@
-<Rectangle y=40.47% height=12.92% width=13.70% x=62.93% anchor_y=36.30% anchor_x=65.77% rotate=-0.10deg/>
-<Rectangle y=40.03% height=26.61% width=14.92% x=79.06% anchor_y=36.30% anchor_x=65.77% rotate=-0.10deg/>
-<Rectangle y=69.58% height=26.61% width=14.92% x=68.21% anchor_y=36.30% anchor_x=65.77% rotate=-0.10deg/>
-<Group @wheel=self.handle_wheel x=106.01% y=112.84%>
+<Group @wheel=self.handle_wheel>
     for i in 1..60 {
         <Rectangle class=rect width=300px height=300px/>
     }
