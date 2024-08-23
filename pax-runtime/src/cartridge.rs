@@ -1,7 +1,8 @@
 use_RefCell!();
 use crate::api::NodeContext;
 use crate::{
-    ExpandedNode, HandlerRegistry, InstanceNode, InstantiationArgs, RuntimePropertiesStackFrame,
+    ConditionalProperties, ExpandedNode, HandlerRegistry, InstanceNode, InstantiationArgs,
+    RuntimePropertiesStackFrame,
 };
 use pax_lang::Computable;
 use pax_manifest::{TypeId, ValueDefinition};
@@ -151,24 +152,51 @@ pub trait DefinitionToInstanceTraverser {
                 let prototypical_properties_factory: Box<
                     dyn Fn(
                         std::rc::Rc<crate::RuntimePropertiesStackFrame>,
+                        Option<std::rc::Rc<ExpandedNode>>,
                     )
-                        -> std::rc::Rc<RefCell<pax_runtime_api::pax_value::PaxAny>>,
-                > = Box::new(move |stack_frame| {
-                    std::rc::Rc::new(RefCell::new({
-                        let mut properties = crate::ConditionalProperties::default();
-                        let cloned_stack = stack_frame.clone();
-                        let expr_ast = expr_info.expression.clone();
+                        -> Option<std::rc::Rc<RefCell<pax_runtime_api::pax_value::PaxAny>>>,
+                > = Box::new(move |stack_frame, expanded_node| {
+                    let cloned_stack = stack_frame.clone();
+                    let expr_ast = expr_info.expression.clone();
 
-                        let mut dependencies = Vec::new();
-                        for dependency in &expr_info.dependencies {
-                            if let Some(p) =
-                                stack_frame.resolve_symbol_as_erased_property(dependency)
-                            {
-                                dependencies.push(p);
-                            } else {
-                                panic!("Failed to resolve symbol {}", dependency);
-                            }
+                    let mut dependencies = Vec::new();
+                    for dependency in &expr_info.dependencies {
+                        if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                            dependencies.push(p);
+                        } else {
+                            panic!("Failed to resolve symbol {}", dependency);
                         }
+                    }
+
+                    if let Some(expanded_node) = &expanded_node {
+                        let expanded_node = borrow!(**expanded_node);
+                        let outer_ref = expanded_node.properties.borrow();
+                        let rc = Rc::clone(&outer_ref);
+                        let mut inner_ref = (*rc).borrow_mut();
+                        let mut cp =
+                            ConditionalProperties::mut_from_pax_any(&mut inner_ref).unwrap();
+                        cp.boolean_expression
+                            .replace_with(Property::computed_with_name(
+                                move || {
+                                    let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
+                                    let coerced = bool::try_coerce(new_value)
+                                        .map_err(|_e| {
+                                            format!(
+                                                "Failed to parse boolean expression: {}",
+                                                expr_ast
+                                            )
+                                        })
+                                        .unwrap();
+                                    coerced
+                                },
+                                &dependencies,
+                                "conditional (if) expr",
+                            ));
+                        return None;
+                    }
+
+                    Some(std::rc::Rc::new(RefCell::new({
+                        let mut properties = crate::ConditionalProperties::default();
                         properties.boolean_expression = Property::computed_with_name(
                             move || {
                                 let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
@@ -183,7 +211,7 @@ pub trait DefinitionToInstanceTraverser {
                             "conditional (if) expr",
                         );
                         properties.to_pax_any()
-                    }))
+                    })))
                 });
                 crate::ConditionalInstance::instantiate(crate::rendering::InstantiationArgs {
                     prototypical_common_properties_factory,
@@ -208,24 +236,53 @@ pub trait DefinitionToInstanceTraverser {
                 let prototypical_properties_factory: Box<
                     dyn Fn(
                         std::rc::Rc<crate::RuntimePropertiesStackFrame>,
+                        Option<std::rc::Rc<ExpandedNode>>,
                     )
-                        -> std::rc::Rc<RefCell<pax_runtime_api::pax_value::PaxAny>>,
-                > = Box::new(move |stack_frame| {
-                    std::rc::Rc::new(RefCell::new({
-                        let mut properties = crate::Slot::default();
-                        let cloned_stack = stack_frame.clone();
-                        let expr_ast = expr_info.expression.clone();
+                        -> Option<std::rc::Rc<RefCell<pax_runtime_api::pax_value::PaxAny>>>,
+                > = Box::new(move |stack_frame, expanded_node| {
+                    let cloned_stack = stack_frame.clone();
+                    let expr_ast = expr_info.expression.clone();
 
-                        let mut dependencies = Vec::new();
-                        for dependency in &expr_info.dependencies {
-                            if let Some(p) =
-                                stack_frame.resolve_symbol_as_erased_property(dependency)
-                            {
-                                dependencies.push(p);
-                            } else {
-                                panic!("Failed to resolve symbol {}", dependency);
-                            }
+                    let mut dependencies = Vec::new();
+                    for dependency in &expr_info.dependencies {
+                        if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                            dependencies.push(p);
+                        } else {
+                            panic!("Failed to resolve symbol {}", dependency);
                         }
+                    }
+
+                    if let Some(expanded_node) = &expanded_node {
+                        let expanded_node = borrow!(**expanded_node);
+                        let outer_ref = expanded_node.properties.borrow();
+                        let rc = Rc::clone(&outer_ref);
+                        let mut inner_ref = (*rc).borrow_mut();
+                        let slot_properties =
+                            crate::Slot::mut_from_pax_any(&mut inner_ref).unwrap();
+                        slot_properties
+                            .index
+                            .replace_with(Property::computed_with_name(
+                                move || {
+                                    let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
+                                    let coerced: Numeric = Numeric::try_coerce(new_value)
+                                        .map_err(|_| {
+                                            format!(
+                                                "Failed to parse slot index expression: {}",
+                                                expr_ast
+                                            )
+                                        })
+                                        .unwrap();
+                                    coerced
+                                },
+                                &dependencies,
+                                "slot index",
+                            ));
+                        return None;
+                    }
+
+                    Some(std::rc::Rc::new(RefCell::new({
+                        let mut properties = crate::Slot::default();
+
                         properties.index = Property::computed_with_name(
                             move || {
                                 let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
@@ -243,7 +300,7 @@ pub trait DefinitionToInstanceTraverser {
                             "slot index",
                         );
                         properties.to_pax_any()
-                    }))
+                    })))
                 });
                 crate::SlotInstance::instantiate(crate::rendering::InstantiationArgs {
                     prototypical_common_properties_factory,
@@ -273,25 +330,54 @@ pub trait DefinitionToInstanceTraverser {
                 let prototypical_properties_factory: Box<
                     dyn Fn(
                         std::rc::Rc<crate::RuntimePropertiesStackFrame>,
+                        Option<std::rc::Rc<ExpandedNode>>,
                     )
-                        -> std::rc::Rc<RefCell<pax_runtime_api::pax_value::PaxAny>>,
-                > = Box::new(move |stack_frame| {
-                    std::rc::Rc::new(RefCell::new({
-                        let mut properties = crate::RepeatProperties::default();
-                        let cloned_stack = stack_frame.clone();
-                        let expr = source_expression_info.expression.clone();
-                        let deps = source_expression_info.dependencies.clone();
+                        -> Option<std::rc::Rc<RefCell<pax_runtime_api::pax_value::PaxAny>>>,
+                > = Box::new(move |stack_frame, expanded_node| {
+                    let cloned_stack = stack_frame.clone();
+                    let expr = source_expression_info.expression.clone();
+                    let deps = source_expression_info.dependencies.clone();
 
-                        let mut dependencies = Vec::new();
-                        for dependency in &deps {
-                            if let Some(p) =
-                                stack_frame.resolve_symbol_as_erased_property(dependency)
-                            {
-                                dependencies.push(p);
-                            } else {
-                                panic!("Failed to resolve symbol {}", dependency);
-                            }
+                    let mut dependencies = Vec::new();
+                    for dependency in &deps {
+                        if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+                            dependencies.push(p);
+                        } else {
+                            panic!("Failed to resolve symbol {}", dependency);
                         }
+                    }
+
+                    let (elem, index) = match &predictate_definition {
+                        pax_manifest::ControlFlowRepeatPredicateDefinition::ElemId(id) => {
+                            (Some(id.clone()), None)
+                        }
+                        pax_manifest::ControlFlowRepeatPredicateDefinition::ElemIdIndexId(
+                            t1,
+                            t2,
+                        ) => (Some(t1.clone()), Some(t2.clone())),
+                    };
+
+                    if let Some(expanded_node) = &expanded_node {
+                        let expanded_node = borrow!(**expanded_node);
+                        let outer_ref = expanded_node.properties.borrow();
+                        let rc = Rc::clone(&outer_ref);
+                        let mut inner_ref = (*rc).borrow_mut();
+                        let repeat =
+                            crate::RepeatProperties::mut_from_pax_any(&mut inner_ref).unwrap();
+                        repeat
+                            .source_expression
+                            .replace_with(Property::computed_with_name(
+                                move || expr.compute(cloned_stack.clone()).unwrap(),
+                                &dependencies,
+                                "repeat source vec",
+                            ));
+                        repeat.iterator_i_symbol = index;
+                        repeat.iterator_elem_symbol = elem;
+                        return None;
+                    }
+
+                    Some(std::rc::Rc::new(RefCell::new({
+                        let mut properties = crate::RepeatProperties::default();
 
                         properties.source_expression = Property::computed_with_name(
                             move || expr.compute(cloned_stack.clone()).unwrap(),
@@ -299,19 +385,10 @@ pub trait DefinitionToInstanceTraverser {
                             "repeat source vec",
                         );
 
-                        let (elem, index) = match &predictate_definition {
-                            pax_manifest::ControlFlowRepeatPredicateDefinition::ElemId(id) => {
-                                (Some(id.clone()), None)
-                            }
-                            pax_manifest::ControlFlowRepeatPredicateDefinition::ElemIdIndexId(
-                                t1,
-                                t2,
-                            ) => (Some(t1.clone()), Some(t2.clone())),
-                        };
                         properties.iterator_i_symbol = index;
                         properties.iterator_elem_symbol = elem;
                         properties.to_pax_any()
-                    }))
+                    })))
                 });
                 crate::RepeatInstance::instantiate(crate::rendering::InstantiationArgs {
                     prototypical_common_properties_factory,
@@ -580,7 +657,12 @@ pub trait ComponentFactory {
     /// Returns the default properties factory for this component
     fn build_default_properties(
         &self,
-    ) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>) -> Rc<RefCell<PaxAny>>>;
+    ) -> Box<
+        dyn Fn(
+            Rc<RuntimePropertiesStackFrame>,
+            Option<Rc<ExpandedNode>>,
+        ) -> Option<Rc<RefCell<PaxAny>>>,
+    >;
 
     fn build_inline_common_properties(
         &self,
@@ -608,7 +690,12 @@ pub trait ComponentFactory {
     fn build_inline_properties(
         &self,
         defined_properties: BTreeMap<String, ValueDefinition>,
-    ) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>) -> Rc<RefCell<PaxAny>>>;
+    ) -> Box<
+        dyn Fn(
+            Rc<RuntimePropertiesStackFrame>,
+            Option<Rc<ExpandedNode>>,
+        ) -> Option<Rc<RefCell<PaxAny>>>,
+    >;
 
     /// Returns the requested closure for the handler registry based on the defined handlers for this component
     /// The argument type is extrapolated based on how the handler was used in the initial compiled template

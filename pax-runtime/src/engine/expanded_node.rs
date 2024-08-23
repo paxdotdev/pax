@@ -203,7 +203,8 @@ impl ExpandedNode {
         containing_component: Weak<ExpandedNode>,
         parent: Weak<ExpandedNode>,
     ) -> Rc<Self> {
-        let properties = (&template.base().instance_prototypical_properties_factory)(env.clone());
+        let properties =
+            (&template.base().instance_prototypical_properties_factory)(env.clone(), None).unwrap();
         let common_properties =
             (&template
                 .base()
@@ -259,6 +260,10 @@ impl ExpandedNode {
         (&template
             .base()
             .instance_prototypical_common_properties_factory)(
+            Rc::clone(&self.stack),
+            Some(Rc::clone(&self)),
+        );
+        (&template.base().instance_prototypical_properties_factory)(
             Rc::clone(&self.stack),
             Some(Rc::clone(&self)),
         );
