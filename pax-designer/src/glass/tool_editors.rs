@@ -39,13 +39,7 @@ impl TextEditTool {
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
         let import_path = dt
             .get_orm_mut()
-            .get_node(
-                uid.clone(),
-                ctx.app_state
-                    .keys_pressed
-                    .get()
-                    .contains(&InputEvent::Control),
-            )
+            .get_node(uid.clone(), ctx.app_state.modifiers.get().control)
             .expect("node exists")
             .get_type_id()
             .import_path();
@@ -83,13 +77,10 @@ impl ToolBehavior for TextEditTool {
 
         // commit text changes
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        if let Some(mut builder) = dt.get_orm_mut().get_node(
-            self.uid.clone(),
-            ctx.app_state
-                .keys_pressed
-                .get()
-                .contains(&crate::model::input::InputEvent::Control),
-        ) {
+        if let Some(mut builder) = dt
+            .get_orm_mut()
+            .get_node(self.uid.clone(), ctx.app_state.modifiers.get().control)
+        {
             builder
                 .set_typed_property("text", self.text_binding.get())
                 .unwrap();

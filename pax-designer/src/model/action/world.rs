@@ -85,7 +85,7 @@ pub struct Zoom {
 
 impl Action for Zoom {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
-        if ctx.app_state.keys_pressed.get().contains(&InputEvent::Meta) {
+        if ctx.app_state.modifiers.get().meta {
             let scale = if self.closer { 1.0 / 1.4 } else { 1.4 };
             ctx.app_state.glass_to_world_transform.update(|transform| {
                 *transform = *transform * Transform2::scale(scale);

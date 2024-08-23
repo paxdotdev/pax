@@ -68,10 +68,7 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
                 .get_orm_mut()
                 .get_node(
                     self.stacker_node.id.clone(),
-                    ctx.app_state
-                        .keys_pressed
-                        .get()
-                        .contains(&model::input::InputEvent::Control),
+                    ctx.app_state.modifiers.get().control,
                 )
                 .unwrap();
 
@@ -126,13 +123,7 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
                 let mut dt = borrow_mut!(ctx.engine_context.designtime);
                 let mut builder = dt
                     .get_orm_mut()
-                    .get_node(
-                        stacker_id_2.clone(),
-                        ctx.app_state
-                            .keys_pressed
-                            .get()
-                            .contains(&model::input::InputEvent::Control),
-                    )
+                    .get_node(stacker_id_2.clone(), ctx.app_state.modifiers.get().control)
                     .unwrap();
 
                 builder.set_property("sizes", &sizes_str).unwrap();

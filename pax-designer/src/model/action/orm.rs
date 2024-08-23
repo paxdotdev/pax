@@ -153,13 +153,10 @@ pub struct SetNodeLayoutProperties<'a> {
 impl Action for SetNodeLayoutProperties<'_> {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        let Some(mut builder) = dt.get_orm_mut().get_node(
-            self.id.clone(),
-            ctx.app_state
-                .keys_pressed
-                .get()
-                .contains(&InputEvent::Control),
-        ) else {
+        let Some(mut builder) = dt
+            .get_orm_mut()
+            .get_node(self.id.clone(), ctx.app_state.modifiers.get().control)
+        else {
             return Err(anyhow!("can't move: node doesn't exist in orm"));
         };
 
@@ -367,12 +364,8 @@ pub struct Resize<'a> {
 
 impl Action for Resize<'_> {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
-        let mut is_shift_key_down = false;
-        let mut is_alt_key_down = false;
-        ctx.app_state.keys_pressed.read(|keys| {
-            is_shift_key_down = keys.contains(&InputEvent::Shift);
-            is_alt_key_down = keys.contains(&InputEvent::Alt);
-        });
+        let (is_shift_key_down, is_alt_key_down) =
+            ctx.app_state.modifiers.read(|keys| (keys.alt, keys.shift));
 
         let bounds = self.initial_selection.total_bounds.bounds;
         let selection_space = self.initial_selection.total_bounds.transform
@@ -470,12 +463,7 @@ impl Action for RotateSelected<'_> {
         let curr = self.curr_pos - anchor_point;
         let mut rotation = start.angle_to(curr).get_as_degrees();
 
-        if ctx
-            .app_state
-            .keys_pressed
-            .get()
-            .contains(&InputEvent::Shift)
-        {
+        if ctx.app_state.modifiers.get().shift {
             let original_rotation =
                 Into::<Parts>::into(self.initial_selection.total_bounds.transform)
                     .rotation

@@ -3,11 +3,13 @@ use std::collections::HashMap;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::Interpolatable;
+use pax_engine::Property;
 
 use crate::model::action::orm::{RedoRequested, SerializeRequested, UndoRequested};
 use crate::{controls::toolbar, glass, llm_interface::OpenLLMPrompt};
 
 use super::action::orm::{Copy, Paste};
+use super::read_app_state;
 use super::{
     action::{self, orm::DeleteSelected, world, Action, ActionContext},
     Component, Tool,
@@ -17,42 +19,145 @@ impl Interpolatable for InputMapper {}
 
 #[derive(Clone)]
 pub struct InputMapper {
-    keymap: HashMap<RawInput, InputEvent>,
+    modifier_map: HashMap<RawInput, ModifierKey>,
+    key_map: HashMap<(RawInput, ModifierKeySet), InputEvent>,
 }
 
 impl Default for InputMapper {
     fn default() -> Self {
         Self {
+            // Modifer key map. Most likely platform specific at some point,
+            // might be configuratble in settings?
+            modifier_map: HashMap::from([
+                (RawInput::Control, ModifierKey::Control),
+                (RawInput::Meta, ModifierKey::Meta),
+                (RawInput::Shift, ModifierKey::Shift),
+                (RawInput::Alt, ModifierKey::Alt),
+                (RawInput::Space, ModifierKey::Space),
+            ]),
             //Default keymap, will be configurable in settings
-            keymap: HashMap::from([
+            key_map: HashMap::from([
+                // --- Select tools ---
+                // rectangle
                 (
-                    RawInput::R,
+                    (RawInput::R, ModifierKeySet::none()),
                     InputEvent::SelectTool(Tool::CreateComponent(Component::Rectangle)),
                 ),
-                // TODO handle modifier key combinations as different map values
-                // (RawInput::V, InputEvent::SelectTool(Tool::Pointer)),
-                (RawInput::C, InputEvent::Copy),
-                (RawInput::V, InputEvent::Paste),
-                (RawInput::Control, InputEvent::Control),
-                (RawInput::Space, InputEvent::Space),
-                (RawInput::Plus, InputEvent::Plus),
-                (RawInput::Minus, InputEvent::Minus),
-                (RawInput::Alt, InputEvent::Alt),
-                (RawInput::Meta, InputEvent::Meta),
-                (RawInput::Shift, InputEvent::Shift),
-                (RawInput::K, InputEvent::OpenLLMPrompt),
-                (RawInput::Delete, InputEvent::DeleteSelected),
-                (RawInput::Backspace, InputEvent::DeleteSelected),
-                (RawInput::Z, InputEvent::Undo),
-                (RawInput::S, InputEvent::Serialize),
+                (
+                    (RawInput::M, ModifierKeySet::none()),
+                    InputEvent::SelectTool(Tool::CreateComponent(Component::Rectangle)),
+                ),
+                // ellipse
+                (
+                    (RawInput::O, ModifierKeySet::none()),
+                    InputEvent::SelectTool(Tool::CreateComponent(Component::Ellipse)),
+                ),
+                (
+                    (RawInput::E, ModifierKeySet::none()),
+                    InputEvent::SelectTool(Tool::CreateComponent(Component::Ellipse)),
+                ),
+                // pointers
+                (
+                    (RawInput::V, ModifierKeySet::none()),
+                    InputEvent::SelectTool(Tool::PointerPercent),
+                ),
+                (
+                    (RawInput::V, ModifierKey::Shift.into()),
+                    InputEvent::SelectTool(Tool::PointerPixels),
+                ),
+                // text
+                (
+                    (RawInput::T, ModifierKeySet::none()),
+                    InputEvent::SelectTool(Tool::CreateComponent(Component::Text)),
+                ),
+                (
+                    (RawInput::T, ModifierKey::Shift.into()),
+                    InputEvent::SelectTool(Tool::CreateComponent(Component::Textbox)),
+                ),
+                // button
+                (
+                    (RawInput::B, ModifierKeySet::none()),
+                    InputEvent::SelectTool(Tool::CreateComponent(Component::Button)),
+                ),
+                // -- Group/ungroup ops
+                (
+                    (RawInput::L, ModifierKey::Meta.into()),
+                    InputEvent::ToggleGroup(GroupType::Link),
+                ),
+                (
+                    (RawInput::G, ModifierKey::Meta.into()),
+                    InputEvent::ToggleGroup(GroupType::Group),
+                ),
+                // --- Copy/Paste ---
+                ((RawInput::C, ModifierKey::Meta.into()), InputEvent::Copy),
+                ((RawInput::V, ModifierKey::Meta.into()), InputEvent::Paste),
+                // --- Undo and Redo ---
+                ((RawInput::Z, ModifierKey::Meta.into()), InputEvent::Undo),
+                (
+                    (
+                        RawInput::Z,
+                        ModifierKeySet {
+                            shift: true,
+                            meta: true,
+                            ..Default::default()
+                        },
+                    ),
+                    InputEvent::Redo,
+                ),
+                // --- Serialize/save ---
+                ((RawInput::S, ModifierKeySet::none()), InputEvent::Serialize),
+                // --- Zoom ---
+                (
+                    (RawInput::Plus, ModifierKey::Meta.into()),
+                    InputEvent::ZoomIn,
+                ),
+                (
+                    (RawInput::Minus, ModifierKey::Meta.into()),
+                    InputEvent::ZoomOut,
+                ),
+                // --- LLM Prompt ---
+                (
+                    (RawInput::K, ModifierKey::Meta.into()),
+                    InputEvent::OpenLLMPrompt,
+                ),
+                // --- Deletion ---
+                (
+                    (RawInput::Delete, ModifierKeySet::none()),
+                    InputEvent::DeleteSelected,
+                ),
+                (
+                    (RawInput::Backspace, ModifierKeySet::none()),
+                    InputEvent::DeleteSelected,
+                ),
             ]),
         }
     }
 }
 
 impl InputMapper {
-    pub fn to_event(&self, input: RawInput) -> Option<&InputEvent> {
-        self.keymap.get(&input)
+    pub fn to_event(
+        &self,
+        input: RawInput,
+        dir: Dir,
+        modifiers: Property<ModifierKeySet>,
+    ) -> Option<&InputEvent> {
+        if let Some(modifier) = self.modifier_map.get(&input) {
+            let state = match dir {
+                Dir::Down => true,
+                Dir::Up => false,
+            };
+            modifiers.update(|modifiers| match modifier {
+                ModifierKey::Control => modifiers.control = state,
+                ModifierKey::Alt => modifiers.alt = state,
+                ModifierKey::Shift => modifiers.shift = state,
+                ModifierKey::Meta => modifiers.meta = state,
+                ModifierKey::Space => modifiers.space = state,
+            });
+            None
+        } else {
+            let modifiers = modifiers.get();
+            self.key_map.get(&(input, modifiers))
+        }
     }
 
     pub fn to_action(&self, event: &InputEvent, dir: Dir) -> Option<Box<dyn Action>> {
@@ -60,29 +165,12 @@ impl InputMapper {
             (&InputEvent::SelectTool(tool), Dir::Down) => {
                 Some(Box::new(toolbar::SelectTool { tool }))
             }
-            (&InputEvent::Plus, Dir::Down) => Some(Box::new(world::Zoom { closer: true })),
-            (&InputEvent::Minus, Dir::Down) => Some(Box::new(world::Zoom { closer: false })),
-            (&InputEvent::OpenLLMPrompt, Dir::Down) => {
-                Some(Box::new(OpenLLMPrompt { require_meta: true }))
-            }
+            (&InputEvent::ZoomIn, Dir::Down) => Some(Box::new(world::Zoom { closer: true })),
+            (&InputEvent::ZoomOut, Dir::Down) => Some(Box::new(world::Zoom { closer: false })),
+            (&InputEvent::OpenLLMPrompt, Dir::Down) => Some(Box::new(OpenLLMPrompt)),
             (&InputEvent::DeleteSelected, Dir::Down) => Some(Box::new(DeleteSelected {})),
-            (&InputEvent::Undo, Dir::Down) => Some(Box::new({
-                struct UndoRedoAction;
-                impl Action for UndoRedoAction {
-                    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
-                        let keys = ctx.app_state.keys_pressed.get();
-                        if keys.contains(&InputEvent::Meta) {
-                            if keys.contains(&InputEvent::Shift) {
-                                RedoRequested.perform(ctx)?;
-                            } else {
-                                UndoRequested.perform(ctx)?;
-                            }
-                        }
-                        Ok(())
-                    }
-                }
-                UndoRedoAction
-            })),
+            (&InputEvent::Undo, Dir::Down) => Some(Box::new(UndoRequested)),
+            (&InputEvent::Redo, Dir::Down) => Some(Box::new(RedoRequested)),
             (&InputEvent::Serialize, Dir::Down) => Some(Box::new(SerializeRequested {})),
             (&InputEvent::Copy, Dir::Down) => Some(Box::new({
                 struct CopySelected;
@@ -119,7 +207,7 @@ impl InputMapper {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Dir {
     Down,
     Up,
@@ -144,6 +232,13 @@ pub enum RawInput {
     Shift,
     K,
     S,
+    M,
+    O,
+    E,
+    T,
+    B,
+    L,
+    G,
 }
 
 // TODO make RawInput be what is returned by the engine itself, instead
@@ -152,22 +247,29 @@ impl TryFrom<String> for RawInput {
     type Error = anyhow::Error;
 
     fn try_from(value: String) -> std::result::Result<Self, Self::Error> {
-        Ok(match value.as_str() {
+        Ok(match value.to_lowercase().as_str() {
             "r" => Self::R,
+            "m" => Self::M,
             "v" => Self::V,
             "z" => Self::Z,
             "k" => Self::K,
             "s" => Self::S,
             "c" => Self::C,
+            "o" => Self::O,
+            "e" => Self::E,
+            "t" => Self::T,
+            "b" => Self::B,
+            "l" => Self::L,
+            "g" => Self::G,
             " " => Self::Space,
-            "Control" => Self::Control,
+            "control" => Self::Control,
             "=" => Self::Plus,
             "-" => Self::Minus,
-            "Alt" => Self::Alt,
-            "Meta" => Self::Meta,
-            "Shift" => Self::Shift,
-            "Delete" => Self::Delete,
-            "Backspace" => Self::Backspace,
+            "alt" => Self::Alt,
+            "meta" => Self::Meta,
+            "shift" => Self::Shift,
+            "delete" => Self::Delete,
+            "backspace" => Self::Backspace,
             _ => return Err(anyhow!("no configured raw input mapping for {:?}", value)),
         })
     }
@@ -180,17 +282,66 @@ impl Interpolatable for InputEvent {}
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum InputEvent {
     SelectTool(Tool),
-    Control,
     Space,
-    Plus,
-    Minus,
-    Alt,
-    Meta,
-    Shift,
+    ZoomIn,
+    ZoomOut,
     OpenLLMPrompt,
     DeleteSelected,
     Undo,
+    Redo,
     Serialize,
     Copy,
     Paste,
+    ToggleLinkGroup,
+    ToggleGroup(GroupType),
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum GroupType {
+    Link,
+    Group,
+}
+
+impl Interpolatable for ModifierKeySet {}
+
+#[derive(Clone, PartialEq, Eq)]
+pub enum ModifierKey {
+    Control,
+    Alt,
+    Shift,
+    Meta,
+    Space,
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
+pub struct ModifierKeySet {
+    pub control: bool,
+    pub alt: bool,
+    pub meta: bool,
+    pub shift: bool,
+    pub space: bool,
+}
+
+impl From<ModifierKey> for ModifierKeySet {
+    fn from(value: ModifierKey) -> Self {
+        Self {
+            control: value == ModifierKey::Control,
+            alt: value == ModifierKey::Alt,
+            meta: value == ModifierKey::Meta,
+            shift: value == ModifierKey::Shift,
+            space: value == ModifierKey::Space,
+        }
+    }
+}
+
+impl ModifierKeySet {
+    pub fn none() -> Self {
+        Self {
+            control: false,
+            alt: false,
+            meta: false,
+            shift: false,
+            space: false,
+        }
+    }
 }
