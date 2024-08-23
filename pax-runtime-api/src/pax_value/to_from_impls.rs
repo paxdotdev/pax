@@ -5,9 +5,7 @@ use std::cell::RefCell;
 
 use super::ImplToFromPaxAny;
 use super::Numeric;
-use super::PaxAny;
 use super::PaxValue;
-use super::ToFromPaxAny;
 use super::ToPaxValue;
 use crate::impl_to_from_pax_value;
 use crate::math::Space;

@@ -3,7 +3,6 @@ use std::iter;
 use std::rc::Rc;
 
 use crate::patch_if_needed;
-use pax_engine::api as pax_runtime_api;
 use pax_engine::api::{borrow, borrow_mut, use_RefCell};
 use pax_engine::pax;
 use pax_message::{AnyCreatePatch, EventBlockerPatch};

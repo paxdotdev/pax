@@ -3,8 +3,7 @@ use std::iter;
 use std::rc::Rc;
 use_RefCell!();
 
-use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
-use pax_runtime_api::properties::UntypedProperty;
+use pax_runtime_api::pax_value::ToFromPaxAny;
 use pax_runtime_api::CoercionRules;
 use pax_runtime_api::{
     borrow, borrow_mut, use_RefCell, ImplToFromPaxAny, PaxValue, Property, ToPaxValue, Variable,

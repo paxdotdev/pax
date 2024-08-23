@@ -5,7 +5,6 @@ pub mod reflection;
 use wasm_bindgen::prelude::*;
 
 pub mod refcell_debug;
-pub use refcell_debug::*;
 pub use serde;
 
 use serde::{Deserialize, Serialize};

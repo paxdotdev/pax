@@ -35,7 +35,6 @@ pub use pax_value::functions::HelperFunctions;
 use crate::constants::COMMON_PROPERTIES_TYPE;
 pub use paste;
 pub use pax_message::serde;
-use pax_message::{ColorMessage, ModifierKeyMessage, MouseButtonMessage, TouchMessage};
 use serde::{Deserialize, Serialize};
 
 pub struct TransitionQueueEntry<T> {

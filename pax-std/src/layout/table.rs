@@ -1,8 +1,7 @@
+#[allow(unused)]
 use crate::*;
 use pax_engine::api::*;
 use pax_engine::*;
-use std::cmp::Ordering;
-use std::iter;
 
 const PIXEL_ALIGN_FACTOR: f64 = 1.0;
 

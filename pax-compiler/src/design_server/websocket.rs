@@ -104,7 +104,6 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
                         .expect("Unsuccessful parse");
                         let _settings =
                             pax_manifest::parsing::parse_settings_from_component_definition_string(
-                                &content,
                                 ast.clone(),
                             );
                         pax_manifest::parsing::parse_template_from_component_definition_string(

@@ -7,7 +7,6 @@ use crate::api::{CommonProperties, RenderContext};
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeInterrupt;
 use pax_runtime_api::pax_value::PaxAny;
-use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::{borrow, use_RefCell, Variable};
 use piet::{Color, StrokeStyle};
 

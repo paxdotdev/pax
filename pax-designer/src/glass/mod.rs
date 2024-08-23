@@ -131,7 +131,7 @@ impl Glass {
         ));
     }
 
-    pub fn on_pre_render(&mut self, ctx: &NodeContext) {
+    pub fn on_pre_render(&mut self, _ctx: &NodeContext) {
         // update if dirty
         self.on_tool_change.get();
     }

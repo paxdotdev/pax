@@ -1,6 +1,6 @@
 use crate::{
     math::{Transform2, Vector2},
-    Color, ColorChannel, Fill, Numeric, PaxValue, Rotation,
+    Color, ColorChannel, Fill, PaxValue, Rotation,
 };
 use once_cell::sync::Lazy;
 use std::{
