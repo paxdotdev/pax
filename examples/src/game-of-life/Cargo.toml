@@ -1,11 +1,11 @@
 [package]
 name = "game-of-life"
-version = "0.34.0"
+version = "0.35.0"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-kit = { version = "0.34.0", path="../../../pax-kit", features = ["designer"] }
+pax-kit = { version = "0.35.0", path="../../../pax-kit", features = ["designer"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
