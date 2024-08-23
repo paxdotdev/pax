@@ -5,7 +5,7 @@ use std::rc::Rc;
 use super::action::orm::{self, CreateComponent, SetNodeLayout};
 use super::action::pointer::Pointer;
 use super::action::{Action, ActionContext, RaycastMode, Transaction};
-use super::input::InputEvent;
+use super::input::{InputEvent, ModifierKey};
 use super::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot, StageInfo};
 use crate::glass::outline::PathOutline;
 use crate::glass::wireframe_editor::editor_generation::slot_control::{
@@ -76,8 +76,8 @@ impl ToolBehavior for CreateComponentTool {
         ctx: &mut ActionContext,
     ) -> std::ops::ControlFlow<()> {
         let modifiers = ctx.app_state.modifiers.get();
-        let is_shift_key_down = modifiers.shift;
-        let is_alt_key_down = modifiers.alt;
+        let is_shift_key_down = modifiers.contains(&ModifierKey::Shift);
+        let is_alt_key_down = modifiers.contains(&ModifierKey::Alt);
         let offset = self.intent_snapper.snap(&[point]);
         self.bounds.set(
             AxisAlignedBox::new(self.origin, self.origin + Vector2::new(1.0, 1.0))
@@ -188,7 +188,7 @@ impl Action for SelectNodes<'_> {
         let deselect_others = match self.mode {
             SelectMode::KeepOthers => false,
             SelectMode::DiscardOthers => true,
-            SelectMode::Dynamic => !ctx.app_state.modifiers.get().shift,
+            SelectMode::Dynamic => !ctx.app_state.modifiers.get().contains(&ModifierKey::Shift),
         };
         if deselect_others {
             ids.clear();
@@ -301,7 +301,7 @@ impl ToolBehavior for MovingTool {
 
         if !self.has_moved {
             let t = ctx.transaction("moving object");
-            if ctx.app_state.modifiers.get().alt {
+            if ctx.app_state.modifiers.get().contains(&ModifierKey::Alt) {
                 //copy paste object and leave newly created object behind
                 let ids = t.run(|| {
                     let subtrees = orm::Copy {

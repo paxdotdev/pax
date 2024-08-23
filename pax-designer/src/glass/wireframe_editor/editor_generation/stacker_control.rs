@@ -8,6 +8,7 @@ use pax_std::*;
 use crate::glass::control_point::ControlPointTool;
 use crate::glass::ToolVisualizationState;
 use crate::math::intent_snapper::{IntentSnapper, SnapSet};
+use crate::model::input::ModifierKey;
 use crate::{
     glass::control_point::{ControlPointBehavior, ControlPointStyling, ControlPointToolFactory},
     math::{coordinate_spaces::Glass, GetUnit},
@@ -68,7 +69,10 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
                 .get_orm_mut()
                 .get_node(
                     self.stacker_node.id.clone(),
-                    ctx.app_state.modifiers.get().control,
+                    ctx.app_state
+                        .modifiers
+                        .get()
+                        .contains(&ModifierKey::Control),
                 )
                 .unwrap();
 
@@ -123,7 +127,13 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
                 let mut dt = borrow_mut!(ctx.engine_context.designtime);
                 let mut builder = dt
                     .get_orm_mut()
-                    .get_node(stacker_id_2.clone(), ctx.app_state.modifiers.get().control)
+                    .get_node(
+                        stacker_id_2.clone(),
+                        ctx.app_state
+                            .modifiers
+                            .get()
+                            .contains(&ModifierKey::Control),
+                    )
                     .unwrap();
 
                 builder.set_property("sizes", &sizes_str).unwrap();

@@ -26,11 +26,26 @@ use pax_std::core::group::Group;
 
 use super::{CreateComponent, MoveNode, NodeLayoutSettings, SetNodeLayoutPropertiesFromTransform};
 
-pub struct GroupSelected<'a> {
-    pub new_parent_type_id: &'a TypeId,
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Copy)]
+pub enum GroupType {
+    Link,
+    Group,
 }
 
-impl Action for GroupSelected<'_> {
+impl From<GroupType> for TypeId {
+    fn from(value: GroupType) -> Self {
+        match value {
+            GroupType::Group => TypeId::build_singleton("pax_std::core::group::Group", None),
+            GroupType::Link => TypeId::build_singleton("pax_std::core::link::Link", None),
+        }
+    }
+}
+
+pub struct GroupSelected {
+    pub group_type: GroupType,
+}
+
+impl Action for GroupSelected {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         let selected: SelectionStateSnapshot = (&ctx.derived_state.selection_state.get()).into();
 
@@ -40,12 +55,13 @@ impl Action for GroupSelected<'_> {
         };
         let root_parent = ctx.derived_state.open_container.get();
 
+        let new_parent_type_id: TypeId = self.group_type.into();
         // -------- Create a group ------------
         let group_parent_data = ctx.get_glass_node_by_global_id(&root_parent).unwrap();
         let group_transform_and_bounds = selected.total_bounds.as_pure_size().cast_spaces();
         let t = ctx.transaction(&format!(
             "grouping selected objects into {}",
-            self.new_parent_type_id
+            new_parent_type_id
                 .get_pascal_identifier()
                 .unwrap_or_else(|| "<no ident>".to_string()),
         ));
@@ -59,7 +75,7 @@ impl Action for GroupSelected<'_> {
                     node_decomposition_config: &Default::default(),
                 },
                 parent_index: TreeIndexPosition::Top,
-                type_id: &self.new_parent_type_id,
+                type_id: &new_parent_type_id,
                 custom_props: &[],
                 mock_children: 0,
             }

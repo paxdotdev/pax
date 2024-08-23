@@ -19,7 +19,7 @@ use crate::math::coordinate_spaces::{self, World};
 use crate::math::{self, AxisAlignedBox};
 use crate::model::action::pointer::Pointer;
 use crate::model::action::{Action, ActionContext, RaycastMode};
-use crate::model::input::Dir;
+use crate::model::input::{Dir, ModifierKey};
 
 pub mod control_point;
 pub mod outline;
@@ -157,9 +157,10 @@ impl Glass {
                 selected_node_id.clone(),
             );
             let mut dt = borrow_mut!(ctx.designtime);
-            let builder = dt
-                .get_orm_mut()
-                .get_node(uid.clone(), app_state.modifiers.get().control)?;
+            let builder = dt.get_orm_mut().get_node(
+                uid.clone(),
+                app_state.modifiers.get().contains(&ModifierKey::Control),
+            )?;
             Some((builder.get_type_id(), uid))
         });
         if let Some((node_id, uid)) = info {

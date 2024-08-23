@@ -1,21 +1,27 @@
-<Group x=50% y=50% width=120px height=120px @click=self.increment >
-    <Text x=50% y=50% text={self.num_clicks + " clicks"} id=text />
-    <Rectangle
-        fill={rgb(ticks, 75, 150)}
-        corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
-    />
+<Rectangle width=17.89% x=48.54% height=17.81% y=65.99% stroke={
+    color: rgba(32, 68, 241, 255)
+    width: 5.00px
+} 
+    fill=rgba(239, 16, 127, 255) rotate=18.55deg/>
+<Group x=41.39% y=16.63% width=11.06% height=19.44% @click=self.increment anchor_x=82.54% anchor_y=-49.79%>
+    <Text x=50% y=50% text={num_clicks + " clicks"} id=text/>
+    <Rectangle fill={rgb(ticks, 75, 150)} corner_radii={RectangleCornerRadii::radii(10.00, 10.00, 10.00, 10.00)}/>
+</Group>
+<Group x=68.12% y=2.09% width=10.56% height=27.88% @click=self.increment anchor_x=82.54% anchor_y=-49.79%>
+    <Text x=50% y=50% text={num_clicks + " clicks"} id=text/>
+    <Rectangle fill={rgb(ticks, 75, 150)} corner_radii={RectangleCornerRadii::radii(10.00, 10.00, 10.00, 10.00)}/>
 </Group>
 
 @settings {
-     @pre_render: handle_pre_render,
+    @pre_render: handle_pre_render
     #text {
         style: {
-                font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold),
-                font_size: 22px,
-                fill: WHITE,
-                align_vertical: TextAlignVertical::Center,
-                align_horizontal: TextAlignHorizontal::Center,
-                align_multiline: TextAlignHorizontal::Center
+            font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold)
+            font_size: 22px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
         }
     }
 }
