@@ -20,12 +20,13 @@ required-features = ["parser"]
 name = "run"
 path = "bin/run.rs"
 
-[profile.dev]
-opt-level = 2
-
 [features]
 designer = ["pax-kit/designer"]
 parser = ["pax-kit/parser"]
 web = ["pax-kit/web"]
 macos = ["pax-kit/macos"]
 ios = ["pax-kit/ios"]
+
+[profile.dev]
+opt-level = 2
+debug = false
