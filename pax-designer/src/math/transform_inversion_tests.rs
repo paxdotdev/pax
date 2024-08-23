@@ -1,7 +1,7 @@
 use pax_engine::{
     api::{Numeric, Percent, Rotation, Window},
-    layout::{LayoutProperties, TransformAndBounds},
     math::Transform2,
+    node_layout::{LayoutProperties, TransformAndBounds},
     NodeLocal,
 };
 use pax_std::Size;

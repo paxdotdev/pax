@@ -12,8 +12,8 @@ use anyhow::{anyhow, Error, Result};
 use pax_designtime::orm::PaxManifestORM;
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::{borrow, borrow_mut, Axis, Size};
-use pax_engine::layout::TransformAndBounds;
 use pax_engine::math::Vector2;
+use pax_engine::node_layout::TransformAndBounds;
 use pax_engine::pax_manifest::{
     NodeLocation, TemplateNodeId, TreeIndexPosition, TreeLocation, UniqueTemplateNodeIdentifier,
 };

@@ -29,9 +29,9 @@ use pax_engine::api::math::Transform2;
 use pax_engine::api::Size;
 use pax_engine::api::{borrow, borrow_mut, Axis, Window};
 use pax_engine::api::{Color, NodeContext};
-use pax_engine::layout::{LayoutProperties, TransformAndBounds};
 use pax_engine::math::Point2;
 use pax_engine::math::Vector2;
+use pax_engine::node_layout::{LayoutProperties, TransformAndBounds};
 use pax_engine::pax_manifest::{
     PaxType, TemplateNodeId, TreeIndexPosition, TypeId, UniqueTemplateNodeIdentifier, Unit,
 };

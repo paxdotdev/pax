@@ -1,10 +1,8 @@
-use std::{cell::Cell, collections::HashMap, hash::Hash, marker::PhantomData, rc::Rc};
+use std::{collections::HashMap, rc::Rc};
 
 use pax_runtime_api::{
-    functions::{Functions, HelperFunctions},
-    CoercionRules, Color, ColorChannel, Numeric, PaxValue, Size,
+    functions::Functions, CoercionRules, Color, ColorChannel, Numeric, PaxValue, Size,
 };
-use serde::de::Expected;
 
 use crate::{interpreter::compute_paxel, DependencyCollector};
 
@@ -60,7 +58,6 @@ fn initialize_test_resolver() -> Rc<HashMap<String, PaxValue>> {
 
 #[test]
 fn test_ast() {
-    let idr = initialize_test_resolver();
     let expr = "10 + 4";
     let expected = PaxExpression::Infix(Box::new(PaxInfix {
         operator: PaxOperator {
@@ -396,7 +393,6 @@ fn test_triple_nesting_struct_access() {
 
 #[test]
 fn test_collect_dependencies() {
-    let idr = initialize_test_resolver();
     let expr = "a + b";
     let expected = vec!["a".to_string(), "b".to_string()];
     let result = PaxExpression::collect_dependencies(&parse_pax_expression(expr).unwrap());
@@ -414,7 +410,6 @@ fn test_negative_size() {
 
 #[test]
 fn test_display_expression() {
-    let idr = initialize_test_resolver();
     let expr = "10 + 4";
     let expected = "10 + 4";
     let result = format!("{}", parse_pax_expression(expr).unwrap());
@@ -423,7 +418,6 @@ fn test_display_expression() {
 
 #[test]
 fn test_display_complex_expression() {
-    let idr = initialize_test_resolver();
     let expr = "Math::min(a,Math::max(3,1))";
     let expected = "Math::min(a, Math::max(3, 1))";
     let result = format!("{}", parse_pax_expression(expr).unwrap());
@@ -432,13 +426,8 @@ fn test_display_complex_expression() {
 
 #[test]
 fn test_display_object() {
-    let idr = initialize_test_resolver();
     let expr = "{a: 10+4, b: true || false }";
     let expected = "{a: 10 + 4, b: true || false}";
     let result = format!("{}", parse_pax_expression(expr).unwrap());
     assert_eq!(expected, result);
-}
-
-fn test_object() {
-    let expr = "{{top_left: 4 top_right:3}}";
 }

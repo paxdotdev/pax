@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use lsp_types::Position;
-use pax_lang::{Pair, Pairs, Rule};
+use pax_lang::{Pair, Rule};
 
 #[derive(Debug, Clone)]
 pub struct PositionalNode {
@@ -16,10 +16,12 @@ pub enum NodeType {
     Tag(TagData),
     Settings,
     SelectorBlock,
+    #[allow(unused)]
     Handlers,
     LiteralFunction(FunctionData),
     LiteralEnumValue(EnumValueData),
     AttributeKeyValuePair(AttributeData),
+    #[allow(unused)]
     AttributeKeyValuePairError(),
     XoFunctionCall(FunctionCallData),
 }

@@ -19,8 +19,8 @@ use pax_designtime::orm::{MoveToComponentEntry, SubTrees};
 use pax_designtime::{DesigntimeManager, Serializer};
 use pax_engine::api::{borrow, borrow_mut, Rotation};
 use pax_engine::api::{Axis, Percent};
-use pax_engine::layout::{LayoutProperties, TransformAndBounds};
 use pax_engine::math::{Generic, Transform2, TransformParts};
+use pax_engine::node_layout::{LayoutProperties, TransformAndBounds};
 use pax_engine::pax_manifest::{
     NodeLocation, PaxType, TemplateNodeId, TreeIndexPosition, TreeLocation, TypeId,
     UniqueTemplateNodeIdentifier,
