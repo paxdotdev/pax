@@ -1,8 +1,11 @@
 use_RefCell!();
 use crate::api::NodeContext;
-use crate::{HandlerRegistry, InstanceNode, InstantiationArgs, RuntimePropertiesStackFrame};
+use crate::{
+    ExpandedNode, HandlerRegistry, InstanceNode, InstantiationArgs, RuntimePropertiesStackFrame,
+};
 use pax_lang::{parse_pax_expression, Computable, DependencyCollector};
 use pax_manifest::{TypeId, ValueDefinition};
+use pax_message::borrow;
 use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::{PropertyValue, UntypedProperty};
 use pax_runtime_api::{
@@ -10,6 +13,7 @@ use pax_runtime_api::{
 };
 use serde::de::DeserializeOwned;
 use std::any::Any;
+use std::borrow::{Borrow, BorrowMut};
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
@@ -122,7 +126,7 @@ pub trait DefinitionToInstanceTraverser {
     ) -> std::rc::Rc<dyn crate::rendering::InstanceNode> {
         let manifest = self.get_manifest();
         let prototypical_common_properties_factory =
-            Box::new(|_| std::rc::Rc::new(RefCell::new(CommonProperties::default())));
+            Box::new(|_, _| Some(std::rc::Rc::new(RefCell::new(CommonProperties::default()))));
 
         let containing_component = manifest
             .components
@@ -567,8 +571,13 @@ pub trait ComponentFactory {
     /// Returns the default CommonProperties factory
     fn build_default_common_properties(
         &self,
-    ) -> Box<dyn Fn(Rc<RuntimePropertiesStackFrame>) -> Rc<RefCell<CommonProperties>>> {
-        Box::new(|_| Rc::new(RefCell::new(CommonProperties::default())))
+    ) -> Box<
+        dyn Fn(
+            Rc<RuntimePropertiesStackFrame>,
+            Option<Rc<ExpandedNode>>,
+        ) -> Option<Rc<RefCell<CommonProperties>>>,
+    > {
+        Box::new(|_, _| Some(Rc::new(RefCell::new(CommonProperties::default()))))
     }
 
     /// Returns the default properties factory for this component
@@ -578,47 +587,23 @@ pub trait ComponentFactory {
 
     fn build_inline_common_properties(
         &self,
-        defined_properties: std::collections::BTreeMap<String, pax_manifest::ValueDefinition>,
+        defined_properties: BTreeMap<String, pax_manifest::ValueDefinition>,
     ) -> Box<
-        dyn Fn(std::rc::Rc<RuntimePropertiesStackFrame>) -> std::rc::Rc<RefCell<CommonProperties>>,
+        dyn Fn(
+            Rc<RuntimePropertiesStackFrame>,
+            Option<Rc<ExpandedNode>>,
+        ) -> Option<Rc<RefCell<CommonProperties>>>,
     > {
-        Box::new(move |stack_frame| {
-            std::rc::Rc::new(RefCell::new({
-                CommonProperties {
-                    id: {
-                        // just grab identifier, no need to resolve it
-                        let id = defined_properties.get("id");
-                        Property::new(
-                            if let Some(pax_manifest::ValueDefinition::Identifier(pax_identifier)) =
-                                id
-                            {
-                                Some(pax_identifier.name.clone())
-                            } else {
-                                None
-                            },
-                        )
-                    },
-                    x: resolve_property("x", &defined_properties, &stack_frame),
-                    y: resolve_property("y", &defined_properties, &stack_frame),
-                    width: resolve_property("width", &defined_properties, &stack_frame),
-                    height: resolve_property("height", &defined_properties, &stack_frame),
-                    scale_x: resolve_property("scale_x", &defined_properties, &stack_frame),
-                    scale_y: resolve_property("scale_y", &defined_properties, &stack_frame),
-                    skew_x: resolve_property("skew_x", &defined_properties, &stack_frame),
-                    skew_y: resolve_property("skew_y", &defined_properties, &stack_frame),
-                    rotate: resolve_property("rotate", &defined_properties, &stack_frame),
-                    transform: resolve_property("transform", &defined_properties, &stack_frame),
-                    anchor_x: resolve_property("anchor_x", &defined_properties, &stack_frame),
-                    anchor_y: resolve_property("anchor_y", &defined_properties, &stack_frame),
-                    unclippable: resolve_property("unclippable", &defined_properties, &stack_frame),
-                    _raycastable: resolve_property(
-                        "_raycastable",
-                        &defined_properties,
-                        &stack_frame,
-                    ),
-                    _suspended: resolve_property("_suspended", &defined_properties, &stack_frame),
-                }
-            }))
+        Box::new(move |stack_frame, expanded_node| {
+            if let Some(expanded_node) = &expanded_node {
+                update_existing_common_properties(expanded_node, &defined_properties, &stack_frame);
+                None
+            } else {
+                Some(create_new_common_properties(
+                    &defined_properties,
+                    &stack_frame,
+                ))
+            }
         })
     }
 
@@ -655,4 +640,109 @@ pub trait ComponentFactory {
     ) -> Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, Variable>> {
         Box::new(|_| HashMap::new())
     }
+}
+
+fn update_existing_common_properties(
+    expanded_node: &Rc<ExpandedNode>,
+    defined_properties: &BTreeMap<String, pax_manifest::ValueDefinition>,
+    stack_frame: &Rc<RuntimePropertiesStackFrame>,
+) {
+    let expanded_node = borrow!(**expanded_node);
+    let outer_ref = expanded_node.common_properties.borrow();
+    let rc = Rc::clone(&outer_ref);
+    let inner_ref = (*rc).borrow_mut();
+    let mut cp = inner_ref;
+
+    update_common_properties(&mut cp, defined_properties, stack_frame);
+}
+
+fn create_id_property(
+    defined_properties: &BTreeMap<String, pax_manifest::ValueDefinition>,
+) -> Property<Option<String>> {
+    let id = defined_properties.get("id");
+    Property::new(
+        if let Some(pax_manifest::ValueDefinition::Identifier(pax_identifier)) = id {
+            Some(pax_identifier.name.clone())
+        } else {
+            None
+        },
+    )
+}
+
+fn create_new_common_properties(
+    defined_properties: &BTreeMap<String, pax_manifest::ValueDefinition>,
+    stack_frame: &Rc<RuntimePropertiesStackFrame>,
+) -> Rc<RefCell<CommonProperties>> {
+    Rc::new(RefCell::new(CommonProperties {
+        id: create_id_property(defined_properties),
+        x: resolve_property("x", defined_properties, stack_frame),
+        y: resolve_property("y", defined_properties, stack_frame),
+        width: resolve_property("width", defined_properties, stack_frame),
+        height: resolve_property("height", defined_properties, stack_frame),
+        scale_x: resolve_property("scale_x", defined_properties, stack_frame),
+        scale_y: resolve_property("scale_y", defined_properties, stack_frame),
+        skew_x: resolve_property("skew_x", defined_properties, stack_frame),
+        skew_y: resolve_property("skew_y", defined_properties, stack_frame),
+        rotate: resolve_property("rotate", defined_properties, stack_frame),
+        transform: resolve_property("transform", defined_properties, stack_frame),
+        anchor_x: resolve_property("anchor_x", defined_properties, stack_frame),
+        anchor_y: resolve_property("anchor_y", defined_properties, stack_frame),
+        unclippable: resolve_property("unclippable", defined_properties, stack_frame),
+        _raycastable: resolve_property("_raycastable", defined_properties, stack_frame),
+        _suspended: resolve_property("_suspended", defined_properties, stack_frame),
+    }))
+}
+
+fn update_common_properties(
+    cp: &mut CommonProperties,
+    defined_properties: &BTreeMap<String, pax_manifest::ValueDefinition>,
+    stack_frame: &Rc<RuntimePropertiesStackFrame>,
+) {
+    cp.id.replace_with(create_id_property(defined_properties));
+    cp.x.replace_with(resolve_property("x", defined_properties, stack_frame));
+    cp.y.replace_with(resolve_property("y", defined_properties, stack_frame));
+    cp.width
+        .replace_with(resolve_property("width", defined_properties, stack_frame));
+    cp.height
+        .replace_with(resolve_property("height", defined_properties, stack_frame));
+    cp.scale_x
+        .replace_with(resolve_property("scale_x", defined_properties, stack_frame));
+    cp.scale_y
+        .replace_with(resolve_property("scale_y", defined_properties, stack_frame));
+    cp.skew_x
+        .replace_with(resolve_property("skew_x", defined_properties, stack_frame));
+    cp.skew_y
+        .replace_with(resolve_property("skew_y", defined_properties, stack_frame));
+    cp.rotate
+        .replace_with(resolve_property("rotate", defined_properties, stack_frame));
+    cp.transform.replace_with(resolve_property(
+        "transform",
+        defined_properties,
+        stack_frame,
+    ));
+    cp.anchor_x.replace_with(resolve_property(
+        "anchor_x",
+        defined_properties,
+        stack_frame,
+    ));
+    cp.anchor_y.replace_with(resolve_property(
+        "anchor_y",
+        defined_properties,
+        stack_frame,
+    ));
+    cp.unclippable.replace_with(resolve_property(
+        "unclippable",
+        defined_properties,
+        stack_frame,
+    ));
+    cp._raycastable.replace_with(resolve_property(
+        "_raycastable",
+        defined_properties,
+        stack_frame,
+    ));
+    cp._suspended.replace_with(resolve_property(
+        "_suspended",
+        defined_properties,
+        stack_frame,
+    ));
 }
