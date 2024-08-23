@@ -319,6 +319,18 @@ impl PaxEngine {
         }
     }
 
+    #[cfg(feature = "designtime")]
+    pub fn full_reload_userland(&mut self, new_userland_instance: Rc<dyn InstanceNode>) {
+        let node = borrow!(self.runtime_context.userland_root_expanded_node)
+            .as_ref()
+            .map(Rc::clone)
+            .unwrap();
+
+        Rc::clone(&node).recurse_unmount(&self.runtime_context);
+        node.recreate_with_new_data(new_userland_instance.clone(), &self.runtime_context);
+        Rc::clone(&node).recurse_mount(&self.runtime_context);
+    }
+
     // NOTES: this is the order of different things being computed in recurse-expand-nodes
     // - expanded_node instantiated from instance_node.
 
