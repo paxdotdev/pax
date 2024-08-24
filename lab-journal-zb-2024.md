@@ -316,10 +316,8 @@ would enforce that pax_engine is a nice thin wrapper; nothing contained directly
     delete mode 100644 pax-designer/assets/images/map_sf.png
     delete mode 100644 pax-designer/assets/images/remix-comp.png
 
-    [ ] get a stable build
-    [ ] update get started docs with CLI commands
-
-    observation: pax-cli new works (copies template files) but copying the interface files for some reason does not?  (can we get around this by adding those files back to VCS?)
+    [x] get a stable build incl. necessary assets  
+    [x] update get started docs with CLI commands
 
 [ ] NUX ++
     [ ] design project with text on stage as welcome tour, show the ropes
@@ -328,10 +326,12 @@ would enforce that pax_engine is a nice thin wrapper; nothing contained directly
         [ ] describe how to play / pause / resize
     [ ] make pax-cli new also run
         [ ] print message with link to project FS root
+    [ ] see code: copy path / open terminal / open editor through privileged agent
+    [ ] git init template project
+        [ ] figure out keeping .git-named directory as asset within git (maybe rename like Cargo.toml)
+        [x] .gitignore
 
 [ ] UI cleanup pass
-
-[ ] Auto-port selection + coordination / scanning / handshake 
 
 [ ] testing
     [x] designtime / nondesigntime builds
