@@ -66,35 +66,35 @@ thread_local! {
             ToolbarEntry {
                 items: vec![
                     ToolbarItem {
-                        icon: "assets/icons/toolbar/icon-09-pointer-percent.png",
+                        icon: "assets/icons/icon-pointer-percent.png",
                         event: ToolbarEvent::SelectTool(Tool::PointerPercent)
                     },
                     ToolbarItem {
-                        icon: "assets/icons/toolbar/icon-09-pointer.png",
+                        icon: "assets/icons/icon-pointer-px.png",
                         event: ToolbarEvent::SelectTool(Tool::PointerPixels)
                     }
                 ]
             },
+            // ToolbarEntry {
+            //     items: vec![
+            //         ToolbarItem {
+            //             icon: "assets/icons/toolbar/icon-10-brush.png",
+            //             event: ToolbarEvent::SelectTool(Tool::TodoTool)
+            //         },
+            //         ToolbarItem {
+            //             icon: "assets/icons/toolbar/icon-11-pen.png",
+            //             event: ToolbarEvent::SelectTool(Tool::TodoTool)
+            //         }
+            //     ]
+            // },
             ToolbarEntry {
                 items: vec![
                     ToolbarItem {
-                        icon: "assets/icons/toolbar/icon-10-brush.png",
-                        event: ToolbarEvent::SelectTool(Tool::TodoTool)
-                    },
-                    ToolbarItem {
-                        icon: "assets/icons/toolbar/icon-11-pen.png",
-                        event: ToolbarEvent::SelectTool(Tool::TodoTool)
-                    }
-                ]
-            },
-            ToolbarEntry {
-                items: vec![
-                    ToolbarItem {
-                        icon: "assets/icons/toolbar/icon-12-rect.png",
+                        icon: "assets/icons/icon-rectangle.png",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Rectangle))
                     },
                     ToolbarItem {
-                        icon: "assets/icons/toolbar/icon-12-ellipse.png",
+                        icon: "assets/icons/icon-ellipse.png",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Ellipse))
                     }
                 ]
@@ -102,7 +102,7 @@ thread_local! {
             ToolbarEntry {
                 items: vec![
                     ToolbarItem {
-                        icon: "assets/icons/toolbar/icon-14-text.png",
+                        icon: "assets/icons/icon-text.png",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Text))
                     },
                 ]
@@ -110,11 +110,11 @@ thread_local! {
             ToolbarEntry {
                 items: vec![
                     ToolbarItem {
-                        icon: "assets/icons/toolbar/icon-13-stacker.png",
+                        icon: "assets/icons/icon-stacker.png",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Stacker))
                     },
                     ToolbarItem {
-                        icon: "assets/icons/tree/tree-icon-11-scroller.png",
+                        icon: "assets/icons/icon-scroller.png",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Scroller))
                     },
                 ]
@@ -122,27 +122,27 @@ thread_local! {
             ToolbarEntry {
                 items: vec![
                     ToolbarItem {
-                        icon: "assets/icons/toolbar/icon-15-checkbox.png",
+                        icon: "assets/icons/icon-checkbox.png",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Checkbox))
                     },
                     ToolbarItem {
-                        icon: "assets/icons/tree/tree-icon-09-textbox.png",
+                        icon: "assets/icons/icon-textbox.png",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Textbox))
                     },
                     ToolbarItem {
-                        icon: "assets/icons/tree/tree-icon-12-button.png",
+                        icon: "assets/icons/icon-button.png",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Button))
                     },
                     ToolbarItem {
-                        icon: "assets/icons/tree/tree-icon-14-slider.png",
+                        icon: "assets/icons/icon-slider.png",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Slider))
                     },
                     ToolbarItem {
-                        icon: "assets/icons/tree/tree-icon-15-dropdown.png",
+                        icon: "assets/icons/icon-dropdown.png",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Dropdown))
                     },
                     ToolbarItem {
-                        icon: "assets/icons/tree/tree-icon-08-component.png",
+                        icon: "assets/icons/icon-component.png",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::RadioSet))
                     },
                 ]
@@ -150,7 +150,7 @@ thread_local! {
             ToolbarEntry {
                 items: vec![
                     ToolbarItem {
-                        icon: "assets/icons/toolbar/icon-16-speech.png",
+                        icon: "assets/icons/icon-speech.png",
                         event: ToolbarEvent::PerformAction(Box::new(|| Box::new(OpenLLMPrompt)))
                     },
                 ]

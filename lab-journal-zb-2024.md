@@ -320,6 +320,7 @@ would enforce that pax_engine is a nice thin wrapper; nothing contained directly
     [x] update get started docs with CLI commands
 
 [ ] NUX ++
+    [ ] stream diffs (colored) in design server output
     [ ] design project with text on stage as welcome tour, show the ropes
         with text & images, all editable, ideally in layouts
         [ ] describe ultrasync;
