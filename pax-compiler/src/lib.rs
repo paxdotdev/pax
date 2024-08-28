@@ -470,6 +470,8 @@ pub fn run_parser_binary(
         .arg("parser")
         .arg("--features")
         .arg("parser")
+        .arg("--profile")
+        .arg("parser")
         .arg("--color")
         .arg("always")
         .stdout(std::process::Stdio::piped())
