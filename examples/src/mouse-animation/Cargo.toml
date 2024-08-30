@@ -34,3 +34,7 @@ debug = false
 [profile.dev.package."*"]
 opt-level = 2
 debug = false
+
+[profile.parser]
+inherits = "dev"
+opt-level = 0
