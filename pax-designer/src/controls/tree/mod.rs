@@ -95,7 +95,7 @@ impl Desc {
             Desc::Text => ("Text", "text", false),
             Desc::Stacker => ("Stacker", "stacker", true),
             Desc::Rectangle => ("Rectangle", "rectangle", false),
-            // Desc::Path => ("Path", "07-path", false),
+            Desc::Path => ("Path", "path", false),
             Desc::Component(name) => (name.as_str(), "component", false),
             Desc::Textbox => ("Textbox", "textbox", false),
             Desc::Checkbox => ("Checkbox", "checkbox", false),
