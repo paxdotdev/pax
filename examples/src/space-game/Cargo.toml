@@ -30,9 +30,11 @@ macos = ["pax-kit/macos"]
 ios = ["pax-kit/ios"]
 
 [profile.dev]
-opt-level = 0
-debug = false
-
-[profile.dev.package."*"]
 opt-level = 2
 debug = false
+
+
+
+[profile.parser]
+inherits = "dev"
+opt-level = 0
