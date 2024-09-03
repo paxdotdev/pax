@@ -72,7 +72,7 @@ if self.visible {
         //     />
         // </Group>
         //Background 
-        <Rectangle  fill=rgb(10%, 10%, 10%)/>
+        <Rectangle  fill=rgb(12.5%, 12.5%, 12.5%)/>
     </Group>
 }
 

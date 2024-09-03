@@ -71,7 +71,7 @@ if 0 == 1 {
                 FontStyle::Normal,
                 FontWeight::Normal)}
             font_size: 30px
-            fill: rgb(10%, 10%, 10%)
+            fill: rgb(12.5%, 12.5%, 12.5%)
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center

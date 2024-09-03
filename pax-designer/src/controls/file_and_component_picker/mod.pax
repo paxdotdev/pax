@@ -1,13 +1,10 @@
-<Stacker width={100% - 15px} x=15px cells=2 direction=StackerDirection::Vertical >
-    <Text text="github.com/paxcorp/simpleproject" class=h3 />
-    <Text text="MAIN COMPONENT" class=h1 />
-</Stacker>
-<Image source={ImageSource::Url(self.library_active_toggle_image)} x=92% y=65% width=30px height=30px anchor_x=50% anchor_y=50% @click=self.library_toggle/>
+<Image source={ImageSource::Url(self.library_active_toggle_image)} x=92% y=50% width=30px height=30px anchor_x=50% @click=self.library_toggle/>
+<Text x=15px text={current_selected_component} y=50% class=h1 />
 if self.library_active {
     for (comp, i) in self.registered_components {
-        <ComponentLibraryItem data=comp height=40px y={(80 + i*40)px}/>
+        <ComponentLibraryItem data=comp height=40px y={(45 + i*40)px}/>
     }
-    <Rectangle fill=rgb(10%, 10%, 10%) y=80px height=1000px/>
+    <Rectangle fill=rgb(12.5%, 12.5%, 12.5%) y=80px height=1000px/>
 }
 
 @settings {
@@ -21,7 +18,7 @@ if self.library_active {
                     "ff-real-headline-pro",
                     "https://use.typekit.net/ivu7epf.css",
                     FontStyle::Normal,
-                    FontWeight::Light,
+                    FontWeight::SemiBold,
                 )},
             fill: WHITE,
         }
@@ -37,23 +34,6 @@ if self.library_active {
             )},
             font_size: 24px,
             fill: WHITE,
-        }
-    }
-    .h3 {
-        height: 18px,
-        anchor_y: 90%,
-        y: 90%,
-        style: {
-            font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::ExtraLight,
-            )},
-            font_size: 14px,
-            fill: WHITE,
-            align_vertical: TextAlignVertical::Bottom,
-            align_horizontal: TextAlignHorizontal::Left,
         }
     }
 }

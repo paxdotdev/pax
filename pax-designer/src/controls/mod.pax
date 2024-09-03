@@ -2,20 +2,18 @@
 //project being edited in the designer
 
 <Group id=left_panel>
-    // <Stacker> (TODO: use Stacker instead of sized Groups below)
-        <Group height=65px >
-            <Logobar id=logobar />
-            <Rectangle class=black_bg />
-        </Group>
-        <Group height=85px y=65px >
-            <FileAndComponentPicker id=file_and_component_picker />
-            <Rectangle class=black_bg />
-        </Group>
-        <Group y=150px height={100% - 150px}>
-            <Tree id=tree />
-            <Rectangle class=black_bg />
-        </Group>
-    // </Stacker>
+    <Group height=65px >
+        <Logobar id=logobar />
+        <Rectangle class=black_bg />
+    </Group>
+    <Group height=45px y=65px >
+        <FileAndComponentPicker id=file_and_component_picker />
+        <Rectangle class=black_bg />
+    </Group>
+    <Group y=110px height={100% - 110px}>
+        <Tree id=tree />
+        <Rectangle class=black_bg />
+    </Group>
     <Rectangle class=black_bg />
 </Group>
 
@@ -49,6 +47,6 @@
     }
 
     .black_bg {
-        fill: rgb(10%, 10%, 10%)
+        fill: rgb(12.5%, 12.5%, 12.5%)
     }
 }
