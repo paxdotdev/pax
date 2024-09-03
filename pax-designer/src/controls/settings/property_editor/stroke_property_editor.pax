@@ -7,7 +7,7 @@
 
     .input {
         height: 30px,
-        background: rgb(10%, 10%, 10%),
+        background: rgb(12.5%, 12.5%, 12.5%),
         stroke: {
             color: rgb(40, 48, 54),
             width: 1px,

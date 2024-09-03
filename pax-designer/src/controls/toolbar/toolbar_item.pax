@@ -6,7 +6,7 @@
     <Image class=icon source={ImageSource::Url(self.data.icon)} @click=self.on_click/>
     if self.data.background {
         <Rectangle
-            fill=rgb(10%, 10%, 10%)
+            fill=rgb(12.5%, 12.5%, 12.5%)
         />
     }
 </Group>

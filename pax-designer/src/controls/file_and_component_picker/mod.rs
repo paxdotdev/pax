@@ -19,6 +19,7 @@ pub struct FileAndComponentPicker {
     pub library_active: Property<bool>,
     pub registered_components: Property<Vec<ComponentLibraryItemData>>,
     pub library_active_toggle_image: Property<String>,
+    pub current_selected_component: Property<String>,
 }
 
 #[derive(Clone, Default)]
@@ -43,6 +44,7 @@ impl FileAndComponentPicker {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         self.bind_library_active();
         self.bind_library_active_toggle_image();
+        self.bind_current_selected_component();
         self.bind_registered_components(ctx);
     }
 
@@ -69,6 +71,17 @@ impl FileAndComponentPicker {
             ));
     }
 
+    fn bind_current_selected_component(&mut self) {
+        let selected_component_id = model::read_app_state(|app_state| { app_state.selected_component_id.clone() });
+        let deps = &[selected_component_id.untyped()];
+
+        self.current_selected_component.replace_with(Property::computed(
+            move || {
+                selected_component_id.get().get_pascal_identifier().unwrap()
+            },
+            deps,
+        ));
+    }
     fn bind_registered_components(&mut self, ctx: &NodeContext) {
         let dt = Rc::clone(&ctx.designtime);
         let library_active = self.library_active.clone();
