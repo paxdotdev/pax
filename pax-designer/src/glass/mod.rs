@@ -302,18 +302,17 @@ impl Action for SetEditingComponent {
     fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
         let type_id = &self.0;
 
-        // let is_userland_component = type_id
-        //     .import_path()
-        //     .is_some_and(|p| p.starts_with(&user_import_prefix));
-        //
-        // let is_mock = matches!(type_id.get_pax_type(), PaxType::BlankComponent { .. });
-        //
-        // if !is_userland_component && !is_mock {
-        //     return Err(anyhow!(
-        //         "tried to edit a non-userland comp: {:?}",
-        //         type_id.import_path()
-        //     ));
-        // }
+        let is_pax_std = type_id
+            .import_path()
+            .is_some_and(|p| p.starts_with("pax_std"));
+   
+        if is_pax_std {
+            return Err(anyhow!(
+                "tried to edit a non-userland comp: {:?}",
+                type_id.import_path()
+            ));
+        }
+        
         SetLibraryState { open: false }.perform(ctx)?;
 
         // TODO set stage defaults for opened component using "SetStage" action
