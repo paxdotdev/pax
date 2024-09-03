@@ -556,6 +556,7 @@ pub fn pax(
     //Write to our WORM register the root package, which should be the first to run
     //This should be the only time we write to this register
     unsafe {
+        #[allow(static_mut_refs)]
         if let None = &WORM_ROOT_CARGO_MANIFEST_DIR {
             let new_val = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
             WORM_ROOT_CARGO_MANIFEST_DIR = Some(new_val.clone());

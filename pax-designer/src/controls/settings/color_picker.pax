@@ -77,7 +77,7 @@ if self.picker_open {
 				<Textbox class=input class=col_5 class=span_1 text={self.alpha_text} @textbox_change=self.alpha_change/>
 			</Group>
 		</Group>
-		<Rectangle fill=BLACK/>
+		<Rectangle fill=rgb(10%, 10%, 10%)/>
 		<EventBlocker/>
 	</Group>
 }
@@ -111,7 +111,7 @@ if self.picker_open {
 
     .input {
         height: 30px,
-        background: BLACK,
+        background: rgb(10%, 10%, 10%),
         stroke: {
             color: rgb(40, 48, 54),
             width: 1px,

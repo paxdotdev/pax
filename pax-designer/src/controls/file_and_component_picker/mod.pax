@@ -7,7 +7,7 @@ if self.library_active {
     for (comp, i) in self.registered_components {
         <ComponentLibraryItem data=comp height=40px y={(80 + i*40)px}/>
     }
-    <Rectangle fill=BLACK y=80px height=1000px/>
+    <Rectangle fill=rgb(10%, 10%, 10%) y=80px height=1000px/>
 }
 
 @settings {

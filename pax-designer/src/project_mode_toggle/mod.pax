@@ -9,7 +9,7 @@
     }
 </Group>
 <Rectangle
-    fill=BLACK 
+    fill=rgb(10%, 10%, 10%)
     corner_radii={RectangleCornerRadii::radii(10.0,0.0,0.0,10.0)}
     stroke={color: {rgb(0.2*255, 0.2*255, 0.2*255)} width: 1px}
 />
