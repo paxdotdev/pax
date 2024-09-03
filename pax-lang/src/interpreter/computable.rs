@@ -1,12 +1,12 @@
 use std::{collections::HashMap, rc::Rc};
 
 use pax_runtime_api::{
-    functions::call_function, CoercionRules, Functions, Numeric, PaxValue, Percent, Rotation, Size
+    functions::call_function, CoercionRules, Functions, Numeric, PaxValue, Percent, Rotation, Size,
 };
 
 use super::{
-    property_resolution::IdentifierResolver, PaxAccessor, PaxExpression,
-    PaxIdentifier, PaxInfix, PaxPostfix, PaxPrefix, PaxPrimary, PaxUnit,
+    property_resolution::IdentifierResolver, PaxAccessor, PaxExpression, PaxIdentifier, PaxInfix,
+    PaxPostfix, PaxPrefix, PaxPrimary, PaxUnit,
 };
 
 /// Trait for expression types that can be computed to a value
@@ -115,7 +115,7 @@ impl Computable for PaxPrimary {
                     .map(|a| a.compute(idr.clone()))
                     .collect::<Result<Vec<PaxValue>, String>>()?;
 
-                if Functions::has_function(scope, name_or_variant){
+                if Functions::has_function(scope, name_or_variant) {
                     return call_function(scope.clone(), name_or_variant.clone(), args);
                 }
 

@@ -327,7 +327,11 @@ fn recurse_pratt_parse(
                 let args = inner
                     .map(|a| recurse_pratt_parse(a.into_inner(), pratt_parser))
                     .collect::<Result<Vec<PaxExpression>, String>>()?;
-                let exp = PaxExpression::Primary(Box::new(PaxPrimary::FunctionOrEnum("Color".to_string(),func.to_string(), args)));
+                let exp = PaxExpression::Primary(Box::new(PaxPrimary::FunctionOrEnum(
+                    "Color".to_string(),
+                    func.to_string(),
+                    args,
+                )));
                 Ok(exp)
             }
             Rule::xo_object => {
