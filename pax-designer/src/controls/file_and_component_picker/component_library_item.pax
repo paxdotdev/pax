@@ -1,6 +1,5 @@
 <Text x=15px width=100% height=100% class=component_text text={self.data.name}/>
-<Text x={-15px} width=100% height=100% class=path_text text={self.data.file_path}/>
-<Rectangle fill=rgb(10%, 10%, 10%) stroke={color: GRAY, width: 2px}/>
+<Rectangle fill=rgb(12.5%, 12.5%, 12.5%) />
 
 @settings {
     @mouse_down: on_down
@@ -12,26 +11,11 @@
                 "ff-real-headline-pro",
                 "https://use.typekit.net/ivu7epf.css",
                 FontStyle::Normal,
-                FontWeight::Light,
+                FontWeight::ExtraLight,
             )},
             fill: WHITE,
             align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Left,
-        }
-    }
-
-    .path_text {
-        style: {
-            font_size: 10px,
-            font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Light,
-            )},
-            fill: WHITE,
-            align_vertical: TextAlignVertical::Center,
-            align_horizontal: TextAlignHorizontal::Right,
         }
     }
 }
