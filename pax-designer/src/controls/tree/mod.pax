@@ -3,12 +3,12 @@
 	for (obj, i) in self.tree_objects {
 		<TreeObj
 			 ind={obj.ind}
-			 y={(40 + i*42)px}
+			 y={(i*36)px}
 			 anchor_x=0%
 			 anchor_y=0%
 			 x={(obj.indent_level*6)%}
 			 is_selected={obj.is_selected}
-			 height=40px
+			 height=34px
 			 name={obj.name}
 			 is_container={obj.is_container}
 			 width={(100.0 - obj.indent_level*6)%}
@@ -20,8 +20,8 @@
 	    <Rectangle
 			x={(self.drag_indent*6)%}
 			anchor_x=0%
-			width={(100 - self.drag_indent*6)%}
-			y={(80 + self.drag_id*42)px}
+			width={(100 - self.drag_indent*8)%}
+			y={(34 + self.drag_id*36)px}
 			height=2px fill=WHITE
 		/>
 	}

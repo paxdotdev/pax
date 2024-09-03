@@ -31,24 +31,24 @@
 
 @settings {
     #left_panel {
-        width: 265px,
+        width: 240px,
     }
 
     #top_panel {
-        height: 65px,
-        x: 265px,
-        width: {100% - 265px}
+        height: 60px,
+        x: 240px,
+        width: {100% - 240px}
     }
 
     #right_panel {
-        width: 265px,
+        width: 240px,
         anchor_x: 100%,
         x: 100%,
-        y: 65px,
-        height: {100% - 65px}
+        y: 55px,
+        height: {100% - 60px}
     }
 
     .black_bg {
-        fill: BLACK
+        fill: rgb(10%, 10%, 10%)
     }
 }

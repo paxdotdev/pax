@@ -9,7 +9,7 @@ if self.is_container {
 
 // Icon
 <Image
-	x=25px anchor_y=50% y=50% height=30px width=30px
+	x=25px anchor_y=50% y=50% height=24px width=24px
 	source={ImageSource::Url(self.image_path)}
 />
 // Label
@@ -34,7 +34,7 @@ if self.is_selected {
                 FontStyle::Normal,
                 FontWeight::Light,
             )},
-            font_size: 16px,
+            font_size: 14px,
             fill: WHITE,
             align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Left,
