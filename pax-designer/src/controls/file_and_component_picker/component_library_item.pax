@@ -1,6 +1,6 @@
 <Text x=15px width=100% height=100% class=component_text text={self.data.name}/>
 <Text x={-15px} width=100% height=100% class=path_text text={self.data.file_path}/>
-<Rectangle fill=BLACK stroke={color: GRAY, width: 2px}/>
+<Rectangle fill=rgb(10%, 10%, 10%) stroke={color: GRAY, width: 2px}/>
 
 @settings {
     @mouse_down: on_down

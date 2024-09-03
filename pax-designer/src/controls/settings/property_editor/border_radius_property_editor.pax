@@ -48,7 +48,7 @@
         anchor_x=0%
         width: 30%,
         height: 30px,
-        background: BLACK,
+        background: rgb(10%, 10%, 10%),
         stroke: {
             color: rgb(40, 48, 54),
             width: 1px,

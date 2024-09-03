@@ -9,21 +9,12 @@ for (view, i) in self.entries {
 }
 
 <Rectangle
-    width=65px
-    x={(self.selected_ind*65)px}
+    width=55px
+    x={(self.selected_ind*55)px}
     fill={rgb(0.035*255, 0.145*255, 0.318*255)}
 />
 
 @settings {
     @mount: on_mount
     @unmount: on_unmount
-
-    #save_button {
-        x: 100%,
-        anchor_x: 100%,
-        anchor_y: 50%,
-        y: 50%,
-        width: 60px,
-        height: 35px,
-    }
 }

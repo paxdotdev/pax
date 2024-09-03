@@ -178,7 +178,7 @@ impl Toolbar {
                         more_than_one_item: entry.items.len() > 1,
                         row,
                         col: 0,
-                        x: Size::Pixels((row * 65).into()),
+                        x: Size::Pixels((row * 55).into()),
                         y: Size::Pixels(0.into()),
                     }
                 })
@@ -215,8 +215,8 @@ impl Toolbar {
                             more_than_one_item: false,
                             row,
                             col,
-                            x: Size::Pixels((row * 65).into()),
-                            y: Size::Pixels((col * 65).into()),
+                            x: Size::Pixels((row * 55).into()),
+                            y: Size::Pixels((col * 55).into()),
                         })
                         .collect()
                 }),
@@ -244,7 +244,7 @@ impl Toolbar {
                                                 more_than_one_item: entry.items.len() > 1,
                                                 row,
                                                 col,
-                                                x: Size::Pixels((row * 65).into()),
+                                                x: Size::Pixels((row * 55).into()),
                                                 y: Size::Pixels(0.into()),
                                             };
                                         });

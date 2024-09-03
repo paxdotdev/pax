@@ -2,17 +2,8 @@
 
 @settings {
     #logo {
-        width: 75px,
-        height: 75px,
+        width: 65px,
+        height: 65px,
         x: 16px,
-    }
-
-    #face {
-        width: 35px,
-        height: 35px,
-        anchor_x: 100%,
-        anchor_y: 50%,
-        x: {100% - 15px}
-        y: 50%
     }
 }
