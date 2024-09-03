@@ -121,17 +121,6 @@ impl PrivilegedAgentConnection {
                                         }
                                     }
                                 }
-
-                                // Send updated template to the server for training data
-                                let component = manager.get_component(&resp.component_type_id)?;
-                                let notification = LLMUpdatedTemplateNotification {
-                                    request_id: resp.request_id,
-                                    component: component.clone(),
-                                };
-                                let msg_bytes = rmp_serde::to_vec(
-                                    &AgentMessage::LLMUpdatedTemplateNotification(notification),
-                                )?;
-                                self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
                             }
                             _ => {}
                         }

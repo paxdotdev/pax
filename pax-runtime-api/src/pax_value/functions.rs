@@ -17,11 +17,11 @@ static FUNCTIONS: Lazy<Arc<RwLock<HashMap<String, HashMap<String, FunctionType>>
 
 pub fn print_all_functions() {
     let functions = FUNCTIONS.read().unwrap();
-    println!("Total scopes: {}", functions.len());
+    log::warn!("Total scopes: {}", functions.len());
     for (scope, funcs) in functions.iter() {
-        println!("Scope: {}", scope);
+        log::warn!("Scope: {}", scope);
         for (name, _) in funcs.iter() {
-            println!("  |{}|", name);
+            log::warn!("  |{}|", name);
         }
     }
 }
