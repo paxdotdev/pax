@@ -38,7 +38,3 @@ debug = false
 [profile.parser]
 inherits = "dev"
 opt-level = 0
-
-[profile.parser]
-inherits = "dev"
-opt-level = 0
