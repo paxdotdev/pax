@@ -17,8 +17,8 @@
         anchor_y: 50%,
         x: 50%,
         y: 50%,
-        scale_x: 72%,
-        scale_y: 72%,
+        scale_x: 64%,
+        scale_y: 64%,
     }
 
     .arrow {
