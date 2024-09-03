@@ -73,33 +73,33 @@ pub enum RunTarget {
 /// See: pax-compiler-sequence-diagram.png
 pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<PathBuf>), Report> {
     //Compile ts files if applicable (this needs to happen before copying to .pax)
-    if ctx.is_libdev_mode && ctx.target == RunTarget::Web {
-        if let Ok(root) = std::env::var("PAX_WORKSPACE_ROOT") {
-            let mut cmd = Command::new("bash");
-            cmd.arg("./build-interface.sh");
-            let web_interface_path = Path::new(&root)
-                .join("pax-compiler")
-                .join("files")
-                .join("interfaces")
-                .join("web");
-            cmd.current_dir(&web_interface_path);
-            if !cmd
-                .output()
-                .expect("failed to start process")
-                .status
-                .success()
-            {
-                panic!(
-                    "failed to build js files running ./build-interface.sh at {:?}",
-                    web_interface_path
-                );
-            };
-        } else {
-            panic!(
-                "FATAL: PAX_WORKSPACE_ROOT env variable not set - didn't compile typescript files"
-            );
-        }
-    }
+    // if ctx.is_libdev_mode && ctx.target == RunTarget::Web {
+    //     if let Ok(root) = std::env::var("PAX_WORKSPACE_ROOT") {
+    //         let mut cmd = Command::new("bash");
+    //         cmd.arg("./build-interface.sh");
+    //         let web_interface_path = Path::new(&root)
+    //             .join("pax-compiler")
+    //             .join("files")
+    //             .join("interfaces")
+    //             .join("web");
+    //         cmd.current_dir(&web_interface_path);
+    //         if !cmd
+    //             .output()
+    //             .expect("failed to start process")
+    //             .status
+    //             .success()
+    //         {
+    //             panic!(
+    //                 "failed to build js files running ./build-interface.sh at {:?}",
+    //                 web_interface_path
+    //             );
+    //         };
+    //     } else {
+    //         panic!(
+    //             "FATAL: PAX_WORKSPACE_ROOT env variable not set - didn't compile typescript files"
+    //         );
+    //     }
+    // }
 
     let pax_dir = get_or_create_pax_directory(&ctx.project_path);
 
