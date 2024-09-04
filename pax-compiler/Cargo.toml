@@ -58,6 +58,7 @@ serde = { version = "1.0.159", features=["derive"] }
 serde_derive = "1.0.159"
 serde_json = { version = "1.0.95", optional = true }
 serde_with = { version= "3.6.1", features = ["json"] }
+similar = "2.2.1"
 syn = { version = "1.0", features = ["full", "parsing", "visit"] }
 tera = "1"
 tokio = { version = "1", features = ["full"] }
