@@ -13,7 +13,7 @@ if self.is_container {
 	source={ImageSource::Url(self.image_path)}
 />
 // Label
-<Text x=60px height=100% width={120px} text={self.name} id=text/>
+<Text x=60px height=100% width={120px} text={self.name} selectable=false id=text/>
 
 // Background fill for selection
 if self.is_selected {

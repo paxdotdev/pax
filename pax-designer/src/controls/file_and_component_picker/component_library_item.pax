@@ -1,4 +1,4 @@
-<Text x=15px width=100% height=100% class=component_text text={self.data.name}/>
+<Text x=15px width=100% height=100% selectable=false class=component_text text={self.data.name}/>
 <Rectangle fill=rgb(12.5%, 12.5%, 12.5%) />
 
 @settings {

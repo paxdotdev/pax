@@ -703,6 +703,10 @@ export class NativeElementPool {
             }
         }
 
+        if (patch.selectable != null) {
+            textChild.style.userSelect = patch.selectable ? "auto" : "none";
+        }
+
         applyTextTyle(leaf, textChild, patch.style);
 
         // Apply the content

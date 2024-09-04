@@ -1,84 +1,83 @@
 if self.visible {
-    <Group x={(self.pos_x)px} y={(self.pos_y)px} width=200px height=300px>
-        <Group y=0px height=25px @click=self.group>
-            <Text height=100% text="Group" id=text x=5px/>
-            <Rectangle
-                fill=TRANSPARENT
-                stroke={color: GRAY, width: 1px}
-            />
-        </Group>
-        <Group y=25px height=25px @click=self.ungroup>
-            <Text height=100% text="Unroup" id=text x=5px/>
-            <Rectangle
-                fill=TRANSPARENT
-                stroke={color: GRAY, width: 1px}
-            />
-        </Group>
-        <Group y=50px height=25px @click=self.group_link>
-            <Text height=100% text="Link" id=text x=5px/>
-            <Rectangle
-                fill=TRANSPARENT
-                stroke={color: GRAY, width: 1px}
-            />
-        </Group>
-        <Group y=75px height=25px @click=self.move_top>
-            <Text height=100% text="Move to Top" id=text x=5px/>
-            <Rectangle
-                fill=TRANSPARENT
-                stroke={color: GRAY, width: 1px}
-            />
-        </Group>
-        <Group y=100px height=25px @click=self.move_bump_up>
-            <Text height=100% text="Move Up" id=text x=5px/>
-            <Rectangle
-                fill=TRANSPARENT
-                stroke={color: GRAY, width: 1px}
-            />
-        </Group>
-        <Group y=125px height=25px @click=self.move_bump_down>
-            <Text height=100% text="Move Down" id=text x=5px/>
-            <Rectangle
-                fill=TRANSPARENT
-                stroke={color: GRAY, width: 1px}
-            />
-        </Group>
-        <Group y=150px height=25px @click=self.move_bottom>
-            <Text height=100% text="Move to Bottom" id=text x=5px/>
-            <Rectangle
-                fill=TRANSPARENT
-                stroke={color: GRAY, width: 1px}
-            />
-        </Group>
-        //Create component
-        // <Group height=25px @click=self.create_component>
-        //     <Text height=100% text="Create Component" id=text x=5px/>
-        //     <Rectangle
-        //         fill=TRANSPARENT
-        //         stroke={color: GRAY, width: 1px}
-        //     />
-        // </Group>
-        // <Group y=25px height=25px>
-        //     <Text height=100% text="Undo" id=text x=5px/>
-        //     <Rectangle
-        //         fill=TRANSPARENT
-        //         stroke={color: GRAY, width: 1px}
-        //     />
-        // </Group>
-        // <Group y=50px height=25px>
-        //     <Text height=100% text="Redo" id=text x=5px/>
-        //     <Rectangle
-        //         fill=TRANSPARENT
-        //         stroke={color: GRAY, width: 1px}
-        //     />
-        // </Group>
-        //Background 
-        <Rectangle  fill=rgb(12.5%, 12.5%, 12.5%)/>
+    <Group x={(self.pos_x)px} y={(self.pos_y)px} width=150px height=206px>
+        <Stacker width=140px height=196px x=50% y=50% direction=StackerDirection::Vertical >
+            <Group height=28px @click=self.group>
+                <Text height=100% text="Group" id=text x=5px/>
+                <Rectangle
+                    fill=TRANSPARENT
+                />
+            </Group>
+            <Group height=28px @click=self.ungroup>
+                <Text height=100% text="Ungroup" id=text x=5px/>
+                <Rectangle
+                    fill=TRANSPARENT
+                />
+            </Group>
+            <Group height=28px @click=self.group_link>
+                <Text height=100% text="Make Link" id=text x=5px/>
+                <Rectangle
+                    fill=TRANSPARENT
+                />
+            </Group>
+            <Group y=75px height=28px @click=self.move_top>
+                <Text height=100% text="Move to Top" id=text x=5px/>
+                <Rectangle
+                    fill=TRANSPARENT
+                    stroke={color: GRAY, width: 1px}
+                />
+            </Group>
+            <Group y=100px height=28px @click=self.move_bump_up>
+                <Text height=100% text="Move Up" id=text x=5px/>
+                <Rectangle
+                    fill=TRANSPARENT
+                    stroke={color: GRAY, width: 1px}
+                />
+            </Group>
+            <Group y=125px height=28px @click=self.move_bump_down>
+                <Text height=100% text="Move Down" id=text x=5px/>
+                <Rectangle
+                    fill=TRANSPARENT
+                    stroke={color: GRAY, width: 1px}
+                />
+            </Group>
+            <Group y=150px height=28px @click=self.move_bottom>
+                <Text height=100% text="Move to Bottom" id=text x=5px/>
+                <Rectangle
+                    fill=TRANSPARENT
+                    stroke={color: GRAY, width: 1px}
+                />
+            </Group>
+            //Create component
+            // <Group height=25px @click=self.create_component>
+            //     <Text height=100% text="Create Component" id=text x=5px/>
+            //     <Rectangle
+            //         fill=TRANSPARENT
+            //         stroke={color: GRAY, width: 1px}
+            //     />
+            // </Group>
+            // <Group y=25px height=25px>
+            //     <Text height=100% text="Undo" id=text x=5px/>
+            //     <Rectangle
+            //         fill=TRANSPARENT
+            //         stroke={color: GRAY, width: 1px}
+            //     />
+            // </Group>
+            // <Group y=50px height=25px>
+            //     <Text height=100% text="Redo" id=text x=5px/>
+            //     <Rectangle
+            //         fill=TRANSPARENT
+            //         stroke={color: GRAY, width: 1px}
+            //     />
+            // </Group>
+        </Stacker>
+        <Rectangle fill=rgb(12.5%, 12.5%, 12.5%)/>
     </Group>
 }
 
 @settings {
     @mount: on_mount
     #text {
+        selectable: false,
         style: {
                 font: {Font::Web(
                     "ff-real-headline-pro",
@@ -86,7 +85,7 @@ if self.visible {
                     FontStyle::Normal,
                     FontWeight::Normal,
                 )},
-                font_size: 12px,
+                font_size: 16px,
                 fill: WHITE,
                 align_vertical: TextAlignVertical::Center,
                 align_horizontal: TextAlignHorizontal::Left,
