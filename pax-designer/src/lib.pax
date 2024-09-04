@@ -23,12 +23,12 @@ if self.glass_active {
                 // <Text id=annot text={self.stage.height} x=50% y={100% + 30px}/>
             </Group>
         </Group>
+        <Rectangle id=global_background/>
     </Group>
 }
 if self.play_active {
     <InlineFrame />
 }
-<Rectangle id=global_background />
 
 // To include primitives in manifest
 if 0 == 1 {
