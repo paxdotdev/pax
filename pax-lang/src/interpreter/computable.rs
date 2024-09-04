@@ -1,12 +1,12 @@
 use std::{collections::HashMap, rc::Rc};
 
 use pax_runtime_api::{
-    functions::call_function, CoercionRules, Numeric, PaxValue, Percent, Rotation, Size,
+    functions::call_function, CoercionRules, Functions, Numeric, PaxValue, Percent, Rotation, Size,
 };
 
 use super::{
-    property_resolution::IdentifierResolver, PaxAccessor, PaxExpression, PaxFunctionCall,
-    PaxIdentifier, PaxInfix, PaxPostfix, PaxPrefix, PaxPrimary, PaxUnit,
+    property_resolution::IdentifierResolver, PaxAccessor, PaxExpression, PaxIdentifier, PaxInfix,
+    PaxPostfix, PaxPrefix, PaxPrimary, PaxUnit,
 };
 
 /// Trait for expression types that can be computed to a value
@@ -65,7 +65,6 @@ impl Computable for PaxPrimary {
                 }
                 Ok(value)
             }
-            PaxPrimary::FunctionCall(f) => f.compute(idr),
             PaxPrimary::Object(o) => {
                 let mut obj = HashMap::new();
                 for (k, v) in o.iter() {
@@ -110,12 +109,17 @@ impl Computable for PaxPrimary {
                     Ok(expr_val)
                 }
             }
-            PaxPrimary::Enum(name, variant, args) => {
+            PaxPrimary::FunctionOrEnum(scope, name_or_variant, args) => {
                 let args = args
                     .iter()
                     .map(|a| a.compute(idr.clone()))
                     .collect::<Result<Vec<PaxValue>, String>>()?;
-                Ok(PaxValue::Enum(name.clone(), variant.clone(), args))
+
+                if Functions::has_function(scope, name_or_variant) {
+                    return call_function(scope.clone(), name_or_variant.clone(), args);
+                }
+
+                Ok(PaxValue::Enum(scope.clone(), name_or_variant.clone(), args))
             }
         }
     }
@@ -149,16 +153,5 @@ impl Computable for PaxInfix {
 impl Computable for PaxIdentifier {
     fn compute(&self, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String> {
         idr.resolve(self.name.clone())
-    }
-}
-
-impl Computable for PaxFunctionCall {
-    fn compute(&self, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String> {
-        let args = self
-            .args
-            .iter()
-            .map(|a| a.compute(idr.clone()))
-            .collect::<Result<Vec<PaxValue>, String>>()?;
-        call_function(self.scope.clone(), self.function_name.clone(), args)
     }
 }

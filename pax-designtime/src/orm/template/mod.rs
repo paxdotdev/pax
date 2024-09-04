@@ -78,10 +78,9 @@ impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
         let component = manifest
             .components
             .get_mut(&self.containing_component_type_id)
-            .unwrap();
-
+            .ok_or_else(|| format!("Component {} not found", self.containing_component_type_id))?;
         if component.is_primitive || component.is_struct_only_component {
-            unreachable!("Component doesn't accept template nodes.");
+            return Err("Component doesn't accept template nodes.".to_string());
         }
 
         let mut template_node = TemplateNodeDefinition {
@@ -106,22 +105,23 @@ impl Command<AddTemplateNodeRequest> for AddTemplateNodeRequest {
             ..Default::default()
         };
 
-        if let Some(template) = &mut component.template {
-            node_data.unique_node_identifier = if let Some(location) = &self.location {
+        node_data.unique_node_identifier = if let Some(template) = &mut component.template {
+            if let Some(location) = &self.location {
                 template.add_at(template_node, location.clone())
             } else {
                 template.add(template_node)
-            };
+            }
         } else {
             let mut template =
                 ComponentTemplate::new(self.containing_component_type_id.clone(), None);
-            node_data.unique_node_identifier = if let Some(location) = &self.location {
+            let uni = if let Some(location) = &self.location {
                 template.add_at(template_node, location.clone())
             } else {
                 template.add(template_node)
             };
             component.template = Some(template);
-        }
+            uni
+        };
 
         self._cached_node_data = Some(node_data.clone());
 
@@ -222,10 +222,17 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
     ) -> Result<UpdateTemplateNodeResponse, String> {
         let uni = self.uni.clone();
         let containing_component = uni.get_containing_component_type_id().clone();
-        let component = manifest.components.get_mut(&containing_component).unwrap();
-
+        let component = manifest
+            .components
+            .get_mut(&containing_component)
+            .ok_or_else(|| {
+                format!(
+                    "Component {} not found",
+                    self.uni.get_containing_component_type_id()
+                )
+            })?;
         if component.is_primitive || component.is_struct_only_component {
-            unreachable!("Component doesn't accept template nodes.");
+            return Err("Component doesn't accept template nodes.".to_string());
         }
 
         if let Some(template) = &mut component.template {
@@ -233,7 +240,7 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
                 unique_node_identifier: uni.clone(),
                 cached_node: template
                     .get_node(&uni.get_template_node_id())
-                    .expect("Cannot update node that doesn't exist")
+                    .ok_or_else(|| "Cannot update node that doesn't exist".to_string())?
                     .clone(),
             });
 
@@ -247,7 +254,7 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
 
             if let Some(location) = &self.new_location {
                 let mut move_request = MoveTemplateNodeRequest::new(uni.clone(), location.clone());
-                move_request.execute(manifest).unwrap();
+                move_request.execute(manifest)?;
                 self._cached_move = Some(move_request.clone());
             }
         }
@@ -336,19 +343,23 @@ impl Command<MoveTemplateNodeRequest> for MoveTemplateNodeRequest {
         let current_component = manifest
             .components
             .get_mut(&uni.get_containing_component_type_id())
-            .unwrap();
-
+            .ok_or_else(|| {
+                format!(
+                    "Component {} not found",
+                    self.uni.get_containing_component_type_id()
+                )
+            })?;
         if current_component.is_primitive || current_component.is_struct_only_component {
-            unreachable!("Component doesn't accept template nodes.");
+            return Err("Component doesn't accept template nodes.".to_string());
         }
         if current_component.template.is_none() {
-            unreachable!("Component doesn't have a template.");
+            return Err("Component doesn't have a template.".to_string());
         }
 
         let template = current_component.template.as_mut().unwrap();
 
         if *requested_component != uni.get_containing_component_type_id() {
-            panic!("Cannot move node to a different component.");
+            return Err("Cannot move node to a different component.".to_string());
         }
 
         self._cached_old_position = template.get_location(&self.uni.get_template_node_id());
@@ -435,13 +446,15 @@ impl Response for PasteSubTreeResponse {
 impl Command<PasteSubTreeRequest> for PasteSubTreeRequest {
     fn execute(&mut self, manifest: &mut PaxManifest) -> Result<PasteSubTreeResponse, String> {
         let type_id = self.new_location.get_type_id();
-        let component = manifest.components.get_mut(type_id).unwrap();
-
+        let component = manifest
+            .components
+            .get_mut(type_id)
+            .ok_or_else(|| format!("Component {} not found", type_id))?;
         if component.is_primitive || component.is_struct_only_component {
-            unreachable!("Component doesn't accept template nodes.");
+            return Err("Component doesn't accept template nodes.".to_string());
         }
         if component.template.is_none() {
-            unreachable!("Component doesn't have a template.");
+            return Err("Component doesn't have a template.".to_string());
         }
 
         let template = component.template.as_mut().unwrap();
@@ -449,7 +462,11 @@ impl Command<PasteSubTreeRequest> for PasteSubTreeRequest {
 
         let mut root_ids = vec![];
         for r in self.subtrees.roots.iter().rev() {
-            let def = self.subtrees.nodes.get(r).unwrap();
+            let def = self
+                .subtrees
+                .nodes
+                .get(r)
+                .ok_or_else(|| "Node not found".to_string())?;
             let id = template
                 .add_at(def.clone(), self.new_location.clone())
                 .get_template_node_id();
@@ -460,7 +477,11 @@ impl Command<PasteSubTreeRequest> for PasteSubTreeRequest {
             }
             while let Some((id, children)) = to_visit.pop() {
                 for c in children {
-                    let c_def = self.subtrees.nodes.get(&c).unwrap();
+                    let c_def = self
+                        .subtrees
+                        .nodes
+                        .get(&c)
+                        .ok_or_else(|| "Child node not found".to_string())?;
                     let c_id = template
                         .add_child_back(id.clone(), c_def.clone())
                         .get_template_node_id();
@@ -542,8 +563,12 @@ impl Command<RemoveTemplateNodeRequest> for RemoveTemplateNodeRequest {
         let component = manifest
             .components
             .get_mut(&self.uni.get_containing_component_type_id())
-            .unwrap();
-
+            .ok_or_else(|| {
+                format!(
+                    "Component {} not found",
+                    self.uni.get_containing_component_type_id()
+                )
+            })?;
         if component.is_primitive || component.is_struct_only_component {
             unreachable!("Component doesn't accept template nodes.");
         }
@@ -571,7 +596,12 @@ impl Undo for RemoveTemplateNodeRequest {
         let component = manifest
             .components
             .get_mut(&self.uni.get_containing_component_type_id())
-            .unwrap();
+            .ok_or_else(|| {
+                format!(
+                    "Component {} not found",
+                    self.uni.get_containing_component_type_id()
+                )
+            })?;
         component.template.clone_from(&self._cached_template);
         Ok(())
     }
@@ -608,7 +638,12 @@ impl Command<GetTemplateNodeRequest> for GetTemplateNodeRequest {
         let component = manifest
             .components
             .get_mut(&self.uni.get_containing_component_type_id())
-            .unwrap();
+            .ok_or_else(|| {
+                format!(
+                    "Component {} not found",
+                    self.uni.get_containing_component_type_id()
+                )
+            })?;
 
         let mut node = None;
         if let Some(template) = &component.template {

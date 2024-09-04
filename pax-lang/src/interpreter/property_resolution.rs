@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use pax_runtime_api::PaxValue;
 
-use super::{PaxExpression, PaxFunctionCall, PaxInfix, PaxPostfix, PaxPrefix, PaxPrimary};
+use super::{PaxExpression, PaxInfix, PaxPostfix, PaxPrefix, PaxPrimary};
 
 /// Trait for resolving identifiers to values
 /// This is implemented by RuntimePropertyStackFrame
@@ -31,12 +31,11 @@ impl DependencyCollector for PaxPrimary {
             PaxPrimary::Literal(_) => vec![],
             PaxPrimary::Grouped(expr, _) => expr.collect_dependencies(),
             PaxPrimary::Identifier(i, _) => vec![i.name.clone()],
-            PaxPrimary::FunctionCall(f) => f.collect_dependencies(),
             PaxPrimary::Object(o) => o
                 .iter()
                 .flat_map(|(_, v)| v.collect_dependencies())
                 .collect(),
-            PaxPrimary::Enum(_, _, args) => {
+            PaxPrimary::FunctionOrEnum(_, _, args) => {
                 args.iter().flat_map(|a| a.collect_dependencies()).collect()
             }
             PaxPrimary::Range(start, end) => {
@@ -67,15 +66,6 @@ impl DependencyCollector for PaxInfix {
 impl DependencyCollector for PaxPostfix {
     fn collect_dependencies(&self) -> Vec<String> {
         self.lhs.collect_dependencies()
-    }
-}
-
-impl DependencyCollector for PaxFunctionCall {
-    fn collect_dependencies(&self) -> Vec<String> {
-        self.args
-            .iter()
-            .flat_map(|a| a.collect_dependencies())
-            .collect()
     }
 }
 

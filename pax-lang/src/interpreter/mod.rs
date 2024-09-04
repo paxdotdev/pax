@@ -47,9 +47,8 @@ pub enum PaxPrimary {
     Literal(PaxValue),
     Grouped(Box<PaxExpression>, Option<PaxUnit>),
     Identifier(PaxIdentifier, Vec<PaxAccessor>),
-    FunctionCall(PaxFunctionCall),
     Object(HashMap<String, PaxExpression>),
-    Enum(String, String, Vec<PaxExpression>),
+    FunctionOrEnum(String, String, Vec<PaxExpression>),
     Range(PaxExpression, PaxExpression),
     Tuple(Vec<PaxExpression>),
     List(Vec<PaxExpression>),
@@ -87,25 +86,6 @@ impl Display for PaxPrimary {
                 }
                 Ok(())
             }
-            PaxPrimary::FunctionCall(fc) => {
-                if fc.scope == "Color" {
-                    write!(f, "{}", fc.function_name)?;
-                } else {
-                    write!(f, "{}::{}", fc.scope, fc.function_name)?;
-                }
-
-                if !fc.args.is_empty() {
-                    write!(f, "(")?;
-                    for (i, arg) in fc.args.iter().enumerate() {
-                        write!(f, "{}", arg)?;
-                        if i != fc.args.len() - 1 {
-                            write!(f, ", ")?;
-                        }
-                    }
-                    write!(f, ")")?;
-                }
-                Ok(())
-            }
             PaxPrimary::Object(o) => {
                 write!(f, "{{")?;
                 let mut o = o.iter().collect::<Vec<_>>();
@@ -119,7 +99,7 @@ impl Display for PaxPrimary {
                 write!(f, "}}")?;
                 Ok(())
             }
-            PaxPrimary::Enum(name, e, a) => {
+            PaxPrimary::FunctionOrEnum(name, e, a) => {
                 if name == "Color" {
                     write!(f, "{}", e)?;
                 } else {
@@ -228,13 +208,6 @@ impl PaxIdentifier {
     }
 }
 
-#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
-pub struct PaxFunctionCall {
-    scope: String,
-    function_name: String,
-    args: Vec<PaxExpression>,
-}
-
 /// Parse a pax expression into a computable AST
 pub fn parse_pax_expression(expr: &str) -> Result<PaxExpression, String> {
     let parsed_expr = parse_pax_pairs(Rule::expression_body, expr)
@@ -341,22 +314,12 @@ fn recurse_pratt_parse(
                 } else {
                     vec![]
                 };
-                if Functions::has_function(&scope, &function_name) {
-                    let value = PaxFunctionCall {
-                        scope,
-                        function_name,
-                        args,
-                    };
-                    let exp = PaxExpression::Primary(Box::new(PaxPrimary::FunctionCall(value)));
-                    Ok(exp)
-                } else {
-                    let exp = PaxExpression::Primary(Box::new(PaxPrimary::Enum(
-                        scope,
-                        function_name,
-                        args,
-                    )));
-                    Ok(exp)
-                }
+                let exp = PaxExpression::Primary(Box::new(PaxPrimary::FunctionOrEnum(
+                    scope,
+                    function_name,
+                    args,
+                )));
+                Ok(exp)
             }
             Rule::xo_color_space_func => {
                 let func = primary.as_str().trim().split("(").next().unwrap();
@@ -364,12 +327,11 @@ fn recurse_pratt_parse(
                 let args = inner
                     .map(|a| recurse_pratt_parse(a.into_inner(), pratt_parser))
                     .collect::<Result<Vec<PaxExpression>, String>>()?;
-                let value = PaxFunctionCall {
-                    scope: "Color".to_string(),
-                    function_name: func.to_string(),
+                let exp = PaxExpression::Primary(Box::new(PaxPrimary::FunctionOrEnum(
+                    "Color".to_string(),
+                    func.to_string(),
                     args,
-                };
-                let exp = PaxExpression::Primary(Box::new(PaxPrimary::FunctionCall(value)));
+                )));
                 Ok(exp)
             }
             Rule::xo_object => {
