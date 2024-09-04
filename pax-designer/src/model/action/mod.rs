@@ -15,8 +15,10 @@ use pax_engine::api::{borrow, borrow_mut, Axis, Size};
 use pax_engine::math::Vector2;
 use pax_engine::node_layout::TransformAndBounds;
 use pax_engine::pax_manifest::{
-    NodeLocation, TemplateNodeId, TreeIndexPosition, TreeLocation, UniqueTemplateNodeIdentifier,
+    NodeLocation, TemplateNodeId, TreeIndexPosition, TreeLocation, TypeId,
+    UniqueTemplateNodeIdentifier,
 };
+use pax_engine::serde::Serialize;
 use pax_engine::{
     api::{NodeContext, Window},
     math::{Point2, Space, Transform2},
@@ -195,6 +197,7 @@ impl ActionContext<'_> {
 pub struct Transaction {
     before_undo_id: usize,
     design_time: Rc<RefCell<DesigntimeManager>>,
+    component_id: Property<TypeId>,
     undo_stack: Rc<UndoRedoStack>,
     result: RefCell<Result<()>>,
     user_action_message: String,
@@ -207,12 +210,14 @@ impl Transaction {
             .get_orm()
             .get_last_undo_id()
             .unwrap_or(0);
+        let component_id = ctx.app_state.selected_component_id.clone();
         Self {
             undo_stack: Rc::clone(&ctx.undo_stack),
             before_undo_id,
             design_time,
             result: RefCell::new(Ok(())),
             user_action_message: user_action_message.to_owned(),
+            component_id,
         }
     }
 
@@ -244,14 +249,14 @@ impl Transaction {
     }
 }
 
-// This exists to never forget to call finish on a created transaction, aim to
-// not remove this but instead figure out why finish wasn't called. TODO: might
-// want to add a "cancel" method to the struct above to explicitly cancel a
-// transaction as well (revert changes and don't push to undo stack)
 impl Drop for Transaction {
     fn drop(&mut self) {
         if borrow!(self.result).is_ok() {
             self.undo_stack.push(self.before_undo_id);
+            let mut dt = borrow_mut!(self.design_time);
+            if let Err(e) = dt.send_component_update(&self.component_id.get()) {
+                pax_engine::log::error!("failed to save component to file: {:?}", e);
+            }
         }
     }
 }
