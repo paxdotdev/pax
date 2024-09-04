@@ -1,4 +1,6 @@
+use colored::{ColoredString, Colorize};
 use core::panic;
+use serde_derive::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fs::{self, File},
@@ -6,8 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use serde_derive::{Deserialize, Serialize};
-
+use similar::{ChangeTag, TextDiff};
 use syn::{parse_file, spanned::Spanned, visit::Visit, Item};
 use tera::{Context, Tera};
 
@@ -101,6 +102,20 @@ pub fn press_code_serialization_template(args: ComponentDefinition) -> String {
     format_pax_template(template).expect("Failed to format template")
 }
 
+fn print_diff(old_content: &str, new_content: &str, _file_path: &str) {
+    let diff = TextDiff::from_lines(old_content, new_content);
+    for change in diff.iter_all_changes() {
+        let output = match change.tag() {
+            ChangeTag::Delete => Some(format!("-{}", change).red()),
+            ChangeTag::Insert => Some(format!("+{}", change).green()),
+            ChangeTag::Equal => None,
+        };
+        if let Some(o) = output {
+            print!("{}", o);
+        }
+    }
+}
+
 /// Serialize a component to a file
 /// Replaces entire .pax file and replaces inlined attribute directly for .rs files
 pub fn serialize_component_to_file(component: &ComponentDefinition, file_path: String) {
@@ -113,9 +128,13 @@ pub fn serialize_component_to_file(component: &ComponentDefinition, file_path: S
 
     match path.extension().and_then(|s| s.to_str()) {
         Some("pax") => {
-            let mut file = File::create(file_path).expect("Failed to create file");
+            let old_content = fs::read_to_string(&file_path).unwrap_or_default();
+            let mut file = File::create(&file_path).expect("Failed to create file");
             file.write_all(serialized_component.as_bytes())
                 .expect("Failed to write to file");
+
+            // Print the diff
+            print_diff(&old_content, &serialized_component, &file_path);
         }
         Some("rs") => write_inlined_pax(serialized_component, path, pascal_identifier),
         _ => panic!("Unsupported file extension."),
