@@ -56,7 +56,6 @@ pub struct PaxDesigner {
     pub transform2d: Property<Transform2D>,
     pub stage: Property<StageInfo>,
     pub play_active: Property<bool>,
-
     pub glass_active: Property<bool>,
     pub manifest_loaded_from_server: Property<bool>,
 }

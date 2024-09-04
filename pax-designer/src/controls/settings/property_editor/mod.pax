@@ -1,5 +1,5 @@
 
-<Group width={100%-12px}>
+<Group width={100%-20px}>
 	if !self.is_literal {
 		<TextPropertyEditor data={data}/>
 	}
@@ -40,24 +40,13 @@
 		}
 	}
 </Group>
-<Group width=12px height=12px y={(-30*self.fx_button_at_far_left)px} x={(100*(1 - 1*self.fx_button_at_far_left))%} @click=self.toggle_literal>
-	<Text
-	    style={
-	        font: {Font::Web(
-	            "ff-real-headline-pro",
-	            "https://use.typekit.net/ivu7epf.css",
-	            FontStyle::Normal,
-	            FontWeight::Light,
-	        )},
-	        font_size: 8px,
-	        fill: {self.fx_text_color},
-	        align_vertical: TextAlignVertical::Center,
-	        align_horizontal: TextAlignHorizontal::Center,
-	        align_multiline: TextAlignHorizontal::Center
-	    } text="fx" width=100%/>
-	<Rectangle
-		    corner_radii={RectangleCornerRadii::radii(2.0,2.0,2.0,2.0)}
-			fill={self.fx_background_color}/>
+<Group width=16px height=16px x={100% + 4px}  y=50% @click=self.toggle_literal>
+    if is_literal {
+        <Image source={ImageSource::Url("assets/icons/icon-fx-off.png")} />
+    }
+    if !is_literal {
+        <Image source={ImageSource::Url("assets/icons/icon-fx-on.png")} />
+    }
 </Group>
 
 @settings {

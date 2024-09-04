@@ -35,7 +35,7 @@ pub struct PropertyEditor {
     pub ind: Property<usize>,
     pub stid: Property<TypeId>,
     pub snid: Property<TemplateNodeId>,
-    pub fx_button_at_far_left: Property<bool>,
+    pub fx_button_special: Property<bool>,
 
     // internal repr, always set to collection of above
     pub prop_type_ident_id: Property<usize>,
@@ -135,7 +135,7 @@ impl PropertyEditor {
         } else {
             let str_val = data.get_value_as_str(ctx);
             if str_val.is_empty() {
-                // don't convert to expression if embty
+                // don't convert to expression if empty
                 Ok(())
             } else {
                 let str_val_expr = format!("{{{str_val}}}");
