@@ -1,0 +1,196 @@
+<Stacker width=23.28% y=82.59% height=30.98% anchor_y=49.99% anchor_x=100.00% x=87.44% sizes=[]>
+    <Group rotate=0.00rad skew_y=0.00rad skew_x=0.00rad>
+        <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
+        <Text y=49.99% x=40px text="Try out play mode (arrow)" style={
+            font: Font::Web(
+                "Roboto",
+                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            font_size: 15.00px
+            fill: rgba(0, 0, 0, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        } 
+            height=92.48% width=400px anchor_x=0 anchor_y=50%/>
+    </Group>
+    <Group rotate=0.00rad skew_y=0.00rad skew_x=0.00rad>
+        <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
+        <Text y=49.99% x=40px text="Try ultrasync and edit code" style={
+            font: Font::Web(
+                "Roboto",
+                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            font_size: 15.00px
+            fill: rgba(0, 0, 0, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        } 
+            height=92.48% width=400px anchor_x=0 anchor_y=50%/>
+    </Group>
+    <Group rotate=0.00rad skew_y=0.00rad skew_x=0.00rad>
+        <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
+        <Text y=49.99% x=40px text="Try drawing an ellipse and adding a textbox" style={
+            font: Font::Web(
+                "Roboto",
+                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            font_size: 15.00px
+            fill: rgba(0, 0, 0, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        } 
+            height=92.48% width=400px anchor_x=0 anchor_y=50%/>
+    </Group>
+    <Group rotate=0.00rad skew_y=0.00rad skew_x=0.00rad>
+        <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
+        <Text y=49.99% x=40px text="Write expression or create stacker" style={
+            font: Font::Web(
+                "Roboto",
+                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            font_size: 15.00px
+            fill: rgba(0, 0, 0, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        } 
+            height=92.48% width=400px anchor_x=0 anchor_y=50%/>
+    </Group>
+    <Group rotate=0.00rad skew_y=0.00rad skew_x=0.00rad>
+        <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
+        <Text y=49.99% x=40px text="check out source code on github" style={
+            font: Font::Web(
+                "Roboto",
+                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            font_size: 15.00px
+            fill: rgba(0, 0, 0, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        } 
+            height=92.48% width=400px anchor_x=0 anchor_y=50%/>
+    </Group>
+    <Group rotate=0.00rad skew_x=0.00rad skew_y=0.00rad>
+        <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
+        <Text y=49.99% x=40px text="Learn more in the docs" style={
+            font: Font::Web(
+                "Roboto",
+                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            font_size: 15.00px
+            fill: rgba(0, 0, 0, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        } 
+            height=92.48% width=400px anchor_x=0 anchor_y=50%/>
+    </Group>
+</Stacker>
+<Text scale_y=100% width=16.51% y=86.83% scale_x=100% x=55.17% height=20.84% text="Try it out:" style={
+    font: Font::Web(
+        "Roboto",
+        "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+        FontStyle::Normal,
+        FontWeight::Bold)
+    font_size: 40.00px
+    fill: rgba(0, 0, 0, 255)
+    align_vertical: TextAlignVertical::Top
+    align_horizontal: TextAlignHorizontal::Right
+    align_multiline: TextAlignHorizontal::Right
+    underline: false
+}/>
+<Text width=17.97% scale_x=100% x=2.10% y=1.07% scale_y=100% height=14.23% style={
+    font: Font::Web(
+        "Roboto",
+        "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+        FontStyle::Normal,
+        FontWeight::Bold)
+    font_size: 100.00px
+    fill: rgba(255, 255, 255, 255)
+    align_vertical: TextAlignVertical::Top
+    align_horizontal: TextAlignHorizontal::Left
+    align_multiline: TextAlignHorizontal::Left
+    underline: false
+} 
+    text="PAX"/>
+<Calculator width=400px x=25.18% y=55.18% height=500px anchor_x=50.00% anchor_y=50.00%/>
+<Group scale_x=100% width=123.19% x=28.74% scale_y=100% y=64.47% height=150.09% rotate=-5deg>
+    <Group x=83.92% scale_x=100% y=50.25% width=36.04% scale_y=100% height=31.55% anchor_x=100%>
+        <Text y=97.36% x=13.33% height=33.65% text="Every Visual change is code." style={
+            font: Font::Web(
+                "Roboto",
+                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold)
+            font_size: 35.00px
+            fill: rgba(254, 254, 254, 255)
+            align_vertical: TextAlignVertical::Bottom
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        } 
+            width=91.15%/>
+        <Text y=57.72% x=77.76% height=39.59% 
+            text="Build mobile apps, websites, business tools, games, interactive cartoons, or data visualizations." style={
+                font: Font::Web(
+                    "Roboto",
+                    "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                    FontStyle::Normal,
+                    FontWeight::Light)
+                font_size: 24.00px
+                fill: rgba(254, 254, 254, 255)
+                align_vertical: TextAlignVertical::Center
+                align_horizontal: TextAlignHorizontal::Left
+                align_multiline: TextAlignHorizontal::Left
+                underline: false
+            } 
+            width=98.53%/>
+        <Text y=-0.95% x=109.81% height=42.85% text="Build user interfaces with the creative freedom of a vector design tool." style={
+            font: Font::Web(
+                "Roboto",
+                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold)
+            font_size: 32.00px
+            fill: rgba(254, 254, 254, 255)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        } 
+            width=108.72%/>
+    </Group>
+    <Rectangle x=0.00% height=33.33% y=0.00% fill=rgba(28, 28, 30, 255)/>
+    <Rectangle x=0.00% height=33.33% y=49.99% fill=rgba(46, 49, 49, 255)/>
+    <Rectangle x=0.00% height=33.33% y=100.00% fill=rgba(206, 207, 207, 255)/>
+</Group>
+
+@settings {
+    @pre_render: handle_pre_render
+    #text {
+        style: {
+            font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold)
+            font_size: 22px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+}
