@@ -149,19 +149,30 @@ impl Settings {
                 let props = node.get_all_properties();
                 props
                     .into_iter()
+                    .filter(|(prop_def, _)| {
+                        !matches!(
+                            prop_def.name.as_str(),
+                            "x" | "y"
+                                | "width"
+                                | "height"
+                                | "rotate"
+                                | "scale_x"
+                                | "scale_y"
+                                | "anchor_x"
+                                | "anchor_y"
+                                | "skew_x"
+                                | "skew_y"
+                                | "id"
+                                | "transform"
+                        ) || prop_def.name.starts_with('_')
+                    })
                     .enumerate()
-                    .filter_map(|(i, (propdef, _))| match propdef.name.as_str() {
-                        "x" | "y" | "width" | "height" | "rotate" | "scale_x" | "scale_y"
-                        | "anchor_x" | "anchor_y" | "skew_x" | "skew_y" | "id" | "transform" => {
-                            None
-                        }
-                        custom => (!custom.starts_with('_')).then_some(PropertyArea {
-                            index: i + 1,
-                            vertical_space: 10.0,
-                            vertical_pos: Default::default(),
-                            name_friendly: Self::camel_to_title_case(custom),
-                            name: String::from(custom),
-                        }),
+                    .map(|(i, (propdef, _))| PropertyArea {
+                        index: i + 1,
+                        vertical_space: 10.0,
+                        vertical_pos: Default::default(),
+                        name_friendly: Self::to_visual_name(&propdef.name),
+                        name: String::from(propdef.name),
                     })
                     .collect()
             },
@@ -179,6 +190,7 @@ impl Settings {
             move || {
                 let mut adjusted_props = custom_props.get();
                 let areas = areas.get();
+                log::debug!("areas: {:?}", areas);
                 let mut running_sum = 0.0;
                 for prop in &mut adjusted_props {
                     let area = areas.get(prop.index - 1).unwrap_or(&10.0);
@@ -186,22 +198,15 @@ impl Settings {
                     prop.vertical_pos = running_sum;
                     running_sum += area + SPACING;
                 }
-                adjusted_props.into_iter().rev().collect()
+                let res = adjusted_props.into_iter().rev().collect();
+                log::debug!("recalc custom prop areas: {:?}", res);
+                res
             },
             &deps,
         )
     }
 
-    fn camel_to_title_case(s: &str) -> String {
-        s.char_indices().fold(String::new(), |mut acc, (i, c)| {
-            if i == 0 || s.chars().nth(i - 1).unwrap() == '_' {
-                acc.push_str(&c.to_uppercase().to_string());
-            } else if c == '_' {
-                acc.push(' ');
-            } else {
-                acc.push(c);
-            }
-            acc
-        })
+    fn to_visual_name(s: &str) -> String {
+        s.replace('_', " ")
     }
 }
