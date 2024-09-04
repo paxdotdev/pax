@@ -1,5 +1,5 @@
 <Image source={ImageSource::Url(self.library_active_toggle_image)} x=92% y=50% width=30px height=30px anchor_x=50% @click=self.library_toggle/>
-<Text x=15px text={current_selected_component} y=50% class=h1 />
+<Text x=15px text={current_selected_component} selectable=false y=50% class=h1 />
 if self.library_active {
     for (comp, i) in self.registered_components {
         <ComponentLibraryItem data=comp height=40px y={(45 + i*40)px}/>

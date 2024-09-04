@@ -26,12 +26,26 @@ use crate::common::patch_if_needed;
 /// Renders text in a platform-native way
 #[pax]
 #[engine_import_path("pax_engine")]
+#[custom(Default)]
 #[primitive("pax_std::core::text::TextInstance")]
 pub struct Text {
     pub editable: Property<bool>,
+    pub selectable: Property<bool>,
     pub text: Property<String>,
     pub style: Property<TextStyle>,
     pub _style_link: Property<TextStyle>,
+}
+
+impl Default for Text {
+    fn default() -> Self {
+        Self {
+            editable: Property::new(false),
+            selectable: Property::new(true),
+            text: Property::new("".to_string()),
+            style: Property::new(TextStyle::default()),
+            _style_link: Property::new(TextStyle::default()),
+        }
+    }
 }
 
 pub struct TextInstance {
@@ -157,6 +171,11 @@ impl InstanceNode for TextInstance {
                                 &mut old_state.editable,
                                 &mut patch.editable,
                                 properties.editable.get(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.selectable,
+                                &mut patch.selectable,
+                                properties.selectable.get(),
                             ),
                             // Transform and bounds
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
