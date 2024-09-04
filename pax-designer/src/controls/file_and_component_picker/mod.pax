@@ -18,7 +18,7 @@ if self.library_active {
                     "ff-real-headline-pro",
                     "https://use.typekit.net/ivu7epf.css",
                     FontStyle::Normal,
-                    FontWeight::SemiBold,
+                    FontWeight::Medium,
                 )},
             fill: WHITE,
         }
