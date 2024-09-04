@@ -161,10 +161,23 @@ impl InstanceNode for PathInstance {
             }
 
             let tab = expanded_node.transform_and_bounds.get();
-            let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
+            let transform = Into::<kurbo::Affine>::into(tab.transform);
+            let mut clip_path = BezPath::new();
+            let (width, height) = tab.bounds;
+            clip_path.move_to((0.0, 0.0));
+            clip_path.line_to((width, 0.0));
+            clip_path.line_to((width, height));
+            clip_path.line_to((0.0, height));
+            clip_path.line_to((0.0, 0.0));
+            clip_path.close_path();
+            let transformed_clip_path = transform * clip_path;
+            let transformed_bez_path = transform * bez_path;
             let duplicate_transformed_bez_path = transformed_bez_path.clone();
+            //our "save point" before clipping — restored to in the post_render
 
             let color = properties.fill.get().to_piet_color();
+            rc.save(&layer_id);
+            rc.clip(&layer_id, transformed_clip_path.clone());
             rc.fill(&layer_id, transformed_bez_path, &color.into());
             if properties
                 .stroke
@@ -188,6 +201,7 @@ impl InstanceNode for PathInstance {
                         .to_float(),
                 );
             }
+            rc.restore(&layer_id);
         });
     }
 

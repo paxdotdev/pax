@@ -5,7 +5,7 @@
     }
     if self.running_mode {
         <Text text="Stop" id=text/>
-        <Rectangle x=80% width=20px height=20px y=50% fill=RED/>
+        <Rectangle anchor_x=0% x=80% width=20px height=20px y=50% fill=RED/>
     }
 </Group>
 <Rectangle

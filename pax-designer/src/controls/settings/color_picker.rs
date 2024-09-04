@@ -3,6 +3,14 @@ use pax_engine::math::{Point2, Vector2};
 use pax_engine::*;
 use pax_std::*;
 
+thread_local! {
+    pub static GLOBAL_MOUSEUP_PROP: Property<bool> = Default::default();
+}
+
+pub(crate) fn trigger_mouseup() {
+    GLOBAL_MOUSEUP_PROP.with(|p| p.set(false));
+}
+
 #[pax]
 #[engine_import_path("pax_engine")]
 #[file("controls/settings/color_picker.pax")]
@@ -134,23 +142,25 @@ impl ColorPicker {
                 move || alpha_slider(color.get()).to_vec(),
                 &deps,
             ));
+        let glob_mouseup = GLOBAL_MOUSEUP_PROP.with(|v| v.clone());
+        let deps = [glob_mouseup.untyped()];
+        self.mouse_is_down_on_palette
+            .replace_with(Property::computed(move || glob_mouseup.get(), &deps));
     }
 
     pub fn open_picker(&mut self, _ctx: &NodeContext, _event: Event<Click>) {
         self.picker_open.set(!self.picker_open.get());
     }
+
     pub fn palette_mouse_down(&mut self, ctx: &NodeContext, event: Event<MouseDown>) {
         self.mouse_is_down_on_palette.set(true);
         self.palette_set(ctx, &event.mouse)
     }
+
     pub fn palette_mouse_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
         if self.mouse_is_down_on_palette.get() {
             self.palette_set(ctx, &event.mouse);
         }
-    }
-
-    pub fn palette_mouse_up(&mut self, _ctx: &NodeContext, _event: Event<MouseUp>) {
-        self.mouse_is_down_on_palette.set(false);
     }
 
     pub fn palette_set(&mut self, ctx: &NodeContext, mouse: &MouseEventArgs) {

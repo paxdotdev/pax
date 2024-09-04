@@ -2,6 +2,7 @@ use std::any::Any;
 use std::ops::ControlFlow;
 use std::rc::Rc;
 
+use super::action::meta::Schedule;
 use super::action::orm::{self, CreateComponent, SetNodeLayout};
 use super::action::pointer::Pointer;
 use super::action::world::ZoomToFit;
@@ -135,9 +136,12 @@ impl ToolBehavior for CreateComponentTool {
             // to create a OpenEditor action that works for all types, instead
             // of calling TextEdit directly).
             if self.type_id == TypeId::build_singleton("pax_std::core::text::Text", None) {
-                // TODO this crashes, needs to be performed next frame instead.
-                // add META Action that can schedule another action to be performed next frame.
-                // TextEdit { uid }.perform(ctx)?;
+                // Node doesn't exit yet in engine (and needs to to be able to
+                // set contenteditable to true). schedule for next frame.
+                Schedule {
+                    action: Rc::new(TextEdit { uid }),
+                }
+                .perform(ctx)?;
             }
             Ok(())
         });

@@ -275,13 +275,25 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, true);
+    window.addEventListener('focus', (evt) => {
+        if (document.activeElement != document.body) {
+            return;
+        }
+        let event = {
+            "Focus": {}
+        };
+        let res = chassis.interrupt(JSON.stringify(event), []);
+        if (res.prevent_default) {
+            evt.preventDefault();
+        }
+    }, true);
     window.addEventListener('drop', async (evt) => {
         evt.stopPropagation();
         evt.preventDefault();
         if (document.activeElement != document.body) {
             return;
         }
-        let file = evt.dataTransfer?.files[0];
+        let file = evt.dataTransfer?.files[0]!;
         let bytes = await readFileAsByteArray(file);
         let event = {
             "DropFile": {
@@ -300,7 +312,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
     window.addEventListener('dragover', (evt) => {
         evt.stopPropagation();
         evt.preventDefault();
-        event.dataTransfer.dropEffect = 'copy';
+        evt.dataTransfer!.dropEffect = 'copy';
     }, {"passive": false, "capture": true});
 }
 
