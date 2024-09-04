@@ -1,0 +1,32 @@
+[package]
+name = "increment"
+version = "0.35.0"
+edition = "2021"
+default-run = "run"
+
+[dependencies]
+pax-kit = { version = "0.35.0", path="../../../pax-kit", features = ["designer"] }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+name = "paxcartridge"
+
+[[bin]]
+name = "parser"
+path = "src/lib.rs"
+required-features = ["parser"]
+
+[[bin]]
+name = "run"
+path = "bin/run.rs"
+
+[features]
+designer = ["pax-kit/designer"]
+parser = ["pax-kit/parser"]
+web = ["pax-kit/web"]
+macos = ["pax-kit/macos"]
+ios = ["pax-kit/ios"]
+
+[profile.dev]
+opt-level = 2
+debug = false
