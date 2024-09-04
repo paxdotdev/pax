@@ -6,7 +6,7 @@
     @double_click: on_double_click
     .component_text {
         style: {
-            font_size: 22px,
+            font_size: 20px,
             font: {Font::Web(
                 "ff-real-headline-pro",
                 "https://use.typekit.net/ivu7epf.css",

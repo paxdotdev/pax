@@ -83,7 +83,7 @@ if self.visible {
                     "ff-real-headline-pro",
                     "https://use.typekit.net/ivu7epf.css",
                     FontStyle::Normal,
-                    FontWeight::Normal,
+                    FontWeight::ExtraLight,
                 )},
                 font_size: 16px,
                 fill: WHITE,

@@ -1,7 +1,7 @@
 //The Controls layer describes the frame of UI around a
 //project being edited in the designer
 
-<Group id=left_panel>
+<Frame id=left_panel>
     <Group height=65px >
         <Logobar id=logobar />
         <Rectangle class=black_bg />
@@ -15,7 +15,7 @@
         <Rectangle class=black_bg />
     </Group>
     <Rectangle class=black_bg />
-</Group>
+</Frame>
 
 <Group id=right_panel>
     <Settings id=settings />
