@@ -35,6 +35,7 @@ use pax_engine::{
 use pax_engine::{log, NodeInterface, NodeLocal, Slot};
 use pax_std::layout::stacker::Stacker;
 pub mod group_ungroup;
+pub mod movement;
 pub mod other;
 
 pub struct CreateComponent<'a> {
@@ -630,13 +631,6 @@ fn write_to_orm<T: Serialize + ApproxEq>(
     Ok(())
 }
 
-pub struct MoveNode<'a, S = Generic> {
-    pub node_id: &'a UniqueTemplateNodeIdentifier,
-    pub new_parent_uid: &'a UniqueTemplateNodeIdentifier,
-    pub index: TreeIndexPosition,
-    pub node_layout: NodeLayoutSettings<'a, S>,
-}
-
 pub enum NodeLayoutSettings<'a, S> {
     Fill,
     KeepScreenBounds {
@@ -679,25 +673,5 @@ impl<S: Space> Action for SetNodeLayout<'_, S> {
             }
             .perform(ctx),
         }
-    }
-}
-
-impl<S: Space> Action for MoveNode<'_, S> {
-    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
-        SetNodeLayout {
-            id: self.node_id,
-            node_layout: &self.node_layout,
-        }
-        .perform(ctx)?;
-        let parent_location = ctx.location(self.new_parent_uid, &self.index);
-        {
-            let mut dt = borrow_mut!(ctx.engine_context.designtime);
-            let _undo_id = dt
-                .get_orm_mut()
-                .move_node(self.node_id.clone(), parent_location.clone())
-                .map_err(|e| anyhow!("couldn't move child node {:?}", e))?;
-        }
-
-        Ok(())
     }
 }

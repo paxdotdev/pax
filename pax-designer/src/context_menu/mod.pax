@@ -21,6 +21,34 @@ if self.visible {
                 stroke={color: GRAY, width: 1px}
             />
         </Group>
+        <Group y=75px height=25px @click=self.move_top>
+            <Text height=100% text="Move to Top" id=text x=5px/>
+            <Rectangle
+                fill=TRANSPARENT
+                stroke={color: GRAY, width: 1px}
+            />
+        </Group>
+        <Group y=100px height=25px @click=self.move_bump_up>
+            <Text height=100% text="Move Up" id=text x=5px/>
+            <Rectangle
+                fill=TRANSPARENT
+                stroke={color: GRAY, width: 1px}
+            />
+        </Group>
+        <Group y=125px height=25px @click=self.move_bump_down>
+            <Text height=100% text="Move Down" id=text x=5px/>
+            <Rectangle
+                fill=TRANSPARENT
+                stroke={color: GRAY, width: 1px}
+            />
+        </Group>
+        <Group y=150px height=25px @click=self.move_bottom>
+            <Text height=100% text="Move to Bottom" id=text x=5px/>
+            <Rectangle
+                fill=TRANSPARENT
+                stroke={color: GRAY, width: 1px}
+            />
+        </Group>
         //Create component
         // <Group height=25px @click=self.create_component>
         //     <Text height=100% text="Create Component" id=text x=5px/>

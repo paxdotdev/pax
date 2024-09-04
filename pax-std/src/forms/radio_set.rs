@@ -2,15 +2,13 @@ use pax_message::{AnyCreatePatch, NativeInterrupt, RadioSetPatch};
 use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::{use_RefCell, Layer, Property};
 use pax_runtime::{
-    BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
-    InstantiationArgs, RuntimeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use_RefCell!();
 use crate::*;
 use pax_runtime_api::*;
 
 use pax_engine::pax;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::common::patch_if_needed;
@@ -54,7 +52,6 @@ impl Default for RadioSet {
 }
 pub struct RadioSetInstance {
     base: BaseInstance,
-    native_message_props: RefCell<HashMap<ExpandedNodeIdentifier, Property<()>>>,
 }
 
 impl InstanceNode for RadioSetInstance {
@@ -72,16 +69,7 @@ impl InstanceNode for RadioSetInstance {
                     is_component: false,
                 },
             ),
-            native_message_props: Default::default(),
         })
-    }
-
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
-        //trigger computation of property that computes + sends native message update
-        borrow!(self.native_message_props)
-            .get(&expanded_node.id)
-            .unwrap()
-            .get();
     }
 
     fn handle_mount(
@@ -113,9 +101,9 @@ impl InstanceNode for RadioSetInstance {
             .map(|v| v.get_untyped_property().clone())
             .chain([expanded_node.transform_and_bounds.untyped()])
             .collect();
-        borrow_mut!(self.native_message_props).insert(
-            id,
-            Property::computed(
+        expanded_node
+            .native_message_listener
+            .replace_with(Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         unreachable!()
@@ -189,15 +177,15 @@ impl InstanceNode for RadioSetInstance {
                     ()
                 },
                 &deps,
-            ),
-        );
+            ));
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
         let id = expanded_node.id.clone();
+        expanded_node
+            .native_message_listener
+            .replace_with(Property::default());
         context.enqueue_native_message(pax_message::NativeMessage::RadioSetDelete(id.to_u32()));
-        // Reset so that native_message sending updates while unmounted
-        borrow_mut!(self.native_message_props).remove(&id);
     }
 
     fn base(&self) -> &BaseInstance {

@@ -1,8 +1,8 @@
 use kurbo::Shape;
 use pax_engine::*;
-use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
+use pax_runtime::api::{borrow_mut, use_RefCell};
 use pax_runtime::{api::Property, api::RenderContext, ExpandedNodeIdentifier};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use_RefCell!();
 use pax_message::ImagePatch;
@@ -35,7 +35,6 @@ pub enum ImageSource {
 
 pub struct ImageInstance {
     base: BaseInstance,
-    native_message_props: RefCell<HashMap<ExpandedNodeIdentifier, Property<()>>>,
     needs_to_load_data: Rc<RefCell<HashSet<ExpandedNodeIdentifier>>>,
 }
 
@@ -54,17 +53,8 @@ impl InstanceNode for ImageInstance {
                     is_component: false,
                 },
             ),
-            native_message_props: Default::default(),
             needs_to_load_data: Default::default(),
         })
-    }
-
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
-        //trigger computation of property that computes + sends native message update
-        borrow!(self.native_message_props)
-            .get(&expanded_node.id)
-            .unwrap()
-            .get();
     }
 
     fn handle_mount(
@@ -85,9 +75,9 @@ impl InstanceNode for ImageInstance {
         let deps =
             [expanded_node.with_properties_unwrapped(|props: &mut Image| props.source.untyped())];
         let needs_to_load_data = Rc::clone(&self.needs_to_load_data);
-        borrow_mut!(self.native_message_props).insert(
-            expanded_node.id,
-            Property::computed(
+        expanded_node
+            .native_message_listener
+            .replace_with(Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         unreachable!()
@@ -121,14 +111,14 @@ impl InstanceNode for ImageInstance {
                     ()
                 },
                 &deps,
-            ),
-        );
+            ));
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
         let id = expanded_node.id.clone();
-        // Reset so that native_message stops sending updates while unmounted
-        borrow_mut!(self.native_message_props).remove(&id);
+        expanded_node
+            .native_message_listener
+            .replace_with(Property::default());
         borrow_mut!(self.needs_to_load_data).remove(&id);
     }
 

@@ -23,7 +23,7 @@ use treeobj::TreeObj;
 use crate::glass::SetEditingComponent;
 use crate::math::coordinate_spaces::Glass;
 use crate::math::IntoDecompositionConfiguration;
-use crate::model::action::orm::{MoveNode, NodeLayoutSettings};
+use crate::model::action::orm::{movement::MoveNode, NodeLayoutSettings};
 use crate::model::action::Action;
 use crate::model::tools::SelectNodes;
 use crate::model::{self, GlassNode};
@@ -38,6 +38,7 @@ pub struct Tree {
     pub drag_id_start: Property<usize>,
     pub drag_x_start: Property<f64>,
     pub drag_indent: Property<isize>,
+    pub drag_ignore_container: Property<bool>,
 }
 
 impl Interpolatable for TreeMsg {}
@@ -46,7 +47,7 @@ impl Interpolatable for TreeMsg {}
 pub enum TreeMsg {
     ObjDoubleClicked(usize),
     ObjMouseDown(usize, f64),
-    ObjMouseMove(usize, f64),
+    ObjMouseMove(usize, f64, bool),
 }
 
 thread_local! {
@@ -215,7 +216,7 @@ impl Tree {
                     self.drag_indent
                         .set(tree_obj.read(|t| t[sender].indent_level));
                 }
-                TreeMsg::ObjMouseMove(sender, x_offset) => {
+                TreeMsg::ObjMouseMove(sender, x_offset, ignore_container) => {
                     drag_id.set(sender);
                     let tree_obj = tree_obj.get();
                     let offset = x_offset - self.drag_x_start.get();
@@ -235,6 +236,7 @@ impl Tree {
                     let below = tree_obj.get(curr_ind).map(|b| b.indent_level).unwrap_or(0);
                     self.drag_indent
                         .set(potential_indent.clamp(below.min(above), above));
+                    self.drag_ignore_container.set(ignore_container);
                 }
             };
         }
@@ -266,7 +268,13 @@ impl Tree {
                         Some(TreeIndexPosition::At(children_above)),
                     )
                 };
-                if let Err(e) = Self::tree_move(from, to, child_ind_override, &ctx) {
+                if let Err(e) = Self::tree_move(
+                    from,
+                    to,
+                    child_ind_override,
+                    &ctx,
+                    self.drag_ignore_container.get(),
+                ) {
                     log::warn!("failed to move tree node: {e}");
                 };
             }
@@ -279,6 +287,7 @@ impl Tree {
         to: Option<FlattenedTreeEntry>,
         child_ind_override: Option<TreeIndexPosition>,
         ctx: &NodeContext,
+        ignore_container: bool,
     ) -> Result<()> {
         model::with_action_context(ctx, |ctx| {
             let comp_id = ctx.app_state.selected_component_id.get();
@@ -295,14 +304,15 @@ impl Tree {
                 );
             let from_node = ctx.get_glass_node_by_global_id(&from_uid).unwrap();
             let to_node = ctx.get_glass_node_by_global_id(&to_uid).unwrap();
-            let to_node_container = match to.map(|t| t.is_container).unwrap_or(true) {
-                true => to_node.clone(),
-                false => {
-                    let parent = to_node.raw_node_interface.template_parent().unwrap();
-                    // let index = parent
-                    GlassNode::new(&parent, &ctx.glass_transform())
-                }
-            };
+            let to_node_container =
+                match to.map(|t| t.is_container).unwrap_or(true) && !ignore_container {
+                    true => to_node.clone(),
+                    false => {
+                        let parent = to_node.raw_node_interface.template_parent().unwrap();
+                        // let index = parent
+                        GlassNode::new(&parent, &ctx.glass_transform())
+                    }
+                };
 
             TREE_HIDDEN_NODES.with(|p| {
                 p.update(|v| {

@@ -734,7 +734,7 @@ impl TreeIndexPosition {
     pub fn new(index: usize, len: usize) -> Self {
         if index == 0 {
             TreeIndexPosition::Top
-        } else if index == len {
+        } else if index == len - 1 {
             TreeIndexPosition::Bottom
         } else {
             TreeIndexPosition::At(index)
@@ -1213,6 +1213,14 @@ impl ComponentTemplate {
         };
         let children = self.children.get_mut(&parent).unwrap();
         children.retain(|child| *child != *id);
+    }
+
+    pub fn get_siblings(&self, id: &TemplateNodeId) -> Option<VecDeque<TemplateNodeId>> {
+        if self.root.contains(id) {
+            Some(self.root.clone())
+        } else {
+            Some(self.children.values().find(|&v| v.contains(id)).cloned()?)
+        }
     }
 
     pub fn move_node(&mut self, id: &TemplateNodeId, new_location: NodeLocation) {
