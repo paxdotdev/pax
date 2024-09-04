@@ -82,11 +82,14 @@ if self.picker_open {
 	</Group>
 }
 
-<Rectangle fill={self.color} @click=self.open_picker/>
-<Image 
-	source=ImageSource::Url("assets/color_picker/transparency_grid.png")
-	fit=ImageFit::Fill
-/>
+<Rectangle corner_radii={RectangleCornerRadii::radii(5.0,5.0,5.0,5.0)} fill={self.color} @click=self.open_picker/>
+<Rectangle corner_radii={RectangleCornerRadii::radii(5.0,5.0,5.0,5.0)} fill=WHITE />
+//zb: removing transparency grid image until we can support corner radii or masking
+// (otherwise the corners of the image poke out of the rounded rectangle)
+//<Image
+//	source=ImageSource::Url("assets/color_picker/transparency_grid.png")
+//	fit=ImageFit::Fill
+///>
 
 @settings {
     @mount: on_mount
@@ -113,7 +116,7 @@ if self.picker_open {
         height: 30px,
         background: rgb(12.5%, 12.5%, 12.5%),
         stroke: {
-            color: rgb(40, 48, 54),
+            color: rgb(48, 56, 62),
             width: 1px,
         },
         border_radius: 5,
