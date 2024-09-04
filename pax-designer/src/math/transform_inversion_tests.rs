@@ -499,7 +499,7 @@ fn test_to_and_back(
     original_props: LayoutProperties,
     parent_transform_and_bounds: TransformAndBounds<NodeLocal, Window>,
 ) {
-    let t_and_b = pax_engine::layout::calculate_transform_and_bounds(
+    let t_and_b = pax_engine::node_layout::calculate_transform_and_bounds(
         original_props.clone(),
         parent_transform_and_bounds,
     );

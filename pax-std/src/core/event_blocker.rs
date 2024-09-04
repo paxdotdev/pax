@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
 
@@ -8,8 +7,7 @@ use pax_engine::pax;
 use pax_message::{AnyCreatePatch, EventBlockerPatch};
 use pax_runtime::api::{Layer, Property};
 use pax_runtime::{
-    BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
-    InstantiationArgs, RuntimeContext,
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use_RefCell!();
 
@@ -20,11 +18,6 @@ pub struct EventBlocker {}
 
 pub struct EventBlockerInstance {
     base: BaseInstance,
-    // Properties that listen to EventBlocker property changes, and computes
-    // a patch in the case that they have changed + sends it as a native
-    // message to the chassi. Since InstanceNode -> ExpandedNode has a one
-    // to many relationship, needs to be a hashmap
-    native_message_props: RefCell<HashMap<ExpandedNodeIdentifier, Property<()>>>,
 }
 
 impl InstanceNode for EventBlockerInstance {
@@ -42,16 +35,7 @@ impl InstanceNode for EventBlockerInstance {
                     is_component: false,
                 },
             ),
-            native_message_props: Default::default(),
         })
-    }
-
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
-        //trigger computation of property that computes + sends native message update
-        borrow!(self.native_message_props)
-            .get(&expanded_node.id)
-            .unwrap()
-            .get();
     }
 
     fn handle_mount(
@@ -94,9 +78,9 @@ impl InstanceNode for EventBlockerInstance {
             .map(|v| v.get_untyped_property().clone())
             .chain([expanded_node.transform_and_bounds.untyped()])
             .collect();
-        borrow_mut!(self.native_message_props).insert(
-            id,
-            Property::computed(
+        expanded_node
+            .native_message_listener
+            .replace_with(Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         unreachable!()
@@ -131,15 +115,15 @@ impl InstanceNode for EventBlockerInstance {
                     ()
                 },
                 &deps,
-            ),
-        );
+            ));
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
         let id = expanded_node.id.clone();
+        expanded_node
+            .native_message_listener
+            .replace_with(Property::default());
         context.enqueue_native_message(pax_message::NativeMessage::EventBlockerDelete(id.to_u32()));
-        // Reset so that native_message sending updates while unmounted
-        borrow_mut!(self.native_message_props).remove(&id);
     }
 
     fn resolve_debug(

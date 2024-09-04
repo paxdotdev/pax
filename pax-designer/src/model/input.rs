@@ -66,7 +66,7 @@ impl Default for InputMapper {
                     InputEvent::SelectTool(Tool::PointerPercent),
                 ),
                 (
-                    (RawInput::V, HashSet::new()),
+                    (RawInput::V, HashSet::from([ModifierKey::Shift])),
                     InputEvent::SelectTool(Tool::PointerPixels),
                 ),
                 // text

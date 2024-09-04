@@ -6,6 +6,7 @@ use std::sync::Mutex;
 use crate::math::coordinate_spaces::Glass;
 use crate::model;
 use crate::model::action::orm::group_ungroup::{GroupSelected, GroupType, UngroupSelected};
+use crate::model::action::orm::movement::{RelativeMove, RelativeMoveSelected};
 use crate::model::action::orm::SelectedIntoNewComponent;
 use crate::model::action::{Action, ActionContext};
 
@@ -90,6 +91,23 @@ impl DesignerContextMenu {
     pub fn ungroup(&mut self, ctx: &NodeContext, _args: Event<Click>) {
         model::perform_action(&UngroupSelected {}, ctx);
         self.close_menu();
+    }
+
+    pub fn move_top(&mut self, ctx: &NodeContext, _args: Event<Click>) {
+        self.move_relative(RelativeMove::Top, ctx);
+    }
+    pub fn move_bottom(&mut self, ctx: &NodeContext, _args: Event<Click>) {
+        self.move_relative(RelativeMove::Bottom, ctx);
+    }
+    pub fn move_bump_up(&mut self, ctx: &NodeContext, _args: Event<Click>) {
+        self.move_relative(RelativeMove::BumpUp, ctx);
+    }
+    pub fn move_bump_down(&mut self, ctx: &NodeContext, _args: Event<Click>) {
+        self.move_relative(RelativeMove::BumpDown, ctx);
+    }
+
+    fn move_relative(&self, relative_move: RelativeMove, ctx: &NodeContext) {
+        model::perform_action(&RelativeMoveSelected { relative_move }, ctx);
     }
 
     fn close_menu(&mut self) {

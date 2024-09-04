@@ -1,4 +1,5 @@
 use pax_engine::api::*;
+use pax_engine::math::Point2;
 use pax_engine::pax_manifest::{TemplateNodeId, UniqueTemplateNodeIdentifier};
 use pax_engine::*;
 use pax_std::*;
@@ -78,12 +79,15 @@ impl TreeObj {
         });
     }
 
-    pub fn mouse_move(&mut self, _ctx: &NodeContext, event: Event<MouseMove>) {
+    pub fn mouse_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
         event.prevent_default();
+        let local = ctx.local_point(Point2::new(event.mouse.x, event.mouse.y));
+        let ignore_container = local.y < 0.4;
         super::TREE_CLICK_PROP.with_borrow_mut(|cn| {
             cn.push_back(super::TreeMsg::ObjMouseMove(
                 self.ind.get().clone().into(),
                 event.mouse.x,
+                ignore_container,
             ));
         });
     }

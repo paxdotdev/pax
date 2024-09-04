@@ -13,13 +13,13 @@ use crate::glass::wireframe_editor::editor_generation::slot_control::{
     raycast_slot, wants_slot_behavior,
 };
 use crate::glass::wireframe_editor::editor_generation::stacker_control::sizes_to_string;
-use crate::glass::{RectTool, SnapInfo, ToolVisualizationState};
+use crate::glass::{RectTool, SnapInfo, TextEdit, ToolVisualizationState};
 use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::intent_snapper::{self, IntentSnapper, SnapSet};
 use crate::math::{
     AxisAlignedBox, DecompositionConfiguration, GetUnit, IntoDecompositionConfiguration, SizeUnit,
 };
-use crate::model::action::orm::{MoveNode, NodeLayoutSettings};
+use crate::model::action::orm::{movement::MoveNode, NodeLayoutSettings};
 use crate::model::Tool;
 use crate::model::{AppState, ToolBehavior};
 use crate::SetStage;
@@ -107,7 +107,7 @@ impl ToolBehavior for CreateComponentTool {
         let unit = ctx.app_state.unit_mode.get();
         let t = ctx.transaction("creating object");
         let _ = t.run(|| {
-            CreateComponent {
+            let uid = CreateComponent {
                 parent_id: &parent.id,
                 parent_index: TreeIndexPosition::Top,
                 node_layout: NodeLayoutSettings::KeepScreenBounds {
@@ -129,8 +129,17 @@ impl ToolBehavior for CreateComponentTool {
                 custom_props: self.custom_props,
                 mock_children: self.mock_children,
             }
-            .perform(ctx)
-            .map(|_| ())
+            .perform(ctx)?;
+            // If this is text, then also start editing it (TODO generalize this
+            // if other editors should also open directly on edit, might be best
+            // to create a OpenEditor action that works for all types, instead
+            // of calling TextEdit directly).
+            if self.type_id == TypeId::build_singleton("pax_std::core::text::Text", None) {
+                // TODO this crashes, needs to be performed next frame instead.
+                // add META Action that can schedule another action to be performed next frame.
+                // TextEdit { uid }.perform(ctx)?;
+            }
+            Ok(())
         });
         ControlFlow::Break(())
     }

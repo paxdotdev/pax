@@ -20,7 +20,7 @@
 //!
 //! For usage examples see the tests in `pax-designtime/src/orm/tests.rs`.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use pax_manifest::pax_runtime_api::{Interpolatable, Property};
 use pax_manifest::{
@@ -135,6 +135,35 @@ impl PaxManifestORM {
         node_type_id: TypeId,
     ) -> NodeBuilder {
         NodeBuilder::new(self, containing_component_type_id, node_type_id, true)
+    }
+
+    pub fn get_node_location(&self, uni: &UniqueTemplateNodeIdentifier) -> Option<NodeLocation> {
+        let component = self
+            .manifest
+            .components
+            .get(&uni.get_containing_component_type_id())?;
+        let template = component.template.as_ref()?;
+        template.get_location(&uni.get_template_node_id())
+    }
+
+    pub fn get_siblings(
+        &self,
+        uni: &UniqueTemplateNodeIdentifier,
+    ) -> Option<Vec<UniqueTemplateNodeIdentifier>> {
+        let component = self
+            .manifest
+            .components
+            .get(&uni.get_containing_component_type_id())?;
+        let template = component.template.as_ref()?;
+        Some(
+            template
+                .get_siblings(&uni.get_template_node_id())?
+                .into_iter()
+                .map(|tid| {
+                    UniqueTemplateNodeIdentifier::build(uni.get_containing_component_type_id(), tid)
+                })
+                .collect(),
+        )
     }
 
     pub fn move_node(

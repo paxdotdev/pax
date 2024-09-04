@@ -692,6 +692,19 @@ export class NativeElementPool {
                 // clicks in the entire outside div as a request to edit
                 textChild.style.width = "inherit";
                 textChild.style.height = "inherit";
+
+
+                 // Select all text in the editable div
+                const range = document.createRange();
+                range.selectNodeContents(textChild);
+                const selection = window.getSelection();
+                selection!.removeAllRanges();
+                selection!.addRange(range);
+
+                setTimeout(() => {
+                  textChild.focus();
+                }, 1);
+                // Focus on the editable div
             }
         }
 
