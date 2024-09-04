@@ -190,7 +190,6 @@ impl Settings {
             move || {
                 let mut adjusted_props = custom_props.get();
                 let areas = areas.get();
-                log::debug!("areas: {:?}", areas);
                 let mut running_sum = 0.0;
                 for prop in &mut adjusted_props {
                     let area = areas.get(prop.index - 1).unwrap_or(&10.0);
@@ -199,7 +198,6 @@ impl Settings {
                     running_sum += area + SPACING;
                 }
                 let res = adjusted_props.into_iter().rev().collect();
-                log::debug!("recalc custom prop areas: {:?}", res);
                 res
             },
             &deps,
