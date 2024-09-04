@@ -14,6 +14,7 @@ use pax_runtime::api::OS;
 use pax_runtime::DefinitionToInstanceTraverser;
 use pax_runtime_api::borrow_mut;
 use pax_runtime_api::Event;
+use pax_runtime_api::Focus;
 use_RefCell!();
 
 use std::rc::Rc;
@@ -190,6 +191,7 @@ impl PaxChassisWeb {
         let ctx = &engine.runtime_context;
         let globals = ctx.globals();
         let prevent_default = match &x {
+            NativeInterrupt::Focus(args) => engine.global_dispatch_focus(Focus {}),
             NativeInterrupt::DropFile(args) => {
                 let data = Uint8Array::new(additional_payload).to_vec();
                 let prospective_hit = engine

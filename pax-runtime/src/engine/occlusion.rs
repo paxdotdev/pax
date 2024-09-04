@@ -17,10 +17,10 @@ pub struct OcclusionBox {
 
 impl OcclusionBox {
     fn intersects(&self, other: &Self) -> bool {
-        if self.x2 < other.x1 || other.x2 < self.x1 {
+        if self.x2 <= other.x1 || other.x2 <= self.x1 {
             return false;
         }
-        if self.y2 < other.y1 || other.y2 < self.y1 {
+        if self.y2 <= other.y1 || other.y2 <= self.y1 {
             return false;
         }
         true

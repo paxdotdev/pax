@@ -45,6 +45,10 @@ if 0 == 1 {
     @mouse_move: handle_mouse_move
     @mouse_up: handle_mouse_up
     @mount: on_mount,
+    @tick: tick,
+    @key_down: handle_key_down,
+    @key_up: handle_key_up,
+    @focused: focused,
 
     #global_background {
         fill: {rgb(96.0,96.0,96.0)}

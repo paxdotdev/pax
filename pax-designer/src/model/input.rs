@@ -10,6 +10,7 @@ use crate::model::action::orm::{RedoRequested, SerializeRequested, UndoRequested
 use crate::{controls::toolbar, glass, llm_interface::OpenLLMPrompt};
 
 use super::action::orm::group_ungroup::{GroupSelected, GroupType};
+use super::action::orm::movement::{RelativeMove, RelativeMoveSelected};
 use super::action::orm::other::SwapFillStrokeAction;
 use super::action::orm::{Copy, Paste};
 use super::read_app_state;
@@ -124,6 +125,35 @@ impl Default for InputMapper {
                     (RawInput::Minus, HashSet::from([ModifierKey::Meta])),
                     InputEvent::ZoomOut,
                 ),
+                // --- Movement between layers ---
+                (
+                    (
+                        RawInput::OpenSquareBracket,
+                        HashSet::from([ModifierKey::Meta]),
+                    ),
+                    InputEvent::LayerMove(RelativeMove::BumpUp),
+                ),
+                (
+                    (
+                        RawInput::CloseSquareBracket,
+                        HashSet::from([ModifierKey::Meta]),
+                    ),
+                    InputEvent::LayerMove(RelativeMove::BumpDown),
+                ),
+                (
+                    (
+                        RawInput::OpenSquareBracket,
+                        HashSet::from([ModifierKey::Meta, ModifierKey::Control]),
+                    ),
+                    InputEvent::LayerMove(RelativeMove::Top),
+                ),
+                (
+                    (
+                        RawInput::CloseSquareBracket,
+                        HashSet::from([ModifierKey::Meta, ModifierKey::Control]),
+                    ),
+                    InputEvent::LayerMove(RelativeMove::Bottom),
+                ),
                 // --- LLM Prompt ---
                 (
                     (RawInput::K, HashSet::from([ModifierKey::Meta])),
@@ -158,6 +188,12 @@ impl InputMapper {
     ) -> Option<&InputEvent> {
         if let Some(modifier) = self.modifier_map.get(&input) {
             modifiers.update(|modifiers| {
+                // HACK: browser for some reason doesn't trigger key up for "z" when
+                // meta (and possibly other control keys) are pressed. so always
+                // toggle z to false whenever any of them are released.
+                if modifier != &ModifierKey::Z && dir == Dir::Up {
+                    modifiers.remove(&ModifierKey::Z);
+                }
                 match dir {
                     Dir::Down => modifiers.insert(*modifier),
                     Dir::Up => modifiers.remove(modifier),
@@ -167,11 +203,13 @@ impl InputMapper {
         let modifiers = modifiers.get();
         // find the key combination that matches all required keys,
         // and contains the largest number of required keys
-        self.key_map
+        let res = self
+            .key_map
             .iter()
             .filter(|((i, m), _)| i == &input && m.is_subset(&modifiers))
             .max_by_key(|((_, m), _)| m.len())
-            .map(|(_, v)| v)
+            .map(|(_, v)| v);
+        res
     }
 
     pub fn to_action(&self, event: &InputEvent, dir: Dir) -> Option<Box<dyn Action>> {
@@ -219,8 +257,14 @@ impl InputMapper {
                 }
                 PasteClipboard
             })),
+            (InputEvent::LayerMove(relative_move), Dir::Down) => {
+                Some(Box::new(RelativeMoveSelected {
+                    relative_move: *relative_move,
+                }))
+            }
             (InputEvent::SwapFillStroke, Dir::Down) => Some(Box::new(SwapFillStrokeAction)),
-            (InputEvent::SwapFillStroke, Dir::Up)
+            (InputEvent::LayerMove(_), Dir::Up)
+            | (InputEvent::SwapFillStroke, Dir::Up)
             | (InputEvent::SelectTool(_), Dir::Up)
             | (InputEvent::Space, Dir::Down)
             | (InputEvent::Space, Dir::Up)
@@ -240,7 +284,7 @@ impl InputMapper {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Dir {
     Down,
     Up,
@@ -273,6 +317,8 @@ pub enum RawInput {
     L,
     G,
     X,
+    OpenSquareBracket,
+    CloseSquareBracket,
 }
 
 // TODO make RawInput be what is returned by the engine itself, instead
@@ -296,6 +342,8 @@ impl TryFrom<String> for RawInput {
             "l" => Self::L,
             "g" => Self::G,
             "x" => Self::X,
+            "[" => Self::OpenSquareBracket,
+            "]" => Self::CloseSquareBracket,
             " " => Self::Space,
             "control" => Self::Control,
             "=" => Self::Plus,
@@ -330,6 +378,7 @@ pub enum InputEvent {
     ToggleLinkGroup,
     Group(GroupType),
     SwapFillStroke,
+    LayerMove(RelativeMove),
 }
 
 impl Interpolatable for ModifierKey {}

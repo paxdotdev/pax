@@ -37,7 +37,7 @@ impl<S: Space> Action for MoveNode<'_, S> {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum RelativeMove {
     Top,
     BumpUp,

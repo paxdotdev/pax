@@ -217,6 +217,10 @@ pub struct KeyPress {
     pub keyboard: KeyboardEventArgs,
 }
 
+// Window/component focused
+#[derive(Clone)]
+pub struct Focus {}
+
 // Mouse Events
 
 /// Common properties in mouse events.
