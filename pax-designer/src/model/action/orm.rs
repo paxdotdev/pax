@@ -530,8 +530,11 @@ pub struct UndoRequested;
 
 impl Action for UndoRequested {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
-        let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        ctx.undo_stack.undo(dt.get_orm_mut());
+        {
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            ctx.undo_stack.undo(dt.get_orm_mut());
+        }
+        SerializeRequested.perform(ctx)?;
         Ok(())
     }
 }
@@ -540,8 +543,11 @@ pub struct RedoRequested;
 
 impl Action for RedoRequested {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
-        let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        ctx.undo_stack.redo(dt.get_orm_mut());
+        {
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            ctx.undo_stack.redo(dt.get_orm_mut());
+        }
+        SerializeRequested.perform(ctx)?;
         Ok(())
     }
 }
