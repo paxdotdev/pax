@@ -8,13 +8,14 @@ use pax_engine::{
 };
 use pax_manifest::TypeId;
 use pax_std::*;
-use std::sync::Mutex;
+use std::{collections::HashSet, sync::Mutex};
 
 use pax_std::inline_frame::InlineFrame;
 
 use crate::math::coordinate_spaces::{self, World};
 use model::{
     action::{pointer::Pointer, Action, ActionContext},
+    input::Dir,
     ProjectMode, StageInfo,
 };
 
@@ -30,7 +31,7 @@ pub mod model;
 pub mod project_mode_toggle;
 
 use context_menu::DesignerContextMenu;
-use controls::{tree, Controls};
+use controls::{settings::color_picker, tree, Controls};
 use glass::Glass;
 use llm_interface::LLMInterface;
 use message_log_display::MessageLogDisplay;
@@ -46,7 +47,6 @@ use pax_std::*;
 // - Who/what should be allowed to modify model state? (harder to encode when everything is Properties)
 
 pub const DESIGNER_GLASS_ID: &str = "designer_glass";
-
 
 #[pax]
 #[engine_import_path("pax_engine")]
@@ -103,11 +103,22 @@ impl PaxDesigner {
             ));
     }
 
+    pub fn tick(&mut self, ctx: &NodeContext) {
+        model::action::meta::flush_sheduled_actions(ctx);
+    }
+
     fn bind_stage_property(&mut self, app_state: &model::AppState) {
         let stage = app_state.stage.clone();
         let deps = [stage.untyped()];
         self.stage
             .replace_with(Property::computed(move || stage.get(), &deps));
+    }
+
+    pub fn focused(&mut self, _ctx: &NodeContext, _args: Event<Focus>) {
+        // Reset modifier keys
+        model::read_app_state(|app_state| {
+            app_state.modifiers.set(HashSet::new());
+        });
     }
 
     fn bind_transform2d_property(&mut self, app_state: &model::AppState) {
@@ -174,7 +185,18 @@ impl PaxDesigner {
             ctx,
         );
         // NOTE: this was originally on tree view
+        color_picker::trigger_mouseup();
         tree::trigger_global_mouseup();
+    }
+
+    pub fn handle_key_down(&mut self, ctx: &NodeContext, event: Event<KeyDown>) {
+        event.prevent_default();
+        model::process_keyboard_input(ctx, Dir::Down, event.keyboard.key.clone());
+    }
+
+    pub fn handle_key_up(&mut self, ctx: &NodeContext, event: Event<KeyUp>) {
+        event.prevent_default();
+        model::process_keyboard_input(ctx, Dir::Up, event.keyboard.key.clone());
     }
 }
 

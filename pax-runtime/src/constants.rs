@@ -4,6 +4,7 @@ pub const TOUCH_START_HANDLERS: &str = "touch_start";
 pub const TOUCH_MOVE_HANDLERS: &str = "touch_move";
 pub const TOUCH_END_HANDLERS: &str = "touch_end";
 pub const KEY_DOWN_HANDLERS: &str = "key_down";
+pub const FOCUSED_HANDLERS: &str = "focused";
 pub const KEY_UP_HANDLERS: &str = "key_up";
 pub const KEY_PRESS_HANDLERS: &str = "key_press";
 pub const CHECKBOX_CHANGE_HANDLERS: &str = "checkbox_change";

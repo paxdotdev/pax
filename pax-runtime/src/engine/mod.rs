@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use kurbo::Affine;
 use pax_message::NativeMessage;
-use pax_runtime_api::{pax_value::PaxAny, use_RefCell, Event, Window, OS};
+use pax_runtime_api::{pax_value::PaxAny, use_RefCell, Event, Focus, Window, OS};
 
 use crate::api::{KeyDown, KeyPress, KeyUp, NodeContext, RenderContext};
 use piet::InterpolationMode;
@@ -369,6 +369,19 @@ impl PaxEngine {
                 .viewport
                 .update(|t_and_b| t_and_b.bounds = new_viewport_size);
         });
+    }
+
+    pub fn global_dispatch_focus(&self, args: Focus) -> bool {
+        let mut prevent_default = false;
+        self.root_expanded_node
+            .recurse_visit_postorder(&mut |expanded_node| {
+                prevent_default |= expanded_node.dispatch_focus(
+                    Event::new(args.clone()),
+                    &self.runtime_context.globals(),
+                    &self.runtime_context,
+                );
+            });
+        prevent_default
     }
 
     pub fn global_dispatch_key_down(&self, args: KeyDown) -> bool {

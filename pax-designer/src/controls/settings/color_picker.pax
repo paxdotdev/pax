@@ -13,7 +13,6 @@ if self.picker_open {
 			height=300px
 			@mouse_down=self.palette_mouse_down
 			@mouse_move=self.palette_mouse_move
-			@mouse_up=self.palette_mouse_up
 		>
 			<Ellipse
 				x={(self.saturation*100)%}

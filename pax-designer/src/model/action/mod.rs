@@ -29,6 +29,7 @@ pax_engine::pax_message::use_RefCell!();
 
 use crate::math::coordinate_spaces::Glass;
 
+pub mod meta;
 pub mod orm;
 pub mod pointer;
 pub mod world;

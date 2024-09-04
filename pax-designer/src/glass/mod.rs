@@ -248,16 +248,6 @@ impl Glass {
         });
     }
 
-    pub fn handle_key_down(&mut self, ctx: &NodeContext, event: Event<KeyDown>) {
-        event.prevent_default();
-        model::process_keyboard_input(ctx, Dir::Down, event.keyboard.key.clone());
-    }
-
-    pub fn handle_key_up(&mut self, ctx: &NodeContext, event: Event<KeyUp>) {
-        event.prevent_default();
-        model::process_keyboard_input(ctx, Dir::Up, event.keyboard.key.clone());
-    }
-
     pub fn handle_drop(&mut self, ctx: &NodeContext, event: Event<Drop>) {
         {
             let dt = borrow_mut!(ctx.designtime);

@@ -77,6 +77,7 @@ impl PaxManifest {
         add("context_menu", "ContextMenu");
         add("wheel", "Wheel");
         add("drop", "Drop");
+        add("focused", "Focus");
         map.insert("pre_render".to_string(), None);
         map.insert("mount".to_string(), None);
         map.insert("unmount".to_string(), None);
