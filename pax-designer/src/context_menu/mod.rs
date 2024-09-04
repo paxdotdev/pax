@@ -81,7 +81,7 @@ impl DesignerContextMenu {
     pub fn group_link(&mut self, ctx: &NodeContext, _args: Event<Click>) {
         model::perform_action(
             &GroupSelected {
-                group_type: GroupType::Group,
+                group_type: GroupType::Link,
             },
             ctx,
         );

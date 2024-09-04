@@ -12,6 +12,7 @@ export class TextUpdatePatch {
     public style_link?: TextStyle;
     public depth?: number;
     public editable?: boolean;
+    public selectable?: boolean;
     objectManager: ObjectManager;
 
     constructor(objectManager: ObjectManager) {
@@ -26,6 +27,7 @@ export class TextUpdatePatch {
         this.transform = jsonMessage["transform"];
         this.depth = jsonMessage["depth"];
         this.editable = jsonMessage["editable"];
+        this.selectable = jsonMessage["selectable"];
 
         const styleMessage = jsonMessage["style"];
         if (styleMessage) {
@@ -51,5 +53,6 @@ export class TextUpdatePatch {
         this.objectManager.returnToPool(TEXT_STYLE, this.style_link);
         this.style_link = undefined;
         this.editable = false;
+        this.selectable = false;
     }
 }
