@@ -2,7 +2,7 @@
 <Text x=15px text={current_selected_component} selectable=false y=50% class=h1 />
 if self.library_active {
     for (comp, i) in self.registered_components {
-        <ComponentLibraryItem data=comp height=40px y={(45 + i*40)px}/>
+        <ComponentLibraryItem data=comp height=40px y={(45 + i*34)px}/>
     }
     <Rectangle fill=rgb(12.5%, 12.5%, 12.5%) y=80px height=1000px/>
 }
@@ -13,12 +13,12 @@ if self.library_active {
         height: 32px
         width: {100% - 30px}
         style: {
-            font_size: 23px,
+            font_size: 22px,
                 font: {Font::Web(
                     "ff-real-headline-pro",
                     "https://use.typekit.net/ivu7epf.css",
                     FontStyle::Normal,
-                    FontWeight::Medium,
+                    FontWeight::Light,
                 )},
             fill: WHITE,
         }
