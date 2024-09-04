@@ -160,6 +160,13 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
         let designer_manifest = manifests.remove(0);
         merged_manifest.merge_in_place(&designer_manifest);
 
+        userland_manifest
+            .components
+            .extend(designer_manifest.components.clone());
+        userland_manifest
+            .type_table
+            .extend(designer_manifest.type_table.clone());
+
         Some(designer_manifest)
     } else {
         None

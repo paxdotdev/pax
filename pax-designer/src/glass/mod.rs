@@ -304,15 +304,15 @@ impl Action for SetEditingComponent {
 
         let is_pax_std = type_id
             .import_path()
-            .is_some_and(|p| p.starts_with("pax_std"));
-   
+            .is_some_and(|p| p.starts_with("pax_std") || p.starts_with("pax_designer"));
+
         if is_pax_std {
             return Err(anyhow!(
                 "tried to edit a non-userland comp: {:?}",
                 type_id.import_path()
             ));
         }
-        
+
         SetLibraryState { open: false }.perform(ctx)?;
 
         // TODO set stage defaults for opened component using "SetStage" action
