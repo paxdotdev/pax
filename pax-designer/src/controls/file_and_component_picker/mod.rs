@@ -105,10 +105,11 @@ impl FileAndComponentPicker {
         type_id: &TypeId,
         filter: &[TypeId],
     ) -> Option<ComponentLibraryItemData> {
-
-        let is_pax_std_or_root = type_id
-        .import_path()
-        .is_some_and(|p| p.starts_with("pax_std")) || type_id.get_pascal_identifier() == Some("RootComponent".to_string());
+        let is_pax_std_or_root = type_id.import_path().is_some_and(|p| {
+            p.starts_with("pax_std")
+                || p.starts_with("pax_designer")
+                || type_id.get_pascal_identifier() == Some("RootComponent".to_string())
+        });
 
         if is_pax_std_or_root {
             return None;
