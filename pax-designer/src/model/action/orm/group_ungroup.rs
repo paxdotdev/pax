@@ -24,7 +24,9 @@ use pax_engine::{
 };
 use pax_std::core::group::Group;
 
-use super::{CreateComponent, MoveNode, NodeLayoutSettings, SetNodeLayoutPropertiesFromTransform};
+use super::{
+    movement::MoveNode, CreateComponent, NodeLayoutSettings, SetNodeLayoutPropertiesFromTransform,
+};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Copy)]
 pub enum GroupType {

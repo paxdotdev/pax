@@ -123,6 +123,9 @@ pub struct ExpandedNode {
 
     /// property used to "freeze" (stop firing tick) on a node and all it's children
     pub suspended: Property<bool>,
+
+    /// used by native elements to trigger sending of native messages
+    pub native_message_listener: Property<()>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -247,6 +250,7 @@ impl ExpandedNode {
             properties_scope: RefCell::new(property_scope),
             slot_index: Property::default(),
             suspended: Property::new(false),
+            native_message_listener: Property::default(),
         });
         res
     }
@@ -428,6 +432,9 @@ impl ExpandedNode {
             }
         }
         Rc::clone(&*borrow!(self.instance_node)).update(&self, context);
+        // trigger native message sending
+        self.native_message_listener.get();
+
         if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
             if !self.suspended.get() {
                 for handler in borrow!(registry)

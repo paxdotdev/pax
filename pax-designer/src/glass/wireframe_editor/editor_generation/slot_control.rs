@@ -22,7 +22,7 @@ use crate::{
     model::{
         self,
         action::{
-            orm::{MoveNode, NodeLayoutSettings, SetNodeLayout},
+            orm::{movement::MoveNode, NodeLayoutSettings, SetNodeLayout},
             Action, ActionContext, RaycastMode,
         },
         input::InputEvent,
