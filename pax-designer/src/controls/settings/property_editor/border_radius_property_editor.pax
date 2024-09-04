@@ -50,7 +50,7 @@
         height: 30px,
         background: rgb(12.5%, 12.5%, 12.5%),
         stroke: {
-            color: rgb(40, 48, 54),
+            color: rgb(48, 56, 62),
             width: 1px,
         },
         border_radius: 5,

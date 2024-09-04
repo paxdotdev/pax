@@ -1,6 +1,6 @@
 if self.visible {
     <Group x={(self.pos_x)px} y={(self.pos_y)px} width=150px height=206px>
-        <Stacker width=140px height=196px x=50% y=50% direction=StackerDirection::Vertical >
+        <Stacker width={100% - 10px} height={100% - 10px} x=50% y=50% direction=StackerDirection::Vertical >
             <Group height=28px @click=self.group>
                 <Text height=100% text="Group" id=text x=5px/>
             </Group>

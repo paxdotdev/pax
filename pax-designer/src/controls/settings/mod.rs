@@ -135,7 +135,6 @@ impl Settings {
                         node.type_id
                             .get_pascal_identifier()
                             .unwrap_or_else(|| String::new())
-                            .to_uppercase()
                             .to_owned(),
                     );
                 } else {
