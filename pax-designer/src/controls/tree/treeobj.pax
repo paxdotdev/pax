@@ -32,7 +32,7 @@ if self.is_selected {
                 "ff-real-headline-pro",
                 "https://use.typekit.net/ivu7epf.css",
                 FontStyle::Normal,
-                FontWeight::Light,
+                FontWeight::ExtraLight,
             )},
             font_size: 14px,
             fill: WHITE,
