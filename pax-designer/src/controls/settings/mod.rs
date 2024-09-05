@@ -150,7 +150,7 @@ impl Settings {
                 props
                     .into_iter()
                     .filter(|(prop_def, _)| {
-                        !matches!(
+                        !(matches!(
                             prop_def.name.as_str(),
                             "x" | "y"
                                 | "width"
@@ -164,7 +164,7 @@ impl Settings {
                                 | "skew_y"
                                 | "id"
                                 | "transform"
-                        ) || prop_def.name.starts_with('_')
+                        ) || prop_def.name.starts_with('_'))
                     })
                     .enumerate()
                     .map(|(i, (propdef, _))| PropertyArea {

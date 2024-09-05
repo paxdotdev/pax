@@ -557,20 +557,24 @@ pub struct DeleteSelected;
 impl Action for DeleteSelected {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         let selected = ctx.app_state.selected_template_node_ids.get();
-        let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        for s in selected {
-            let uid = UniqueTemplateNodeIdentifier::build(
-                ctx.app_state.selected_component_id.get(),
-                s.clone(),
-            );
-            dt.get_orm_mut()
-                .remove_node(uid)
-                .map_err(|_| anyhow!("couldn't delete node"))?;
-        }
-        ctx.app_state
-            .selected_template_node_ids
-            .update(|ids| ids.clear());
-        Ok(())
+        let t = ctx.transaction("delete node");
+
+        t.run(|| {
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            for s in selected {
+                let uid = UniqueTemplateNodeIdentifier::build(
+                    ctx.app_state.selected_component_id.get(),
+                    s.clone(),
+                );
+                dt.get_orm_mut()
+                    .remove_node(uid)
+                    .map_err(|_| anyhow!("couldn't delete node"))?;
+            }
+            ctx.app_state
+                .selected_template_node_ids
+                .update(|ids| ids.clear());
+            Ok(())
+        })
     }
 }
 
