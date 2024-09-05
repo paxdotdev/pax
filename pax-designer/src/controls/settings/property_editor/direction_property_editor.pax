@@ -13,6 +13,7 @@
 @settings {
     @mount: on_mount
     .label {
+        selectable: false,
         style: {
             font: {Font::Web(
                 "ff-real-headline-pro",
