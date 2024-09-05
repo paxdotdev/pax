@@ -73,6 +73,7 @@
       <excludeFolder url="file://$MODULE_DIR$/pax-designer/target" />
       <excludeFolder url="file://$MODULE_DIR$/vendor" />
       <excludeFolder url="file://$MODULE_DIR$/pax-compiler/vendor" />
+      <excludeFolder url="file://$MODULE_DIR$/pax-designer/vendor" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

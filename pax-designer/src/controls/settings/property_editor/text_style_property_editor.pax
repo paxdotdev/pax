@@ -5,21 +5,24 @@
 <Group y=80px>
     <Group height=30px width=30px @click=h_align_left>
         <EventBlocker/>
-        <Text class=text text="L" width=100% height=100%/>
+        <Image class=align_icon source={ImageSource::Url("assets/icons/icon-align-left.png")} />
+        //<Text class=text text="L" width=100% height=100%/>
         <Rectangle fill={rgb(20 + 50 * (h_align_index == 0), 20 + 50 * (h_align_index == 0), 20 + 50 * (h_align_index == 0))}
 	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
         />
     </Group>
     <Group x=35px height=30px width=30px @click=h_align_center>
         <EventBlocker/>
-        <Text class=text text="C" width=100% height=100%/>
+        <Image class=align_icon source={ImageSource::Url("assets/icons/icon-align-center.png")} />
+        //<Text class=text text="C" width=100% height=100%/>
         <Rectangle fill={rgb(20 + 50 * (h_align_index == 1), 20 + 50 * (h_align_index == 1), 20 + 50 * (h_align_index == 1))}
 	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
         />
     </Group>
     <Group x=70px height=30px width=30px @click=h_align_right>
         <EventBlocker/>
-        <Text class=text text="R" width=100% height=100%/>
+        <Image class=align_icon source={ImageSource::Url("assets/icons/icon-align-right.png")} />
+        //<Text class=text text="R" width=100% height=100%/>
         <Rectangle fill={rgb(20 + 50 * (h_align_index == 2), 20 + 50 * (h_align_index == 2), 20 + 50 * (h_align_index == 2))}
 	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
         />
@@ -27,21 +30,24 @@
 
     <Group x=110px height=30px width=30px @click=v_align_top>
         <EventBlocker/>
-        <Text class=text text="T" width=100% height=100%/>
+        <Image class=align_icon source={ImageSource::Url("assets/icons/icon-valign-top.png")} />
+        //<Text class=text text="T" width=100% height=100%/>
         <Rectangle fill={rgb(20 + 50 * (v_align_index == 0), 20 + 50 * (v_align_index == 0), 20 + 50 * (v_align_index == 0))}
 	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
         />
     </Group>
     <Group x=145px height=30px width=30px @click=v_align_center>
         <EventBlocker/>
-        <Text class=text text="C" width=100% height=100%/>
+        <Image class=align_icon source={ImageSource::Url("assets/icons/icon-valign-middle.png")} />
+        //<Text class=text text="C" width=100% height=100%/>
         <Rectangle fill={rgb(20 + 50 * (v_align_index == 1), 20 + 50 * (v_align_index == 1), 20 + 50 * (v_align_index == 1))}
 	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
         />
     </Group>
     <Group x=180px height=30px width=30px @click=v_align_bottom>
         <EventBlocker/>
-        <Text class=text text="B" width=100% height=100%/>
+        <Image class=align_icon source={ImageSource::Url("assets/icons/icon-valign-bottom.png")} />
+        //<Text class=text text="B" width=100% height=100%/>
         <Rectangle fill={rgb(20 + 50 * (v_align_index == 2), 20 + 50 * (v_align_index == 2), 20 + 50 * (v_align_index == 2))}
 	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
         />
@@ -59,6 +65,14 @@
 @settings {
     @mount: on_mount
     @pre_render: pre_render
+    
+    .align_icon {
+        width: 80%
+        height: 80%
+        x=50%
+        y=50%
+    }
+    
     .text {
         style: {
             font: {Font::Web(

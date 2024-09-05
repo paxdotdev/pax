@@ -7,7 +7,7 @@ if self.is_component_selected {
                 for property in self.custom_properties {
                     <Group y={(property.vertical_pos)px} height={(property.vertical_space)px}>
                         <PropertyEditor y=40px ind={property.index} name={property.name} stid={self.stid} snid={self.snid}
-                            fx_button_special=true
+                            is_custom_property=true
                         />
                         <Path class=hr/>
                         <Text class=col_1 class=span_3 text={property.name_friendly} class=h2 y=10px/>
