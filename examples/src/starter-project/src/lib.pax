@@ -1,3 +1,4 @@
+<Image source=ImageSource::Url("assets/pax-logo-white-on-black.png") x=2.90% height=38.16% y=-7.15% width=21.73%/>
 <Stacker width=23.28% y=82.59% height=30.98% anchor_y=49.99% anchor_x=100.00% x=87.44% sizes=[]>
     <Group rotate=0.00rad skew_y=0.00rad skew_x=0.00rad>
         <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
@@ -115,20 +116,6 @@
     align_multiline: TextAlignHorizontal::Right
     underline: false
 }/>
-<Text width=35.73% scale_x=100% x=2.68% y=1.07% scale_y=100% height=14.23% style={
-    font: Font::Web(
-        "Roboto",
-        "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
-        FontStyle::Normal,
-        FontWeight::Bold)
-    font_size: 100.00px
-    fill: rgba(255, 255, 255, 255)
-    align_vertical: TextAlignVertical::Top
-    align_horizontal: TextAlignHorizontal::Left
-    align_multiline: TextAlignHorizontal::Left
-    underline: false
-} 
-    text="PAX"/>
 <Calculator width=400px x=25.18% y=55.18% height=500px anchor_x=50.00% anchor_y=50.00%/>
 <Group scale_x=100% width=123.19% x=28.74% scale_y=100% y=64.47% height=150.09% rotate=-5deg>
     <Group x=83.92% scale_x=100% y=50.25% width=36.04% scale_y=100% height=31.55% anchor_x=100%>
