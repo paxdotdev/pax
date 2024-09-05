@@ -12,25 +12,25 @@ use std::collections::HashMap;
 #[engine_import_path("pax_engine")]
 #[inlined(
     <Frame _clip_content={self._clip_content}>
+        <Group x={(-self.scroll_pos_x)px} y={(-self.scroll_pos_y)px} width={self.scroll_width - 8px} height={self.scroll_height - 8px}>
+            for i in 0..self._slot_children_count {
+                slot(i)
+            }
+        </Group>
         <Scrollbar
             scroll_y=bind:scroll_pos_y
-            width=20px
+            width=12px
             anchor_x=100%
             x=100%
             size_inner_pane_y={self.scroll_height}
         />
         <Scrollbar
             scroll_x=bind:scroll_pos_x
-            height=20px
+            height=12px
             anchor_y=100%
             y=100%
             size_inner_pane_x={self.scroll_width}
         />
-        <Group x={(-self.scroll_pos_x)px} y={(-self.scroll_pos_y)px} width={self.scroll_width} height={self.scroll_height}>
-            for i in 0..self._slot_children_count {
-                slot(i)
-            }
-        </Group>
         <Rectangle fill=TRANSPARENT/>
     </Frame>
 
@@ -184,8 +184,12 @@ impl Scroller {
         let target_y = old_y + dy;
         let clamped_target_x = target_x.clamp(0.0, (max_bounds_x - bounds_x).max(0.0));
         let clamped_target_y = target_y.clamp(0.0, (max_bounds_y - bounds_y).max(0.0));
-        self.scroll_pos_x.set(clamped_target_x);
-        self.scroll_pos_y.set(clamped_target_y);
+        if (self.scroll_pos_x.get() - clamped_target_x).abs() > 1e-3 {
+            self.scroll_pos_x.set(clamped_target_x);
+        }
+        if (self.scroll_pos_y.get() - clamped_target_y).abs() > 1e-3 {
+            self.scroll_pos_y.set(clamped_target_y);
+        }
     }
 
     pub fn add_momentum(&self, ddx: f64, ddy: f64) {

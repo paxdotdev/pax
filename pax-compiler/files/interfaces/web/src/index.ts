@@ -127,6 +127,9 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
 
 
 export function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
+    if (messages.length === 0) {
+        return;
+    }
     (nativePool.layers.parent as HTMLElement).hidden = true;
     messages?.forEach((unwrapped_msg) => {
         if(unwrapped_msg["ShrinkLayersTo"]) {
@@ -264,15 +267,10 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
             patch.fromPatch(msg);
             nativePool.scrollerCreate(patch);
-        }else if (unwrapped_msg["ScrollerUpdate"]){
-            let msg = unwrapped_msg["ScrollerUpdate"]
-            let patch : ScrollerUpdatePatch = objectManager.getFromPool(SCROLLER_UPDATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.scrollerUpdate(patch);
-        }else if (unwrapped_msg["ScrollerDelete"]) {
+        } else if (unwrapped_msg["ScrollerDelete"]) {
             let msg = unwrapped_msg["ScrollerDelete"];
             nativePool.scrollerDelete(msg)
-        }else if (unwrapped_msg["Navigate"]) {
+        } else if (unwrapped_msg["Navigate"]) {
             let msg = unwrapped_msg["Navigate"];
             let patch : NavigationPatch = objectManager.getFromPool(NAVIGATION_PATCH);
             patch.fromPatch(msg);
@@ -280,5 +278,17 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
         }
     });
     (nativePool.layers.parent as HTMLElement).hidden = false;
+
+
+    // scroller updates need to happen while everything is vissible, or else the container is
+    // measured as 0 height
+    messages?.forEach((unwrapped_msg) => {
+         if (unwrapped_msg["ScrollerUpdate"]){
+            let msg = unwrapped_msg["ScrollerUpdate"]
+            let patch : ScrollerUpdatePatch = objectManager.getFromPool(SCROLLER_UPDATE_PATCH);
+            patch.fromPatch(msg);
+            nativePool.scrollerUpdate(patch);
+        }    
+    });
 }
 
