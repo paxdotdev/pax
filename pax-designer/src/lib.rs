@@ -31,7 +31,7 @@ pub mod model;
 pub mod project_mode_toggle;
 
 use context_menu::DesignerContextMenu;
-use controls::{settings::color_picker, tree, Controls};
+use controls::{settings::color_picker, toolbar, tree, Controls};
 use glass::Glass;
 use llm_interface::LLMInterface;
 use message_log_display::MessageLogDisplay;
@@ -183,9 +183,9 @@ impl PaxDesigner {
             },
             ctx,
         );
-        // NOTE: this was originally on tree view
         color_picker::trigger_mouseup();
         tree::trigger_global_mouseup();
+        toolbar::close_dropdown();
     }
 
     pub fn handle_key_down(&mut self, ctx: &NodeContext, event: Event<KeyDown>) {

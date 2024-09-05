@@ -48,5 +48,8 @@
 
     .black_bg {
         fill: rgb(12.5%, 12.5%, 12.5%)
+        // prevent one-pixel-off renders from showing lines
+        width: 100.1%
+        height: 100.1%
     }
 }

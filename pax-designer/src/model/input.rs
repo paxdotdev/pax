@@ -127,32 +127,26 @@ impl Default for InputMapper {
                 ),
                 // --- Movement between layers ---
                 (
-                    (
-                        RawInput::OpenSquareBracket,
-                        HashSet::from([ModifierKey::Meta]),
-                    ),
+                    (RawInput::OpenSquareBracket, HashSet::from([])),
+                    InputEvent::LayerMove(RelativeMove::BumpDown),
+                ),
+                (
+                    (RawInput::CloseSquareBracket, HashSet::from([])),
                     InputEvent::LayerMove(RelativeMove::BumpUp),
                 ),
                 (
                     (
+                        RawInput::OpenSquareBracket,
+                        HashSet::from([ModifierKey::Meta]),
+                    ),
+                    InputEvent::LayerMove(RelativeMove::Bottom),
+                ),
+                (
+                    (
                         RawInput::CloseSquareBracket,
                         HashSet::from([ModifierKey::Meta]),
                     ),
-                    InputEvent::LayerMove(RelativeMove::BumpDown),
-                ),
-                (
-                    (
-                        RawInput::OpenSquareBracket,
-                        HashSet::from([ModifierKey::Meta, ModifierKey::Control]),
-                    ),
                     InputEvent::LayerMove(RelativeMove::Top),
-                ),
-                (
-                    (
-                        RawInput::CloseSquareBracket,
-                        HashSet::from([ModifierKey::Meta, ModifierKey::Control]),
-                    ),
-                    InputEvent::LayerMove(RelativeMove::Bottom),
                 ),
                 // --- LLM Prompt ---
                 (
