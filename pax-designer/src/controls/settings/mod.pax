@@ -58,7 +58,7 @@ if self.is_component_selected {
                 </Group>
             </Group>
         </Group>
-
+    </Group>
     </Scroller>
 }
 
