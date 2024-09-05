@@ -683,11 +683,6 @@ export class NativeElementPool {
             textChild.setAttribute("contenteditable", patch.editable.toString());
             if (patch.editable == true) {
                 textChild.style.outline = "none";
-                // without these the editable div doesn't register
-                // clicks in the entire outside div as a request to edit
-                textChild.style.width = "inherit";
-                textChild.style.height = "inherit";
-
 
                  // Select all text in the editable div
                 const range = document.createRange();

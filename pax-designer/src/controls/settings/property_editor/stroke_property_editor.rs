@@ -76,6 +76,19 @@ impl StrokePropertyEditor {
         ));
 
         let color = self.color.clone();
+        let color_dep = color.untyped();
+        let stroke_width_cloned = self.stroke_width.clone();
+        let external_cloned = self.external.clone();
+        let color = Property::computed(
+            move || {
+                if stroke_width_cloned.get() == 0.0 && !external_cloned.get() {
+                    stroke_width_cloned.set(1.0);
+                }
+                color.get()
+            },
+            &[color_dep],
+        );
+
         let stroke_width = self.stroke_width.clone();
         let deps = [color.untyped(), stroke_width.untyped()];
         let external = self.external.clone();
