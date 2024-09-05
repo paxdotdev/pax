@@ -44,6 +44,7 @@ pub struct RuntimeContext {
     node_cache: RefCell<NodeCache>,
     queued_custom_events: RefCell<Vec<(Rc<ExpandedNode>, &'static str)>>,
     queued_renders: RefCell<Vec<Rc<ExpandedNode>>>,
+    pub layer_count: Cell<usize>,
 }
 
 struct NodeCache {
@@ -94,6 +95,7 @@ impl RuntimeContext {
             node_cache: RefCell::new(NodeCache::new()),
             queued_custom_events: Default::default(),
             queued_renders: Default::default(),
+            layer_count: Cell::default(),
         }
     }
 
@@ -109,6 +111,7 @@ impl RuntimeContext {
             node_cache: RefCell::new(NodeCache::new()),
             queued_custom_events: Default::default(),
             queued_renders: Default::default(),
+            layer_count: Cell::default(),
         }
     }
 

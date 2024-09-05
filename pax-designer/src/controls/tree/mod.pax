@@ -1,5 +1,5 @@
 
-<Scroller scroll_height={(Math::len(self.tree_objects)*42 + 42)px}>
+<Scroller scroll_height=1000px>
 	for (obj, i) in self.tree_objects {
 		<TreeObj
 			 ind={obj.ind}

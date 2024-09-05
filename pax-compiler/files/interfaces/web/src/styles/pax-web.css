@@ -18,10 +18,20 @@ html, body, #mount, canvas, .native-overlay{
     pointer-events: none;
 }
 
+.scroller-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+.scroller-container::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.5);
+    border-radius: 6px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+}
+
+/* Firefox */
 .scroller-container {
-    position: relative;
-    overflow: auto;
-    pointer-events: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.5) transparent;
 }
 
 .inner-pane {

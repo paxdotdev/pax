@@ -1,5 +1,5 @@
 import {BUTTON_CLASS, BUTTON_TEXT_CONTAINER_CLASS,
-    NATIVE_LEAF_CLASS, CHECKBOX_CLASS, RADIO_SET_CLASS} from "../utils/constants";
+    NATIVE_LEAF_CLASS, CHECKBOX_CLASS, RADIO_SET_CLASS,SCROLLER_CONTAINER} from "../utils/constants";
 import {AnyCreatePatch} from "./messages/any-create-patch";
 import {OcclusionUpdatePatch} from "./messages/occlusion-update-patch";
 import snarkdown from 'snarkdown';
@@ -81,12 +81,7 @@ export class NativeElementPool {
     occlusionUpdate(patch: OcclusionUpdatePatch) {
         let node: HTMLElement = this.nodesLookup.get(patch.id!)!;
         if (node){
-            // scroll resets when moved, avoid this.
-            let left = node.scrollLeft;
-            let top = node.scrollTop;
             this.layers.addElement(node, patch.parentFrame, patch.occlusionLayerId!);
-            node.scrollLeft = left;
-            node.scrollTop = top;
             node.style.zIndex = patch.zIndex!.toString();
             const focusableElements = node.querySelectorAll('input, button, select, textarea, a[href]');
             focusableElements.forEach((element, _index) => {
@@ -800,6 +795,7 @@ export class NativeElementPool {
 
         let scrollerDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let scroller: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        scroller.style.pointerEvents = "none";
         scrollerDiv.addEventListener("scroll", (_event) => {
             let message = {
                 "Scrollbar": {
@@ -812,7 +808,7 @@ export class NativeElementPool {
         });
 
         scrollerDiv.appendChild(scroller);
-        scrollerDiv.setAttribute("class", NATIVE_LEAF_CLASS)
+        scrollerDiv.setAttribute("class", NATIVE_LEAF_CLASS + " " + SCROLLER_CONTAINER)
         scrollerDiv.setAttribute("pax_id", String(patch.id));
 
 
@@ -838,12 +834,14 @@ export class NativeElementPool {
         if (patch.sizeY != null) {
             leaf.style.height = patch.sizeY + "px";
         }
+
         if (patch.scrollX != null) {
             leaf.scrollLeft = patch.scrollX;
         }
         if (patch.scrollY != null) {
             leaf.scrollTop = patch.scrollY;
         }
+
         // Handle transform
         if (patch.transform != null) {
             leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
