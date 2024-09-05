@@ -109,6 +109,7 @@ if self.is_component_selected {
     .property_label {
         height: 20px,
         y: 50%,
+        selectable: false,
         anchor_y: 50%,
         style: {
             font: {Font::Web(
