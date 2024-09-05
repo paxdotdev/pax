@@ -204,14 +204,16 @@ impl Action for SetNodeLayoutProperties<'_> {
             x.as_ref(),
             old_props.x.as_ref(),
             Size::ZERO(),
-        )?;
+        )
+        .map_err(|e| anyhow!("couldn't set x to {x:?}: {e}"))?;
         write_to_orm(
             &mut builder,
             "y",
             y.as_ref(),
             old_props.y.as_ref(),
             Size::ZERO(),
-        )?;
+        )
+        .map_err(|e| anyhow!("couldn't set y to {y:?}: {e}"))?;
 
         write_to_orm(
             &mut builder,
@@ -219,14 +221,17 @@ impl Action for SetNodeLayoutProperties<'_> {
             width.as_ref(),
             old_props.width.as_ref(),
             Size::default(),
-        )?;
+        )
+        .map_err(|e| anyhow!("couldn't set width to {width:?}: {e}"))?;
+
         write_to_orm(
             &mut builder,
             "height",
             height.as_ref(),
             old_props.height.as_ref(),
             Size::default(),
-        )?;
+        )
+        .map_err(|e| anyhow!("couldn't set height to {height:?}: {e}"))?;
 
         write_to_orm(
             &mut builder,
@@ -238,7 +243,9 @@ impl Action for SetNodeLayoutProperties<'_> {
                 .map(|v| Size::Percent(v.0))
                 .as_ref(),
             Size::default(),
-        )?;
+        )
+        .map_err(|e| anyhow!("couldn't set scale_x to {scale_x:?}: {e}"))?;
+
         write_to_orm(
             &mut builder,
             "scale_y",
@@ -249,28 +256,35 @@ impl Action for SetNodeLayoutProperties<'_> {
                 .map(|v| Size::Percent(v.0))
                 .as_ref(),
             Size::default(),
-        )?;
+        )
+        .map_err(|e| anyhow!("couldn't set scale_y to {scale_y:?}: {e}"))?;
+
         write_to_orm(
             &mut builder,
             "rotate",
             rotate.as_ref(),
             old_props.rotate.as_ref(),
             Rotation::default(),
-        )?;
+        )
+        .map_err(|e| anyhow!("couldn't set rotation to {rotate:?}: {e}"))?;
+
         write_to_orm(
             &mut builder,
             "skew_x",
             skew_x.as_ref(),
             old_props.skew_x.as_ref(),
             Rotation::default(),
-        )?;
+        )
+        .map_err(|e| anyhow!("couldn't set skew_x to {skew_x:?}: {e}"))?;
+
         write_to_orm(
             &mut builder,
             "skew_y",
             skew_y.as_ref(),
             old_props.skew_y.as_ref(),
             Rotation::default(),
-        )?;
+        )
+        .map_err(|e| anyhow!("couldn't set skew_y to {skew_y:?}: {e}"))?;
 
         if self.reset_anchor {
             builder.set_property("anchor_x", "")?;
@@ -283,7 +297,8 @@ impl Action for SetNodeLayoutProperties<'_> {
                 old_props.anchor_x.as_ref(),
                 // never assume default
                 Size::Combined(f64::MAX.into(), f64::MAX.into()),
-            )?;
+            )
+            .map_err(|e| anyhow!("couldn't set anchor_x to {anchor_x:?}: {e}"))?;
             write_to_orm(
                 &mut builder,
                 "anchor_y",
@@ -291,12 +306,13 @@ impl Action for SetNodeLayoutProperties<'_> {
                 old_props.anchor_y.as_ref(),
                 // never assume default
                 Size::Combined(f64::MAX.into(), f64::MAX.into()),
-            )?;
+            )
+            .map_err(|e| anyhow!("couldn't set anchor_y to {anchor_y:?}: {e}"))?;
         }
 
         builder
             .save()
-            .map_err(|e| anyhow!("could not move thing: {}", e))?;
+            .map_err(|e| anyhow!("could not move: {}", e))?;
 
         Ok(())
     }
@@ -391,25 +407,31 @@ impl Action for Resize<'_> {
         };
 
         let diff_start = fixed - grab;
-        let mut diff_now = fixed - new_in_selec;
-
-        // if shift key down, the project diff_now on diff start
-        // either along x or y axis (whichever is closest)
-        if is_shift_key_down {
-            diff_now = diff_now
-                .coord_abs()
-                .project_axis_aligned(diff_start)
-                .to_signums_of(diff_now);
-        }
-
+        let diff_now = fixed - new_in_selec;
         let mut scale = diff_now / diff_start;
 
-        // if grabbing from sides, only resize in one direciton
-        if self.fixed_point.x == 0.5 {
-            scale.x = 1.0;
-        }
-        if self.fixed_point.y == 0.5 {
-            scale.y = 1.0;
+        // if shift key down, uniformly scale
+        if is_shift_key_down {
+            let uniform_scale = if self.fixed_point.x == 0.5 {
+                scale.y.abs()
+            } else if self.fixed_point.y == 0.5 {
+                scale.x.abs()
+            } else {
+                scale.x.abs().max(scale.y.abs())
+            };
+
+            scale = Vector2::new(
+                uniform_scale * scale.x.signum(),
+                uniform_scale * scale.y.signum(),
+            );
+        } else {
+            // When shift is not down, constrain scaling if using side handles
+            if self.fixed_point.x == 0.5 {
+                scale.x = 1.0;
+            }
+            if self.fixed_point.y == 0.5 {
+                scale.y = 1.0;
+            }
         }
 
         let anchor: Transform2<SelectionSpace> = Transform2::translate(fixed.to_vector());
