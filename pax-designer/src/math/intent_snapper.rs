@@ -90,11 +90,11 @@ impl IntentSnapper {
         )
     }
 
-    pub fn snap(&self, set: &[Point2<Glass>]) -> Vector2<Glass> {
+    pub fn snap(&self, set: &[Point2<Glass>], lock_x: bool, lock_y: bool) -> Vector2<Glass> {
         if !self.snap_enabled.get() {
             return Vector2::default();
         }
-        let info = self.snap_set.compute_snap(&set, self.tol);
+        let info = self.snap_set.compute_snap(&set, self.tol, lock_x, lock_y);
         self.snap_lines.set(SnapInfo {
             vertical: info.vertical_hits,
             horizontal: info.horizontal_hits,
@@ -114,7 +114,13 @@ pub struct SnapCollection {
 }
 
 impl SnapCollection {
-    fn compute_snap(&self, points: &[Point2<Glass>], tol: f64) -> InternalSnapInfo {
+    fn compute_snap(
+        &self,
+        points: &[Point2<Glass>],
+        tol: f64,
+        lock_x: bool,
+        lock_y: bool,
+    ) -> InternalSnapInfo {
         let (vertical_hits, x_offset) = Self::compute_snap_axis(
             self.sets
                 .iter()
@@ -136,8 +142,8 @@ impl SnapCollection {
         );
 
         InternalSnapInfo {
-            vertical_hits,
-            horizontal_hits,
+            vertical_hits: (!lock_x).then_some(vertical_hits).unwrap_or_default(),
+            horizontal_hits: (!lock_y).then_some(horizontal_hits).unwrap_or_default(),
             point_hit: point_hit.map(|v| v.0),
             offset: point_hit
                 .map(|v| v.1)

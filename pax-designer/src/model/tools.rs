@@ -80,7 +80,7 @@ impl ToolBehavior for CreateComponentTool {
         let modifiers = ctx.app_state.modifiers.get();
         let is_shift_key_down = modifiers.contains(&ModifierKey::Shift);
         let is_alt_key_down = modifiers.contains(&ModifierKey::Alt);
-        let offset = self.intent_snapper.snap(&[point]);
+        let offset = self.intent_snapper.snap(&[point], false, false);
         self.bounds.set(
             AxisAlignedBox::new(self.origin, self.origin + Vector2::new(1.0, 1.0))
                 .morph_constrained(
@@ -361,12 +361,27 @@ impl ToolBehavior for MovingTool {
         let mut points_to_snap = Vec::new();
         points_to_snap.extend(potential_new_bounds.corners());
         points_to_snap.push(potential_new_bounds.center());
-        let offset = self.intent_snapper.snap(&points_to_snap);
+        let mut lock_x = false;
+        let mut lock_y = false;
+        if ctx.app_state.modifiers.get().contains(&ModifierKey::Shift) {
+            if translation.x.abs() > translation.y.abs() {
+                lock_y = true;
+            } else {
+                lock_x = true;
+            }
+        }
+        let offset = self.intent_snapper.snap(&points_to_snap, lock_x, lock_y);
+        let mut total_translation = translation + offset;
+        if lock_x {
+            total_translation.x = 0.0;
+        }
+        if lock_y {
+            total_translation.y = 0.0;
+        }
         let move_translation = TransformAndBounds {
-            transform: Transform2::translate(translation + offset),
+            transform: Transform2::translate(total_translation),
             bounds: (1.0, 1.0),
         };
-
         let unit = match ctx.app_state.unit_mode.get() {
             SizeUnit::Pixels => SizeUnit::Pixels,
             SizeUnit::Percent => SizeUnit::Percent,
@@ -413,7 +428,7 @@ impl ToolBehavior for MovingTool {
         let curr_render_container_glass = GlassNode::new(&curr_slot, &ctx.glass_transform());
 
         let move_translation = TransformAndBounds {
-            transform: Transform2::translate(translation),
+            transform: Transform2::translate(total_translation),
             bounds: (1.0, 1.0),
         };
 
