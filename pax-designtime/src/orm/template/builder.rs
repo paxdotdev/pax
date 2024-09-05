@@ -51,7 +51,7 @@ impl<'a> NodeBuilder<'a> {
     ) -> Option<Self> {
         let resp = orm
             .execute_command(GetTemplateNodeRequest { uni: uni.clone() })
-            .unwrap();
+            .ok()?;
         if let Some(node) = resp.node {
             let location = orm.manifest.get_node_location(&uni);
             Some(NodeBuilder {
