@@ -223,11 +223,19 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                         "recieved a file {} (size: {})! root dir to write to: {:?}",
                         name,
                         data.len(),
-                        self.state.userland_project_root
+                        self.state.userland_project_root.lock().unwrap(),
                     );
-                    let path = format!("../pax-designer/assets/{}", name);
+
+                    let mut path = self.state.userland_project_root.lock().unwrap().clone();
+                    path.push("assets");
+                    path.push(&name);
+
+                    if let Some(parent) = path.parent() {
+                        std::fs::create_dir_all(parent)
+                            .unwrap_or_else(|e| eprintln!("Failed to create directory: {}", e));
+                    }
                     if std::fs::write(&path, data.clone()).is_err() {
-                        eprintln!("server couldn't write to assets folder: {}", path);
+                        eprintln!("server couldn't write to assets folder: {:?}", path);
                     };
                     let path = self
                         .state

@@ -275,7 +275,10 @@ impl Glass {
                     node_decomposition_config: &Default::default(),
                 },
                 type_id: &TypeId::build_singleton("pax_std::core::image::Image", None),
-                custom_props: &[("path", &format!("\"assets/{}\"", event.args.name))],
+                custom_props: &[(
+                    "source",
+                    &format!("ImageSource::Url(\"assets/{}\")", event.args.name),
+                )],
                 mock_children: 0,
             }
             .perform(ac))
