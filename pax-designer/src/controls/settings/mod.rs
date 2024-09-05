@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use crate::model;
 use pax_std::*;
 
+use convert_case::{Case, Casing};
 pub mod color_picker;
 pub mod property_editor;
 use property_editor::PropertyEditor;
@@ -170,7 +171,7 @@ impl Settings {
                         index: i + 1,
                         vertical_space: 10.0,
                         vertical_pos: Default::default(),
-                        name_friendly: Self::to_visual_name(&propdef.name),
+                        name_friendly: &propdef.name.to_case(Case::Title),
                         name: String::from(propdef.name),
                     })
                     .collect()
@@ -192,7 +193,7 @@ impl Settings {
                 let mut running_sum = 0.0;
                 for prop in &mut adjusted_props {
                     let area = areas.get(prop.index - 1).unwrap_or(&10.0);
-                    prop.vertical_space = *area;
+                    prop.vertical_space = *area - 40.0;
                     prop.vertical_pos = running_sum;
                     running_sum += area + SPACING;
                 }
@@ -203,7 +204,4 @@ impl Settings {
         )
     }
 
-    fn to_visual_name(s: &str) -> String {
-        s.replace('_', " ")
-    }
 }
