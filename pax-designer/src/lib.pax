@@ -16,6 +16,7 @@ if self.glass_active {
             // Stage has a fixed size, regardless of window size
             <Group width={(self.stage.width)px} height={(self.stage.height)px} id=stage>
                 // The example project replaces all of the children of the project_container
+                <Rectangle fill=TRANSPARENT stroke={{width: 3px, color: self.stage.color}}/>
                 <Group id=project_container _suspended=true>
                     <InlineFrame />
                 </Group>
