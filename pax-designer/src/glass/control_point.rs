@@ -89,7 +89,7 @@ impl ToolBehavior for ControlPointTool {
     ) -> std::ops::ControlFlow<()> {
         let point = match &self.snapper {
             Some(intent_snapper) => {
-                let offset = intent_snapper.snap(&[point]);
+                let offset = intent_snapper.snap(&[point], false, false);
                 point + offset
             }
             None => point,

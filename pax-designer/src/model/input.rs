@@ -9,7 +9,7 @@ use pax_engine::{log, CoercionRules, Property};
 use crate::model::action::orm::{RedoRequested, SerializeRequested, UndoRequested};
 use crate::{controls::toolbar, glass, llm_interface::OpenLLMPrompt};
 
-use super::action::orm::group_ungroup::{GroupSelected, GroupType};
+use super::action::orm::group_ungroup::{GroupSelected, GroupType, UngroupSelected};
 use super::action::orm::movement::{RelativeMove, RelativeMoveSelected};
 use super::action::orm::other::SwapFillStrokeAction;
 use super::action::orm::{Copy, Paste};
@@ -93,6 +93,13 @@ impl Default for InputMapper {
                     (RawInput::G, HashSet::from([ModifierKey::Meta])),
                     InputEvent::Group(GroupType::Group),
                 ),
+                (
+                    (
+                        RawInput::G,
+                        HashSet::from([ModifierKey::Meta, ModifierKey::Shift]),
+                    ),
+                    InputEvent::Ungroup,
+                ),
                 // --- Copy/Paste ---
                 (
                     (RawInput::C, HashSet::from([ModifierKey::Meta])),
@@ -149,10 +156,10 @@ impl Default for InputMapper {
                     InputEvent::LayerMove(RelativeMove::Top),
                 ),
                 // --- LLM Prompt ---
-                (
-                    (RawInput::K, HashSet::from([ModifierKey::Meta])),
-                    InputEvent::OpenLLMPrompt,
-                ),
+                // (
+                //     (RawInput::K, HashSet::from([ModifierKey::Meta])),
+                //     InputEvent::OpenLLMPrompt,
+                // ),
                 // --- Deletion ---
                 (
                     (RawInput::Delete, HashSet::new()),
@@ -257,7 +264,9 @@ impl InputMapper {
                 }))
             }
             (InputEvent::SwapFillStroke, Dir::Down) => Some(Box::new(SwapFillStrokeAction)),
-            (InputEvent::LayerMove(_), Dir::Up)
+            (InputEvent::Ungroup, Dir::Down) => Some(Box::new(UngroupSelected {})),
+            (InputEvent::Ungroup, Dir::Up)
+            | (InputEvent::LayerMove(_), Dir::Up)
             | (InputEvent::SwapFillStroke, Dir::Up)
             | (InputEvent::SelectTool(_), Dir::Up)
             | (InputEvent::Space, Dir::Down)
@@ -371,6 +380,7 @@ pub enum InputEvent {
     Paste,
     ToggleLinkGroup,
     Group(GroupType),
+    Ungroup,
     SwapFillStroke,
     LayerMove(RelativeMove),
 }
