@@ -147,14 +147,14 @@ thread_local! {
                     },
                 ]
             },
-            ToolbarEntry {
-                items: vec![
-                    ToolbarItem {
-                        icon: "assets/icons/icon-robot.png",
-                        event: ToolbarEvent::PerformAction(Box::new(|| Box::new(OpenLLMPrompt)))
-                    },
-                ]
-            },
+            // ToolbarEntry {
+            //     items: vec![
+            //         ToolbarItem {
+            //             icon: "assets/icons/icon-robot.png",
+            //             event: ToolbarEvent::PerformAction(Box::new(|| Box::new(OpenLLMPrompt)))
+            //         },
+            //     ]
+            // },
         ];
 }
 
