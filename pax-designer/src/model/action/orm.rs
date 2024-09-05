@@ -51,6 +51,7 @@ impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
     fn perform(&self, ctx: &mut ActionContext) -> Result<UniqueTemplateNodeIdentifier> {
         let parent_location = ctx.location(self.parent_id, &self.parent_index);
 
+        // probably move transactions to happen here? (and remove from callers)
         let save_data = {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             let mut builder = dt.get_orm_mut().build_new_node(
