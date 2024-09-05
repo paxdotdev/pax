@@ -41,19 +41,6 @@
         />
     </Group>
 
-    // -------------- Outline visual ------------------
-    <Group>
-        <Path 
-            elements={self.tool_visual.outline}
-            stroke={
-                color: BLUE
-                width: 4px
-            }
-            fill=TRANSPARENT
-            _raycastable=false
-        />
-    </Group>
-
     // this is the event-intercepting, invisible baselayer of glass — it must
     // exist in order to intercept events from the rendering layer underneath
     <Rectangle fill=TRANSPARENT  @mouse_down=handle_mouse_down/>
