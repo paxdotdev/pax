@@ -171,7 +171,7 @@ impl Settings {
                         index: i + 1,
                         vertical_space: 10.0,
                         vertical_pos: Default::default(),
-                        name_friendly: &propdef.name.to_case(Case::Title),
+                        name_friendly: propdef.name.to_case(Case::Title),
                         name: String::from(propdef.name),
                     })
                     .collect()
