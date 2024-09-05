@@ -42,7 +42,7 @@
         width: 240px,
         anchor_x: 100%,
         x: 100%,
-        y: 55px,
+        y: 60px,
         height: {100% - 60px}
     }
 
