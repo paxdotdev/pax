@@ -23,8 +23,9 @@ if self.glass_active {
                 // <Text id=annot text={self.stage.height} x=50% y={100% + 30px}/>
             </Group>
         </Group>
+        <Rectangle id=global_background/>
     </Group>
-    <Rectangle id=global_background/>
+
 }
 if self.play_active {
     <InlineFrame />
@@ -55,10 +56,10 @@ if 0 == 1 {
     }
 
     #designer_glass {
-        x: 265px,
-        y: 65px,
-        width: {100% - 530px},
-        height: {100% - 65px},
+        x: 240px,
+        y: 60px,
+        width: {100% - 480px},
+        height: {100% - 60px},
     }
 
     #loading {
