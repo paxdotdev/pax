@@ -134,6 +134,12 @@ fn main() -> Result<(), Report> {
                     .takes_value(true)
                     .index(1))
         )
+        .subcommand(
+            App::new("eject")
+                .about("Ejects the chassis interface for the target platform")
+                .arg( ARG_TARGET.clone())
+                .arg( ARG_LIBDEV.clone())
+        )
         .get_matches();
 
     // Clap doesn't easily let us check a "global" arg without performing individual `match`es.
@@ -226,6 +232,23 @@ fn perform_nominal_action(
                 is_libdev_mode,
                 version,
             });
+            Ok(())
+        }
+        ("eject", Some(args)) => {
+            let target = args.value_of("target").unwrap().to_lowercase();
+            let is_libdev_mode = args.is_present("libdev");
+
+            let _ = pax_compiler::perform_eject(&RunContext {
+                target: RunTarget::from(target.as_str()),
+                project_path: PathBuf::from("."),
+                should_also_run: false,
+                should_run_designer: false,
+                verbose: false,
+                is_libdev_mode,
+                process_child_ids,
+                is_release: false,
+            })?;
+
             Ok(())
         }
         ("libdev", Some(args)) => {

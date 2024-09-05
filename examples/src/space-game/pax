@@ -10,6 +10,6 @@
 set -e
 current_dir=$(pwd)
 pushd ../../../pax-cli
-cargo build
+# cargo build
 PAX_WORKSPACE_ROOT=.. ../target/debug/pax-cli "$@" --path="$current_dir" --libdev
 popd
