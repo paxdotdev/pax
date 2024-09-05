@@ -65,6 +65,42 @@ impl InstanceNode for ScrollbarInstance {
             },
         ));
 
+        // don't allow rays to intercept if this scroller is hidden.
+        // This is a bit hacky, since _raycastable could/should technically be
+        // overridable by the user (is a common prop), but works for now.
+        {
+            let cp = expanded_node.get_common_properties();
+            let cp = borrow!(cp);
+            let (s_x, s_y) =
+                expanded_node.with_properties_unwrapped(|properties: &mut Scrollbar| {
+                    let s_x = properties.size_inner_pane_x.clone();
+                    let s_y = properties.size_inner_pane_y.clone();
+                    (s_x, s_y)
+                });
+            let w = cp.width.clone();
+            let h = cp.height.clone();
+            let t_and_b = expanded_node.transform_and_bounds.clone();
+            let deps = [
+                w.untyped(),
+                h.untyped(),
+                t_and_b.untyped(),
+                s_x.untyped(),
+                s_y.untyped(),
+            ];
+            cp._raycastable.replace_with(Property::computed(
+                move || {
+                    let (width, height) = t_and_b.get().bounds;
+                    let outer_w = w.get().unwrap_or(Size::default()).get_pixels(width);
+                    let outer_h = h.get().unwrap_or(Size::default()).get_pixels(height);
+                    let inner_w = s_x.get().get_pixels(width);
+                    let inner_h = s_y.get().get_pixels(height);
+                    let res = Some(!(inner_w <= outer_w && inner_h <= outer_h));
+                    res
+                },
+                &deps,
+            ));
+        }
+
         // send update message when relevant properties change
         let weak_self_ref = Rc::downgrade(&expanded_node);
         let context = Rc::clone(context);
@@ -119,11 +155,6 @@ impl InstanceNode for ScrollbarInstance {
                                 properties.scroll_y.get(),
                             ),
                             patch_if_needed(
-                                &mut old_state.scroll_x,
-                                &mut patch.scroll_x,
-                                properties.scroll_x.get(),
-                            ),
-                            patch_if_needed(
                                 &mut old_state.transform,
                                 &mut patch.transform,
                                 computed_tab.transform.coeffs().to_vec(),
@@ -167,10 +198,10 @@ impl InstanceNode for ScrollbarInstance {
     ) {
         if let NativeInterrupt::Scrollbar(args) = interrupt {
             expanded_node.with_properties_unwrapped(|props: &mut Scrollbar| {
-                if (props.scroll_x.get() - args.scroll_x) > 1e-4 {
+                if (props.scroll_x.get() - args.scroll_x).abs() > 1e-4 {
                     props.scroll_x.set(args.scroll_x);
                 }
-                if (props.scroll_y.get() - args.scroll_y) > 1e-4 {
+                if (props.scroll_y.get() - args.scroll_y).abs() > 1e-4 {
                     props.scroll_y.set(args.scroll_y);
                 }
             });
