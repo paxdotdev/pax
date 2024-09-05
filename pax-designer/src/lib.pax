@@ -15,8 +15,6 @@ if self.glass_active {
         <Group transform={self.transform2d}>
             // Stage has a fixed size, regardless of window size
             <Group width={(self.stage.width)px} height={(self.stage.height)px} id=stage>
-                // rectangle outline
-                <Rectangle fill={self.stage.color} fill=TRANSPARENT stroke={width: 3px, color: WHITE }/>
                 // The example project replaces all of the children of the project_container
                 <Group id=project_container _suspended=true>
                     <InlineFrame />
