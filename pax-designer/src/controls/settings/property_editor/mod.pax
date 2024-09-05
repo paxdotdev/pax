@@ -41,11 +41,10 @@
 	}
 </Group>
 <Group width=16px height=16px x={100% + 4px + (-4 * is_custom_property)px}  y={50% - (10 * is_custom_property)px} @click=self.toggle_literal>
-    if is_literal {
-        <Image source={ImageSource::Url("assets/icons/icon-fx-off.png")} />
-    }
+    <Image source={ImageSource::Url("assets/icons/icon-fx-off.png")} />
+
     if !is_literal {
-        <Image source={ImageSource::Url("assets/icons/icon-fx-on.png")} />
+        <Rectangle fill=INDIGO corner_radii={RectangleCornerRadii::radii(2.0,2.0,2.0,2.0)} />
     }
 </Group>
 

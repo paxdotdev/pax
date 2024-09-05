@@ -17,7 +17,7 @@ if self.is_container {
 
 // Background fill for selection
 if self.is_selected {
-    <Rectangle fill={rgb(0.035*255, 0.145*255, 0.318*255)} />
+    <Rectangle fill=INDIGO />
 }
 
 @settings {

@@ -11,7 +11,7 @@ for (view, i) in self.entries {
 <Rectangle
     width=55px
     x={(self.selected_ind*55)px}
-    fill={rgb(0.035*255, 0.145*255, 0.318*255)}
+    fill=INDIGO
 />
 
 @settings {
