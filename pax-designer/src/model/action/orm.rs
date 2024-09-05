@@ -371,8 +371,8 @@ impl Action for Resize<'_> {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         let (is_shift_key_down, is_alt_key_down) = ctx.app_state.modifiers.read(|keys| {
             (
-                keys.contains(&ModifierKey::Alt),
                 keys.contains(&ModifierKey::Shift),
+                keys.contains(&ModifierKey::Alt),
             )
         });
 

@@ -56,11 +56,11 @@ pub enum ToolbarClickEvent {
     Select(usize, usize),
     Dropdown(usize),
     #[default]
-    None,
+    CloseDropdown,
 }
 
 thread_local! {
-    static CLICK_PROP: Property<ToolbarClickEvent> = Property::new(ToolbarClickEvent::None);
+    static CLICK_PROP: Property<ToolbarClickEvent> = Property::new(ToolbarClickEvent::CloseDropdown);
     static TOOLBAR_ENTRIES: Vec<ToolbarEntry> =
         vec![
             ToolbarEntry {
@@ -151,7 +151,7 @@ thread_local! {
             //     items: vec![
             //         ToolbarItem {
             //             icon: "assets/icons/icon-robot.png",
-            //             event: ToolbarEvent::PerformAction(Box::new(|| Box::new(OpenLLMPrompt)))
+            //             event: ToolbarEvent::PerformAction(Box::new(OpenLLMPrompt))
             //         },
             //     ]
             // },
@@ -193,17 +193,20 @@ impl Toolbar {
         self.dropdown_entries.replace_with(Property::computed(
             move || match toolbar_click.get() {
                 ToolbarClickEvent::Select(row, col) => {
-                    let action = TOOLBAR_ENTRIES.with(|entries| {
+                    TOOLBAR_ENTRIES.with(|entries| {
                         let event = &entries[row].items[col].event;
                         match event {
-                            &ToolbarEvent::SelectTool(tool) => Box::new(SelectTool { tool }),
-                            ToolbarEvent::PerformAction(action_factory) => action_factory(),
+                            &ToolbarEvent::SelectTool(tool) => {
+                                model::perform_action(&SelectTool { tool }, &ctx)
+                            }
+                            ToolbarEvent::PerformAction(action) => {
+                                model::perform_action(action.as_ref(), &ctx)
+                            }
                         }
                     });
-                    model::perform_action(action.as_ref(), &ctx);
                     vec![]
                 }
-                ToolbarClickEvent::None => vec![],
+                ToolbarClickEvent::CloseDropdown => vec![],
                 ToolbarClickEvent::Dropdown(row) => TOOLBAR_ENTRIES.with(|entries| {
                     entries[row]
                         .items
@@ -216,7 +219,7 @@ impl Toolbar {
                             row,
                             col,
                             x: Size::Pixels((row * 55).into()),
-                            y: Size::Pixels((col * 55).into()),
+                            y: Size::Pixels(((col + 1) * 55).into()),
                         })
                         .collect()
                 }),
@@ -262,12 +265,13 @@ impl Toolbar {
     }
 
     pub fn on_unmount(&mut self, _ctx: &NodeContext) {
-        CLICK_PROP.with(|p| p.set(ToolbarClickEvent::None));
+        CLICK_PROP.with(|p| p.set(ToolbarClickEvent::CloseDropdown));
     }
 }
 enum ToolbarEvent {
     SelectTool(Tool),
-    PerformAction(Box<dyn Fn() -> Box<dyn Action>>),
+    #[allow(unused)]
+    PerformAction(Box<dyn Action>),
 }
 
 pub struct SelectTool {
