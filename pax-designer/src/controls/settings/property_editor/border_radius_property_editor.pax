@@ -27,6 +27,7 @@
 @settings {
     @mount: on_mount
     #text {
+        selectable: false,
         style: {
             font: {Font::Web(
                 "ff-real-headline-pro",
