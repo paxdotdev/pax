@@ -40,7 +40,7 @@
 		}
 	}
 </Group>
-<Group width=16px height=16px x={100% + 4px}  y=50% @click=self.toggle_literal>
+<Group width=16px height=16px x={100% + 4px + (-4 * is_custom_property)px}  y={50% - (10 * is_custom_property)px} @click=self.toggle_literal>
     if is_literal {
         <Image source={ImageSource::Url("assets/icons/icon-fx-off.png")} />
     }

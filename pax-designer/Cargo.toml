@@ -15,6 +15,7 @@ pax-engine = { version = "0.35.0",  path = "../pax-engine", features = ["designt
 pax-std = { version = "0.35.0",  path = "../pax-std", features = ["designtime"] }
 pax-designtime = {version = "0.35.0", path = "../pax-designtime"}
 anyhow = "1.0.79"
+convert_case = "0.6.0"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

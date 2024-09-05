@@ -35,7 +35,7 @@ pub struct PropertyEditor {
     pub ind: Property<usize>,
     pub stid: Property<TypeId>,
     pub snid: Property<TemplateNodeId>,
-    pub fx_button_special: Property<bool>,
+    pub is_custom_property: Property<bool>,
 
     // internal repr, always set to collection of above
     pub prop_type_ident_id: Property<usize>,
