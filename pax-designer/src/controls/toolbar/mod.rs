@@ -59,6 +59,10 @@ pub enum ToolbarClickEvent {
     CloseDropdown,
 }
 
+pub fn close_dropdown() {
+    CLICK_PROP.with(|p| p.set(ToolbarClickEvent::CloseDropdown));
+}
+
 thread_local! {
     static CLICK_PROP: Property<ToolbarClickEvent> = Property::new(ToolbarClickEvent::CloseDropdown);
     static TOOLBAR_ENTRIES: Vec<ToolbarEntry> =
