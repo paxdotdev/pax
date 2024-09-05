@@ -8,13 +8,13 @@ use pax_engine::{
 };
 use pax_manifest::TypeId;
 use pax_std::*;
-use std::{collections::HashSet, sync::Mutex};
+use std::{collections::HashSet, rc::Rc, sync::Mutex};
 
 use pax_std::inline_frame::InlineFrame;
 
 use crate::math::coordinate_spaces::{self, World};
 use model::{
-    action::{pointer::Pointer, Action, ActionContext},
+    action::{meta::Schedule, pointer::Pointer, Action, ActionContext},
     input::Dir,
     ProjectMode, StageInfo,
 };
@@ -31,7 +31,11 @@ pub mod model;
 pub mod project_mode_toggle;
 
 use context_menu::DesignerContextMenu;
-use controls::{settings::color_picker, toolbar, tree, Controls};
+use controls::{
+    settings::color_picker,
+    toolbar::{self, CloseDropdown},
+    tree, Controls,
+};
 use glass::Glass;
 use llm_interface::LLMInterface;
 use message_log_display::MessageLogDisplay;
@@ -185,7 +189,15 @@ impl PaxDesigner {
         );
         color_picker::trigger_mouseup();
         tree::trigger_global_mouseup();
-        toolbar::close_dropdown();
+        if toolbar::dropdown_is_in_open_state() {
+            model::perform_action(
+                // if done directly, would not have time to intercept mouse event futher down to select a new tool
+                &Schedule {
+                    action: Rc::new(CloseDropdown),
+                },
+                ctx,
+            );
+        }
     }
 
     pub fn handle_key_down(&mut self, ctx: &NodeContext, event: Event<KeyDown>) {

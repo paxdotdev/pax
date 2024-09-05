@@ -59,12 +59,21 @@ pub enum ToolbarClickEvent {
     CloseDropdown,
 }
 
-pub fn close_dropdown() {
-    CLICK_PROP.with(|p| {
-        if matches!(p.get(), ToolbarClickEvent::Dropdown(_)) {
-            p.set(ToolbarClickEvent::CloseDropdown)
-        }
-    });
+pub fn dropdown_is_in_open_state() -> bool {
+    CLICK_PROP.with(|p| matches!(p.get(), ToolbarClickEvent::Dropdown(_)))
+}
+
+pub struct CloseDropdown;
+
+impl Action for CloseDropdown {
+    fn perform(&self, _ctx: &mut ActionContext) -> Result<()> {
+        CLICK_PROP.with(|p| {
+            if matches!(p.get(), ToolbarClickEvent::Dropdown(_)) {
+                p.set(ToolbarClickEvent::CloseDropdown)
+            }
+        });
+        Ok(())
+    }
 }
 
 thread_local! {
