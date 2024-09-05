@@ -202,8 +202,33 @@ fn copy_interface_files_for_target(ctx: &RunContext, pax_dir: &PathBuf) {
     let _ = fs::remove_dir_all(&interface_path);
     let _ = fs::create_dir_all(&interface_path);
 
-    // If ctx.is_libdev_mode, we copy our monorepo @/pax-chassis-`ctx.target.into()`/interface directory
-    // Otherwise, we use the include_dir! macro to copy the interface files
+    let mut custom_interface = pax_dir
+        .parent()
+        .unwrap()
+        .join("interfaces")
+        .join(target_str_lower);
+    if ctx.target == RunTarget::Web {
+        custom_interface = custom_interface.join("public");
+    }
+
+    if custom_interface.exists() {
+        copy_interface_files(&custom_interface, &interface_path);
+    } else {
+        copy_default_interface_files(&interface_path, ctx);
+    }
+
+    // Copy common files for macOS and iOS builds
+    if matches!(ctx.target, RunTarget::macOS | RunTarget::iOS) {
+        let common_dest = pax_dir.join(INTERFACE_DIR_NAME).join("common");
+        copy_common_swift_files(ctx, &common_dest);
+    }
+}
+
+fn copy_interface_files(src: &Path, dest: &Path) {
+    copy_dir_recursively(src, dest, &[]).expect("Failed to copy interface files");
+}
+
+fn copy_default_interface_files(interface_path: &Path, ctx: &RunContext) {
     if ctx.is_libdev_mode {
         let pax_compiler_root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let interface_src = match ctx.target {
@@ -224,67 +249,116 @@ fn copy_interface_files_for_target(ctx: &RunContext, pax_dir: &PathBuf) {
                 .join("pax-app-ios"),
         };
 
-        copy_dir_recursively(&interface_src, &interface_path, &[])
+        copy_dir_recursively(&interface_src, interface_path, &[])
             .expect("Failed to copy interface files");
-
-        // also copy pax-chassis-common into interface/common for macos and ios builds
-        match ctx.target {
-            RunTarget::macOS | RunTarget::iOS => {
-                let common_swift_cartridge_src = pax_compiler_root
-                    .join("files")
-                    .join("swift")
-                    .join("pax-swift-cartridge");
-                let common_swift_common_src = pax_compiler_root
-                    .join("files")
-                    .join("swift")
-                    .join("pax-swift-common");
-                let common_swift_cartridge_dest = pax_dir
-                    .join(INTERFACE_DIR_NAME)
-                    .join("common")
-                    .join("pax-swift-cartridge");
-                let common_swift_common_dest = pax_dir
-                    .join(INTERFACE_DIR_NAME)
-                    .join("common")
-                    .join("pax-swift-common");
-                copy_dir_recursively(
-                    &common_swift_cartridge_src,
-                    &common_swift_cartridge_dest,
-                    &[],
-                )
-                .expect("Failed to copy swift cartridge files");
-                copy_dir_recursively(&common_swift_common_src, &common_swift_common_dest, &[])
-                    .expect("Failed to copy swift common files");
-            }
-            _ => {}
-        }
     } else {
         // File src is include_dir — recursively extract files from include_dir into full_path
         match ctx.target {
             RunTarget::Web => PAX_WEB_INTERFACE_TEMPLATE
-                .extract(&interface_path)
+                .extract(interface_path)
                 .expect("Failed to extract web interface files"),
             RunTarget::macOS => PAX_MACOS_INTERFACE_TEMPLATE
-                .extract(&interface_path)
+                .extract(interface_path)
                 .expect("Failed to extract macos interface files"),
             RunTarget::iOS => PAX_IOS_INTERFACE_TEMPLATE
-                .extract(&interface_path)
+                .extract(interface_path)
                 .expect("Failed to extract ios interface files"),
         }
-
-        // also copy pax-chassis-common into interface/common for macos and ios builds
-        let common_dest = pax_dir.join(INTERFACE_DIR_NAME).join("common");
-        match ctx.target {
-            RunTarget::macOS | RunTarget::iOS => {
-                PAX_SWIFT_COMMON_TEMPLATE
-                    .extract(&common_dest)
-                    .expect("Failed to extract swift common template files");
-                PAX_SWIFT_CARTRIDGE_TEMPLATE
-                    .extract(&common_dest)
-                    .expect("Failed to extract swift cartridge template files");
-            }
-            _ => {}
-        }
     }
+}
+
+fn copy_common_swift_files(ctx: &RunContext, common_dest: &Path) {
+    if ctx.is_libdev_mode {
+        let pax_compiler_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let common_swift_cartridge_src = pax_compiler_root
+            .join("files")
+            .join("swift")
+            .join("pax-swift-cartridge");
+        let common_swift_common_src = pax_compiler_root
+            .join("files")
+            .join("swift")
+            .join("pax-swift-common");
+        let common_swift_cartridge_dest = common_dest.join("pax-swift-cartridge");
+        let common_swift_common_dest = common_dest.join("pax-swift-common");
+
+        copy_dir_recursively(
+            &common_swift_cartridge_src,
+            &common_swift_cartridge_dest,
+            &[],
+        )
+        .expect("Failed to copy swift cartridge files");
+        copy_dir_recursively(&common_swift_common_src, &common_swift_common_dest, &[])
+            .expect("Failed to copy swift common files");
+    } else {
+        PAX_SWIFT_COMMON_TEMPLATE
+            .extract(common_dest)
+            .expect("Failed to extract swift common template files");
+        PAX_SWIFT_CARTRIDGE_TEMPLATE
+            .extract(common_dest)
+            .expect("Failed to extract swift cartridge template files");
+    }
+}
+
+/// Ejects the interface files for the specified target platform
+/// Interface files will then be used to build the project
+pub fn perform_eject(ctx: &RunContext) -> eyre::Result<(), Report> {
+    let pax_dir = get_or_create_pax_directory(&ctx.project_path);
+    eject_interface_files(ctx, &pax_dir);
+    Ok(())
+}
+
+fn eject_interface_files(ctx: &RunContext, pax_dir: &PathBuf) {
+    let target_str: &str = (&ctx.target).into();
+    let target_str_lower = &target_str.to_lowercase();
+    let custom_interfaces_dir = pax_dir.parent().unwrap().join("interfaces");
+    let mut target_custom_interface_dir = custom_interfaces_dir.join(target_str_lower);
+    if ctx.target == RunTarget::Web {
+        target_custom_interface_dir = target_custom_interface_dir.join("public");
+    }
+
+    let _ = fs::create_dir_all(&target_custom_interface_dir);
+
+    if ctx.is_libdev_mode {
+        let src_path = get_libdev_interface_path(ctx);
+        let _ = copy_dir_recursively(&src_path, &target_custom_interface_dir, &[]);
+    } else {
+        let _ = extract_interface_template(ctx, &target_custom_interface_dir);
+    }
+
+    println!(
+        "Interface files ejected to: {}",
+        target_custom_interface_dir.display()
+    );
+}
+
+fn get_libdev_interface_path(ctx: &RunContext) -> PathBuf {
+    let pax_compiler_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    match ctx.target {
+        RunTarget::Web => pax_compiler_root
+            .join("files")
+            .join("interfaces")
+            .join("web")
+            .join("public"),
+        RunTarget::macOS => pax_compiler_root
+            .join("files")
+            .join("interfaces")
+            .join("macos")
+            .join("pax-app-macos"),
+        RunTarget::iOS => pax_compiler_root
+            .join("files")
+            .join("interfaces")
+            .join("ios")
+            .join("pax-app-ios"),
+    }
+}
+
+fn extract_interface_template(ctx: &RunContext, dest: &Path) -> Result<(), std::io::Error> {
+    match ctx.target {
+        RunTarget::Web => PAX_WEB_INTERFACE_TEMPLATE.extract(dest)?,
+        RunTarget::macOS => PAX_MACOS_INTERFACE_TEMPLATE.extract(dest)?,
+        RunTarget::iOS => PAX_IOS_INTERFACE_TEMPLATE.extract(dest)?,
+    }
+    Ok(())
 }
 
 /// Clean all `.pax` temp files
