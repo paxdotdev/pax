@@ -2,6 +2,7 @@ if self.is_container {
 	<Image
 		x=5px anchor_y=50% y=50% height=30px width=30px scale_x=60% scale_y=60%
 		source={ImageSource::Url(self.arrow_path)}
+		@mouse_down=self.arrow_clicked
 	/>
 }
 <EventBlocker/>

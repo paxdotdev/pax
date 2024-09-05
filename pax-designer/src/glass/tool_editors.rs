@@ -1,5 +1,6 @@
 use std::{cell::RefCell, ops::ControlFlow, rc::Rc};
 
+use anyhow::anyhow;
 use pax_engine::api::borrow_mut;
 use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_engine::{log, math::Point2, Property};
@@ -81,20 +82,25 @@ impl ToolBehavior for TextEditTool {
             text.editable.replace_with(Property::new(false));
         });
 
-        // commit text changes
-        let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        if let Some(mut builder) = dt.get_orm_mut().get_node(
-            self.uid.clone(),
-            ctx.app_state
-                .modifiers
-                .get()
-                .contains(&ModifierKey::Control),
-        ) {
-            builder
-                .set_typed_property("text", self.text_binding.get())
-                .unwrap();
-            builder.save().unwrap();
-        }
+        let t = ctx.transaction("text edit");
+
+        let _ = t.run(|| {
+            // commit text changes
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            if let Some(mut builder) = dt.get_orm_mut().get_node(
+                self.uid.clone(),
+                ctx.app_state
+                    .modifiers
+                    .get()
+                    .contains(&ModifierKey::Control),
+            ) {
+                builder.set_typed_property("text", self.text_binding.get())?;
+                builder
+                    .save()
+                    .map_err(|e| anyhow!("couldn't save text: {e}"))?;
+            }
+            Ok(())
+        });
         ControlFlow::Break(())
     }
 
