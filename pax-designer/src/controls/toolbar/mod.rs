@@ -60,7 +60,11 @@ pub enum ToolbarClickEvent {
 }
 
 pub fn close_dropdown() {
-    CLICK_PROP.with(|p| p.set(ToolbarClickEvent::CloseDropdown));
+    CLICK_PROP.with(|p| {
+        if matches!(p.get(), ToolbarClickEvent::Dropdown(_)) {
+            p.set(ToolbarClickEvent::CloseDropdown)
+        }
+    });
 }
 
 thread_local! {

@@ -218,7 +218,7 @@ pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<Recommend
                                         addr.do_send(msg);
                                         state.update_last_written_timestamp();
                                     }
-                                    Err(e) => println!("Error reading file: {:?}", e),
+                                    Err(_) => (),
                                 }
                             }
                         }
