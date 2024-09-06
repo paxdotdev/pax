@@ -5,8 +5,7 @@ edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-engine = { version = "0.22.0", path="../../pax-engine" }
-pax-std = { version = "0.22.0", path="../../pax-std"}
+pax-kit = { version = "0.35.0", path="../../pax-kit", features = ["designer"] }
 rand = { version = "0.8.5" }
 getrandom = { version = "0.2.15", features = ["js"] }
 
@@ -24,15 +23,24 @@ name = "run"
 path = "bin/run.rs"
 
 [features]
-parser = ["pax-std/parser"]
-designtime = ["pax-engine/designtime"]
-web = ["pax-engine/web"]
-macos = ["pax-engine/macos"]
-ios = ["pax-engine/ios"]
+designer = ["pax-kit/designer"]
+parser = ["pax-kit/parser"]
+web = ["pax-kit/web"]
+macos = ["pax-kit/macos"]
+ios = ["pax-kit/ios"]
 
-[profile.release]
-lto = true
-opt-level = "z"
+[profile.parser]
+inherits = "dev"
+opt-level = 0
+
+[profile.parser.package."*"]
+inherits = "dev"
+opt-level = 0
+
+[profile.dev]
+opt-level = 0
+debug = false
 
 [profile.dev.package."*"]
+opt-level = 2
 debug = false
