@@ -1,11 +1,11 @@
 [package]
 name = "starter-project"
-version = "0.36.1"
+version = "0.36.2"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-kit = { version = "0.36.1", path="../../../pax-kit", features = ["designer"] }
+pax-kit = { version = "0.36.2", path="../../../pax-kit", features = ["designer"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
