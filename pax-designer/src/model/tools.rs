@@ -202,6 +202,10 @@ impl ToolBehavior for CreateComponentTool {
             &deps,
         )
     }
+
+    fn finish(&mut self, _ctx: &mut ActionContext) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 pub struct SelectNodes<'a> {
@@ -538,6 +542,7 @@ impl ToolBehavior for MovingTool {
                 .render_parent()
                 .unwrap()
                 .is_of_type::<Slot>()
+                // replace want's slot behaviour with DesignerNodeType:: .metadata().is_slot_container?
                 && wants_slot_behavior(&&curr_node.raw_node_interface.template_parent().unwrap())
             {
                 let _ = transaction.run(|| {
@@ -571,6 +576,10 @@ impl ToolBehavior for MovingTool {
         let vis = self.vis.clone();
         let deps = [vis.untyped()];
         Property::computed(move || vis.get(), &deps)
+    }
+
+    fn finish(&mut self, _ctx: &mut ActionContext) -> anyhow::Result<()> {
+        Ok(())
     }
 }
 
@@ -686,6 +695,10 @@ impl ToolBehavior for MultiSelectTool {
             &deps,
         )
     }
+
+    fn finish(&mut self, _ctx: &mut ActionContext) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 pub struct ZoomToFitTool {
@@ -761,5 +774,9 @@ impl ToolBehavior for ZoomToFitTool {
             },
             &deps,
         )
+    }
+
+    fn finish(&mut self, _ctx: &mut ActionContext) -> anyhow::Result<()> {
+        Ok(())
     }
 }

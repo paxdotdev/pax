@@ -179,6 +179,13 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
             _point: Point2<Glass>,
             ctx: &mut ActionContext,
         ) -> ControlFlow<()> {
+            if let Err(e) = self.finish(ctx) {
+                log::warn!("failed to finish: {e}");
+            }
+            ControlFlow::Break(())
+        }
+
+        fn finish(&mut self, ctx: &mut ActionContext) -> anyhow::Result<()> {
             let curr_node = ctx
                 .engine_context
                 .get_nodes_by_global_id(self.initial_node.id.clone())
@@ -186,16 +193,13 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                 .next()
                 .unwrap();
             if curr_node.render_parent().unwrap().is_of_type::<Slot>() {
-                if let Err(e) = (SetNodeLayout {
+                SetNodeLayout {
                     id: &self.initial_node.id,
                     node_layout: &NodeLayoutSettings::Fill::<Glass>,
                 }
-                .perform(ctx))
-                {
-                    log::warn!("failed: {e}")
-                }
+                .perform(ctx)?
             }
-            ControlFlow::Break(())
+            Ok(())
         }
 
         fn keyboard(

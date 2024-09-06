@@ -681,14 +681,14 @@ export class NativeElementPool {
 
         if (patch.editable != null) {
             textChild.setAttribute("contenteditable", patch.editable.toString());
+            const selection = window.getSelection();
+            selection!.removeAllRanges();
             if (patch.editable == true) {
                 textChild.style.outline = "none";
 
                  // Select all text in the editable div
                 const range = document.createRange();
                 range.selectNodeContents(textChild);
-                const selection = window.getSelection();
-                selection!.removeAllRanges();
                 selection!.addRange(range);
 
                 setTimeout(() => {

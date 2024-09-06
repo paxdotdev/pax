@@ -11,6 +11,7 @@ use serde::Deserialize;
 use crate::controls::file_and_component_picker::SetLibraryState;
 use crate::designer_node_type::DesignerNodeType;
 use crate::model::action::orm::CreateComponent;
+use crate::model::action::tool::SetToolBehaviour;
 use crate::model::action::world::Translate;
 use crate::model::tools::{SelectMode, SelectNodes};
 use crate::model::{AppState, GlassNode};
@@ -327,7 +328,7 @@ impl Action for SetEditingComponent {
             .selected_template_node_ids
             .update(|v| v.clear());
         ctx.app_state.selected_component_id.set(type_id.clone());
-        ctx.app_state.tool_behavior.set(None);
+        SetToolBehaviour(None).perform(ctx)?;
         Ok(())
     }
 }

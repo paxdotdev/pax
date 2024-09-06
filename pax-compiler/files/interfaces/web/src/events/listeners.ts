@@ -228,9 +228,15 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         });
     }, {"passive": true, "capture": true});
     window.addEventListener('keydown', (evt) => {
-        if (document.activeElement != document.body) {
+        let dom_node_selected = document.activeElement != document.body;
+        // TODO figure out how to handle this more robustly
+        if (dom_node_selected && !(
+                evt.key === 'Escape' || evt.key == "Meta" || evt.key == "Control" || 
+                evt.key === '+' || evt.key === '-'
+            )) {
             return;
         }
+        
         let event = {
             "KeyDown": {
                 "key": evt.key,
@@ -239,7 +245,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             }
         };
         let res = chassis.interrupt(JSON.stringify(event), []);
-        if (res.prevent_default) {
+        if (res.prevent_default && !dom_node_selected) {
             evt.preventDefault();
         }
     }, true);
