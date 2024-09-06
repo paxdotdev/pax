@@ -1086,6 +1086,15 @@ impl ComponentTemplate {
         None
     }
 
+    pub fn get_parent(&self, id: &TemplateNodeId) -> Option<TemplateNodeId> {
+        if self.root.contains(id) {
+            return None;
+        }
+        self.children
+            .iter()
+            .find_map(|(n_id, child_ids)| child_ids.contains(&id).then_some(n_id).cloned())
+    }
+
     pub fn get_node(&self, id: &TemplateNodeId) -> Option<&TemplateNodeDefinition> {
         self.nodes.get(id)
     }

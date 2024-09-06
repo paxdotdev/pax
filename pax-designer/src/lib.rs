@@ -20,6 +20,7 @@ use model::{
 };
 
 pub mod context_menu;
+pub mod designer_node_type;
 pub mod glass;
 pub mod utils;
 

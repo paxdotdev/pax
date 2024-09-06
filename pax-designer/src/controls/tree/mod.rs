@@ -62,11 +62,12 @@ pub fn trigger_global_mouseup() {
 
 struct TreeEntry {
     node_id: TemplateNodeId,
-    desc: Desc,
+    node_type: DesignerNodeType,
     children: Vec<TreeEntry>,
 }
 
-enum Desc {
+#[derive(PartialEq)]
+pub enum DesignerNodeType {
     Frame,
     Group,
     Ellipse,
@@ -86,48 +87,19 @@ enum Desc {
     For,
 }
 
-impl Desc {
-    fn info(&self) -> (String, String, bool) {
-        let (name, img_path_suffix, is_container) = match self {
-            Desc::Frame => ("Frame", "frame", true),
-            Desc::Group => ("Group", "group", true),
-            Desc::Ellipse => ("Ellipse", "ellipse", false),
-            Desc::Text => ("Text", "text", false),
-            Desc::Stacker => ("Stacker", "stacker", true),
-            Desc::Rectangle => ("Rectangle", "rectangle", false),
-            Desc::Path => ("Path", "path", false),
-            Desc::Component(name) => (name.as_str(), "component", false),
-            Desc::Textbox => ("Textbox", "textbox", false),
-            Desc::Checkbox => ("Checkbox", "checkbox", false),
-            Desc::Scroller => ("Scroller", "scroller", true),
-            Desc::Button => ("Button", "button", false),
-            Desc::Image => ("Image", "image", false),
-            Desc::Slider => ("Slider", "slider", false),
-            Desc::Dropdown => ("Dropdown", "dropdown", false),
-            Desc::If => ("If", "if", true),
-            Desc::For => ("For", "for", true),
-        };
-        (
-            name.to_owned(),
-            format!("assets/icons/icon-{}.png", img_path_suffix),
-            is_container,
-        )
-    }
-}
-
 impl TreeEntry {
     fn flatten(self, ind: &mut usize, indent_level: isize) -> Vec<FlattenedTreeEntry> {
         let mut all = vec![];
-        let (name, img_path, container) = self.desc.info();
+        let desc = self.node_type.metadata();
         all.push(FlattenedTreeEntry {
             node_id: self.node_id,
-            name,
-            image_path: img_path,
+            name: desc.name,
+            image_path: desc.image_path,
             ind: *ind,
             indent_level,
             is_visible: true,
             is_selected: false,
-            is_container: container,
+            is_container: desc.is_container,
         });
         *ind += 1;
         all.extend(
@@ -418,39 +390,10 @@ fn to_tree(tnid: &TemplateNodeId, component_template: &ComponentTemplate) -> Opt
             .filter_map(|c_tnid| to_tree(c_tnid, component_template))
             .collect()
     };
-    let node_type = resolve_tree_type(node.type_id.clone());
+    let node_type = DesignerNodeType::from_type_id(node.type_id.clone());
     Some(TreeEntry {
         node_id: tnid.clone(),
-        desc: node_type,
+        node_type,
         children,
     })
-}
-
-fn resolve_tree_type(type_id: TypeId) -> Desc {
-    match type_id.get_pax_type() {
-        PaxType::If => Desc::If,
-        PaxType::Repeat => Desc::For,
-        _ => {
-            let Some(import_path) = type_id.import_path() else {
-                return Desc::Component(format!("{}", type_id.get_pax_type()));
-            };
-            match import_path.trim_start_matches("pax_std::") {
-                "core::group::Group" => Desc::Group,
-                "core::frame::Frame" => Desc::Frame,
-                "drawing::ellipse::Ellipse" => Desc::Ellipse,
-                "core::text::Text" => Desc::Text,
-                "layout::stacker::Stacker" => Desc::Stacker,
-                "drawing::rectangle::Rectangle" => Desc::Rectangle,
-                "drawing::path::Path" => Desc::Path,
-                "forms::textbox::Textbox" => Desc::Textbox,
-                "forms::checkbox::Checkbox" => Desc::Checkbox,
-                "core::scroller::Scroller" => Desc::Scroller,
-                "forms::button::Button" => Desc::Button,
-                "core::image::Image" => Desc::Image,
-                "forms::slider::Slider" => Desc::Slider,
-                "forms::dropdown::Dropdown" => Desc::Dropdown,
-                _ => Desc::Component(format!("{}", type_id.get_pax_type())),
-            }
-        }
-    }
 }
