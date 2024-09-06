@@ -446,6 +446,30 @@ impl<T: CoercionRules> CoercionRules for Vec<T> {
     }
 }
 
+impl<T1: CoercionRules, T2: CoercionRules> CoercionRules for (T1, T2) {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::Vec(vec) => {
+                let res: Result<T1, _> = T1::try_coerce(vec[0].clone());
+                let res2: Result<T2, _> = T2::try_coerce(vec[1].clone());
+                res.and_then(|v1| res2.map(|v2| (v1, v2)))
+            }
+            PaxValue::Option(mut opt) => {
+                if let Some(p) = opt.take() {
+                    <(T1, T2)>::try_coerce(p)
+                } else {
+                    return Err(format!("None can't be coerced into a Vec"));
+                }
+            }
+            v => Err(format!(
+                "{:?} can't be coerced into {:?}",
+                v,
+                std::any::type_name::<(T1, T2)>(),
+            )),
+        }
+    }
+}
+
 impl<T: CoercionRules> CoercionRules for Option<T> {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         match value {

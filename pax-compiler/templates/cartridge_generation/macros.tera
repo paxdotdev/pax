@@ -21,7 +21,10 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                 if let Some(vd) = defined_properties.get("{{property.name}}") {
                         match vd.clone() {
                             {{ engine_import_path }}::pax_manifest::ValueDefinition::LiteralValue(lv) => {
-                                let value = <{{property.property_type.type_id._type_id}}>::try_coerce(lv.clone()).unwrap();
+                                let value = <{{property.property_type.type_id._type_id}}>::try_coerce(lv.clone()).unwrap_or_else(|err| {
+                                    log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                                    Default::default()
+                                });
                                 properties.{{property.name}}.replace_with(Property::new_with_name(value, "{{property.name}}"));
                             },
                             {{ engine_import_path }}::pax_manifest::ValueDefinition::DoubleBinding(identifier) => {
@@ -33,7 +36,8 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                                 let variable = if let Some(p) = stack_frame.resolve_symbol_as_variable(&ident.name) {
                                     p
                                     } else {
-                                        panic!("Failed to resolve symbol {}", ident.name);
+                                        log::warn!("Failed to resolve symbol {}", ident.name);
+                                        return Default::default();
                                     };
                                     let name = ident.name.clone();
                                     let untyped = variable.get_untyped_property().clone();
@@ -41,7 +45,11 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                                 properties.{{property.name}} = Property::computed_with_name(
                                         move || {
                                             let new_value = cloned_variable.get_as_pax_value();
-                                            <{{property.property_type.type_id._type_id}}>::try_coerce(new_value).unwrap()
+                                            <{{property.property_type.type_id._type_id}}>::try_coerce(new_value)
+                                                .unwrap_or_else(|err| {
+                                                    log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                                                    Default::default()
+                                                })
                                         },
                                         &[untyped],
                                         &name,
@@ -64,15 +72,12 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                                         let new_value = info.expression
                                             .compute(cloned_stack.clone())
                                             .expect(&format!("Failed to compute expr: {}", info.expression));
-                                        let coerced = <{{property.property_type.type_id._type_id}}>::try_coerce(new_value.clone());
-                                        let coerced = if let Err(e) = coerced {
-                                            panic!(
-                                                "Failed to coerce value: {},\n {:?}\n, {}\n",
-                                                e, new_value, info.expression
-                                            );
-                                        } else {
-                                            coerced.unwrap()
-                                        };
+                                        let coerced = <{{property.property_type.type_id._type_id}}>::try_coerce(new_value.clone())
+                                            .unwrap_or_else(|err| {
+                                                log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                                                Default::default()
+                                            });
+
                                         coerced
                                     },
                                     &dependents,
@@ -114,7 +119,10 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                                     properties.{{property.name}} = Property::computed_with_name(
                                             move || {
                                                 let new_value = cloned_variable.get_as_pax_value();
-                                                <{{property.property_type.type_id._type_id}}>::try_coerce(new_value).unwrap()
+                                                <{{property.property_type.type_id._type_id}}>::try_coerce(new_value).unwrap_or_else(|err| {
+                                                    log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                                                    Default::default()
+                                                })
                                             },
                                             &[untyped],
                                             &name,
@@ -137,15 +145,10 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                                             let new_value = info.expression
                                                 .compute(cloned_stack.clone())
                                                 .expect(&format!("Failed to compute expr: {}", info.expression));
-                                            let coerced = <{{property.property_type.type_id._type_id}}>::try_coerce(new_value.clone());
-                                            let coerced = if let Err(e) = coerced {
-                                                panic!(
-                                                    "Failed to coerce value: {},\n {:?}\n, {}\n",
-                                                    e, new_value, info.expression
-                                                );
-                                            } else {
-                                                coerced.unwrap()
-                                            };
+                                            let coerced = <{{property.property_type.type_id._type_id}}>::try_coerce(new_value.clone()).unwrap_or_else(|err| {
+                                                log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                                                Default::default()
+                                            });
                                             coerced
                                         },
                                         &dependents,
@@ -266,7 +269,10 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                             {% if prop.flags.is_property_wrapped %}
                                 match vd {
                                     {{ engine_import_path }}::pax_manifest::ValueDefinition::LiteralValue(lv) => {
-                                        let value = <{{prop.type_id._type_id}}>::try_coerce(lv.clone()).unwrap();
+                                        let value = <{{prop.type_id._type_id}}>::try_coerce(lv.clone()).unwrap_or_else(|err| {
+                                            log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                                            Default::default()
+                                        });
                                         Property::new_with_name(value, "{{prop.name}}")
                                     },
                                     {{ engine_import_path }}::pax_manifest::ValueDefinition::DoubleBinding(identifier) => {
@@ -288,7 +294,10 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                         let ret = Property::computed_with_name(
                                             move || {
                                                 let new_value = cloned_variable.get_as_pax_value();
-                                                <{{prop.type_id._type_id}}>::try_coerce(new_value).unwrap()
+                                                <{{prop.type_id._type_id}}>::try_coerce(new_value).unwrap_or_else(|err| {
+                                                    log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                                                    Default::default()
+                                                })
                                             },
                                             &[untyped],
                                             &name,
@@ -313,15 +322,10 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                                 let new_value = cloned_ast
                                                     .compute(cloned_stack.clone())
                                                     .expect(&format!("Failed to compute expr: {}", cloned_ast));
-                                                let coerced = <{{prop.type_id._type_id}}>::try_coerce(new_value.clone());
-                                                let coerced = if let Err(e) = coerced {
-                                                    panic!(
-                                                        "Failed to coerce value: {},\n {:?}\n, {}\n",
-                                                        e, new_value, cloned_ast
-                                                    );
-                                                } else {
-                                                    coerced.unwrap()
-                                                };
+                                                let coerced = <{{prop.type_id._type_id}}>::try_coerce(new_value.clone()).unwrap_or_else(|err| {
+                                                    log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                                                    Default::default()
+                                                });
                                                 coerced
                                             },
                                             &dependents,
@@ -340,7 +344,10 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                             {% else %}
                                 match vd {
                                     {{ engine_import_path }}::pax_manifest::ValueDefinition::LiteralValue(lv) => {
-                                        <{{prop.type_id._type_id}}>::try_coerce(lv.clone()).unwrap()
+                                        <{{prop.type_id._type_id}}>::try_coerce(lv.clone()).unwrap_or_else(|err| {
+                                            log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                                            Default::default()
+                                        })
                                     },
                                     _ => unreachable!("Invalid value definition for {{prop.name}}")
                                 };
