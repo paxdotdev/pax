@@ -318,7 +318,6 @@ impl Action for SetEditingComponent {
         SetLibraryState { open: false }.perform(ctx)?;
 
         // TODO set stage defaults for opened component using "SetStage" action
-
         {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             dt.set_userland_root_component_type_id(&self.0);
@@ -328,7 +327,6 @@ impl Action for SetEditingComponent {
             .selected_template_node_ids
             .update(|v| v.clear());
         ctx.app_state.selected_component_id.set(type_id.clone());
-        SetToolBehaviour(None).perform(ctx)?;
         Ok(())
     }
 }
