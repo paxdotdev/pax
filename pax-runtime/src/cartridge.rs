@@ -70,7 +70,7 @@ pub trait DefinitionToInstanceTraverser {
         &self,
         type_id: &pax_manifest::TypeId,
     ) -> crate::rendering::InstantiationArgs {
-        let manifest = self.get_manifest();
+        let manifest: std::cell::Ref<pax_manifest::PaxManifest> = self.get_manifest();
         if let None = manifest.components.get(type_id) {
             panic!("Components with type_id {} not found in manifest", type_id);
         }
@@ -576,16 +576,20 @@ fn resolve_property<T: CoercionRules + PropertyValue + DeserializeOwned>(
     let cloned_stack = stack.clone();
     let resolved_property: Property<Option<T>> = match value_def.clone() {
         pax_manifest::ValueDefinition::LiteralValue(lv) => {
-            let val = T::try_coerce(lv).unwrap();
+            let val = T::try_coerce(lv).unwrap_or_else(|err| {
+                log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                Default::default()
+            });
             Property::new_with_name(Some(val), name)
         }
         pax_manifest::ValueDefinition::DoubleBinding(identifier) => {
-            let untyped_property = stack
-                .resolve_symbol_as_erased_property(&identifier.name)
-                .expect(&format!(
-                    "failed to resolve identifier: {}",
-                    &identifier.name
-                ));
+            let untyped_property =
+                if let Some(p) = stack.resolve_symbol_as_erased_property(&identifier.name) {
+                    p
+                } else {
+                    log::warn!("Failed to resolve symbol {}", identifier.name);
+                    return Default::default();
+                };
             Property::new_from_untyped(untyped_property.clone())
         }
         pax_manifest::ValueDefinition::Expression(info) => {
@@ -604,15 +608,10 @@ fn resolve_property<T: CoercionRules + PropertyValue + DeserializeOwned>(
                         .expression
                         .compute(cloned_stack.clone())
                         .expect(&format!("Failed to compute expr: {}", info.expression));
-                    let coerced = T::try_coerce(new_value.clone());
-                    let coerced = if let Err(e) = coerced {
-                        panic!(
-                            "Failed to coerce value: {},\n {:?}\n, {}\n",
-                            e, new_value, info.expression
-                        );
-                    } else {
-                        coerced.unwrap()
-                    };
+                    let coerced = T::try_coerce(new_value.clone()).unwrap_or_else(|err| {
+                        log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                        Default::default()
+                    });
                     Some(coerced)
                 },
                 &dependents,
@@ -623,7 +622,8 @@ fn resolve_property<T: CoercionRules + PropertyValue + DeserializeOwned>(
             let property = if let Some(p) = stack.resolve_symbol_as_erased_property(&ident.name) {
                 Property::new_from_untyped(p.clone())
             } else {
-                panic!("Failed to resolve symbol {}", ident.name);
+                log::warn!("Failed to resolve symbol {}", ident.name);
+                return Default::default();
             };
             let untyped = property.untyped();
             Property::computed_with_name(

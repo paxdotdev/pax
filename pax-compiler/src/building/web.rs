@@ -54,7 +54,7 @@ pub fn build_web_project_with_cartridge(
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
 
-    if is_release || cfg!(not(debug_assertions)) {
+    if is_release {
         cmd.arg("--release");
     } else {
         cmd.arg("--dev");
