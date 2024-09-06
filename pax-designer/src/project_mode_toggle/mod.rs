@@ -1,4 +1,5 @@
 use crate::model::{
+    action::tool::SetToolBehaviour,
     tools::{SelectMode, SelectNodes},
     ProjectMode,
 };
@@ -45,7 +46,8 @@ impl ProjectModeToggle {
                 ProjectMode::Playing
             }
         };
-        // Ideally we don't do this, but bounds returned on first change aren't correct atm
+        // Ideally we don't do any of this, but bounds returned on first change aren't correct atm,
+        // and tool state needs to be handled for for example text better. (shows old value on return)
         model::perform_action(
             &SelectNodes {
                 ids: &[],
@@ -53,6 +55,7 @@ impl ProjectModeToggle {
             },
             ctx,
         );
+        model::perform_action(&SetToolBehaviour(None), ctx);
         model::perform_action(&ProjectMsg(mode), ctx);
     }
 }

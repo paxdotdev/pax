@@ -109,6 +109,8 @@ pub struct AppState {
     /// OBS: needs to be wrapped in Rc<RefCell since tool_behavior itself needs
     /// action_context which contains app_state
     /// INVALID_IF: no invalid states
+    // WARNING: Don't directly call set on this. This results in the currently
+    // active tool not being finished. Instead use SetToolBehaviour action
     pub tool_behavior: Property<Option<Rc<RefCell<dyn ToolBehavior>>>>,
 
     //---------------toolbar----------------
@@ -382,12 +384,11 @@ pub fn process_keyboard_input(ctx: &NodeContext, dir: Dir, input: String) {
     // No-op if no tool is in use
     with_action_context(ctx, |ctx| {
         let tool_behavior = ctx.app_state.tool_behavior.clone();
-        tool_behavior.update(|tool_behavior| {
-            if let Some(tool) = tool_behavior {
-                let mut tool = tool.borrow_mut();
-                tool.pointer_move(ctx.app_state.mouse_position.get(), ctx);
-            }
-        });
+        let tool_behavior = tool_behavior.get();
+        if let Some(tool) = tool_behavior {
+            let mut tool = tool.borrow_mut();
+            tool.pointer_move(ctx.app_state.mouse_position.get(), ctx);
+        }
     });
 }
 
@@ -423,6 +424,9 @@ pub trait ToolBehavior {
     fn pointer_down(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()>;
     fn pointer_move(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()>;
     fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()>;
+    /// called before this tools get's replaced by another one: for example to commit text
+    /// when the TextEdit tool get's replaced.
+    fn finish(&mut self, ctx: &mut ActionContext) -> Result<()>;
     fn keyboard(&mut self, event: InputEvent, dir: Dir, ctx: &mut ActionContext)
         -> ControlFlow<()>;
     fn get_visual(&self) -> Property<ToolVisualizationState>;

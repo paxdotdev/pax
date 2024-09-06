@@ -6,6 +6,7 @@ use super::wireframe_editor::GlassPoint;
 use super::ToolVisualizationState;
 use crate::glass;
 use crate::math::intent_snapper::{self, IntentSnapper, SnapSet};
+use crate::model::action::tool::SetToolBehaviour;
 use anyhow::Result;
 use pax_engine::api::Fill;
 use pax_engine::api::*;
@@ -134,17 +135,8 @@ impl ToolBehavior for ControlPointTool {
             Property::default()
         }
     }
-}
 
-pub struct ActivateControlPoint {
-    behavior: Rc<RefCell<dyn ToolBehavior>>,
-}
-
-impl Action for ActivateControlPoint {
-    fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
-        ctx.app_state
-            .tool_behavior
-            .set(Some(Rc::clone(&self.behavior)));
+    fn finish(&mut self, _ctx: &mut ActionContext) -> Result<()> {
         Ok(())
     }
 }
@@ -184,7 +176,7 @@ impl ControlPoint {
                         ac.glass_transform().get() * pos,
                     )
                 });
-                model::perform_action(&ActivateControlPoint { behavior }, ctx);
+                model::perform_action(&SetToolBehaviour(Some(behavior)), ctx);
             } else {
                 pax_engine::log::warn!(
                     "tried to trigger control point tool behavior while none exist"

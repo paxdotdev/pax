@@ -16,6 +16,7 @@ use crate::glass::ToolVisualizationState;
 use crate::math::coordinate_spaces::Glass;
 use crate::math::AxisAlignedBox;
 use crate::model;
+use crate::model::action::tool::SetToolBehaviour;
 use crate::model::action::Action;
 use crate::model::action::ActionContext;
 use crate::model::input::Dir;
@@ -117,18 +118,21 @@ impl ToolBehavior for DropComponent {
     fn get_visual(&self) -> Property<crate::glass::ToolVisualizationState> {
         Property::new(ToolVisualizationState::default())
     }
+
+    fn finish(&mut self, _ctx: &mut ActionContext) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 impl ComponentLibraryItem {
     pub fn on_down(&mut self, ctx: &NodeContext, _args: Event<MouseDown>) {
-        model::with_action_context(ctx, |ctx| {
-            let data = self.data.get();
-            ctx.app_state
-                .tool_behavior
-                .set(Some(Rc::new(RefCell::new(DropComponent {
-                    type_id: data.type_id.clone(),
-                    bounds_pixels: data.bounds_pixels,
-                }))));
-        });
+        let data = self.data.get();
+        model::perform_action(
+            &SetToolBehaviour(Some(Rc::new(RefCell::new(DropComponent {
+                type_id: data.type_id.clone(),
+                bounds_pixels: data.bounds_pixels,
+            })))),
+            ctx,
+        );
     }
 }

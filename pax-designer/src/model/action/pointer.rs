@@ -245,6 +245,9 @@ impl Action for MouseEntryPointAction<'_> {
                     std::ops::ControlFlow::Break(_) => {
                         // TODO this could most likely be done in a nicer way:
                         // make a tool "stack", and return to last tool here instead
+                        if let Err(e) = tool.finish(ctx) {
+                            log::warn!("finishing tool failed: {e}");
+                        };
                         ctx.app_state
                             .selected_tool
                             .set(match ctx.app_state.unit_mode.get() {

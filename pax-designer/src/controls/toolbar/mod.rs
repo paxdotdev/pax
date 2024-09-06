@@ -1,4 +1,6 @@
-use pax_engine::api::{ButtonClick, Click, Event, Interpolatable, NodeContext, Numeric, Size};
+use pax_engine::api::{
+    borrow_mut, ButtonClick, Click, Event, Interpolatable, NodeContext, Numeric, Size,
+};
 use pax_engine::math::Point2;
 use pax_engine::*;
 use pax_std::*;
@@ -13,7 +15,9 @@ pub mod toolbar_item;
 use crate::llm_interface::OpenLLMPrompt;
 use crate::math::coordinate_spaces::Glass;
 use crate::math::SizeUnit;
+use crate::model::action::tool::SetToolBehaviour;
 use crate::model::action::{Action, ActionContext};
+use crate::model::tools::SelectNodes;
 use crate::model::{self, Component, ProjectMode, Tool, ToolBehavior};
 use crate::ProjectMsg;
 use anyhow::Result;
@@ -306,5 +310,31 @@ impl Action for SelectTool {
         }
         ctx.app_state.selected_tool.set(self.tool);
         Ok(())
+    }
+}
+
+pub struct FinishCurrentTool;
+
+impl Action for FinishCurrentTool {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+        let current_tool = ctx.app_state.tool_behavior.get();
+        let selected_tool = ctx.app_state.selected_tool.get();
+        if current_tool.is_some() {
+            SetToolBehaviour(None).perform(ctx)
+        } else if !matches!(selected_tool, Tool::PointerPercent | Tool::PointerPixels) {
+            ctx.app_state
+                .selected_tool
+                .set(match ctx.app_state.unit_mode.get() {
+                    SizeUnit::Pixels => Tool::PointerPixels,
+                    SizeUnit::Percent => Tool::PointerPercent,
+                });
+            Ok(())
+        } else {
+            SelectNodes {
+                ids: &[],
+                mode: model::tools::SelectMode::DiscardOthers,
+            }
+            .perform(ctx)
+        }
     }
 }

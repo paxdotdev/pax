@@ -6,6 +6,7 @@ use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_engine::{log, math::Point2, Property};
 use pax_std::core::text::Text;
 
+use crate::model::action::tool::SetToolBehaviour;
 use crate::model::input::{InputEvent, ModifierKey};
 use crate::{
     math::coordinate_spaces::Glass,
@@ -25,7 +26,7 @@ impl Action for TextEdit {
             TextEditTool::new(ctx, self.uid.clone())
                 .expect("should only edit text with text editing tool"),
         )));
-        ctx.app_state.tool_behavior.set(tool);
+        SetToolBehaviour(tool).perform(ctx)?;
         Ok(())
     }
 }
@@ -77,6 +78,21 @@ impl ToolBehavior for TextEditTool {
                 return ControlFlow::Continue(());
             }
         }
+        if let Err(e) = self.finish(ctx) {
+            log::warn!("failed to save text change: {e}");
+        };
+        ControlFlow::Break(())
+    }
+
+    fn pointer_move(&mut self, _point: Point2<Glass>, _ctx: &mut ActionContext) -> ControlFlow<()> {
+        ControlFlow::Continue(())
+    }
+
+    fn pointer_up(&mut self, _point: Point2<Glass>, _ctx: &mut ActionContext) -> ControlFlow<()> {
+        ControlFlow::Continue(())
+    }
+
+    fn finish(&mut self, ctx: &mut ActionContext) -> anyhow::Result<()> {
         let node = ctx.get_glass_node_by_global_id(&self.uid).unwrap();
         node.raw_node_interface.with_properties(|text: &mut Text| {
             text.editable.replace_with(Property::new(false));
@@ -84,7 +100,7 @@ impl ToolBehavior for TextEditTool {
 
         let t = ctx.transaction("text edit");
 
-        let _ = t.run(|| {
+        t.run(|| {
             // commit text changes
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             if let Some(mut builder) = dt.get_orm_mut().get_node(
@@ -100,16 +116,7 @@ impl ToolBehavior for TextEditTool {
                     .map_err(|e| anyhow!("couldn't save text: {e}"))?;
             }
             Ok(())
-        });
-        ControlFlow::Break(())
-    }
-
-    fn pointer_move(&mut self, _point: Point2<Glass>, _ctx: &mut ActionContext) -> ControlFlow<()> {
-        ControlFlow::Continue(())
-    }
-
-    fn pointer_up(&mut self, _point: Point2<Glass>, _ctx: &mut ActionContext) -> ControlFlow<()> {
-        ControlFlow::Continue(())
+        })
     }
 
     fn keyboard(

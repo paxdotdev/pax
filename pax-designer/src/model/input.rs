@@ -6,6 +6,7 @@ use pax_engine::api::{borrow, borrow_mut, Fill, Interpolatable, Stroke};
 use pax_engine::pax_manifest::{UniqueTemplateNodeIdentifier, ValueDefinition};
 use pax_engine::{log, CoercionRules, Property};
 
+use crate::controls::toolbar::FinishCurrentTool;
 use crate::model::action::orm::{RedoRequested, SerializeRequested, UndoRequested};
 use crate::{controls::toolbar, glass, llm_interface::OpenLLMPrompt};
 
@@ -179,6 +180,10 @@ impl Default for InputMapper {
                     (RawInput::A, HashSet::from([ModifierKey::Meta])),
                     InputEvent::SelectAllInOpenContainer,
                 ),
+                (
+                    (RawInput::Esc, HashSet::from([])),
+                    InputEvent::FinishCurrentTool,
+                ),
             ]
             .to_vec(),
         }
@@ -268,6 +273,7 @@ impl InputMapper {
             InputEvent::SwapFillStroke => Some(Box::new(SwapFillStrokeAction)),
             InputEvent::Ungroup => Some(Box::new(UngroupSelected {})),
             InputEvent::SelectAllInOpenContainer => Some(Box::new(SelectAllInOpenContainer)),
+            InputEvent::FinishCurrentTool => Some(Box::new(FinishCurrentTool)),
         }
     }
 }
@@ -308,6 +314,7 @@ pub enum RawInput {
     X,
     OpenSquareBracket,
     CloseSquareBracket,
+    Esc,
 }
 
 // TODO make RawInput be what is returned by the engine itself, instead
@@ -343,6 +350,7 @@ impl TryFrom<String> for RawInput {
             "shift" => Self::Shift,
             "delete" => Self::Delete,
             "backspace" => Self::Backspace,
+            "escape" => Self::Esc,
             _ => return Err(anyhow!("no configured raw input mapping for {:?}", value)),
         })
     }
@@ -369,6 +377,7 @@ pub enum InputEvent {
     SwapFillStroke,
     LayerMove(RelativeMove),
     SelectAllInOpenContainer,
+    FinishCurrentTool,
 }
 
 impl Interpolatable for ModifierKey {}
