@@ -2,6 +2,7 @@ use std::any::Any;
 use std::f64::consts::PI;
 
 use super::{Action, ActionContext};
+use crate::controls::tree::DesignerNodeType;
 use crate::glass::wireframe_editor::editor_generation::stacker_control::sizes_to_string;
 use crate::math::approx::ApproxEq;
 use crate::math::coordinate_spaces::{Glass, SelectionSpace, World};

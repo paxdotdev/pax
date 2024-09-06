@@ -166,6 +166,21 @@ impl PaxManifestORM {
         )
     }
 
+    pub fn get_parent(
+        &self,
+        uni: &UniqueTemplateNodeIdentifier,
+    ) -> Option<UniqueTemplateNodeIdentifier> {
+        let component = self
+            .manifest
+            .components
+            .get(&uni.get_containing_component_type_id())?;
+        let template = component.template.as_ref()?;
+        Some(UniqueTemplateNodeIdentifier::build(
+            uni.get_containing_component_type_id(),
+            template.get_parent(&uni.get_template_node_id())?,
+        ))
+    }
+
     pub fn move_node(
         &mut self,
         uni: UniqueTemplateNodeIdentifier,
