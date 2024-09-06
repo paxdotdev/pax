@@ -2,7 +2,6 @@ use std::any::Any;
 use std::f64::consts::PI;
 
 use super::{Action, ActionContext};
-use crate::controls::tree::DesignerNodeType;
 use crate::glass::wireframe_editor::editor_generation::stacker_control::sizes_to_string;
 use crate::math::approx::ApproxEq;
 use crate::math::coordinate_spaces::{Glass, SelectionSpace, World};
@@ -43,8 +42,7 @@ pub struct CreateComponent<'a> {
     pub parent_id: &'a UniqueTemplateNodeIdentifier,
     pub parent_index: TreeIndexPosition,
     pub type_id: &'a TypeId,
-    pub custom_props: &'a [(&'a str, &'a str)],
-    pub mock_children: usize,
+    pub builder_extra_commands: Option<&'a dyn Fn(&mut NodeBuilder) -> Result<()>>,
     pub node_layout: NodeLayoutSettings<'a, Glass>,
 }
 
@@ -53,6 +51,7 @@ impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
         let parent_location = ctx.location(self.parent_id, &self.parent_index);
 
         // probably move transactions to happen here? (and remove from callers)
+        // WARNING: if making this change, make sure mock children are in same transaction
         let save_data = {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             let mut builder = dt.get_orm_mut().build_new_node(
@@ -62,8 +61,8 @@ impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
 
             builder.set_location(parent_location);
 
-            for (name, value) in self.custom_props {
-                builder.set_property(name, value)?;
+            if let Some(extra_build_commands) = self.builder_extra_commands {
+                extra_build_commands(&mut builder)?;
             }
 
             builder
@@ -74,25 +73,6 @@ impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
         SetNodeLayout {
             id: &save_data.unique_id,
             node_layout: &self.node_layout,
-        }
-        .perform(ctx)?;
-
-        for i in 1..=self.mock_children {
-            let c = 210 - 60 * (i % 2);
-            CreateComponent {
-                parent_id: &save_data.unique_id,
-                parent_index: TreeIndexPosition::Top,
-                type_id: &TypeId::build_singleton("pax_std::drawing::rectangle::Rectangle", None),
-                custom_props: &[("fill", &format!("rgb({}, {}, {})", c, c, c))],
-                mock_children: 0,
-                node_layout: NodeLayoutSettings::Fill,
-            }
-            .perform(ctx)?;
-        }
-
-        SelectNodes {
-            ids: &[save_data.unique_id.get_template_node_id()],
-            mode: SelectMode::DiscardOthers,
         }
         .perform(ctx)?;
 

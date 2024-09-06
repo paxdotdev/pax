@@ -25,6 +25,7 @@ use crate::model::Tool;
 use crate::model::{AppState, ToolBehavior};
 use crate::SetStage;
 use anyhow::{anyhow, Result};
+use pax_designtime::orm::template::builder::NodeBuilder;
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::math::Transform2;
 use pax_engine::api::Size;
@@ -39,31 +40,48 @@ use pax_engine::pax_manifest::{
 use pax_engine::{log, NodeInterface, NodeLocal, Property, Slot};
 use pax_std::layout::stacker::Stacker;
 
+pub struct PostCreationData<'a> {
+    pub uid: &'a UniqueTemplateNodeIdentifier,
+    pub bounds: &'a AxisAlignedBox<Glass>,
+}
+
 pub struct CreateComponentTool {
     type_id: TypeId,
     origin: Point2<Glass>,
     bounds: Property<AxisAlignedBox>,
-    mock_children: usize,
-    custom_props: &'static [(&'static str, &'static str)],
+    builder_extra_commands: Option<Box<dyn Fn(&mut NodeBuilder) -> Result<()>>>,
+    post_creation_hook: Option<Box<dyn Fn(&mut ActionContext, PostCreationData) -> Result<()>>>,
     intent_snapper: IntentSnapper,
 }
 
 impl CreateComponentTool {
-    pub fn new(
-        point: Point2<Glass>,
-        type_id: &TypeId,
-        mock_children: usize,
-        custom_props: &'static [(&'static str, &'static str)],
-        ctx: &ActionContext,
-    ) -> Self {
+    pub fn new(point: Point2<Glass>, type_id: &TypeId, ctx: &ActionContext) -> Self {
         Self {
             type_id: type_id.clone(),
             origin: point,
-            mock_children,
-            custom_props,
             bounds: Property::new(AxisAlignedBox::new(Point2::default(), Point2::default())),
             intent_snapper: IntentSnapper::new_from_scene(ctx, &[]),
+            builder_extra_commands: None,
+            post_creation_hook: None,
         }
+    }
+
+    // WARNING: When this is called, the node exists in the manifest, but NOT in the engine
+    // NOTE: This function is run inside the transaction performed while creating the component
+    pub fn with_post_creation_hook(
+        mut self,
+        post_creation: impl Fn(&mut ActionContext, PostCreationData) -> Result<()> + 'static,
+    ) -> Self {
+        self.post_creation_hook = Some(Box::new(post_creation));
+        self
+    }
+
+    pub fn with_extra_builder_commands(
+        mut self,
+        cmds: impl Fn(&mut NodeBuilder) -> Result<()> + 'static,
+    ) -> Self {
+        self.builder_extra_commands = Some(Box::new(cmds));
+        self
     }
 }
 
@@ -127,22 +145,25 @@ impl ToolBehavior for CreateComponentTool {
                     },
                 },
                 type_id: &self.type_id,
-                custom_props: self.custom_props,
-                mock_children: self.mock_children,
+                builder_extra_commands: self.builder_extra_commands.as_ref().map(|v| v.as_ref()),
             }
             .perform(ctx)?;
-            // If this is text, then also start editing it (TODO generalize this
-            // if other editors should also open directly on edit, might be best
-            // to create a OpenEditor action that works for all types, instead
-            // of calling TextEdit directly).
-            if self.type_id == TypeId::build_singleton("pax_std::core::text::Text", None) {
-                // Node doesn't exit yet in engine (and needs to to be able to
-                // set contenteditable to true). schedule for next frame.
-                Schedule {
-                    action: Rc::new(TextEdit { uid }),
-                }
-                .perform(ctx)?;
+
+            if let Some(post_creation) = &self.post_creation_hook {
+                post_creation(
+                    ctx,
+                    PostCreationData {
+                        uid: &uid,
+                        bounds: &bounds,
+                    },
+                )?;
             }
+            SelectNodes {
+                ids: &[uid.get_template_node_id()],
+                mode: SelectMode::DiscardOthers,
+            }
+            .perform(ctx)?;
+
             Ok(())
         });
         ControlFlow::Break(())

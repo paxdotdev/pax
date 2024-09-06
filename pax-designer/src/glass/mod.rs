@@ -9,9 +9,10 @@ use pax_std::*;
 use serde::Deserialize;
 
 use crate::controls::file_and_component_picker::SetLibraryState;
+use crate::designer_node_type::DesignerNodeType;
 use crate::model::action::orm::CreateComponent;
 use crate::model::action::world::Translate;
-use crate::model::tools::SelectNodes;
+use crate::model::tools::{SelectMode, SelectNodes};
 use crate::model::{AppState, GlassNode};
 use crate::{model, SetStage, StageInfo};
 
@@ -264,7 +265,7 @@ impl Glass {
             let v = Vector2::new(150.0, 150.0);
             let t = ac.transaction("creating object");
             let _ = t.run(|| {
-                CreateComponent {
+                let uid = CreateComponent {
                     parent_id: &parent.id,
                     parent_index: pax_manifest::TreeIndexPosition::Top,
                     node_layout: model::action::orm::NodeLayoutSettings::KeepScreenBounds {
@@ -276,12 +277,19 @@ impl Glass {
                         parent_transform_and_bounds: &parent.transform_and_bounds.get(),
                         node_decomposition_config: &Default::default(),
                     },
-                    type_id: &TypeId::build_singleton("pax_std::core::image::Image", None),
-                    custom_props: &[(
-                        "source",
-                        &format!("ImageSource::Url(\"assets/{}\")", event.args.name),
-                    )],
-                    mock_children: 0,
+                    type_id: &DesignerNodeType::Image.metadata().type_id,
+                    builder_extra_commands: Some(&|builder| {
+                        builder.set_property(
+                            "source",
+                            &format!("ImageSource::Url(\"assets/{}\")", event.args.name),
+                        )
+                    }),
+                }
+                .perform(ac)?;
+
+                SelectNodes {
+                    ids: &[uid.get_template_node_id()],
+                    mode: SelectMode::DiscardOthers,
                 }
                 .perform(ac)
             });

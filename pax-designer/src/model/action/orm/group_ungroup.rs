@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use crate::{
-    controls::tree::DesignerNodeType,
+    designer_node_type::DesignerNodeType,
     math::{DecompositionConfiguration, IntoDecompositionConfiguration},
     model::{
         action::{
@@ -38,8 +38,8 @@ pub enum GroupType {
 impl From<GroupType> for TypeId {
     fn from(value: GroupType) -> Self {
         match value {
-            GroupType::Group => TypeId::build_singleton("pax_std::core::group::Group", None),
-            GroupType::Link => TypeId::build_singleton("pax_std::core::link::Link", None),
+            GroupType::Group => DesignerNodeType::Group.metadata().type_id,
+            GroupType::Link => DesignerNodeType::Link.metadata().type_id,
         }
     }
 }
@@ -107,8 +107,7 @@ impl Action for GroupSelected {
                     .map(|l| l.index)
                     .unwrap_or(TreeIndexPosition::Top),
                 type_id: &new_parent_type_id,
-                custom_props: &[],
-                mock_children: 0,
+                builder_extra_commands: None,
             }
             .perform(ctx)?;
 
