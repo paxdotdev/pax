@@ -1,6 +1,7 @@
 use std::any::Any;
 
 use crate::{
+    controls::tree::DesignerNodeType,
     math::{DecompositionConfiguration, IntoDecompositionConfiguration},
     model::{
         action::{
@@ -52,14 +53,32 @@ impl Action for GroupSelected {
         let selected: SelectionStateSnapshot = (&ctx.derived_state.selection_state.get()).into();
 
         // ------------ Figure out the location the group should be at ---------
-        let Some(_) = selected.items.first() else {
+        let Some(node_inside_group) = selected.items.first() else {
             return Err(anyhow!("nothing selected to group"));
         };
+        let group_location = {
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            let orm = dt.get_orm_mut();
+            orm.get_node_location(&node_inside_group.id)
+        };
+
         let root_parent = ctx.derived_state.open_container.get();
 
         let new_parent_type_id: TypeId = self.group_type.into();
         // -------- Create a group ------------
         let group_parent_data = ctx.get_glass_node_by_global_id(&root_parent).unwrap();
+
+        let parent_is_slot_container = (|| {
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            let orm = dt.get_orm_mut();
+            let parent_type_id = orm
+                .get_node(group_parent_data.id.clone(), false)?
+                .get_type_id();
+            let node_type = DesignerNodeType::from_type_id(parent_type_id);
+            Some(node_type.metadata().is_slot_container)
+        })()
+        .unwrap_or(false);
+
         let group_transform_and_bounds = selected.total_bounds.as_pure_size().cast_spaces();
         let t = ctx.transaction(&format!(
             "grouping selected objects into {}",
@@ -69,14 +88,24 @@ impl Action for GroupSelected {
         ));
 
         t.run(|| {
+            let group_parent_t_and_b = group_parent_data.transform_and_bounds.get();
+            let decomp_config = Default::default();
+            let node_layout = if parent_is_slot_container {
+                NodeLayoutSettings::Fill
+            } else {
+                NodeLayoutSettings::KeepScreenBounds {
+                    node_transform_and_bounds: &group_transform_and_bounds,
+                    parent_transform_and_bounds: &group_parent_t_and_b,
+                    node_decomposition_config: &decomp_config,
+                }
+            };
+
             let group_uid = CreateComponent {
                 parent_id: &group_parent_data.id,
-                node_layout: NodeLayoutSettings::KeepScreenBounds {
-                    node_transform_and_bounds: &group_transform_and_bounds,
-                    parent_transform_and_bounds: &group_parent_data.transform_and_bounds.get(),
-                    node_decomposition_config: &Default::default(),
-                },
-                parent_index: TreeIndexPosition::Top,
+                node_layout,
+                parent_index: group_location
+                    .map(|l| l.index)
+                    .unwrap_or(TreeIndexPosition::Top),
                 type_id: &new_parent_type_id,
                 custom_props: &[],
                 mock_children: 0,
@@ -119,7 +148,22 @@ impl Action for UngroupSelected {
         let selected: SelectionStateSnapshot = (&ctx.derived_state.selection_state.get()).into();
         let t = ctx.transaction("ungrouping");
         t.run(|| {
+            let mut select_toggle = vec![];
             for group in selected.items {
+                {
+                    let mut dt = borrow_mut!(ctx.engine_context.designtime);
+                    let node = dt
+                        .get_orm_mut()
+                        .get_node(group.id.clone(), false)
+                        .ok_or_else(|| anyhow!("no thing"))?;
+                    let node_type = DesignerNodeType::from_type_id(node.get_type_id());
+                    if !node_type.metadata().is_container {
+                        continue;
+                    }
+                }
+
+                select_toggle.push(group.id.get_template_node_id());
+
                 let parent = ctx
                     .get_glass_node_by_global_id(
                         &group
@@ -137,6 +181,25 @@ impl Action for UngroupSelected {
                     .get_node_children(group.id.clone())
                     .map_err(|e| anyhow!("group not found {:?}", e))?;
 
+                let group_location = {
+                    let mut dt = borrow_mut!(ctx.engine_context.designtime);
+                    let orm = dt.get_orm_mut();
+                    orm.get_node_location(&group.id)
+                };
+                let parent_is_slot_container = (|| {
+                    let mut dt = borrow_mut!(ctx.engine_context.designtime);
+                    let orm = dt.get_orm_mut();
+                    let node = orm.get_node(parent.id.clone(), false)?;
+                    let parent_type_id = node.get_type_id();
+                    let node_type = DesignerNodeType::from_type_id(parent_type_id);
+                    Some(node_type.metadata().is_slot_container)
+                })()
+                .unwrap_or(false);
+
+                let new_node_index = group_location
+                    .map(|l| l.index)
+                    .unwrap_or(TreeIndexPosition::Top);
+
                 // ---------- Move Nodes to group parent --------------
                 for child in group_children.iter().rev() {
                     let child_runtime_node = ctx.get_glass_node_by_global_id(&child).unwrap();
@@ -144,18 +207,26 @@ impl Action for UngroupSelected {
                         .layout_properties
                         .into_decomposition_config();
                     let child_t_and_b = child_runtime_node.transform_and_bounds.get();
-                    MoveNode {
-                        node_id: &child,
-                        new_parent_uid: &parent.id,
-                        index: TreeIndexPosition::Top,
-                        node_layout: NodeLayoutSettings::KeepScreenBounds {
+
+                    let node_layout = if parent_is_slot_container {
+                        NodeLayoutSettings::Fill
+                    } else {
+                        NodeLayoutSettings::KeepScreenBounds {
                             parent_transform_and_bounds: &group_parent_bounds,
                             node_transform_and_bounds: &child_t_and_b,
                             node_decomposition_config: &child_inv_config,
-                        },
+                        }
+                    };
+                    MoveNode {
+                        node_id: &child,
+                        new_parent_uid: &parent.id,
+                        index: new_node_index.clone(),
+                        node_layout,
                     }
                     .perform(ctx)?;
                 }
+
+                select_toggle.extend(group_children.iter().map(|v| v.get_template_node_id()));
 
                 // ---------- Delete group --------------
                 borrow_mut!(ctx.engine_context.designtime)
@@ -164,6 +235,12 @@ impl Action for UngroupSelected {
                     .map_err(|e| anyhow!("failed to remove group {:?}", e))
                     .map(|_| ())?;
             }
+
+            SelectNodes {
+                ids: &select_toggle,
+                mode: SelectMode::KeepOthers,
+            }
+            .perform(ctx)?;
 
             Ok(())
         })
