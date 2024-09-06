@@ -74,10 +74,10 @@ impl CornerRadiiPropertyEditor {
 
     pub fn change_0(&mut self, ctx: &NodeContext, event: Event<TextboxChange>) {
         let corner_radii = self.corner_radii.get();
-        let Ok(r0): Result<f64, _> = event.text.parse() else {
+        let r0: f64 = event.text.parse::<f64>().unwrap_or_else(|_| {
             log::warn!("can't set corner radii to non-float");
-            return;
-        };
+            0.0
+        });
         let r1 = corner_radii.top_right.get().to_float();
         let r2 = corner_radii.bottom_left.get().to_float();
         let r3 = corner_radii.bottom_right.get().to_float();
@@ -93,10 +93,10 @@ impl CornerRadiiPropertyEditor {
     pub fn change_1(&mut self, ctx: &NodeContext, event: Event<TextboxChange>) {
         let corner_radii = self.corner_radii.get();
         let r0 = corner_radii.top_left.get().to_float();
-        let Ok(r1): Result<f64, _> = event.text.parse() else {
+        let r1: f64 = event.text.parse::<f64>().unwrap_or_else(|_| {
             log::warn!("can't set corner radii to non-float");
-            return;
-        };
+            0.0
+        });
         let r2 = corner_radii.bottom_left.get().to_float();
         let r3 = corner_radii.bottom_right.get().to_float();
         let cr_str = format!(
@@ -111,10 +111,10 @@ impl CornerRadiiPropertyEditor {
         let corner_radii = self.corner_radii.get();
         let r0 = corner_radii.top_left.get().to_float();
         let r1 = corner_radii.top_right.get().to_float();
-        let Ok(r2): Result<f64, _> = event.text.parse() else {
+        let r2: f64 = event.text.parse::<f64>().unwrap_or_else(|_| {
             log::warn!("can't set corner radii to non-float");
-            return;
-        };
+            0.0
+        });
         let r3 = corner_radii.bottom_right.get().to_float();
         let cr_str = format!(
             "{{ top_left: {} top_right: {} bottom_left: {} bottom_right: {}}}",
@@ -129,10 +129,10 @@ impl CornerRadiiPropertyEditor {
         let r0 = corner_radii.top_left.get().to_float();
         let r1 = corner_radii.top_right.get().to_float();
         let r2 = corner_radii.bottom_left.get().to_float();
-        let Ok(r3): Result<f64, _> = event.text.parse() else {
+        let r3: f64 = event.text.parse::<f64>().unwrap_or_else(|_| {
             log::warn!("can't set corner radii to non-float");
-            return;
-        };
+            0.0
+        });
         let cr_str = format!(
             "{{ top_left: {} top_right: {} bottom_left: {} bottom_right: {}}}",
             r0, r1, r2, r3,
