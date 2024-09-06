@@ -20,6 +20,8 @@ use crate::model::action::Action;
 use crate::model::action::ActionContext;
 use crate::model::input::Dir;
 use crate::model::input::InputEvent;
+use crate::model::tools::SelectMode;
+use crate::model::tools::SelectNodes;
 use crate::model::GlassNode;
 use crate::model::ToolBehavior;
 use math::Point2;
@@ -76,7 +78,7 @@ impl ToolBehavior for DropComponent {
             };
             let t = ctx.transaction("instantiating component");
             let _ = t.run(|| {
-                CreateComponent {
+                let uid = CreateComponent {
                     parent_id: &parent.id,
                     parent_index: pax_manifest::TreeIndexPosition::Top,
                     node_layout: model::action::orm::NodeLayoutSettings::KeepScreenBounds {
@@ -88,12 +90,16 @@ impl ToolBehavior for DropComponent {
                         parent_transform_and_bounds: &parent.transform_and_bounds.get(),
                         node_decomposition_config: &Default::default(),
                     },
-                    mock_children: 0,
+                    builder_extra_commands: None,
                     type_id: &self.type_id,
-                    custom_props: &[],
                 }
                 .perform(ctx)?;
-                SetLibraryState { open: false }.perform(ctx)
+                SetLibraryState { open: false }.perform(ctx)?;
+                SelectNodes {
+                    ids: &[uid.get_template_node_id()],
+                    mode: SelectMode::DiscardOthers,
+                }
+                .perform(ctx)
             });
         }
         ControlFlow::Break(())
