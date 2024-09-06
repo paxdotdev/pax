@@ -310,29 +310,16 @@ impl Action for SetEditingComponent {
 
         // TODO set stage defaults for opened component using "SetStage" action
 
-        // TODO make this work again after refactor
-        log::warn!("can't edit other components - not implemented");
-        // let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        // let node = ctx.engine_context.get_userland_root_expanded_node();
-        // let mut builder = dt
-        //     .get_orm_mut()
-        //     .get_node(
-        //         node.global_id()
-        //             .ok_or(anyhow!("expanded node doesn't have global id"))?,
-        //         false,
-        //     )
-        //     .ok_or(anyhow!("no such node in manifest"))?;
-        // builder.set_type_id(&type_id);
-        // builder
-        //     .save()
-        //     .map_err(|_| anyhow!("builder couldn't save"))?;
-        // dt.reload_edit();
-        // // reset other relevant app state
-        // ctx.app_state
-        //     .selected_template_node_ids
-        //     .update(|v| v.clear());
-        // ctx.app_state.selected_component_id.set(type_id.clone());
-        // ctx.app_state.tool_behavior.set(None);
+        {
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            dt.set_userland_root_component_type_id(&self.0);
+        }
+        // reset other relevant app state
+        ctx.app_state
+            .selected_template_node_ids
+            .update(|v| v.clear());
+        ctx.app_state.selected_component_id.set(type_id.clone());
+        ctx.app_state.tool_behavior.set(None);
         Ok(())
     }
 }

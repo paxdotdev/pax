@@ -3,7 +3,6 @@
 
 @settings {
     @mouse_down: on_down
-    @double_click: on_double_click
     .component_text {
         style: {
             font_size: 20px,

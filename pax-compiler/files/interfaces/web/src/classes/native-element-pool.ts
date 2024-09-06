@@ -821,8 +821,10 @@ export class NativeElementPool {
 
     scrollerUpdate(patch: ScrollerUpdatePatch){
         let leaf = this.nodesLookup.get(patch.id!);
+        // Ordering sometimes result in updates being sent after deletes.
+        // could fix this ordering, but simply "skipping" this works for now.
         if (leaf == undefined) {
-            throw new Error("tried to update non-existent scroller");
+            return;
         }
         let scroller_inner = leaf.firstChild as HTMLElement;
 
