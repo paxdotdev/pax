@@ -68,6 +68,10 @@ impl ToolBehavior for Pan {
     fn get_visual(&self) -> pax_engine::Property<crate::glass::ToolVisualizationState> {
         Property::new(crate::glass::ToolVisualizationState::default())
     }
+
+    fn finish(&mut self, _ctx: &mut ActionContext) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 pub struct Translate {

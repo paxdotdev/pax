@@ -45,8 +45,11 @@ impl DesignerNodeType {
                 let Some(import_path) = type_id.import_path() else {
                     return DesignerNodeType::Unregistered(type_id);
                 };
+                // TODO make this and  the metadata method use the same constants, or maybe even a signle
+                // Vec<(TypeId, DesignerNodeType)> that can be searched in either direction.
                 match import_path.trim_start_matches("pax_std::") {
                     "core::group::Group" => DesignerNodeType::Group,
+                    "core::link::Link" => DesignerNodeType::Link,
                     "core::frame::Frame" => DesignerNodeType::Frame,
                     "drawing::ellipse::Ellipse" => DesignerNodeType::Ellipse,
                     "core::text::Text" => DesignerNodeType::Text,
@@ -60,7 +63,13 @@ impl DesignerNodeType {
                     "core::image::Image" => DesignerNodeType::Image,
                     "forms::slider::Slider" => DesignerNodeType::Slider,
                     "forms::dropdown::Dropdown" => DesignerNodeType::Dropdown,
-                    _ => DesignerNodeType::Unregistered(type_id),
+                    _ => {
+                        let (_, name) = import_path.rsplit_once("::").unwrap_or(("", &import_path));
+                        DesignerNodeType::Component {
+                            name: name.to_string(),
+                            import_path,
+                        }
+                    }
                 }
             }
         }
