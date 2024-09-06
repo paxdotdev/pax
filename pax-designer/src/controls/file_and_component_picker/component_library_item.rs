@@ -56,30 +56,37 @@ impl ToolBehavior for DropComponent {
     }
 
     fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
-        let (w, h) = self.bounds_pixels;
+        // TODO fill this in again later, for some reason gives (0, 0) (to/from pax value impl?)
+        // let (w, h) = self.bounds_pixels;
+        let (w, h) = (200.0, 200.0);
         let v = Vector2::new(w, h) / 2.0;
         let bounds = AxisAlignedBox::new(point + v, point - v);
-        let parent = ctx.engine_context.get_userland_root_expanded_node();
-        let parent = GlassNode::new(&parent, &ctx.glass_transform());
-        CreateComponent {
-            parent_id: &parent.id,
-            parent_index: pax_manifest::TreeIndexPosition::Top,
-            node_layout: model::action::orm::NodeLayoutSettings::KeepScreenBounds {
-                node_transform_and_bounds: &TransformAndBounds {
-                    transform: bounds.as_transform(),
-                    bounds: (1.0, 1.0),
-                }
-                .as_pure_size(),
-                parent_transform_and_bounds: &parent.transform_and_bounds.get(),
-                node_decomposition_config: &Default::default(),
-            },
-            mock_children: 0,
-            type_id: &self.type_id,
-            custom_props: &[],
-        }
-        .perform(ctx)
-        .unwrap();
-        SetLibraryState { open: false }.perform(ctx).unwrap();
+        let root_parent = ctx.derived_state.open_container.get();
+        let Ok(parent) = ctx.get_glass_node_by_global_id(&root_parent) else {
+            log::warn!("couldn't find open container node");
+            return ControlFlow::Break(());
+        };
+        let t = ctx.transaction("instantiating component");
+        let _ = t.run(|| {
+            CreateComponent {
+                parent_id: &parent.id,
+                parent_index: pax_manifest::TreeIndexPosition::Top,
+                node_layout: model::action::orm::NodeLayoutSettings::KeepScreenBounds {
+                    node_transform_and_bounds: &TransformAndBounds {
+                        transform: bounds.as_transform(),
+                        bounds: (1.0, 1.0),
+                    }
+                    .as_pure_size(),
+                    parent_transform_and_bounds: &parent.transform_and_bounds.get(),
+                    node_decomposition_config: &Default::default(),
+                },
+                mock_children: 0,
+                type_id: &self.type_id,
+                custom_props: &[],
+            }
+            .perform(ctx)?;
+            SetLibraryState { open: false }.perform(ctx)
+        });
         ControlFlow::Break(())
     }
 
