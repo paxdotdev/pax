@@ -65,7 +65,7 @@
                 align_horizontal: TextAlignHorizontal::Left
                 align_multiline: TextAlignHorizontal::Left
                 underline: false
-            } 
+            }
                 width=400px anchor_x=0 anchor_y=50%/>
         </Link>
         <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
@@ -84,7 +84,7 @@
                 align_horizontal: TextAlignHorizontal::Left
                 align_multiline: TextAlignHorizontal::Left
                 underline: false
-            } 
+            }
                 width=400px anchor_x=0 anchor_y=50%/>
         </Link>
         <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
@@ -106,7 +106,7 @@
 <Calculator width=30.13% x=25.33% y=54.48% height=77.29% anchor_x=50.00% anchor_y=50.00%/>
 <Group width=123.19% x=38.38% y=41.06% height=116.90% rotate=-4.79deg>
     <Text y=60.15% x=77.40% height=10.61% text="Every visual change is code.
-Every app is responsive by default." 
+Every app is responsive by default."
         style={
             font: Font::Web(
                 "Roboto",
@@ -122,7 +122,7 @@ Every app is responsive by default."
         } 
         width=37.67%/>
     <Group x=84.04% scale_x=100% y=46.51% width=36.04% scale_y=100% height=31.55% anchor_x=100%>
-        <Text y=63.68% x=110.29% height=39.59% 
+        <Text y=63.68% x=110.29% height=39.59%
             text="Build mobile apps, websites, business tools, games, interactive cartoons, or data visualizations." style={
                 font: Font::Web(
                     "Roboto",

@@ -1,141 +1,193 @@
-<Group x=50% y=50% width=400px height=700px>
-    <Stacker direction=StackerDirection::Vertical>
-        <Group width=100% height=120px>
-            <Text text={self.display} id=display x=95% y=50% />
-        </Group>
-        <Stacker direction=StackerDirection::Horizontal>
-            <Button label="sin" @button_click=handle_sin class=btn_sci />
-            <Button label="cos" @button_click=handle_cos class=btn_sci />
-            <Button label="tan" @button_click=handle_tan class=btn_sci />
-            <Button label="log" @button_click=handle_log class=btn_sci />
-        </Stacker>
-        <Stacker direction=StackerDirection::Horizontal>
-            <Button label="ln" @button_click=handle_ln class=btn_sci />
-            <Button label="√" @button_click=handle_sqrt class=btn_sci />
-            <Button label="^" @button_click=handle_power class=btn_sci />
-            <Button label="π" @button_click=handle_pi class=btn_sci />
-        </Stacker>
-        <Stacker direction=StackerDirection::Horizontal>
-            <Button label="AC" @button_click=handle_clear class=btn_top />
-            <Button label="C" @button_click=handle_clear class=btn_top />
-            <Button label="+/-" class=btn_top />
-            <Button label="÷" @button_click=handle_divide class=btn_op />
-        </Stacker>
-        <Stacker direction=StackerDirection::Horizontal>
-            <Button label="7" @button_click=handle7 class=btn />
-            <Button label="8" @button_click=handle8 class=btn />
-            <Button label="9" @button_click=handle9 class=btn />
-            <Button label="×" @button_click=handle_multiply class=btn_op />
-        </Stacker>
-        <Stacker direction=StackerDirection::Horizontal>
-            <Button label="4" @button_click=handle4 class=btn />
-            <Button label="5" @button_click=handle5 class=btn />
-            <Button label="6" @button_click=handle6 class=btn />
-            <Button label="-" @button_click=handle_subtract class=btn_op />
-        </Stacker>
-        <Stacker direction=StackerDirection::Horizontal>
-            <Button label="1" @button_click=handle1 class=btn />
-            <Button label="2" @button_click=handle2 class=btn />
-            <Button label="3" @button_click=handle3 class=btn />
-            <Button label="+" @button_click=handle_add class=btn_op />
-        </Stacker>
-        <Stacker direction=StackerDirection::Horizontal>
-            <Button label="0" @button_click=handle0 class=btn_zero />
-            <Button label="." class=btn />
-            <Button label="=" @button_click=handle_equals class=btn_op />
-        </Stacker>
-    </Stacker>
-    <Rectangle fill=rgb(28, 28, 30) corner_radii={RectangleCornerRadii::radii(20.0, 20.0, 20.0, 20.0)} />
+<Image source=ImageSource::Url("assets/pax-logo-white-on-black.png") x=2.82% height=19.44% y=1.60% width=11.07%/>
+<Stacker width=35.83% y=82.59% height=20.95% anchor_y=49.99% anchor_x=100.00% x=99.99% sizes=[]>
+    <Group rotate=0.00rad skew_x=0.00rad skew_y=0.00rad>
+        <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
+        <Text y=49.99% x=40px text="Try Running (button on top right) and resizing your browser" style={
+            font: Font::Web(
+                "Roboto",
+                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            font_size: 15.00px
+            fill: rgba(0, 0, 0, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        } 
+            height=92.48% width=400px anchor_x=0 anchor_y=50%/>
+    </Group>
+    <Group rotate=0.00rad skew_y=0.00rad skew_x=0.00rad>
+        <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
+        <Text y=49.99% x=40px text="Draw an ellipse, add a textbox" style={
+            font: Font::Web(
+                "Roboto",
+                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            font_size: 15.00px
+            fill: rgba(0, 0, 0, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        } 
+            height=92.48% width=400px anchor_x=0 anchor_y=50%/>
+    </Group>
+    <Group rotate=0.00rad skew_y=0.00rad skew_x=0.00rad>
+        <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
+        <Text y=49.99% x=40px text="Write an expression — press an `fx` button on the right" style={
+            font: Font::Web(
+                "Roboto",
+                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            font_size: 15.00px
+            fill: rgba(0, 0, 0, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        } 
+            height=92.48% width=400px anchor_x=0 anchor_y=50%/>
+    </Group>
+    <Group rotate=0.00rad skew_y=0.00rad skew_x=0.00rad>
+        <Link width=124.50% y=49.89% x=40px height=92.47% url="https://www.github.com/paxengine/pax">
+<<<<<<< HEAD
+            <Text y=49.99% text="Check out source code on github" style={
+=======
+            <Text y=49.99% text="check out source code on github" style={
+>>>>>>> f27d86b3 (update starter project; support negative rotation in PAXEL; fix Link crash in designer; support clearing corner radius)
+                font: Font::Web(
+                    "Roboto",
+                    "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                    FontStyle::Normal,
+                    FontWeight::Normal)
+                font_size: 15.00px
+                fill: rgba(0, 0, 0, 255)
+                align_vertical: TextAlignVertical::Center
+                align_horizontal: TextAlignHorizontal::Left
+                align_multiline: TextAlignHorizontal::Left
+                underline: false
+            } 
+                width=400px anchor_x=0 anchor_y=50%/>
+        </Link>
+        <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
+    </Group>
+    <Group rotate=0.00rad skew_x=0.00rad skew_y=0.00rad>
+        <Link x=40px height=92.47% y=49.89% width=124.50% url="https://docs.pax.dev/">
+            <Text y=49.99% text="Learn more in the docs" style={
+                font: Font::Web(
+                    "Roboto",
+                    "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                    FontStyle::Normal,
+                    FontWeight::Normal)
+                font_size: 15.00px
+                fill: rgba(0, 0, 0, 255)
+                align_vertical: TextAlignVertical::Center
+                align_horizontal: TextAlignHorizontal::Left
+                align_multiline: TextAlignHorizontal::Left
+                underline: false
+            } 
+                width=400px anchor_x=0 anchor_y=50%/>
+        </Link>
+        <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
+    </Group>
+</Stacker>
+<<<<<<< HEAD
+<Text scale_y=100% width=16.50% y=91.32% scale_x=100% x=54.72% height=20.83% text="Try it out:" style={
+=======
+<Text scale_y=100% width=16.50% y=91.09% scale_x=100% x=54.72% height=20.83% text="Try it out:" style={
+>>>>>>> f27d86b3 (update starter project; support negative rotation in PAXEL; fix Link crash in designer; support clearing corner radius)
+    font: Font::Web(
+        "Roboto",
+        "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+        FontStyle::Normal,
+        FontWeight::Bold)
+    font_size: 46px
+    fill: rgba(0, 0, 0, 255)
+    align_vertical: TextAlignVertical::Top
+    align_horizontal: TextAlignHorizontal::Right
+    align_multiline: TextAlignHorizontal::Right
+    underline: false
+}/>
+<<<<<<< HEAD
+<Calculator width=30.13% x=25.33% y=54.48% height=77.29% anchor_x=50.00% anchor_y=50.00%/>
+=======
+<Calculator width=27.43% x=24.68% y=57.24% height=66.42% anchor_x=50.00% anchor_y=50.00%/>
+>>>>>>> f27d86b3 (update starter project; support negative rotation in PAXEL; fix Link crash in designer; support clearing corner radius)
+<Group width=123.19% x=38.38% y=41.06% height=116.90% rotate=-4.79deg>
+    <Text y=60.15% x=77.40% height=10.61% text="Every visual change is code.
+Every app is responsive by default." 
+        style={
+            font: Font::Web(
+                "Roboto",
+                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold)
+            font_size: 35.00px
+            fill: rgba(254, 254, 254, 255)
+            align_vertical: TextAlignVertical::Bottom
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        } 
+        width=37.67%/>
+    <Group x=84.04% scale_x=100% y=46.51% width=36.04% scale_y=100% height=31.55% anchor_x=100%>
+        <Text y=63.68% x=110.29% height=39.59% 
+            text="Build mobile apps, websites, business tools, games, interactive cartoons, or data visualizations." style={
+                font: Font::Web(
+                    "Roboto",
+                    "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                    FontStyle::Normal,
+                    FontWeight::Light)
+                font_size: 24.00px
+                fill: rgba(254, 254, 254, 255)
+                align_vertical: TextAlignVertical::Center
+                align_horizontal: TextAlignHorizontal::Left
+                align_multiline: TextAlignHorizontal::Left
+                underline: false
+            } 
+            width=109.90%/>
+        <Text y=18.84% x=0.17% height=42.85% text="Build user interfaces with the creative freedom of a vector design tool." style={
+            font: Font::Web(
+                "Roboto",
+                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold)
+            font_size: 38px
+            fill: rgba(254, 254, 254, 255)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        } 
+            width=108.72%/>
+    </Group>
+<<<<<<< HEAD
+    <Rectangle x=0.00% height=33.33% y=0.00% fill=rgba(0, 0, 0, 226) corner_radii={
+=======
+    <Rectangle x=0.00% height=33.33% y=0.00% fill=rgba(0, 0, 0, 255) corner_radii={
+>>>>>>> f27d86b3 (update starter project; support negative rotation in PAXEL; fix Link crash in designer; support clearing corner radius)
+        top_left: 0
+        top_right: 0
+        bottom_left: 0
+        bottom_right: 0
+    }/>
+    <Rectangle x=0.00% height=33.33% y=49.99% fill=rgba(46, 49, 49, 255)/>
+    <Rectangle x=0.00% height=33.33% y=100.00% fill=rgba(206, 207, 207, 255)/>
 </Group>
 
 @settings {
-    #display {
+    @pre_render: handle_pre_render
+    #text {
         style: {
-            font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Light,
-            )},
-            font_size: 64px,
-            fill: WHITE,
-            align_vertical: TextAlignVertical::Center,
-            align_horizontal: TextAlignHorizontal::Right,
+            font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold)
+            font_size: 22px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
         }
-    }
-    .btn {
-        style: {
-            font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Normal,
-            )},
-            font_size: 28px,
-            fill: WHITE,
-            align_vertical: TextAlignVertical::Center,
-            align_horizontal: TextAlignHorizontal::Center,
-        },
-        color: rgb(51, 51, 51)
-    }
-    .btn_top {
-        style: {
-            font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Normal,
-            )},
-            font_size: 28px,
-            fill: BLACK,
-            align_vertical: TextAlignVertical::Center,
-            align_horizontal: TextAlignHorizontal::Center,
-        },
-        color: rgb(165, 165, 165)
-    }
-    .btn_op {
-        style: {
-           font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Normal,
-            )},
-            font_size: 28px,
-            fill: WHITE,
-            align_vertical: TextAlignVertical::Center,
-            align_horizontal: TextAlignHorizontal::Center,
-        },
-        color: rgb(255, 159, 10)
-    }
-    .btn_zero {
-        style: {
-           font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Normal,
-            )},
-            font_size: 28px,
-            fill: WHITE,
-            align_vertical: TextAlignVertical::Center,
-            align_horizontal: TextAlignHorizontal::Center,
-        },
-        color: rgb(51, 51, 51)
-    }
-    .btn_sci {
-        style: {
-           font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Normal,
-            )},
-            font_size: 24px,
-            fill: WHITE,
-            align_vertical: TextAlignVertical::Center,
-            align_horizontal: TextAlignHorizontal::Center,
-        },
-        color: rgb(70, 70, 70)
     }
 }
