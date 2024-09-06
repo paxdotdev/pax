@@ -20,6 +20,7 @@ use serde::Deserialize;
 use std::collections::{HashMap, HashSet, VecDeque};
 use treeobj::TreeObj;
 
+use crate::designer_node_type::DesignerNodeType;
 use crate::glass::SetEditingComponent;
 use crate::math::coordinate_spaces::Glass;
 use crate::math::IntoDecompositionConfiguration;
@@ -64,27 +65,6 @@ struct TreeEntry {
     node_id: TemplateNodeId,
     node_type: DesignerNodeType,
     children: Vec<TreeEntry>,
-}
-
-#[derive(PartialEq)]
-pub enum DesignerNodeType {
-    Frame,
-    Group,
-    Ellipse,
-    Text,
-    Stacker,
-    Rectangle,
-    Path,
-    Component(String),
-    Textbox,
-    Checkbox,
-    Scroller,
-    Button,
-    Image,
-    Slider,
-    Dropdown,
-    If,
-    For,
 }
 
 impl TreeEntry {
