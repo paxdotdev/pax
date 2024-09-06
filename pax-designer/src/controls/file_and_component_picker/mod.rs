@@ -72,15 +72,15 @@ impl FileAndComponentPicker {
     }
 
     fn bind_current_selected_component(&mut self) {
-        let selected_component_id = model::read_app_state(|app_state| { app_state.selected_component_id.clone() });
+        let selected_component_id =
+            model::read_app_state(|app_state| app_state.selected_component_id.clone());
         let deps = &[selected_component_id.untyped()];
 
-        self.current_selected_component.replace_with(Property::computed(
-            move || {
-                selected_component_id.get().get_pascal_identifier().unwrap()
-            },
-            deps,
-        ));
+        self.current_selected_component
+            .replace_with(Property::computed(
+                move || selected_component_id.get().get_pascal_identifier().unwrap(),
+                deps,
+            ));
     }
     fn bind_registered_components(&mut self, ctx: &NodeContext) {
         let dt = Rc::clone(&ctx.designtime);
@@ -101,13 +101,15 @@ impl FileAndComponentPicker {
                 }
 
                 let dt = borrow_mut!(dt);
-                dt.get_orm()
+                let data = dt
+                    .get_orm()
                     .get_components()
                     .iter()
                     .filter_map(|type_id| {
                         Self::get_component_data(&dt, type_id, &[selected_component.get()])
                     })
-                    .collect()
+                    .collect();
+                data
             },
             &deps,
         ));
