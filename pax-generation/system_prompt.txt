@@ -124,9 +124,7 @@ Based on this template our application logic must define the state of this compo
 ```rust filename="lib.rs"  copy
 //File: lib.rs
 #![allow(unused_imports)]
-use pax_engine::api::*;
-use pax_engine::*;
-use pax_std::*;
+use pax_kit::*;
 
 #[pax]
 #[main]
@@ -439,9 +437,7 @@ The atomic unit of Pax is a `component definition`. A component definition for `
 #![allow(unused_imports)]
 
 #![allow(unused_imports)]
-use pax_engine::api::*;
-use pax_engine::*;
-use pax_std::*;
+use pax_kit::*;
 
 
 #[pax]
@@ -509,9 +505,7 @@ A component definition centers around a _Rust struct_, to which a piece of Pax i
 
 ```rust
 #![allow(unused_imports)]
-use pax_engine::api::*;
-use pax_engine::*;
-use pax_std::*;
+use pax_kit::*;
 
 
 #[pax]
@@ -525,9 +519,7 @@ Any component created in Pax can be used inside other components — for example
 
 ```rust
 #![allow(unused_imports)]
-use pax_engine::api::*;
-use pax_engine::*;
-use pax_std::*;
+use pax_kit::*;
 
 use crate::EmptyComponent;
 
@@ -923,9 +915,7 @@ Properties are defined on Rust structs, such as `counter` below:
 
 ```rust
 #![allow(unused_imports)]
-use pax_engine::api::*;
-use pax_engine::*;
-use pax_std::*;
+use pax_kit::*;
 
 
 #[pax]
@@ -950,9 +940,7 @@ Let's use the above component inside a new component, `AnotherComponent`.
 
 ```rust
 #![allow(unused_imports)]
-use pax_engine::api::*;
-use pax_engine::*;
-use pax_std::*;
+use pax_kit::*;
 
 use crate::MyComponent;
 
@@ -1059,9 +1047,7 @@ Templates are not just static -- they allow three kinds of control-flow, affecti
 
 ```rust
 #![allow(unused_imports)]
-use pax_engine::api::*;
-use pax_engine::*;
-use pax_std::*;
+use pax_kit::*;
 
 use crate::{DetailsView, SummaryView};
 
@@ -1092,9 +1078,7 @@ For example:
 
 ```rust
 #![allow(unused_imports)]
-use pax_engine::api::*;
-use pax_engine::*;
-use pax_std::*;
+use pax_kit::*;
 
 use pax_std::layout::{Stacker, StackerDirection};
 use crate::DeviceRecord;
@@ -1894,9 +1878,7 @@ Fireworks is a collections of rectangles that alternate color and expand in diff
 
 ```rust filename=fireworks/src/lib.rs
 #![allow(unused_imports)]
-use pax_engine::api::*;
-use pax_engine::*;
-use pax_std::*;
+use pax_kit::*;
 
 #[pax]
 #[main]
@@ -2063,9 +2045,7 @@ Made an example conways game of life which you can adjust the speed of iteration
 
 ```rust filename=game-of-life/src/lib.rs
 #![allow(unused_imports)]
-use pax_engine::api::*;
-use pax_engine::*;
-use pax_std::*;
+use pax_kit::*;
 
 
 
@@ -2219,9 +2199,7 @@ A color full effect runs through the screen when I move my mouse across it.
 pub mod path_animation;
 use path_animation::PathAnimation;
 
-use pax_engine::api::*;
-use pax_engine::*;
-use pax_std::*;
+use pax_kit::*;
 
 
 use pax_engine::math::Generic;
@@ -2282,9 +2260,7 @@ impl Example {
 
 ```rust filename=mouse-animation/src/path_animation.rs
 #![allow(unused_imports)]
-use pax_engine::api::*;
-use pax_engine::*;
-use pax_std::*;
+use pax_kit::*;
 
 
 use core::f64::consts::PI;
@@ -2463,9 +2439,7 @@ A 2d asteroid shooter game
 
 ```rust filename=space-game/src/lib.rs
 #![allow(unused_imports)]
-use pax_engine::api::*;
-use pax_engine::*;
-use pax_std::*;
+use pax_kit::*;
 
 use rand::rngs::ThreadRng;
 use rand::Rng;
@@ -2842,9 +2816,7 @@ An old school 2D pong game
 
 ```rust filename=lib.rs
 #![allow(unused_imports)]
-use pax_engine::api::*;
-use pax_engine::*;
-use pax_std::*;
+use pax_kit::*;
 
 
 const PADDLE_SPEED: f64 = 5.0;
@@ -2996,9 +2968,7 @@ A barebones calculator
 ### Code
 ```rust filename=lib.rs
 #![allow(unused_imports)]
-use pax_engine::api::*;
-use pax_engine::*;
-use pax_std::*;
+use pax_kit::*;
 
 
 #[pax]
