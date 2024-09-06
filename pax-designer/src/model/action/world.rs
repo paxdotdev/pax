@@ -1,9 +1,11 @@
+use std::any::Any;
 use std::ops::ControlFlow;
 
 use super::{pointer::Pointer, Action, ActionContext};
 use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::AxisAlignedBox;
 use crate::model::input::ModifierKey;
+use crate::model::tools::{SelectMode, SelectNodes};
 use crate::model::{input::InputEvent, AppState, ToolBehavior};
 use crate::DESIGNER_GLASS_ID;
 use anyhow::{anyhow, Result};
@@ -121,6 +123,28 @@ impl Action for ZoomToFit {
         let new_transform = Transform2::<Window, World>::translate(self.top_left.to_vector())
             * Transform2::scale((self.bottom_right.x - self.top_left.x) / bounds.0);
         ctx.app_state.glass_to_world_transform.set(new_transform);
+        Ok(())
+    }
+}
+
+pub struct SelectAllInOpenContainer;
+
+impl Action for SelectAllInOpenContainer {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+        let open_container = ctx.derived_state.open_container.get();
+        let node = ctx.get_glass_node_by_global_id(&open_container)?;
+        let select_ids: Vec<_> = node
+            .raw_node_interface
+            .children()
+            .into_iter()
+            .filter_map(|c| c.global_id())
+            .map(|uid| uid.get_template_node_id())
+            .collect();
+        SelectNodes {
+            ids: &select_ids,
+            mode: SelectMode::Dynamic,
+        }
+        .perform(ctx)?;
         Ok(())
     }
 }

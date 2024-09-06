@@ -13,6 +13,7 @@ use super::action::orm::group_ungroup::{GroupSelected, GroupType, UngroupSelecte
 use super::action::orm::movement::{RelativeMove, RelativeMoveSelected};
 use super::action::orm::other::SwapFillStrokeAction;
 use super::action::orm::{Copy, Paste};
+use super::action::world::SelectAllInOpenContainer;
 use super::read_app_state;
 use super::{
     action::{self, orm::DeleteSelected, world, Action, ActionContext},
@@ -174,6 +175,10 @@ impl Default for InputMapper {
                     (RawInput::X, HashSet::from([ModifierKey::Shift])),
                     InputEvent::SwapFillStroke,
                 ),
+                (
+                    (RawInput::A, HashSet::from([ModifierKey::Meta])),
+                    InputEvent::SelectAllInOpenContainer,
+                ),
             ]
             .to_vec(),
         }
@@ -214,21 +219,20 @@ impl InputMapper {
     }
 
     pub fn to_action(&self, event: &InputEvent, dir: Dir) -> Option<Box<dyn Action>> {
-        match (event, dir) {
-            (&InputEvent::Group(group_type), Dir::Down) => {
-                Some(Box::new(GroupSelected { group_type }))
-            }
-            (&InputEvent::SelectTool(tool), Dir::Down) => {
-                Some(Box::new(toolbar::SelectTool { tool }))
-            }
-            (&InputEvent::ZoomIn, Dir::Down) => Some(Box::new(world::Zoom { closer: true })),
-            (&InputEvent::ZoomOut, Dir::Down) => Some(Box::new(world::Zoom { closer: false })),
-            (&InputEvent::OpenLLMPrompt, Dir::Down) => Some(Box::new(OpenLLMPrompt)),
-            (&InputEvent::DeleteSelected, Dir::Down) => Some(Box::new(DeleteSelected {})),
-            (&InputEvent::Undo, Dir::Down) => Some(Box::new(UndoRequested)),
-            (&InputEvent::Redo, Dir::Down) => Some(Box::new(RedoRequested)),
-            (&InputEvent::Serialize, Dir::Down) => Some(Box::new(SerializeRequested {})),
-            (&InputEvent::Copy, Dir::Down) => Some(Box::new({
+        if dir == Dir::Up {
+            return None;
+        }
+        match event {
+            &InputEvent::Group(group_type) => Some(Box::new(GroupSelected { group_type })),
+            &InputEvent::SelectTool(tool) => Some(Box::new(toolbar::SelectTool { tool })),
+            InputEvent::ZoomIn => Some(Box::new(world::Zoom { closer: true })),
+            InputEvent::ZoomOut => Some(Box::new(world::Zoom { closer: false })),
+            InputEvent::OpenLLMPrompt => Some(Box::new(OpenLLMPrompt)),
+            InputEvent::DeleteSelected => Some(Box::new(DeleteSelected {})),
+            InputEvent::Undo => Some(Box::new(UndoRequested)),
+            InputEvent::Redo => Some(Box::new(RedoRequested)),
+            InputEvent::Serialize => Some(Box::new(SerializeRequested {})),
+            InputEvent::Copy => Some(Box::new({
                 struct CopySelected;
                 impl Action for CopySelected {
                     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
@@ -240,7 +244,7 @@ impl InputMapper {
                 }
                 CopySelected
             })),
-            (&InputEvent::Paste, Dir::Down) => Some(Box::new({
+            InputEvent::Paste => Some(Box::new({
                 struct PasteClipboard;
 
                 impl Action for PasteClipboard {
@@ -258,31 +262,12 @@ impl InputMapper {
                 }
                 PasteClipboard
             })),
-            (InputEvent::LayerMove(relative_move), Dir::Down) => {
-                Some(Box::new(RelativeMoveSelected {
-                    relative_move: *relative_move,
-                }))
-            }
-            (InputEvent::SwapFillStroke, Dir::Down) => Some(Box::new(SwapFillStrokeAction)),
-            (InputEvent::Ungroup, Dir::Down) => Some(Box::new(UngroupSelected {})),
-            (InputEvent::Ungroup, Dir::Up)
-            | (InputEvent::LayerMove(_), Dir::Up)
-            | (InputEvent::SwapFillStroke, Dir::Up)
-            | (InputEvent::SelectTool(_), Dir::Up)
-            | (InputEvent::Space, Dir::Down)
-            | (InputEvent::Space, Dir::Up)
-            | (InputEvent::ZoomIn, Dir::Up)
-            | (InputEvent::ZoomOut, Dir::Up)
-            | (InputEvent::OpenLLMPrompt, Dir::Up)
-            | (InputEvent::DeleteSelected, Dir::Up)
-            | (InputEvent::Undo, Dir::Up)
-            | (InputEvent::Redo, Dir::Up)
-            | (InputEvent::Serialize, Dir::Up)
-            | (InputEvent::Copy, Dir::Up)
-            | (InputEvent::Paste, Dir::Up)
-            | (InputEvent::ToggleLinkGroup, Dir::Down)
-            | (InputEvent::ToggleLinkGroup, Dir::Up)
-            | (InputEvent::Group(_), Dir::Up) => None,
+            InputEvent::LayerMove(relative_move) => Some(Box::new(RelativeMoveSelected {
+                relative_move: *relative_move,
+            })),
+            InputEvent::SwapFillStroke => Some(Box::new(SwapFillStrokeAction)),
+            InputEvent::Ungroup => Some(Box::new(UngroupSelected {})),
+            InputEvent::SelectAllInOpenContainer => Some(Box::new(SelectAllInOpenContainer)),
         }
     }
 }
@@ -299,6 +284,7 @@ pub enum Dir {
 pub enum RawInput {
     Delete,
     Backspace,
+    A,
     R,
     V,
     C,
@@ -331,6 +317,7 @@ impl TryFrom<String> for RawInput {
 
     fn try_from(value: String) -> std::result::Result<Self, Self::Error> {
         Ok(match value.to_lowercase().as_str() {
+            "a" => Self::A,
             "r" => Self::R,
             "m" => Self::M,
             "v" => Self::V,
@@ -368,7 +355,6 @@ impl Interpolatable for InputEvent {}
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum InputEvent {
     SelectTool(Tool),
-    Space,
     ZoomIn,
     ZoomOut,
     OpenLLMPrompt,
@@ -378,11 +364,11 @@ pub enum InputEvent {
     Serialize,
     Copy,
     Paste,
-    ToggleLinkGroup,
     Group(GroupType),
     Ungroup,
     SwapFillStroke,
     LayerMove(RelativeMove),
+    SelectAllInOpenContainer,
 }
 
 impl Interpolatable for ModifierKey {}
