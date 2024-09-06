@@ -15,16 +15,19 @@
         <Rectangle class=black_bg />
     </Group>
     <Rectangle class=black_bg />
+    <EventBlocker/>
 </Frame>
 
 <Group id=right_panel>
     <Settings id=settings />
-    <Rectangle class=black_bg  />
+    <Rectangle class=black_bg/>
+    <EventBlocker/>
 </Group>
 
 <Group id=top_panel>
     <Toolbar id=toolbar />
     <Rectangle class=black_bg />
+    <EventBlocker/>
 </Group>
 
 @settings {

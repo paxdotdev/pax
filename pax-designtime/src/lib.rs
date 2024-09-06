@@ -134,6 +134,12 @@ impl DesigntimeManager {
         self.orm.increment_manifest_version();
     }
 
+    pub fn set_userland_root_component_type_id(&mut self, type_id: &TypeId) {
+        self.orm.set_userland_root_component_type_id(type_id);
+        self.orm.increment_manifest_version();
+        self.orm.set_reload(ReloadType::FullEdit);
+    }
+
     pub fn get_manifest_version(&self) -> Property<usize> {
         self.orm.get_manifest_version()
     }

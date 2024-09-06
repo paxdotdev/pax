@@ -10,6 +10,7 @@ use pax_engine::*;
 use pax_manifest::TypeId;
 use pax_std::*;
 
+use crate::controls::toolbar::SelectTool;
 use crate::glass::SetEditingComponent;
 use crate::glass::ToolVisualizationState;
 use crate::math::coordinate_spaces::Glass;
@@ -56,37 +57,45 @@ impl ToolBehavior for DropComponent {
     }
 
     fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
-        // TODO fill this in again later, for some reason gives (0, 0) (to/from pax value impl?)
-        // let (w, h) = self.bounds_pixels;
-        let (w, h) = (200.0, 200.0);
-        let v = Vector2::new(w, h) / 2.0;
-        let bounds = AxisAlignedBox::new(point + v, point - v);
-        let root_parent = ctx.derived_state.open_container.get();
-        let Ok(parent) = ctx.get_glass_node_by_global_id(&root_parent) else {
-            log::warn!("couldn't find open container node");
-            return ControlFlow::Break(());
-        };
-        let t = ctx.transaction("instantiating component");
-        let _ = t.run(|| {
-            CreateComponent {
-                parent_id: &parent.id,
-                parent_index: pax_manifest::TreeIndexPosition::Top,
-                node_layout: model::action::orm::NodeLayoutSettings::KeepScreenBounds {
-                    node_transform_and_bounds: &TransformAndBounds {
-                        transform: bounds.as_transform(),
-                        bounds: (1.0, 1.0),
-                    }
-                    .as_pure_size(),
-                    parent_transform_and_bounds: &parent.transform_and_bounds.get(),
-                    node_decomposition_config: &Default::default(),
-                },
-                mock_children: 0,
-                type_id: &self.type_id,
-                custom_props: &[],
-            }
-            .perform(ctx)?;
-            SetLibraryState { open: false }.perform(ctx)
-        });
+        // If over glass, drop this component, else start editing the component that was clicked
+        // this is a very rough heuristic (glass position is x > 0)
+        if point.x < 0.0 {
+            if let Err(e) = SetEditingComponent(self.type_id.clone()).perform(ctx) {
+                log::warn!("failed to set editing component: {e}");
+            };
+        } else {
+            // TODO fill this in again later, for some reason gives (0, 0) (to/from pax value impl?)
+            // let (w, h) = self.bounds_pixels;
+            let (w, h) = (200.0, 200.0);
+            let v = Vector2::new(w, h) / 2.0;
+            let bounds = AxisAlignedBox::new(point + v, point - v);
+            let root_parent = ctx.derived_state.open_container.get();
+            let Ok(parent) = ctx.get_glass_node_by_global_id(&root_parent) else {
+                log::warn!("couldn't find open container node");
+                return ControlFlow::Break(());
+            };
+            let t = ctx.transaction("instantiating component");
+            let _ = t.run(|| {
+                CreateComponent {
+                    parent_id: &parent.id,
+                    parent_index: pax_manifest::TreeIndexPosition::Top,
+                    node_layout: model::action::orm::NodeLayoutSettings::KeepScreenBounds {
+                        node_transform_and_bounds: &TransformAndBounds {
+                            transform: bounds.as_transform(),
+                            bounds: (1.0, 1.0),
+                        }
+                        .as_pure_size(),
+                        parent_transform_and_bounds: &parent.transform_and_bounds.get(),
+                        node_decomposition_config: &Default::default(),
+                    },
+                    mock_children: 0,
+                    type_id: &self.type_id,
+                    custom_props: &[],
+                }
+                .perform(ctx)?;
+                SetLibraryState { open: false }.perform(ctx)
+            });
+        }
         ControlFlow::Break(())
     }
 
@@ -105,9 +114,6 @@ impl ToolBehavior for DropComponent {
 }
 
 impl ComponentLibraryItem {
-    pub fn on_double_click(&mut self, ctx: &NodeContext, _args: Event<DoubleClick>) {
-        model::perform_action(&SetEditingComponent(self.data.get().type_id.clone()), ctx);
-    }
     pub fn on_down(&mut self, ctx: &NodeContext, _args: Event<MouseDown>) {
         model::with_action_context(ctx, |ctx| {
             let data = self.data.get();

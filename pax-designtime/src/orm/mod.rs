@@ -121,6 +121,10 @@ impl PaxManifestORM {
         self.reload_queue.push(reload_type);
     }
 
+    pub fn set_userland_root_component_type_id(&mut self, type_id: &TypeId) {
+        self.manifest.main_component_type_id = type_id.clone();
+    }
+
     pub fn take_reload_queue(&mut self) -> Vec<ReloadType> {
         std::mem::take(&mut self.reload_queue)
     }
