@@ -68,6 +68,12 @@ fn main() -> Result<(), Report> {
         .help("Runs project directly without wrapping in designer & designtime.");
 
     #[allow(non_snake_case)]
+        let ARG_DESIGNER = Arg::with_name("designer")
+        .long("designer")
+        .takes_value(false)
+        .help("Builds project with designer & designtime.");
+
+    #[allow(non_snake_case)]
     let ARG_LIBDEV = Arg::with_name("libdev")
         .long("libdev")
         .takes_value(false)
@@ -95,6 +101,7 @@ fn main() -> Result<(), Report> {
                 .about("Builds the Pax project from the current working directory into a platform-specific executable, for the specific `target` platform.")
                 .arg( ARG_PATH.clone() )
                 .arg( ARG_TARGET.clone() )
+                .arg( ARG_DESIGNER.clone() )
                 .arg( ARG_VERBOSE.clone() )
                 .arg( ARG_LIBDEV.clone() )
                 .arg( ARG_RELEASE.clone() )
@@ -196,6 +203,7 @@ fn perform_nominal_action(
             let target = args.value_of("target").unwrap().to_lowercase();
             let path = args.value_of("path").unwrap().to_string(); //default value "."
             let verbose = args.is_present("verbose");
+            let should_run_designer = args.is_present("designer");
             let is_libdev_mode = args.is_present("libdev");
             let is_release = args.is_present("release");
 
@@ -203,7 +211,7 @@ fn perform_nominal_action(
                 target: RunTarget::from(target.as_str()),
                 project_path: PathBuf::from(path),
                 should_also_run: false,
-                should_run_designer: false,
+                should_run_designer,
                 verbose,
                 is_libdev_mode,
                 process_child_ids,
