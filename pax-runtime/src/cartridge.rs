@@ -603,7 +603,10 @@ fn resolve_property<T: CoercionRules + PropertyValue + DeserializeOwned>(
                     let new_value = info
                         .expression
                         .compute(cloned_stack.clone())
-                        .expect(&format!("Failed to compute expr: {}", info.expression));
+                        .unwrap_or_else(|err| {
+                            log::warn!("Failed to compute expression: {:?}", err);
+                            Default::default()
+                        });
                     let coerced = T::try_coerce(new_value.clone()).unwrap_or_else(|err| {
                         log::warn!("Failed to coerce new value for property. Error: {:?}", err);
                         Default::default()

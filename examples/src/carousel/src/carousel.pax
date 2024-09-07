@@ -1,0 +1,52 @@
+
+<Frame>
+<Group width=5% x=0%>
+    <Path x=50% y=50% class=left_triangle/>
+    <Rectangle fill=rgba(0,0,0,30) @click=decrement/>
+</Group>
+<Group width=5% x=100%>
+    <Path x=50% y=50% class=right_triangle/>
+    <Rectangle fill=rgba(0,0,0,30) @click=increment/>
+</Group>
+<Group x=50% y=50% width=90%>
+for (cell_spec, i) in self.cell_specs {
+    if cell_spec.is_active {
+        <Group anchor_x=50% x={(cell_spec.x_percent)%} >
+            slot(i)
+        </Group>
+    }
+}
+</Group>
+</Frame>
+@settings {
+    @mount: on_mount
+    @pre_render: update
+    #right_triangle {
+        elements: {[
+            PathElement::point(70%, 50% - 12px),
+            PathElement::line(),
+            PathElement::point(70% + 16px, 50%),
+            PathElement::line(),
+            PathElement::point(70%, 50% + 12px),
+            PathElement::close()
+        ]},
+        stroke: {
+            width: 0px
+        }
+        fill: INDIGO
+    }
+    #left_triangle {
+        elements: {[
+            PathElement::point(70%, 50% - 12px),
+            PathElement::line(),
+            PathElement::point(70% - 16px, 50%),
+            PathElement::line(),
+            PathElement::point(70%, 50% + 12px),
+            PathElement::close()
+        ]},
+        stroke: {
+            width: 0px
+        }
+        fill: INDIGO
+    }
+}
