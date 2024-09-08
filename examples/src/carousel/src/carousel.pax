@@ -1,11 +1,11 @@
 
 <Frame>
 <Group width=5% x=0%>
-    <Path x=50% y=50% class=left_triangle/>
+    <Path id=left_triangle/>
     <Rectangle fill=rgba(0,0,0,30) @click=decrement/>
 </Group>
 <Group width=5% x=100%>
-    <Path x=50% y=50% class=right_triangle/>
+    <Path id=right_triangle/>
     <Rectangle fill=rgba(0,0,0,30) @click=increment/>
 </Group>
 <Group x=50% y=50% width=90%>
@@ -22,31 +22,33 @@ for (cell_spec, i) in self.cell_specs {
     @mount: on_mount
     @pre_render: update
     #right_triangle {
+        x: {50% - 8px}
         elements: {[
-            PathElement::point(70%, 50% - 12px),
+            PathElement::point(50%, 50% - 12px),
             PathElement::line(),
-            PathElement::point(70% + 16px, 50%),
+            PathElement::point(50% + 16px, 50%),
             PathElement::line(),
-            PathElement::point(70%, 50% + 12px),
+            PathElement::point(50%, 50% + 12px),
             PathElement::close()
         ]},
         stroke: {
             width: 0px
         }
-        fill: INDIGO
+        fill: BLACK
     }
     #left_triangle {
+        x: {50% + 8px},
         elements: {[
-            PathElement::point(70%, 50% - 12px),
+            PathElement::point(50%, 50% - 12px),
             PathElement::line(),
-            PathElement::point(70% - 16px, 50%),
+            PathElement::point(50% - 16px, 50%),
             PathElement::line(),
-            PathElement::point(70%, 50% + 12px),
+            PathElement::point(50%, 50% + 12px),
             PathElement::close()
         ]},
         stroke: {
             width: 0px
         }
-        fill: INDIGO
+        fill: BLACK
     }
 }
