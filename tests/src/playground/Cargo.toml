@@ -12,7 +12,6 @@ pax-designtime = {version = "0.23.0", path="../../../pax-designtime"}
 
 [lib]
 crate-type = ["cdylib", "rlib"]
-name = "paxcartridge"
 
 [[bin]]
 name = "parser"

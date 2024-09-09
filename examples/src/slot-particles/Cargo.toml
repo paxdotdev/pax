@@ -8,10 +8,10 @@ default-run = "run"
 rand = { version = "0.8.5" }
 getrandom = { version = "0.2.15", features = ["js"] }
 pax-kit = { version = "0.36.3", path="../../../pax-kit", features = ["designer"] }
+fireworks = {version = "0.36.3", path="../fireworks", features = ["designer"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
-name = "paxcartridge"
 
 [[bin]]
 name = "parser"
@@ -24,7 +24,7 @@ path = "bin/run.rs"
 
 [features]
 designer = ["pax-kit/designer"]
-parser = ["pax-kit/parser"]
+parser = ["pax-kit/parser", "fireworks/parser"]
 web = ["pax-kit/web"]
 macos = ["pax-kit/macos"]
 ios = ["pax-kit/ios"]

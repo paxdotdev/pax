@@ -23,8 +23,9 @@ const CRATES_WHERE_WE_DONT_PARSE_DESIGNER: &[&str] = &["pax-designer", "pax-std"
 
 fn is_root_crate() -> bool {
     let is_not_blacklisted = !CRATES_WHERE_WE_DONT_PARSE_DESIGNER
-        .contains(&std::env::var("CARGO_PKG_NAME").unwrap_or_default().as_str());
+       .contains(&std::env::var("CARGO_PKG_NAME").unwrap_or_default().as_str());
     let worm_dir = unsafe { WORM_ROOT_CARGO_MANIFEST_DIR.as_ref().unwrap() }.as_str();
+
     let is_root_crate = worm_dir == env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
     is_not_blacklisted && is_root_crate
 }
@@ -364,8 +365,13 @@ fn pax_full_component(
 
     let pax_dir: Option<&'static str> = option_env!("PAX_DIR");
     let cartridge_snippet = if let Some(pax_dir) = pax_dir {
-        let cartridge_path = std::path::Path::new(pax_dir).join("cartridge.partial.rs");
-        fs::read_to_string(&cartridge_path).unwrap()
+        let current_manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
+        if pax_dir.starts_with(&current_manifest_dir) {
+            let cartridge_path = std::path::Path::new(pax_dir).join("cartridge.partial.rs");
+            fs::read_to_string(&cartridge_path).unwrap()
+        } else {
+            "".to_string()
+        }
     } else {
         "".to_string()
     };

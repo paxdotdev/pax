@@ -9,7 +9,6 @@ pax-kit = { version = "VERSION_PLACEHOLDER", features = ["designer"], path = "..
 
 [lib]
 crate-type = ["cdylib", "rlib"]
-name = "paxcartridge"
 
 [[bin]]
 name = "parser"
