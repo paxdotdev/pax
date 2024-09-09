@@ -1,5 +1,7 @@
 use pax_engine::pax_manifest::{PaxType, TypeId};
 
+/// This should be the type always used for getting metadata about and
+/// performing checks on type in the designer, instead of checking using node methods
 #[derive(PartialEq)]
 pub enum DesignerNodeType {
     Frame,

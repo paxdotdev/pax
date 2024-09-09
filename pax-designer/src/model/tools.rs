@@ -496,7 +496,10 @@ impl ToolBehavior for MovingTool {
             .transform_and_bounds
             .get()
             .contains_point(point)
-            && ctx.engine_context.get_userland_root_expanded_node() != curr_slot
+            && ctx
+                .engine_context
+                .get_userland_root_expanded_node()
+                .is_some_and(|n| n != curr_slot)
         {
             let container_parent = curr_node
                 .raw_node_interface
@@ -613,18 +616,21 @@ impl ToolBehavior for MultiSelectTool {
 
     fn pointer_move(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
         self.bounds.set(AxisAlignedBox::new(self.p1, point));
-        let project_root = ctx.engine_context.get_userland_root_expanded_node();
+        let Some(project_root) = ctx.engine_context.get_userland_root_expanded_node() else {
+            log::warn!("coudln't find userland root expanded node");
+            return ControlFlow::Break(());
+        };
         let selection_box = TransformAndBounds {
             transform: self.bounds.get().as_transform(),
             bounds: (1.0, 1.0),
         };
         let glass_transform = ctx.glass_transform();
         let open_container = ctx.derived_state.open_container.get();
-        let mut to_process = project_root.children();
+        let mut to_process = project_root.template_children();
         let mut hits = vec![];
         while let Some(node) = to_process.pop() {
             if node.global_id().unwrap() == open_container {
-                to_process.extend(node.children());
+                to_process.extend(node.template_children());
                 continue;
             }
             let t_and_b = TransformAndBounds {

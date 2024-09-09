@@ -2,6 +2,7 @@ use std::any::Any;
 use std::f64::consts::PI;
 
 use super::{Action, ActionContext};
+use crate::designer_node_type::DesignerNodeType;
 use crate::glass::wireframe_editor::editor_generation::stacker_control::sizes_to_string;
 use crate::math::approx::ApproxEq;
 use crate::math::coordinate_spaces::{Glass, SelectionSpace, World};
@@ -70,6 +71,58 @@ impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
                 .map_err(|e| anyhow!("could not save: {}", e))?
         };
 
+        // HACK: if the parent of this is a scroller, modify parent transform
+        // and bounds to reflect the size of the inner pane instead of the
+        // outer. Eventually, create a general framework for figuring out "true"
+        // parent bounds for all containers. (more complicated for stacker where
+        // it depends on number of children)
+        if let NodeLayoutSettings::KeepScreenBounds {
+            node_transform_and_bounds,
+            node_decomposition_config,
+            ..
+        } = self.node_layout
+        {
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            let orm = dt.get_orm_mut();
+            if let Some(parent) = orm.get_node(self.parent_id.clone(), false) {
+                if DesignerNodeType::from_type_id(parent.get_type_id())
+                    == DesignerNodeType::Scroller
+                {
+                    drop(dt);
+                    let node = ctx
+                        .engine_context
+                        .get_nodes_by_id("_scroller_inner_container")
+                        .into_iter()
+                        .filter_map(|n| {
+                            let mut steps = 0;
+                            let mut node = n.clone();
+                            while let Some(parent) = node.template_parent() {
+                                if &parent.global_id().unwrap() == self.parent_id {
+                                    break;
+                                }
+                                node = parent;
+                                steps += 1;
+                            }
+                            node.template_parent().is_some().then_some((n, steps))
+                        })
+                        .min_by_key(|(_, v)| *v);
+                    if let Some((node, _)) = node {
+                        let glass_node = GlassNode::new(&node, &ctx.glass_transform());
+                        SetNodeLayout {
+                            id: &save_data.unique_id,
+                            node_layout: &NodeLayoutSettings::KeepScreenBounds {
+                                node_transform_and_bounds,
+                                node_decomposition_config,
+                                parent_transform_and_bounds: &glass_node.transform_and_bounds.get(),
+                            },
+                        }
+                        .perform(ctx)?;
+                        return Ok(save_data.unique_id);
+                    }
+                }
+            }
+        }
+
         SetNodeLayout {
             id: &save_data.unique_id,
             node_layout: &self.node_layout,
@@ -126,12 +179,12 @@ impl Action for SelectedIntoNewComponent {
     }
 }
 
-pub struct SetNodeLayoutProperties<'a> {
-    pub id: &'a UniqueTemplateNodeIdentifier,
-    pub properties: &'a LayoutProperties,
+struct SetNodeLayoutProperties<'a> {
+    id: &'a UniqueTemplateNodeIdentifier,
+    properties: &'a LayoutProperties,
     // anchor doesn't have a default value (becomes "reactive" in the None case), and so needs
     // to be manually specified to be reset
-    pub reset_anchor: bool,
+    reset_anchor: bool,
 }
 
 impl Action for SetNodeLayoutProperties<'_> {
@@ -301,10 +354,10 @@ impl Action for SetNodeLayoutProperties<'_> {
 }
 
 struct SetNodeLayoutPropertiesFromTransform<'a, T> {
-    pub id: &'a UniqueTemplateNodeIdentifier,
-    pub transform_and_bounds: &'a TransformAndBounds<NodeLocal, T>,
-    pub parent_transform_and_bounds: &'a TransformAndBounds<NodeLocal, T>,
-    pub decomposition_config: &'a DecompositionConfiguration,
+    id: &'a UniqueTemplateNodeIdentifier,
+    transform_and_bounds: &'a TransformAndBounds<NodeLocal, T>,
+    parent_transform_and_bounds: &'a TransformAndBounds<NodeLocal, T>,
+    decomposition_config: &'a DecompositionConfiguration,
 }
 
 impl<T: Space> Action for SetNodeLayoutPropertiesFromTransform<'_, T> {
@@ -653,6 +706,24 @@ pub enum NodeLayoutSettings<'a, S> {
         parent_transform_and_bounds: &'a TransformAndBounds<NodeLocal, S>,
     },
     WithProperties(LayoutProperties),
+}
+
+impl<S: Space> Clone for NodeLayoutSettings<'_, S> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Fill => Self::Fill,
+            Self::KeepScreenBounds {
+                node_transform_and_bounds,
+                node_decomposition_config,
+                parent_transform_and_bounds,
+            } => Self::KeepScreenBounds {
+                node_transform_and_bounds,
+                node_decomposition_config,
+                parent_transform_and_bounds,
+            },
+            Self::WithProperties(props) => Self::WithProperties(props.clone()),
+        }
+    }
 }
 
 pub struct SetNodeLayout<'a, S> {

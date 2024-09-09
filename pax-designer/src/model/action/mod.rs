@@ -99,7 +99,7 @@ impl ActionContext<'_> {
         let window_point = self.glass_transform().get().inverse() * point;
         let all_elements_beneath_ray = self.engine_context.raycast(window_point, false);
 
-        let userland = self.engine_context.get_userland_root_expanded_node();
+        let userland = self.engine_context.get_userland_root_expanded_node()?;
         let userland_id = userland.global_id();
 
         let mut potential_targets = all_elements_beneath_ray
@@ -158,7 +158,7 @@ impl ActionContext<'_> {
         if self
             .engine_context
             .get_userland_root_expanded_node()
-            .global_id()
+            .and_then(|n| n.global_id())
             == Some(uid.clone())
         {
             NodeLocation::new(
