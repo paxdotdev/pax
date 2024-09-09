@@ -6,6 +6,8 @@ default-run = "run"
 
 [dependencies]
 pax-kit = { version = "VERSION_PLACEHOLDER", features = ["designer"], path = "../../../pax-kit" }
+rand = { version = "0.8.5" }
+getrandom = { version = "0.2.15", features = ["js"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
