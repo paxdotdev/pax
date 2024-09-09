@@ -2,12 +2,10 @@
     <Group width=5% x=0%>
         <Path id=left_triangle/>
         <Rectangle corner_radii={RectangleCornerRadii::radii(5.0, 0.0, 0.0, 5.0)} fill=WHITE @click=decrement/>
-        <EventBlocker/>
     </Group>
     <Group width=5% x=100%>
         <Path id=right_triangle/>
         <Rectangle corner_radii={RectangleCornerRadii::radii(0.0, 5.0, 5.0, 0.0)} fill=WHITE @click=increment/>
-        <EventBlocker/>
     </Group>
     <Frame x=50% y=50% width=90%>
     for (cell_spec, i) in self.cell_specs {
