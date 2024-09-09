@@ -6,6 +6,7 @@ default-run = "run"
 
 [dependencies]
 pax-kit = { version = "0.36.3", path="../../../pax-kit", features = ["designer"] }
+fireworks = { version = "0.36.3", path="../fireworks" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
