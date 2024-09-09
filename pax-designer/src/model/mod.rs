@@ -309,7 +309,7 @@ impl Model {
                     containers.into_iter().next().unwrap()
                 } else {
                     let root = ctx_cp.get_userland_root_expanded_node();
-                    root.global_id().unwrap()
+                    root.and_then(|n| n.global_id()).unwrap()
                 }
             },
             &deps,

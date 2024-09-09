@@ -12,7 +12,8 @@ use std::collections::HashMap;
 #[engine_import_path("pax_engine")]
 #[inlined(
     <Frame _clip_content={self._clip_content}>
-        <Group x={(-self.scroll_pos_x)px} y={(-self.scroll_pos_y)px} width={self.scroll_width - 8px} height={self.scroll_height - 8px}>
+        // WARNING: changing the ID of this group affects the designer
+        <Group id=_scroller_inner_container x={(-self.scroll_pos_x)px} y={(-self.scroll_pos_y)px} width={self.scroll_width - 8px} height={self.scroll_height - 8px}>
             for i in 0..self._slot_children_count {
                 slot(i)
             }
