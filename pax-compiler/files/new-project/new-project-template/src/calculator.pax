@@ -44,7 +44,6 @@
         <Button label="=" @button_click=handle_equals class=btn_op />
     </Stacker>
 </Stacker>
-<Rectangle fill=rgb(28, 28, 30) corner_radii={RectangleCornerRadii::radii(20.0, 20.0, 20.0, 20.0)} />
 
 @settings {
     #display {
