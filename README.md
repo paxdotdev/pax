@@ -1,70 +1,94 @@
-# Pax Engine
+# Pax 
 
-Build extremely fast user interfaces that run anywhere.
+Design and build user interfaces that run anywhere.
 
-Write application logic in Rust (or TypeScript, coming soon) — declare your user interface in Pax's user interface description language.
+Pax is two things that work together: (1) a vector design tool and (2) a cross-platform user interface engine.
 
-Pax compiles into native desktop/mobile apps, WebAssembly-driven sites, and embeddable universal UI components.
+(1) **Pax Designer** is a vector design tool that reads & writes user interface definitions as code.
 
-## What's in this repo?
+(2) **Pax Engine** is a user interface engine: a cross-platform, fast, and lightweight toolkit for building native apps & websites.
 
- - The Pax compiler and an implementation of the Pax user interface description language
- - Native renderers + runtimes for iOS, macOS, and browsers/WebAssembly
- - Layout and animation engine for responsive positioning and expressive user interactions
- - Language bindings for supported programming languages: Rust is supported today; TypeScript is coming soon.  If you want support for another host programming language, please file an issue.
- - Pax's CLI for compiling and managing projects
- - Pax's standard library of reusable UI components like `Text`, `TextBox`, and `Button`; vector drawing primitives like `Rectangle`, `Path`, and `Group`; responsive layouts via `Stacker`, clipping via `Frame`, and scrolling via `Scroller`.
- - Example projects
+All built in Rust 🦀🦀
 
-## Status
+## Get Started
 
-**Currently Alpha** and unstable, under active full-time development.  Today, Pax compiles and runs for iOS, macOS, and Web.  The Web target is our leading edge of development.  Pax’s standard library includes components for drawing, layouts, and form controls.
+Follow the [Get Started](https://docs.pax.dev/get-started/) instructions in the docs.
 
-[Join our Discord](https://discord.com/invite/Eq8KWAUc6b) to chat with our team.  
+## Features
 
-We do not yet recommend building any production workloads with Pax. Targeting Beta in Q3 2024.
+* **Integrated visual builder (Pax Designer)** — a vector design tool and reads & writes code with every visual operation
+* **Cross-platform** Build WASM apps or native macOS / iOS apps (macOS and iOS targets are in Alpha; Web target is in Beta; Windows, Linux, and Android are planned.)
+* **Responsive layout engine** (top-down,) including % and px as first-class citizens
+* **Standard library of reusable components** like form controls, layouts, and drawing primitives
+* **Robust text**, including accessibility / screen-reader support and SEO support for web builds
+* **Animation engine**: every property of every element is animatable at up to 240FPS, giving an extremely high ceiling for creative expression — intended for microinteractions, data visualization, interactive cartoons, games, simulations, or whatever else you can imagine.
+* **Expression language**: every property can be bound to spreadsheet-inspired expressions; this makes dynamic logic accessible to low-coders, offers a highly expressive & succinct substrate for LLM generation, and is part of our solution   
+* **Lightweight footprint**, targeting 100KB baseline WASM network footprint (current status: 2-3x above target, with room to improve)
 
-Embedded universal components have been proven in concept but adapters for React, Next, Vue, SwiftUI, etc. have not been built.  If you are interested in a particular component adapter, please open an issue so that we can understand your use-case & prioritize accordingly.
-
-## Get started
-
-1. Set up your workstation:  [macOS](https://docs.pax.dev/getting-started/macos-getting-started.html) | [Linux](https://docs.pax.dev/getting-started/linux-getting-started.html) | [Windows](https://docs.pax.dev/getting-started/windows-getting-started.html)
-2. Set up at least one build target: [Building for Browsers/WASM](https://docs.pax.dev/getting-started/web-target.html) | [Building for native macOS](https://docs.pax.dev/getting-started/desktop-target.html) | [Building for native iOS](https://docs.pax.dev/getting-started/mobile-target.html)
-3. Create a new project with `pax-cli create my-new-project`, or run the examples inside this repo (recommended while this project is in Alpha — see following re: examples)
 
 ## Examples
 
-To run the examples in this monorepo:
+You can try out Pax Designer on your workstation by following the [“Get Started”]((https://docs.pax.dev/get-started/)) directions.  
+This will run Pax Designer and allow you to make changes to the template starter project visually and via code.
 
-1. Follow `Get started` instructions above
-2. Clone this repo: `git clone https://github.com/paxengine/pax.git`
-3. Within the repo, run an example: `cd examples/src/space-game && pax-cli run --target=web`.  Update the path and target as needed.  Current examples include:
-
-- `examples/src/fireworks` — showcase of expressions, repeat, and user interactions.  Try scrolling.
-- `examples/src/mouse-animation` — showcase of path animations and user interaction.  Try moving your mouse vertically.
-- `examples/src/particles` - showcase of iterating over data and animations. Non-interactive, but try tweaking the parameters in the source code.
-- `examples/src/slot-particles` - showcase of the slot mechanism for component reuse; the particles in this system can be whatever the outer component passes in.  Try tweaking the source code.
-- `examples/src/space-game` — showcase of interactions, custom application logic, and making a simple game.
+For a robust real-world project built in Pax, see [Pax Designer's source code](https://github.com/paxdotdev/pax/tree/dev/pax-designer), which is 100% Pax.
 
 ## Docs
 
-Read the docs at [https://docs.pax.dev/](https://docs.pax.dev)
+Read the docs at [https://docs.pax.dev/](https://docs.pax.dev) or contribute to [the docs repo on GitHub](https://github.com/paxdotdev/docs).
+
+
+## Project status
+
+**Current status: Beta**
+
+This milestone includes complete open source releases of the systems comprising Pax, including Pax Engine, Pax Designer, and the Pax Standard Library.
+
+You can build a real-world app with Pax today — see [pax-designer](https://github.com/paxengine/pax/tree/dev/pax-designer) for an example that’s already shipping.
+
+**Expect some rough edges with Beta:**
+
+1. Missing vector design tool features — ([jump on our Discord](https://discord.com/invite/Eq8KWAUc6b) to share ideas & requests!)
+2. Bugs — we appreciate any reports you can file as [Github Issues](https://github.com/paxdotdev/pax/issues).
+3. Breaking changes — we do our best to avoid breaking changes, and are held accountable through maintaining a significant Pax app ([Pax Designer](https://github.com/paxdotdev/pax/tree/dev/pax-designer)).  That said, breaking changes are subject to occur any time before 1.0.
+4. Web target is leading edge — macos and ios build targets are maintained for architectural soundness, but are several features behind the web target, e.g. occlusion and clipping.  We expect to continue prioritizing Web target development for the near term.  For mobile / desktop targets at this milestone, we recommend wrapping Pax Web with a webview e.g. Tauri.
+
+
+## Current priorities
+
+ - **Hosted version of Pax Designer** — so anyone can use Pax Designer in the browser without any terminals or code.  This will also be the chassis for Pax Pro, our commercial collaboration service that makes it easy for non-developers to contribute visual changes to GitHub.
+
+ - **Pax JavaScript** — bindings to JavaScript so you can write Pax with JavaScript instead of Rust
+
+ - **Responses to feedback** & general functional & ergonomic improvements
+
+Our task tracker is private (Linear) but we are open to ideas for alternate solutions that can solve both productivity and visibility.
+
+We collaborate publicly on the [#contribution](https://discord.com/invite/Eq8KWAUc6b) channel of our community Discord — feel free to [drop in and chat.](https://discord.com/invite/Eq8KWAUc6b)
+
+
+## Contribution
+
+Pax is open source and we welcome contributions.  See [CONTRIBUTING.md](CONTRIBUTING.md)
+
+
+## Why?
+
+Pax aims to make software creation more creative and more accessible to humanity. Learn more about Pax and our goals in [our docs](https://docs.pax.dev/).
+
+To achieve these goals, Pax is designed for ["designability"](https://docs.pax.dev/reference/designability/) — an ongoing bilateral bridge between visual vector design and user interface definitions as code.
+
+Pax also unlocks a new way to interact with AI — a visual builder that an LLM navigates natively, because language is the backbone of every visual operation.  Pax lets you design AND code with an LLM, and it can design and code in response.  We believe this is a glimpse of the future of building user interfaces and we're working hard to bring it to the world.
+
 
 ## License
 
-© 2024 PaxCorp Inc.  [contact@pax.dev].
+© 2024 PaxCorp Inc.  [contact@pax.dev]
 
 This project is licensed under either of:
 - [MIT license](LICENSE-MIT)
 - [Apache 2.0 License](LICENSE-APACHE)
 
 at your option.
-
-## Build Pax visually
-
-[Get early access to Pax Create](https://airtable.com/appCUQtUS9g4kuQZL/pagcoNLd0e8amZB0D/form)
-
-![image](https://github.com/paxengine/pax/assets/2100885/972fd339-868d-4718-8e07-aabc26d6945c)
-
 
 
