@@ -10,7 +10,7 @@
 			<Rectangle class=centered rotate=45deg fill=RED/>
 		</Group>
 		<Rectangle fill=PURPLE/>
-		<Ellipse fill=LIME/>
+		<Fireworks />
 	}
 </SlotParticles>
 @settings {
