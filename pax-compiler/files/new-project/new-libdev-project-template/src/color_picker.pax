@@ -1,0 +1,165 @@
+<Group
+    width=310px
+    height=415px
+    x=50%
+    y=50%
+>
+    <Group
+        x=5px
+        y=5px
+        width=300px
+        height=300px
+        @mouse_down=self.palette_mouse_down
+        @mouse_move=self.palette_mouse_move
+        @mouse_up=self.palette_mouse_up
+    >
+        <Ellipse
+            x={(self.saturation*100)%}
+            y={((1.0 - self.lightness)*100)%}
+            width=10px
+            height=10px
+            anchor_x=50%
+            anchor_y=50%
+            fill=TRANSPARENT
+            stroke={color: WHITE, width: 2px}
+        />
+        <Frame>
+        <Image
+            x={-30px} 
+            y={-30px} 
+            width=360px
+            height=360px
+            source={ImageSource::Data(5, 5, self.saturation_and_lightness_image_data)}
+            fit=ImageFit::Fill
+        />
+        </Frame>
+    </Group>
+    <Group
+        x=5px
+        width=300px
+        y=310px	
+        height=100px
+    >
+        <Group
+            x=50%
+            width=290px
+            y=5px
+            height=10px
+        >
+            <Slider min=0.0 max=1.0 step=0.001 value=bind:hue accent=WHITE background=TRANSPARENT/>
+            <Image 
+                source={ImageSource::Data(10, 1, self.hue_slider_image_data)}
+                fit=ImageFit::Fill
+            />
+        </Group>
+        <Group
+            x=50%
+            width=290px
+            y=25px
+            height=10px
+        >
+            <Slider min=0.0 max=1.0 step=0.001 value=bind:alpha accent=WHITE background=TRANSPARENT/>
+            <Image 
+                source={ImageSource::Data(10, 1, self.alpha_slider_image_data)}
+                fit=ImageFit::Fill
+            />
+            <Image 
+                source=ImageSource::Url("assets/color_picker/transparency_grid.png")
+                fit=ImageFit::Fill
+            />
+        </Group>
+        <Group y=45px>
+            <Text class=rgba_label text="rgba:"/>
+            <Textbox class=input class=col_2 class=span_1 text={self.red}  @textbox_change=self.red_change/>
+            <Textbox class=input class=col_3 class=span_1 text={self.green} @textbox_change=self.green_change/>
+            <Textbox class=input class=col_4 class=span_1 text={self.blue} @textbox_change=self.blue_change/>
+            <Textbox class=input class=col_5 class=span_1 text={self.alpha_text} @textbox_change=self.alpha_change/>
+        </Group>
+    </Group>
+    <Rectangle fill=BLACK/>
+    <EventBlocker/>
+</Group>
+
+<Rectangle x=0% y=0% height=100% width=100% fill=color/>
+
+@settings {
+    @mount: on_mount
+	@pre_render: pre_render
+
+    .rgba_label {
+		x: 10px
+		height: 30px
+        style: {
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light,
+            )},
+            align_horizontal: TextAlignHorizontal::Left,
+            align_vertical: TextAlignVertical::Center,
+            font_size: 14px,
+            fill: WHITE,
+        }
+    }
+
+    .input {
+        height: 30px,
+        background: BLACK,
+        stroke: {
+            color: rgb(40, 48, 54),
+            width: 1px,
+        },
+        border_radius: 5,
+        style: {
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light,
+            )},
+            font_size: 14px,
+            fill: WHITE,
+        }
+    }
+    //Note that columns account for a left-margin of 1.67%, so
+    // col_k = (k * 100/6) + 1.67%
+    .col_1 {
+        x: 1.67%,
+        anchor_x: 0%,
+    }
+    .col_2 {
+        x: 18.33%,
+        anchor_x: 0%,
+    }
+    .col_3 {
+        x: 35%,
+        anchor_x: 0%,
+    }
+    .col_4 {
+        x: 51.67%,
+        anchor_x: 0%,
+    }
+    .col_5 {
+        x: 68%,
+        anchor_x: 0%,
+    }
+    .col_6 {
+        x: 85%,
+        anchor_x: 0%,
+    }
+    //Note that the spans account for a total margin of 3.33%
+    //so span_k = ((k * 100/6) - 3.33)%
+    .span_1 {
+        width: 13.33%,
+    }
+    .span_2 {
+        width: 30%,
+    }
+    .span_3 {
+        width: 46.6667%,
+    }
+    .span_6 {
+        width: 96.66%,
+    }
+}
