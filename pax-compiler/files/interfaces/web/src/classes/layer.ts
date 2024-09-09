@@ -24,7 +24,7 @@ export class Layer {
         this.canvas = this.objectManager.getFromPool(CANVAS);
         this.native = this.objectManager.getFromPool(DIV);
 
-        this.canvas.style.zIndex = String(occlusionLayerId);
+        this.canvas.style.zIndex = String(occlusionLayerId * 2);
         this.canvas.id = String(occlusionLayerId);
         parent.appendChild(this.canvas);
 
@@ -32,7 +32,7 @@ export class Layer {
         chassis.add_context(this.canvas.id);
 
         this.native.className = NATIVE_OVERLAY_CLASS;
-        this.native.style.zIndex = String(occlusionLayerId);
+        this.native.style.zIndex = String(occlusionLayerId * 2 + 1);
         parent.appendChild(this.native);
     }
 
