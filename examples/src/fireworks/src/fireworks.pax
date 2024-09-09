@@ -1,4 +1,17 @@
 <Group @wheel=self.handle_wheel>
+    <Text x=0% y=0% text="SCROLL" height=100% width=100% style={
+        font: Font::Web(
+            "Roboto",
+            "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+            FontStyle::Normal,
+            FontWeight::Bold)
+        font_size: 20.00px
+        fill: rgba(252, 252, 252, 255)
+        align_vertical: TextAlignVertical::Center
+        align_horizontal: TextAlignHorizontal::Center
+        align_multiline: TextAlignHorizontal::Center
+        underline: false
+    }/>
     for i in 1..60 {
         <Rectangle class=rect width=300px height=300px/>
     }

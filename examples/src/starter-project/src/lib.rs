@@ -1,9 +1,13 @@
 #![allow(unused_imports)]
 
 use pax_kit::*;
+use fireworks::*;
+use space_game::*;
+use color_picker::*;
 
 pub mod calculator;
 pub use calculator::Calculator;
+
 
 #[pax]
 #[main]
