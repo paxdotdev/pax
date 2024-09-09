@@ -16,7 +16,9 @@ html, body, #mount, canvas, .native-overlay{
     top: 0;
     left: 0;
     pointer-events: none;
+    contain: layout style paint;
 }
+
 
 .scroller-container::-webkit-scrollbar-track {
     background: transparent;
@@ -48,6 +50,7 @@ html, body, #mount, canvas, .native-overlay{
     top: 0;
     left: 0;
     pointer-events: none;
+    contain: layout style paint;
 }
 
 .native-overlay:focus {

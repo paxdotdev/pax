@@ -346,7 +346,8 @@ impl PaxEngine {
         time.set(time.get() + 1);
 
         ctx.flush_custom_events().unwrap();
-        ctx.take_native_messages()
+        let native_messages = ctx.take_native_messages();
+        native_messages
     }
 
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
