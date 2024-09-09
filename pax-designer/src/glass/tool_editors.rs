@@ -93,7 +93,7 @@ impl ToolBehavior for TextEditTool {
     }
 
     fn finish(&mut self, ctx: &mut ActionContext) -> anyhow::Result<()> {
-        let node = ctx.get_glass_node_by_global_id(&self.uid).unwrap();
+        let node = ctx.get_glass_node_by_global_id(&self.uid)?;
         node.raw_node_interface.with_properties(|text: &mut Text| {
             text.editable.replace_with(Property::new(false));
         });

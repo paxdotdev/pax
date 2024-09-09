@@ -1,5 +1,5 @@
 if self.is_component_selected {
-    <Scroller scroll_height={(343 + self.custom_properties_total_height + 5.0)px}>
+    <Scroller scroll_height={(400 + self.custom_properties_total_height + 5.0)px}>
         <Group x=5px width={100% - 10px}>
             // custom properties at top since we want things like color picker
             // to be drawn above the rest of the settings view (and z-index isn't supported yet)
@@ -10,7 +10,7 @@ if self.is_component_selected {
                             is_custom_property=true
                         />
                         <Path class=hr/>
-                        <Text class=col_1 class=span_3 text={property.name_friendly} class=h2 y=10px/>
+                        <Text class=col_1 width=100% text={property.name_friendly} class=h2 y=10px/>
                     </Group>
                 }
             </Group>
@@ -79,7 +79,7 @@ if self.is_component_selected {
         }
     }
     .h2 {
-        height: 18px,
+        height: 20px,
         style: {
             font: {Font::Web(
                 "ff-real-headline-pro",

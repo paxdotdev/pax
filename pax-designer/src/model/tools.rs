@@ -626,11 +626,11 @@ impl ToolBehavior for MultiSelectTool {
         };
         let glass_transform = ctx.glass_transform();
         let open_container = ctx.derived_state.open_container.get();
-        let mut to_process = project_root.template_children();
+        let mut to_process = project_root.children();
         let mut hits = vec![];
         while let Some(node) = to_process.pop() {
             if node.global_id().unwrap() == open_container {
-                to_process.extend(node.template_children());
+                to_process.extend(node.children());
                 continue;
             }
             let t_and_b = TransformAndBounds {
