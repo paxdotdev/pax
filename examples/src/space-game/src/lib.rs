@@ -133,8 +133,8 @@ impl SpaceGame {
                     _ => (),
                 }
             }
-            ship_x = ship_x.clamp(16.0, w - 16.0);
-            ship_y = ship_y.clamp(16.0, h - 16.0);
+            ship_x = ship_x.clamp(16.0, (w - 16.0).max(16.0));
+            ship_y = ship_y.clamp(16.0, (h - 16.0).max(16.0));
         }
 
         // Update bullets (movement, destroy, create, etc)

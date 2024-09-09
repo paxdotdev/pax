@@ -1,6 +1,8 @@
 <Carousel width=30.13% x=25.33% y=54.48% height=77.29% anchor_x=50.00% anchor_y=50.00%>
+    <Fireworks />
     <Calculator />
-    <Calculator />
+    <ColorPickerExample />
+    <SpaceGame />
 </Carousel>
 <Image source=ImageSource::Url("assets/pax-logo-white-on-black.png") x=1.97% height=14.50% y=3.56% width=15.85%/>
 <Stacker width=35.83% y=82.59% height=20.95% anchor_y=49.99% anchor_x=100.00% x=99.99% sizes=[]>
@@ -107,12 +109,7 @@
     align_multiline: TextAlignHorizontal::Right
     underline: false
 }/>
-<<<<<<< HEAD
-<Calculator width=44.50% x=22.24% y=58.77% height=82.43% anchor_x=50.00% anchor_y=50.00%/>
-<Group width=123.19% x=50.41% y=46.51% height=116.90% rotate=-4.79deg>
-=======
 <Group width=123.19% x=38.38% y=41.06% height=116.90% rotate=-4.79deg>
->>>>>>> 93fa91ae (c in std running)
     <Text y=60.15% x=77.40% height=10.61% text="Every visual change is code.
 Every app is responsive by default." 
         style={
