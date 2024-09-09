@@ -1,14 +1,14 @@
 # Pax 
 
-Design and build user interfaces that run anywhere.
+**Design and build user interfaces that run anywhere.**
 
 Pax is two things that work together: (1) a vector design tool and (2) a cross-platform user interface engine.
 
-(1) **Pax Designer** is a vector design tool that reads & writes user interface definitions as code.
+(1) **Pax Designer** is a vector design tool + visual builder that reads & writes user interface definitions as code.
 
-(2) **Pax Engine** is a user interface engine: a cross-platform, fast, and lightweight toolkit for building native apps & websites.
+(2) **Pax Engine** is a user interface engine: a cross-platform engine for building & deploying native apps & websites.
 
-All built in Rust 🦀🦀
+🦀 Built in Rust 🦀
 
 ## Get Started
 
@@ -17,19 +17,20 @@ Follow the [Get Started](https://docs.pax.dev/get-started/) instructions in the 
 ## Features
 
 * **Integrated visual builder (Pax Designer)** — a vector design tool and reads & writes code with every visual operation
-* **Cross-platform** Build WASM apps or native macOS / iOS apps (macOS and iOS targets are in Alpha; Web target is in Beta; Windows, Linux, and Android are planned.)
+* **Cross-platform native** Build WASM apps or native macOS / iOS apps (macOS and iOS targets are in Alpha; Web target is in Beta; Windows, Linux, and Android are planned.)
+* **Hot module reloading** Changes to .pax files are hot-reloaded when running Pax Designer locally — [try it out](https://docs.pax.dev/get-started/)
 * **Responsive layout engine** (top-down,) including % and px as first-class citizens
 * **Standard library of reusable components** like form controls, layouts, and drawing primitives
-* **Robust text**, including accessibility / screen-reader support and SEO support for web builds
-* **Animation engine**: every property of every element is animatable at up to 240FPS, giving an extremely high ceiling for creative expression — intended for microinteractions, data visualization, interactive cartoons, games, simulations, or whatever else you can imagine.
-* **Expression language**: every property can be bound to spreadsheet-inspired expressions; this makes dynamic logic accessible to low-coders, offers a highly expressive & succinct substrate for LLM generation, and is part of our solution   
+* **Robust text rendering**, including accessibility / screen-reader support and SEO support for web builds
+* **Animation engine**: every property of every element is animatable at up to 240FPS, giving an extremely high ceiling for creative expression — intended for microinteractions, data visualization, interactive cartoons, games, simulations, or whatever else you can imagine that calls for motion.
+* **Expression language**: every property can be bound to spreadsheet-inspired expressions; this makes dynamic logic accessible to low-coders, offers a highly expressive & succinct substrate for LLM generation, and is a key piece of Pax's solution to [designability](https://docs.pax.dev/reference/designability/)   
 * **Lightweight footprint**, targeting 100KB baseline WASM network footprint (current status: 2-3x above target, with room to improve)
 
 
 ## Examples
 
 You can try out Pax Designer on your workstation by following the [“Get Started”]((https://docs.pax.dev/get-started/)) directions.  
-This will run Pax Designer and allow you to make changes to the template starter project visually and via code.
+This will run Pax Designer locally and allow you to make changes to the template starter project visually and via code.
 
 For a robust real-world project built in Pax, see [Pax Designer's source code](https://github.com/paxdotdev/pax/tree/dev/pax-designer), which is 100% Pax.
 
@@ -78,7 +79,7 @@ Pax aims to make software creation more creative and more accessible to humanity
 
 To achieve these goals, Pax is designed for ["designability"](https://docs.pax.dev/reference/designability/) — an ongoing bilateral bridge between visual vector design and user interface definitions as code.
 
-Pax also unlocks a new way to interact with AI — a visual builder that an LLM navigates natively, because language is the backbone of every visual operation.  Pax lets you design AND code with an LLM, and it can design and code in response.  We believe this is a glimpse of the future of building user interfaces and we're working hard to bring it to the world.
+Pax also unlocks a new way to interact with AI — a visual builder that an LLM navigates natively, because language is the backbone of every visual operation.  Pax lets you design AND code with an LLM, and it can design and code in response.  We believe this is a splash of the future of building user interfaces.
 
 
 ## License
