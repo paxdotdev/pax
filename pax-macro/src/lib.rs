@@ -23,7 +23,7 @@ const CRATES_WHERE_WE_DONT_PARSE_DESIGNER: &[&str] = &["pax-designer", "pax-std"
 
 fn is_root_crate() -> bool {
     let is_not_blacklisted = !CRATES_WHERE_WE_DONT_PARSE_DESIGNER
-       .contains(&std::env::var("CARGO_PKG_NAME").unwrap_or_default().as_str());
+        .contains(&std::env::var("CARGO_PKG_NAME").unwrap_or_default().as_str());
     is_not_blacklisted
 }
 
