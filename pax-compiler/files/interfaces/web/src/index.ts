@@ -130,7 +130,6 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
     if (messages.length === 0) {
         return;
     }
-    (nativePool.layers.parent as HTMLElement).hidden = true;
     messages?.forEach((unwrapped_msg) => {
         if(unwrapped_msg["ShrinkLayersTo"]) {
             let layers_needed = unwrapped_msg["ShrinkLayersTo"];
@@ -277,7 +276,6 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             nativePool.navigate(patch)
         }
     });
-    (nativePool.layers.parent as HTMLElement).hidden = false;
 
 
     // scroller updates need to happen while everything is vissible, or else the container is
