@@ -1,8 +1,14 @@
-<Image source=ImageSource::Url("assets/pax-logo-white-on-black.png") x=2.82% height=19.44% y=1.60% width=11.07%/>
+<Carousel width=30.13% x=25.33% y=54.48% height=77.29% anchor_x=50.00% anchor_y=50.00%>
+    <Fireworks />
+    <Calculator />
+    <ColorPickerExample />
+    <SpaceGame />
+</Carousel>
+<Image source=ImageSource::Url("assets/pax-logo-white-on-black.png") x=1.97% height=14.50% y=3.56% width=15.85%/>
 <Stacker width=35.83% y=82.59% height=20.95% anchor_y=49.99% anchor_x=100.00% x=99.99% sizes=[]>
     <Group rotate=0.00rad skew_x=0.00rad skew_y=0.00rad>
         <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
-        <Text y=49.99% x=40px text="Try Running (button on top right) and resizing your browser" style={
+        <Text y=49.99% x=40px text="Try Run Mode (button on top right) and resize your browser" style={
             font: Font::Web(
                 "Roboto",
                 "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
@@ -65,7 +71,7 @@
                 align_horizontal: TextAlignHorizontal::Left
                 align_multiline: TextAlignHorizontal::Left
                 underline: false
-            }
+            } 
                 width=400px anchor_x=0 anchor_y=50%/>
         </Link>
         <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
@@ -84,7 +90,7 @@
                 align_horizontal: TextAlignHorizontal::Left
                 align_multiline: TextAlignHorizontal::Left
                 underline: false
-            }
+            } 
                 width=400px anchor_x=0 anchor_y=50%/>
         </Link>
         <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
@@ -103,10 +109,9 @@
     align_multiline: TextAlignHorizontal::Right
     underline: false
 }/>
-<Calculator width=30.13% x=25.33% y=54.48% height=77.29% anchor_x=50.00% anchor_y=50.00%/>
 <Group width=123.19% x=38.38% y=41.06% height=116.90% rotate=-4.79deg>
     <Text y=60.15% x=77.40% height=10.61% text="Every visual change is code.
-Every app is responsive by default."
+Every app is responsive by default." 
         style={
             font: Font::Web(
                 "Roboto",
@@ -122,7 +127,7 @@ Every app is responsive by default."
         } 
         width=37.67%/>
     <Group x=84.04% scale_x=100% y=46.51% width=36.04% scale_y=100% height=31.55% anchor_x=100%>
-        <Text y=63.68% x=110.29% height=39.59%
+        <Text y=63.68% x=110.29% height=39.59% 
             text="Build mobile apps, websites, business tools, games, interactive cartoons, or data visualizations." style={
                 font: Font::Web(
                     "Roboto",
