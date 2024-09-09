@@ -1,12 +1,13 @@
-
 <Frame>
 <Group width=5% x=0%>
     <Path id=left_triangle/>
-    <Rectangle fill=rgba(0,0,0,30) @click=decrement/>
+    <Rectangle fill=rgba(0,0,0,60) @click=decrement/>
+    <EventBlocker/>
 </Group>
 <Group width=5% x=100%>
     <Path id=right_triangle/>
-    <Rectangle fill=rgba(0,0,0,30) @click=increment/>
+    <Rectangle fill=rgba(0,0,0,60) @click=increment/>
+    <EventBlocker/>
 </Group>
 <Group x=50% y=50% width=90%>
 for (cell_spec, i) in self.cell_specs {

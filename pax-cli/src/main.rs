@@ -68,7 +68,7 @@ fn main() -> Result<(), Report> {
         .help("Runs project directly without wrapping in designer & designtime.");
 
     #[allow(non_snake_case)]
-        let ARG_DESIGNER = Arg::with_name("designer")
+    let ARG_DESIGNER = Arg::with_name("designer")
         .long("designer")
         .takes_value(false)
         .help("Builds project with designer & designtime.");
