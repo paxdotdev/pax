@@ -1,10 +1,13 @@
-<Carousel width=30.13% x=25.33% y=54.48% height=77.29% anchor_x=50.00% anchor_y=50.00%>
-    <Fireworks />
+<Carousel width=42.18% x=25.49% y=57.34% height=70.55% anchor_x=50.00% anchor_y=50.00%>
     <Calculator />
+    <Group>
+        <Fireworks />
+        <Rectangle fill=WHITE/>
+    </Group>
     <ColorPickerExample />
     <SpaceGame />
 </Carousel>
-<Image source=ImageSource::Url("assets/pax-logo-white-on-black.png") x=1.97% height=14.50% y=3.56% width=15.85%/>
+<Image source=ImageSource::Url("assets/pax-logo-white-on-black.png") x=2.88% height=11.88% y=5.43% width=12.99%/>
 <Stacker width=35.83% y=82.59% height=20.95% anchor_y=49.99% anchor_x=100.00% x=99.99% sizes=[]>
     <Group rotate=0.00rad skew_x=0.00rad skew_y=0.00rad>
         <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
