@@ -290,7 +290,7 @@ impl Tree {
                 }
                 false => to_node_container
                     .raw_node_interface
-                    .template_children()
+                    .children()
                     .into_iter()
                     .enumerate()
                     .find_map(|(i, c)| {
