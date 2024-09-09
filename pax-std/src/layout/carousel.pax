@@ -1,13 +1,13 @@
 <Group>
-    <Group width=5% x=0%>
+    <Group width=40px x=0%>
         <Path id=left_triangle/>
         <Rectangle corner_radii={RectangleCornerRadii::radii(5.0, 0.0, 0.0, 5.0)} fill=WHITE @click=decrement/>
     </Group>
-    <Group width=5% x=100%>
+    <Group width=40px x=100%>
         <Path id=right_triangle/>
         <Rectangle corner_radii={RectangleCornerRadii::radii(0.0, 5.0, 5.0, 0.0)} fill=WHITE @click=increment/>
     </Group>
-    <Frame x=50% y=50% width=90%>
+    <Frame x=50% y=50% width={100%-80px}>
     for (cell_spec, i) in self.cell_specs {
         if cell_spec.is_active {
             <Frame anchor_x=50% x={(cell_spec.x_percent)%} >
