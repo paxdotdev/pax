@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use pax_engine::api::*;
+use pax_engine::math::Generic;
 use pax_engine::node_layout::LayoutProperties;
 use pax_engine::*;
 use pax_manifest::*;
@@ -9,7 +10,7 @@ use pax_std::*;
 use crate::controls::settings::color_picker::ColorPicker;
 use crate::controls::settings::AREAS_PROP;
 use crate::model;
-use crate::model::action::orm::SetNodeLayoutProperties;
+use crate::model::action::orm::{NodeLayoutSettings, SetNodeLayout};
 
 use super::PropertyEditorData;
 
@@ -453,14 +454,13 @@ impl TextStylePropertyEditor {
         let data = self.data.get();
         let uid = UniqueTemplateNodeIdentifier::build(data.stid, data.snid);
         model::perform_action(
-            &SetNodeLayoutProperties {
+            &SetNodeLayout {
                 id: &uid,
-                properties: &LayoutProperties {
+                node_layout: &NodeLayoutSettings::WithProperties::<Generic>(LayoutProperties {
                     width: Some(Size::default()),
                     height: Some(Size::default()),
                     ..Default::default()
-                },
-                reset_anchor: false,
+                }),
             },
             ctx,
         );

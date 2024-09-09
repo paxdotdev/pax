@@ -116,20 +116,17 @@ impl NodeContext {
             .collect()
     }
 
-    pub fn get_userland_root_expanded_node(&self) -> NodeInterface {
+    pub fn get_userland_root_expanded_node(&self) -> Option<NodeInterface> {
         #[cfg(feature = "designtime")]
-        let expanded_node = self
-            .runtime_context
-            .get_userland_root_expanded_node()
-            .unwrap();
+        let expanded_node = self.runtime_context.get_userland_root_expanded_node()?;
         #[cfg(not(feature = "designtime"))]
-        let expanded_node = self.runtime_context.get_root_expanded_node().unwrap();
-        expanded_node.into()
+        let expanded_node = self.runtime_context.get_root_expanded_node()?;
+        Some(expanded_node.into())
     }
 
-    pub fn get_root_expanded_node(&self) -> NodeInterface {
-        let expanded_node = self.runtime_context.get_root_expanded_node().unwrap();
-        expanded_node.into()
+    pub fn get_root_expanded_node(&self) -> Option<NodeInterface> {
+        let expanded_node = self.runtime_context.get_root_expanded_node()?;
+        Some(expanded_node.into())
     }
 
     pub fn get_nodes_by_id(&self, id: &str) -> Vec<NodeInterface> {

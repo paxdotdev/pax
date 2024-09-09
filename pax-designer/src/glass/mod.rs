@@ -45,6 +45,9 @@ pub struct Glass {
     pub tool_visual_snap_lines_horizontal: Property<Vec<SnapLine>>,
     pub tool_visual_snap_lines_points: Property<Vec<Vec<f64>>>,
     pub tool_visual_event_blocker_active: Property<bool>,
+
+    // used to make scroller containers open if manifest version changed
+    pub scroller_manifest_version_listener: Property<bool>,
 }
 
 impl Glass {
@@ -62,7 +65,7 @@ impl Glass {
         let tool_visual_snap_lines_horizontal = self.tool_visual_snap_lines_horizontal.clone();
         let tool_visual_snap_lines_points = self.tool_visual_snap_lines_points.clone();
         let tool_visual_event_blocker_active = self.tool_visual_event_blocker_active.clone();
-        let ctx = ctx.clone();
+        let ctxp = ctx.clone();
         self.on_tool_change.replace_with(Property::computed(
             move || {
                 tool_visual.replace_with(if let Some(tool_behavior) = tool_behavior.get() {
@@ -99,7 +102,7 @@ impl Glass {
                     // Default ToolVisualziation behavior
                     let deps = [mouse_pos.untyped(), world_transform.untyped()];
                     let mouse_pos = mouse_pos.clone();
-                    let ctx = ctx.clone();
+                    let ctx = ctxp.clone();
                     Property::computed(
                         move || {
                             let (hit, to_glass) = model::with_action_context(&ctx, |ac| {
@@ -131,11 +134,50 @@ impl Glass {
             },
             &deps,
         ));
+
+        let dt = borrow!(ctx.designtime);
+        let manifest_ver = dt.get_manifest_version();
+        let open_container =
+            model::read_app_state_with_derived(|_, derived| derived.open_container.clone());
+        let deps = [manifest_ver.untyped(), open_container.untyped()];
+        // make scroller not clip if a child is selected
+        // for now only scroller needs somewhat special behavior
+        // might want to create more general double click framework at some point
+        let ctx = ctx.clone();
+        self.scroller_manifest_version_listener
+            .replace_with(Property::computed(
+                move || {
+                    let open = open_container.get();
+                    if let Some(node) = ctx.get_nodes_by_global_id(open.clone()).into_iter().next()
+                    {
+                        let open_container = open_container.clone();
+                        let deps = [open_container.untyped()];
+                        // if this is a scroller, make it open if it's id is the currently open container
+                        let _ = node.with_properties(|scroller: &mut Scroller| {
+                            scroller._clip_content.replace_with(Property::computed(
+                                move || {
+                                    let is_open = open_container.get() == open;
+                                    !is_open
+                                },
+                                &deps,
+                            ));
+                        });
+                    }
+                    false
+                },
+                &deps,
+            ));
     }
 
-    pub fn on_pre_render(&mut self, _ctx: &NodeContext) {
+    pub fn on_pre_render(&mut self, ctx: &NodeContext) {
         // update if dirty
         self.on_tool_change.get();
+
+        // WARNING: this needs to be delayed a few frames,
+        // if not the open container get's called before the userland root exists
+        if ctx.frames_elapsed.get() > 2 {
+            self.scroller_manifest_version_listener.get();
+        };
     }
 
     pub fn context_menu(&mut self, _ctx: &NodeContext, args: Event<ContextMenu>) {
@@ -172,9 +214,9 @@ impl Glass {
                     model::perform_action(&TextEdit { uid }, ctx);
                 }
                 Some(
-                    path @ ("pax_std::core::group::Group"
+                    "pax_std::core::group::Group"
                     | "pax_std::layout::stacker::Stacker"
-                    | "pax_std::core::scroller::Scroller"),
+                    | "pax_std::core::scroller::Scroller",
                 ) => {
                     model::with_action_context(ctx, |ac| {
                         let hit = ac.raycast_glass(
@@ -192,26 +234,6 @@ impl Glass {
                             {
                                 log::warn!("failed to drill into container: {}", e);
                             };
-                        }
-                        // make scroller not clip if a child is selected
-                        // for now only scroller needs somewhat special behavior
-                        // might want to create more general double click framework at some point
-                        if path.contains("Scroller") {
-                            let node = ac.get_glass_node_by_global_id(&uid).unwrap();
-                            let open_containers = ac.derived_state.open_container.clone();
-                            let id = node.id.clone();
-                            node.raw_node_interface
-                                .with_properties(|scroller: &mut Scroller| {
-                                    let deps = [open_containers.untyped()];
-                                    scroller._clip_content.replace_with(Property::computed(
-                                        move || {
-                                            let is_open = open_containers.get() == id;
-                                            !is_open
-                                        },
-                                        &deps,
-                                    ));
-                                })
-                                .unwrap();
                         }
                     });
                 }
@@ -259,7 +281,10 @@ impl Glass {
                 log::info!("sent file to server!!");
             };
         }
-        let parent = ctx.get_userland_root_expanded_node();
+        let Some(parent) = ctx.get_userland_root_expanded_node() else {
+            log::warn!("failed to handle image drop: couldn't get userland root");
+            return;
+        };
         model::with_action_context(ctx, |ac| {
             let parent = GlassNode::new(&parent, &ac.glass_transform());
             let cw = ac.glass_transform().get() * Point2::new(event.args.x, event.args.y);

@@ -251,8 +251,10 @@ impl Tree {
                 .unwrap_or(
                     ctx.engine_context
                         .get_userland_root_expanded_node()
-                        .global_id()
-                        .unwrap(),
+                        .and_then(|n| n.global_id())
+                        .ok_or_else(|| {
+                            anyhow::anyhow!("failed to get userland root in tree move")
+                        })?,
                 );
             let from_node = ctx.get_glass_node_by_global_id(&from_uid).unwrap();
             let to_node = ctx.get_glass_node_by_global_id(&to_uid).unwrap();
@@ -288,7 +290,7 @@ impl Tree {
                 }
                 false => to_node_container
                     .raw_node_interface
-                    .children()
+                    .template_children()
                     .into_iter()
                     .enumerate()
                     .find_map(|(i, c)| {
