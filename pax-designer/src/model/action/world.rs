@@ -139,7 +139,7 @@ impl Action for SelectAllInOpenContainer {
         let node = ctx.get_glass_node_by_global_id(&open_container)?;
         let select_ids: Vec<_> = node
             .raw_node_interface
-            .template_children()
+            .children()
             .into_iter()
             .filter_map(|c| c.global_id())
             .map(|uid| uid.get_template_node_id())

@@ -48,14 +48,14 @@ impl IntentSnapper {
 
         let mut snap_set_children =
             SnapSet::new(Color::rgba(16.into(), 196.into(), 187.into(), 150.into()));
-        let mut to_process = root.template_children();
+        let mut to_process = root.children();
         while let Some(node) = to_process.pop() {
             if node.global_id().is_some() && ignore.contains(&node.global_id().unwrap()) {
                 continue;
             }
             let t_and_b = glass_t_and_b * node.transform_and_bounds().get();
             snap_set_children.add_lines_from_axis_aligned_bounds(t_and_b);
-            to_process.extend(node.template_children())
+            to_process.extend(node.children())
         }
         Self::new(
             ctx,

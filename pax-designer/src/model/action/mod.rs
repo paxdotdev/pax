@@ -184,9 +184,9 @@ impl ActionContext<'_> {
             .get_nodes_by_global_id(uid.clone())
             .into_iter()
             .max()
-            .ok_or(anyhow!(
-                "couldn't find node in engine (has a designer update tick passed?)"
-            ))?;
+            .ok_or_else(|| {
+                anyhow!("couldn't find node in engine (has a designer update tick passed?)")
+            })?;
         Ok(GlassNode::new(&node_interface, &self.glass_transform()))
     }
 

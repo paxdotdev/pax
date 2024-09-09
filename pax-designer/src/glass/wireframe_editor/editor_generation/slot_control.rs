@@ -281,9 +281,9 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
     Property::computed(
         move || {
             let mut slots = vec![];
-            let mut search_set: Vec<NodeInterface> = slot_parent_node.template_children();
+            let mut search_set: Vec<NodeInterface> = slot_parent_node.children();
             while let Some(node) = search_set.pop() {
-                for n in node.template_children() {
+                for n in node.children() {
                     if n.is_of_type::<Slot>() {
                         slots.push(n)
                     } else {
@@ -295,7 +295,7 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
             let slot_dot_control_points = slots
                 .into_iter()
                 .map(|s| {
-                    let slot_child = s.template_children().into_iter().next().unwrap();
+                    let slot_child = s.children().into_iter().next().unwrap();
                     let slot_child = GlassNode::new(&slot_child, &to_glass);
                     let t_and_b = slot_child.transform_and_bounds.get();
                     CPoint::new(t_and_b.center(), slot_dot_control_factory(slot_child))
@@ -341,7 +341,7 @@ pub fn raycast_slot(
         .next()?;
 
     let container = slot_hit
-        .template_children()
+        .children()
         .first()
         .as_ref()
         .unwrap()

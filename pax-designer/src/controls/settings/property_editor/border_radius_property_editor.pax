@@ -2,7 +2,7 @@
     <Textbox class=input text={self.textbox} @textbox_change=self.text_change @textbox_input=self.text_input/>
     <Text
         y=5px
-        x={75% + 10px}
+        x={88% + 10px}
         anchor_x=0%
         text="px"
         height=30px
@@ -45,7 +45,7 @@
 
     .input {
         y: 10px
-        x: 45%
+        x: 60%
         anchor_x=0%
         width: 30%,
         height: 30px,

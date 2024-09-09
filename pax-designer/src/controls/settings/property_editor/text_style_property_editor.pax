@@ -53,13 +53,15 @@
         />
     </Group>
 
-    <Group x=220px height=30px width=30px @click=set_auto_size>
-        <EventBlocker/>
-        <Text class=text text="A" width=100% height=100%/>
-        <Rectangle fill={rgb(20 + 50 * auto, 20 + 50 * auto, 20 + 50 * auto)}
-	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
-        />
-    </Group>
+    // TODO how to set auto size for text? this would make non-text
+    // fill up the screen
+    // <Group x=220px height=30px width=30px @click=set_auto_size>
+    //     <EventBlocker/>
+    //     <Text class=text text="A" width=100% height=100%/>
+    //     <Rectangle fill={rgb(20 + 50 * auto, 20 + 50 * auto, 20 + 50 * auto)}
+	   //  corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
+    //     />
+    // </Group>
 </Group>
 
 @settings {
