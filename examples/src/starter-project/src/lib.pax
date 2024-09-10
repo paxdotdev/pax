@@ -5,7 +5,7 @@
         <Rectangle fill=WHITE/>
     </Group>
     <ColorPickerExample />
-    <SpaceGame />
+    <BreakoutGame />
 </Carousel>
 <Image source=ImageSource::Url("assets/pax-logo-white-on-black.png") x=2.88% height=11.88% y=5.43% width=12.99%/>
 <Stacker width=35.83% y=82.59% height=20.95% anchor_y=49.99% anchor_x=100.00% x=99.99% sizes=[]>

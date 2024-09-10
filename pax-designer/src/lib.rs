@@ -82,25 +82,6 @@ impl PaxDesigner {
         self.manifest_loaded_from_server
             .replace_with(Property::computed(
                 move || {
-                    // when manifests load, set transform of glass to fit scene
-                    model::read_app_state(|app_state| {
-                        let stage = app_state.stage.get();
-                        let (w, h) = ctx
-                            .get_nodes_by_id(DESIGNER_GLASS_ID)
-                            .into_iter()
-                            .next()
-                            .unwrap()
-                            .transform_and_bounds()
-                            .get()
-                            .bounds;
-                        app_state
-                            .glass_to_world_transform
-                            .set(Transform2::translate(Vector2::new(
-                                (stage.width as f64 - w) / 2.0,
-                                (stage.height as f64 - h) / 2.0,
-                            )));
-                    });
-
                     manifest_load_state.get()
                 },
                 &deps,
@@ -108,6 +89,28 @@ impl PaxDesigner {
     }
 
     pub fn tick(&mut self, ctx: &NodeContext) {
+
+        if ctx.frames_elapsed.get() == 1 {
+            // when manifests load, set transform of glass to fit scene
+            model::read_app_state(|app_state| {
+                let stage = app_state.stage.get();
+                let (w, h) = ctx
+                    .get_nodes_by_id(DESIGNER_GLASS_ID)
+                    .into_iter()
+                    .next()
+                    .unwrap()
+                    .transform_and_bounds()
+                    .get()
+                    .bounds;
+                app_state
+                    .glass_to_world_transform
+                    .set(Transform2::translate(Vector2::new(
+                        (stage.width as f64 - w) / 2.0,
+                        (stage.height as f64 - h) / 2.0,
+                    )));
+            });
+        }
+
         model::action::meta::flush_sheduled_actions(ctx);
     }
 
