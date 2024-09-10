@@ -11,9 +11,7 @@ env:
 
 jobs:
   build:
-
-    runs-on:
-      labels: centurion
+    runs-on: centurion
 
     steps:
     - uses: actions/checkout@v3
