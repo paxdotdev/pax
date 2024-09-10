@@ -11,7 +11,8 @@ env:
 
 jobs:
   build:
-    runs-on: centurion
+    runs-on: 
+      group: Default
     steps:
     - uses: actions/checkout@v3
     # Install dependencies
