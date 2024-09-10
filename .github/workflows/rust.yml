@@ -22,8 +22,8 @@ jobs:
       run: sudo apt update && sudo apt install -y libgtk-4-dev &&  curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh 
     - name: Build Starter Project
       run: pushd examples/src/starter-project && ./pax build --release --designer && popd
-    # - name: Run tests
-    #   run: cargo test --verbose --workspace --exclude pax-chassis-macos --exclude pax-chassis-common --exclude pax-chassis-ios
+    - name: Run tests
+      run: cargo test --verbose --workspace --exclude pax-chassis-macos --exclude pax-chassis-common --exclude pax-chassis-ios
     # - name: Check formatting
     #   run: cargo fmt -- --check
     # - name: Check for linting errors
