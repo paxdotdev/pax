@@ -1,5 +1,8 @@
 <Carousel width=42.18% x=25.49% y=57.34% height=70.55% anchor_x=50.00% anchor_y=50.00%>
-    <Calculator />
+    <Group>
+        <Calculator />
+        <Rectangle fill=rgba(30, 30, 30, 255)/>
+    </Group>
     <Group>
         <Fireworks />
         <Rectangle fill=WHITE/>
@@ -160,7 +163,7 @@ Every app is responsive by default."
         } 
             width=108.72%/>
     </Group>
-    <Rectangle x=0.00% height=33.33% y=0.00% fill=rgba(0, 0, 0, 226) corner_radii={
+    <Rectangle x=0.00% height=33.33% y=0.00% fill=rgba(12, 12, 12, 255) corner_radii={
         top_left: 0
         top_right: 0
         bottom_left: 0
