@@ -11,8 +11,8 @@ const BRICK_WIDTH: f64 = 60.0;
 const BRICK_HEIGHT: f64 = 20.0;
 const BRICK_ROWS: usize = 5;
 const BRICK_COLS: usize = 10;
-const INITIAL_BALL_SPEED: f64 = 9.0;
-const BALL_SPEED_MULTIPLIER: f64 = 1.50;
+const INITIAL_BALL_SPEED: f64 = 3.0;
+const BALL_SPEED_MULTIPLIER: f64 = 1.25;
 const MIN_BALL_DY: f64 = 2.0;
 const MIN_PADDLE_WIDTH: f64 = 25.0;
 const PADDLE_WIDTH_INCREMENT: f64 = 25.0;
@@ -402,7 +402,7 @@ impl BreakoutGame {
         if self.game_state.get() == GameState::Playing as u32 {
             let mut paddle = self.paddle.get();
             let (width, _) = ctx.bounds_parent.get();
-            let new_x = args.mouse.x - paddle.width / 2.0;
+            let new_x = args.mouse.x - paddle.width * 1.5;
             paddle.x = new_x.clamp(0.0, width - paddle.width);
             self.paddle.set(paddle);
         }

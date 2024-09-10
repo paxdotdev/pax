@@ -9,11 +9,11 @@
     </Group>
     <Frame x=50% y=50% width={100%-80px}>
     for (cell_spec, i) in self.cell_specs {
-        if cell_spec.is_active {
-            <Frame anchor_x=50% x={(cell_spec.x_percent)%} >
+        <Frame anchor_x=50% x={(cell_spec.x_percent)%} >
+            if cell_spec.is_active {
                 slot(i)
-            </Frame>
-        }
+            }
+        </Frame>
     }
     </Frame>
 </Group>

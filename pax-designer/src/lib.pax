@@ -5,10 +5,10 @@ if self.glass_active {
     <Controls/>
     <Group id=designer_glass>
         // hide glass before project is loaded, could potentially show loading bar at some point
-        if !self.manifest_loaded_from_server {
-            <Text id=loading text="Loading..." width=100% height=100%/>
-            <Rectangle fill=WHITE/>
-        }
+        //if !self.manifest_loaded_from_server {
+        //    <Text id=loading text="Loading..." width=100% height=100%/>
+        //    <Rectangle fill=WHITE/>
+        //}
         //Optionally turned on on right click
         <DesignerContextMenu/>
         <Glass/>
