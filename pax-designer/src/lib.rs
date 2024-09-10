@@ -30,6 +30,7 @@ pub mod math;
 pub mod message_log_display;
 pub mod model;
 pub mod project_mode_toggle;
+pub mod project_publish_button;
 
 use context_menu::DesignerContextMenu;
 use controls::{
@@ -41,6 +42,7 @@ use glass::Glass;
 use llm_interface::LLMInterface;
 use message_log_display::MessageLogDisplay;
 use project_mode_toggle::ProjectModeToggle;
+use project_publish_button::ProjectPublishButton;
 
 use pax_std::*;
 
@@ -80,16 +82,10 @@ impl PaxDesigner {
         let ctx = ctx.clone();
         let deps = [manifest_load_state.untyped()];
         self.manifest_loaded_from_server
-            .replace_with(Property::computed(
-                move || {
-                    manifest_load_state.get()
-                },
-                &deps,
-            ));
+            .replace_with(Property::computed(move || manifest_load_state.get(), &deps));
     }
 
     pub fn tick(&mut self, ctx: &NodeContext) {
-
         if ctx.frames_elapsed.get() == 1 {
             // when manifests load, set transform of glass to fit scene
             model::read_app_state(|app_state| {
@@ -107,9 +103,10 @@ impl PaxDesigner {
                         (stage.width as f64 / 2.0),
                         (stage.height as f64 / 2.0),
                     )) * Transform2::scale(1.4)
-                        * Transform2::<math::coordinate_spaces::Glass>::translate(
-                            -Vector2::new(w / 2.0, h / 2.0),
-                        ),
+                        * Transform2::<math::coordinate_spaces::Glass>::translate(-Vector2::new(
+                            w / 2.0,
+                            h / 2.0,
+                        )),
                 );
             });
         }

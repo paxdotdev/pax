@@ -1,3 +1,4 @@
+<ProjectPublishButton/>
 <ProjectModeToggle x=100% width=90px height=55px/>
 if self.glass_active {
     <MessageLogDisplay/>

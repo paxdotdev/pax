@@ -108,6 +108,10 @@ impl DesigntimeManager {
         Ok(())
     }
 
+    pub fn publish_project(&mut self) {
+        log::warn!("project publishing not implemented");
+    }
+
     pub fn add_factory(
         &mut self,
         type_id: String,
