@@ -1,4 +1,76 @@
-<Carousel width=42.18% x=25.49% y=57.34% height=70.55% anchor_x=50.00% anchor_y=50.00%>
+<Link y=5.66% width=11.93% x=97.75% height=5.17% url="https://docs.pax.dev/get-started/">
+    <Text y=0.00% x=100.00% text="Get Started" style={
+        font: Font::Web(
+            "Roboto",
+            "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+            FontStyle::Normal,
+            FontWeight::Bold)
+        font_size: 24px
+        fill: rgba(254, 254, 254, 255)
+        align_vertical: TextAlignVertical::Center
+        align_horizontal: TextAlignHorizontal::Center
+        align_multiline: TextAlignHorizontal::Center
+        underline: false
+    } 
+        width=100% height=100%/>
+    <Rectangle height=100% width=100% corner_radii={
+        top_left: 10
+        top_right: 10
+        bottom_left: 10
+        bottom_right: 10
+    } 
+        y=0.00% x=0.00% fill=INDIGO/>
+</Link>
+<Link y=5.71% width=11.87% x=38.72% height=5.63% url="https://docs.pax.dev">
+    <Text y=0.00% x=0.00% text="Docs" style={
+        font: Font::Web(
+            "Roboto",
+            "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+            FontStyle::Normal,
+            FontWeight::Light)
+        font_size: 24px
+        fill: rgba(254, 254, 254, 255)
+        align_vertical: TextAlignVertical::Center
+        align_horizontal: TextAlignHorizontal::Center
+        align_multiline: TextAlignHorizontal::Center
+        underline: false
+    } 
+        width=100% height=100%/>
+</Link>
+<Link y=5.71% width=11.87% x=25.77% height=5.63% url="https://discord.com/invite/Eq8KWAUc6b">
+    <Text y=0.00% x=0.00% text="Discord" style={
+        font: Font::Web(
+            "Roboto",
+            "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+            FontStyle::Normal,
+            FontWeight::Light)
+        font_size: 24px
+        fill: rgba(254, 254, 254, 255)
+        align_vertical: TextAlignVertical::Center
+        align_horizontal: TextAlignHorizontal::Center
+        align_multiline: TextAlignHorizontal::Center
+        underline: false
+    } 
+        width=100% height=100%/>
+</Link>
+<Link y=5.71% width=11.87% x=13.43% height=5.63%>
+    <Text y=0.00% x=0.00% text="GitHub" style={
+        font: Font::Web(
+            "Roboto",
+            "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+            FontStyle::Normal,
+            FontWeight::Light)
+        font_size: 24px
+        fill: rgba(254, 254, 254, 255)
+        align_vertical: TextAlignVertical::Center
+        align_horizontal: TextAlignHorizontal::Center
+        align_multiline: TextAlignHorizontal::Center
+        underline: false
+    } 
+        width=100% height=100%/>
+</Link>
+<Image source=ImageSource::Url("assets/pax-logo-white-on-black.png") x=2.72% height=7.57% y=5.97% width=8.28%/>
+<Carousel width=45.41% x=24.32% y=56.84% height=78.32% anchor_x=50.00% anchor_y=50.00%>
     <Group>
         <Calculator />
         <Rectangle fill=rgba(30, 30, 30, 255)/>
@@ -10,7 +82,6 @@
     <ColorPickerExample />
     <BreakoutGame />
 </Carousel>
-<Image source=ImageSource::Url("assets/pax-logo-white-on-black.png") x=2.88% height=11.88% y=5.43% width=12.99%/>
 <Stacker width=35.83% y=82.59% height=20.95% anchor_y=49.99% anchor_x=100.00% x=99.99% sizes=[]>
     <Group rotate=0.00rad skew_x=0.00rad skew_y=0.00rad>
         <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
@@ -115,7 +186,7 @@
     align_multiline: TextAlignHorizontal::Right
     underline: false
 }/>
-<Group width=123.19% x=38.38% y=41.06% height=116.90% rotate=-4.79deg>
+<Group width=123.19% x=38.38% y=41.06% height=116.90% rotate={-4.79deg}>
     <Text y=60.15% x=77.40% height=10.61% text="Every visual change is code.
 Every app is responsive by default." 
         style={
