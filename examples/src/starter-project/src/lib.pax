@@ -21,7 +21,7 @@
     } 
         y=0.00% x=0.00% fill=INDIGO/>
 </Link>
-<Link y=5.71% width=11.87% x=38.72% height=5.63% url="https://docs.pax.dev">
+<Link y=6.17% width=11.87% x=39.96% height=5.63% url="https://docs.pax.dev" target=Target::New>
     <Text y=0.00% x=0.00% text="Docs" style={
         font: Font::Web(
             "Roboto",
@@ -37,7 +37,7 @@
     } 
         width=100% height=100%/>
 </Link>
-<Link y=5.71% width=11.87% x=25.77% height=5.63% url="https://discord.com/invite/Eq8KWAUc6b">
+<Link y=6.17% width=11.87% x=27.01% height=5.63% url="https://discord.com/invite/Eq8KWAUc6b" target=Target::New>
     <Text y=0.00% x=0.00% text="Discord" style={
         font: Font::Web(
             "Roboto",
@@ -53,7 +53,7 @@
     } 
         width=100% height=100%/>
 </Link>
-<Link y=5.71% width=11.87% x=13.43% height=5.63%>
+<Link y=6.17% width=11.87% x=14.67% height=5.63% target=Target::New>
     <Text y=0.00% x=0.00% text="GitHub" style={
         font: Font::Web(
             "Roboto",
@@ -69,7 +69,7 @@
     } 
         width=100% height=100%/>
 </Link>
-<Image source=ImageSource::Url("assets/pax-logo-white-on-black.png") x=2.72% height=7.57% y=5.97% width=8.28%/>
+<Image source=ImageSource::Url("assets/pax-logo-white-on-black.png") x=2.72% height=8.88% y=5.97% width=9.71%/>
 <Carousel width=45.41% x=24.32% y=56.84% height=78.32% anchor_x=50.00% anchor_y=50.00%>
     <Group>
         <Calculator />
@@ -205,7 +205,8 @@ Every app is responsive by default."
         width=37.67%/>
     <Group x=84.04% scale_x=100% y=46.51% width=36.04% scale_y=100% height=31.55% anchor_x=100%>
         <Text y=63.68% x=110.29% height=39.59% 
-            text="Build mobile apps, websites, business tools, games, interactive cartoons, or data visualizations." style={
+            text="Build mobile apps, websites, business tools, games, digital art, interactive cartoons, data visualizations, and more." 
+            style={
                 font: Font::Web(
                     "Roboto",
                     "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
