@@ -67,7 +67,7 @@
     } 
         width=100% height=100%/>
 </Link>
-<Link y=6.17% width=11.87% x=14.67% height=5.63% target=Target::New>
+<Link y=5.71% width=11.87% x=13.43% height=5.63% url="https://github.com/paxdotdev/pax">
     <Text y=0.00% x=0.00% text="GitHub" style={
         font: Font::Web(
             "Roboto",
