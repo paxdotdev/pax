@@ -1,13 +1,13 @@
 [package]
 name = "space-game"
-version = "0.36.3"
+version = "0.36.4"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
 rand = { version = "0.8.5" }
 getrandom = { version = "0.2.15", features = ["js"] }
-pax-kit = { version = "0.36.3", path="../../../pax-kit" }
+pax-kit = { version = "0.36.4", path="../../../pax-kit" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
