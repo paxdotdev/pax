@@ -57,7 +57,7 @@ impl InstanceNode for ImageInstance {
         })
     }
 
-    fn handle_mount(
+    fn handle_shadow_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,

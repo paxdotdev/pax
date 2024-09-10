@@ -59,7 +59,11 @@ impl InstanceNode for InlineFrameInstance {
         &self.base
     }
 
-    fn handle_mount(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, ctx: &Rc<RuntimeContext>) {
+    fn handle_shadow_mount(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        ctx: &Rc<RuntimeContext>,
+    ) {
         let instance_node = Rc::clone(&*borrow!(ctx.userland_frame_instance_node));
         let children_with_envs = vec![(
             instance_node,

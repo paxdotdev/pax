@@ -63,7 +63,7 @@ impl InstanceNode for SliderInstance {
         })
     }
 
-    fn handle_mount(
+    fn handle_render_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,

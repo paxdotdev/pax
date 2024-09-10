@@ -106,7 +106,7 @@ pub struct ExpandedNode {
     /// since an entire "shadow tree" needs to be expanded and updated for
     /// each slot child, but only the ones that have a "connected" slot should
     /// trigger mount/dismount updates
-    pub attached: Cell<u32>,
+    pub attached: Cell<bool>,
 
     /// Occlusion layer for this node. Used by canvas elements to decide what canvas to draw on, and
     /// by native elements to move to the correct native layer.
@@ -225,7 +225,7 @@ impl ExpandedNode {
             id,
             stack: env,
             instance_node: RefCell::new(Rc::clone(&template)),
-            attached: Cell::new(0),
+            attached: Cell::new(false),
             properties: RefCell::new(properties),
             common_properties: RefCell::new(common_properties),
             rendered_size: Property::default(),
@@ -373,7 +373,7 @@ impl ExpandedNode {
                 &deps,
             ));
         }
-        if self.attached.get() > 0 {
+        if self.attached.get() {
             for child in curr_children.iter() {
                 Rc::clone(child).recurse_unmount(context);
             }
@@ -456,12 +456,15 @@ impl ExpandedNode {
     }
 
     pub fn recurse_mount(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
-        if self.attached.get() == 0 {
-            self.attached.set(self.attached.get() + 1);
+        if !self.attached.get() {
+            self.attached.set(true);
             context.add_to_cache(&self);
             borrow!(self.instance_node)
                 .clone()
-                .handle_mount(&self, context);
+                .handle_shadow_mount(&self, context);
+            borrow!(self.instance_node)
+                .clone()
+                .handle_render_mount(&self, context);
             if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
                 for handler in borrow!(registry)
                     .handlers
@@ -478,12 +481,13 @@ impl ExpandedNode {
             // Mount slot children and children AFTER mounting self
             if let Some(slot_children) = borrow!(self.expanded_slot_children).as_ref() {
                 for slot_child in slot_children {
-                    slot_child.recurse_mount(context);
+                    borrow!(slot_child.instance_node)
+                        .clone()
+                        .handle_shadow_mount(&slot_child, context);
                 }
             }
-            // this is needed to reslove slot connections in a single tick (otherwise
-            // self.compute_flattened_slot_children() isn't run)
-            self.recurse_update(context);
+            // this is needed to reslove slot connections in a single tick
+            self.compute_flattened_slot_children();
         }
     }
 
@@ -492,8 +496,9 @@ impl ExpandedNode {
         // in this case: do not refer to self.children expression.
         // expr evaluation in this context can trigger get's of "old data", ie try to get
         // an index of a for loop source that doesn't exist anymore
-        if self.attached.get() == 1 {
-            self.attached.set(self.attached.get() - 1);
+        self.attached.set(false);
+        if self.attached.get() {
+            self.attached.set(false);
             context.remove_from_cache(&self);
             for child in borrow!(self.mounted_children).iter() {
                 Rc::clone(child).recurse_unmount(context);

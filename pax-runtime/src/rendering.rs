@@ -128,12 +128,12 @@ pub trait InstanceNode {
         //no-op default implementation
     }
 
-    /// Fires during the tick when a node is first attached to the render tree.  For example,
+    /// Fires when a node is first attached to the (shadow) tree.  For example,
     /// this event fires by all nodes on the global first tick, and by all nodes in a subtree
     /// when a `Conditional` subsequently turns on a subtree (i.e. when the `Conditional`s criterion becomes `true` after being `false` through the end of at least 1 frame.)
-    /// A use-case: send a message to native renderers that a `Text` element should be rendered and tracked
+    /// A use-case: expand a for loops children
     #[allow(unused_variables)]
-    fn handle_mount(
+    fn handle_shadow_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
@@ -148,6 +148,18 @@ pub trait InstanceNode {
             &expanded_node.parent_frame,
         );
         expanded_node.children.set(new_children);
+    }
+
+    /// Fires when a node is first attached to the render tree.  For example,
+    /// this event fires by all nodes on the global first tick, and by all nodes in a subtree except for slot_children of components
+    /// when a `Conditional` subsequently turns on a subtree (i.e. when the `Conditional`s criterion becomes `true` after being `false` through the end of at least 1 frame.)
+    /// A use-case: send a message to native renderers that a `Text` element should be rendered and tracked
+    #[allow(unused_variables)]
+    fn handle_render_mount(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RuntimeContext>,
+    ) {
     }
 
     /// Fires during element unmount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)
