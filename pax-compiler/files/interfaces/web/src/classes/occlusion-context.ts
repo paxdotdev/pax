@@ -53,7 +53,11 @@ export class OcclusionLayerManager {
     addElement(element: HTMLElement, parent_container: number | undefined, occlusionLayerId: number){
         this.growTo(occlusionLayerId);
         let attach_point = this.getOrCreateContainer(parent_container, occlusionLayerId);
-        attach_point.appendChild(element);
+        if (attach_point) {
+            attach_point.appendChild(element);
+        } else {
+            console.warn("tried to move an element into a non-existent container");
+        }
     }
 
     // If a div for the container referenced already exists, returns it. if not,
@@ -73,7 +77,8 @@ export class OcclusionLayerManager {
         //ok doesn't seem to exist, we need to create it
         let container = this.containers.get(id);
         if (container == null) {
-            throw new Error("something referenced a container that doesn't exist");
+            console.warn("chassi: something referenced a container that doesn't exist");
+            return;
         }
         let new_container: HTMLDivElement = this.objectManager.getFromPool(DIV);
         new_container.dataset.containerId = id.toString();
@@ -87,7 +92,7 @@ export class OcclusionLayerManager {
 
 
         let parent_container = this.getOrCreateContainer(container.parentFrame, occlusionLayerId);
-        parent_container.appendChild(new_container);
+        parent_container!.appendChild(new_container);
         return new_container;
     }
 
@@ -97,17 +102,19 @@ export class OcclusionLayerManager {
 
     updateContainer(id: number, styles: Partial<ContainerStyle>) {
         let container = this.containers.get(id);
-        if (container == null) {
-            throw new Error("tried to update non existent container");
+        if (container) {
+            container.updateClippingPath(styles);
+        } else {
+            console.warn("tried to update non existent container");
         }
-        container.updateClippingPath(styles);
     }
 
     updateContainerParent(id: number, new_parent_id: number | undefined) {
         // Check if the container exists
         const container = this.containers.get(id);
         if (container == null) {
-            throw new Error(`Container with id ${id} does not exist`);
+            console.warn(`Container with id ${id} does not exist`);
+            return;
         }
 
         // Update the container's parent in our internal data structure
@@ -122,7 +129,11 @@ export class OcclusionLayerManager {
 
                 // Add to new parent
                 const newParentElement = this.getOrCreateContainer(new_parent_id, layerIndex);
-                newParentElement.appendChild(currentElement);
+                if (newParentElement) {
+                    newParentElement.appendChild(currentElement);
+                } else {
+                    console.warn("failed to get new container when moving element");
+                }
             }
         });
     }
@@ -130,7 +141,8 @@ export class OcclusionLayerManager {
     removeContainer(id: number) {
         let container = this.containers.get(id);
         if (container == null) {
-            throw new Error(`tried to delete non-existent container with id ${id}`);
+            console.warn(`tried to delete non-existent container with id ${id}`);
+            return;
         }
         this.containers.delete(id);
 
@@ -138,7 +150,8 @@ export class OcclusionLayerManager {
         existing_layer_instantiations.forEach((elem, _key, _parent) => {
             let parent = elem.parentElement;
             if (elem.children.length > 0) {
-                throw new Error(`tried to remove container width id ${id} while children still present`);
+                console.error(`tried to remove container width id ${id} while children still present`);
+                return;
             }
             parent!.removeChild(elem);
         })
