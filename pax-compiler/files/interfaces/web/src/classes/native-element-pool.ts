@@ -203,7 +203,7 @@ export class NativeElementPool {
             this.layers.addElement(textboxDiv, patch.parentFrame, patch.occlusionLayerId);
             this.nodesLookup.set(patch.id!, textboxDiv);
         } else {
-            console.warn("chassi: undefined id or occlusionLayer");
+            throw new Error("undefined id or occlusionLayer");
         }
 
     }
@@ -310,7 +310,7 @@ export class NativeElementPool {
             this.layers.addElement(radioSetDiv, patch.parentFrame, patch.occlusionLayerId);
             this.nodesLookup.set(patch.id!, radioSetDiv);
         } else {
-            console.warn("undefined id or occlusionLayer");
+            throw new Error("undefined id or occlusionLayer");
         }
 
     }
@@ -405,7 +405,7 @@ export class NativeElementPool {
             this.layers.addElement(sliderDiv, patch.parentFrame, patch.occlusionLayerId);
             this.nodesLookup.set(patch.id!, sliderDiv);
         } else {
-            console.warn("undefined id or occlusionLayer");
+            throw new Error("undefined id or occlusionLayer");
         }
 
     }
@@ -475,7 +475,7 @@ export class NativeElementPool {
             this.layers.addElement(textboxDiv, patch.parentFrame, patch.occlusionLayerId);
             this.nodesLookup.set(patch.id!, textboxDiv);
         } else {
-            console.warn("undefined id or occlusionLayer");
+            throw new Error("undefined id or occlusionLayer");
         }
 
     }
@@ -560,7 +560,7 @@ export class NativeElementPool {
             this.layers.addElement(buttonDiv, patch.parentFrame, patch.occlusionLayerId);
             this.nodesLookup.set(patch.id!, buttonDiv);
         } else {
-            console.warn("undefined id or occlusionLayer");
+            throw new Error("undefined id or occlusionLayer");
         }
     }
 
@@ -640,7 +640,7 @@ export class NativeElementPool {
             this.layers.addElement(textDiv, patch.parentFrame, patch.occlusionLayerId);
             this.nodesLookup.set(patch.id!, textDiv);
         } else {
-            console.warn("undefined id or occlusionLayer");
+            throw new Error("undefined id or occlusionLayer");
         }
     }
 
@@ -751,13 +751,11 @@ export class NativeElementPool {
 
     textDelete(id: number) {
         let oldNode = this.nodesLookup.get(id);
+        this.resizeObserver.unobserve(oldNode!);
         if (oldNode){
-            this.resizeObserver.unobserve(oldNode!);
             let parent = oldNode.parentElement;
             parent!.removeChild(oldNode);
             this.nodesLookup.delete(id);
-        } else {
-            console.warn("chassi: tried to delete non-existent text");
         }
     }
 
@@ -817,7 +815,7 @@ export class NativeElementPool {
             this.layers.addElement(scrollerDiv, patch.parentFrame, patch.occlusionLayerId);
             this.nodesLookup.set(patch.id!, scrollerDiv);
         } else {
-            console.warn("undefined id or occlusionLayer");
+            throw new Error("undefined id or occlusionLayer");
         }
     }
 
@@ -871,8 +869,7 @@ export class NativeElementPool {
     scrollerDelete(id: number){
         let oldNode = this.nodesLookup.get(id);
         if (oldNode == undefined) {
-            console.warn("tried to delete non-existent scroller");
-            return;
+            throw new Error("tried to delete non-existent scroller");
         }
         let parent = oldNode.parentElement!;
         parent.removeChild(oldNode);
@@ -893,7 +890,7 @@ export class NativeElementPool {
             this.layers.addElement(eventBlockerDiv, patch.parentFrame, patch.occlusionLayerId);
             this.nodesLookup.set(patch.id!, eventBlockerDiv);
         } else {
-            console.warn("undefined id or occlusionLayer");
+            throw new Error("undefined id or occlusionLayer");
         }
 
 
@@ -902,8 +899,7 @@ export class NativeElementPool {
     eventBlockerUpdate(patch: EventBlockerUpdatePatch){
         let leaf = this.nodesLookup.get(patch.id!);
         if (leaf == undefined) {
-            console.warn("tried to update non-existent event blocker");
-            return;
+            throw new Error("tried to update non-existent event blocker");
         }
         // Handle size_x and size_y
         if (patch.sizeX != null) {
@@ -921,8 +917,7 @@ export class NativeElementPool {
     eventBlockerDelete(id: number){
         let oldNode = this.nodesLookup.get(id);
         if (oldNode == undefined) {
-            console.warn("tried to delete non-existent event blocker");
-            return;
+            throw new Error("tried to delete non-existent event blocker");
         }
         let parent = oldNode.parentElement!;
         parent.removeChild(oldNode);
@@ -988,8 +983,7 @@ function toCssColor(color: ColorGroup): string {
         let p = color.Rgba;
         return `rgba(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3]})`; //Note that alpha channel expects [0.0, 1.0] in CSS
     } else {
-        console.warn("chassi: Unsupported Color Format");
-        return "magenta";
+        throw new TypeError("Unsupported Color Format");
     }        
 }
 
