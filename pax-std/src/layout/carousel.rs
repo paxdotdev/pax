@@ -42,7 +42,7 @@ impl Carousel {
 
                 let mut cell_specs = vec![];
                 for i in 0..slot_children_count {
-                    // let is_active = (i as isize) >= (current_cell as isize) - 1 && (i as isize) <= (current_cell as isize) + 1;
+                    //let is_active = (i as isize) >= (current_cell as isize) - 1 && (i as isize) <= (current_cell as isize) + 1;
                     let is_active = true;
 
                     let x_percent = 50.0 + ((i as f64 * 100.0) - transition);
