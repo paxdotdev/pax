@@ -11,7 +11,7 @@ env:
 
 jobs:
   build:
-    runs-on: centurion
+    runs-on: mars
     steps:
     - uses: actions/checkout@v3
     # Install dependencies
