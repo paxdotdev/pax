@@ -19,7 +19,7 @@ jobs:
 
     # Install dependencies
     - name: Install dependencies
-      run: sudo apt update && sudo apt install -y libgtk-4-dev
+      run: sudo apt update && sudo apt install -y libgtk-4-dev &&  curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh 
     - name: Build Starter Project
       run: pushd examples/src/starter-project && ./pax build --release --designer && popd
     # - name: Run tests
