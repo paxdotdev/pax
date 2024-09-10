@@ -102,12 +102,15 @@ impl PaxDesigner {
                     .transform_and_bounds()
                     .get()
                     .bounds;
-                app_state
-                    .glass_to_world_transform
-                    .set(Transform2::translate(Vector2::new(
-                        (stage.width as f64 - w) / 2.0,
-                        (stage.height as f64 - h) / 2.0,
-                    )));
+                app_state.glass_to_world_transform.set(
+                    Transform2::<World>::translate(Vector2::new(
+                        (stage.width as f64 / 2.0),
+                        (stage.height as f64 / 2.0),
+                    )) * Transform2::scale(1.4)
+                        * Transform2::<math::coordinate_spaces::Glass>::translate(
+                            -Vector2::new(w / 2.0, h / 2.0),
+                        ),
+                );
             });
         }
 
