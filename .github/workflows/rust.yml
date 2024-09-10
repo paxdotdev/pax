@@ -46,8 +46,8 @@ jobs:
         fi
 
     - name: Set PKG_CONFIG_PATH
-       run: |
-       echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
+      run: |
+        echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
 
     - name: Build Starter Project
       run: pushd examples/src/starter-project && pax-cli build --release && popd
