@@ -1,4 +1,18 @@
-<Link y=5.66% width=11.93% x=97.75% height=5.17% url="https://docs.pax.dev/get-started/">
+<Text y=56.43% x=96.88% height=12.40% text="Every visual change is code." style={
+    font: Font::Web(
+        "Roboto",
+        "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+        FontStyle::Normal,
+        FontWeight::Bold)
+    font_size: 35.00px
+    fill: rgba(254, 254, 254, 255)
+    align_vertical: TextAlignVertical::Bottom
+    align_horizontal: TextAlignHorizontal::Left
+    align_multiline: TextAlignHorizontal::Left
+    underline: false
+} 
+    width=46.40% rotate=-4.88deg/>
+<Link y=6.38% width=11.93% x=55.79% height=5.17% url="https://docs.pax.dev/get-started/">
     <Text y=0.00% x=100.00% text="Get Started" style={
         font: Font::Web(
             "Roboto",
@@ -82,167 +96,96 @@
     <ColorPickerExample />
     <BreakoutGame />
 </Carousel>
-<Stacker width=35.83% y=82.59% height=20.95% anchor_y=49.99% anchor_x=100.00% x=99.99% sizes=[]>
-    <Group rotate=0.00rad skew_x=0.00rad skew_y=0.00rad>
-        <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
-        <Text y=49.99% x=40px text="Try Run Mode (button on top right) and resize your browser" style={
-            font: Font::Web(
-                "Roboto",
-                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal)
-            font_size: 15.00px
-            fill: rgba(0, 0, 0, 255)
-            align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
-            underline: false
-        } 
-            height=92.48% width=400px anchor_x=0 anchor_y=50%/>
-    </Group>
-    <Group rotate=0.00rad skew_y=0.00rad skew_x=0.00rad>
-        <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
-        <Text y=49.99% x=40px text="Draw an ellipse, add a textbox" style={
-            font: Font::Web(
-                "Roboto",
-                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal)
-            font_size: 15.00px
-            fill: rgba(0, 0, 0, 255)
-            align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
-            underline: false
-        } 
-            height=92.48% width=400px anchor_x=0 anchor_y=50%/>
-    </Group>
-    <Group rotate=0.00rad skew_y=0.00rad skew_x=0.00rad>
-        <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
-        <Text y=49.99% x=40px text="Write an expression — press an `fx` button on the right" style={
-            font: Font::Web(
-                "Roboto",
-                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal)
-            font_size: 15.00px
-            fill: rgba(0, 0, 0, 255)
-            align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
-            underline: false
-        } 
-            height=92.48% width=400px anchor_x=0 anchor_y=50%/>
-    </Group>
-    <Group rotate=0.00rad skew_y=0.00rad skew_x=0.00rad>
-        <Link width=124.50% y=49.89% x=40px height=92.47% url="https://www.github.com/paxengine/pax">
-            <Text y=49.99% text="Check out source code on github" style={
-                font: Font::Web(
-                    "Roboto",
-                    "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
-                    FontStyle::Normal,
-                    FontWeight::Normal)
-                font_size: 15.00px
-                fill: rgba(0, 0, 0, 255)
-                align_vertical: TextAlignVertical::Center
-                align_horizontal: TextAlignHorizontal::Left
-                align_multiline: TextAlignHorizontal::Left
-                underline: false
-            } 
-                width=400px anchor_x=0 anchor_y=50%/>
-        </Link>
-        <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
-    </Group>
-    <Group rotate=0.00rad skew_x=0.00rad skew_y=0.00rad>
-        <Link x=40px height=92.47% y=49.89% width=124.50% url="https://docs.pax.dev/">
-            <Text y=49.99% text="Learn more in the docs" style={
-                font: Font::Web(
-                    "Roboto",
-                    "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
-                    FontStyle::Normal,
-                    FontWeight::Normal)
-                font_size: 15.00px
-                fill: rgba(0, 0, 0, 255)
-                align_vertical: TextAlignVertical::Center
-                align_horizontal: TextAlignHorizontal::Left
-                align_multiline: TextAlignHorizontal::Left
-                underline: false
-            } 
-                width=400px anchor_x=0 anchor_y=50%/>
-        </Link>
-        <Checkbox y=49.98% height=30px width=30px x=0.00% background_checked=rgba(33, 33, 39, 255)/>
-    </Group>
-</Stacker>
-<Text scale_y=100% width=16.50% y=91.32% scale_x=100% x=54.72% height=20.83% text="Try it out:" style={
-    font: Font::Web(
-        "Roboto",
-        "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
-        FontStyle::Normal,
-        FontWeight::Bold)
-    font_size: 46px
-    fill: rgba(0, 0, 0, 255)
-    align_vertical: TextAlignVertical::Top
-    align_horizontal: TextAlignHorizontal::Right
-    align_multiline: TextAlignHorizontal::Right
-    underline: false
-}/>
-<Group width=123.19% x=38.38% y=41.06% height=116.90% rotate={-4.79deg}>
-    <Text y=60.15% x=77.40% height=10.61% text="Every visual change is code.
-Every app is responsive by default." 
+<Group x=95.19% scale_x=100% y=39.88% width=44.39% scale_y=100% height=36.88% anchor_x=100% rotate=-4.79deg>
+    <Text y=71.71% x=108.62% height=39.59% 
+        text="Build mobile apps, websites, business tools, games, digital art, interactive cartoons, data visualizations, and more." 
         style={
             font: Font::Web(
                 "Roboto",
                 "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
                 FontStyle::Normal,
-                FontWeight::Bold)
-            font_size: 35.00px
+                FontWeight::Light)
+            font_size: 24.00px
             fill: rgba(254, 254, 254, 255)
-            align_vertical: TextAlignVertical::Bottom
+            align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
             underline: false
         } 
-        width=37.67%/>
-    <Group x=84.04% scale_x=100% y=46.51% width=36.04% scale_y=100% height=31.55% anchor_x=100%>
-        <Text y=63.68% x=110.29% height=39.59% 
-            text="Build mobile apps, websites, business tools, games, digital art, interactive cartoons, data visualizations, and more." 
-            style={
-                font: Font::Web(
-                    "Roboto",
-                    "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
-                    FontStyle::Normal,
-                    FontWeight::Light)
-                font_size: 24.00px
-                fill: rgba(254, 254, 254, 255)
-                align_vertical: TextAlignVertical::Center
-                align_horizontal: TextAlignHorizontal::Left
-                align_multiline: TextAlignHorizontal::Left
-                underline: false
-            } 
-            width=109.90%/>
-        <Text y=18.84% x=0.17% height=42.85% text="Build user interfaces with the creative freedom of a vector design tool." style={
+        width=108.20%/>
+    <Text y=18.84% x=0.15% height=42.85% text="Build user interfaces with the creative freedom of a vector design tool." style={
+        font: Font::Web(
+            "Roboto",
+            "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+            FontStyle::Normal,
+            FontWeight::Bold)
+        font_size: 38px
+        fill: rgba(254, 254, 254, 255)
+        align_vertical: TextAlignVertical::Top
+        align_horizontal: TextAlignHorizontal::Left
+        align_multiline: TextAlignHorizontal::Left
+        underline: false
+    } 
+        width=110.45%/>
+</Group>
+<Link width=38.25% y=93.78% x=95.72% height=17.30%>
+    <Group y=0.00% height=79.81% x=49.96% width=90.90%>
+        <Text y=10.28% x=-1.14% height=66.15% text="Be a pilot for Pax Pro" style={
             font: Font::Web(
                 "Roboto",
                 "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
                 FontStyle::Normal,
                 FontWeight::Bold)
-            font_size: 38px
-            fill: rgba(254, 254, 254, 255)
-            align_vertical: TextAlignVertical::Top
-            align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
+            font_size: 42px
+            fill: rgba(1, 1, 1, 255)
+            align_vertical: TextAlignVertical::Bottom
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
             underline: false
         } 
-            width=108.72%/>
+            width=99.46%/>
+        <Text y=100.00% x=-2.82% height=71.29% text="Your whole team, collaborating on GitHub" style={
+            font: Font::Web(
+                "Roboto",
+                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            font_size: 26px
+            fill: rgba(1, 1, 1, 255)
+            align_vertical: TextAlignVertical::Bottom
+            align_horizontal: TextAlignHorizontal::Right
+            align_multiline: TextAlignHorizontal::Right
+            underline: false
+        } 
+            width=102.28%/>
     </Group>
-    <Rectangle x=0.00% height=33.33% y=0.00% fill=rgba(12, 12, 12, 255) corner_radii={
+    <Rectangle y=100.00% height=99.98% x=0.00% corner_radii={
+        top_left: 30
+        top_right: 30
+        bottom_left: 30
+        bottom_right: 30
+    } 
+        stroke={
+            color: rgba(99, 102, 241, 255)
+            width: 10.00px
+        } fill=rgba(246, 247, 248, 255)/>
+</Link>
+<Image source=ImageSource::Url("assets/Frame 2.png") y=-42.20% width=21.73% scale_y=139.99% x=116.58% scale_x=139.99% 
+    height=38.16%/>
+<Image source=ImageSource::Url("assets/Frame 1.png") x=-11.37% scale_y=139.99% width=24.22% y=-42.04% scale_x=139.99% 
+    height=42.53%/>
+<Image source=ImageSource::Url("assets/Frame 3.png") y=145.92% height=45.43% x=53.64% scale_x=139.98% scale_y=139.98% 
+    width=25.86%/>
+<Group width=74.83% height=80.63% scale_x=139.99% scale_y=139.99% x=49.10% y=48.14% rotate=-3.80deg>
+    <Rectangle x=100.00% height=43.76% y=99.99% fill=rgba(206, 207, 207, 255) width=139.95% scale_y=71.41% scale_x=71.41%/>
+    <Rectangle x=58.65% height=51.06% y=50.47% fill=rgba(46, 49, 49, 255) width=139.88% scale_x=71.41% scale_y=71.41%/>
+    <Rectangle x=0.00% height=45.02% y=0.00% fill=rgba(12, 12, 12, 255) corner_radii={
         top_left: 0
         top_right: 0
         bottom_left: 0
         bottom_right: 0
-    }/>
-    <Rectangle x=0.00% height=33.33% y=49.99% fill=rgba(46, 49, 49, 255)/>
-    <Rectangle x=0.00% height=33.33% y=100.00% fill=rgba(206, 207, 207, 255)/>
+    } 
+        width=139.96% scale_y=71.41% scale_x=71.41%/>
 </Group>
 
 @settings {
