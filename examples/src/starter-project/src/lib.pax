@@ -128,9 +128,10 @@
     } 
         width=110.45%/>
 </Group>
-<Link width=38.25% y=93.78% x=95.72% height=17.30%>
+<Link width=38.25% y=92.58% x=96.84% height=17.30% url="https://airtable.com/appCUQtUS9g4kuQZL/pagGMVOPv9AH1cNJS/form" 
+    target=Target::New>
     <Group y=0.00% height=79.81% x=49.96% width=90.90%>
-        <Text y=10.28% x=-1.14% height=66.15% text="Be a pilot for Pax Pro" style={
+        <Text y=9.36% x=55.62% height=66.15% text="Be a pilot for Pax Pro" style={
             font: Font::Web(
                 "Roboto",
                 "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
@@ -139,12 +140,12 @@
             font_size: 42px
             fill: rgba(1, 1, 1, 255)
             align_vertical: TextAlignVertical::Bottom
-            align_horizontal: TextAlignHorizontal::Center
-            align_multiline: TextAlignHorizontal::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
             underline: false
         } 
             width=99.46%/>
-        <Text y=100.00% x=-2.82% height=71.29% text="Your whole team, collaborating on GitHub" style={
+        <Text y=92.00% x=102.98% height=54.86% text="Your whole team, collaborating on GitHub" style={
             font: Font::Web(
                 "Roboto",
                 "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
@@ -153,22 +154,36 @@
             font_size: 26px
             fill: rgba(1, 1, 1, 255)
             align_vertical: TextAlignVertical::Bottom
-            align_horizontal: TextAlignHorizontal::Right
-            align_multiline: TextAlignHorizontal::Right
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
             underline: false
         } 
             width=102.28%/>
     </Group>
-    <Rectangle y=100.00% height=99.98% x=0.00% corner_radii={
-        top_left: 30
-        top_right: 30
-        bottom_left: 30
-        bottom_right: 30
-    } 
-        stroke={
-            color: rgba(99, 102, 241, 255)
-            width: 10.00px
-        } fill=rgba(246, 247, 248, 255)/>
+    <Group x=-5.48% scale_y=140.00% height=81.05% scale_x=139.99% y=99.99% width=72.61%>
+        <Rectangle y=100.00% height=123.35% x=94.95% corner_radii={
+            top_left: 30
+            top_right: 30
+            bottom_left: 30
+            bottom_right: 30
+        } 
+            stroke={
+                color: rgba(99, 102, 241, 255)
+                width: 15.00px
+            } fill=rgba(246, 247, 248, 255) scale_x=71.42% 
+            width=132.33% scale_y=71.42%/>
+        <Rectangle y=2.23% height=136.13% x=2.23% corner_radii={
+            top_left: 30
+            top_right: 30
+            bottom_left: 30
+            bottom_right: 30
+        } 
+            stroke={
+                color: rgba(99, 102, 241, 255)
+                width: 0.00px
+            } fill=rgba(0, 0, 0, 255) width=139.99% rotate=-0.01deg 
+            scale_x=71.42% scale_y=71.42%/>
+    </Group>
 </Link>
 <Image source=ImageSource::Url("assets/Frame 2.png") y=-42.20% width=21.73% scale_y=139.99% x=116.58% scale_x=139.99% 
     height=38.16%/>
