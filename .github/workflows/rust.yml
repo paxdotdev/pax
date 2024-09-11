@@ -8,6 +8,10 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTC_WRAPPER: "sccache"
+  CARGO_INCREMENTAL: "0"
+  SCCACHE_DIR: "/home/runner/.cache/sccache"
+  SCCACHE_CACHE_SIZE: "1G"
 
 jobs:
   build-and-deploy:
@@ -16,19 +20,58 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - name: Install sccache
+      run: |
+        SCCACHE_VERSION=v0.5.4
+        curl -L "https://github.com/mozilla/sccache/releases/download/${SCCACHE_VERSION}/sccache-${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz" | tar xz
+        sudo mv sccache-*/sccache /usr/local/bin/sccache
+        sccache --version
+
+    # Cache sccache and Rust dependencies
+    - name: Cache sccache and Cargo
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/sccache
+          ~/.cargo/registry
+          ~/.cargo/git
+        key: ${{ runner.os }}-sccache-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-sccache-cargo-
+
+    # Cache wasm-pack
+    - uses: actions/cache@v3
+      with:
+        path: ~/.cargo/bin/wasm-pack
+        key: ${{ runner.os }}-wasm-pack
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgtk-4-dev libpango1.0-dev libcairo2-dev libharfbuzz-dev
+
     # Install dependencies
     - name: Install dependencies
       run: |
         if ! command -v wasm-pack &> /dev/null; then
-          sudo apt update && sudo apt install -y libgtk-4-dev
           curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
         fi
-        if ! command -v pax-cli &> /dev/null; then
-          cargo install pax-cli
-        fi
+
+    # Cache Pax build artifacts
+    - uses: actions/cache@v3
+      with:
+        path: examples/src/starter-project/.pax/build
+        key: ${{ runner.os }}-pax-build-${{ hashFiles('examples/src/starter-project/**') }}
 
     - name: Build Starter Project
-      run: pushd examples/src/starter-project && pax-cli build --release --designer && popd
+      env:
+        RUSTFLAGS: "-C debuginfo=0"
+      run: |
+        pushd examples/src/starter-project
+        sccache --start-server
+        ./pax build --release --designer
+        sccache --show-stats
+        popd
 
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v1
@@ -40,8 +83,8 @@ jobs:
     - name: Deploy to S3
       run: |
         BUCKET_NAME="staging.pax.dev/${{ github.event.pull_request.number }}"
-        aws s3 sync /home/runner/work/pax/pax/examples/src/starter-project/.pax/build/release/web s3://$BUCKET_NAME --delete --acl public-read
-    
+        aws s3 sync /home/runner/work/pax/pax/examples/src/starter-project/.pax/build/release/web s3://$BUCKET_NAME --delete --acl public-read   
+
     - name: Invalidate CloudFront
       run: |
         aws cloudfront create-invalidation --distribution-id E29ZMWF6F0HQ61 --paths "/*"
@@ -54,12 +97,12 @@ jobs:
           const prNumber = context.issue.number;
           const deploymentUrl = `https://staging.pax.dev/${prNumber}`;
           github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `Deployment preview ready! :rocket:\n\nYou can view this deployment at: [${deploymentUrl}](${deploymentUrl})`
-            })
-
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `Deployment preview ready! :rocket:\n\nYou can view this deployment at: [${deploymentUrl}](${deploymentUrl})`
+          })
+    
     - name: Run tests
       run: cargo test --verbose --workspace --exclude pax-chassis-macos --exclude pax-chassis-common --exclude pax-chassis-ios
 
