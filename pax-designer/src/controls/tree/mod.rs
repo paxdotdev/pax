@@ -168,41 +168,58 @@ impl Tree {
                     self.drag_indent
                         .set(tree_obj.read(|t| t[sender].indent_level));
                 }
+                // TODO make less ugly
                 TreeMsg::ObjMouseMove(sender, x_offset, ignore_container) => {
                     drag_id.set(sender);
                     let tree_obj = tree_obj.get();
-                    let offset = x_offset - self.drag_x_start.get();
-                    let original_indent = tree_obj[sender].indent_level;
-                    let potential_indent = (offset / 15.0) as isize + original_indent;
-                    let above = tree_obj
-                        .get(sender.saturating_sub(1))
-                        .map(|a| a.indent_level + a.is_container as isize)
-                        .unwrap_or(0);
-                    // find the object closest below in the list with indent equal or less to original_indent
-                    let mut curr_ind = sender + 1;
-                    while curr_ind < tree_obj.len()
-                        && tree_obj[curr_ind].indent_level > original_indent
-                    {
-                        curr_ind += 1;
+                    let original_indent = tree_obj[drag_id_start.get()].indent_level;
+                    if drag_id_start.get() == sender {
+                        let offset = x_offset - self.drag_x_start.get();
+                        let potential_indent = (offset / 15.0) as isize + original_indent;
+                        let above = tree_obj
+                            .get(sender.saturating_sub(1))
+                            .map(|a| a.indent_level + a.is_container as isize)
+                            .unwrap_or(0);
+                        // find the object closest below in the list with indent equal or less to original_indent
+                        let mut curr_ind = sender + 1;
+                        while curr_ind < tree_obj.len()
+                            && tree_obj[curr_ind].indent_level > original_indent
+                        {
+                            curr_ind += 1;
+                        }
+                        let below = tree_obj.get(curr_ind).map(|b| b.indent_level).unwrap_or(0);
+                        self.drag_indent
+                            .set(potential_indent.clamp(below.min(above), above));
+                        self.drag_ignore_container.set(false);
+                    } else {
+                        let curr_is_container = model::with_action_context(ctx, |ac| {
+                            ac.get_glass_node_by_global_id(&UniqueTemplateNodeIdentifier::build(
+                                ac.app_state.selected_component_id.get(),
+                                tree_obj[sender].node_id.clone(),
+                            ))
+                            .map(|n| n.get_node_type(ctx).metadata().is_container)
+                        })
+                        .unwrap_or(false);
+                        self.drag_indent.set(original_indent);
+                        self.drag_ignore_container
+                            .set(curr_is_container && ignore_container);
                     }
-                    let below = tree_obj.get(curr_ind).map(|b| b.indent_level).unwrap_or(0);
-                    self.drag_indent
-                        .set(potential_indent.clamp(below.min(above), above));
-                    self.drag_ignore_container.set(ignore_container);
                 }
             };
         }
 
+        // TODO make less ugly
         if GLOBAL_MOUSEUP_PROP.with(|p| p.get()) {
             GLOBAL_MOUSEUP_PROP.with(|p| p.set(false));
-            let from = self.drag_id_start.get();
+            let from_ind = self.drag_id_start.get();
             let to = self.drag_id.get();
             let drag_indent = self.drag_indent.get();
             let tree = self.tree_objects.get();
 
-            if self.dragging.get() && (from != to || tree[to].indent_level != drag_indent) {
-                let from = tree[from].clone();
-                let (to, child_ind_override) = if drag_indent == tree[to].indent_level {
+            if self.dragging.get() && (from_ind != to || tree[from_ind].indent_level != drag_indent)
+            {
+                let from = tree[from_ind].clone();
+                let (to, child_ind_override) = if from_ind != to {
                     (Some(tree[to].clone()), None)
                 } else {
                     // Find the first container whos indent level is one
@@ -234,6 +251,7 @@ impl Tree {
         }
     }
 
+    // TODO make less ugly
     fn tree_move(
         from: TemplateNodeId,
         to_parent: Option<TemplateNodeId>,
@@ -241,6 +259,13 @@ impl Tree {
         ctx: &NodeContext,
         ignore_container: bool,
     ) -> Result<()> {
+        log::debug!(
+            "from: {:?}, to_parent: {:?}, child_ind_override: {:?}, ignore_container: {:?}",
+            from,
+            to_parent,
+            child_ind_override,
+            ignore_container
+        );
         model::with_action_context(ctx, |ctx| {
             let comp_id = ctx.app_state.selected_component_id.get();
             let from_uid = UniqueTemplateNodeIdentifier::build(comp_id.clone(), from.clone());
@@ -265,12 +290,16 @@ impl Tree {
             {
                 true => to_node.clone(),
                 false => {
-                    let parent = to_node
-                        .raw_node_interface
-                        .template_parent()
-                        .expect("all nodes in tree view should have a template parent");
-                    // let index = parent
-                    GlassNode::new(&parent, &ctx.glass_transform())
+                    if to_parent.is_none() {
+                        to_node.clone()
+                    } else {
+                        let parent = to_node
+                            .raw_node_interface
+                            .template_parent()
+                            .expect("all nodes in tree view should have a template parent");
+                        // let index = parent
+                        GlassNode::new(&parent, &ctx.glass_transform())
+                    }
                 }
             };
 
@@ -281,6 +310,9 @@ impl Tree {
             });
 
             let index = child_ind_override.unwrap_or_else(|| {
+                if to_node_container.id == to_node.id {
+                    return TreeIndexPosition::Top;
+                }
                 let mut dt = borrow_mut!(ctx.engine_context.designtime);
                 let pos = dt
                     .get_orm_mut()
@@ -289,29 +321,6 @@ impl Tree {
                     .unwrap_or_default();
                 TreeIndexPosition::At(pos)
             });
-            // let index = child_ind_override.unwrap_or_else(|| match is_stacker {
-            //     true => {
-            //         if to_node_container.raw_node_interface == to_node.raw_node_interface {
-            //             TreeIndexPosition::Top
-            //         } else {
-            //             let slot = to_node
-            //                 .raw_node_interface
-            //                 .render_parent()
-            //                 .unwrap()
-            //                 .with_properties(|slot: &mut Slot| slot.index.get().to_int() as usize);
-            //             slot.map(|s| TreeIndexPosition::At(s)).unwrap_or_default()
-            //         }
-            //     }
-            //     false => to_node_container
-            //         .raw_node_interface
-            //         .children()
-            //         .into_iter()
-            //         .enumerate()
-            //         .find_map(|(i, c)| {
-            //             (c == to_node.raw_node_interface).then_some(TreeIndexPosition::At(i))
-            //         })
-            //         .unwrap_or_default(),
-            // });
             let keep_bounds = NodeLayoutSettings::KeepScreenBounds {
                 node_transform_and_bounds: &from_node.transform_and_bounds.get(),
                 node_decomposition_config: &from_node.layout_properties.into_decomposition_config(),
@@ -338,7 +347,6 @@ impl Tree {
                 // ```
                 keep_bounds
             };
-
             let t = ctx.transaction("moving object in tree");
             t.run(|| {
                 MoveNode {
