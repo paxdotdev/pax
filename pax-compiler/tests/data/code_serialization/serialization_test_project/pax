@@ -9,10 +9,10 @@
 set -e
 
 # Set the PAX_WORKSPACE_ROOT environment variable
-export PAX_WORKSPACE_ROOT=$(realpath "../../../../../pax")
+export PAX_WORKSPACE_ROOT=$(realpath "../../../../../../pax")
 
 current_dir=$(pwd)
-pushd ../../../../../pax/pax-cli
+pushd ../../../../../../pax/pax-cli
 cargo build
 ../target/debug/pax-cli "$@" --path="$current_dir" --libdev
 popd
