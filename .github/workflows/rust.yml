@@ -39,12 +39,20 @@ jobs:
         path: ~/.cargo/bin/pax-cli
         key: ${{ runner.os }}-pax-cli
 
+    # Install system dependencies
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgtk-4-dev libpango1.0-dev libcairo2-dev libharfbuzz-dev
+
     # Install dependencies
     - name: Install dependencies
       run: |
         if ! command -v wasm-pack &> /dev/null; then
-          sudo apt update && sudo apt install -y libgtk-4-dev
           curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+        fi
+        if ! command -v pax-cli &> /dev/null; then
+          cargo install pax-cli
         fi
 
     # Cache Pax build artifacts
@@ -54,7 +62,7 @@ jobs:
         key: ${{ runner.os }}-pax-build-${{ hashFiles('examples/src/starter-project/**') }}
 
     - name: Build Starter Project
-      run: pushd examples/src/starter-project && ./pax build --release --designer && popd
+      run: pushd examples/src/starter-project && pax-cli build --release --designer && popd
 
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v1
