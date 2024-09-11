@@ -36,6 +36,7 @@ pub struct Toolbar {
 #[engine_import_path("pax_engine")]
 pub struct ToolbarItemView {
     pub background: bool,
+    pub tooltip: String,
     pub icon: String,
     pub more_than_one_item: bool,
     pub row: usize,
@@ -50,6 +51,7 @@ struct ToolbarEntry {
 
 struct ToolbarItem {
     icon: &'static str,
+    tooltip: &'static str,
     event: ToolbarEvent,
 }
 
@@ -88,10 +90,12 @@ thread_local! {
                 items: vec![
                     ToolbarItem {
                         icon: "assets/icons/icon-pointer-percent.png",
+                        tooltip: "Pointer Tool Percent",
                         event: ToolbarEvent::SelectTool(Tool::PointerPercent)
                     },
                     ToolbarItem {
                         icon: "assets/icons/icon-pointer-px.png",
+                        tooltip: "Pointer Tool Pixels",
                         event: ToolbarEvent::SelectTool(Tool::PointerPixels)
                     }
                 ]
@@ -112,10 +116,12 @@ thread_local! {
                 items: vec![
                     ToolbarItem {
                         icon: "assets/icons/icon-rectangle.png",
+                        tooltip: "Rectangle Creation Tool",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Rectangle))
                     },
                     ToolbarItem {
                         icon: "assets/icons/icon-ellipse.png",
+                        tooltip: "Ellipse Creation Tool",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Ellipse))
                     }
                 ]
@@ -124,6 +130,7 @@ thread_local! {
                 items: vec![
                     ToolbarItem {
                         icon: "assets/icons/icon-text.png",
+                        tooltip: "Text Creation Tool",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Text))
                     },
                 ]
@@ -132,10 +139,12 @@ thread_local! {
                 items: vec![
                     ToolbarItem {
                         icon: "assets/icons/icon-stacker.png",
+                        tooltip: "Stacker Creation Tool",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Stacker))
                     },
                     ToolbarItem {
                         icon: "assets/icons/icon-scroller.png",
+                        tooltip: "Scroller Creation Tool",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Scroller))
                     },
                 ]
@@ -144,26 +153,32 @@ thread_local! {
                 items: vec![
                     ToolbarItem {
                         icon: "assets/icons/icon-checkbox.png",
+                        tooltip: "Checkbox Creation Tool",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Checkbox))
                     },
                     ToolbarItem {
                         icon: "assets/icons/icon-textbox.png",
+                        tooltip: "Textbox Creation Tool",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Textbox))
                     },
                     ToolbarItem {
                         icon: "assets/icons/icon-button.png",
+                        tooltip: "Button Creation Tool",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Button))
                     },
                     ToolbarItem {
                         icon: "assets/icons/icon-slider.png",
+                        tooltip: "Slider Creation Tool",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Slider))
                     },
                     ToolbarItem {
                         icon: "assets/icons/icon-dropdown.png",
+                        tooltip: "Dropdown Creation Tool",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Dropdown))
                     },
                     ToolbarItem {
                         icon: "assets/icons/icon-component.png",
+                        tooltip: "RadioSet Creation Tool",
                         event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::RadioSet))
                     },
                 ]
@@ -195,6 +210,7 @@ impl Toolbar {
                     let first = entry.items.first().unwrap();
                     ToolbarItemView {
                         background: false,
+                        tooltip: String::from(first.tooltip),
                         icon: String::from(first.icon),
                         more_than_one_item: entry.items.len() > 1,
                         row,
@@ -235,6 +251,7 @@ impl Toolbar {
                         .enumerate()
                         .map(|(col, item)| ToolbarItemView {
                             background: true,
+                            tooltip: String::from(item.tooltip),
                             icon: String::from(item.icon),
                             more_than_one_item: false,
                             row,
@@ -264,6 +281,7 @@ impl Toolbar {
                                         entries.update(|entries| {
                                             entries[row] = ToolbarItemView {
                                                 background: false,
+                                                tooltip: String::from(item.tooltip),
                                                 icon: String::from(item.icon),
                                                 more_than_one_item: entry.items.len() > 1,
                                                 row,
