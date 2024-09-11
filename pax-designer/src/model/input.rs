@@ -3,16 +3,19 @@ use std::collections::{HashMap, HashSet};
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::{borrow, borrow_mut, Fill, Interpolatable, Stroke};
+use pax_engine::math::Vector2;
 use pax_engine::pax_manifest::{UniqueTemplateNodeIdentifier, ValueDefinition};
 use pax_engine::{log, CoercionRules, Property};
 
 use crate::controls::toolbar::FinishCurrentTool;
 use crate::model::action::orm::{RedoRequested, SerializeRequested, UndoRequested};
+use crate::model::SelectionStateSnapshot;
 use crate::{controls::toolbar, glass, llm_interface::OpenLLMPrompt};
 
 use super::action::orm::group_ungroup::{GroupSelected, GroupType, UngroupSelected};
-use super::action::orm::movement::{RelativeMove, RelativeMoveSelected};
 use super::action::orm::other::SwapFillStrokeAction;
+use super::action::orm::space_movement::TranslateFromSnapshot;
+use super::action::orm::tree_movement::{RelativeMove, RelativeMoveSelected};
 use super::action::orm::{Copy, Paste};
 use super::action::world::SelectAllInOpenContainer;
 use super::read_app_state;
@@ -171,6 +174,23 @@ impl Default for InputMapper {
                     (RawInput::Backspace, HashSet::new()),
                     InputEvent::DeleteSelected,
                 ),
+                // --- Nudge Objects ---
+                (
+                    (RawInput::ArrowRight, HashSet::new()),
+                    InputEvent::Nudge(NudgeDir::Right),
+                ),
+                (
+                    (RawInput::ArrowLeft, HashSet::new()),
+                    InputEvent::Nudge(NudgeDir::Left),
+                ),
+                (
+                    (RawInput::ArrowUp, HashSet::new()),
+                    InputEvent::Nudge(NudgeDir::Up),
+                ),
+                (
+                    (RawInput::ArrowDown, HashSet::new()),
+                    InputEvent::Nudge(NudgeDir::Down),
+                ),
                 // --- Util ---
                 (
                     (RawInput::X, HashSet::from([ModifierKey::Shift])),
@@ -274,6 +294,32 @@ impl InputMapper {
             InputEvent::Ungroup => Some(Box::new(UngroupSelected {})),
             InputEvent::SelectAllInOpenContainer => Some(Box::new(SelectAllInOpenContainer)),
             InputEvent::FinishCurrentTool => Some(Box::new(FinishCurrentTool)),
+            InputEvent::Nudge(n_dir) => {
+                struct Nudge(NudgeDir);
+
+                impl Action for Nudge {
+                    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+                        let initial_selection: SelectionStateSnapshot =
+                            (&ctx.derived_state.selection_state.get()).into();
+                        const GLASS_PIXELS: f64 = 3.0;
+
+                        let t = ctx.transaction("nudging selection");
+                        t.run(|| {
+                            TranslateFromSnapshot {
+                                translation: match self.0 {
+                                    NudgeDir::Up => Vector2::new(0.0, -GLASS_PIXELS),
+                                    NudgeDir::Down => Vector2::new(0.0, GLASS_PIXELS),
+                                    NudgeDir::Left => Vector2::new(-GLASS_PIXELS, 0.0),
+                                    NudgeDir::Right => Vector2::new(GLASS_PIXELS, 0.0),
+                                },
+                                initial_selection: &initial_selection,
+                            }
+                            .perform(ctx)
+                        })
+                    }
+                }
+                Some(Box::new(Nudge(n_dir.clone())))
+            }
         }
     }
 }
@@ -315,6 +361,10 @@ pub enum RawInput {
     OpenSquareBracket,
     CloseSquareBracket,
     Esc,
+    ArrowRight,
+    ArrowLeft,
+    ArrowUp,
+    ArrowDown,
 }
 
 // TODO make RawInput be what is returned by the engine itself, instead
@@ -342,6 +392,10 @@ impl TryFrom<String> for RawInput {
             "[" => Self::OpenSquareBracket,
             "]" => Self::CloseSquareBracket,
             " " => Self::Space,
+            "arrowright" => Self::ArrowRight,
+            "arrowleft" => Self::ArrowLeft,
+            "arrowup" => Self::ArrowUp,
+            "arrowdown" => Self::ArrowDown,
             "control" => Self::Control,
             "=" => Self::Plus,
             "-" => Self::Minus,
@@ -378,6 +432,15 @@ pub enum InputEvent {
     LayerMove(RelativeMove),
     SelectAllInOpenContainer,
     FinishCurrentTool,
+    Nudge(NudgeDir),
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum NudgeDir {
+    Up,
+    Down,
+    Left,
+    Right,
 }
 
 impl Interpolatable for ModifierKey {}

@@ -18,7 +18,6 @@ use super::control_point::{ControlPoint, ControlPointBehavior};
 use crate::glass::control_point::{ControlPointDef, ControlPointStyling, ControlPointToolFactory};
 use crate::math::coordinate_spaces::{Glass, SelectionSpace};
 use crate::math::{AxisAlignedBox, BoxPoint, GetUnit, SizeUnit};
-use crate::model::action::orm::SetAnchor;
 use crate::model::action::ActionContext;
 use crate::model::{self, action, GlassNodeSnapshot, SelectionState, SelectionStateSnapshot};
 use pax_engine::api::Fill;
