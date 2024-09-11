@@ -933,18 +933,11 @@ export class NativeElementPool {
         }
         //Check the full path of our index.js; use the prefix of this path also for our image assets
         function getBasePath() {
-            const scriptElement = document.currentScript as HTMLScriptElement || 
-                document.querySelector('script[src*="pax-cartridge.js"]');
-            
-            if (scriptElement && scriptElement.src) {
-                const url = new URL(scriptElement.src);
-                return url.pathname.substring(0, url.pathname.lastIndexOf('/') + 1);
-            }
-            
-            return '/';
+            const baseURI = document.baseURI;
+            const url = new URL(baseURI);
+            return url.pathname.substring(0, url.pathname.lastIndexOf('/') + 1);
         }
     
-
         const BASE_PATH = getBasePath();
 
         let path = (BASE_PATH + patch.path!).replace("//", "/");
