@@ -169,7 +169,7 @@
         } 
             stroke={
                 color: rgba(99, 102, 241, 255)
-                width: 15.00px
+                width: 10.00px
             } fill=rgba(246, 247, 248, 255) scale_x=71.42% 
             width=132.33% scale_y=71.42%/>
         <Rectangle y=72.04% height=130.98% x=73.65% corner_radii={
