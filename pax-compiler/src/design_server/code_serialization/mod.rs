@@ -14,7 +14,9 @@ use tera::{Context, Tera};
 
 use include_dir::{include_dir, Dir};
 
-use pax_manifest::{pax_runtime_api::PaxValue, ComponentDefinition, ExpressionInfo, PaxType};
+use pax_manifest::{
+    pax_runtime_api::PaxValue, ComponentDefinition, ExpressionInfo, PaxManifest, PaxType,
+};
 
 use crate::{
     formatting::format_pax_template,
@@ -138,6 +140,19 @@ pub fn serialize_component_to_file(component: &ComponentDefinition, file_path: S
         }
         Some("rs") => write_inlined_pax(serialized_component, path, pascal_identifier),
         _ => panic!("Unsupported file extension."),
+    }
+}
+
+pub fn serialize_main_component(manifest: &PaxManifest, repo_root: &str) {
+    let mc = manifest.components.get(&manifest.main_component_type_id);
+    if let Some(mc) = mc {
+        if let Some(template) = &mc.template {
+            if let Some(file_path) = &template.get_file_path() {
+                let suffix = file_path.split_once("pax/").unwrap().1;
+                let file_path = format!("{}/{}", repo_root, suffix);
+                serialize_component_to_file(mc, file_path.clone());
+            }
+        }
     }
 }
 
