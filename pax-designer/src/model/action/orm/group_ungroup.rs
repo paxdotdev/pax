@@ -4,7 +4,10 @@ use crate::{
     designer_node_type::DesignerNodeType,
     math::{DecompositionConfiguration, IntoDecompositionConfiguration},
     model::{
-        action::{orm::group_ungroup, Action, ActionContext},
+        action::{
+            orm::{group_ungroup, SetNodeLayoutProperties},
+            Action, ActionContext,
+        },
         tools::{SelectMode, SelectNodes},
         GlassNode, GlassNodeSnapshot, SelectionStateSnapshot,
     },
@@ -22,7 +25,9 @@ use pax_engine::{
 };
 use pax_std::core::group::Group;
 
-use super::{tree_movement::MoveNode, CreateComponent, NodeLayoutSettings};
+use super::{
+    movement::MoveNode, CreateComponent, NodeLayoutSettings, SetNodeLayoutPropertiesFromTransform,
+};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Copy)]
 pub enum GroupType {

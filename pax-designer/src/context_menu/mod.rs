@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use crate::math::coordinate_spaces::Glass;
 use crate::model;
 use crate::model::action::orm::group_ungroup::{GroupSelected, GroupType, UngroupSelected};
-use crate::model::action::orm::tree_movement::{RelativeMove, RelativeMoveSelected};
+use crate::model::action::orm::movement::{RelativeMove, RelativeMoveSelected};
 use crate::model::action::orm::SelectedIntoNewComponent;
 use crate::model::action::{Action, ActionContext};
 

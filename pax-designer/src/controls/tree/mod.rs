@@ -24,7 +24,7 @@ use crate::designer_node_type::DesignerNodeType;
 use crate::glass::SetEditingComponent;
 use crate::math::coordinate_spaces::Glass;
 use crate::math::IntoDecompositionConfiguration;
-use crate::model::action::orm::{tree_movement::MoveNode, NodeLayoutSettings};
+use crate::model::action::orm::{movement::MoveNode, NodeLayoutSettings};
 use crate::model::action::Action;
 use crate::model::tools::SelectNodes;
 use crate::model::{self, GlassNode};

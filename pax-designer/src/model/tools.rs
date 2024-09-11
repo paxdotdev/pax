@@ -3,7 +3,6 @@ use std::ops::ControlFlow;
 use std::rc::Rc;
 
 use super::action::meta::Schedule;
-use super::action::orm::space_movement::TranslateFromSnapshot;
 use super::action::orm::{self, CreateComponent, SetNodeLayout};
 use super::action::pointer::Pointer;
 use super::action::world::ZoomToFit;
@@ -21,7 +20,7 @@ use crate::math::intent_snapper::{self, IntentSnapper, SnapSet};
 use crate::math::{
     AxisAlignedBox, DecompositionConfiguration, GetUnit, IntoDecompositionConfiguration, SizeUnit,
 };
-use crate::model::action::orm::{tree_movement::MoveNode, NodeLayoutSettings};
+use crate::model::action::orm::{movement::MoveNode, NodeLayoutSettings};
 use crate::model::Tool;
 use crate::model::{AppState, ToolBehavior};
 use crate::SetStage;
@@ -404,13 +403,38 @@ impl ToolBehavior for MovingTool {
         if lock_y {
             total_translation.y = 0.0;
         }
-
+        let move_translation = TransformAndBounds {
+            transform: Transform2::translate(total_translation),
+            bounds: (1.0, 1.0),
+        };
+        let unit = match ctx.app_state.unit_mode.get() {
+            SizeUnit::Pixels => SizeUnit::Pixels,
+            SizeUnit::Percent => SizeUnit::Percent,
+        };
         if let Err(e) = transaction.run(|| {
-            TranslateFromSnapshot {
-                translation: total_translation,
-                initial_selection: &self.initial_selection,
+            for item in &self.initial_selection.items {
+                if let Ok(curr_item) = ctx.get_glass_node_by_global_id(&item.id) {
+                    SetNodeLayout {
+                        id: &item.id,
+                        node_layout: &NodeLayoutSettings::KeepScreenBounds {
+                            // NOTE: use the engine nodes parent, but the initial bounds of
+                            // the selected node
+                            node_transform_and_bounds: &(move_translation
+                                * item.transform_and_bounds),
+                            parent_transform_and_bounds: &curr_item
+                                .parent_transform_and_bounds
+                                .get(),
+                            node_decomposition_config: &DecompositionConfiguration {
+                                unit_x_pos: unit,
+                                unit_y_pos: unit,
+                                ..item.layout_properties.into_decomposition_config()
+                            },
+                        },
+                    }
+                    .perform(ctx)?
+                }
             }
-            .perform(ctx)
+            Ok(())
         }) {
             log::warn!("failed to move: {e}");
             return ControlFlow::Break(());

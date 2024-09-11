@@ -95,7 +95,7 @@ impl Editor {
 
         impl ControlPointBehavior for RotationBehavior {
             fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) -> anyhow::Result<()> {
-                action::orm::space_movement::RotateFromSnapshot {
+                action::orm::RotateSelected {
                     curr_pos: point,
                     start_pos: self.start_pos,
                     initial_selection: &self.initial_selection,
@@ -156,7 +156,7 @@ impl Editor {
 
         impl ControlPointBehavior for ResizeBehavior {
             fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) -> anyhow::Result<()> {
-                action::orm::space_movement::ResizeFromSnapshot {
+                action::orm::Resize {
                     initial_selection: &self.initial_selection,
                     fixed_point: self.attachment_point,
                     new_point: point,
@@ -261,7 +261,7 @@ impl Editor {
                 if let Some(initial_object) = &self.initial_object {
                     let t_and_b = initial_object.transform_and_bounds;
                     let point_in_space = t_and_b.transform.inverse() * point;
-                    action::orm::space_movement::SetAnchor {
+                    action::orm::SetAnchor {
                         object: &initial_object,
                         point: point_in_space,
                     }

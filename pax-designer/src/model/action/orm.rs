@@ -1,8 +1,6 @@
 use std::any::Any;
 use std::f64::consts::PI;
 
-pub use self::space_movement_primitives::{NodeLayoutSettings, SetNodeLayout};
-
 use super::{Action, ActionContext};
 use crate::designer_node_type::DesignerNodeType;
 use crate::glass::wireframe_editor::editor_generation::stacker_control::sizes_to_string;
@@ -38,10 +36,8 @@ use pax_engine::{
 use pax_engine::{log, NodeInterface, NodeLocal, Slot};
 use pax_std::layout::stacker::Stacker;
 pub mod group_ungroup;
+pub mod movement;
 pub mod other;
-pub mod space_movement;
-pub mod space_movement_primitives;
-pub mod tree_movement;
 
 pub struct CreateComponent<'a> {
     pub parent_id: &'a UniqueTemplateNodeIdentifier,
@@ -137,7 +133,6 @@ impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
     }
 }
 
-// TODO move this into group_ungroup and make work again
 pub struct SelectedIntoNewComponent {}
 
 impl Action for SelectedIntoNewComponent {
@@ -181,6 +176,398 @@ impl Action for SelectedIntoNewComponent {
                 .move_to_new_component(&entries, o.x, o.y, u.length(), v.length())
                 .map_err(|e| anyhow!("couldn't move to component: {}", e))
         })
+    }
+}
+
+struct SetNodeLayoutProperties<'a> {
+    id: &'a UniqueTemplateNodeIdentifier,
+    properties: &'a LayoutProperties,
+    // anchor doesn't have a default value (becomes "reactive" in the None case), and so needs
+    // to be manually specified to be reset
+    reset_anchor: bool,
+}
+
+impl Action for SetNodeLayoutProperties<'_> {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+        let mut dt = borrow_mut!(ctx.engine_context.designtime);
+        let Some(mut builder) = dt.get_orm_mut().get_node(
+            self.id.clone(),
+            ctx.app_state
+                .modifiers
+                .get()
+                .contains(&ModifierKey::Control),
+        ) else {
+            return Err(anyhow!("can't move: node doesn't exist in orm"));
+        };
+
+        if !matches!(
+            builder.get_type_id().get_pax_type(),
+            PaxType::Singleton { .. } | PaxType::BlankComponent { .. }
+        ) {
+            return Ok(());
+        };
+
+        let LayoutProperties {
+            x,
+            y,
+            width,
+            height,
+            rotate,
+            scale_x,
+            scale_y,
+            anchor_x,
+            anchor_y,
+            skew_x,
+            skew_y,
+        } = self.properties;
+
+        // compare with the values for the current node in the engine, and
+        // only try to write if different (we don't want to try to overwrite a
+        // rotation expression if we are only moving an object and not affecting
+        // rotation)
+        let old_props = ctx
+            .engine_context
+            .get_nodes_by_global_id(self.id.clone())
+            .into_iter()
+            .next()
+            .map(|n| n.layout_properties())
+            .unwrap_or_default();
+
+        write_to_orm(
+            &mut builder,
+            "x",
+            x.as_ref(),
+            old_props.x.as_ref(),
+            Size::ZERO(),
+        )
+        .map_err(|e| anyhow!("couldn't set x to {x:?}: {e}"))?;
+        write_to_orm(
+            &mut builder,
+            "y",
+            y.as_ref(),
+            old_props.y.as_ref(),
+            Size::ZERO(),
+        )
+        .map_err(|e| anyhow!("couldn't set y to {y:?}: {e}"))?;
+
+        write_to_orm(
+            &mut builder,
+            "width",
+            width.as_ref(),
+            old_props.width.as_ref(),
+            Size::default(),
+        )
+        .map_err(|e| anyhow!("couldn't set width to {width:?}: {e}"))?;
+
+        write_to_orm(
+            &mut builder,
+            "height",
+            height.as_ref(),
+            old_props.height.as_ref(),
+            Size::default(),
+        )
+        .map_err(|e| anyhow!("couldn't set height to {height:?}: {e}"))?;
+
+        write_to_orm(
+            &mut builder,
+            "scale_x",
+            scale_x.as_ref().map(|v| Size::Percent(v.0)).as_ref(),
+            old_props
+                .scale_x
+                .as_ref()
+                .map(|v| Size::Percent(v.0))
+                .as_ref(),
+            Size::default(),
+        )
+        .map_err(|e| anyhow!("couldn't set scale_x to {scale_x:?}: {e}"))?;
+
+        write_to_orm(
+            &mut builder,
+            "scale_y",
+            scale_y.as_ref().map(|v| Size::Percent(v.0)).as_ref(),
+            old_props
+                .scale_y
+                .as_ref()
+                .map(|v| Size::Percent(v.0))
+                .as_ref(),
+            Size::default(),
+        )
+        .map_err(|e| anyhow!("couldn't set scale_y to {scale_y:?}: {e}"))?;
+
+        write_to_orm(
+            &mut builder,
+            "rotate",
+            rotate.as_ref(),
+            old_props.rotate.as_ref(),
+            Rotation::default(),
+        )
+        .map_err(|e| anyhow!("couldn't set rotation to {rotate:?}: {e}"))?;
+
+        write_to_orm(
+            &mut builder,
+            "skew_x",
+            skew_x.as_ref(),
+            old_props.skew_x.as_ref(),
+            Rotation::default(),
+        )
+        .map_err(|e| anyhow!("couldn't set skew_x to {skew_x:?}: {e}"))?;
+
+        write_to_orm(
+            &mut builder,
+            "skew_y",
+            skew_y.as_ref(),
+            old_props.skew_y.as_ref(),
+            Rotation::default(),
+        )
+        .map_err(|e| anyhow!("couldn't set skew_y to {skew_y:?}: {e}"))?;
+
+        if self.reset_anchor {
+            builder.set_property("anchor_x", "")?;
+            builder.set_property("anchor_y", "")?;
+        } else {
+            write_to_orm(
+                &mut builder,
+                "anchor_x",
+                anchor_x.as_ref(),
+                old_props.anchor_x.as_ref(),
+                // never assume default
+                Size::Combined(f64::MAX.into(), f64::MAX.into()),
+            )
+            .map_err(|e| anyhow!("couldn't set anchor_x to {anchor_x:?}: {e}"))?;
+            write_to_orm(
+                &mut builder,
+                "anchor_y",
+                anchor_y.as_ref(),
+                old_props.anchor_y.as_ref(),
+                // never assume default
+                Size::Combined(f64::MAX.into(), f64::MAX.into()),
+            )
+            .map_err(|e| anyhow!("couldn't set anchor_y to {anchor_y:?}: {e}"))?;
+        }
+
+        builder
+            .save()
+            .map_err(|e| anyhow!("could not move: {}", e))?;
+
+        Ok(())
+    }
+}
+
+struct SetNodeLayoutPropertiesFromTransform<'a, T> {
+    id: &'a UniqueTemplateNodeIdentifier,
+    transform_and_bounds: &'a TransformAndBounds<NodeLocal, T>,
+    parent_transform_and_bounds: &'a TransformAndBounds<NodeLocal, T>,
+    decomposition_config: &'a DecompositionConfiguration,
+}
+
+impl<T: Space> Action for SetNodeLayoutPropertiesFromTransform<'_, T> {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+        let new_props: LayoutProperties = math::transform_and_bounds_decomposition(
+            self.decomposition_config,
+            self.parent_transform_and_bounds,
+            self.transform_and_bounds,
+        );
+
+        SetNodeLayoutProperties {
+            id: self.id,
+            properties: &new_props,
+            reset_anchor: false,
+        }
+        .perform(ctx)?;
+        Ok(())
+    }
+}
+
+pub struct SetAnchor<'a> {
+    pub object: &'a GlassNodeSnapshot,
+    pub point: Point2<NodeLocal>,
+}
+
+impl Action for SetAnchor<'_> {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+        let t_and_b = self.object.transform_and_bounds;
+        let anchor_x = match self.object.layout_properties.anchor_x.unit() {
+            SizeUnit::Pixels => Size::Pixels(self.point.x.into()),
+            SizeUnit::Percent => Size::Percent((100.0 * self.point.x / t_and_b.bounds.0).into()),
+        };
+        let anchor_y = match self.object.layout_properties.anchor_y.unit() {
+            SizeUnit::Pixels => Size::Pixels(self.point.y.into()),
+            SizeUnit::Percent => Size::Percent((100.0 * self.point.y / t_and_b.bounds.1).into()),
+        };
+
+        let new_anchor = LayoutProperties {
+            anchor_x: Some(anchor_x),
+            anchor_y: Some(anchor_y),
+            ..self.object.layout_properties.clone()
+        };
+        SetNodeLayoutPropertiesFromTransform {
+            id: &self.object.id,
+            transform_and_bounds: &self.object.transform_and_bounds,
+            parent_transform_and_bounds: &self.object.parent_transform_and_bounds,
+            decomposition_config: &new_anchor.into_decomposition_config(),
+        }
+        .perform(ctx)?;
+
+        Ok(())
+    }
+}
+
+pub struct Resize<'a> {
+    pub fixed_point: Point2<BoxPoint>,
+    pub new_point: Point2<Glass>,
+    pub initial_selection: &'a SelectionStateSnapshot,
+}
+
+impl Action for Resize<'_> {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+        let (is_shift_key_down, is_alt_key_down) = ctx.app_state.modifiers.read(|keys| {
+            (
+                keys.contains(&ModifierKey::Shift),
+                keys.contains(&ModifierKey::Alt),
+            )
+        });
+
+        let bounds = self.initial_selection.total_bounds.bounds;
+        let selection_space = self.initial_selection.total_bounds.transform
+            * Transform2::scale_sep(Vector2::new(bounds.0, bounds.1));
+        let grab = (Vector2::new(1.0, 1.0) - self.fixed_point.cast_space().to_vector()).to_point();
+        let new_in_selec = selection_space.inverse() * self.new_point;
+
+        // if alt key is down, resize from anchor instead
+        let fixed: Point2<SelectionSpace> = if is_alt_key_down {
+            let anchor = self.initial_selection.total_origin;
+            selection_space.inverse() * anchor
+        } else {
+            self.fixed_point.cast_space()
+        };
+
+        let diff_start = fixed - grab;
+        let diff_now = fixed - new_in_selec;
+        let mut scale = diff_now / diff_start;
+
+        // if shift key down, uniformly scale
+        if is_shift_key_down {
+            let uniform_scale = if self.fixed_point.x == 0.5 {
+                scale.y.abs()
+            } else if self.fixed_point.y == 0.5 {
+                scale.x.abs()
+            } else {
+                scale.x.abs().max(scale.y.abs())
+            };
+
+            scale = Vector2::new(
+                uniform_scale * scale.x.signum(),
+                uniform_scale * scale.y.signum(),
+            );
+        } else {
+            // When shift is not down, constrain scaling if using side handles
+            if self.fixed_point.x == 0.5 {
+                scale.x = 1.0;
+            }
+            if self.fixed_point.y == 0.5 {
+                scale.y = 1.0;
+            }
+        }
+
+        let anchor: Transform2<SelectionSpace> = Transform2::translate(fixed.to_vector());
+
+        // This is the "frame of refernce" from which all objects that
+        // are currently selected should be resized
+        let to_local = TransformAndBounds {
+            transform: selection_space * anchor,
+            bounds: (1.0, 1.0),
+        };
+
+        // TODO hook up switching between scaling and resizing mode (commented out scaling for now):
+        // this is the transform to apply to all of the objects that are being resized
+        let local_resize = TransformAndBounds {
+            transform: Transform2::identity(),
+            bounds: (scale.x, scale.y),
+        };
+        // let local_resize = TransformAndBounds {
+        //     transform: Transform2::scale_sep(scale),
+        //     bounds: (1.0, 1.0),
+        // };
+
+        // move to "frame of reference", perform operation, move back
+        let resize = to_local * local_resize * to_local.inverse();
+
+        // when resizing, override to % if not meta key is pressed, then use px
+        let unit = ctx.app_state.unit_mode.get();
+
+        for item in &self.initial_selection.items {
+            SetNodeLayoutPropertiesFromTransform {
+                id: &item.id,
+                transform_and_bounds: &(resize * item.transform_and_bounds),
+                parent_transform_and_bounds: &item.parent_transform_and_bounds,
+                decomposition_config: &&DecompositionConfiguration {
+                    unit_width: unit,
+                    unit_height: unit,
+                    unit_x_pos: unit,
+                    unit_y_pos: unit,
+                    ..item.layout_properties.into_decomposition_config()
+                },
+            }
+            .perform(ctx)?;
+        }
+        Ok(())
+    }
+}
+
+const ANGLE_SNAP_DEG: f64 = 45.0;
+
+pub struct RotateSelected<'a> {
+    pub start_pos: Point2<Glass>,
+    pub curr_pos: Point2<Glass>,
+    pub initial_selection: &'a SelectionStateSnapshot,
+}
+
+impl Action for RotateSelected<'_> {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+        let anchor_point = self.initial_selection.total_origin;
+        let start = self.start_pos - anchor_point;
+        let curr = self.curr_pos - anchor_point;
+        let mut rotation = start.angle_to(curr).get_as_degrees();
+
+        if ctx.app_state.modifiers.get().contains(&ModifierKey::Shift) {
+            let original_rotation =
+                Into::<TransformParts>::into(self.initial_selection.total_bounds.transform)
+                    .rotation
+                    .to_degrees();
+            let total_rotation = (rotation + original_rotation).rem_euclid(360.0 - f64::EPSILON);
+            let mut snapped_rotation = (total_rotation / ANGLE_SNAP_DEG).round() * ANGLE_SNAP_DEG;
+            if snapped_rotation >= 360.0 - f64::EPSILON {
+                snapped_rotation = 0.0;
+            }
+            rotation = snapped_rotation - original_rotation;
+        }
+
+        // This is the "frame of refernce" from which all objects that
+        // are currently selected should be resized
+        let to_local = TransformAndBounds {
+            transform: Transform2::<SelectionSpace, Glass>::translate(anchor_point.to_vector()),
+            bounds: (1.0, 1.0),
+        };
+
+        let local_rotation = TransformAndBounds {
+            transform: Transform2::rotate(rotation.to_radians()),
+            bounds: (1.0, 1.0),
+        };
+
+        // move to "frame of reference", perform operation, move back
+        let rotate = to_local * local_rotation * to_local.inverse();
+
+        for item in &self.initial_selection.items {
+            SetNodeLayoutPropertiesFromTransform {
+                id: &item.id,
+                transform_and_bounds: &(rotate * item.transform_and_bounds),
+                parent_transform_and_bounds: &item.parent_transform_and_bounds,
+                decomposition_config: &item.layout_properties.into_decomposition_config(),
+            }
+            .perform(ctx)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -287,5 +674,89 @@ impl Action<Vec<TemplateNodeId>> for Paste<'_> {
             Ok(ids)
         });
         ids
+    }
+}
+
+fn write_to_orm<T: Serialize + ApproxEq>(
+    builder: &mut NodeBuilder,
+    name: &str,
+    value: Option<&T>,
+    old_value: Option<&T>,
+    default_value: T,
+) -> Result<()> {
+    if old_value.approx_eq(&value) {
+        return Ok(());
+    }
+    if let Some(val) = value {
+        if !default_value.approx_eq(val) {
+            let val = pax_designtime::to_pax(&val)?;
+            builder.set_property(name, &val)?;
+        } else {
+            builder.set_property(name, "")?;
+        }
+    };
+    Ok(())
+}
+
+pub enum NodeLayoutSettings<'a, S> {
+    Fill,
+    KeepScreenBounds {
+        node_transform_and_bounds: &'a TransformAndBounds<NodeLocal, S>,
+        node_decomposition_config: &'a DecompositionConfiguration,
+        parent_transform_and_bounds: &'a TransformAndBounds<NodeLocal, S>,
+    },
+    WithProperties(LayoutProperties),
+}
+
+impl<S: Space> Clone for NodeLayoutSettings<'_, S> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Fill => Self::Fill,
+            Self::KeepScreenBounds {
+                node_transform_and_bounds,
+                node_decomposition_config,
+                parent_transform_and_bounds,
+            } => Self::KeepScreenBounds {
+                node_transform_and_bounds,
+                node_decomposition_config,
+                parent_transform_and_bounds,
+            },
+            Self::WithProperties(props) => Self::WithProperties(props.clone()),
+        }
+    }
+}
+
+pub struct SetNodeLayout<'a, S> {
+    pub id: &'a UniqueTemplateNodeIdentifier,
+    pub node_layout: &'a NodeLayoutSettings<'a, S>,
+}
+
+impl<S: Space> Action for SetNodeLayout<'_, S> {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+        match &self.node_layout {
+            NodeLayoutSettings::KeepScreenBounds {
+                node_transform_and_bounds,
+                parent_transform_and_bounds: new_parent_transform_and_bounds,
+                node_decomposition_config: node_inv_config,
+            } => SetNodeLayoutPropertiesFromTransform {
+                id: &self.id,
+                transform_and_bounds: node_transform_and_bounds,
+                parent_transform_and_bounds: new_parent_transform_and_bounds,
+                decomposition_config: node_inv_config,
+            }
+            .perform(ctx),
+            NodeLayoutSettings::Fill => SetNodeLayoutProperties {
+                id: &self.id,
+                properties: &LayoutProperties::fill(),
+                reset_anchor: true,
+            }
+            .perform(ctx),
+            NodeLayoutSettings::WithProperties(props) => SetNodeLayoutProperties {
+                id: &self.id,
+                properties: props,
+                reset_anchor: false,
+            }
+            .perform(ctx),
+        }
     }
 }
