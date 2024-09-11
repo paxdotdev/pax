@@ -46,7 +46,7 @@ jobs:
         
 
     - name: Build Starter Project
-      run: pushd examples/src/starter-project && pax-cli build --release && popd
+      run: pushd examples/src/starter-project && pax-cli build --release --designer && popd
 
     # - name: Run tests
     #   run: cargo test --verbose --workspace --exclude pax-chassis-macos --exclude pax-chassis-common --exclude pax-chassis-ios
