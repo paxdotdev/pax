@@ -136,34 +136,6 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, true);
-    window.addEventListener('mouseover', (evt) => {
-        let event = {
-            "MouseOver": {
-                "x": evt.clientX,
-                "y": evt.clientY,
-                "button": getMouseButton(evt),
-                "modifiers": convertModifiers(evt)
-            }
-        };
-        let res = chassis.interrupt(JSON.stringify(event), []);
-        if (res.prevent_default) {
-            evt.preventDefault();
-        }
-    }, true);
-    window.addEventListener('mouseout', (evt) => {
-        let event = {
-            "MouseOut": {
-                "x": evt.clientX,
-                "y": evt.clientY,
-                "button": getMouseButton(evt),
-                "modifiers": convertModifiers(evt)
-            }
-        };
-        let res = chassis.interrupt(JSON.stringify(event), []);
-        if (res.prevent_default) {
-            evt.preventDefault();
-        }
-    }, true);
     window.addEventListener('contextmenu', (evt) => {
         let event = {
             "ContextMenu": {

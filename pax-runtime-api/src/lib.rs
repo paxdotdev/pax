@@ -345,15 +345,11 @@ pub struct MouseUp {
 
 /// User moves the mouse onto an element.
 #[derive(Clone)]
-pub struct MouseOver {
-    pub mouse: MouseEventArgs,
-}
+pub struct MouseOver {}
 
 /// User moves the mouse away from an element.
 #[derive(Clone)]
-pub struct MouseOut {
-    pub mouse: MouseEventArgs,
-}
+pub struct MouseOut {}
 
 /// User right-clicks an element to open the context menu.
 #[derive(Clone)]

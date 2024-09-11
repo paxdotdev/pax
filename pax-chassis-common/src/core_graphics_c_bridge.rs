@@ -65,32 +65,27 @@ pub extern "C" fn pax_interrupt(
     let interrupt = interrupt_wrapped.unwrap();
     match interrupt {
         NativeInterrupt::Click(args) => {
-            let prospective_hit = engine
+            let topmost_node = engine
                 .runtime_context
                 .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-            match prospective_hit {
-                Some(topmost_node) => {
-                    let modifiers = args
-                        .modifiers
-                        .iter()
-                        .map(|x| ModifierKey::from(x))
-                        .collect();
-                    let args_click = Click {
-                        mouse: MouseEventArgs {
-                            x: args.x,
-                            y: args.y,
-                            button: MouseButton::from(args.button),
-                            modifiers,
-                        },
-                    };
-                    topmost_node.dispatch_click(
-                        Event::new(args_click),
-                        &engine.runtime_context.globals(),
-                        &engine.runtime_context,
-                    );
-                }
-                _ => {}
+            let modifiers = args
+                .modifiers
+                .iter()
+                .map(|x| ModifierKey::from(x))
+                .collect();
+            let args_click = Click {
+                mouse: MouseEventArgs {
+                    x: args.x,
+                    y: args.y,
+                    button: MouseButton::from(args.button),
+                    modifiers,
+                },
             };
+            topmost_node.dispatch_click(
+                Event::new(args_click),
+                &engine.runtime_context.globals(),
+                &engine.runtime_context,
+            );
         }
         NativeInterrupt::Scrollbar(_args) => {}
         NativeInterrupt::Scroll(_args) => {}

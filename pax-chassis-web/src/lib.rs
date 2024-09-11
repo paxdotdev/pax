@@ -31,8 +31,8 @@ pub use {console_error_panic_hook, console_log};
 use pax_message::NativeInterrupt;
 use pax_runtime::api::{
     Clap, Click, ContextMenu, DoubleClick, Drop, KeyDown, KeyPress, KeyUp, KeyboardEventArgs,
-    ModifierKey, MouseButton, MouseDown, MouseEventArgs, MouseMove, MouseOut, MouseOver, MouseUp,
-    Touch, TouchEnd, TouchMove, TouchStart, Wheel,
+    ModifierKey, MouseButton, MouseDown, MouseEventArgs, MouseMove, MouseUp, Touch, TouchEnd,
+    TouchMove, TouchStart, Wheel,
 };
 use serde_json;
 
@@ -191,28 +191,20 @@ impl PaxChassisWeb {
         let ctx = &engine.runtime_context;
         let globals = ctx.globals();
         let prevent_default = match &x {
-            NativeInterrupt::Focus(args) => engine.global_dispatch_focus(Focus {}),
+            NativeInterrupt::Focus(_args) => engine.global_dispatch_focus(Focus {}),
             NativeInterrupt::DropFile(args) => {
                 let data = Uint8Array::new(additional_payload).to_vec();
-                let prospective_hit = engine
+                let topmost_node = engine
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                if let Some(topmost_node) = prospective_hit {
-                    let args_drop = Drop {
-                        x: args.x,
-                        y: args.y,
-                        name: args.name.clone(),
-                        mime_type: args.mime_type.clone(),
-                        data,
-                    };
-                    topmost_node.dispatch_drop(
-                        Event::new(args_drop),
-                        &globals,
-                        &engine.runtime_context,
-                    )
-                } else {
-                    false
-                }
+                let args_drop = Drop {
+                    x: args.x,
+                    y: args.y,
+                    name: args.name.clone(),
+                    mime_type: args.mime_type.clone(),
+                    data,
+                };
+                topmost_node.dispatch_drop(Event::new(args_drop), &globals, &engine.runtime_context)
             }
             NativeInterrupt::FormRadioSetChange(args) => {
                 let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
@@ -329,30 +321,26 @@ impl PaxChassisWeb {
 
             NativeInterrupt::AddedLayer(_args) => false,
             NativeInterrupt::Click(args) => {
-                let prospective_hit = engine
+                let topmost_node = engine
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                if let Some(topmost_node) = prospective_hit {
-                    let args_click = Click {
-                        mouse: MouseEventArgs {
-                            x: args.x,
-                            y: args.y,
-                            button: MouseButton::from(args.button.clone()),
-                            modifiers: args
-                                .modifiers
-                                .iter()
-                                .map(|x| ModifierKey::from(x))
-                                .collect(),
-                        },
-                    };
-                    topmost_node.dispatch_click(
-                        Event::new(args_click),
-                        &globals,
-                        &engine.runtime_context,
-                    )
-                } else {
-                    false
-                }
+                let args_click = Click {
+                    mouse: MouseEventArgs {
+                        x: args.x,
+                        y: args.y,
+                        button: MouseButton::from(args.button.clone()),
+                        modifiers: args
+                            .modifiers
+                            .iter()
+                            .map(|x| ModifierKey::from(x))
+                            .collect(),
+                    },
+                };
+                topmost_node.dispatch_click(
+                    Event::new(args_click),
+                    &globals,
+                    &engine.runtime_context,
+                )
             }
             NativeInterrupt::Scrollbar(args) => {
                 let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
@@ -363,73 +351,53 @@ impl PaxChassisWeb {
             }
             NativeInterrupt::Scroll(_) => false,
             NativeInterrupt::Clap(args) => {
-                let prospective_hit = engine
+                let topmost_node = engine
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                if let Some(topmost_node) = prospective_hit {
-                    let args_clap = Clap {
-                        x: args.x,
-                        y: args.y,
-                    };
-                    topmost_node.dispatch_clap(
-                        Event::new(args_clap),
-                        &globals,
-                        &engine.runtime_context,
-                    )
-                } else {
-                    false
-                }
+                let args_clap = Clap {
+                    x: args.x,
+                    y: args.y,
+                };
+                topmost_node.dispatch_clap(Event::new(args_clap), &globals, &engine.runtime_context)
             }
             NativeInterrupt::TouchStart(args) => {
                 let first_touch = args.touches.get(0).unwrap();
-                let prospective_hit = engine
+                let topmost_node = engine
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
-                if let Some(topmost_node) = prospective_hit {
-                    let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
-                    let args_touch_start = TouchStart { touches };
-                    topmost_node.dispatch_touch_start(
-                        Event::new(args_touch_start),
-                        &globals,
-                        &engine.runtime_context,
-                    )
-                } else {
-                    false
-                }
+                let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
+                let args_touch_start = TouchStart { touches };
+                topmost_node.dispatch_touch_start(
+                    Event::new(args_touch_start),
+                    &globals,
+                    &engine.runtime_context,
+                )
             }
             NativeInterrupt::TouchMove(args) => {
                 let first_touch = args.touches.get(0).unwrap();
-                let prospective_hit = engine
+                let topmost_node = engine
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
-                if let Some(topmost_node) = prospective_hit {
-                    let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
-                    let args_touch_move = TouchMove { touches };
-                    topmost_node.dispatch_touch_move(
-                        Event::new(args_touch_move),
-                        &globals,
-                        &engine.runtime_context,
-                    )
-                } else {
-                    false
-                }
+                let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
+                let args_touch_move = TouchMove { touches };
+                topmost_node.dispatch_touch_move(
+                    Event::new(args_touch_move),
+                    &globals,
+                    &engine.runtime_context,
+                )
             }
             NativeInterrupt::TouchEnd(args) => {
                 let first_touch = args.touches.get(0).unwrap();
-                let prospective_hit = engine
+                let topmost_node = engine
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
-                if let Some(topmost_node) = prospective_hit {
-                    let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
-                    let args_touch_end = TouchEnd { touches };
-                    topmost_node.dispatch_touch_end(
-                        Event::new(args_touch_end),
-                        &globals,
-                        &engine.runtime_context,
-                    )
-                } else {
-                    false
-                }
+                let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
+                let args_touch_end = TouchEnd { touches };
+                topmost_node.dispatch_touch_end(
+                    Event::new(args_touch_end),
+                    &globals,
+                    &engine.runtime_context,
+                )
             }
             NativeInterrupt::KeyDown(args) => {
                 let modifiers = args
@@ -477,212 +445,136 @@ impl PaxChassisWeb {
                 engine.global_dispatch_key_press(args_key_press)
             }
             NativeInterrupt::DoubleClick(args) => {
-                let prospective_hit = engine
+                let topmost_node = engine
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                if let Some(topmost_node) = prospective_hit {
-                    let args_double_click = DoubleClick {
-                        mouse: MouseEventArgs {
-                            x: args.x,
-                            y: args.y,
-                            button: MouseButton::from(args.button.clone()),
-                            modifiers: args
-                                .modifiers
-                                .iter()
-                                .map(|x| ModifierKey::from(x))
-                                .collect(),
-                        },
-                    };
-                    topmost_node.dispatch_double_click(
-                        Event::new(args_double_click),
-                        &globals,
-                        &engine.runtime_context,
-                    )
-                } else {
-                    false
-                }
-            }
-            NativeInterrupt::MouseMove(args) => {
-                let prospective_hit = engine
-                    .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                if let Some(topmost_node) = prospective_hit {
-                    let args_mouse_move = MouseMove {
-                        mouse: MouseEventArgs {
-                            x: args.x,
-                            y: args.y,
-                            button: MouseButton::from(args.button.clone()),
-                            modifiers: args
-                                .modifiers
-                                .iter()
-                                .map(|x| ModifierKey::from(x))
-                                .collect(),
-                        },
-                    };
-                    topmost_node.dispatch_mouse_move(
-                        Event::new(args_mouse_move),
-                        &globals,
-                        &engine.runtime_context,
-                    )
-                } else {
-                    false
-                }
-            }
-            NativeInterrupt::Wheel(args) => {
-                let prospective_hit = engine
-                    .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                if let Some(topmost_node) = prospective_hit {
-                    let modifiers = args
-                        .modifiers
-                        .iter()
-                        .map(|x| ModifierKey::from(x))
-                        .collect();
-                    let args_wheel = Wheel {
+                let args_double_click = DoubleClick {
+                    mouse: MouseEventArgs {
                         x: args.x,
                         y: args.y,
-                        delta_x: args.delta_x,
-                        delta_y: args.delta_y,
-                        modifiers,
-                    };
-                    topmost_node.dispatch_wheel(
-                        Event::new(args_wheel),
-                        &globals,
-                        &engine.runtime_context,
-                    )
-                } else {
-                    false
-                }
+                        button: MouseButton::from(args.button.clone()),
+                        modifiers: args
+                            .modifiers
+                            .iter()
+                            .map(|x| ModifierKey::from(x))
+                            .collect(),
+                    },
+                };
+                topmost_node.dispatch_double_click(
+                    Event::new(args_double_click),
+                    &globals,
+                    &engine.runtime_context,
+                )
+            }
+            NativeInterrupt::MouseMove(args) => {
+                let topmost_node = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
+                let args_mouse_move = MouseMove {
+                    mouse: MouseEventArgs {
+                        x: args.x,
+                        y: args.y,
+                        button: MouseButton::from(args.button.clone()),
+                        modifiers: args
+                            .modifiers
+                            .iter()
+                            .map(|x| ModifierKey::from(x))
+                            .collect(),
+                    },
+                };
+                topmost_node.dispatch_mouse_move(
+                    Event::new(args_mouse_move),
+                    &globals,
+                    &engine.runtime_context,
+                )
+            }
+            NativeInterrupt::Wheel(args) => {
+                let topmost_node = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
+                let modifiers = args
+                    .modifiers
+                    .iter()
+                    .map(|x| ModifierKey::from(x))
+                    .collect();
+                let args_wheel = Wheel {
+                    x: args.x,
+                    y: args.y,
+                    delta_x: args.delta_x,
+                    delta_y: args.delta_y,
+                    modifiers,
+                };
+                topmost_node.dispatch_wheel(
+                    Event::new(args_wheel),
+                    &globals,
+                    &engine.runtime_context,
+                )
             }
             NativeInterrupt::MouseDown(args) => {
-                let prospective_hit = engine
+                let topmost_node = engine
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                if let Some(topmost_node) = prospective_hit {
-                    let args_mouse_down = MouseDown {
-                        mouse: MouseEventArgs {
-                            x: args.x,
-                            y: args.y,
-                            button: MouseButton::from(args.button.clone()),
-                            modifiers: args
-                                .modifiers
-                                .iter()
-                                .map(|x| ModifierKey::from(x))
-                                .collect(),
-                        },
-                    };
-                    topmost_node.dispatch_mouse_down(
-                        Event::new(args_mouse_down),
-                        &globals,
-                        &engine.runtime_context,
-                    )
-                } else {
-                    false
-                }
+                let args_mouse_down = MouseDown {
+                    mouse: MouseEventArgs {
+                        x: args.x,
+                        y: args.y,
+                        button: MouseButton::from(args.button.clone()),
+                        modifiers: args
+                            .modifiers
+                            .iter()
+                            .map(|x| ModifierKey::from(x))
+                            .collect(),
+                    },
+                };
+                topmost_node.dispatch_mouse_down(
+                    Event::new(args_mouse_down),
+                    &globals,
+                    &engine.runtime_context,
+                )
             }
             NativeInterrupt::MouseUp(args) => {
-                let prospective_hit = engine
+                let topmost_node = engine
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                if let Some(topmost_node) = prospective_hit {
-                    let args_mouse_up = MouseUp {
-                        mouse: MouseEventArgs {
-                            x: args.x,
-                            y: args.y,
-                            button: MouseButton::from(args.button.clone()),
-                            modifiers: args
-                                .modifiers
-                                .iter()
-                                .map(|x| ModifierKey::from(x))
-                                .collect(),
-                        },
-                    };
-                    topmost_node.dispatch_mouse_up(
-                        Event::new(args_mouse_up),
-                        &globals,
-                        &engine.runtime_context,
-                    )
-                } else {
-                    false
-                }
-            }
-            NativeInterrupt::MouseOver(args) => {
-                let prospective_hit = engine
-                    .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                if let Some(topmost_node) = prospective_hit {
-                    let args_mouse_over = MouseOver {
-                        mouse: MouseEventArgs {
-                            x: args.x,
-                            y: args.y,
-                            button: MouseButton::from(args.button.clone()),
-                            modifiers: args
-                                .modifiers
-                                .iter()
-                                .map(|x| ModifierKey::from(x))
-                                .collect(),
-                        },
-                    };
-                    topmost_node.dispatch_mouse_over(
-                        Event::new(args_mouse_over),
-                        &globals,
-                        &engine.runtime_context,
-                    )
-                } else {
-                    false
-                }
-            }
-            NativeInterrupt::MouseOut(args) => {
-                let prospective_hit = engine
-                    .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                if let Some(topmost_node) = prospective_hit {
-                    let args_mouse_out = MouseOut {
-                        mouse: MouseEventArgs {
-                            x: args.x,
-                            y: args.y,
-                            button: MouseButton::from(args.button.clone()),
-                            modifiers: args
-                                .modifiers
-                                .iter()
-                                .map(|x| ModifierKey::from(x))
-                                .collect(),
-                        },
-                    };
-                    topmost_node.dispatch_mouse_out(
-                        Event::new(args_mouse_out),
-                        &globals,
-                        &engine.runtime_context,
-                    )
-                } else {
-                    false
-                }
+                let args_mouse_up = MouseUp {
+                    mouse: MouseEventArgs {
+                        x: args.x,
+                        y: args.y,
+                        button: MouseButton::from(args.button.clone()),
+                        modifiers: args
+                            .modifiers
+                            .iter()
+                            .map(|x| ModifierKey::from(x))
+                            .collect(),
+                    },
+                };
+                topmost_node.dispatch_mouse_up(
+                    Event::new(args_mouse_up),
+                    &globals,
+                    &engine.runtime_context,
+                )
             }
             NativeInterrupt::ContextMenu(args) => {
-                let prospective_hit = engine
+                let topmost_node = engine
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                if let Some(topmost_node) = prospective_hit {
-                    let args_context_menu = ContextMenu {
-                        mouse: MouseEventArgs {
-                            x: args.x,
-                            y: args.y,
-                            button: MouseButton::from(args.button.clone()),
-                            modifiers: args
-                                .modifiers
-                                .iter()
-                                .map(|x| ModifierKey::from(x))
-                                .collect(),
-                        },
-                    };
-                    topmost_node.dispatch_context_menu(
-                        Event::new(args_context_menu),
-                        &globals,
-                        &engine.runtime_context,
-                    )
-                } else {
-                    false
-                }
+                let args_context_menu = ContextMenu {
+                    mouse: MouseEventArgs {
+                        x: args.x,
+                        y: args.y,
+                        button: MouseButton::from(args.button.clone()),
+                        modifiers: args
+                            .modifiers
+                            .iter()
+                            .map(|x| ModifierKey::from(x))
+                            .collect(),
+                    },
+                };
+                topmost_node.dispatch_context_menu(
+                    Event::new(args_context_menu),
+                    &globals,
+                    &engine.runtime_context,
+                )
             }
         };
 
