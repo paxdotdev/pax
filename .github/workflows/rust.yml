@@ -103,3 +103,14 @@ jobs:
             repo: context.repo.repo,
             body: `Deployment preview ready! :rocket:\n\nYou can view this deployment at: [${deploymentUrl}](${deploymentUrl})`
           })
+    
+    - name: Run tests
+      run: cargo test --verbose --workspace --exclude pax-chassis-macos --exclude pax-chassis-common --exclude pax-chassis-ios
+
+    - name: Check formatting
+      run: cargo fmt -- --check
+
+    - name: Check for linting errors
+      run: |
+        rustup component add clippy
+        cargo clippy -- -D warnings
