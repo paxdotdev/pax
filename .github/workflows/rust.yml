@@ -22,13 +22,13 @@ jobs:
       with:
         github-token: ${{secrets.GITHUB_TOKEN}}
         script: |
+          console.log(JSON.stringify(github.context, null, 2));
           const prNumber = context.payload.pull_request.number;
           const deploymentUrl = `https://staging.pax.dev/${prNumber}/index.html`;
-          github.rest.pulls.createReview({
+          await github.rest.issues.createComment({
             owner: context.repo.owner,
             repo: context.repo.name,
-            pull_number: prNumber,
-            event: 'COMMENT',
+            issue_number: prNumber,
             body: `Deployment preview ready! :rocket:\n\nYou can view this deployment at: [${deploymentUrl}](${deploymentUrl})`
           });
     # # Install dependencies
