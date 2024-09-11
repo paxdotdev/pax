@@ -45,7 +45,7 @@ jobs:
         fi
 
     - name: Build Starter Project
-      run: pushd examples/src/starter-project && pax-cli build --release --designer && popd
+      run: pushd examples/src/starter-project && pax-cli build --release --designer 
 
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v1
@@ -62,7 +62,7 @@ jobs:
     - name: Deploy to S3
       run: |
         BUCKET_NAME="staging.pax.dev/${{ github.event.pull_request.number }}"
-        aws s3 sync /home/runner/work/pax/pax/examples/src/starter-project/.pax/build/release/web s3://$BUCKET_NAME --delete --acl public-read
+        aws s3 sync . s3://$BUCKET_NAME --delete --acl public-read
 
     # - name: Run tests
     #   run: cargo test --verbose --workspace --exclude pax-chassis-macos --exclude pax-chassis-common --exclude pax-chassis-ios
