@@ -221,8 +221,8 @@ impl Tree {
                     )
                 };
                 if let Err(e) = Self::tree_move(
-                    from,
-                    to,
+                    from.node_id,
+                    to.map(|t| t.node_id),
                     child_ind_override,
                     &ctx,
                     self.drag_ignore_container.get(),
@@ -235,19 +235,18 @@ impl Tree {
     }
 
     fn tree_move(
-        from: FlattenedTreeEntry,
-        to: Option<FlattenedTreeEntry>,
+        from: TemplateNodeId,
+        to_parent: Option<TemplateNodeId>,
         child_ind_override: Option<TreeIndexPosition>,
         ctx: &NodeContext,
         ignore_container: bool,
     ) -> Result<()> {
         model::with_action_context(ctx, |ctx| {
             let comp_id = ctx.app_state.selected_component_id.get();
-            let from_uid =
-                UniqueTemplateNodeIdentifier::build(comp_id.clone(), from.node_id.clone());
-            let to_uid = to
+            let from_uid = UniqueTemplateNodeIdentifier::build(comp_id.clone(), from.clone());
+            let to_uid = to_parent
                 .as_ref()
-                .map(|t| UniqueTemplateNodeIdentifier::build(comp_id.clone(), t.node_id.clone()))
+                .map(|t| UniqueTemplateNodeIdentifier::build(comp_id.clone(), t.clone()))
                 .unwrap_or(
                     ctx.engine_context
                         .get_userland_root_expanded_node()
@@ -258,15 +257,22 @@ impl Tree {
                 );
             let from_node = ctx.get_glass_node_by_global_id(&from_uid)?;
             let to_node = ctx.get_glass_node_by_global_id(&to_uid)?;
-            let to_node_container =
-                match to.map(|t| t.is_container).unwrap_or(true) && !ignore_container {
-                    true => to_node.clone(),
-                    false => {
-                        let parent = to_node.raw_node_interface.template_parent().unwrap();
-                        // let index = parent
-                        GlassNode::new(&parent, &ctx.glass_transform())
-                    }
-                };
+            let to_node_container = match to_node
+                .get_node_type(&ctx.engine_context)
+                .metadata()
+                .is_container
+                && !ignore_container
+            {
+                true => to_node.clone(),
+                false => {
+                    let parent = to_node
+                        .raw_node_interface
+                        .template_parent()
+                        .expect("all nodes in tree view should have a template parent");
+                    // let index = parent
+                    GlassNode::new(&parent, &ctx.glass_transform())
+                }
+            };
 
             TREE_HIDDEN_NODES.with(|p| {
                 p.update(|v| {
@@ -274,36 +280,48 @@ impl Tree {
                 })
             });
 
-            let is_stacker = to_node_container.raw_node_interface.is_of_type::<Stacker>();
-            let index = child_ind_override.unwrap_or_else(|| match is_stacker {
-                true => {
-                    if to_node_container.raw_node_interface == to_node.raw_node_interface {
-                        TreeIndexPosition::Top
-                    } else {
-                        let slot = to_node
-                            .raw_node_interface
-                            .render_parent()
-                            .unwrap()
-                            .with_properties(|slot: &mut Slot| slot.index.get().to_int() as usize);
-                        slot.map(|s| TreeIndexPosition::At(s)).unwrap_or_default()
-                    }
-                }
-                false => to_node_container
-                    .raw_node_interface
-                    .children()
-                    .into_iter()
-                    .enumerate()
-                    .find_map(|(i, c)| {
-                        (c == to_node.raw_node_interface).then_some(TreeIndexPosition::At(i))
-                    })
-                    .unwrap_or_default(),
+            let index = child_ind_override.unwrap_or_else(|| {
+                let mut dt = borrow_mut!(ctx.engine_context.designtime);
+                let pos = dt
+                    .get_orm_mut()
+                    .get_siblings(&to_node.id)
+                    .and_then(|v| v.iter().position(|n| n == &to_node.id))
+                    .unwrap_or_default();
+                TreeIndexPosition::At(pos)
             });
+            // let index = child_ind_override.unwrap_or_else(|| match is_stacker {
+            //     true => {
+            //         if to_node_container.raw_node_interface == to_node.raw_node_interface {
+            //             TreeIndexPosition::Top
+            //         } else {
+            //             let slot = to_node
+            //                 .raw_node_interface
+            //                 .render_parent()
+            //                 .unwrap()
+            //                 .with_properties(|slot: &mut Slot| slot.index.get().to_int() as usize);
+            //             slot.map(|s| TreeIndexPosition::At(s)).unwrap_or_default()
+            //         }
+            //     }
+            //     false => to_node_container
+            //         .raw_node_interface
+            //         .children()
+            //         .into_iter()
+            //         .enumerate()
+            //         .find_map(|(i, c)| {
+            //             (c == to_node.raw_node_interface).then_some(TreeIndexPosition::At(i))
+            //         })
+            //         .unwrap_or_default(),
+            // });
             let keep_bounds = NodeLayoutSettings::KeepScreenBounds {
                 node_transform_and_bounds: &from_node.transform_and_bounds.get(),
                 node_decomposition_config: &from_node.layout_properties.into_decomposition_config(),
                 parent_transform_and_bounds: &to_node_container.transform_and_bounds.get(),
             };
-            let node_layout = if is_stacker {
+            let node_layout = if to_node_container
+                .get_node_type(&ctx.engine_context)
+                .metadata()
+                .is_slot_container
+            {
                 NodeLayoutSettings::Fill::<Glass>
             } else {
                 // TODO decide how to handle tree movement:
