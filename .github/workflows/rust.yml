@@ -34,18 +34,18 @@ jobs:
     #     key: ${{ runner.os }}-tools-${{ hashFiles('**/Cargo.lock') }}
 
     # Install dependencies
-    - name: Install dependencies
-      run: |
-        if ! command -v wasm-pack &> /dev/null; then
-          sudo apt update && sudo apt install -y libgtk-4-dev
-          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-        fi
-        if ! command -v pax-cli &> /dev/null; then
-          cargo install pax-cli
-        fi
+    # - name: Install dependencies
+    #   run: |
+    #     if ! command -v wasm-pack &> /dev/null; then
+    #       sudo apt update && sudo apt install -y libgtk-4-dev
+    #       curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+    #     fi
+    #     if ! command -v pax-cli &> /dev/null; then
+    #       cargo install pax-cli
+    #     fi
 
-    - name: Build Starter Project
-      run: pushd examples/src/starter-project && pax-cli build --release --designer 
+    # - name: Build Starter Project
+    #   run: pushd examples/src/starter-project && pax-cli build --release --designer && popd
 
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v1
@@ -62,7 +62,7 @@ jobs:
     - name: Deploy to S3
       run: |
         BUCKET_NAME="staging.pax.dev/${{ github.event.pull_request.number }}"
-        aws s3 sync . s3://$BUCKET_NAME --delete --acl public-read
+        aws s3 sync /home/runner/work/pax/pax/scripts s3://$BUCKET_NAME --delete --acl public-read
 
     # - name: Run tests
     #   run: cargo test --verbose --workspace --exclude pax-chassis-macos --exclude pax-chassis-common --exclude pax-chassis-ios
