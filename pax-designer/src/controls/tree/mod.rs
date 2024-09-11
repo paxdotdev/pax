@@ -256,8 +256,8 @@ impl Tree {
                             anyhow::anyhow!("failed to get userland root in tree move")
                         })?,
                 );
-            let from_node = ctx.get_glass_node_by_global_id(&from_uid).unwrap();
-            let to_node = ctx.get_glass_node_by_global_id(&to_uid).unwrap();
+            let from_node = ctx.get_glass_node_by_global_id(&from_uid)?;
+            let to_node = ctx.get_glass_node_by_global_id(&to_uid)?;
             let to_node_container =
                 match to.map(|t| t.is_container).unwrap_or(true) && !ignore_container {
                     true => to_node.clone(),

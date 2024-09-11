@@ -208,16 +208,10 @@ impl Glass {
             Some((builder.get_type_id(), uid))
         });
         if let Some((node_id, uid)) = info {
-            let import_path = node_id.import_path();
-            match import_path.as_ref().map(|v| v.as_str()) {
-                Some("pax_std::core::text::Text") => {
-                    model::perform_action(&TextEdit { uid }, ctx);
-                }
-                Some(
-                    "pax_std::core::group::Group"
-                    | "pax_std::layout::stacker::Stacker"
-                    | "pax_std::core::scroller::Scroller",
-                ) => {
+            let designer_node = DesignerNodeType::from_type_id(node_id);
+            let metadata = designer_node.metadata();
+            match designer_node {
+                _ if metadata.is_container => {
                     model::with_action_context(ctx, |ac| {
                         let hit = ac.raycast_glass(
                             ac.glass_transform().get()
@@ -237,9 +231,14 @@ impl Glass {
                         }
                     });
                 }
+                DesignerNodeType::Text => {
+                    model::perform_action(&TextEdit { uid }, ctx);
+                }
                 // Assume it's a component if it didn't have a custom impl for double click behavior
-                Some(_) => model::perform_action(&SetEditingComponent(node_id), ctx),
-                None => (),
+                DesignerNodeType::Component { .. } => {
+                    model::perform_action(&SetEditingComponent(metadata.type_id), ctx)
+                }
+                _ => (),
             }
         }
     }

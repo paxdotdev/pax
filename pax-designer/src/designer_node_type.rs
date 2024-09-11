@@ -24,6 +24,7 @@ pub enum DesignerNodeType {
     If,
     For,
     Unregistered(TypeId),
+    Carousel,
 }
 
 pub struct DesignerNodeTypeData {
@@ -65,6 +66,7 @@ impl DesignerNodeType {
                     "core::image::Image" => DesignerNodeType::Image,
                     "forms::slider::Slider" => DesignerNodeType::Slider,
                     "forms::dropdown::Dropdown" => DesignerNodeType::Dropdown,
+                    "layout::carousel::Carousel" => DesignerNodeType::Carousel,
                     _ => {
                         let (_, name) = import_path.rsplit_once("::").unwrap_or(("", &import_path));
                         DesignerNodeType::Component {
@@ -91,10 +93,9 @@ impl DesignerNodeType {
                 TypeId::build_singleton("pax_std::core::group::Group", None),
                 true,
             ),
-            // TODO custom image
             DesignerNodeType::Link => (
                 "Link",
-                "group",
+                "group", // TODO image
                 TypeId::build_singleton("pax_std::core::link::Link", None),
                 true,
             ),
@@ -114,6 +115,12 @@ impl DesignerNodeType {
                 "Stacker",
                 "stacker",
                 TypeId::build_singleton("pax_std::layout::stacker::Stacker", None),
+                true,
+            ),
+            DesignerNodeType::Carousel => (
+                "Carousel",
+                "component", // TODO image
+                TypeId::build_singleton("pax_std::layout::carousel::Carousel", None),
                 true,
             ),
             DesignerNodeType::Rectangle => (
