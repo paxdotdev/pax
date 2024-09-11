@@ -10,10 +10,8 @@ env:
   CARGO_TERM_COLOR: always
   RUSTC_WRAPPER: "sccache"
   CARGO_INCREMENTAL: "0"
-  RUST_BACKTRACE: "1"
   SCCACHE_DIR: "/home/runner/.cache/sccache"
   SCCACHE_CACHE_SIZE: "1G"
-  WASM_OPT_THREAD_POOL_SIZE: "2"
 
 jobs:
   build-and-deploy:
