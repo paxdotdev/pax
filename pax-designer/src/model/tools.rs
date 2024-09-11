@@ -10,6 +10,7 @@ use super::action::world::ZoomToFit;
 use super::action::{Action, ActionContext, RaycastMode, Transaction};
 use super::input::{InputEvent, ModifierKey};
 use super::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot, StageInfo};
+use crate::designer_node_type::{self, DesignerNodeType};
 use crate::glass::outline::PathOutline;
 use crate::glass::wireframe_editor::editor_generation::slot_control::{
     raycast_slot, wants_slot_behavior,
@@ -47,7 +48,7 @@ pub struct PostCreationData<'a> {
 }
 
 pub struct CreateComponentTool {
-    type_id: TypeId,
+    designer_node_type: DesignerNodeType,
     origin: Point2<Glass>,
     bounds: Property<AxisAlignedBox>,
     builder_extra_commands: Option<Box<dyn Fn(&mut NodeBuilder) -> Result<()>>>,
@@ -56,9 +57,13 @@ pub struct CreateComponentTool {
 }
 
 impl CreateComponentTool {
-    pub fn new(point: Point2<Glass>, type_id: &TypeId, ctx: &ActionContext) -> Self {
+    pub fn new(
+        point: Point2<Glass>,
+        designer_node_type: DesignerNodeType,
+        ctx: &ActionContext,
+    ) -> Self {
         Self {
-            type_id: type_id.clone(),
+            designer_node_type,
             origin: point,
             bounds: Property::new(AxisAlignedBox::new(Point2::default(), Point2::default())),
             intent_snapper: IntentSnapper::new_from_scene(ctx, &[]),
@@ -145,7 +150,7 @@ impl ToolBehavior for CreateComponentTool {
                         ..Default::default()
                     },
                 },
-                type_id: &self.type_id,
+                designer_node_type: self.designer_node_type.clone(),
                 builder_extra_commands: self.builder_extra_commands.as_ref().map(|v| v.as_ref()),
             }
             .perform(ctx)?;

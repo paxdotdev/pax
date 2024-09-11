@@ -68,9 +68,14 @@ struct TreeEntry {
 }
 
 impl TreeEntry {
-    fn flatten(self, ind: &mut usize, indent_level: isize) -> Vec<FlattenedTreeEntry> {
+    fn flatten(
+        self,
+        ind: &mut usize,
+        indent_level: isize,
+        ctx: &NodeContext,
+    ) -> Vec<FlattenedTreeEntry> {
         let mut all = vec![];
-        let desc = self.node_type.metadata();
+        let desc = self.node_type.metadata(ctx);
         all.push(FlattenedTreeEntry {
             node_id: self.node_id,
             name: desc.name,
@@ -85,7 +90,7 @@ impl TreeEntry {
         all.extend(
             self.children
                 .into_iter()
-                .flat_map(|c| c.flatten(ind, indent_level + 1)),
+                .flat_map(|c| c.flatten(ind, indent_level + 1, ctx)),
         );
         all
     }
@@ -148,10 +153,11 @@ impl Tree {
                 TreeMsg::ObjDoubleClicked(sender) => {
                     let node_id = tree_obj.read(|t| t[sender].node_id.clone());
                     let uuid = UniqueTemplateNodeIdentifier::build(selected_comp.get(), node_id);
-                    let mut dt = borrow_mut!(ctx.designtime);
-                    let builder = dt.get_orm_mut().get_node(uuid, false).unwrap();
-                    let type_id_of_tree_target = builder.get_type_id();
-
+                    let type_id_of_tree_target = {
+                        let mut dt = borrow_mut!(ctx.designtime);
+                        let builder = dt.get_orm_mut().get_node(uuid, false).unwrap();
+                        builder.get_type_id()
+                    };
                     model::perform_action(&SetEditingComponent(type_id_of_tree_target), &ctx);
                 }
                 TreeMsg::ObjMouseDown(sender, x_offset) => {
@@ -197,7 +203,7 @@ impl Tree {
                                 ac.app_state.selected_component_id.get(),
                                 tree_obj[sender].node_id.clone(),
                             ))
-                            .map(|n| n.get_node_type(ctx).metadata().is_container)
+                            .map(|n| n.get_node_type(ctx).metadata(ctx).is_container)
                         })
                         .unwrap_or(false);
                         self.drag_indent.set(original_indent);
@@ -259,13 +265,6 @@ impl Tree {
         ctx: &NodeContext,
         ignore_container: bool,
     ) -> Result<()> {
-        log::debug!(
-            "from: {:?}, to_parent: {:?}, child_ind_override: {:?}, ignore_container: {:?}",
-            from,
-            to_parent,
-            child_ind_override,
-            ignore_container
-        );
         model::with_action_context(ctx, |ctx| {
             let comp_id = ctx.app_state.selected_component_id.get();
             let from_uid = UniqueTemplateNodeIdentifier::build(comp_id.clone(), from.clone());
@@ -284,7 +283,7 @@ impl Tree {
             let to_node = ctx.get_glass_node_by_global_id(&to_uid)?;
             let to_node_container = match to_node
                 .get_node_type(&ctx.engine_context)
-                .metadata()
+                .metadata(&ctx.engine_context)
                 .is_container
                 && !ignore_container
             {
@@ -328,7 +327,7 @@ impl Tree {
             };
             let node_layout = if to_node_container
                 .get_node_type(&ctx.engine_context)
-                .metadata()
+                .metadata(&ctx.engine_context)
                 .is_slot_container
             {
                 NodeLayoutSettings::Fill::<Glass>
@@ -377,7 +376,8 @@ fn get_tree(type_id: TypeId, ctx: &NodeContext) -> Vec<FlattenedTreeEntry> {
         .iter()
         .flat_map(|tnid| {
             let tree = to_tree(tnid, &template);
-            tree.map(|t| t.flatten(&mut ind, 0)).unwrap_or_default()
+            tree.map(|t| t.flatten(&mut ind, 0, ctx))
+                .unwrap_or_default()
         })
         .collect();
     flattened
