@@ -1,15 +1,14 @@
 [package]
 name = "serialization_test_project"
-version = "0.10.10"
+version = "0.36.3"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-compiler = { version = "0.14.8", optional = true }
-pax-engine = { version = "0.14.8" }
-pax-manifest = { version = "0.14.8", optional = true}
-pax-std = { version = "0.14.8" }
-serde_json = {version = "1.0.95", optional = true}
+pax-kit = { version = "0.36.3", path="../../../../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
 
 [[bin]]
 name = "parser"
@@ -21,7 +20,26 @@ name = "run"
 path = "bin/run.rs"
 
 [features]
-parser = ["pax-std/parser", "pax-engine/parser", "dep:serde_json", "dep:pax-compiler", "dep:pax-manifest"]
+designer = ["pax-kit/designer"]
+parser = ["pax-kit/parser"]
+web = ["pax-kit/web"]
+macos = ["pax-kit/macos"]
+ios = ["pax-kit/ios"]
+
+[profile.parser]
+inherits = "dev"
+opt-level = 0
+
+[profile.parser.package."*"]
+inherits = "dev"
+opt-level = 0
+
+[profile.dev]
+opt-level = 0
+debug = false
+
+[profile.dev.package."*"]
+opt-level = 2
+debug = false
 
 [workspace]
-members = [".pax/pkg/*"]
