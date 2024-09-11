@@ -1,19 +1,16 @@
 #![allow(unused_imports)]
-
-use pax_engine::*;
-use pax_engine::api::*;
-use pax_std::*;
+use pax_kit::*;
 
 #[pax]
 #[main]
 #[inlined(
-<Text text={self.message} class=centered class=small id=text/>
-<Rectangle class=centered class=small @click=self.increment fill={Fill::Solid(Color::hlc(ticks, 75.0, 150.0))} 
-    corner_radii={RectangleCornerRadii::radii(10.0, 10.0, 10.0, 10.0)}/>
+<Text text={message} class=centered class=small id=text/>
+<Rectangle class=centered class=small @click=self.increment fill={rgb(ticks, 75, 150)} 
+    corner_radii={RectangleCornerRadii::radii(10.00, 10.00, 10.00, 10.00)}/>
 
 @settings {
-    @mount: handle_mount,
-    @pre_render: handle_pre_render,
+    @mount: handle_mount
+    @pre_render: handle_pre_render
     .centered {
         x: 50%
         y: 50%
@@ -28,7 +25,7 @@ use pax_std::*;
         style: {
             font: {Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold)}
             font_size: 32px
-            fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)}
+            fill: {rgba(1.00, 1.00, 1.00, 1.00)}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center

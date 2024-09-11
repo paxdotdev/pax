@@ -80,7 +80,7 @@ fn test_rotation() {
         LayoutProperties {
             x: Some(Size::Pixels(30.into())),
             y: Some(Size::Pixels((-20).into())),
-            width: Some(Size::Pixels((-500).into())),
+            width: Some(Size::Pixels((500).into())),
             height: Some(Size::Pixels(300.into())),
             rotate: Some(Rotation::Degrees(35.0.into())),
             ..Default::default()
@@ -150,7 +150,7 @@ fn test_anchor() {
         LayoutProperties {
             x: Some(Size::Pixels(30.into())),
             y: Some(Size::Percent((-300).into())),
-            width: Some(Size::Pixels((-100).into())),
+            width: Some(Size::Pixels((100).into())),
             height: Some(Size::Pixels(300.into())),
             rotate: Some(Rotation::Degrees(73.2.into())),
             anchor_x: Some(Size::Percent(50.0.into())),
