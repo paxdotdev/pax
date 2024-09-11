@@ -54,15 +54,15 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
 
-    name: Deploy to S3
+    # - name: Create S3 bucket
+    #   run: |
+    #     BUCKET_NAME="staging.pax.dev/${{ github.event.pull_request.number }}"
+    #     aws s3api create-bucket --bucket $BUCKET_NAME --acl public-read
+
+    - name: Deploy to S3
       run: |
-        BUCKET_NAME="staging.pax.dev"
-        PREFIX="${{ github.event.pull_request.number }}"
-        
-        # Sync files to S3 with the PR number as prefix
-        aws s3 sync /home/runner/work/pax/pax/examples/src/starter-project/.pax/build/release/web s3://$BUCKET_NAME/$PREFIX --delete
-        
-        echo "Deployed to https://$BUCKET_NAME.s3.amazonaws.com/$PREFIX/index.html"
+        BUCKET_NAME="staging.pax.dev/${{ github.event.pull_request.number }}"
+        aws s3 sync /home/runner/work/pax/pax/examples/src/starter-project/.pax/build/release/web s3://$BUCKET_NAME --delete --acl public-read
 
     # - name: Run tests
     #   run: cargo test --verbose --workspace --exclude pax-chassis-macos --exclude pax-chassis-common --exclude pax-chassis-ios
