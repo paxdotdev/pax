@@ -7,6 +7,7 @@ pub mod link;
 pub mod scrollbar;
 pub mod scroller;
 pub mod text;
+pub mod tooltip;
 
 //Only exposing inline_frame when designtime feature is enabled,
 //mostly as a safety measure to prevent it from being used in userland
@@ -23,3 +24,4 @@ pub use link::*;
 pub use scrollbar::*;
 pub use scroller::*;
 pub use text::*;
+pub use tooltip::*;

@@ -6,7 +6,8 @@ use pax_message::NativeMessage;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::{
-    borrow, borrow_mut, use_RefCell, Interpolatable, PaxValue, RenderContext, Store, Variable,
+    borrow, borrow_mut, use_RefCell, Event, Interpolatable, MouseOut, MouseOver, PaxValue,
+    RenderContext, Store, Variable,
 };
 use_RefCell!();
 use std::any::{Any, TypeId};
@@ -42,6 +43,7 @@ pub struct RuntimeContext {
     #[cfg(feature = "designtime")]
     pub userland_root_expanded_node: RefCell<Option<Rc<ExpandedNode>>>,
     node_cache: RefCell<NodeCache>,
+    last_topmost_element: RefCell<Weak<ExpandedNode>>,
     queued_custom_events: RefCell<Vec<(Rc<ExpandedNode>, &'static str)>>,
     queued_renders: RefCell<Vec<Rc<ExpandedNode>>>,
     pub layer_count: Cell<usize>,
@@ -96,6 +98,7 @@ impl RuntimeContext {
             queued_custom_events: Default::default(),
             queued_renders: Default::default(),
             layer_count: Cell::default(),
+            last_topmost_element: Default::default(),
         }
     }
 
@@ -112,6 +115,7 @@ impl RuntimeContext {
             queued_custom_events: Default::default(),
             queued_renders: Default::default(),
             layer_count: Cell::default(),
+            last_topmost_element: Default::default(),
         }
     }
 
@@ -226,13 +230,36 @@ impl RuntimeContext {
         accum
     }
     /// Alias for `get_elements_beneath_ray` with `limit_one = true`
-    pub fn get_topmost_element_beneath_ray(&self, ray: Point2<Window>) -> Option<Rc<ExpandedNode>> {
+    pub fn get_topmost_element_beneath_ray(
+        self: &Rc<Self>,
+        ray: Point2<Window>,
+    ) -> Rc<ExpandedNode> {
         let res = self.get_elements_beneath_ray(ray, true, vec![], false);
-        Some(
-            res.into_iter()
-                .next()
-                .unwrap_or(borrow!(self.root_expanded_node).upgrade().unwrap()),
-        )
+        let new_topmost = res
+            .into_iter()
+            .next()
+            .unwrap_or(borrow!(self.root_expanded_node).upgrade().unwrap());
+
+        //send mouse over/out events if the hit element is different than last
+        let topmost = borrow!(self.last_topmost_element).upgrade();
+        let new_topmost_comp = new_topmost.containing_component.upgrade();
+        if new_topmost_comp.as_ref().map(|n| n.id) != topmost.as_ref().map(|n| n.id) {
+            if let Some(topmost) = &topmost {
+                topmost.dispatch_mouse_out(Event::new(MouseOut {}), &self.globals(), self);
+            }
+            if let Some(new_topmost_comp) = &new_topmost_comp {
+                new_topmost_comp.dispatch_mouse_over(
+                    Event::new(MouseOver {}),
+                    &self.globals(),
+                    self,
+                );
+            }
+            *borrow_mut!(self.last_topmost_element) = new_topmost_comp
+                .as_ref()
+                .map(Rc::downgrade)
+                .unwrap_or_default();
+        }
+        new_topmost
     }
 
     pub fn gen_uid(&self) -> ExpandedNodeIdentifier {

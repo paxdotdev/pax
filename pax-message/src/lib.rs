@@ -68,8 +68,6 @@ pub enum NativeInterrupt {
     Wheel(WheelInterruptArgs),
     MouseDown(MouseDownInterruptArgs),
     MouseUp(MouseUpInterruptArgs),
-    MouseOver(MouseOverInterruptArgs),
-    MouseOut(MouseOutInterruptArgs),
     ContextMenu(ContextMenuInterruptArgs),
     Image(ImageLoadInterruptArgs),
     AddedLayer(AddedLayerArgs),

@@ -3,7 +3,9 @@
     if self.data.more_than_one_item {
         <Image class=arrow source=ImageSource::Url("assets/icons/chevron-down.png") @click=self.dropdown/>
     }
-    <Image class=icon source={ImageSource::Url(self.data.icon)} @click=self.on_click/>
+    <Tooltip  @click=self.on_click tip={self.data.tooltip}>
+        <Image class=icon source={ImageSource::Url(self.data.icon)}/>
+    </Tooltip>
     if self.data.background {
         <Rectangle
             fill=rgb(12.5%, 12.5%, 12.5%)
