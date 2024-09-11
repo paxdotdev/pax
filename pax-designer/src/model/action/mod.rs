@@ -70,6 +70,7 @@ pub trait Action<R = ()> {
     fn perform(&self, ctx: &mut ActionContext) -> Result<R>;
 }
 
+// make this a trait that's implemented for NodeContext instead? (since app state is static)
 pub struct ActionContext<'a> {
     pub engine_context: &'a NodeContext,
     pub app_state: &'a mut AppState,
