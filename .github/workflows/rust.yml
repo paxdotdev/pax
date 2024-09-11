@@ -40,6 +40,10 @@ jobs:
       run: |
         BUCKET_NAME="staging.pax.dev/${{ github.event.pull_request.number }}"
         aws s3 sync /home/runner/work/pax/pax/examples/src/starter-project/.pax/build/release/web s3://$BUCKET_NAME --delete --acl public-read
+    
+    - name: Invalidate CloudFront
+      run: |
+        aws cloudfront create-invalidation --distribution-id E29ZMWF6F0HQ61 --paths "/*"
 
     # - name: Run tests
     #   run: cargo test --verbose --workspace --exclude pax-chassis-macos --exclude pax-chassis-common --exclude pax-chassis-ios
