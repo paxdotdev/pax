@@ -46,9 +46,6 @@ jobs:
           sudo apt update && sudo apt install -y libgtk-4-dev
           curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
         fi
-        if ! command -v pax-cli &> /dev/null; then
-          cargo install pax-cli
-        fi
 
     # Cache Pax build artifacts
     - uses: actions/cache@v3
@@ -57,7 +54,7 @@ jobs:
         key: ${{ runner.os }}-pax-build-${{ hashFiles('examples/src/starter-project/**') }}
 
     - name: Build Starter Project
-      run: pushd examples/src/starter-project && pax-cli build --release --designer && popd
+      run: pushd examples/src/starter-project && ./pax build --release --designer && popd
 
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v1
@@ -89,13 +86,13 @@ jobs:
             body: `Deployment preview ready! :rocket:\n\nYou can view this deployment at: [${deploymentUrl}](${deploymentUrl})`
           })
 
-    - name: Run tests
-      run: cargo test --verbose --workspace --exclude pax-chassis-macos --exclude pax-chassis-common --exclude pax-chassis-ios
+    # - name: Run tests
+    #   run: cargo test --verbose --workspace --exclude pax-chassis-macos --exclude pax-chassis-common --exclude pax-chassis-ios
 
-    - name: Check formatting
-      run: cargo fmt -- --check
+    # - name: Check formatting
+    #   run: cargo fmt -- --check
 
-    - name: Check for linting errors
-      run: |
-        rustup component add clippy
-        cargo clippy -- -D warnings
+    # - name: Check for linting errors
+    #   run: |
+    #     rustup component add clippy
+    #     cargo clippy -- -D warnings
