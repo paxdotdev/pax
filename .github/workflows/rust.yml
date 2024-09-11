@@ -12,8 +12,7 @@ env:
 jobs:
   build-and-deploy:
     runs-on: mars
-    permissions:
-      issues: write
+    permissions: write-all
     steps:
     - uses: actions/checkout@v3
 
