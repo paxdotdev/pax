@@ -20,7 +20,7 @@
 //!
 //! For usage examples see the tests in `pax-designtime/src/orm/tests.rs`.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 
 use pax_manifest::pax_runtime_api::{Interpolatable, Property};
 use pax_manifest::{

@@ -47,6 +47,7 @@ pub struct ComponentLibraryItemData {
 
 struct DropComponent {
     type_id: TypeId,
+    #[allow(unused)]
     bounds_pixels: (f64, f64),
 }
 

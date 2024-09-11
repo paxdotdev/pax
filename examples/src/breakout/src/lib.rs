@@ -69,7 +69,7 @@ pub struct ExpTrigger {
 impl ExpTrigger {
     pub fn new(rate: f64, current_frame: u64) -> Self {
         let mut trigger = Self {
-            rate: rate,
+            rate,
             next_trigger: 0,
         };
         trigger.schedule(current_frame);
@@ -126,11 +126,6 @@ pub enum Theme {
     TANGERINE,
     SIENNA,
 }
-
-// Do not use enums until they are supported in PAXEL
-const GAME_STATE_PLAYING: u32 = 0;
-const GAME_STATE_GAMEOVER: u32 = 1;
-const GAME_STATE_WON: u32 = 2;
 
 #[pax]
 #[derive(PartialEq)]
@@ -207,8 +202,8 @@ impl Ball {
     pub fn randomize_velocity(&mut self) {
         self.randomize_color(); // convenient for debugging...
         let mut rng = rand::thread_rng();
-        let mut theta = 0.0;
-        let mut sign = 1.0;
+        let mut theta;
+        let mut sign;
         let (dx, dy) = loop {
             // Sample a rotation within some range for angular change,
             // only then determine the sign of the change separately
@@ -446,8 +441,8 @@ impl BreakoutGame {
                     x: start_x + col as f64 * BRICK_WIDTH,
                     y: start_y + row as f64 * BRICK_HEIGHT,
                     visible: true,
-                    kind: kind,
-                    fill: fill,
+                    kind,
+                    fill,
                 });
             }
         }

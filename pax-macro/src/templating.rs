@@ -59,7 +59,7 @@ pub struct TemplateArgsDerivePax {
     pub pascal_identifier: String,
     pub is_custom_interpolatable: bool,
     pub is_root_crate: bool,
-    pub is_enum: bool,
+    pub _is_enum: bool,
 
     /// Used to specify a custom import prefix for codegen, if importing pax_engine
     /// via anything other than pax_kit::pax_engine (e.g. for pax-std and pax-designer, which
