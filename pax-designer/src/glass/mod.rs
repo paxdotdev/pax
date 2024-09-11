@@ -209,7 +209,7 @@ impl Glass {
         });
         if let Some((node_id, uid)) = info {
             let designer_node = DesignerNodeType::from_type_id(node_id);
-            let metadata = designer_node.metadata();
+            let metadata = designer_node.metadata(ctx);
             match designer_node {
                 _ if metadata.is_container => {
                     model::with_action_context(ctx, |ac| {
@@ -302,7 +302,7 @@ impl Glass {
                         parent_transform_and_bounds: &parent.transform_and_bounds.get(),
                         node_decomposition_config: &Default::default(),
                     },
-                    type_id: &DesignerNodeType::Image.metadata().type_id,
+                    designer_node_type: DesignerNodeType::Image,
                     builder_extra_commands: Some(&|builder| {
                         builder.set_property(
                             "source",

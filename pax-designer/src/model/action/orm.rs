@@ -46,7 +46,7 @@ pub mod tree_movement;
 pub struct CreateComponent<'a> {
     pub parent_id: &'a UniqueTemplateNodeIdentifier,
     pub parent_index: TreeIndexPosition,
-    pub type_id: &'a TypeId,
+    pub designer_node_type: DesignerNodeType,
     pub builder_extra_commands: Option<&'a dyn Fn(&mut NodeBuilder) -> Result<()>>,
     pub node_layout: NodeLayoutSettings<'a, Glass>,
 }
@@ -55,13 +55,14 @@ impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
     fn perform(&self, ctx: &mut ActionContext) -> Result<UniqueTemplateNodeIdentifier> {
         let parent_location = ctx.location(self.parent_id, &self.parent_index);
 
+        let node_type_metadata = self.designer_node_type.metadata(&ctx.engine_context);
         // probably move transactions to happen here? (and remove from callers)
         // WARNING: if making this change, make sure mock children are in same transaction
         let save_data = {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             let mut builder = dt.get_orm_mut().build_new_node(
                 ctx.app_state.selected_component_id.get().clone(),
-                self.type_id.clone(),
+                node_type_metadata.type_id,
             );
 
             builder.set_location(parent_location);
