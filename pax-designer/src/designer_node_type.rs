@@ -23,7 +23,7 @@ pub enum DesignerNodeType {
     RadioSet,
     If,
     For,
-    Unregistered(TypeId),
+    Unregistered(String),
     Carousel,
 }
 
@@ -46,7 +46,7 @@ impl DesignerNodeType {
             PaxType::Repeat => DesignerNodeType::For,
             _ => {
                 let Some(import_path) = type_id.import_path() else {
-                    return DesignerNodeType::Unregistered(type_id);
+                    return DesignerNodeType::Unregistered(type_id.get_unique_identifier());
                 };
                 // TODO make this and  the metadata method use the same constants, or maybe even a signle
                 // Vec<(TypeId, DesignerNodeType)> that can be searched in either direction.
@@ -139,7 +139,7 @@ impl DesignerNodeType {
                 name.as_str(),
                 "component",
                 TypeId::build_singleton(import_path, None),
-                false,
+                false, // dynamic? (depends on if it contains slots or not, could look for slots in template?)
             ),
             DesignerNodeType::Textbox => (
                 "Textbox",
@@ -185,9 +185,12 @@ impl DesignerNodeType {
             ),
             DesignerNodeType::If => ("If", "if", TypeId::build_if(), true),
             DesignerNodeType::For => ("For", "for", TypeId::build_repeat(), true),
-            DesignerNodeType::Unregistered(type_id) => {
-                ("[Unregistered Type]", "component", type_id.clone(), false)
-            }
+            DesignerNodeType::Unregistered(ident) => (
+                "[Unregistered Type]",
+                "component",
+                TypeId::build_singleton(ident, None),
+                false,
+            ),
             // TODO add custom image
             DesignerNodeType::RadioSet => (
                 "Radio Set",
@@ -198,7 +201,8 @@ impl DesignerNodeType {
         };
 
         // move to match statement above if more types need this specified
-        let is_slot_container = self == &DesignerNodeType::Stacker;
+        let is_slot_container =
+            self == &DesignerNodeType::Stacker || self == &DesignerNodeType::Carousel;
 
         DesignerNodeTypeData {
             name: name.to_owned(),

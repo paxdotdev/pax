@@ -1,4 +1,6 @@
-use pax_engine::api::{Axis, Interpolatable, Size, Window};
+use std::any::Any;
+
+use pax_engine::api::{borrow, borrow_mut, Axis, Interpolatable, NodeContext, Size, Window};
 use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_engine::{
     log,
@@ -7,6 +9,7 @@ use pax_engine::{
     NodeInterface, NodeLocal, Property,
 };
 
+use crate::designer_node_type::DesignerNodeType;
 use crate::math::{
     coordinate_spaces::{Glass, SelectionSpace},
     AxisAlignedBox,
@@ -191,6 +194,14 @@ impl GlassNode {
             layout_properties: n.layout_properties(),
             id: n.global_id().unwrap(),
         }
+    }
+
+    pub fn get_node_type(&self, ctx: &NodeContext) -> DesignerNodeType {
+        let mut dt = borrow_mut!(ctx.designtime);
+        let Some(node) = dt.get_orm_mut().get_node(self.id.clone(), false) else {
+            return DesignerNodeType::Unregistered("<get_node_type>".to_string());
+        };
+        DesignerNodeType::from_type_id(node.get_type_id())
     }
 }
 
