@@ -37,7 +37,7 @@ impl Carousel {
         self.cell_specs.replace_with(Property::computed(
             move || {
                 let slot_children_count = slot_children_count.get();
-                let current_cell = current_cell.get();
+                let _current_cell = current_cell.get();
                 let transition = transition.get();
 
                 let mut cell_specs = vec![];

@@ -254,9 +254,7 @@ impl PaxEngine {
         platform: Platform,
         os: OS,
     ) -> Self {
-        use pax_runtime_api::{
-            functions::print_all_functions, math::Transform2, properties, Functions,
-        };
+        use pax_runtime_api::{math::Transform2, properties, Functions};
         Functions::register_all_functions();
 
         let frames_elapsed = Property::new(0);
