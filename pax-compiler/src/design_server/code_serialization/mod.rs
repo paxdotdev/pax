@@ -286,7 +286,6 @@ fn insert_at_line(s: &mut String, line_number: usize, content_to_insert: &str) {
         // If the line number is beyond the existing lines, append the content instead
         lines.push(content_to_insert);
     }
-
     // Rejoin the lines and update the original string
     *s = lines.join("\n");
 }
