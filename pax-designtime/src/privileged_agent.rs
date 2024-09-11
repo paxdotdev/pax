@@ -2,8 +2,7 @@ use std::net::SocketAddr;
 
 use crate::{
     messages::{
-        AgentMessage, ComponentSerializationRequest, LLMHelpRequest,
-        LLMUpdatedTemplateNotification, LoadFileToStaticDirRequest,
+        AgentMessage, ComponentSerializationRequest, LLMHelpRequest, LoadFileToStaticDirRequest,
     },
     orm::{template::NodeAction, PaxManifestORM},
 };

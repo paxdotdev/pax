@@ -1,4 +1,4 @@
-use colored::{ColoredString, Colorize};
+use colored::Colorize;
 use core::panic;
 use serde_derive::{Deserialize, Serialize};
 use std::{

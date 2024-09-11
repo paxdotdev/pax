@@ -1,4 +1,3 @@
-use core::panic;
 use std::{collections::HashMap, path::PathBuf};
 
 use pax_manifest::{

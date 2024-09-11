@@ -79,9 +79,8 @@ impl Asteroid {
 
 impl SpaceGame {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
-        let mut rng = rand::thread_rng();
         let (w_o, h_o) = ctx.bounds_parent.get();
-        let (w, h) = (w_o / SCALE, h_o / SCALE);
+        let (_, h) = (w_o / SCALE, h_o / SCALE);
         self.ship_x.set(32.0);
         self.ship_y.set(h / 2.0);
         self.game_state.set(String::from("PLAYING"));
@@ -195,7 +194,7 @@ impl SpaceGame {
         self.difficulty.set((difficulty + 0.0001).min(1.0));
     }
 
-    pub fn key_down(&mut self, ctx: &NodeContext, args: Event<KeyDown>) {
+    pub fn key_down(&mut self, _ctx: &NodeContext, args: Event<KeyDown>) {
         if let Some(char) = args.keyboard.key.chars().next() {
             let mut keys_pressed = self.keys_pressed.get();
             if !keys_pressed.contains(&(char as u8)) {
@@ -204,7 +203,7 @@ impl SpaceGame {
             self.keys_pressed.set(keys_pressed);
         }
     }
-    pub fn key_up(&mut self, ctx: &NodeContext, args: Event<KeyUp>) {
+    pub fn key_up(&mut self, _ctx: &NodeContext, args: Event<KeyUp>) {
         if let Some(char) = args.keyboard.key.chars().next() {
             let mut keys_pressed = self.keys_pressed.get();
             keys_pressed.retain(|v| v != &(char as u8));
