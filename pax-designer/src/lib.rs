@@ -79,7 +79,6 @@ impl PaxDesigner {
 
         // used to show "loading screen"
         let manifest_load_state = borrow!(ctx.designtime).get_manifest_loaded_from_server_prop();
-        let ctx = ctx.clone();
         let deps = [manifest_load_state.untyped()];
         self.manifest_loaded_from_server
             .replace_with(Property::computed(move || manifest_load_state.get(), &deps));
@@ -100,8 +99,8 @@ impl PaxDesigner {
                     .bounds;
                 app_state.glass_to_world_transform.set(
                     Transform2::<World>::translate(Vector2::new(
-                        (stage.width as f64 / 2.0),
-                        (stage.height as f64 / 2.0),
+                        stage.width as f64 / 2.0,
+                        stage.height as f64 / 2.0,
                     )) * Transform2::scale(1.4)
                         * Transform2::<math::coordinate_spaces::Glass>::translate(-Vector2::new(
                             w / 2.0,
