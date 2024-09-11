@@ -11,6 +11,7 @@ use pax_manifest::TypeId;
 use pax_std::*;
 
 use crate::controls::toolbar::SelectTool;
+use crate::designer_node_type::DesignerNodeType;
 use crate::glass::SetEditingComponent;
 use crate::glass::ToolVisualizationState;
 use crate::math::coordinate_spaces::Glass;
@@ -93,7 +94,7 @@ impl ToolBehavior for DropComponent {
                         node_decomposition_config: &Default::default(),
                     },
                     builder_extra_commands: None,
-                    type_id: &self.type_id,
+                    designer_node_type: DesignerNodeType::from_type_id(self.type_id.clone()),
                 }
                 .perform(ctx)?;
                 SetLibraryState { open: false }.perform(ctx)?;

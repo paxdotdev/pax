@@ -1,8 +1,11 @@
-use pax_engine::pax_manifest::{PaxType, TypeId};
+use pax_engine::{
+    api::{borrow, NodeContext},
+    pax_manifest::{PaxType, TypeId},
+};
 
 /// This should be the type always used for getting metadata about and
 /// performing checks on type in the designer, instead of checking using node methods
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum DesignerNodeType {
     Frame,
     Group,
@@ -79,7 +82,7 @@ impl DesignerNodeType {
         }
     }
 
-    pub fn metadata(&self) -> DesignerNodeTypeData {
+    pub fn metadata(&self, ctx: &NodeContext) -> DesignerNodeTypeData {
         let (name, img_path_suffix, type_id, is_container) = match self {
             DesignerNodeType::Frame => (
                 "Frame",
@@ -135,12 +138,13 @@ impl DesignerNodeType {
                 TypeId::build_singleton("pax_std::drawing::path::Path", None),
                 false,
             ),
-            DesignerNodeType::Component { name, import_path } => (
-                name.as_str(),
-                "component",
-                TypeId::build_singleton(import_path, None),
-                false, // dynamic? (depends on if it contains slots or not, could look for slots in template?)
-            ),
+            DesignerNodeType::Component { name, import_path } => {
+                let type_id = TypeId::build_singleton(import_path, None);
+                // TODO make this dynamic
+                // let dt = borrow!(ctx.designtime);
+                // let has_slots = dt.get_orm().component_has_slots(type_id);
+                (name.as_str(), "component", type_id, true)
+            }
             DesignerNodeType::Textbox => (
                 "Textbox",
                 "textbox",

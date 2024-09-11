@@ -30,21 +30,24 @@ pub enum GroupType {
     Group,
 }
 
-impl From<GroupType> for TypeId {
-    fn from(value: GroupType) -> Self {
-        match value {
-            GroupType::Group => DesignerNodeType::Group.metadata().type_id,
-            GroupType::Link => DesignerNodeType::Link.metadata().type_id,
-        }
-    }
-}
-
 pub struct GroupSelected {
     pub group_type: GroupType,
 }
 
 impl Action for GroupSelected {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+        let group_type = match self.group_type {
+            GroupType::Link => DesignerNodeType::Link,
+            GroupType::Group => DesignerNodeType::Group,
+        };
+        let group_type_metadata = group_type.metadata(&ctx.engine_context);
+
+        if !group_type_metadata.is_container {
+            return Err(anyhow!(
+                "can't group with component that is not a container"
+            ));
+        }
+
         let selected: SelectionStateSnapshot = (&ctx.derived_state.selection_state.get()).into();
 
         // ------------ Figure out the location the group should be at ---------
@@ -59,7 +62,6 @@ impl Action for GroupSelected {
 
         let root_parent = ctx.derived_state.open_container.get();
 
-        let new_parent_type_id: TypeId = self.group_type.into();
         // -------- Create a group ------------
         let group_parent_data = ctx.get_glass_node_by_global_id(&root_parent).unwrap();
 
@@ -70,14 +72,15 @@ impl Action for GroupSelected {
                 .get_node(group_parent_data.id.clone(), false)?
                 .get_type_id();
             let node_type = DesignerNodeType::from_type_id(parent_type_id);
-            Some(node_type.metadata().is_slot_container)
+            Some(node_type.metadata(&ctx.engine_context).is_slot_container)
         })()
         .unwrap_or(false);
 
         let group_transform_and_bounds = selected.total_bounds.as_pure_size().cast_spaces();
         let t = ctx.transaction(&format!(
             "grouping selected objects into {}",
-            new_parent_type_id
+            group_type_metadata
+                .type_id
                 .get_pascal_identifier()
                 .unwrap_or_else(|| "<no ident>".to_string()),
         ));
@@ -101,7 +104,7 @@ impl Action for GroupSelected {
                 parent_index: group_location
                     .map(|l| l.index)
                     .unwrap_or(TreeIndexPosition::Top),
-                type_id: &new_parent_type_id,
+                designer_node_type: group_type,
                 builder_extra_commands: None,
             }
             .perform(ctx)?;
@@ -151,7 +154,7 @@ impl Action for UngroupSelected {
                         .get_node(group.id.clone(), false)
                         .ok_or_else(|| anyhow!("no thing"))?;
                     let node_type = DesignerNodeType::from_type_id(node.get_type_id());
-                    if !node_type.metadata().is_container {
+                    if !node_type.metadata(&ctx.engine_context).is_container {
                         continue;
                     }
                 }
@@ -186,7 +189,7 @@ impl Action for UngroupSelected {
                     let node = orm.get_node(parent.id.clone(), false)?;
                     let parent_type_id = node.get_type_id();
                     let node_type = DesignerNodeType::from_type_id(parent_type_id);
-                    Some(node_type.metadata().is_slot_container)
+                    Some(node_type.metadata(&ctx.engine_context).is_slot_container)
                 })()
                 .unwrap_or(false);
 

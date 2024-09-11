@@ -96,17 +96,17 @@ impl Action for MouseEntryPointAction<'_> {
                             tool_behavior.set(Some(Rc::new(RefCell::new(match component {
                             Component::Rectangle => CreateComponentTool::new(
                                 point_glass,
-                                &DesignerNodeType::Rectangle.metadata().type_id,
+                                DesignerNodeType::Rectangle,
                                 ctx,
                             ),
                             Component::Ellipse => CreateComponentTool::new(
                                 point_glass,
-                                &DesignerNodeType::Ellipse.metadata().type_id,
+                                DesignerNodeType::Ellipse,
                                 ctx,
                             ),
                             Component::Text => CreateComponentTool::new(
                                 point_glass,
-                                &DesignerNodeType::Text.metadata().type_id,
+                                DesignerNodeType::Text,
                                 ctx,
                             )
                             .with_post_creation_hook(|ctx, post_creation_data| {
@@ -122,7 +122,7 @@ impl Action for MouseEntryPointAction<'_> {
                             }),
                             Component::Scroller => CreateComponentTool::new(
                                 point_glass,
-                                &DesignerNodeType::Scroller.metadata().type_id,
+                                DesignerNodeType::Scroller,
                                 ctx,
                             )
                             .with_extra_builder_commands(|builder| {
@@ -132,7 +132,7 @@ impl Action for MouseEntryPointAction<'_> {
                                 CreateComponent {
                                     parent_id: &post_creation_data.uid,
                                     parent_index: TreeIndexPosition::Top,
-                                    type_id: &DesignerNodeType::Rectangle.metadata().type_id,
+                                    designer_node_type: DesignerNodeType::Rectangle,
                                     builder_extra_commands: Some(&|builder| {
                                         builder.set_property("fill", "GRAY")
                                     }),
@@ -143,7 +143,7 @@ impl Action for MouseEntryPointAction<'_> {
                             }),
                             Component::Stacker => CreateComponentTool::new(
                                 point_glass,
-                                &DesignerNodeType::Stacker.metadata().type_id,
+                                DesignerNodeType::Stacker,
                                 ctx,
                             )
                             .with_post_creation_hook(|ctx, post_creation_data| {
@@ -152,7 +152,7 @@ impl Action for MouseEntryPointAction<'_> {
                                     let group_id = CreateComponent {
                                         parent_id: &post_creation_data.uid,
                                         parent_index: TreeIndexPosition::Top,
-                                        type_id: &DesignerNodeType::Group.metadata().type_id,
+                                        designer_node_type: DesignerNodeType::Group,
                                         builder_extra_commands: None,
                                         node_layout: NodeLayoutSettings::Fill,
                                     }
@@ -160,7 +160,7 @@ impl Action for MouseEntryPointAction<'_> {
                                     CreateComponent {
                                         parent_id: &group_id,
                                         parent_index: TreeIndexPosition::Top,
-                                        type_id: &DesignerNodeType::Rectangle.metadata().type_id,
+                                        designer_node_type: DesignerNodeType::Rectangle,
                                         builder_extra_commands: Some(&|builder| {
                                             builder.set_property(
                                                 "fill",
@@ -191,32 +191,32 @@ impl Action for MouseEntryPointAction<'_> {
                             }),
                             Component::Checkbox => CreateComponentTool::new(
                                 point_glass,
-                                &DesignerNodeType::Checkbox.metadata().type_id,
+                                DesignerNodeType::Checkbox,
                                 ctx,
                             ),
                             Component::Textbox => CreateComponentTool::new(
                                 point_glass,
-                                &DesignerNodeType::Textbox.metadata().type_id,
+                                DesignerNodeType::Textbox,
                                 ctx,
                             ),
                             Component::Button => CreateComponentTool::new(
                                 point_glass,
-                                &DesignerNodeType::Button.metadata().type_id,
+                                DesignerNodeType::Button,
                                 ctx,
                             ),
                             Component::Slider => CreateComponentTool::new(
                                 point_glass,
-                                &DesignerNodeType::Slider.metadata().type_id,
+                                DesignerNodeType::Slider,
                                 ctx,
                             ),
                             Component::Dropdown => CreateComponentTool::new(
                                 point_glass,
-                                &DesignerNodeType::Dropdown.metadata().type_id,
+                                DesignerNodeType::Dropdown,
                                 ctx,
                             ),
                             Component::RadioSet => CreateComponentTool::new(
                                 point_glass,
-                                &DesignerNodeType::RadioSet.metadata().type_id,
+                                DesignerNodeType::RadioSet,
                                 ctx,
                             ),
                         }))));
