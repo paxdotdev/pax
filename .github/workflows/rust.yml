@@ -27,7 +27,7 @@ jobs:
         fi
 
     - name: Build Starter Project
-      run: pushd examples/src/starter-project && pax-cli build --release && popd
+      run: pushd examples/src/starter-project && pax-cli build --release --designer && popd
 
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v1
