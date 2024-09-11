@@ -1,4 +1,4 @@
-name: Rust
+name: Rust Build and Deploy
 
 on:
   push:
@@ -8,30 +8,13 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
- 
+
 jobs:
-  build:
+  build-and-deploy:
     runs-on: mars
+    permissions: write-all
     steps:
     - uses: actions/checkout@v3
-
-    - name: Cache Cargo dependencies
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-
-
-    - name: Cache installed tools
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/bin
-        key: ${{ runner.os }}-tools-${{ hashFiles('**/Cargo.lock') }}
 
     # Install dependencies
     - name: Install dependencies
@@ -43,18 +26,47 @@ jobs:
         if ! command -v pax-cli &> /dev/null; then
           cargo install pax-cli
         fi
-        
 
     - name: Build Starter Project
-      run: pushd examples/src/starter-project && pax-cli build --release && popd
+      run: pushd examples/src/starter-project && pax-cli build --release --designer && popd
 
-    # - name: Run tests
-    #   run: cargo test --verbose --workspace --exclude pax-chassis-macos --exclude pax-chassis-common --exclude pax-chassis-ios
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
 
-    # - name: Check formatting
-    #   run: cargo fmt -- --check
+    - name: Deploy to S3
+      run: |
+        BUCKET_NAME="staging.pax.dev/${{ github.event.pull_request.number }}"
+        aws s3 sync /home/runner/work/pax/pax/examples/src/starter-project/.pax/build/release/web s3://$BUCKET_NAME --delete --acl public-read
+    
+    - name: Invalidate CloudFront
+      run: |
+        aws cloudfront create-invalidation --distribution-id E29ZMWF6F0HQ61 --paths "/*"
 
-    # - name: Check for linting errors
-    #   run: |
-    #     rustup component add clippy
-    #     cargo clippy -- -D warnings
+    - name: Post deployment link as PR comment
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const prNumber = context.issue.number;
+          const deploymentUrl = `https://staging.pax.dev/${prNumber}`;
+          github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `Deployment preview ready! :rocket:\n\nYou can view this deployment at: [${deploymentUrl}](${deploymentUrl})`
+            })
+
+    - name: Run tests
+      run: cargo test --verbose --workspace --exclude pax-chassis-macos --exclude pax-chassis-common --exclude pax-chassis-ios
+
+    - name: Check formatting
+      run: cargo fmt -- --check
+
+    - name: Check for linting errors
+      run: |
+        rustup component add clippy
+        cargo clippy -- -D warnings

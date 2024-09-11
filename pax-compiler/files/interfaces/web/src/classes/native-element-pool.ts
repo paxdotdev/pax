@@ -932,19 +932,13 @@ export class NativeElementPool {
             return
         }
         //Check the full path of our index.js; use the prefix of this path also for our image assets
-        function getScriptBasePath(scriptName: string) {
-            const scripts = document.getElementsByTagName('script');
-            for (let i = 0; i < scripts.length; i++) {
-                if (scripts[i].src.indexOf(scriptName) > -1) {
-                    // Extract path after the domain and port.
-                    const path = new URL(scripts[i].src).pathname;
-                    return path.replace(scriptName, '');
-                }
-            }
-            return '/';
+        function getBasePath() {
+            const baseURI = document.baseURI;
+            const url = new URL(baseURI);
+            return url.pathname.substring(0, url.pathname.lastIndexOf('/') + 1);
         }
-
-        const BASE_PATH = getScriptBasePath('pax-cartridge.js');
+    
+        const BASE_PATH = getBasePath();
 
         let path = (BASE_PATH + patch.path!).replace("//", "/");
         let image_data = await readImageToByteBuffer(path!)
