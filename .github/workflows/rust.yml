@@ -15,22 +15,22 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-      - name: Post deployment link as PR comment
-            if: github.event_name == 'pull_request'
-            uses: actions/github-script@v6
-            with:
-              github-token: ${{secrets.GITHUB_TOKEN}}
-              script: |
-                const prNumber = context.payload.pull_request.number;
-                const deploymentUrl = `https://staging.pax.dev/${prNumber}/index.html`;
-                github.rest.pulls.createReview({
-                  owner: context.repo.owner,
-                  repo: context.repo.name,
-                  pull_number: prNumber,
-                  event: 'COMMENT',
-                  body: `Deployment preview ready! :rocket:\n\nYou can view this deployment at: [${deploymentUrl}](${deploymentUrl})`
-                });
 
+    - name: Post deployment link as PR comment
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{secrets.GITHUB_TOKEN}}
+        script: |
+          const prNumber = context.payload.pull_request.number;
+          const deploymentUrl = `https://staging.pax.dev/${prNumber}/index.html`;
+          github.rest.pulls.createReview({
+            owner: context.repo.owner,
+            repo: context.repo.name,
+            pull_number: prNumber,
+            event: 'COMMENT',
+            body: `Deployment preview ready! :rocket:\n\nYou can view this deployment at: [${deploymentUrl}](${deploymentUrl})`
+          });
     # # Install dependencies
     # - name: Install dependencies
     #   run: |
