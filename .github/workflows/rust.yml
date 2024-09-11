@@ -20,6 +20,7 @@ jobs:
       if: github.event_name == 'pull_request'
       uses: actions/github-script@v6
       with:
+        github-token: ${{secrets.GITHUB_TOKEN}}
         script: |
           const prNumber = context.issue.number;
           const deploymentUrl = `https://staging.pax.dev/${prNumber}/index.html`;
