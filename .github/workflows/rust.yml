@@ -20,17 +20,15 @@ jobs:
       if: github.event_name == 'pull_request'
       uses: actions/github-script@v6
       with:
-        github-token: ${{secrets.GITHUB_TOKEN}}
         script: |
-          console.log(JSON.stringify(github.context, null, 2));
-          const prNumber = context.payload.pull_request.number;
+          const prNumber = context.issue.number;
           const deploymentUrl = `https://staging.pax.dev/${prNumber}/index.html`;
-          await github.rest.issues.createComment({
-            owner: context.repo.owner,
-            repo: context.repo.name,
-            issue_number: prNumber,
-            body: `Deployment preview ready! :rocket:\n\nYou can view this deployment at: [${deploymentUrl}](${deploymentUrl})`
-          });
+          github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `Deployment preview ready! :rocket:\n\nYou can view this deployment at: [${deploymentUrl}](${deploymentUrl})`
+            })
     # # Install dependencies
     # - name: Install dependencies
     #   run: |
