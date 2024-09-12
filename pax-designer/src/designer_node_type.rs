@@ -82,7 +82,7 @@ impl DesignerNodeType {
         }
     }
 
-    pub fn metadata(&self, ctx: &NodeContext) -> DesignerNodeTypeData {
+    pub fn metadata(&self, _ctx: &NodeContext) -> DesignerNodeTypeData {
         let (name, img_path_suffix, type_id, is_container) = match self {
             DesignerNodeType::Frame => (
                 "Frame",

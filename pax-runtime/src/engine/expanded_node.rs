@@ -194,8 +194,8 @@ impl ExpandedNode {
             Rc::new(RefCell::new(().to_pax_any())),
         );
         let root_node = Self::new(template, root_env, ctx, Weak::new(), Weak::new());
-        Rc::clone(&root_node).recurse_mount(ctx);
         root_node.bind_to_parent_bounds(ctx);
+        Rc::clone(&root_node).recurse_mount(ctx);
         root_node
     }
 
@@ -293,9 +293,9 @@ impl ExpandedNode {
             Rc::clone(&*borrow!(new_expanded_node.common_properties));
         self.occlusion.set(Default::default());
 
+        self.bind_to_parent_bounds(context);
         Rc::clone(self).recurse_mount(context);
         Rc::clone(self).recurse_update(context);
-        self.bind_to_parent_bounds(context);
     }
 
     /// Returns whether this node is a descendant of the ExpandedNode described by `other_expanded_node_id` (id)
@@ -367,8 +367,8 @@ impl ExpandedNode {
                 Rc::clone(child).recurse_unmount(context);
             }
             for child in new_children.iter() {
-                Rc::clone(child).recurse_mount(context);
                 child.bind_to_parent_bounds(context);
+                Rc::clone(child).recurse_mount(context);
             }
         }
         *curr_children = new_children.clone();
@@ -485,9 +485,8 @@ impl ExpandedNode {
                     slot_child.recurse_mount(context);
                 }
             }
-            // this is needed to reslove slot connections in a single tick (otherwise
-            // self.compute_flattened_slot_children() isn't run)
-            self.recurse_update(context);
+            // this is needed to reslove slot connections in a single tick
+            self.compute_flattened_slot_children();
         }
     }
 
@@ -603,11 +602,30 @@ impl ExpandedNode {
                 .unwrap_or_default()
         };
 
+        let last_frame = Rc::new(RefCell::new(globals.frames_elapsed.get()));
+        let suspended = self.suspended.clone();
+        let frames_elapsed = globals.frames_elapsed.clone();
+        let deps = [frames_elapsed.untyped(), suspended.untyped()];
+        // TODO: this still triggers the dirty dag dependencies of ellapsed
+        // frames even if the value is the same. Try to make it not trigger
+        // dependencides when frozen
+        let frames_ellapsed_frozen_if_suspended = Property::computed(
+            move || {
+                if suspended.get() {
+                    *borrow!(last_frame)
+                } else {
+                    let val = frames_elapsed.get();
+                    *borrow_mut!(last_frame) = val;
+                    val
+                }
+            },
+            &deps,
+        );
         NodeContext {
             slot_index: self.slot_index.clone(),
             local_stack_frame: Rc::clone(&self.stack),
             component_origin: Weak::clone(&self.containing_component),
-            frames_elapsed: globals.frames_elapsed.clone(),
+            frames_elapsed: frames_ellapsed_frozen_if_suspended,
             bounds_self,
             bounds_parent,
             runtime_context: ctx.clone(),
