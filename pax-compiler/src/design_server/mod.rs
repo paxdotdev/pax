@@ -17,9 +17,7 @@ use std::io::Write;
 use crate::helpers::PAX_BADGE;
 use crate::{RunContext, RunTarget};
 use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use pax_designtime::messages::LLMHelpResponse;
-use pax_designtime::orm::template::NodeAction;
-use pax_manifest::{PaxManifest, TypeId};
+use pax_manifest::PaxManifest;
 
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
