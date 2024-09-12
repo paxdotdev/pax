@@ -13,9 +13,6 @@ pub enum AgentMessage {
     LoadManifestResponse(LoadManifestResponse),
     ComponentSerializationRequest(ComponentSerializationRequest),
     UpdateTemplateRequest(Box<UpdateTemplateRequest>),
-    LLMHelpRequest(LLMHelpRequest),
-    LLMHelpResponse(LLMHelpResponse),
-    LLMUpdatedTemplateNotification(LLMUpdatedTemplateNotification),
     LoadFileToStaticDirRequest(LoadFileToStaticDirRequest),
 }
 
