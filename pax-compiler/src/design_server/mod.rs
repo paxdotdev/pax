@@ -168,26 +168,6 @@ impl actix::Message for WatcherFileChanged {
     type Result = ();
 }
 
-struct LLMHelpResponseMessage {
-    pub request_id: String,
-    pub component: TypeId,
-    pub actions: Vec<NodeAction>,
-}
-
-impl actix::Message for LLMHelpResponseMessage {
-    type Result = ();
-}
-
-impl From<LLMHelpResponseMessage> for LLMHelpResponse {
-    fn from(value: LLMHelpResponseMessage) -> Self {
-        LLMHelpResponse {
-            request_id: value.request_id,
-            component_type_id: value.component,
-            response: value.actions,
-        }
-    }
-}
-
 pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<RecommendedWatcher, Error> {
     let mut watcher = RecommendedWatcher::new(
         move |res: Result<Event, Error>| match res {

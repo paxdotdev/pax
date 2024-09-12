@@ -1,11 +1,10 @@
 use crate::design_server::{
-    code_serialization::serialize_component_to_file, AppState, FileContent, LLMHelpResponseMessage,
-    WatcherFileChanged,
+    code_serialization::serialize_component_to_file, AppState, FileContent, WatcherFileChanged,
 };
 
 use pax_manifest::parsing::TemplateNodeParseContext;
 
-use actix::{spawn, Actor, AsyncContext, Handler, Running, StreamHandler};
+use actix::{Actor, AsyncContext, Handler, Running, StreamHandler};
 use actix_web::web::Data;
 use actix_web_actors::ws::{self};
 use pax_designtime::messages::{
@@ -13,11 +12,8 @@ use pax_designtime::messages::{
     LoadFileToStaticDirRequest, LoadManifestResponse, ManifestSerializationRequest,
     UpdateTemplateRequest,
 };
-use pax_generation::{AIModel, PaxAppGenerator};
 use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
-use std::os::unix::process::CommandExt;
-use std::process::Command;
-use std::{collections::HashMap, env};
+use std::collections::HashMap;
 
 use self::socket_message_accumulator::SocketMessageAccumulator;
 
@@ -49,15 +45,6 @@ impl Actor for PrivilegedAgentWebSocket {
         let mut active_client = self.state.active_websocket_client.lock().unwrap();
         *active_client = None;
         Running::Stop
-    }
-}
-
-impl Handler<LLMHelpResponseMessage> for PrivilegedAgentWebSocket {
-    type Result = ();
-
-    fn handle(&mut self, msg: LLMHelpResponseMessage, ctx: &mut Self::Context) -> Self::Result {
-        let serialized_msg = rmp_serde::to_vec(&AgentMessage::LLMHelpResponse(msg.into())).unwrap();
-        ctx.binary(serialized_msg);
     }
 }
 
@@ -170,53 +157,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                     );
                     self.state.update_last_written_timestamp();
                 }
-                Ok(AgentMessage::LLMHelpRequest(help_request)) => {
-                    let state = self.state.clone();
-                    let claude_api_key = env::var("ANTHROPIC_API_KEY")
-                        .expect("ANTHROPIC_API_KEY must be set in .env file");
-                    let pax_app_generator = PaxAppGenerator::new(claude_api_key, AIModel::Claude3);
-                    let output_dir = state
-                        .userland_project_root
-                        .lock()
-                        .unwrap()
-                        .clone()
-                        .join("src");
-
-                    // Convert output_dir to a PathBuf (owned type) instead of &Path
-                    let output = output_dir.to_path_buf();
-                    println!("prompt: {}", help_request.request);
-                    spawn(async move {
-                        match pax_app_generator
-                            .generate_app(&help_request.request, Some(&output), true)
-                            .await
-                        {
-                            Ok(_) => {
-                                println!("App generated successfully");
-
-                                // Restart the server
-                                println!("Restarting server...");
-                                let err = Command::new("cargo")
-                                    .arg("run")
-                                    .arg("../designer-project/")
-                                    .exec();
-
-                                // If exec() returns, it means there was an error
-                                eprintln!("Failed to restart server: {:?}", err);
-                            }
-                            Err(e) => {
-                                eprintln!("Error generating app: {:?}", e);
-                            }
-                        }
-                    });
-                }
-                Ok(AgentMessage::LLMUpdatedTemplateNotification(_notification)) => {
-                    // let folder_path = format!("{}{}", TRAINING_DATA_PATH, notification.request_id);
-                    // let component = notification.component.clone();
-                    // serialize_component_to_file(
-                    //     &component,
-                    //     format!("{}/{}", folder_path, TRAINING_DATA_AFTER_REQUEST),
-                    // );
-                }
                 Ok(AgentMessage::LoadFileToStaticDirRequest(load_info)) => {
                     let LoadFileToStaticDirRequest { name, data } = load_info;
                     println!(
@@ -250,8 +190,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                     };
                 }
                 Ok(
-                    AgentMessage::LLMHelpResponse(_)
-                    | AgentMessage::UpdateTemplateRequest(_)
+                    AgentMessage::UpdateTemplateRequest(_)
                     | AgentMessage::ProjectFileChangedNotification(_)
                     | AgentMessage::LoadManifestResponse(_),
                 ) => {}

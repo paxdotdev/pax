@@ -66,18 +66,6 @@ impl PrivilegedAgentConnection {
         }
     }
 
-    pub fn send_llm_request(&mut self, request: LLMHelpRequest) -> Result<()> {
-        if self.alive {
-            let msg_bytes = rmp_serde::to_vec(&AgentMessage::LLMHelpRequest(request))?;
-            self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
-            Ok(())
-        } else {
-            Err(anyhow!(
-                "couldn't send llm request: connection to design-server was lost"
-            ))
-        }
-    }
-
     pub fn handle_recv(&mut self, manager: &mut PaxManifestORM) -> Result<()> {
         while let Some(event) = self.recver.try_recv() {
             match event {
@@ -96,30 +84,6 @@ impl PrivilegedAgentConnection {
                                 manager
                                     .replace_template(resp.type_id, resp.new_template)
                                     .map_err(|e| anyhow!(e))?;
-                            }
-                            AgentMessage::LLMHelpResponse(resp) => {
-                                for action in resp.response {
-                                    match action {
-                                        NodeAction::Add(command) => {
-                                            let _ = manager
-                                                .execute_command(command.clone())
-                                                .map_err(|e| anyhow!(e))?;
-                                        }
-                                        NodeAction::Remove(command) => {
-                                            let _ = manager
-                                                .execute_command(command.clone())
-                                                .map_err(|e| anyhow!(e))?;
-                                        }
-                                        NodeAction::Update(command) => {
-                                            let _ = manager
-                                                .execute_command(command.clone())
-                                                .map_err(|e| anyhow!(e))?;
-                                        }
-                                        _ => {
-                                            unreachable!("Invalid action performed by llm")
-                                        }
-                                    }
-                                }
                             }
                             _ => {}
                         }
