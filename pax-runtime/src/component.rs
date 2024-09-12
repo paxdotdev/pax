@@ -56,12 +56,12 @@ impl InstanceNode for ComponentInstance {
             let env = Rc::clone(&expanded_node.stack);
             let children = borrow!(self.base().get_instance_children());
             let children_with_env = children.iter().cloned().zip(iter::repeat(env));
-            *borrow_mut!(expanded_node.expanded_slot_children) =
-                Some(containing_component.create_children_detached(
-                    children_with_env,
-                    context,
-                    &Rc::downgrade(expanded_node),
-                ));
+            let new_slot_children = containing_component.create_children_detached(
+                children_with_env,
+                context,
+                &Rc::downgrade(expanded_node),
+            );
+            *borrow_mut!(expanded_node.expanded_slot_children) = Some(new_slot_children);
         }
         let properties_scope = borrow!(expanded_node.properties_scope);
         let new_env = expanded_node.stack.push(

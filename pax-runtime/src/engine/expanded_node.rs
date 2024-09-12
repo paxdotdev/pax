@@ -360,18 +360,7 @@ impl ExpandedNode {
                 .replace_with(Property::computed(move || parent_frame.get(), &deps));
 
             // suspension is used in the designer to turn of/on tick/update
-            let cp = self.get_common_properties();
-            let self_suspended = borrow!(cp)._suspended.clone();
-            let parent_suspended = self.suspended.clone();
-            let deps = [parent_suspended.untyped(), self_suspended.untyped()];
-            child.suspended.replace_with(Property::computed(
-                move || {
-                    self_suspended
-                        .get()
-                        .unwrap_or_else(|| parent_suspended.get())
-                },
-                &deps,
-            ));
+            child.inherit_suspend(self);
         }
         if self.attached.get() > 0 {
             for child in curr_children.iter() {
@@ -400,6 +389,21 @@ impl ExpandedNode {
             parent_transform_and_bounds,
         );
         self.transform_and_bounds.replace_with(transform_and_bounds);
+    }
+
+    pub fn inherit_suspend(self: &Rc<Self>, node: &Rc<Self>) {
+        let cp = self.get_common_properties();
+        let self_suspended = borrow!(cp)._suspended.clone();
+        let parent_suspended = node.suspended.clone();
+        let deps = [parent_suspended.untyped(), self_suspended.untyped()];
+        self.suspended.replace_with(Property::computed(
+            move || {
+                self_suspended
+                    .get()
+                    .unwrap_or_else(|| parent_suspended.get())
+            },
+            &deps,
+        ));
     }
 
     pub fn generate_children(
