@@ -19,6 +19,28 @@ pub struct MoveNode<'a, S = Generic> {
 
 impl<S: Space> Action for MoveNode<'_, S> {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+        let node = ctx
+            .engine_context
+            .get_nodes_by_global_id(self.node_id.clone())
+            .into_iter()
+            .next();
+        let new_parent = ctx
+            .engine_context
+            .get_nodes_by_global_id(self.new_parent_uid.clone())
+            .into_iter()
+            .next();
+
+        // some move operations take place before the nodes exist, so don't error if this check
+        // can't be made. could potentially check this using the ORM instead at some point
+        if let (Some(node), Some(parent)) = (node, new_parent) {
+            if parent.is_descendant_of(&node) {
+                return Err(anyhow!("can't move parent into a child"));
+            }
+            if parent == node {
+                return Err(anyhow!("can't move node into itself"));
+            }
+        }
+
         SetNodeLayout {
             id: self.node_id,
             node_layout: &self.node_layout,
