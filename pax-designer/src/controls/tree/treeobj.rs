@@ -61,7 +61,7 @@ impl TreeObj {
         })
     }
 
-    pub fn obj_double_clicked(&mut self, _ctx: &NodeContext, _args: Event<DoubleClick>) {
+    pub fn obj_double_clicked(&mut self, _ctx: &NodeContext, _event: Event<DoubleClick>) {
         super::TREE_CLICK_PROP.with_borrow_mut(|cn| {
             cn.push_back(super::TreeMsg::ObjDoubleClicked(
                 self.ind.get().clone().into(),
@@ -70,7 +70,6 @@ impl TreeObj {
     }
 
     pub fn mouse_down(&mut self, _ctx: &NodeContext, event: Event<MouseDown>) {
-        event.prevent_default();
         super::TREE_CLICK_PROP.with_borrow_mut(|cn| {
             cn.push_back(super::TreeMsg::ObjMouseDown(
                 self.ind.get().clone().into(),
@@ -80,7 +79,6 @@ impl TreeObj {
     }
 
     pub fn mouse_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
-        event.prevent_default();
         let local = ctx.local_point(Point2::new(event.mouse.x, event.mouse.y));
         let top_half = local.y < 0.5;
         super::TREE_CLICK_PROP.with_borrow_mut(|cn| {

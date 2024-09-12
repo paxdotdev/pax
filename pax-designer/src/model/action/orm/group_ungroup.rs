@@ -10,7 +10,7 @@ use crate::{
     },
 };
 use anyhow::{anyhow, Context, Result};
-use pax_engine::api::borrow_mut;
+use pax_engine::api::{borrow, borrow_mut};
 use pax_engine::pax_manifest::{
     NodeLocation, TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier,
 };
@@ -40,7 +40,8 @@ impl Action for GroupSelected {
             GroupType::Link => DesignerNodeType::Link,
             GroupType::Group => DesignerNodeType::Group,
         };
-        let group_type_metadata = group_type.metadata(&ctx.engine_context);
+        let group_type_metadata =
+            group_type.metadata(&borrow!(ctx.engine_context.designtime).get_orm());
 
         if !group_type_metadata.is_container {
             return Err(anyhow!(
@@ -72,7 +73,7 @@ impl Action for GroupSelected {
                 .get_node(group_parent_data.id.clone(), false)?
                 .get_type_id();
             let node_type = DesignerNodeType::from_type_id(parent_type_id);
-            Some(node_type.metadata(&ctx.engine_context).is_slot_container)
+            Some(node_type.metadata(&dt.get_orm()).is_slot_container)
         })()
         .unwrap_or(false);
 
@@ -154,7 +155,7 @@ impl Action for UngroupSelected {
                         .get_node(group.id.clone(), false)
                         .ok_or_else(|| anyhow!("no thing"))?;
                     let node_type = DesignerNodeType::from_type_id(node.get_type_id());
-                    if !node_type.metadata(&ctx.engine_context).is_container {
+                    if !node_type.metadata(&dt.get_orm()).is_container {
                         continue;
                     }
                 }
@@ -183,16 +184,6 @@ impl Action for UngroupSelected {
                     let orm = dt.get_orm_mut();
                     orm.get_node_location(&group.id)
                 };
-                let parent_is_slot_container = (|| {
-                    let mut dt = borrow_mut!(ctx.engine_context.designtime);
-                    let orm = dt.get_orm_mut();
-                    let node = orm.get_node(parent.id.clone(), false)?;
-                    let parent_type_id = node.get_type_id();
-                    let node_type = DesignerNodeType::from_type_id(parent_type_id);
-                    Some(node_type.metadata(&ctx.engine_context).is_slot_container)
-                })()
-                .unwrap_or(false);
-
                 let new_node_index = group_location
                     .map(|l| l.index)
                     .unwrap_or(TreeIndexPosition::Top);
@@ -204,21 +195,15 @@ impl Action for UngroupSelected {
                         .layout_properties
                         .into_decomposition_config();
                     let child_t_and_b = child_runtime_node.transform_and_bounds.get();
-
-                    let node_layout = if parent_is_slot_container {
-                        NodeLayoutSettings::Fill
-                    } else {
-                        NodeLayoutSettings::KeepScreenBounds {
-                            parent_transform_and_bounds: &group_parent_bounds,
-                            node_transform_and_bounds: &child_t_and_b,
-                            node_decomposition_config: &child_inv_config,
-                        }
-                    };
                     MoveNode {
                         node_id: &child,
                         new_parent_uid: &parent.id,
                         index: new_node_index.clone(),
-                        node_layout,
+                        node_layout: NodeLayoutSettings::KeepScreenBounds {
+                            parent_transform_and_bounds: &group_parent_bounds,
+                            node_transform_and_bounds: &child_t_and_b,
+                            node_decomposition_config: &child_inv_config,
+                        },
                     }
                     .perform(ctx)?;
                 }

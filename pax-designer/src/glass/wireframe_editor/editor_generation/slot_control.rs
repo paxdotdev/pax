@@ -11,6 +11,7 @@ use pax_engine::{
 };
 use pax_std::stacker::Stacker;
 
+use crate::designer_node_type::DesignerNodeType;
 use crate::{
     glass::{
         control_point::{ControlPointStyling, ControlPointToolFactory},
@@ -347,9 +348,17 @@ pub fn raycast_slot(
         .unwrap()
         .template_parent()
         .unwrap();
-    wants_slot_behavior(&container).then_some((container, slot_hit))
-}
-
-pub fn wants_slot_behavior(container: &NodeInterface) -> bool {
-    container.is_of_type::<Stacker>()
+    container
+        .global_id()
+        .and_then(|id| {
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            let orm = dt.get_orm_mut();
+            let node = orm.get_node(id, false)?;
+            let is_slot_container = DesignerNodeType::from_type_id(node.get_type_id())
+                .metadata(&orm)
+                .is_slot_container;
+            Some(is_slot_container)
+        })
+        .unwrap_or(true)
+        .then_some((container, slot_hit))
 }

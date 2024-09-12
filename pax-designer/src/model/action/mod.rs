@@ -5,6 +5,7 @@ use std::{rc::Rc, sync::Arc};
 use self::orm::UndoRequested;
 
 use super::{DerivedAppState, GlassNode, SelectionState};
+use crate::designer_node_type::DesignerNodeType;
 use crate::math::coordinate_spaces::World;
 use crate::message_log_display::{self, DesignerLogMsg};
 use crate::{math::AxisAlignedBox, model::AppState, DESIGNER_GLASS_ID};
@@ -174,6 +175,15 @@ impl ActionContext<'_> {
                 index.clone(),
             )
         }
+    }
+
+    pub fn designer_node_type(&self, id: &UniqueTemplateNodeIdentifier) -> DesignerNodeType {
+        let mut dt = borrow_mut!(self.engine_context.designtime);
+        let orm = dt.get_orm_mut();
+        let Some(node) = orm.get_node(id.clone(), false) else {
+            return DesignerNodeType::Unregistered;
+        };
+        DesignerNodeType::from_type_id(node.get_type_id())
     }
 
     pub fn get_glass_node_by_global_id(
