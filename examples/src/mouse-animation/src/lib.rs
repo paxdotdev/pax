@@ -16,6 +16,7 @@ pub struct Example {
 }
 
 impl Example {
+    pub fn on_mount(&mut self, ctx: &NodeContext) {}
     pub fn on_mouse_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
         let (_, h) = ctx.bounds_self.get();
         let part = event.mouse.y / h;

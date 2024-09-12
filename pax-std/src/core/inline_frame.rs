@@ -68,7 +68,6 @@ impl InstanceNode for InlineFrameInstance {
                 Rc::new(RefCell::new(().to_pax_any())),
             ),
         )];
-
         let new_children =
             expanded_node.generate_children(children_with_envs, ctx, &expanded_node.parent_frame);
         *borrow_mut!(ctx.userland_root_expanded_node) = Some(Rc::clone(&new_children[0].clone()));

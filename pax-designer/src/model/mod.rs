@@ -265,7 +265,8 @@ impl Model {
                         &deps,
                     )
                 } else {
-                    panic!("no userland project")
+                    log::error!("designer glass node not found");
+                    Property::default()
                 }
             },
             &[],

@@ -1,33 +1,30 @@
 <Text x=50% y=50% text="Move mouse up & down" id=text/>
 <Group anchor_x=50% anchor_y=50% x=50% y=50% width=200% rotate=20deg>
-	for i in 0..12 {
-		<PathAnimation rotate={(i*40)deg}
-			x=50%
-			y=50%
-			path_config={
-			    amplitude: {0.03 + 0.1 * i*(i-12.0)/10.0},
-				amplitude_ramp: {0.2 + i*0.01},
-				frequency: 2.0,
-			    frequency_ramp: {0.1*i},
-			    thickness: {0.07 - 0.01*i/5.0},
-			    thickness_ramp: {0.02 - i/5.0*0.01},
-			    span: {0.1 + 0.1*i/10.0},
-			}	
-		    t={2.0*self.scroll - i/20.0}
-			fill={hsla(40.0*i, 150, 160 + 5*i, 100)}
-		/>
-	}
+    for i in 0..12 {
+        <PathAnimation rotate={(i * 40)deg} x=50% y=50% path_config={
+            amplitude: {0.03 + 0.10 * i * (i - 12.00) / 10.00}
+            amplitude_ramp: {0.20 + i * 0.01}
+            frequency: 2.00
+            frequency_ramp: {0.10 * i}
+            thickness: {0.07 - 0.01 * i / 5.00}
+            thickness_ramp: {0.02 - i / 5.00 * 0.01}
+            span: {0.10 + 0.10 * i / 10.00}
+        } 
+            t={2.00 * scroll - i / 20.00} fill={hsla(40.00 * i, 150, 160 + 5 * i, 100)}/>
+    }
 </Group>
+<Rectangle fill=TRANSPARENT/>
 
 @settings {
-	@mouse_move: on_mouse_move
+    @mount: on_mount,
+    @mouse_move: on_mouse_move
     #text {
         style: TextStyle {
-            font: Font::Web("Esenka", "", FontStyle::Normal, FontWeight::Normal),
-            font_size: 40px,
-            fill: BLACK,
-            align_vertical: TextAlignVertical::Center,
-            align_horizontal: TextAlignHorizontal::Center,
+            font: Font::Web("Esenka", "", FontStyle::Normal, FontWeight::Normal)
+            font_size: 40px
+            fill: BLACK
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
         }
     }
 }

@@ -270,9 +270,6 @@ impl PaxEngine {
             designtime: designtime.clone(),
         };
 
-        //Must register userland node first, because this will mount component trees (calling .mount)
-        //Because InlineFrame's mount logic assumes that the "iframe" component is already registered and available
-        //on runtime context, it must first be registered (here)
         let mut runtime_context = Rc::new(RuntimeContext::new(
             globals,
             userland_main_component_instance,

@@ -21,23 +21,31 @@ pub struct PathAnimation {
 
 impl Default for PathAnimation {
     fn default() -> Self {
-        let fill = Property::new(Color::RED);
-        let t: Property<Numeric> = Property::new(0.0.into());
-        let resolution: Property<Numeric> = Property::new(60.into());
-        let path_config = Property::new(PathConfig {
-            amplitude: Property::new(0.3.into()),
-            amplitude_ramp: Property::new(0.3.into()),
-            frequency: Property::new(1.0.into()),
-            frequency_ramp: Property::new(1.0.into()),
-            thickness: Property::new(0.01.into()),
-            thickness_ramp: Property::new(0.3.into()),
-            span: Property::new(0.3.into()),
-        });
+        Self {
+            fill: Property::new(Color::RED),
+            t: Property::new(0.0.into()),
+            resolution: Property::new(60.into()),
+            path_config: Property::new(PathConfig {
+                amplitude: Property::new(0.3.into()),
+                amplitude_ramp: Property::new(0.3.into()),
+                frequency: Property::new(1.0.into()),
+                frequency_ramp: Property::new(1.0.into()),
+                thickness: Property::new(0.01.into()),
+                thickness_ramp: Property::new(0.3.into()),
+                span: Property::new(0.3.into()),
+            }),
+            path_elements: Property::default(),
+        }
+    }
+}
 
+impl PathAnimation {
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
+        let bounds = ctx.bounds_parent.get();
         let path_elements = {
-            let t = t.clone();
-            let resolution = resolution.clone();
-            let path_config = path_config.clone();
+            let t = self.t.clone();
+            let resolution = self.resolution.clone();
+            let path_config = self.path_config.clone();
             let deps = [t.untyped(), resolution.untyped(), path_config.untyped()];
             Property::computed(
                 move || {
@@ -69,17 +77,9 @@ impl Default for PathAnimation {
                 &deps,
             )
         };
-
-        Self {
-            fill,
-            path_config,
-            t,
-            resolution,
-            path_elements,
-        }
+        self.path_elements.replace_with(path_elements);
     }
 }
-
 #[pax]
 pub struct PathConfig {
     pub amplitude: Property<Numeric>,

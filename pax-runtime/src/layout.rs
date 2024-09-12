@@ -154,6 +154,7 @@ impl<F: Space, T: Space> std::fmt::Debug for TransformAndBounds<F, T> {
             .finish()
     }
 }
+
 impl<F: Space, T: Space> Default for TransformAndBounds<F, T> {
     fn default() -> Self {
         Self {
