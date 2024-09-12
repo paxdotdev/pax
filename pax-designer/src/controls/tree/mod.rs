@@ -39,7 +39,7 @@ pub struct Tree {
     pub drag_id_start: Property<usize>,
     pub drag_x_start: Property<f64>,
     pub drag_indent: Property<isize>,
-    pub drag_ignore_container: Property<bool>,
+    pub drag_top_half: Property<bool>,
 }
 
 impl Interpolatable for TreeMsg {}
@@ -175,7 +175,7 @@ impl Tree {
                         .set(tree_obj.read(|t| t[sender].indent_level));
                 }
                 // TODO make less ugly
-                TreeMsg::ObjMouseMove(sender, x_offset, ignore_container) => {
+                TreeMsg::ObjMouseMove(sender, x_offset, top_half) => {
                     drag_id.set(sender);
                     let tree_obj = tree_obj.get();
                     let original_indent = tree_obj[drag_id_start.get()].indent_level;
@@ -196,19 +196,10 @@ impl Tree {
                         let below = tree_obj.get(curr_ind).map(|b| b.indent_level).unwrap_or(0);
                         self.drag_indent
                             .set(potential_indent.clamp(below.min(above), above));
-                        self.drag_ignore_container.set(false);
+                        self.drag_top_half.set(false);
                     } else {
-                        let curr_is_container = model::with_action_context(ctx, |ac| {
-                            ac.get_glass_node_by_global_id(&UniqueTemplateNodeIdentifier::build(
-                                ac.app_state.selected_component_id.get(),
-                                tree_obj[sender].node_id.clone(),
-                            ))
-                            .map(|n| n.get_node_type(ctx).metadata(ctx).is_container)
-                        })
-                        .unwrap_or(false);
                         self.drag_indent.set(original_indent);
-                        self.drag_ignore_container
-                            .set(curr_is_container && ignore_container);
+                        self.drag_top_half.set(top_half);
                     }
                 }
             };
@@ -248,7 +239,7 @@ impl Tree {
                     to.map(|t| t.node_id),
                     child_ind_override,
                     &ctx,
-                    self.drag_ignore_container.get(),
+                    self.drag_top_half.get(),
                 ) {
                     log::warn!("failed to move tree node: {e}");
                 };
@@ -263,7 +254,7 @@ impl Tree {
         to_parent: Option<TemplateNodeId>,
         child_ind_override: Option<TreeIndexPosition>,
         ctx: &NodeContext,
-        ignore_container: bool,
+        top_half: bool,
     ) -> Result<()> {
         model::with_action_context(ctx, |ctx| {
             let comp_id = ctx.app_state.selected_component_id.get();
@@ -285,7 +276,7 @@ impl Tree {
                 .get_node_type(&ctx.engine_context)
                 .metadata(&ctx.engine_context)
                 .is_container
-                && !ignore_container
+                && !top_half
             {
                 true => to_node.clone(),
                 false => {
@@ -317,6 +308,25 @@ impl Tree {
                     .get_orm_mut()
                     .get_siblings(&to_node.id)
                     .and_then(|v| v.iter().position(|n| n == &to_node.id))
+                    .map(|v| v + (!top_half) as usize)
+                    .map(|v| {
+                        let same_parent = Some(&to_node_container.id)
+                            == from_node
+                                .raw_node_interface
+                                .template_parent()
+                                .and_then(|n| n.global_id())
+                                .as_ref();
+                        let old_index = dt
+                            .get_orm_mut()
+                            .get_siblings(&from_node.id)
+                            .and_then(|v| v.iter().position(|n| n == &from_node.id))
+                            .unwrap_or_default();
+                        if same_parent && old_index < v {
+                            v.saturating_sub(1)
+                        } else {
+                            v
+                        }
+                    })
                     .unwrap_or_default();
                 TreeIndexPosition::At(pos)
             });

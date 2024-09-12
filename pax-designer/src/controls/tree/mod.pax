@@ -21,7 +21,7 @@
 			x={(self.drag_indent*6)%}
 			anchor_x=0%
 			width={(100 - self.drag_indent*8)%}
-			y={(34 + self.drag_id*36 - 36*self.drag_ignore_container)px}
+			y={(34 + self.drag_id*36 - 36*self.drag_top_half)px}
 			height=2px fill=WHITE
 		/>
 	}
