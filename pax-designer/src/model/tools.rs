@@ -12,9 +12,7 @@ use super::input::{InputEvent, ModifierKey};
 use super::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot, StageInfo};
 use crate::designer_node_type::{self, DesignerNodeType};
 use crate::glass::outline::PathOutline;
-use crate::glass::wireframe_editor::editor_generation::slot_control::{
-    raycast_slot, wants_slot_behavior,
-};
+use crate::glass::wireframe_editor::editor_generation::slot_control::raycast_slot;
 use crate::glass::wireframe_editor::editor_generation::stacker_control::sizes_to_string;
 use crate::glass::{RectTool, SnapInfo, TextEdit, ToolVisualizationState};
 use crate::math::coordinate_spaces::{Glass, World};
@@ -521,13 +519,24 @@ impl ToolBehavior for MovingTool {
             let Ok(curr_node) = ctx.get_glass_node_by_global_id(&hit_id) else {
                 return ControlFlow::Continue(());
             };
+            let curr_node_parent_id = curr_node
+                .raw_node_interface
+                .template_parent()
+                .and_then(|p| p.global_id())
+                .unwrap();
+            let node_type = ctx.designer_node_type(&curr_node_parent_id);
+            let is_slot_container = {
+                let dt = borrow!(ctx.engine_context.designtime);
+                let orm = dt.get_orm();
+                node_type.metadata(&orm).is_slot_container
+            };
             if curr_node
                 .raw_node_interface
                 .render_parent()
                 .unwrap()
                 .is_of_type::<Slot>()
                 // replace want's slot behaviour with DesignerNodeType:: .metadata().is_slot_container?
-                && wants_slot_behavior(&&curr_node.raw_node_interface.template_parent().unwrap())
+                && is_slot_container
             {
                 let _ = transaction.run(|| {
                     SetNodeLayout {

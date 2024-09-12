@@ -1,3 +1,4 @@
+use pax_designtime::{orm::PaxManifestORM, DesigntimeManager};
 use pax_engine::{
     api::{borrow, NodeContext},
     pax_manifest::{PaxType, TypeId},
@@ -26,7 +27,8 @@ pub enum DesignerNodeType {
     RadioSet,
     If,
     For,
-    Unregistered(String),
+    Slot,
+    Unregistered,
     Carousel,
 }
 
@@ -47,9 +49,10 @@ impl DesignerNodeType {
         match type_id.get_pax_type() {
             PaxType::If => DesignerNodeType::If,
             PaxType::Repeat => DesignerNodeType::For,
+            PaxType::Slot => DesignerNodeType::Slot,
             _ => {
                 let Some(import_path) = type_id.import_path() else {
-                    return DesignerNodeType::Unregistered(type_id.get_unique_identifier());
+                    return DesignerNodeType::Unregistered;
                 };
                 // TODO make this and  the metadata method use the same constants, or maybe even a signle
                 // Vec<(TypeId, DesignerNodeType)> that can be searched in either direction.
@@ -82,7 +85,7 @@ impl DesignerNodeType {
         }
     }
 
-    pub fn metadata(&self, _ctx: &NodeContext) -> DesignerNodeTypeData {
+    pub fn metadata(&self, orm: &PaxManifestORM) -> DesignerNodeTypeData {
         let (name, img_path_suffix, type_id, is_container) = match self {
             DesignerNodeType::Frame => (
                 "Frame",
@@ -141,9 +144,8 @@ impl DesignerNodeType {
             DesignerNodeType::Component { name, import_path } => {
                 let type_id = TypeId::build_singleton(import_path, None);
                 // TODO make this dynamic
-                // let dt = borrow!(ctx.designtime);
-                // let has_slots = dt.get_orm().component_has_slots(type_id);
-                (name.as_str(), "component", type_id, true)
+                let has_slots = orm.component_has_slots(&type_id);
+                (name.as_str(), "component", type_id, has_slots)
             }
             DesignerNodeType::Textbox => (
                 "Textbox",
@@ -189,12 +191,9 @@ impl DesignerNodeType {
             ),
             DesignerNodeType::If => ("If", "if", TypeId::build_if(), true),
             DesignerNodeType::For => ("For", "for", TypeId::build_repeat(), true),
-            DesignerNodeType::Unregistered(ident) => (
-                "[Unregistered Type]",
-                "component",
-                TypeId::build_singleton(ident, None),
-                false,
-            ),
+            DesignerNodeType::Unregistered => {
+                ("[Unregistered Type]", "component", TypeId::default(), false)
+            }
             // TODO add custom image
             DesignerNodeType::RadioSet => (
                 "Radio Set",
@@ -202,11 +201,16 @@ impl DesignerNodeType {
                 TypeId::build_singleton("pax_std::forms::radio_set::RadioSet", None),
                 false,
             ),
+            DesignerNodeType::Slot => (
+                "Slot",
+                "component", // TODO custom image
+                TypeId::build_slot(),
+                false,
+            ),
         };
 
         // move to match statement above if more types need this specified
-        let is_slot_container =
-            self == &DesignerNodeType::Stacker || self == &DesignerNodeType::Carousel;
+        let is_slot_container = self != &DesignerNodeType::Scroller;
 
         DesignerNodeTypeData {
             name: name.to_owned(),

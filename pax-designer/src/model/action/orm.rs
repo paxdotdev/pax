@@ -55,7 +55,9 @@ impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
     fn perform(&self, ctx: &mut ActionContext) -> Result<UniqueTemplateNodeIdentifier> {
         let parent_location = ctx.location(self.parent_id, &self.parent_index);
 
-        let node_type_metadata = self.designer_node_type.metadata(&ctx.engine_context);
+        let node_type_metadata = self
+            .designer_node_type
+            .metadata(&borrow!(ctx.engine_context.designtime).get_orm());
         // probably move transactions to happen here? (and remove from callers)
         // WARNING: if making this change, make sure mock children are in same transaction
         let save_data = {

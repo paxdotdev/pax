@@ -209,7 +209,8 @@ impl Glass {
         });
         if let Some((node_id, uid)) = info {
             let designer_node = DesignerNodeType::from_type_id(node_id);
-            let metadata = designer_node.metadata(ctx);
+            let metadata = designer_node.metadata(&borrow!(ctx.designtime).get_orm());
+
             match designer_node {
                 _ if metadata.is_container => {
                     model::with_action_context(ctx, |ac| {
@@ -220,14 +221,32 @@ impl Glass {
                             &[],
                         );
                         if let Some(hit) = hit {
-                            if let Err(e) = (SelectNodes {
-                                ids: &[hit.global_id().unwrap().get_template_node_id()],
-                                mode: model::tools::SelectMode::Dynamic,
-                            }
-                            .perform(ac))
+                            if let Some(hit_type) = hit
+                                .global_id()
+                                .map(|id| id.get_containing_component_type_id())
                             {
-                                log::warn!("failed to drill into container: {}", e);
-                            };
+                                // If the type id of the node hit during the drill hit is different than the current
+                                // component, go into that component. If it's the same, this was a slot component
+                                // and we want to drill into it.
+                                if hit_type != ac.app_state.selected_component_id.get() {
+                                    if let Err(e) =
+                                        SetEditingComponent(metadata.type_id).perform(ac)
+                                    {
+                                        log::warn!("failed to set editing component: {}", e);
+                                    }
+                                } else {
+                                    if let Err(e) = (SelectNodes {
+                                        ids: &[hit.global_id().unwrap().get_template_node_id()],
+                                        mode: model::tools::SelectMode::Dynamic,
+                                    }
+                                    .perform(ac))
+                                    {
+                                        log::warn!("failed to drill into container: {}", e);
+                                    };
+                                }
+                            } else {
+                                log::warn!("drill node had no type id");
+                            }
                         }
                     });
                 }
