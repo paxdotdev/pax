@@ -272,6 +272,7 @@ impl Tree {
                 );
             let from_node = ctx.get_glass_node_by_global_id(&from_uid)?;
             let to_node = ctx.get_glass_node_by_global_id(&to_uid)?;
+
             let to_node_container = match to_node
                 .get_node_type(&ctx.engine_context)
                 .metadata(&ctx.engine_context)
