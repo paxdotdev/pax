@@ -89,14 +89,12 @@ impl PaxDesigner {
             // when manifests load, set transform of glass to fit scene
             model::read_app_state(|app_state| {
                 let stage = app_state.stage.get();
-                let (w, h) = ctx
-                    .get_nodes_by_id(DESIGNER_GLASS_ID)
-                    .into_iter()
-                    .next()
-                    .unwrap()
-                    .transform_and_bounds()
-                    .get()
-                    .bounds;
+                let Some(glass_node) = ctx.get_nodes_by_id(DESIGNER_GLASS_ID).into_iter().next()
+                else {
+                    log::warn!("cound't hook up glass to world transform: couldn't find designer glass node");
+                    return;
+                };
+                let (w, h) = glass_node.transform_and_bounds().get().bounds;
                 app_state.glass_to_world_transform.set(
                     Transform2::<World>::translate(Vector2::new(
                         stage.width as f64 / 2.0,

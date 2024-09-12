@@ -178,6 +178,10 @@ impl Tree {
                 TreeMsg::ObjMouseMove(sender, x_offset, top_half) => {
                     drag_id.set(sender);
                     let tree_obj = tree_obj.get();
+                    if drag_id_start.get() >= tree_obj.len() || sender >= tree_obj.len() {
+                        self.dragging.set(false);
+                        continue;
+                    }
                     let original_indent = tree_obj[drag_id_start.get()].indent_level;
                     if drag_id_start.get() == sender {
                         let offset = x_offset - self.drag_x_start.get();
