@@ -10,7 +10,6 @@ pub mod privileged_agent;
 pub mod messages;
 pub mod serde_pax;
 
-use messages::LLMHelpRequest;
 use orm::ReloadType;
 use pax_manifest::pax_runtime_api::Property;
 use privileged_agent::PrivilegedAgentConnection;

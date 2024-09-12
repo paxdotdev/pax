@@ -170,7 +170,7 @@ impl <%= engine_import_path %>::pax_manifest::parsing::Reflectable for <%= pasca
 
 
         <% if args_full_component.as_ref().is_some() && args_full_component.as_ref().unwrap().is_main_component { %>
-            let crate_root = std::path::PathBuf::from("<%= cargo_dir %>");
+            let crate_root = std::path::PathBuf::from(r"<%= cargo_dir %>");
             let assets_dir = crate_root.join("assets");
 
             match assets_dir.canonicalize() {
