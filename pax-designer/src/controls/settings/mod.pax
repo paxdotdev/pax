@@ -15,50 +15,50 @@ if self.is_component_selected {
                 }
             </Group>
 
-        <Text text={self.selected_component_name} class=h1 class=col_1 class=span_6 />
-        <Group height=150px y=47px>
-            <Group y=0px height=30px>
-                <Text text="x" class=property_label class=col_1 class=span_1 />
-                <PropertyEditor stid={self.stid} snid={self.snid} name="x" class=col_2 class=span_3 />
-                <Text text="y" class=property_label class=col_5 class=span_1 />
-                <PropertyEditor stid={self.stid} snid={self.snid} name="y" class=col_6 class=span_3 />
-            </Group>
-            <Group y=40px height=30px>
-                <Text text="w" class=property_label class=col_1 class=span_1 />
-                <PropertyEditor stid={self.stid} snid={self.snid} name="width" class=col_2 class=span_3 />
-                <Text text="h" class=property_label class=col_5 class=span_1 />
-                <PropertyEditor stid={self.stid} snid={self.snid} name="height" class=col_6 class=span_3 />
-            </Group>
-        </Group>
-        <Path class=hr y=135px class=col_1 class=span_6 />
-        <Group y=145px height=180px>
-            <Text text="Transform" class=h2 class=col_1 class=span_6 />
-            <Group y=30px height={100% - 30px}>
+            <Text text={self.selected_component_name} class=h1 class=col_1 class=span_6 />
+            <Group height=150px y=47px>
                 <Group y=0px height=30px>
-                    <Text text="⊾" class=property_label_larger class=col_1 class=span_1 />
-                    <PropertyEditor stid={self.stid} snid={self.snid} name="rotate" class=col_2 class=span_3 />
+                    <Text text="x" class=property_label class=col_1 class=span_1 />
+                    <PropertyEditor stid={self.stid} snid={self.snid} name="x" class=col_2 class=span_3 />
+                    <Text text="y" class=property_label class=col_5 class=span_1 />
+                    <PropertyEditor stid={self.stid} snid={self.snid} name="y" class=col_6 class=span_3 />
                 </Group>
                 <Group y=40px height=30px>
-                    <Text text="↔x" class=property_label class=col_1 class=span_1 />
-                    <PropertyEditor stid={self.stid} snid={self.snid} name="scale_x" class=col_2 class=span_3 />
-                    <Text text="↕y" class=property_label class=col_5 class=span_1 />
-                    <PropertyEditor stid={self.stid} snid={self.snid} name="scale_y" class=col_6 class=span_3 />
+                    <Text text="w" class=property_label class=col_1 class=span_1 />
+                    <PropertyEditor stid={self.stid} snid={self.snid} name="width" class=col_2 class=span_3 />
+                    <Text text="h" class=property_label class=col_5 class=span_1 />
+                    <PropertyEditor stid={self.stid} snid={self.snid} name="height" class=col_6 class=span_3 />
                 </Group>
-                <Group y=80px height=30px>
-                    <Text text="⨁x" class=property_label class=col_1 class=span_1 />
-                    <PropertyEditor stid={self.stid} snid={self.snid} name="anchor_x" class=col_2 class=span_3 />
-                    <Text text="⨁y" class=property_label class=col_5 class=span_1 />
-                    <PropertyEditor stid={self.stid} snid={self.snid} name="anchor_y" class=col_6 class=span_3 />
-                </Group>
-                <Group y=120px height=30px>
-                    <Text text="▱x" class=property_label class=col_1 class=span_1 />
-                    <PropertyEditor stid={self.stid} snid={self.snid} name="skew_x" class=col_2 class=span_3 />
-                    <Text text="▱y" class=property_label class=col_5 class=span_1 />
-                    <PropertyEditor stid={self.stid} snid={self.snid} name="skew_y" class=col_6 class=span_3 />
+            </Group>
+            <Path class=hr y=135px class=col_1 class=span_6 />
+            <Group y=145px height=180px>
+                <Text text="Transform" class=h2 class=col_1 class=span_6 />
+                <Group y=30px height={100% - 30px}>
+                    <Group y=0px height=30px>
+                        <Text text="⊾" class=property_label_larger class=col_1 class=span_1 />
+                        <PropertyEditor stid={self.stid} snid={self.snid} name="rotate" class=col_2 class=span_3 />
+                    </Group>
+                    <Group y=40px height=30px>
+                        <Text text="↔x" class=property_label class=col_1 class=span_1 />
+                        <PropertyEditor stid={self.stid} snid={self.snid} name="scale_x" class=col_2 class=span_3 />
+                        <Text text="↕y" class=property_label class=col_5 class=span_1 />
+                        <PropertyEditor stid={self.stid} snid={self.snid} name="scale_y" class=col_6 class=span_3 />
+                    </Group>
+                    <Group y=80px height=30px>
+                        <Text text="⨁x" class=property_label class=col_1 class=span_1 />
+                        <PropertyEditor stid={self.stid} snid={self.snid} name="anchor_x" class=col_2 class=span_3 />
+                        <Text text="⨁y" class=property_label class=col_5 class=span_1 />
+                        <PropertyEditor stid={self.stid} snid={self.snid} name="anchor_y" class=col_6 class=span_3 />
+                    </Group>
+                    <Group y=120px height=30px>
+                        <Text text="▱x" class=property_label class=col_1 class=span_1 />
+                        <PropertyEditor stid={self.stid} snid={self.snid} name="skew_x" class=col_2 class=span_3 />
+                        <Text text="▱y" class=property_label class=col_5 class=span_1 />
+                        <PropertyEditor stid={self.stid} snid={self.snid} name="skew_y" class=col_6 class=span_3 />
+                    </Group>
                 </Group>
             </Group>
         </Group>
-    </Group>
     </Scroller>
 }
 

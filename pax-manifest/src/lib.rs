@@ -891,6 +891,12 @@ impl ComponentTemplate {
         UniqueTemplateNodeIdentifier::build(type_id, id)
     }
 
+    pub fn contains_slots(&self) -> bool {
+        self.nodes
+            .values()
+            .any(|v| v.type_id.pax_type == PaxType::Slot)
+    }
+
     fn consume_next_id(&mut self) -> TemplateNodeId {
         let current_next_id = self.next_id;
         self.next_id = self.next_id + 1;

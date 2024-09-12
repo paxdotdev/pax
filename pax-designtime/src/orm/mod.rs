@@ -397,6 +397,16 @@ impl PaxManifestORM {
         let resp = self.execute_command(command)?;
         Ok(resp.get_id())
     }
+
+    pub fn component_has_slots(&self, type_id: &TypeId) -> bool {
+        let Some(component) = self.manifest.components.get(type_id) else {
+            return false;
+        };
+        let Some(template) = component.template.as_ref() else {
+            return false;
+        };
+        template.contains_slots()
+    }
 }
 
 pub trait Undo {

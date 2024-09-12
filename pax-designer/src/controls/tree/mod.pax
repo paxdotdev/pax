@@ -1,30 +1,49 @@
 
 <Scroller scroll_height={(Math::len(self.tree_objects)*42 + 42)px}>
-	for (obj, i) in self.tree_objects {
-		<TreeObj
-			 ind={obj.ind}
-			 y={(i*36)px}
-			 anchor_x=0%
-			 anchor_y=0%
-			 x={(obj.indent_level*6)%}
-			 is_selected={obj.is_selected}
-			 height=34px
-			 name={obj.name}
-			 is_container={obj.is_container}
-			 width={(100.0 - obj.indent_level*6)%}
-			 image_path={obj.image_path}
-			uid={obj.node_id}
-		/>
-	}
-	if self.dragging {
-	    <Rectangle
-			x={(self.drag_indent*6)%}
-			anchor_x=0%
-			width={(100 - self.drag_indent*8)%}
-			y={(34 + self.drag_id*36 - 36*self.drag_top_half)px}
-			height=2px fill=WHITE
-		/>
-	}
+	<Group>
+		for (obj, i) in self.tree_objects {
+			<TreeObj
+				 ind={obj.ind}
+				 y={(i*36)px}
+				 anchor_x=0%
+				 anchor_y=0%
+				 x={(obj.indent_level*6)%}
+				 is_selected={obj.is_selected}
+				 height=34px
+				 name={obj.name}
+				 is_container={obj.is_container}
+				 width={(100.0 - obj.indent_level*6)%}
+				 image_path={obj.image_path}
+				uid={obj.node_id}
+			/>
+		}
+
+
+		if self.dragging {
+		    <Rectangle
+				x={(self.drag_indent*6)%}
+				anchor_x=0%
+				width={(100 - self.drag_indent*8)%}
+				y={(34 + self.drag_id*36 - 36*self.drag_top_half)px}
+				height=2px fill=WHITE
+				_raycastable=false
+			/>
+		}
+		// WARNING: This if statement + invisible rectangle is needed to make double
+		// clicking in the tree view work. If not present, the EventBlockers in the
+		// tree objects shift layers between clicks, resulting in double click not being
+		// fired by the browser.
+		if !self.dragging {
+		    <Rectangle
+				x={(self.drag_indent*6)%}
+				anchor_x=0%
+				width={(100 - self.drag_indent*8)%}
+				y={(34 + self.drag_id*36 - 36*self.drag_top_half)px}
+				height=2px fill=TRANSPARENT
+				_raycastable=false
+			/>
+		}
+	</Group>
 </Scroller>
 <Rectangle fill=TRANSPARENT/>
 

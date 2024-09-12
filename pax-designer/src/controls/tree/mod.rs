@@ -1,4 +1,5 @@
 use anyhow::Result;
+use pax_designtime::orm::PaxManifestORM;
 use pax_engine::api::*;
 use pax_engine::node_layout::LayoutProperties;
 use pax_engine::*;
@@ -72,10 +73,10 @@ impl TreeEntry {
         self,
         ind: &mut usize,
         indent_level: isize,
-        ctx: &NodeContext,
+        orm: &PaxManifestORM,
     ) -> Vec<FlattenedTreeEntry> {
         let mut all = vec![];
-        let desc = self.node_type.metadata(ctx);
+        let desc = self.node_type.metadata(orm);
         all.push(FlattenedTreeEntry {
             node_id: self.node_id,
             name: desc.name,
@@ -90,7 +91,7 @@ impl TreeEntry {
         all.extend(
             self.children
                 .into_iter()
-                .flat_map(|c| c.flatten(ind, indent_level + 1, ctx)),
+                .flat_map(|c| c.flatten(ind, indent_level + 1, orm)),
         );
         all
     }
@@ -159,6 +160,9 @@ impl Tree {
                         builder.get_type_id()
                     };
                     model::perform_action(&SetEditingComponent(type_id_of_tree_target), &ctx);
+                    // unfortunately we've triggered drag behavior on the single click. If we don't
+                    // reset this, movement can happen when the new tree is loaded on mouse release
+                    self.dragging.set(false);
                 }
                 TreeMsg::ObjMouseDown(sender, x_offset) => {
                     model::perform_action(
@@ -279,7 +283,7 @@ impl Tree {
 
             let to_node_container = match to_node
                 .get_node_type(&ctx.engine_context)
-                .metadata(&ctx.engine_context)
+                .metadata(&borrow!(ctx.engine_context.designtime).get_orm())
                 .is_container
                 && !top_half
             {
@@ -342,7 +346,7 @@ impl Tree {
             };
             let node_layout = if to_node_container
                 .get_node_type(&ctx.engine_context)
-                .metadata(&ctx.engine_context)
+                .metadata(&borrow!(ctx.engine_context.designtime).get_orm())
                 .is_slot_container
             {
                 NodeLayoutSettings::Fill::<Glass>
@@ -376,7 +380,7 @@ impl Tree {
 }
 
 fn get_tree(type_id: TypeId, ctx: &NodeContext) -> Vec<FlattenedTreeEntry> {
-    let dt = borrow_mut!(ctx.designtime);
+    let dt = borrow!(ctx.designtime);
     let Ok(comp) = dt.get_orm().get_component(&type_id) else {
         pax_engine::log::warn!("couldn't find component for tree view");
         return Vec::new();
@@ -391,7 +395,7 @@ fn get_tree(type_id: TypeId, ctx: &NodeContext) -> Vec<FlattenedTreeEntry> {
         .iter()
         .flat_map(|tnid| {
             let tree = to_tree(tnid, &template);
-            tree.map(|t| t.flatten(&mut ind, 0, ctx))
+            tree.map(|t| t.flatten(&mut ind, 0, &dt.get_orm()))
                 .unwrap_or_default()
         })
         .collect();
