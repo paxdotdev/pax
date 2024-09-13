@@ -367,9 +367,11 @@ fn pax_full_component(
             let cartridge_path = std::path::Path::new(pax_dir).join("cartridge.partial.rs");
             fs::read_to_string(&cartridge_path).unwrap()
         } else {
+            eprintln!("cartridge path doesn't start with manifest path {current_manifest_dir}, was instead: {pax_dir}");
             "".to_string()
         }
     } else {
+        eprintln!("environment variable PAX_DIR was none");
         "".to_string()
     };
     let output = TemplateArgsDerivePax {
