@@ -60,6 +60,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             println!("Exiting program.");
             break;
         }
+        println!("output_dir: {:?}", output_dir());
         let files = generator.generate_app(&prompt, Some(&output_dir().join("src")), is_designer_project).await?;
         println!("\n=== App Generation Complete ===");
         println!("Files created:");

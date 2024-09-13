@@ -156,6 +156,16 @@ pub fn serialize_main_component(manifest: &PaxManifest, repo_root: &str) {
     }
 }
 
+pub fn serialize_main_component_to_string(manifest: &PaxManifest) -> String {
+    let mc = manifest.components.get(&manifest.main_component_type_id);
+    if let Some(mc) = mc {
+        if let Some(_) = &mc.template {
+            return press_code_serialization_template(mc.clone());
+        }
+    }
+    "".to_string()
+}
+
 fn write_inlined_pax(serialized_component: String, path: &Path, pascal_identifier: String) {
     let content = fs::read_to_string(path).expect("Failed to read file");
     let ast = parse_file(&content).expect("Failed to parse file");

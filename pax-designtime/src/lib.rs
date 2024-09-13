@@ -14,10 +14,13 @@ use messages::LLMHelpRequest;
 use orm::ReloadType;
 use pax_manifest::pax_runtime_api::Property;
 use privileged_agent::PrivilegedAgentConnection;
+use serde_json::json;
 
 use core::fmt::Debug;
 pub use pax_manifest;
-use pax_manifest::{ComponentDefinition, PaxManifest, TypeId, UniqueTemplateNodeIdentifier};
+use pax_manifest::{
+    ComponentDefinition, LLMRequest, PaxManifest, TypeId, UniqueTemplateNodeIdentifier,
+};
 pub use serde_pax::error::{Error, Result};
 pub use serde_pax::se::{to_pax, Serializer};
 
@@ -94,17 +97,24 @@ impl DesigntimeManager {
         Ok(())
     }
 
-    pub fn llm_request(&mut self, request: &str) -> anyhow::Result<()> {
-        let manifest = self.orm.get_manifest();
-        let userland_type_id = manifest.main_component_type_id.clone();
-        let userland_component = manifest.components.get(&userland_type_id).unwrap();
-        let request = LLMHelpRequest {
-            request: request.to_string(),
-            component: userland_component.clone(),
+    pub fn llm_request(&mut self, prompt: &str) -> anyhow::Result<()> {
+        let manifest = self.orm.get_manifest().clone();
+
+        let llm_request = LLMRequest {
+            manifest: manifest.clone(),
+            prompt: prompt.to_string(),
         };
-        self.priv_agent_connection
-            .borrow_mut()
-            .send_llm_request(request)?;
+
+        wasm_bindgen_futures::spawn_local(async move {
+            let response = reqwasm::http::Request::post("http://127.0.0.1:8082/llm_request")
+                .header("Content-Type", "application/json")
+                .body(serde_json::to_string(&llm_request).unwrap())
+                .send()
+                .await;
+
+            log::info!("response_text: {:?}", response);
+        });
+
         Ok(())
     }
 
