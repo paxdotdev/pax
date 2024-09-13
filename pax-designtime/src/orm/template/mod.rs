@@ -1123,6 +1123,72 @@ impl Undo for ConvertToComponentRequest {
     }
 }
 
+
+/// Swap main component with a new component 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SwapMainComponentRequest {
+    new_component: ComponentDefinition,
+    _cached_main_component: Option<ComponentDefinition>,
+}
+
+impl SwapMainComponentRequest {
+    pub fn new(new_componnet: ComponentDefinition) -> Self {
+        Self {
+            new_component: new_componnet,
+            _cached_main_component: None,
+        }
+    }
+}
+
+pub struct SwapMainComponentResponse {
+    command_id: Option<usize>,
+}
+
+impl Request for SwapMainComponentRequest {
+    type Response = SwapMainComponentResponse;
+}
+
+impl Response for SwapMainComponentResponse {
+    fn set_id(&mut self, id: usize) {
+        self.command_id = Some(id);
+    }
+    fn get_id(&self) -> usize {
+        self.command_id.unwrap()
+    }
+}
+
+impl Command<SwapMainComponentRequest> for SwapMainComponentRequest {
+    fn execute(&mut self, manifest: &mut PaxManifest) -> Result<SwapMainComponentResponse, String> {
+        let main_component = manifest
+            .components
+            .get_mut(&manifest.main_component_type_id)
+            .unwrap();
+
+        self._cached_main_component  = Some(main_component.clone());
+        
+        manifest.components.insert(self.new_component.type_id.clone(), self.new_component.clone());
+        manifest.main_component_type_id = self.new_component.type_id.clone();
+        Ok(SwapMainComponentResponse {
+            command_id: None,
+        })
+    }
+}
+
+impl Undo for SwapMainComponentRequest {
+    fn undo(&mut self, manifest: &mut PaxManifest) -> Result<(), String> {
+        manifest.components.remove(&self.new_component.type_id);
+        manifest.main_component_type_id = self._cached_main_component.as_ref().unwrap().type_id.clone();
+        manifest.components.insert(self._cached_main_component.as_ref().unwrap().type_id.clone(), self._cached_main_component.as_ref().unwrap().clone());
+        Ok(())
+    }
+}
+
+
+
+
+
+
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum NodeAction {
     Add(AddTemplateNodeRequest),

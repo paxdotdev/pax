@@ -36,6 +36,11 @@ pub struct DesigntimeManager {
     #[allow(unused)]
     last_written_manifest_version: usize,
     project_query: Option<String>,
+    response_queue: Rc<RefCell<Vec<DesigntimeResponseMessage>>>,
+}
+
+pub enum DesigntimeResponseMessage {
+    LLMResponse(ComponentDefinition),
 }
 
 #[cfg(debug_assertions)]
@@ -60,6 +65,7 @@ impl DesigntimeManager {
             priv_agent_connection: priv_agent,
             last_written_manifest_version: 0,
             project_query: None,
+            response_queue: Rc::new(RefCell::new(Vec::new())),
         }
     }
 
@@ -173,7 +179,23 @@ impl DesigntimeManager {
         }
         self.priv_agent_connection
             .borrow_mut()
-            .handle_recv(&mut self.orm)
+            .handle_recv(&mut self.orm)?;
+
+        let mut response_queue = self.response_queue.borrow_mut();
+        for response in response_queue.drain(..) {
+            // handle Response
+        }
+
+        Ok(())
+    }
+
+    pub fn handle_response(&mut self, response: DesigntimeResponseMessage) {
+        // match on message and handle
+        match response {
+            DesigntimeResponseMessage::LLMResponse(component) => {
+                self.orm.add_component(component);
+            }
+        }
     }
 }
 
