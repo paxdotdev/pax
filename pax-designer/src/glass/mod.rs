@@ -15,7 +15,7 @@ use crate::model::action::tool::SetToolBehaviour;
 use crate::model::action::world::Translate;
 use crate::model::tools::{SelectMode, SelectNodes};
 use crate::model::{AppState, GlassNode};
-use crate::{model, SetStage, StageInfo};
+use crate::{message_log_display, model, SetStage, StageInfo};
 
 use crate::math::coordinate_spaces::{self, World};
 use crate::math::{self, AxisAlignedBox};
@@ -32,6 +32,7 @@ pub use self::tool_editors::TextEdit;
 use control_point::ControlPoint;
 use outline::PathOutline;
 use wireframe_editor::WireframeEditor;
+use crate::message_log_display::DesignerLogMsg;
 
 #[pax]
 #[engine_import_path("pax_engine")]
@@ -230,9 +231,9 @@ impl Glass {
                                 // and we want to drill into it.
                                 if hit_type != ac.app_state.selected_component_id.get() {
                                     if let Err(e) =
-                                        SetEditingComponent(metadata.type_id).perform(ac)
+                                        SetEditingComponent(metadata.type_id.clone()).perform(ac)
                                     {
-                                        log::warn!("failed to set editing component: {}", e);
+                                        message_log_display::log(DesignerLogMsg::message(format!("Cannot edit the component {} because it is not part of this codebase", &metadata.type_id.get_unique_identifier())));
                                     }
                                 } else {
                                     if let Err(e) = (SelectNodes {
