@@ -5,7 +5,7 @@ edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-kit = { version = "VERSION_PLACEHOLDER", features = ["designer"] }
+pax-kit = { version = "VERSION_PLACEHOLDER" }
 rand = { version = "0.8.5" }
 getrandom = { version = "0.2.15", features = ["js"] }
 
