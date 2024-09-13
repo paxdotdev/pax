@@ -36,7 +36,7 @@ impl AIModel {
     fn as_str(&self) -> &'static str {
         match self {
             AIModel::Claude3 => "claude-3-5-sonnet-20240620",
-            AIModel::GPT4 => "gpt-4o",
+            AIModel::GPT4 => "gpt-4o-mini",
         }
     }
 }
@@ -280,6 +280,7 @@ impl PaxAppGenerator {
                     "model": self.model.as_str(),
                     "messages": api_messages,
                     "max_tokens": 4096,
+                    "temperature": 0.1,
                 });
     
                 (
@@ -430,4 +431,72 @@ impl PaxAppGenerator {
         }
         Ok(files_content)
     }
+
+    pub async fn update_pax_file(&self, pax_content: &str, prompt: &str) -> Result<String, Box<dyn Error>> {
+        println!("\n--- Starting PAX File Update ---");
+        println!("Prompt: {}", prompt);
+
+        let mut messages = vec![
+            Message {
+                role: "system".to_string(),
+                content: SYSTEM_PROMPT.to_string(),
+            },
+            Message {
+                role: "user".to_string(),
+                content: format!(
+                    "Here's the current PAX file content:\n\n```pax\n{}\n```\n\nPlease update this PAX file based on the following request:\n{}",
+                    pax_content, prompt
+                ),
+            },
+        ];
+
+        loop {
+            println!("\n--- Sending Prompt to AI ---");
+            let response = self.send_prompt(&messages).await?;
+            println!("Received response from AI.");
+
+            messages.push(Message {
+                role: "assistant".to_string(),
+                content: response.clone(),
+            });
+
+            println!("\n--- Parsing Response ---");
+            match self.parse_response(&response) {
+                Ok(resp) => {
+                    let (_, pax_files) = resp;
+                    println!("\n--- Pre-parsing updated PAX file ---");
+                    let parse_errors = self.pre_parse_pax_files(&pax_files);;
+                    
+                    if parse_errors.is_empty() {
+                        println!("Updated PAX file parsed successfully.");
+                        return Ok(pax_files[0].1.clone());
+                    } else {
+                        println!("PAX parsing errors detected:");
+                        for (_, error) in &parse_errors {
+                            println!("- {}", error);
+                        }
+                        
+                        let error_message = format!(
+                            "The updated PAX file failed to parse. Error: {}. Please fix the PAX syntax errors and provide the corrected code.",
+                            parse_errors[0].1
+                        );
+                        messages.push(Message {
+                            role: "user".to_string(),
+                            content: error_message,
+                        });
+                        println!("Sending error message to AI for correction.");
+                    }
+                }
+                Err(e) => {
+                    println!("Error extracting PAX content: {}", e);
+                    let error_message = format!("The previous response could not be parsed correctly. Error: {}. Please provide the updated PAX file again, ensuring that it's properly formatted within a PAX code block.", e);
+                    messages.push(Message {
+                        role: "user".to_string(),
+                        content: error_message,
+                    });
+                }
+            }
+        }
+    }
+
 }
