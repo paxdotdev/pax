@@ -2,7 +2,7 @@ extern crate proc_macro;
 extern crate proc_macro2;
 mod parsing;
 mod templating;
-use std::fs::{canonicalize, File};
+use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use std::str::FromStr;
@@ -361,9 +361,8 @@ fn pax_full_component(
     }
 
     let pax_dir: Option<PathBuf> = option_env!("PAX_DIR")
-        // The \\?\ prefix in Windows paths is the Win32
-        // file namespace prefix. Needs to be removed to properly check if start matches
-        // below
+        // The \\?\ prefix in Windows paths is the Win32 file namespace prefix.
+        // Needs to be removed to properly check if start matches below.
         .map(|v| v.trim_start_matches("\\\\?\\"))
         .map(|e| PathBuf::from(e));
     let cartridge_snippet = if let Some(pax_dir) = pax_dir {
@@ -374,11 +373,9 @@ fn pax_full_component(
             let cartridge_path = pax_dir.join("cartridge.partial.rs");
             fs::read_to_string(&cartridge_path).unwrap()
         } else {
-            eprintln!("cartridge path doesn't start with manifest path {current_manifest_dir:?}, was instead: {pax_dir:?}");
             "".to_string()
         }
     } else {
-        eprintln!("environment variable PAX_DIR was none");
         "".to_string()
     };
     let output = TemplateArgsDerivePax {

@@ -13,7 +13,6 @@ pub mod serde_pax;
 use orm::ReloadType;
 use pax_manifest::pax_runtime_api::Property;
 use privileged_agent::PrivilegedAgentConnection;
-use serde_json::json;
 
 use core::fmt::Debug;
 pub use pax_manifest;
