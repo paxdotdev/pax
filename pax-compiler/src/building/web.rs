@@ -63,6 +63,8 @@ pub fn build_web_project_with_cartridge(
         cmd.arg("--features").arg("designer");
     }
 
+    eprintln!("COMMAND RUN: {:?}", cmd);
+
     #[cfg(unix)]
     unsafe {
         cmd.pre_exec(crate::pre_exec_hook);
