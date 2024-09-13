@@ -360,14 +360,16 @@ fn pax_full_component(
         template_dependencies.push("BlankComponent".to_string());
     }
 
-    let pax_dir: Option<&'static str> = option_env!("PAX_DIR");
+    let pax_dir: Option<PathBuf> = option_env!("PAX_DIR").map(|e| PathBuf::from(e));
     let cartridge_snippet = if let Some(pax_dir) = pax_dir {
-        let current_manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
+        let current_manifest_dir = env::var("CARGO_MANIFEST_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| ".".into());
         if pax_dir.starts_with(&current_manifest_dir) {
-            let cartridge_path = std::path::Path::new(pax_dir).join("cartridge.partial.rs");
+            let cartridge_path = pax_dir.join("cartridge.partial.rs");
             fs::read_to_string(&cartridge_path).unwrap()
         } else {
-            eprintln!("cartridge path doesn't start with manifest path {current_manifest_dir}, was instead: {pax_dir}");
+            eprintln!("cartridge path doesn't start with manifest path {current_manifest_dir:?}, was instead: {pax_dir:?}");
             "".to_string()
         }
     } else {
