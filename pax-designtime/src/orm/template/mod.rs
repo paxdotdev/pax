@@ -64,9 +64,6 @@ impl Response for AddTemplateNodeResponse {
     fn get_id(&self) -> usize {
         self.command_id.unwrap()
     }
-    fn get_affected_component_type_id(&self) -> Option<TypeId> {
-        Some(self.uni.get_containing_component_type_id().clone())
-    }
     fn get_reload_type(&self) -> Option<ReloadType> {
         Some(ReloadType::FullEdit)
     }
@@ -204,9 +201,6 @@ impl Response for UpdateTemplateNodeResponse {
     fn get_id(&self) -> usize {
         self.command_id.unwrap()
     }
-    fn get_affected_component_type_id(&self) -> Option<TypeId> {
-        Some(self._affected_component_type_id.clone())
-    }
     fn get_reload_type(&self) -> Option<ReloadType> {
         Some(ReloadType::Partial(
             self._affected_unique_node_identifier.clone(),
@@ -326,9 +320,6 @@ impl Response for MoveTemplateNodeResponse {
     fn get_id(&self) -> usize {
         self.command_id.unwrap()
     }
-    fn get_affected_component_type_id(&self) -> Option<TypeId> {
-        Some(self._affected_component_type_id.clone())
-    }
     fn get_reload_type(&self) -> Option<ReloadType> {
         Some(ReloadType::FullEdit)
     }
@@ -432,10 +423,6 @@ impl Response for PasteSubTreeResponse {
     }
     fn get_id(&self) -> usize {
         self.command_id.unwrap()
-    }
-
-    fn get_affected_component_type_id(&self) -> Option<TypeId> {
-        Some(self._affected_component_type_id.clone())
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
         Some(ReloadType::FullEdit)
@@ -545,9 +532,6 @@ impl Response for RemoveTemplateNodeResponse {
     }
     fn get_id(&self) -> usize {
         self.command_id.unwrap()
-    }
-    fn get_affected_component_type_id(&self) -> Option<TypeId> {
-        Some(self._affected_component_type_id.clone())
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
         Some(ReloadType::FullEdit)
@@ -787,10 +771,6 @@ impl Response for ReplaceTemplateResponse {
     fn get_id(&self) -> usize {
         self.command_id.unwrap()
     }
-
-    fn get_affected_component_type_id(&self) -> Option<TypeId> {
-        Some(self._affected_component_type_id.clone())
-    }
     fn get_reload_type(&self) -> Option<ReloadType> {
         Some(ReloadType::FullEdit)
     }
@@ -891,9 +871,6 @@ impl Response for ConvertToComponentResponse {
     }
     fn get_id(&self) -> usize {
         self.command_id.unwrap()
-    }
-    fn get_affected_component_type_id(&self) -> Option<TypeId> {
-        Some(self.uni.get_containing_component_type_id().clone())
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
         Some(ReloadType::FullEdit)
@@ -1123,8 +1100,7 @@ impl Undo for ConvertToComponentRequest {
     }
 }
 
-
-/// Swap main component with a new component 
+/// Swap main component with a new component
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SwapMainComponentRequest {
     new_component: ComponentDefinition,
@@ -1155,6 +1131,10 @@ impl Response for SwapMainComponentResponse {
     fn get_id(&self) -> usize {
         self.command_id.unwrap()
     }
+
+    fn get_reload_type(&self) -> Option<ReloadType> {
+        Some(ReloadType::FullEdit)
+    }
 }
 
 impl Command<SwapMainComponentRequest> for SwapMainComponentRequest {
@@ -1164,30 +1144,37 @@ impl Command<SwapMainComponentRequest> for SwapMainComponentRequest {
             .get_mut(&manifest.main_component_type_id)
             .unwrap();
 
-        self._cached_main_component  = Some(main_component.clone());
-        
-        manifest.components.insert(self.new_component.type_id.clone(), self.new_component.clone());
+        self._cached_main_component = Some(main_component.clone());
+
+        manifest.components.insert(
+            self.new_component.type_id.clone(),
+            self.new_component.clone(),
+        );
         manifest.main_component_type_id = self.new_component.type_id.clone();
-        Ok(SwapMainComponentResponse {
-            command_id: None,
-        })
+        Ok(SwapMainComponentResponse { command_id: None })
     }
 }
 
 impl Undo for SwapMainComponentRequest {
     fn undo(&mut self, manifest: &mut PaxManifest) -> Result<(), String> {
         manifest.components.remove(&self.new_component.type_id);
-        manifest.main_component_type_id = self._cached_main_component.as_ref().unwrap().type_id.clone();
-        manifest.components.insert(self._cached_main_component.as_ref().unwrap().type_id.clone(), self._cached_main_component.as_ref().unwrap().clone());
+        manifest.main_component_type_id = self
+            ._cached_main_component
+            .as_ref()
+            .unwrap()
+            .type_id
+            .clone();
+        manifest.components.insert(
+            self._cached_main_component
+                .as_ref()
+                .unwrap()
+                .type_id
+                .clone(),
+            self._cached_main_component.as_ref().unwrap().clone(),
+        );
         Ok(())
     }
 }
-
-
-
-
-
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum NodeAction {

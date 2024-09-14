@@ -111,14 +111,27 @@ impl DesigntimeManager {
             prompt: prompt.to_string(),
         };
 
+        let queue_cloned = self.response_queue.clone();
+
         wasm_bindgen_futures::spawn_local(async move {
-            let response = reqwasm::http::Request::post("http://127.0.0.1:8082/llm_request")
+            let response = reqwasm::http::Request::post("http://127.0.0.1:80/llm_request")
                 .header("Content-Type", "application/json")
                 .body(serde_json::to_string(&llm_request).unwrap())
                 .send()
                 .await;
 
             log::info!("response_text: {:?}", response);
+            let updated_main_component: ComponentDefinition =
+                response.unwrap().json().await.unwrap();
+            log::info!(
+                "updated_main_component: {:?}",
+                updated_main_component.template
+            );
+            queue_cloned
+                .borrow_mut()
+                .push(DesigntimeResponseMessage::LLMResponse(
+                    updated_main_component,
+                ));
         });
 
         Ok(())
@@ -181,19 +194,23 @@ impl DesigntimeManager {
             .borrow_mut()
             .handle_recv(&mut self.orm)?;
 
-        let mut response_queue = self.response_queue.borrow_mut();
-        for response in response_queue.drain(..) {
-            // handle Response
+        let response_queue = {
+            let mut queue = self.response_queue.borrow_mut();
+            queue.drain(..).collect::<Vec<DesigntimeResponseMessage>>()
+        };
+        for response in response_queue {
+            self.handle_response(response);
         }
-
         Ok(())
     }
 
     pub fn handle_response(&mut self, response: DesigntimeResponseMessage) {
-        // match on message and handle
         match response {
             DesigntimeResponseMessage::LLMResponse(component) => {
-                self.orm.add_component(component);
+                log::warn!("handling LLM response");
+                let _ = self.orm.swap_main_component(component).map_err(|e| {
+                    log::error!("Error swapping main component for LLM response: {:?}", e);
+                });
             }
         }
     }
