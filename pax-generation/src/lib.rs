@@ -338,37 +338,30 @@ impl PaxAppGenerator {
         &self,
         response: &str,
     ) -> Result<(Vec<(String, String)>, Vec<(String, String)>), Box<dyn Error>> {
-        let rust_regex = Regex::new(r"(?s)```rust filename=(.*?\.rs)\n(.*?)```")?;
-        let pax_regex = Regex::new(r"(?s)```pax filename=(.*?\.pax)\n(.*?)```")?;
-
+        let rust_regex = Regex::new(r"(?s)```rust(?: filename=(.*?\.rs))?\n(.*?)```")?;
+        let pax_regex = Regex::new(r"(?s)```pax(?: filename=(.*?\.pax))?\n(.*?)```")?;
+    
         let mut rust_files = Vec::new();
         for cap in rust_regex.captures_iter(response) {
-            let filename = Path::new(&cap[1])
-                .file_name()
-                .and_then(|f| f.to_str())
-                .map(String::from)
-                .unwrap_or_else(|| cap[1].to_string());
+            let filename = cap.get(1).map_or("default.rs", |m| m.as_str()).to_string();
             let content = cap[2].trim().to_string();
             rust_files.push((filename, content));
         }
-
+    
         let mut pax_files = Vec::new();
         for cap in pax_regex.captures_iter(response) {
-            let filename = Path::new(&cap[1])
-                .file_name()
-                .and_then(|f| f.to_str())
-                .map(String::from)
-                .unwrap_or_else(|| cap[1].to_string());
+            let filename = cap.get(1).map_or("default.pax", |m| m.as_str()).to_string();
             let content = cap[2].trim().to_string();
             pax_files.push((filename, content));
         }
-
+    
         if rust_files.is_empty() && pax_files.is_empty() {
             return Err("No Rust or PAX files found in response".into());
         }
-
+    
         Ok((rust_files, pax_files))
     }
+    
 
     fn pre_parse_pax_files(&self, pax_files: &[(String, String)]) -> Vec<(String, String)> {
         let mut parse_errors = Vec::new();
@@ -431,11 +424,11 @@ impl PaxAppGenerator {
         }
         Ok(files_content)
     }
-
+    
     pub async fn update_pax_file(&self, pax_content: &str, prompt: &str) -> Result<String, Box<dyn Error>> {
         println!("\n--- Starting PAX File Update ---");
         println!("Prompt: {}", prompt);
-
+    
         let mut messages = vec![
             Message {
                 role: "system".to_string(),
@@ -449,23 +442,26 @@ impl PaxAppGenerator {
                 ),
             },
         ];
-
-        loop {
+    
+        let mut retry_count = 0;
+        const MAX_RETRIES: usize = 5;
+    
+        while retry_count < MAX_RETRIES {
             println!("\n--- Sending Prompt to AI ---");
             let response = self.send_prompt(&messages).await?;
             println!("Received response from AI.");
-
+    
             messages.push(Message {
                 role: "assistant".to_string(),
                 content: response.clone(),
             });
-
+    
             println!("\n--- Parsing Response ---");
             match self.parse_response(&response) {
                 Ok(resp) => {
                     let (_, pax_files) = resp;
                     println!("\n--- Pre-parsing updated PAX file ---");
-                    let parse_errors = self.pre_parse_pax_files(&pax_files);;
+                    let parse_errors = self.pre_parse_pax_files(&pax_files);
                     
                     if parse_errors.is_empty() {
                         println!("Updated PAX file parsed successfully.");
@@ -485,6 +481,7 @@ impl PaxAppGenerator {
                             content: error_message,
                         });
                         println!("Sending error message to AI for correction.");
+                        retry_count += 1;
                     }
                 }
                 Err(e) => {
@@ -494,9 +491,13 @@ impl PaxAppGenerator {
                         role: "user".to_string(),
                         content: error_message,
                     });
+                    retry_count += 1;
                 }
             }
         }
+    
+        Err(format!("Maximum retries ({}) reached while updating PAX file.", MAX_RETRIES).into())
     }
+    
 
 }

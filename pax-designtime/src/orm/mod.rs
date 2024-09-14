@@ -46,9 +46,6 @@ pub trait Request {
 pub trait Response {
     fn set_id(&mut self, id: usize);
     fn get_id(&self) -> usize;
-    fn get_affected_component_type_id(&self) -> Option<TypeId> {
-        None
-    }
     fn get_reload_type(&self) -> Option<ReloadType> {
         None
     }
@@ -204,6 +201,12 @@ impl PaxManifestORM {
         Ok(resp.children)
     }
 
+    pub fn swap_main_component(&mut self, component: ComponentDefinition) -> Result<(), String> {
+        let command = template::SwapMainComponentRequest::new(component);
+        self.execute_command(command)?;
+        Ok(())
+    }
+
     pub fn copy_subtrees(&self, type_id: &TypeId, nodes: &[TemplateNodeId]) -> Option<SubTrees> {
         let roots: Vec<_> = nodes.iter().cloned().collect();
         let mut children = HashMap::new();
@@ -334,11 +337,9 @@ impl PaxManifestORM {
 
         response.set_id(command_id);
         self.next_command_id += 1;
-        if response.get_affected_component_type_id().is_some() {
-            self.manifest_version.update(|v| *v += 1);
-        }
         if let Some(reload_type) = response.get_reload_type() {
             self.set_reload(reload_type);
+            self.manifest_version.update(|v| *v += 1);
         }
 
         Ok(response)
@@ -422,6 +423,7 @@ pub enum UndoRedoCommand {
     PasteSubTreeRequest(Box<template::PasteSubTreeRequest>),
     ReplaceTemplateRequest(Box<template::ReplaceTemplateRequest>),
     ConvertToComponentRequest(Box<template::ConvertToComponentRequest>),
+    SwapMainComponentRequest(Box<template::SwapMainComponentRequest>),
 }
 
 impl UndoRedoCommand {
@@ -434,6 +436,7 @@ impl UndoRedoCommand {
             UndoRedoCommand::PasteSubTreeRequest(command) => command.undo(manifest),
             UndoRedoCommand::ReplaceTemplateRequest(command) => command.undo(manifest),
             UndoRedoCommand::ConvertToComponentRequest(command) => command.undo(manifest),
+            UndoRedoCommand::SwapMainComponentRequest(command) => command.undo(manifest),
         }
     }
 
@@ -458,6 +461,9 @@ impl UndoRedoCommand {
                 let _ = command.execute(manifest);
             }
             UndoRedoCommand::ConvertToComponentRequest(command) => {
+                let _ = command.execute(manifest);
+            }
+            UndoRedoCommand::SwapMainComponentRequest(command) => {
                 let _ = command.execute(manifest);
             }
         }
