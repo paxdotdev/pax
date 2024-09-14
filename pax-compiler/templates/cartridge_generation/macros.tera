@@ -33,16 +33,11 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                                 properties.{{property.name}} = Property::new_from_untyped(untyped_property.clone());
                             },
                             {{ engine_import_path }}::pax_manifest::ValueDefinition::Identifier(ident)  => {
-                                let variable = if let Some(p) = stack_frame.resolve_symbol_as_variable(&ident.name) {
-                                    p
-                                    } else {
-                                        log::warn!("Failed to resolve symbol {}", ident.name);
-                                        return Default::default();
-                                    };
+                                if let Some(variable) = stack_frame.resolve_symbol_as_variable(&ident.name) {
                                     let name = ident.name.clone();
                                     let untyped = variable.get_untyped_property().clone();
                                     let cloned_variable = variable.clone();
-                                properties.{{property.name}} = Property::computed_with_name(
+                                    properties.{{property.name}} = Property::computed_with_name(
                                         move || {
                                             let new_value = cloned_variable.get_as_pax_value();
                                             <{{property.property_type.type_id._type_id}}>::try_coerce(new_value)
@@ -54,6 +49,10 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                                         &[untyped],
                                         &name,
                                     );
+                                } else {
+                                    log::warn!("Failed to resolve symbol {}", ident.name);
+                                };
+
                             }
                             
                             {{ engine_import_path }}::pax_manifest::ValueDefinition::Expression(info) =>
@@ -63,15 +62,19 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                                     if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
                                         dependents.push(p);
                                     } else {
-                                        panic!("Failed to resolve symbol {}", dependency);
+                                        log::warn!("Failed to resolve symbol {}", dependency);
                                     }
                                 }
                                 let cloned_stack = stack_frame.clone();
+                                let cloned_ast = info.expression.clone();
                                 properties.{{property.name}} = Property::computed_with_name(
                                     move || {
-                                        let new_value = info.expression
-                                            .compute(cloned_stack.clone())
-                                            .expect(&format!("Failed to compute expr: {}", info.expression));
+                                        let new_value = cloned_ast
+                                                    .compute(cloned_stack.clone())
+                                                    .unwrap_or_else(|err| {
+                                                        log::warn!("Failed to compute expr: {}", info.expression);
+                                                        Default::default()
+                                                    });
                                         let coerced = <{{property.property_type.type_id._type_id}}>::try_coerce(new_value.clone())
                                             .unwrap_or_else(|err| {
                                                 log::warn!("Failed to coerce new value for property. Error: {:?}", err);
@@ -108,15 +111,11 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                                     properties.{{property.name}} = Property::new_from_untyped(untyped_property.clone());
                                 },
                                 {{ engine_import_path }}::pax_manifest::ValueDefinition::Identifier(ident)  => {
-                                    let variable = if let Some(p) = stack_frame.resolve_symbol_as_variable(&ident.name) {
-                                        p
-                                        } else {
-                                            panic!("Failed to resolve symbol {}", ident.name);
-                                        };
+                                    if let Some(variable) = stack_frame.resolve_symbol_as_variable(&ident.name) {
                                         let name = ident.name.clone();
                                         let untyped = variable.get_untyped_property().clone();
                                         let cloned_variable = variable.clone();
-                                    properties.{{property.name}} = Property::computed_with_name(
+                                        properties.{{property.name}} = Property::computed_with_name(
                                             move || {
                                                 let new_value = cloned_variable.get_as_pax_value();
                                                 <{{property.property_type.type_id._type_id}}>::try_coerce(new_value).unwrap_or_else(|err| {
@@ -127,6 +126,9 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                                             &[untyped],
                                             &name,
                                         );
+                                        } else {
+                                            log::warn!("Failed to resolve symbol {}", ident.name);
+                                        };
                                 }
                                 
                                 {{ engine_import_path }}::pax_manifest::ValueDefinition::Expression(info) =>
@@ -136,15 +138,19 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                                         if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
                                             dependents.push(p);
                                         } else {
-                                            panic!("Failed to resolve symbol {}", dependency);
+                                            log::warn!("Failed to resolve symbol {}", dependency);
                                         }
                                     }
                                     let cloned_stack = stack_frame.clone();
+                                    let cloned_ast = info.expression.clone();
                                     properties.{{property.name}} = Property::computed_with_name(
                                         move || {
-                                            let new_value = info.expression
-                                                .compute(cloned_stack.clone())
-                                                .expect(&format!("Failed to compute expr: {}", info.expression));
+                                            let new_value = cloned_ast
+                                                    .compute(cloned_stack.clone())
+                                                    .unwrap_or_else(|err| {
+                                                        log::warn!("Failed to compute expr: {}", info.expression);
+                                                        Default::default()
+                                                    });
                                             let coerced = <{{property.property_type.type_id._type_id}}>::try_coerce(new_value.clone()).unwrap_or_else(|err| {
                                                 log::warn!("Failed to coerce new value for property. Error: {:?}", err);
                                                 Default::default()
@@ -197,7 +203,10 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                 }
             },
             {% endfor %}
-            _ => panic!("Unknown handler name {}", fn_name)
+            _ => {
+                log::warn!("Unknown handler name {}", fn_name);
+                |_,_,_|{}
+            }
         }
     }
 
@@ -283,27 +292,28 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                         ret
                                     },
                                     {{ engine_import_path }}::pax_manifest::ValueDefinition::Identifier(ident)  => {
-                                        let variable = if let Some(p) = stack_frame.resolve_symbol_as_variable(&ident.name) {
-                                           p
+                                        if let Some(variable) = stack_frame.resolve_symbol_as_variable(&ident.name) {
+                                            let name = ident.name.clone();
+                                            let untyped = variable.get_untyped_property().clone();
+                                            let cloned_variable = variable.clone();
+                                            let ret = Property::computed_with_name(
+                                                move || {
+                                                    let new_value = cloned_variable.get_as_pax_value();
+                                                    <{{prop.type_id._type_id}}>::try_coerce(new_value).unwrap_or_else(|err| {
+                                                        log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                                                        Default::default()
+                                                    })
+                                                },
+                                                &[untyped],
+                                                &name,
+                                            );
+                                            deps.push(ret.untyped());
+                                            ret
                                         } else {
-                                            panic!("Failed to resolve symbol {}", ident.name);
-                                        };
-                                        let name = ident.name.clone();
-                                        let untyped = variable.get_untyped_property().clone();
-                                        let cloned_variable = variable.clone();
-                                        let ret = Property::computed_with_name(
-                                            move || {
-                                                let new_value = cloned_variable.get_as_pax_value();
-                                                <{{prop.type_id._type_id}}>::try_coerce(new_value).unwrap_or_else(|err| {
-                                                    log::warn!("Failed to coerce new value for property. Error: {:?}", err);
-                                                    Default::default()
-                                                })
-                                            },
-                                            &[untyped],
-                                            &name,
-                                        );
-                                        deps.push(ret.untyped());
-                                        ret
+                                            log::warn!("Failed to resolve symbol {}", ident.name);
+                                            Default::default()
+                                        }
+                                       
                                     }
                                     {{ engine_import_path }}::pax_manifest::ValueDefinition::Expression(info) =>
                                     {
@@ -312,7 +322,7 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                             if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
                                                 dependents.push(p);
                                             } else {
-                                                panic!("Failed to resolve symbol {}", dependency);
+                                                log::warn!("Failed to resolve symbol {}", dependency);
                                             }
                                         }
                                         let cloned_stack = stack_frame.clone();
@@ -321,7 +331,10 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                             move || {
                                                 let new_value = cloned_ast
                                                     .compute(cloned_stack.clone())
-                                                    .expect(&format!("Failed to compute expr: {}", cloned_ast));
+                                                    .unwrap_or_else(|err| {
+                                                        log::warn!("Failed to compute expr: {}", cloned_ast);
+                                                        Default::default()
+                                                    });
                                                 let coerced = <{{prop.type_id._type_id}}>::try_coerce(new_value.clone()).unwrap_or_else(|err| {
                                                     log::warn!("Failed to coerce new value for property. Error: {:?}", err);
                                                     Default::default()

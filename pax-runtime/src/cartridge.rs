@@ -160,7 +160,7 @@ pub trait DefinitionToInstanceTraverser {
                         if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
                             dependencies.push(p);
                         } else {
-                            panic!("Failed to resolve symbol {}", dependency);
+                            log::warn!("Failed to resolve symbol {}", dependency);
                         }
                     }
 
@@ -173,15 +173,20 @@ pub trait DefinitionToInstanceTraverser {
                         cp.boolean_expression
                             .replace_with(Property::computed_with_name(
                                 move || {
-                                    let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
-                                    let coerced = bool::try_coerce(new_value)
-                                        .map_err(|_e| {
-                                            format!(
+                                    let new_value = expr_ast
+                                        .compute(cloned_stack.clone())
+                                        .unwrap_or_else(|err| {
+                                            log::warn!("Failed to compute expression: {:?}", err);
+                                            Default::default()
+                                        });
+                                    let coerced =
+                                        bool::try_coerce(new_value).unwrap_or_else(|_e| {
+                                            log::warn!(
                                                 "Failed to parse boolean expression: {}",
                                                 expr_ast
-                                            )
-                                        })
-                                        .unwrap();
+                                            );
+                                            Default::default()
+                                        });
                                     coerced
                                 },
                                 &dependencies,
@@ -195,11 +200,10 @@ pub trait DefinitionToInstanceTraverser {
                         properties.boolean_expression = Property::computed_with_name(
                             move || {
                                 let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
-                                let coerced = bool::try_coerce(new_value)
-                                    .map_err(|_e| {
-                                        format!("Failed to parse boolean expression: {}", expr_ast)
-                                    })
-                                    .unwrap();
+                                let coerced = bool::try_coerce(new_value).unwrap_or_else(|_e| {
+                                    log::warn!("Failed to parse boolean expression: {}", expr_ast);
+                                    Default::default()
+                                });
                                 coerced
                             },
                             &dependencies,
@@ -243,7 +247,7 @@ pub trait DefinitionToInstanceTraverser {
                         if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
                             dependencies.push(p);
                         } else {
-                            panic!("Failed to resolve symbol {}", dependency);
+                            log::warn!("Failed to resolve symbol {}", dependency);
                         }
                     }
 
@@ -258,15 +262,23 @@ pub trait DefinitionToInstanceTraverser {
                             .index
                             .replace_with(Property::computed_with_name(
                                 move || {
-                                    let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
+                                    let new_value = expr_ast
+                                        .compute(cloned_stack.clone())
+                                        .unwrap_or_else(|op_err| {
+                                            log::warn!(
+                                                "Failed to compute expression: {:?}",
+                                                op_err
+                                            );
+                                            Default::default()
+                                        });
                                     let coerced: Numeric = Numeric::try_coerce(new_value)
-                                        .map_err(|_| {
-                                            format!(
+                                        .unwrap_or_else(|_| {
+                                            log::warn!(
                                                 "Failed to parse slot index expression: {}",
                                                 expr_ast
-                                            )
-                                        })
-                                        .unwrap();
+                                            );
+                                            Default::default()
+                                        });
                                     coerced
                                 },
                                 &dependencies,
@@ -280,15 +292,20 @@ pub trait DefinitionToInstanceTraverser {
 
                         properties.index = Property::computed_with_name(
                             move || {
-                                let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
+                                let new_value = expr_ast
+                                    .compute(cloned_stack.clone())
+                                    .unwrap_or_else(|op_err| {
+                                        log::warn!("Failed to compute expression: {:?}", op_err);
+                                        Default::default()
+                                    });
                                 let coerced: Numeric = Numeric::try_coerce(new_value)
-                                    .map_err(|_| {
-                                        format!(
+                                    .unwrap_or_else(|_| {
+                                        log::warn!(
                                             "Failed to parse slot index expression: {}",
                                             expr_ast
-                                        )
-                                    })
-                                    .unwrap();
+                                        );
+                                        Default::default()
+                                    });
                                 coerced
                             },
                             &dependencies,
@@ -338,7 +355,7 @@ pub trait DefinitionToInstanceTraverser {
                         if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
                             dependencies.push(p);
                         } else {
-                            panic!("Failed to resolve symbol {}", dependency);
+                            log::warn!("Failed to resolve symbol {}", dependency);
                         }
                     }
 
@@ -594,7 +611,7 @@ fn resolve_property<T: CoercionRules + PropertyValue + DeserializeOwned>(
                 if let Some(p) = stack.resolve_symbol_as_erased_property(dependency) {
                     dependents.push(p);
                 } else {
-                    panic!("Failed to resolve symbol {}", dependency);
+                    log::warn!("Failed to resolve symbol {}", dependency);
                 }
             }
             let name = &info.expression.to_string();
