@@ -16,8 +16,8 @@ use crate::llm_interface::SetLLMPromptState;
 use crate::math::coordinate_spaces::Glass;
 use crate::math::SizeUnit;
 use crate::model::action::tool::SetToolBehaviour;
+use crate::model::action::world::SelectNodes;
 use crate::model::action::{Action, ActionContext};
-use crate::model::tools::SelectNodes;
 use crate::model::{self, Component, ProjectMode, Tool, ToolBehavior};
 use crate::ProjectMsg;
 use anyhow::Result;
@@ -351,7 +351,7 @@ impl Action for FinishCurrentTool {
         } else {
             SelectNodes {
                 ids: &[],
-                mode: model::tools::SelectMode::DiscardOthers,
+                mode: model::action::world::SelectMode::DiscardOthers,
             }
             .perform(ctx)
         }
