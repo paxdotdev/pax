@@ -29,8 +29,12 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                             },
                             {{ engine_import_path }}::pax_manifest::ValueDefinition::DoubleBinding(identifier) => {
                                 let identifier = identifier.name;
-                                let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier).expect(&format!("failed to resolve identifier: {}", &identifier));
-                                properties.{{property.name}} = Property::new_from_untyped(untyped_property.clone());
+                                let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier);
+                                if let Some(untyped_property) = untyped_property {
+                                    properties.{{property.name}} = Property::new_from_untyped(untyped_property.clone());
+                                } else {
+                                    log::warn!("Failed to resolve identifier: {}", &identifier);
+                                }
                             },
                             {{ engine_import_path }}::pax_manifest::ValueDefinition::Identifier(ident)  => {
                                 if let Some(variable) = stack_frame.resolve_symbol_as_variable(&ident.name) {

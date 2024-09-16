@@ -3,6 +3,7 @@ use std::fmt::Display;
 use std::ops::{Add, Deref, Mul, Neg, Sub};
 
 use crate::math::Space;
+use constants::PIXELS;
 use kurbo::BezPath;
 pub use pax_message::*;
 pub use pax_value::numeric::Numeric;
@@ -474,8 +475,13 @@ impl Size {
     pub fn expect_percent(&self) -> f64 {
         match &self {
             Size::Percent(val) => val.to_float() / 100.0,
-            _ => {
-                panic!("Percentage value expected but stored value was not a percentage.")
+            Size::Pixels(val) => {
+                log::warn!("Percentage value expected but stored value was pixel.");
+                val.to_float() / 100.0
+            }
+            Size::Combined(_, percent) => {
+                log::warn!("Percentage value expected but stored value was a combination.");
+                percent.to_float() / 100.0
             }
         }
     }
@@ -485,8 +491,13 @@ impl Size {
     pub fn expect_pixels(&self) -> Numeric {
         match &self {
             Size::Pixels(val) => val.clone(),
-            _ => {
-                panic!("Pixel value expected but stored value was not a pixel value.")
+            Size::Percent(val) => {
+                log::warn!("Pixel value expected but stored value was percentage.");
+                val.clone()
+            }
+            Size::Combined(pixels, _) => {
+                log::warn!("Pixel value expected but stored value was a combination.");
+                pixels.clone()
             }
         }
     }
