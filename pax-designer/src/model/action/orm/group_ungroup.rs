@@ -4,8 +4,8 @@ use crate::{
     designer_node_type::DesignerNodeType,
     math::{DecompositionConfiguration, IntoDecompositionConfiguration},
     model::{
+        action::world::{SelectMode, SelectNodes},
         action::{orm::group_ungroup, Action, ActionContext},
-        tools::{SelectMode, SelectNodes},
         GlassNode, GlassNodeSnapshot, SelectionStateSnapshot,
     },
 };

@@ -1,6 +1,6 @@
 use crate::model::{
     action::tool::SetToolBehaviour,
-    tools::{SelectMode, SelectNodes},
+    action::world::{SelectMode, SelectNodes},
     ProjectMode,
 };
 use pax_engine::api::*;

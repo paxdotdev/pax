@@ -13,7 +13,7 @@ use crate::designer_node_type::DesignerNodeType;
 use crate::model::action::orm::CreateComponent;
 use crate::model::action::tool::SetToolBehaviour;
 use crate::model::action::world::Translate;
-use crate::model::tools::{SelectMode, SelectNodes};
+use crate::model::action::world::{SelectMode, SelectNodes};
 use crate::model::{AppState, GlassNode};
 use crate::{message_log_display, model, SetStage, StageInfo};
 
@@ -239,7 +239,7 @@ impl Glass {
                                 } else {
                                     if let Err(e) = (SelectNodes {
                                         ids: &[hit.global_id().unwrap().get_template_node_id()],
-                                        mode: model::tools::SelectMode::Dynamic,
+                                        mode: model::action::world::SelectMode::Dynamic,
                                     }
                                     .perform(ac))
                                     {
