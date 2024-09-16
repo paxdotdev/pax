@@ -87,7 +87,7 @@ impl Action for GroupSelected {
         ));
 
         t.run(|| {
-            let group_parent_t_and_b = group_parent_data.transform_and_bounds.get();
+            let group_parent_t_and_b = group_parent_data.transform_and_bounds.get().as_pure_size();
             let decomp_config = Default::default();
             let node_layout = if parent_is_slot_container {
                 NodeLayoutSettings::Fill
@@ -117,7 +117,7 @@ impl Action for GroupSelected {
                     index: TreeIndexPosition::Bottom,
                     new_parent_uid: &group_uid,
                     node_layout: NodeLayoutSettings::KeepScreenBounds {
-                        node_transform_and_bounds: &node.transform_and_bounds,
+                        node_transform_and_bounds: &node.transform_and_bounds.as_pure_size(),
                         parent_transform_and_bounds: &group_transform_and_bounds,
                         node_decomposition_config: &node
                             .layout_properties

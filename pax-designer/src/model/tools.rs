@@ -139,7 +139,7 @@ impl ToolBehavior for CreateComponentTool {
                         bounds: (1.0, 1.0),
                     }
                     .as_pure_size(),
-                    parent_transform_and_bounds: &parent.transform_and_bounds.get(),
+                    parent_transform_and_bounds: &parent.transform_and_bounds.get().as_pure_size(),
                     node_decomposition_config: &DecompositionConfiguration {
                         unit_x_pos: unit,
                         unit_y_pos: unit,
