@@ -26,8 +26,8 @@ use crate::glass::SetEditingComponent;
 use crate::math::coordinate_spaces::Glass;
 use crate::math::IntoDecompositionConfiguration;
 use crate::model::action::orm::{tree_movement::MoveNode, NodeLayoutSettings};
+use crate::model::action::world::SelectNodes;
 use crate::model::action::Action;
-use crate::model::tools::SelectNodes;
 use crate::model::{self, GlassNode};
 
 #[pax]
@@ -168,7 +168,7 @@ impl Tree {
                     model::perform_action(
                         &SelectNodes {
                             ids: &[tree_obj.read(|t| t[sender].node_id.clone())],
-                            mode: model::tools::SelectMode::Dynamic,
+                            mode: model::action::world::SelectMode::Dynamic,
                         },
                         &ctx,
                     );

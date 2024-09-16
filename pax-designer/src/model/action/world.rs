@@ -5,13 +5,13 @@ use super::{pointer::Pointer, Action, ActionContext};
 use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::AxisAlignedBox;
 use crate::model::input::ModifierKey;
-use crate::model::tools::{SelectMode, SelectNodes};
 use crate::model::{input::InputEvent, AppState, ToolBehavior};
 use crate::DESIGNER_GLASS_ID;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
 use pax_engine::api::Window;
 use pax_engine::math::TransformParts;
+use pax_engine::pax_manifest::TemplateNodeId;
 use pax_engine::{
     api::{Size, Transform2D},
     math::{Generic, Point2, Transform2, Vector2},
@@ -149,6 +149,44 @@ impl Action for SelectAllInOpenContainer {
             mode: SelectMode::Dynamic,
         }
         .perform(ctx)?;
+        Ok(())
+    }
+}
+
+pub struct SelectNodes<'a> {
+    pub ids: &'a [TemplateNodeId],
+    pub mode: SelectMode,
+}
+
+pub enum SelectMode {
+    KeepOthers,
+    DiscardOthers,
+    Dynamic,
+}
+
+impl Action for SelectNodes<'_> {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+        let mut ids = ctx.app_state.selected_template_node_ids.get();
+        let deselect_others = match self.mode {
+            SelectMode::KeepOthers => false,
+            SelectMode::DiscardOthers => true,
+            SelectMode::Dynamic => !ctx.app_state.modifiers.get().contains(&ModifierKey::Shift),
+        };
+        if deselect_others {
+            ids.clear();
+        }
+        // not efficient but should never be large sets
+        for id in self.ids {
+            if ids.contains(id) {
+                ids.retain(|e| e != id);
+            } else {
+                ids.push(id.clone());
+            }
+        }
+        // Only set if changed, otherwise re-triggers when same object gets re-selected
+        if ids != ctx.app_state.selected_template_node_ids.get() {
+            ctx.app_state.selected_template_node_ids.set(ids);
+        }
         Ok(())
     }
 }

@@ -12,8 +12,8 @@ use crate::math::{
     self, AxisAlignedBox, DecompositionConfiguration, GetUnit, IntoDecompositionConfiguration,
     RotationUnit, SizeUnit,
 };
+use crate::model::action::world::{SelectMode, SelectNodes};
 use crate::model::input::{InputEvent, ModifierKey};
-use crate::model::tools::{SelectMode, SelectNodes};
 use crate::model::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot};
 use crate::{math::BoxPoint, model, model::AppState};
 use anyhow::{anyhow, Context, Result};
