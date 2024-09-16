@@ -1,6 +1,6 @@
 [package]
 name = "breakout"
-version = "0.36.6"
+version = "0.36.7"
 edition = "2021"
 default-run = "run"
 
@@ -9,7 +9,7 @@ serde_json = {version = "1.0.95", optional = true}
 rand = { version = "0.8.5", features = ["getrandom"] }
 getrandom = { version = "0.2.15", features = ["js"] }
 rand_distr = { version = "0.4" }
-pax-kit = { version = "0.36.6", path="../../../pax-kit" }
+pax-kit = { version = "0.36.7", path="../../../pax-kit" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

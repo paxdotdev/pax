@@ -1,6 +1,6 @@
 [package]
 name = "pax"
-version = "0.36.6"
+version = "0.36.7"
 authors = ["Zack Brown <zack@pax.dev>", "Warfa Jibril <warfa@pax.dev>", "Samuel Selleck <samuel@pax.dev>"]
 edition = "2021"
 
