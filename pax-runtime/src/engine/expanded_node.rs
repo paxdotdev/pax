@@ -2,7 +2,7 @@ use crate::api::TextInput;
 use crate::node_interface::NodeLocal;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::{
-    borrow, borrow_mut, use_RefCell, Focus, Interpolatable, Percent, Property, Variable,
+    borrow, borrow_mut, use_RefCell, Focus, Interpolatable, Percent, Property, Variable, Viewport,
 };
 
 use crate::api::math::Point2;
@@ -189,11 +189,13 @@ macro_rules! dispatch_event_handler {
 
 impl ExpandedNode {
     pub fn initialize_root(template: Rc<ComponentInstance>, ctx: &Rc<RuntimeContext>) -> Rc<Self> {
-        let root_env = RuntimePropertiesStackFrame::new(
-            HashMap::new(),
-            Rc::new(RefCell::new(().to_pax_any())),
+        let root_node = Self::new(
+            template,
+            ctx.globals().stack_frame(),
+            ctx,
+            Weak::new(),
+            Weak::new(),
         );
-        let root_node = Self::new(template, root_env, ctx, Weak::new(), Weak::new());
         root_node.bind_to_parent_bounds(ctx);
         Rc::clone(&root_node).recurse_mount(ctx);
         root_node
@@ -208,6 +210,7 @@ impl ExpandedNode {
     ) -> Rc<Self> {
         let properties =
             (&template.base().instance_prototypical_properties_factory)(env.clone(), None).unwrap();
+
         let common_properties =
             (&template
                 .base()

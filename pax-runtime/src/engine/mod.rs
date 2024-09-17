@@ -1,11 +1,13 @@
-use crate::{api::Property, ExpandedNodeIdentifier, TransformAndBounds};
+use crate::{
+    api::Property, ExpandedNodeIdentifier, RuntimePropertiesStackFrame, TransformAndBounds,
+};
 use_RefCell!();
 use std::collections::HashMap;
 use std::rc::Rc;
 
 use kurbo::Affine;
 use pax_message::NativeMessage;
-use pax_runtime_api::{pax_value::PaxAny, use_RefCell, Event, Focus, Window, OS};
+use pax_runtime_api::{pax_value::PaxAny, use_RefCell, Event, Focus, Variable, Window, OS};
 
 use crate::api::{KeyDown, KeyPress, KeyUp, NodeContext, RenderContext};
 use piet::InterpolationMode;
@@ -42,6 +44,43 @@ pub struct Globals {
     pub os: OS,
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
+}
+
+impl Globals {
+    pub fn stack_frame(&self) -> Rc<RuntimePropertiesStackFrame> {
+        let mobile = Property::new(self.os.is_mobile());
+        let desktop = Property::new(self.os.is_desktop());
+
+        let cloned_viewport = self.viewport.clone();
+        let deps = [cloned_viewport.untyped()];
+        let viewport = Property::computed(
+            move || {
+                let viewport = cloned_viewport.get();
+                pax_runtime_api::Viewport {
+                    width: viewport.bounds.0,
+                    height: viewport.bounds.1,
+                }
+            },
+            &deps,
+        );
+
+        let mobile_var = Variable::new_from_typed_property(mobile);
+        let desktop_var = Variable::new_from_typed_property(desktop);
+        let viewport_var = Variable::new_from_typed_property(viewport);
+        let frames_elapsed_var = Variable::new_from_typed_property(self.frames_elapsed.clone());
+
+        let global_scope = vec![
+            ("$mobile".to_string(), mobile_var),
+            ("$desktop".to_string(), desktop_var),
+            ("$viewport".to_string(), viewport_var),
+            ("$frames_elapsed".to_string(), frames_elapsed_var),
+        ]
+        .into_iter()
+        .collect();
+
+        let root_env = RuntimePropertiesStackFrame::new(global_scope);
+        root_env
+    }
 }
 
 impl std::fmt::Debug for Globals {

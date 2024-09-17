@@ -339,57 +339,35 @@ impl RuntimeContext {
 pub struct RuntimePropertiesStackFrame {
     symbols_within_frame: HashMap<String, Variable>,
     local_stores: Rc<RefCell<HashMap<TypeId, Box<dyn Any>>>>,
-    properties: Rc<RefCell<PaxAny>>,
     parent: Weak<RuntimePropertiesStackFrame>,
 }
 
+impl std::fmt::Display for RuntimePropertiesStackFrame {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // print all keys in the hashmap
+        write!(f, "{:?}", self.symbols_within_frame.keys())
+    }
+}
+
 impl RuntimePropertiesStackFrame {
-    pub fn new(
-        symbols_within_frame: HashMap<String, Variable>,
-        properties: Rc<RefCell<PaxAny>>,
-    ) -> Rc<Self> {
+    pub fn new(symbols_within_frame: HashMap<String, Variable>) -> Rc<Self> {
         Rc::new(Self {
             symbols_within_frame,
-            properties,
             local_stores: Default::default(),
             parent: Weak::new(),
         })
     }
 
-    pub fn push(
-        self: &Rc<Self>,
-        symbols_within_frame: HashMap<String, Variable>,
-        properties: &Rc<RefCell<PaxAny>>,
-    ) -> Rc<Self> {
+    pub fn push(self: &Rc<Self>, symbols_within_frame: HashMap<String, Variable>) -> Rc<Self> {
         Rc::new(RuntimePropertiesStackFrame {
             symbols_within_frame,
             local_stores: Default::default(),
             parent: Rc::downgrade(&self),
-            properties: Rc::clone(properties),
         })
     }
 
     pub fn pop(self: &Rc<Self>) -> Option<Rc<Self>> {
         self.parent.upgrade()
-    }
-
-    /// Traverses stack recursively `n` times to retrieve ancestor;
-    /// useful for runtime lookups for identifiers, where `n` is the statically known offset determined by the Pax compiler
-    /// when resolving a symbol
-    pub fn peek_nth(self: &Rc<Self>, n: isize) -> Option<Rc<RefCell<PaxAny>>> {
-        let mut curr = Rc::clone(self);
-        for _ in 0..n {
-            curr = curr.parent.upgrade()?;
-        }
-        Some(Rc::clone(&curr.properties))
-    }
-
-    pub fn resolve_symbol(&self, symbol: &str) -> Option<Rc<RefCell<PaxAny>>> {
-        if let Some(_) = self.symbols_within_frame.get(&clean_symbol(symbol)) {
-            Some(Rc::clone(&self.properties))
-        } else {
-            self.parent.upgrade()?.resolve_symbol(symbol)
-        }
     }
 
     pub fn insert_stack_local_store<T: Store>(&self, store: T) {
@@ -442,10 +420,6 @@ impl RuntimePropertiesStackFrame {
         } else {
             self.parent.upgrade()?.resolve_symbol_as_pax_value(symbol)
         }
-    }
-
-    pub fn get_properties(&self) -> Rc<RefCell<PaxAny>> {
-        Rc::clone(&self.properties)
     }
 }
 
