@@ -78,12 +78,56 @@ pub enum OS {
     Unknown,
 }
 
+impl OS {
+    pub fn is_mobile(&self) -> bool {
+        match self {
+            OS::Android | OS::IPhone => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_desktop(&self) -> bool {
+        match self {
+            OS::Mac | OS::Linux | OS::Windows => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Default, Debug, Clone, Copy)]
 pub enum Platform {
     Web,
     Native,
     #[default]
     Unknown,
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+pub struct Viewport {
+    pub width: f64,
+    pub height: f64,
+}
+
+impl ToPaxValue for Viewport {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Object(
+            vec![
+                ("width".to_string(), self.width.to_pax_value()),
+                ("height".to_string(), self.height.to_pax_value()),
+            ]
+            .into_iter()
+            .collect(),
+        )
+    }
+}
+
+impl Interpolatable for Viewport {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Viewport {
+            width: self.width + (other.width - self.width) * t,
+            height: self.height + (other.height - self.height) * t,
+        }
+    }
 }
 
 pub struct Window;

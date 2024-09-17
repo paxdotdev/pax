@@ -1,8 +1,7 @@
 
 WHITESPACE = _{ " " | "\t" | "\r" | NEWLINE }
 // Comment rule is explicit so parser doesn't accept them anywhere vs. built-ins are accepted anywhere
-comment = @{  ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NEWLINE) }
-
+comment = @{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NEWLINE) |  ("<!--" ~ (!"-->" ~ ANY)* ~ "-->") }
 
 ////// ////// //////
 /// BEGIN TEMPLATE

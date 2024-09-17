@@ -64,10 +64,7 @@ impl InstanceNode for ComponentInstance {
             *borrow_mut!(expanded_node.expanded_slot_children) = Some(new_slot_children);
         }
         let properties_scope = borrow!(expanded_node.properties_scope);
-        let new_env = expanded_node.stack.push(
-            properties_scope.clone(),
-            &*borrow!(expanded_node.properties),
-        );
+        let new_env = expanded_node.stack.push(properties_scope.clone());
         let children = borrow!(self.template);
         let children_with_envs = children.iter().cloned().zip(iter::repeat(new_env));
         expanded_node.children.replace_with(Property::new_with_name(

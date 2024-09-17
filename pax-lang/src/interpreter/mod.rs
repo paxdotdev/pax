@@ -389,6 +389,13 @@ fn recurse_pratt_parse(
                 Ok(exp)
             }
             Rule::xo_symbol => {
+                let builtins_prefix = if primary.as_str().starts_with("$") {
+                    "$"
+                } else {
+                    ""
+                }
+                .to_string();
+
                 let mut symbols = primary.into_inner();
 
                 // skip self or this
@@ -396,7 +403,8 @@ fn recurse_pratt_parse(
                 if peek.as_str().trim() == "self" || peek.as_str().trim() == "this" {
                     symbols.next();
                 }
-                let identifier = symbols.next().unwrap().as_str().trim().to_string();
+
+                let identifier = builtins_prefix + symbols.next().unwrap().as_str().trim();
                 let mut accessors = vec![];
                 for symbol in symbols {
                     let accessor = match symbol.as_rule() {
