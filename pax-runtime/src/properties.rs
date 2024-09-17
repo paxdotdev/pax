@@ -342,13 +342,6 @@ pub struct RuntimePropertiesStackFrame {
     parent: Weak<RuntimePropertiesStackFrame>,
 }
 
-impl std::fmt::Display for RuntimePropertiesStackFrame {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // print all keys in the hashmap
-        write!(f, "{:?}", self.symbols_within_frame.keys())
-    }
-}
-
 impl RuntimePropertiesStackFrame {
     pub fn new(symbols_within_frame: HashMap<String, Variable>) -> Rc<Self> {
         Rc::new(Self {
