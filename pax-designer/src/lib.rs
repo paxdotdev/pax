@@ -65,7 +65,7 @@ const PAX_PUBLISH_BUTTON_ENABLED: bool = option_env!("PAX_PUBLISH_BUTTON").is_so
 #[file("lib.pax")]
 pub struct PaxDesigner {
     pub transform2d: Property<Transform2D>,
-    pub stage_bounding_box: Property<StageBoundingBox>,
+    pub stage_outline_width: Property<f64>,
     pub stage: Property<StageInfo>,
     pub play_active: Property<bool>,
     pub glass_active: Property<bool>,
@@ -83,6 +83,7 @@ impl PaxDesigner {
             self.bind_transform2d_property(&app_state);
             self.bind_glass_active_property(&app_state);
             self.bind_interaction_mode_property();
+            self.bind_stage_outline_width_property(&app_state);
         });
 
         // used to show "loading screen"
@@ -145,6 +146,20 @@ impl PaxDesigner {
                     Size::Percent((100.0 * s.x).into()),
                     Size::Percent((100.0 * s.y).into()),
                 ) * Transform2D::translate(Size::Pixels(t.x.into()), Size::Pixels(t.y.into()))
+            },
+            &deps,
+        ));
+    }
+
+    fn bind_stage_outline_width_property(&mut self, app_state: &model::AppState) {
+        let glass_to_world = app_state.glass_to_world_transform.clone();
+        let deps = [glass_to_world.untyped()];
+        self.stage_outline_width.replace_with(Property::computed(
+            move || {
+                let world_to_glass = glass_to_world.get().inverse();
+                let s = world_to_glass.get_scale();
+                // scaling x/y should always be equal
+                3.0 / s.x
             },
             &deps,
         ));
