@@ -15,6 +15,7 @@ use pax_manifest::pax_runtime_api::Property;
 use privileged_agent::PrivilegedAgentConnection;
 
 use core::fmt::Debug;
+
 pub use pax_manifest;
 use pax_manifest::{
     server::*, ComponentDefinition, PaxManifest, TypeId, UniqueTemplateNodeIdentifier,
@@ -44,7 +45,6 @@ pub enum DesigntimeResponseMessage {
     PublishResponse(PublishResponse),
 }
 
-#[cfg(debug_assertions)]
 impl Debug for DesigntimeManager {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DesigntimeManager").finish()

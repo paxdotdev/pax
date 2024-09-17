@@ -3,7 +3,6 @@ use std::fmt::Display;
 use std::ops::{Add, Deref, Mul, Neg, Sub};
 
 use crate::math::Space;
-use constants::PIXELS;
 use kurbo::BezPath;
 pub use pax_message::*;
 pub use pax_value::numeric::Numeric;
