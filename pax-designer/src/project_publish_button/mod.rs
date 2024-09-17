@@ -38,16 +38,19 @@ impl ProjectPublishButton {
         let github_pr_url_cloned = self.github_pr_url.clone();
         let publish_error_cloned = self.publish_error.clone();
         let publish_error_message_cloned = self.publish_error_message.clone();
+        let is_publishing_cloned = self.is_publishing.clone();
 
         self.publish_state.replace_with(Property::computed(
             move || {
                 match publish_state_cloned.get() {
                     Some(PublishResponse::Success(success)) => {
+                        is_publishing_cloned.set(false);
                         publish_success_cloned.set(true);
                         github_pr_url_cloned.set(success.pull_request_url.clone());
                         Some(PublishResponse::Success(success))
                     }
                     Some(PublishResponse::Error(error)) => {
+                        is_publishing_cloned.set(false);
                         publish_error_cloned.set(true);
                         publish_error_message_cloned.set(error.message.clone());
                         Some(PublishResponse::Error(error))
