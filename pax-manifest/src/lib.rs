@@ -10,6 +10,8 @@ use pax_message::serde::{Deserialize, Serialize};
 pub use pax_runtime_api;
 use pax_runtime_api::{CoercionRules, HelperFunctions, Interpolatable, PaxValue, ToPaxValue};
 pub mod parsing;
+pub mod server;
+
 
 #[cfg(feature = "parsing")]
 pub mod utils;
@@ -1719,15 +1721,3 @@ pub const IMPORTS_BUILTINS: &[&str] = &[
     "pax_runtime::repeat::RepeatInstance",
     "piet_common::RenderContext",
 ];
-
-#[derive(Deserialize, Serialize)]
-pub struct LLMRequest {
-    pub manifest: PaxManifest,
-    pub prompt: String,
-}
-
-impl LLMRequest {
-    pub fn new(manifest: PaxManifest, prompt: String) -> Self {
-        Self { manifest, prompt }
-    }
-}
