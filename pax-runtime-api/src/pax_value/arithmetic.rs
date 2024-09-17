@@ -36,7 +36,12 @@ impl Add for PaxValue {
                 Size::Percent(per) => Size::Percent(per + b).to_pax_value(),
                 Size::Combined(px, per) => Size::Combined(px + b, per + b).to_pax_value(),
             },
-            (a, b) => panic!("can't add {:?} and {:?}", a, b),
+            (PaxValue::Numeric(a), PaxValue::Percent(b)) => Size::Combined(a, b.0).to_pax_value(),
+            (PaxValue::Percent(a), PaxValue::Numeric(b)) => Size::Combined(b, a.0).to_pax_value(),
+            (a, b) => {
+                log::warn!("can't add {:?} and {:?}", a, b);
+                PaxValue::default()
+            }
         }
     }
 }
@@ -57,7 +62,10 @@ impl Mul for PaxValue {
                 Size::Percent(per) => Size::Percent(per * b).to_pax_value(),
                 Size::Combined(px, per) => Size::Combined(px * b, per * b).to_pax_value(),
             },
-            (a, b) => panic!("can't multiply {:?} and {:?}", a, b),
+            (a, b) => {
+                log::warn!("can't multiply {:?} and {:?}", a, b);
+                PaxValue::default()
+            }
         }
     }
 }
@@ -79,7 +87,10 @@ impl Sub for PaxValue {
                 Size::Percent(per) => Size::Percent(per - b).to_pax_value(),
                 Size::Combined(px, per) => Size::Combined(px - b, per - b).to_pax_value(),
             },
-            (a, b) => panic!("can't subtract {:?} and {:?}", a, b),
+            (a, b) => {
+                log::warn!("can't subtract {:?} and {:?}", a, b);
+                PaxValue::default()
+            }
         }
     }
 }
@@ -96,7 +107,10 @@ impl Div for PaxValue {
                 Size::Percent(per) => Size::Percent(per / b).to_pax_value(),
                 Size::Combined(px, per) => Size::Combined(px / b, per / b).to_pax_value(),
             },
-            (a, b) => panic!("can't divide {:?} and {:?}", a, b),
+            (a, b) => {
+                log::warn!("can't divide {:?} and {:?}", a, b);
+                PaxValue::default()
+            }
         }
     }
 }
@@ -110,7 +124,10 @@ impl Neg for PaxValue {
             PaxValue::Size(a) => (-a).to_pax_value(),
             PaxValue::Percent(p) => (-p.0).to_pax_value(),
             PaxValue::Rotation(r) => (-r).to_pax_value(),
-            a => panic!("can't negate {:?}", a),
+            a => {
+                log::warn!("can't negate {:?}", a);
+                PaxValue::default()
+            }
         }
     }
 }
@@ -130,7 +147,10 @@ impl PartialEq for PaxValue {
             (PaxValue::Object(a), PaxValue::Object(b)) => a == b,
             (PaxValue::Enum(a, b, c), PaxValue::Enum(d, e, f)) => a == d && b == e && c == f,
             (PaxValue::Range(a, b), PaxValue::Range(c, d)) => a == c && b == d,
-            (a, b) => panic!("can't compare {:?} and {:?}", a, b),
+            (a, b) => {
+                log::warn!("can't compare {:?} and {:?}", a, b);
+                false
+            }
         }
     }
 }
@@ -141,7 +161,10 @@ impl PartialOrd for PaxValue {
             (PaxValue::Bool(a), PaxValue::Bool(b)) => a.partial_cmp(b),
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => a.partial_cmp(b),
             (PaxValue::String(a), PaxValue::String(b)) => a.partial_cmp(b),
-            (a, b) => panic!("can't compare {:?} and {:?}", a, b),
+            (a, b) => {
+                log::warn!("can't compare {:?} and {:?}", a, b);
+                None
+            }
         }
     }
 }
@@ -152,7 +175,10 @@ impl Rem for PaxValue {
     fn rem(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => (a % b).to_pax_value(),
-            (a, b) => panic!("can't get remainder of {:?} and {:?}", a, b),
+            (a, b) => {
+                log::warn!("can't take remainder of {:?} and {:?}", a, b);
+                PaxValue::default()
+            }
         }
     }
 }
@@ -163,7 +189,10 @@ impl Not for PaxValue {
     fn not(self) -> Self::Output {
         match self {
             PaxValue::Bool(v) => PaxValue::Bool(!v),
-            v => panic!("! operator not valid for {:?}", v),
+            v => {
+                log::warn!("can't use not(!) operator on {:?}", v);
+                PaxValue::default()
+            }
         }
     }
 }
@@ -174,7 +203,11 @@ impl PaxValue {
     pub fn op_and(self, rhs: Self) -> Self {
         match (self, rhs) {
             (PaxValue::Bool(a), PaxValue::Bool(b)) => PaxValue::Bool(a && b),
-            (a, b) => panic!("&& operator not valid for {:?} and {:?}", a, b),
+            (a, b) => {
+                //panic!("&& operator not valid for {:?} and {:?}", a, b);
+                log::warn!("&& operator not valid for {:?} and {:?}", a, b);
+                PaxValue::default()
+            }
         }
     }
     // the operator || currently can't be overloaded, we use this function instead
@@ -182,14 +215,21 @@ impl PaxValue {
     pub fn op_or(self, rhs: Self) -> Self {
         match (self, rhs) {
             (PaxValue::Bool(a), PaxValue::Bool(b)) => PaxValue::Bool(a || b),
-            (a, b) => panic!("&& operator not valid for {:?} and {:?}", a, b),
+            (a, b) => {
+                //panic!("&& operator not valid for {:?} and {:?}", a, b)
+                log::warn!("&& operator not valid for {:?} and {:?}", a, b);
+                PaxValue::default()
+            }
         }
     }
 
     pub fn op_not(self) -> Self {
         match self {
             PaxValue::Bool(v) => PaxValue::Bool(!v),
-            v => panic!("! operator not valid for {:?}", v),
+            v => {
+                log::warn!("! operator not valid for {:?}", v);
+                PaxValue::default()
+            }
         }
     }
 
@@ -197,21 +237,30 @@ impl PaxValue {
     pub fn pow(self, exp: Self) -> Self {
         match (self, exp) {
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => a.pow(b).to_pax_value(),
-            (a, b) => panic!("exponentiation not valid between {:?} and {:?}", a, b),
+            (a, b) => {
+                log::warn!("exponentiation not valid between {:?} and {:?}", a, b);
+                PaxValue::default()
+            }
         }
     }
 
     pub fn min(self, rhs: Self) -> Self {
         match (self, rhs) {
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => a.min(b).to_pax_value(),
-            (a, b) => panic!("min not valid between {:?} and {:?}", a, b),
+            (a, b) => {
+                log::warn!("min not valid between {:?} and {:?}", a, b);
+                PaxValue::default()
+            }
         }
     }
 
     pub fn max(self, rhs: Self) -> Self {
         match (self, rhs) {
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => a.max(b).to_pax_value(),
-            (a, b) => panic!("max not valid between {:?} and {:?}", a, b),
+            (a, b) => {
+                log::warn!("max not valid between {:?} and {:?}", a, b);
+                PaxValue::default()
+            }
         }
     }
 }

@@ -1,13 +1,18 @@
+use std::cell::Ref;
+use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
 
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell, Property};
+use pax_runtime_api::properties::UntypedProperty;
+use pax_runtime_api::{
+    borrow, borrow_mut, use_RefCell, Interpolatable, PaxValue, Property, ToPaxValue, Variable,
+};
 
 use_RefCell!();
 use crate::api::{Layer, Timeline};
 use crate::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstanceNodePtrList,
-    InstantiationArgs, RuntimeContext,
+    InstantiationArgs, RuntimeContext, RuntimePropertiesStackFrame,
 };
 
 /// A render node with its own runtime context.  Will push a frame
@@ -53,7 +58,13 @@ impl InstanceNode for ComponentInstance {
         context: &Rc<RuntimeContext>,
     ) {
         if let Some(containing_component) = expanded_node.containing_component.upgrade() {
-            let env = Rc::clone(&expanded_node.stack);
+            let env = if let Some(stack_frame) =
+                ScrollPosition::create_builtin_if_exists(borrow!(expanded_node.properties_scope))
+            {
+                expanded_node.stack.push(stack_frame)
+            } else {
+                Rc::clone(&expanded_node.stack)
+            };
             let children = borrow!(self.base().get_instance_children());
             let children_with_env = children.iter().cloned().zip(iter::repeat(env));
             let new_slot_children = containing_component.create_children_detached(
@@ -109,5 +120,66 @@ impl InstanceNode for ComponentInstance {
 
     fn get_template(&self) -> Option<&InstanceNodePtrList> {
         Some(&self.template)
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ScrollPosition {
+    pub x: f64,
+    pub y: f64,
+}
+
+impl Interpolatable for ScrollPosition {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        ScrollPosition {
+            x: self.x + (other.x - self.x) * t,
+            y: self.y + (other.y - self.y) * t,
+        }
+    }
+}
+
+impl ToPaxValue for ScrollPosition {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Object(
+            vec![
+                ("x".to_string(), self.x.to_pax_value()),
+                ("y".to_string(), self.y.to_pax_value()),
+            ]
+            .into_iter()
+            .collect(),
+        )
+    }
+}
+
+impl ScrollPosition {
+    pub fn create_builtin_if_exists(
+        property_scope: Ref<HashMap<String, Variable>>,
+    ) -> Option<HashMap<String, Variable>> {
+        let scroll_pos_x: Property<f64> = Property::new_from_untyped(
+            property_scope
+                .get("scroll_pos_x")?
+                .get_untyped_property()
+                .clone(),
+        );
+        let scroll_pos_y: Property<f64> = Property::new_from_untyped(
+            property_scope
+                .get("scroll_pos_y")?
+                .get_untyped_property()
+                .clone(),
+        );
+        let deps = [scroll_pos_x.untyped(), scroll_pos_y.untyped()];
+        let scroll_position = Property::computed(
+            move || ScrollPosition {
+                x: scroll_pos_x.get(),
+                y: scroll_pos_y.get(),
+            },
+            &deps,
+        );
+
+        let scroll_position_var = Variable::new_from_typed_property(scroll_position);
+        let stack_frame = vec![("$scroll_position".to_string(), scroll_position_var)]
+            .into_iter()
+            .collect();
+        Some(stack_frame)
     }
 }
