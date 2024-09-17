@@ -148,7 +148,7 @@ pub fn serialize_main_component(manifest: &PaxManifest, repo_root: &str) {
     if let Some(mc) = mc {
         if let Some(template) = &mc.template {
             if let Some(file_path) = &template.get_file_path() {
-                let suffix = file_path.split_once("pax/").unwrap().1;
+                let suffix = file_path.split_once("www.pax.dev/").unwrap().1;
                 let file_path = format!("{}/{}", repo_root, suffix);
                 serialize_component_to_file(mc, file_path.clone());
             }
