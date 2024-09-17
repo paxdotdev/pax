@@ -55,6 +55,10 @@ use pax_std::*;
 
 pub const DESIGNER_GLASS_ID: &str = "designer_glass";
 
+//We only want to show the publish button on www.pax.dev for now; as a hack to parameterize this,
+//we are reading this env var at compiletime and exposing it via a const to runtime.
+const PAX_PUBLISH_BUTTON_ENABLED: bool = option_env!("PAX_PUBLISH_BUTTON").is_some();
+
 #[pax]
 #[engine_import_path("pax_engine")]
 #[main]
@@ -65,10 +69,14 @@ pub struct PaxDesigner {
     pub play_active: Property<bool>,
     pub glass_active: Property<bool>,
     pub manifest_loaded_from_server: Property<bool>,
+    pub show_publish_button: Property<bool>,
 }
 
 impl PaxDesigner {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
+
+        self.show_publish_button.set(PAX_PUBLISH_BUTTON_ENABLED);
+
         model::Model::init(ctx);
         model::read_app_state(|app_state| {
             self.bind_stage_property(&app_state);

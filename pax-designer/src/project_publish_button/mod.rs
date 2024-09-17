@@ -27,8 +27,7 @@ pub struct ProjectPublishButton {
 #[allow(unused)]
 impl ProjectPublishButton {
 
-
-    pub fn on_mount(&mut self, ctx: &NodeContext) {
+    pub fn mount(&mut self, ctx: &NodeContext) {
         let publish_state_cloned = borrow!(ctx.designtime).publish_state.clone();
         let deps = [
             publish_state_cloned.untyped(),
@@ -60,6 +59,10 @@ impl ProjectPublishButton {
             },
             &deps,
         ));
+    }
+
+    pub fn tick(&mut self, ctx: &NodeContext) {
+        self.publish_state.get(); //force lazy eval
     }
 
     pub fn click(&mut self, ctx: &NodeContext, _event: Event<Click>) {

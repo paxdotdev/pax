@@ -1,9 +1,13 @@
-<ProjectPublishButton/>
+
 <ProjectModeToggle x=100% width=90px height=55px/>
 if self.glass_active {
     <MessageLogDisplay/>
     <LLMInterface/>
+    if show_publish_button {
+        <ProjectPublishButton/>
+    }
     <Controls/>
+
     <Group id=designer_glass>
         // hide glass before project is loaded, could potentially show loading bar at some point
         //if !self.manifest_loaded_from_server {
