@@ -178,14 +178,6 @@ impl InstanceNode for RepeatInstance {
                                 &[source_expression.untyped()],
                                 "repeat elem",
                             );
-                            let new_repeat_item = Rc::new(RefCell::new(
-                                RepeatItem {
-                                    i: property_i.clone(),
-                                    elem: property_elem.clone(),
-                                }
-                                .to_pax_value()
-                                .to_pax_any(),
-                            ));
 
                             let mut scope: HashMap<String, Variable> = HashMap::new();
                             if let Some(ref i_symbol) = i_symbol {
@@ -201,7 +193,7 @@ impl InstanceNode for RepeatInstance {
                                 );
                             }
 
-                            let new_env = cloned_expanded_node.stack.push(scope, &new_repeat_item);
+                            let new_env = cloned_expanded_node.stack.push(scope);
                             borrow!(children)
                                 .clone()
                                 .into_iter()

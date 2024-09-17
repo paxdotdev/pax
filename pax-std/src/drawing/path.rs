@@ -78,9 +78,7 @@ impl InstanceNode for PathInstance {
     ) {
         // create a new stack to be able to insert a local store specific for this node and the
         // ones bellow. If not done, things above this node could potentially access it
-        let env = expanded_node
-            .stack
-            .push(HashMap::new(), &*borrow!(expanded_node.properties));
+        let env = expanded_node.stack.push(HashMap::new());
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
             env.insert_stack_local_store(PathContext {
                 elements: properties.elements.clone(),
