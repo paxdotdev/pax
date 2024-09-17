@@ -17,14 +17,11 @@ if self.glass_active {
         //Optionally turned on on right click
         <DesignerContextMenu/>
         <Glass/>
+        <Rectangle height=2px y=0% anchor_y=100% fill=rgba(255,255,255,50%) width={self.stage.width}/>
+        <Rectangle height=2px y=0% anchor_y=100% fill=rgba(255,255,255,50%) width={100%+2px}/>
         <Group transform={self.transform2d}>
             // Stage has a fixed size, regardless of window size
             <Group width={(self.stage.width)px} height={(self.stage.height)px} id=stage>
-                //<Rectangle fill=rgba(100%, 100%, 100%, 50%) width=10000% x=100% anchor_x=0% y=50% height=10000%/>
-                //<Rectangle fill=rgba(100%, 100%, 100%, 50%) width=10000% x=0% anchor_x=100% y=50% height=10000%/>
-                //<Rectangle fill=rgba(100%, 100%, 100%, 50%) y=0% anchor_y=100% height=10000%/>
-                //<Rectangle fill=rgba(100%, 100%, 100%, 50%) y=100% anchor_y=0% height=10000%/>
-                <Rectangle fill=TRANSPARENT x=50% y=50% width={100% + 2.1px} height={100% + 2.1px} stroke={{width: 2px, color: rgba(255,255,255,50%)}}/>
                 <Group id=project_container _suspended=true>
                     <InlineFrame />
                 </Group>
