@@ -1,6 +1,6 @@
 [package]
 name = "pax-kit"
-version = "0.36.6"
+version = "0.36.9"
 edition = "2021"
 authors = ["Zack Brown <zack@pax.dev>","Warfa Jibril <warfa@pax.dev>", "Samuel Selleck <samuel@pax.dev>"]
 license = "MIT OR Apache-2.0"
@@ -9,9 +9,9 @@ repository = "https://www.github.com/paxproject/pax"
 description = "Main entrypoint for building with Pax"
 
 [dependencies]
-pax-engine = { path = "../pax-engine", version = "0.36.6"}
-pax-designer = { path = "../pax-designer", version = "0.36.6", optional=true }
-pax-std = { path = "../pax-std", version = "0.36.6" }
+pax-engine = { path = "../pax-engine", version = "0.36.9"}
+pax-designer = { path = "../pax-designer", version = "0.36.9", optional=true }
+pax-std = { path = "../pax-std", version = "0.36.9" }
 
 [features]
 default = ["web"]
