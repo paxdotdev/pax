@@ -29,10 +29,10 @@ pub mod tool_editors;
 pub mod wireframe_editor;
 
 pub use self::tool_editors::TextEdit;
+use crate::message_log_display::DesignerLogMsg;
 use control_point::ControlPoint;
 use outline::PathOutline;
 use wireframe_editor::WireframeEditor;
-use crate::message_log_display::DesignerLogMsg;
 
 #[pax]
 #[engine_import_path("pax_engine")]
@@ -230,7 +230,7 @@ impl Glass {
                                 // component, go into that component. If it's the same, this was a slot component
                                 // and we want to drill into it.
                                 if hit_type != ac.app_state.selected_component_id.get() {
-                                    if let Err(e) =
+                                    if let Err(_e) =
                                         SetEditingComponent(metadata.type_id.clone()).perform(ac)
                                     {
                                         message_log_display::log(DesignerLogMsg::message(format!("Cannot edit the component {} because it is not part of this codebase", &metadata.type_id.get_unique_identifier())));
