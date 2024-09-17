@@ -15,11 +15,11 @@ use pax_manifest::pax_runtime_api::Property;
 use privileged_agent::PrivilegedAgentConnection;
 
 use core::fmt::Debug;
-use reqwasm::http::Response;
 pub use pax_manifest;
 use pax_manifest::{
-    ComponentDefinition, server::*, PaxManifest, TypeId, UniqueTemplateNodeIdentifier,
+    server::*, ComponentDefinition, PaxManifest, TypeId, UniqueTemplateNodeIdentifier,
 };
+use reqwasm::http::Response;
 pub use serde_pax::error::{Error, Result};
 pub use serde_pax::se::{to_pax, Serializer};
 
@@ -39,7 +39,6 @@ pub struct DesigntimeManager {
     pub publish_state: Property<Option<PublishResponse>>,
 }
 
-
 pub enum DesigntimeResponseMessage {
     LLMResponse(ComponentDefinition),
     PublishResponse(PublishResponse),
@@ -52,14 +51,15 @@ impl Debug for DesigntimeManager {
     }
 }
 
-
-const ENDPOINT_LLM : &str = "/v0/llm_request";
-const ENDPOINT_PUBLISH : &str = "/v0/publish";
-const PROD_PUB_PAX_SERVER : &str = "https://pub.pax.dev";
+const ENDPOINT_LLM: &str = "/v0/llm_request";
+const ENDPOINT_PUBLISH: &str = "/v0/publish";
+const PROD_PUB_PAX_SERVER: &str = "https://pub.pax.dev";
 
 fn get_server_base_url() -> String {
     // Fetch the environment variable or use the default value
-    option_env!("PUB_PAX_SERVER").unwrap_or(PROD_PUB_PAX_SERVER).to_string()
+    option_env!("PUB_PAX_SERVER")
+        .unwrap_or(PROD_PUB_PAX_SERVER)
+        .to_string()
 }
 
 impl DesigntimeManager {
@@ -174,23 +174,24 @@ impl DesigntimeManager {
 
             let pub_response = match response {
                 Ok(resp) => {
-                    let pub_response : PublishResponse = resp.json().await.unwrap();
+                    let pub_response: PublishResponse = resp.json().await.unwrap();
 
-                    let pub_response = if let PublishResponse::Success(prs) = pub_response {prs} else {unimplemented!()};
-                    log::info!(
-                        "publish success: {:?}",
-                        &pub_response.pull_request_url
-                    );
+                    let pub_response = if let PublishResponse::Success(prs) = pub_response {
+                        prs
+                    } else {
+                        unimplemented!()
+                    };
+                    log::info!("publish success: {:?}", &pub_response.pull_request_url);
                     PublishResponse::Success(pub_response)
                 }
-                Err(msg) => {PublishResponse::Error(ResponseError { message: msg.to_string()} )}
+                Err(msg) => PublishResponse::Error(ResponseError {
+                    message: msg.to_string(),
+                }),
             };
 
             queue_cloned
                 .borrow_mut()
-                .push(DesigntimeResponseMessage::PublishResponse(
-                    pub_response,
-                ));
+                .push(DesigntimeResponseMessage::PublishResponse(pub_response));
         });
     }
 
@@ -264,11 +265,11 @@ impl DesigntimeManager {
                 let _ = self.orm.swap_main_component(component).map_err(|e| {
                     log::error!("Error swapping main component for LLM response: {:?}", e);
                 });
-            },
+            }
             DesigntimeResponseMessage::PublishResponse(response) => {
                 log::info!("received publish response");
                 self.publish_state.set(Some(response));
-            },
+            }
         }
     }
 }
