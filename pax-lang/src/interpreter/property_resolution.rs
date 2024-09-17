@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{hash_set, HashMap};
 
 use pax_runtime_api::PaxValue;
 
@@ -27,7 +27,7 @@ impl DependencyCollector for PaxExpression {
 
 impl DependencyCollector for PaxPrimary {
     fn collect_dependencies(&self) -> Vec<String> {
-        match self {
+        let ret = match self {
             PaxPrimary::Literal(_) => vec![],
             PaxPrimary::Grouped(expr, _) => expr.collect_dependencies(),
             PaxPrimary::Identifier(i, _) => vec![i.name.clone()],
@@ -45,7 +45,9 @@ impl DependencyCollector for PaxPrimary {
             }
             PaxPrimary::Tuple(t) => t.iter().flat_map(|e| e.collect_dependencies()).collect(),
             PaxPrimary::List(l) => l.iter().flat_map(|e| e.collect_dependencies()).collect(),
-        }
+        };
+        let deduped_deps: std::collections::HashSet<String> = ret.into_iter().collect();
+        deduped_deps.into_iter().collect()
     }
 }
 
