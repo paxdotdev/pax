@@ -65,6 +65,7 @@ const PAX_PUBLISH_BUTTON_ENABLED: bool = option_env!("PAX_PUBLISH_BUTTON").is_so
 #[file("lib.pax")]
 pub struct PaxDesigner {
     pub transform2d: Property<Transform2D>,
+    pub stage_bounding_box: Property<StageBoundingBox>,
     pub stage: Property<StageInfo>,
     pub play_active: Property<bool>,
     pub glass_active: Property<bool>,

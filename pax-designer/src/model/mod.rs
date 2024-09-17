@@ -460,3 +460,11 @@ pub struct StageInfo {
     pub height: u32,
     pub color: Color,
 }
+
+#[pax]
+#[engine_import_path("pax_engine")]
+pub struct StageBoundingBox {
+    pub width: u32,
+    pub height: u32,
+    pub color: Color,
+}
