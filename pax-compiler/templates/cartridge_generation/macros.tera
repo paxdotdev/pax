@@ -111,8 +111,11 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                                 },
                                 {{ engine_import_path }}::pax_manifest::ValueDefinition::DoubleBinding(identifier) => {
                                     let identifier = identifier.name;
-                                    let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier).expect(&format!("failed to resolve identifier: {}", &identifier));
-                                    properties.{{property.name}} = Property::new_from_untyped(untyped_property.clone());
+                                    if let Some(untyped_property) = stack_frame.resolve_symbol_as_erased_property(&identifier) {
+                                        properties.{{property.name}} = Property::new_from_untyped(untyped_property.clone());
+                                    } else {
+                                        log::warn!("Failed to resolve identifier: {}", &identifier);
+                                    }
                                 },
                                 {{ engine_import_path }}::pax_manifest::ValueDefinition::Identifier(ident)  => {
                                     if let Some(variable) = stack_frame.resolve_symbol_as_variable(&ident.name) {
@@ -290,10 +293,14 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                     },
                                     {{ engine_import_path }}::pax_manifest::ValueDefinition::DoubleBinding(identifier) => {
                                         let identifier = identifier.name.clone();
-                                        let untyped_property = stack_frame.resolve_symbol_as_erased_property(&identifier).expect(&format!("failed to resolve identifier: {}", &identifier));
-                                        let ret = Property::new_from_untyped(untyped_property.clone());
-                                        deps.push(ret.untyped());
-                                        ret
+                                        if let Some(untyped_property) = stack_frame.resolve_symbol_as_erased_property(&identifier) {
+                                            let ret = Property::new_from_untyped(untyped_property.clone());
+                                            deps.push(ret.untyped());
+                                            ret
+                                        } else {
+                                            log::warn!("Failed to resolve identifier: {}", &identifier);
+                                            Default::default()
+                                        }
                                     },
                                     {{ engine_import_path }}::pax_manifest::ValueDefinition::Identifier(ident)  => {
                                         if let Some(variable) = stack_frame.resolve_symbol_as_variable(&ident.name) {
