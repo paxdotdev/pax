@@ -12,7 +12,7 @@ use std::sync::mpsc::channel;
 use std::rc::Rc;
 
 pub mod toolbar_item;
-use crate::llm_interface::OpenLLMPrompt;
+use crate::llm_interface::SetLLMPromptState;
 use crate::math::coordinate_spaces::Glass;
 use crate::math::SizeUnit;
 use crate::model::action::tool::SetToolBehaviour;
@@ -188,7 +188,7 @@ thread_local! {
                     ToolbarItem {
                         icon: "assets/icons/icon-robot.png",
                         tooltip: "AI Assistance",
-                        event: ToolbarEvent::PerformAction(Box::new(OpenLLMPrompt{}))
+                        event: ToolbarEvent::PerformAction(Box::new(SetLLMPromptState(true)))
                     },
                 ]
             },
