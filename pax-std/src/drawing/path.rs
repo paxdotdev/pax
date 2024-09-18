@@ -43,7 +43,7 @@ impl Path {
         x: Size,
         y: Size,
     ) -> Vec<PathElement> {
-        path.push(PathElement::Curve(h_x, h_y));
+        path.push(PathElement::Quadratic(h_x, h_y));
         path.push(PathElement::Point(x, y));
         path
     }
@@ -141,13 +141,24 @@ impl InstanceNode for PathInstance {
                         };
                         bez_path.line_to(Point { x, y }.to_kurbo_point(bounds));
                     }
-                    &PathElement::Curve(h_x, h_y) => {
+                    &PathElement::Quadratic(h_x, h_y) => {
                         let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
                             log::warn!("curve expects to be followed by a point");
                             return;
                         };
                         bez_path.quad_to(
                             Point { x: h_x, y: h_y }.to_kurbo_point(bounds),
+                            Point { x, y }.to_kurbo_point(bounds),
+                        );
+                    }
+                    &PathElement::Cubic(h1_x, h1_y, h2_x, h2_y) => {
+                        let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
+                            log::warn!("curve expects to be followed by a point");
+                            return;
+                        };
+                        bez_path.curve_to(
+                            Point { x: h1_x, y: h1_y }.to_kurbo_point(bounds),
+                            Point { x: h2_x, y: h2_y }.to_kurbo_point(bounds),
                             Point { x, y }.to_kurbo_point(bounds),
                         );
                     }
@@ -434,7 +445,8 @@ pub enum PathElement {
     Empty,
     Point(Size, Size),
     Line,
-    Curve(Size, Size),
+    Quadratic(Size, Size),
+    Cubic(Size, Size, Size, Size),
     Close,
 }
 
@@ -450,6 +462,6 @@ impl PathElement {
         Self::Point(x, y)
     }
     pub fn curve(x: Size, y: Size) -> Self {
-        Self::Curve(x, y)
+        Self::Quadratic(x, y)
     }
 }

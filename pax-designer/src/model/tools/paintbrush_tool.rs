@@ -1,29 +1,36 @@
-use pax_engine::{
-    pax_manifest::{TreeIndexPosition, UniqueTemplateNodeIdentifier},
-    Property,
-};
-use pax_std::{PathElement, Size};
-
 use crate::{
     designer_node_type::DesignerNodeType,
     glass::ToolVisualizationState,
     model::{
         action::{
             orm::{CreateComponent, NodeLayoutSettings},
-            Action, ActionContext,
+            Action, ActionContext, Transaction,
         },
         ToolBehavior,
     },
 };
+use anyhow::{anyhow, Result};
+use lyon::{
+    geom::{euclid::Point2D, Point},
+    path::{Builder, Path},
+};
+use pax_engine::{
+    api::{borrow, borrow_mut},
+    log,
+    math::{Point2, Space},
+    pax_manifest::{TreeIndexPosition, UniqueTemplateNodeIdentifier},
+    Property, ToPaxValue,
+};
+use pax_std::{PathElement, Size};
 
 pub struct PaintBrushTool {
     elements: Vec<PathElement>,
-    #[allow(unused)]
-    path_node_being_created: Option<UniqueTemplateNodeIdentifier>,
+    path_node_being_created: UniqueTemplateNodeIdentifier,
+    transaction: Transaction,
 }
 
 impl PaintBrushTool {
-    pub fn new(ctx: &mut ActionContext) -> Self {
+    pub fn new(ctx: &mut ActionContext) -> Result<Self> {
         let parent = ctx
             .derived_state
             .open_container
@@ -32,52 +39,77 @@ impl PaintBrushTool {
             .next()
             .unwrap();
         let t = ctx.transaction("painting");
-        let mut path_node_being_created = None;
-        let _ = t.run(|| {
-            let uid = CreateComponent {
+        let uid = t.run(|| {
+            CreateComponent {
                 parent_id: &parent,
                 parent_index: TreeIndexPosition::Top,
                 designer_node_type: DesignerNodeType::Path,
                 builder_extra_commands: None,
                 node_layout: NodeLayoutSettings::Fill,
             }
-            .perform(ctx)?;
-            path_node_being_created = Some(uid);
-            Ok(())
-        });
-        Self {
+            .perform(ctx)
+        })?;
+        Ok(Self {
             elements: Vec::new(),
-            path_node_being_created,
-        }
+            path_node_being_created: uid,
+            transaction: t,
+        })
     }
 }
 
 impl ToolBehavior for PaintBrushTool {
     fn pointer_down(
         &mut self,
-        point: pax_engine::math::Point2<crate::math::coordinate_spaces::Glass>,
+        _point: pax_engine::math::Point2<crate::math::coordinate_spaces::Glass>,
         _ctx: &mut ActionContext,
     ) -> std::ops::ControlFlow<()> {
-        self.elements.push(PathElement::Point(
-            Size::Pixels(point.x.into()),
-            Size::Pixels(point.y.into()),
-        ));
-        // TODO either commit this, or make elements a property connected to engine
         std::ops::ControlFlow::Continue(())
     }
 
     fn pointer_move(
         &mut self,
         point: pax_engine::math::Point2<crate::math::coordinate_spaces::Glass>,
-        _ctx: &mut ActionContext,
+        ctx: &mut ActionContext,
     ) -> std::ops::ControlFlow<()> {
         self.elements.push(PathElement::Line);
         self.elements.push(PathElement::Point(
             Size::Pixels(point.x.into()),
             Size::Pixels(point.y.into()),
         ));
+        let mut path_builder = Builder::new();
+        let point = ctx.world_transform() * point;
+        // TODO create shape from last point to not make it look like discrete circles
+        path_builder.add_circle(
+            Point2D::new(point.x as f32, point.y as f32),
+            32.0,
+            lyon::path::Winding::Positive,
+        );
+        let path = path_builder.build();
+        let pax_path = to_pax_path(path);
+        if let Err(e) = self.transaction.run(|| {
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            let node = dt.get_orm_mut().get_node(
+                self.path_node_being_created.clone(),
+                ctx.app_state
+                    .modifiers
+                    .get()
+                    .contains(&crate::model::input::ModifierKey::Control),
+            );
+            if let Some(mut node) = node {
+                let pax_value = pax_path.to_pax_value();
+                let str_val = pax_value.to_string();
+                log::debug!("str_val: {:?}", str_val);
+                // TODO don't override, just add
+                node.set_property("elements", &str_val)?;
+                node.save()
+                    .map_err(|e| anyhow!("failed to write elements on draw: {e}"))?;
+            }
+            Ok(())
+        }) {
+            log::warn!("failed to paint: {e}");
+        }
         // TODO either commit this, or make elements a property connected to engine
-        todo!()
+        std::ops::ControlFlow::Continue(())
     }
 
     fn pointer_up(
@@ -108,4 +140,96 @@ impl ToolBehavior for PaintBrushTool {
     fn get_visual(&self) -> Property<ToolVisualizationState> {
         Property::new(ToolVisualizationState::default())
     }
+}
+
+fn to_leon_path(path: Vec<PathElement>) -> Option<Path> {
+    todo!()
+    // let mut path_builder = Builder::new();
+    // let mut pax_itr = path.into_iter();
+    // path_builder.begin(match pax_itr.next()? {
+    //     PathElement::Point(x, y) => Point2D::new(
+    //         x.expect_pixels().to_float() as f32,
+    //         y.expect_pixels().to_float() as f32,
+    //     ),
+    //     _ => {
+    //         log::warn!("path must start with point");
+    //         return None;
+    //     }
+    // });
+    // while let Some(elem) = pax_itr.next() {
+    //     if elem.is
+    //     let point = pax_itr.next() else {
+    //         log::warn!("expected all ops to")
+    //         return None;
+    //     };
+    //     match elem {
+    //         _ => {
+    //             log::warn!("expected next op to be a line type");
+    //             return None;
+    //         }
+    //         PathElement::Line => todo!(),
+    //         PathElement::Quadratic(c_x, c_y) => {
+    //             path_builder.quadratic_bezier_to(, )
+    //         }
+    //         ,
+    //         PathElement::Cubic(_, _, _, _) => todo!(),
+    //     }
+    // }
+    // Some(path_builder.build())
+}
+
+fn to_pax_path(path: Path) -> Vec<PathElement> {
+    let mut pax_segs = vec![];
+    for seg in &path {
+        match seg {
+            lyon::path::Event::Begin { at } => pax_segs.push(PathElement::Point(
+                Size::Pixels(at.x.into()),
+                Size::Pixels(at.y.into()),
+            )),
+            lyon::path::Event::Line { from: _, to } => {
+                pax_segs.push(PathElement::Line);
+                pax_segs.push(PathElement::Point(
+                    Size::Pixels(to.x.into()),
+                    Size::Pixels(to.y.into()),
+                ));
+            }
+            lyon::path::Event::Quadratic { from: _, ctrl, to } => {
+                pax_segs.push(PathElement::Quadratic(
+                    Size::Pixels(ctrl.x.into()),
+                    Size::Pixels(ctrl.y.into()),
+                ));
+                pax_segs.push(PathElement::Point(
+                    Size::Pixels(to.x.into()),
+                    Size::Pixels(to.y.into()),
+                ));
+            }
+            lyon::path::Event::Cubic {
+                from: _,
+                ctrl1,
+                ctrl2,
+                to,
+            } => {
+                pax_segs.push(PathElement::Cubic(
+                    Size::Pixels(ctrl1.x.into()),
+                    Size::Pixels(ctrl1.y.into()),
+                    Size::Pixels(ctrl2.x.into()),
+                    Size::Pixels(ctrl2.y.into()),
+                ));
+                pax_segs.push(PathElement::Point(
+                    Size::Pixels(to.x.into()),
+                    Size::Pixels(to.y.into()),
+                ));
+            }
+            lyon::path::Event::End {
+                last: _,
+                first: _,
+                close,
+            } => {
+                if close {
+                    pax_segs.push(PathElement::Close);
+                }
+            }
+        }
+    }
+    pax_segs
 }

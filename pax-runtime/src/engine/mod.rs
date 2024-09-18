@@ -328,6 +328,7 @@ impl PaxEngine {
 
     #[cfg(feature = "designtime")]
     pub fn partial_update_expanded_node(&mut self, new_instance: Rc<dyn InstanceNode>) {
+        log::debug!("partial update");
         // update the expanded nodes that just got a new instance node
         let unique_id = new_instance
             .base()
@@ -345,6 +346,7 @@ impl PaxEngine {
 
     #[cfg(feature = "designtime")]
     pub fn full_reload_userland(&mut self, new_userland_instance: Rc<dyn InstanceNode>) {
+        log::debug!("full update");
         let node = borrow!(self.runtime_context.userland_root_expanded_node)
             .as_ref()
             .map(Rc::clone)
