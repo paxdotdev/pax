@@ -103,8 +103,7 @@ thread_local! {
             ToolbarEntry {
                 items: vec![
                     ToolbarItem {
-                        // TODO paintbrush toolbar image
-                        icon: "assets/icons/placeholder.png",
+                        icon: "assets/icons/icon-brush.png",
                         tooltip: "PaintBrush Tool",
                         event: ToolbarEvent::SelectTool(Tool::PaintBrush)
                     },
