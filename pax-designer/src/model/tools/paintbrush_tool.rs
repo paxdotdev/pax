@@ -1,6 +1,7 @@
 use crate::{
     designer_node_type::DesignerNodeType,
     glass::ToolVisualizationState,
+    math::boolean_path_operations::{self, SetOperations},
     model::{
         action::{
             orm::{CreateComponent, NodeLayoutSettings},
@@ -10,10 +11,6 @@ use crate::{
     },
 };
 use anyhow::{anyhow, Result};
-use lyon::{
-    geom::{euclid::Point2D, Point},
-    path::{Builder, Path},
-};
 use pax_engine::{
     api::{borrow, borrow_mut},
     log,
@@ -24,7 +21,6 @@ use pax_engine::{
 use pax_std::{PathElement, Size};
 
 pub struct PaintBrushTool {
-    elements: Vec<PathElement>,
     path_node_being_created: UniqueTemplateNodeIdentifier,
     transaction: Transaction,
 }
@@ -50,7 +46,6 @@ impl PaintBrushTool {
             .perform(ctx)
         })?;
         Ok(Self {
-            elements: Vec::new(),
             path_node_being_created: uid,
             transaction: t,
         })
@@ -71,21 +66,12 @@ impl ToolBehavior for PaintBrushTool {
         point: pax_engine::math::Point2<crate::math::coordinate_spaces::Glass>,
         ctx: &mut ActionContext,
     ) -> std::ops::ControlFlow<()> {
-        self.elements.push(PathElement::Line);
-        self.elements.push(PathElement::Point(
-            Size::Pixels(point.x.into()),
-            Size::Pixels(point.y.into()),
-        ));
-        let mut path_builder = Builder::new();
         let point = ctx.world_transform() * point;
-        // TODO create shape from last point to not make it look like discrete circles
-        path_builder.add_circle(
-            Point2D::new(point.x as f32, point.y as f32),
-            32.0,
-            lyon::path::Winding::Positive,
-        );
-        let path = path_builder.build();
-        let pax_path = to_pax_path(path);
+        let path1 = todo!();
+        let path2 = todo!();
+        let union = path1.union(&path2);
+
+        let pax_path = to_pax_path(union);
         if let Err(e) = self.transaction.run(|| {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             let node = dt.get_orm_mut().get_node(
@@ -142,7 +128,7 @@ impl ToolBehavior for PaintBrushTool {
     }
 }
 
-fn to_leon_path(path: Vec<PathElement>) -> Option<Path> {
+fn to_leon_path(path: Vec<PathElement>) -> Option<Subpath> {
     todo!()
     // let mut path_builder = Builder::new();
     // let mut pax_itr = path.into_iter();

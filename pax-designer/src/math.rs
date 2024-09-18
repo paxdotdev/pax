@@ -12,6 +12,7 @@ use crate::math::coordinate_spaces::Glass;
 
 use self::coordinate_spaces::World;
 pub mod approx;
+pub mod boolean_path_operations;
 pub mod intent_snapper;
 
 impl Interpolatable for SizeUnit {}
