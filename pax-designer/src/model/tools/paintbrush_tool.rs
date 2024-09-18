@@ -1,7 +1,7 @@
 use crate::{
     designer_node_type::DesignerNodeType,
     glass::ToolVisualizationState,
-    math::boolean_path_operations::{self, SetOperations},
+    math::boolean_path_operations::{self, CompoundPath, DesignerPathId},
     model::{
         action::{
             orm::{CreateComponent, NodeLayoutSettings},
@@ -54,16 +54,6 @@ impl PaintBrushTool {
     }
 }
 
-/// An empty id type for use in tests
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
-pub(crate) struct DesignerPathId;
-
-impl Identifier for DesignerPathId {
-    fn new() -> Self {
-        Self
-    }
-}
-
 impl ToolBehavior for PaintBrushTool {
     fn pointer_down(
         &mut self,
@@ -79,7 +69,7 @@ impl ToolBehavior for PaintBrushTool {
         ctx: &mut ActionContext,
     ) -> std::ops::ControlFlow<()> {
         let point = ctx.world_transform() * point;
-        let mut union_path = Subpath::<DesignerPathId>::new_ellipse(
+        let mut union_path = CompoundPath::from_subpath(Subpath::<DesignerPathId>::new_ellipse(
             DVec2 {
                 x: point.x - 50.0,
                 y: point.y - 50.0,
@@ -88,22 +78,24 @@ impl ToolBehavior for PaintBrushTool {
                 x: point.x + 50.0,
                 y: point.y + 50.0,
             },
-        );
+        ));
         for i in 1..=10 {
             let point = point + Vector2::new(i as f64 * 20.0, (i as f64 * 0.2).sin() * 20.0);
-            union_path = union_path.union(&Subpath::<DesignerPathId>::new_ellipse(
-                DVec2 {
-                    x: point.x - 50.0,
-                    y: point.y - 50.0,
-                },
-                DVec2 {
-                    x: point.x + 50.0,
-                    y: point.y + 50.0,
-                },
+            union_path = union_path.union(&CompoundPath::from_subpath(
+                Subpath::<DesignerPathId>::new_ellipse(
+                    DVec2 {
+                        x: point.x - 50.0,
+                        y: point.y - 50.0,
+                    },
+                    DVec2 {
+                        x: point.x + 50.0,
+                        y: point.y + 50.0,
+                    },
+                ),
             ));
         }
 
-        let pax_path = to_pax_path(union_path);
+        let pax_path = to_pax_path(&union_path);
         if let Err(e) = self.transaction.run(|| {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             let node = dt.get_orm_mut().get_node(
@@ -196,51 +188,53 @@ impl ToolBehavior for PaintBrushTool {
 //     Some(path_builder.build())
 // }
 
-fn to_pax_path<T: Identifier>(path: Subpath<T>) -> Vec<PathElement> {
+fn to_pax_path(path: &CompoundPath) -> Vec<PathElement> {
     let mut pax_segs = vec![];
-    let first = path.get_segment(0).map(|s| s.start).unwrap_or_default();
-    pax_segs.push(PathElement::Point(
-        Size::Pixels(first.x.into()),
-        Size::Pixels(first.y.into()),
-    ));
-    for seg in path.iter() {
-        match seg.handles {
-            bezier_rs::BezierHandles::Linear => {
-                pax_segs.push(PathElement::Line);
-                pax_segs.push(PathElement::Point(
-                    Size::Pixels(seg.end.x.into()),
-                    Size::Pixels(seg.end.y.into()),
-                ));
-            }
-            bezier_rs::BezierHandles::Quadratic { handle: ctrl } => {
-                pax_segs.push(PathElement::Quadratic(
-                    Size::Pixels(ctrl.x.into()),
-                    Size::Pixels(ctrl.y.into()),
-                ));
-                pax_segs.push(PathElement::Point(
-                    Size::Pixels(seg.end.x.into()),
-                    Size::Pixels(seg.end.y.into()),
-                ));
-            }
-            bezier_rs::BezierHandles::Cubic {
-                handle_start: ctrl1,
-                handle_end: ctrl2,
-            } => {
-                pax_segs.push(PathElement::Cubic(
-                    Size::Pixels(ctrl1.x.into()),
-                    Size::Pixels(ctrl1.y.into()),
-                    Size::Pixels(ctrl2.x.into()),
-                    Size::Pixels(ctrl2.y.into()),
-                ));
-                pax_segs.push(PathElement::Point(
-                    Size::Pixels(seg.end.x.into()),
-                    Size::Pixels(seg.end.y.into()),
-                ));
+    for subpath in &path.subpaths {
+        let first = subpath.get_segment(0).map(|s| s.start).unwrap_or_default();
+        pax_segs.push(PathElement::Point(
+            Size::Pixels(first.x.into()),
+            Size::Pixels(first.y.into()),
+        ));
+        for seg in subpath.iter() {
+            match seg.handles {
+                bezier_rs::BezierHandles::Linear => {
+                    pax_segs.push(PathElement::Line);
+                    pax_segs.push(PathElement::Point(
+                        Size::Pixels(seg.end.x.into()),
+                        Size::Pixels(seg.end.y.into()),
+                    ));
+                }
+                bezier_rs::BezierHandles::Quadratic { handle: ctrl } => {
+                    pax_segs.push(PathElement::Quadratic(
+                        Size::Pixels(ctrl.x.into()),
+                        Size::Pixels(ctrl.y.into()),
+                    ));
+                    pax_segs.push(PathElement::Point(
+                        Size::Pixels(seg.end.x.into()),
+                        Size::Pixels(seg.end.y.into()),
+                    ));
+                }
+                bezier_rs::BezierHandles::Cubic {
+                    handle_start: ctrl1,
+                    handle_end: ctrl2,
+                } => {
+                    pax_segs.push(PathElement::Cubic(
+                        Size::Pixels(ctrl1.x.into()),
+                        Size::Pixels(ctrl1.y.into()),
+                        Size::Pixels(ctrl2.x.into()),
+                        Size::Pixels(ctrl2.y.into()),
+                    ));
+                    pax_segs.push(PathElement::Point(
+                        Size::Pixels(seg.end.x.into()),
+                        Size::Pixels(seg.end.y.into()),
+                    ));
+                }
             }
         }
-    }
-    if path.closed {
-        pax_segs.push(PathElement::Close);
+        if subpath.closed {
+            pax_segs.push(PathElement::Close);
+        }
     }
     pax_segs
 }
