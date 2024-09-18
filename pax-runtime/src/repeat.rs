@@ -148,7 +148,8 @@ impl InstanceNode for RepeatInstance {
                     } else if let PaxValue::Vec(v) = source {
                         v.len()
                     } else {
-                        unreachable!("source must be a vec");
+                        log::warn!("source is not a vec");
+                        0
                     };
 
                     if source_len == *borrow!(last_length) {
@@ -172,7 +173,8 @@ impl InstanceNode for RepeatInstance {
                                     } else if let PaxValue::Vec(v) = source {
                                         v[i].clone()
                                     } else {
-                                        unreachable!("source must be a vec");
+                                        log::warn!("source is not a vec");
+                                        Default::default()
                                     }
                                 },
                                 &[source_expression.untyped()],

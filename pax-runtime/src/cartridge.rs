@@ -379,7 +379,12 @@ pub trait DefinitionToInstanceTraverser {
                         repeat
                             .source_expression
                             .replace_with(Property::computed_with_name(
-                                move || expr.compute(cloned_stack.clone()).unwrap(),
+                                move || {
+                                    expr.compute(cloned_stack.clone()).unwrap_or_else(|op_err| {
+                                        log::warn!("Failed to compute expression: {:?}", op_err);
+                                        Default::default()
+                                    })
+                                },
                                 &dependencies,
                                 "repeat source vec",
                             ));
@@ -392,7 +397,12 @@ pub trait DefinitionToInstanceTraverser {
                         let mut properties = crate::RepeatProperties::default();
 
                         properties.source_expression = Property::computed_with_name(
-                            move || expr.compute(cloned_stack.clone()).unwrap(),
+                            move || {
+                                expr.compute(cloned_stack.clone()).unwrap_or_else(|op_err| {
+                                    log::warn!("Failed to compute expression: {:?}", op_err);
+                                    Default::default()
+                                })
+                            },
                             &dependencies,
                             "repeat source vec",
                         );
