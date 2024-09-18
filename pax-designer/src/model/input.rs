@@ -10,7 +10,7 @@ use pax_engine::{log, CoercionRules, Property};
 use crate::controls::toolbar::FinishCurrentTool;
 use crate::model::action::orm::{RedoRequested, SerializeRequested, UndoRequested};
 use crate::model::SelectionStateSnapshot;
-use crate::{controls::toolbar, glass, llm_interface::OpenLLMPrompt};
+use crate::{controls::toolbar, glass, llm_interface::SetLLMPromptState};
 
 use super::action::orm::group_ungroup::{GroupSelected, GroupType, UngroupSelected};
 use super::action::orm::other::SwapFillStrokeAction;
@@ -252,7 +252,7 @@ impl InputMapper {
             &InputEvent::SelectTool(tool) => Some(Box::new(toolbar::SelectTool { tool })),
             InputEvent::ZoomIn => Some(Box::new(world::Zoom { closer: true })),
             InputEvent::ZoomOut => Some(Box::new(world::Zoom { closer: false })),
-            InputEvent::OpenLLMPrompt => Some(Box::new(OpenLLMPrompt)),
+            InputEvent::OpenLLMPrompt => Some(Box::new(SetLLMPromptState(true))),
             InputEvent::DeleteSelected => Some(Box::new(DeleteSelected {})),
             InputEvent::Undo => Some(Box::new(UndoRequested)),
             InputEvent::Redo => Some(Box::new(RedoRequested)),

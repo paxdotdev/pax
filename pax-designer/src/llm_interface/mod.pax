@@ -18,6 +18,7 @@ if self.visible {
 	    height=50px
 	    width=50%
 	/>
+	<Rectangle fill=rgba(0, 0, 0, 50%) @click=self.hide/>
 }
 
 @settings {
