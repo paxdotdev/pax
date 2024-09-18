@@ -100,18 +100,20 @@ thread_local! {
                     }
                 ]
             },
-            // ToolbarEntry {
-            //     items: vec![
-            //         ToolbarItem {
-            //             icon: "assets/icons/toolbar/icon-10-brush.png",
-            //             event: ToolbarEvent::SelectTool(Tool::TodoTool)
-            //         },
-            //         ToolbarItem {
-            //             icon: "assets/icons/toolbar/icon-11-pen.png",
-            //             event: ToolbarEvent::SelectTool(Tool::TodoTool)
-            //         }
-            //     ]
-            // },
+            ToolbarEntry {
+                items: vec![
+                    ToolbarItem {
+                        // TODO paintbrush toolbar image
+                        icon: "assets/icons/placeholder.png",
+                        tooltip: "PaintBrush Tool",
+                        event: ToolbarEvent::SelectTool(Tool::PaintBrush)
+                    },
+                    // ToolbarItem {
+                    //     icon: "assets/icons/toolbar/icon-11-pen.png",
+                    //     event: ToolbarEvent::SelectTool(Tool::TodoTool)
+                    // }
+                ]
+            },
             ToolbarEntry {
                 items: vec![
                     ToolbarItem {

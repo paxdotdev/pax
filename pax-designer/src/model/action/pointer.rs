@@ -11,7 +11,9 @@ use crate::math::coordinate_spaces::Glass;
 use crate::math::SizeUnit;
 use crate::model::action::world::Pan;
 use crate::model::input::{InputEvent, ModifierKey};
-use crate::model::tools::{CreateComponentTool, MovingTool, MultiSelectTool, ZoomToFitTool};
+use crate::model::tools::{
+    CreateComponentTool, MovingTool, MultiSelectTool, PaintBrushTool, ZoomToFitTool,
+};
 use crate::model::Component;
 use crate::model::{action, Tool};
 use crate::model::{AppState, StageInfo};
@@ -221,6 +223,12 @@ impl Action for MouseEntryPointAction<'_> {
                             ),
                         }))));
                         }
+                        Tool::PaintBrush => match PaintBrushTool::new(ctx) {
+                            Ok(paint_tool) => {
+                                tool_behavior.set(Some(Rc::new(RefCell::new(paint_tool))))
+                            }
+                            Err(e) => log::warn!("couldn't create path for paintbrush: {e}"),
+                        },
                         Tool::TodoTool => {
                             log::warn!("tool has no implemented behavior");
                         }

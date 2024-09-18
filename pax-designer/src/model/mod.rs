@@ -412,6 +412,7 @@ pub enum Tool {
     PointerPercent,
     PointerPixels,
     CreateComponent(Component),
+    PaintBrush,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
