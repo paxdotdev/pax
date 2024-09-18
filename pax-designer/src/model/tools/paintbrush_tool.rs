@@ -11,10 +11,12 @@ use crate::{
     },
 };
 use anyhow::{anyhow, Result};
+use bezier_rs::{Identifier, Subpath};
+use glam::DVec2;
 use pax_engine::{
     api::{borrow, borrow_mut},
     log,
-    math::{Point2, Space},
+    math::{Point2, Space, Vector2},
     pax_manifest::{TreeIndexPosition, UniqueTemplateNodeIdentifier},
     Property, ToPaxValue,
 };
@@ -52,6 +54,16 @@ impl PaintBrushTool {
     }
 }
 
+/// An empty id type for use in tests
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub(crate) struct DesignerPathId;
+
+impl Identifier for DesignerPathId {
+    fn new() -> Self {
+        Self
+    }
+}
+
 impl ToolBehavior for PaintBrushTool {
     fn pointer_down(
         &mut self,
@@ -67,11 +79,31 @@ impl ToolBehavior for PaintBrushTool {
         ctx: &mut ActionContext,
     ) -> std::ops::ControlFlow<()> {
         let point = ctx.world_transform() * point;
-        let path1 = todo!();
-        let path2 = todo!();
-        let union = path1.union(&path2);
+        let mut union_path = Subpath::<DesignerPathId>::new_ellipse(
+            DVec2 {
+                x: point.x - 50.0,
+                y: point.y - 50.0,
+            },
+            DVec2 {
+                x: point.x + 50.0,
+                y: point.y + 50.0,
+            },
+        );
+        for i in 1..=10 {
+            let point = point + Vector2::new(i as f64 * 20.0, (i as f64 * 0.2).sin() * 20.0);
+            union_path = union_path.union(&Subpath::<DesignerPathId>::new_ellipse(
+                DVec2 {
+                    x: point.x - 50.0,
+                    y: point.y - 50.0,
+                },
+                DVec2 {
+                    x: point.x + 50.0,
+                    y: point.y + 50.0,
+                },
+            ));
+        }
 
-        let pax_path = to_pax_path(union);
+        let pax_path = to_pax_path(union_path);
         if let Err(e) = self.transaction.run(|| {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             let node = dt.get_orm_mut().get_node(
@@ -128,72 +160,71 @@ impl ToolBehavior for PaintBrushTool {
     }
 }
 
-fn to_leon_path(path: Vec<PathElement>) -> Option<Subpath> {
-    todo!()
-    // let mut path_builder = Builder::new();
-    // let mut pax_itr = path.into_iter();
-    // path_builder.begin(match pax_itr.next()? {
-    //     PathElement::Point(x, y) => Point2D::new(
-    //         x.expect_pixels().to_float() as f32,
-    //         y.expect_pixels().to_float() as f32,
-    //     ),
-    //     _ => {
-    //         log::warn!("path must start with point");
-    //         return None;
-    //     }
-    // });
-    // while let Some(elem) = pax_itr.next() {
-    //     if elem.is
-    //     let point = pax_itr.next() else {
-    //         log::warn!("expected all ops to")
-    //         return None;
-    //     };
-    //     match elem {
-    //         _ => {
-    //             log::warn!("expected next op to be a line type");
-    //             return None;
-    //         }
-    //         PathElement::Line => todo!(),
-    //         PathElement::Quadratic(c_x, c_y) => {
-    //             path_builder.quadratic_bezier_to(, )
-    //         }
-    //         ,
-    //         PathElement::Cubic(_, _, _, _) => todo!(),
-    //     }
-    // }
-    // Some(path_builder.build())
-}
+// fn to_leon_path(path: Vec<PathElement>) -> Option<Subpath> {
+//     todo!()
+//     let mut path_builder = Builder::new();
+//     let mut pax_itr = path.into_iter();
+//     path_builder.begin(match pax_itr.next()? {
+//         PathElement::Point(x, y) => Point2D::new(
+//             x.expect_pixels().to_float() as f32,
+//             y.expect_pixels().to_float() as f32,
+//         ),
+//         _ => {
+//             log::warn!("path must start with point");
+//             return None;
+//         }
+//     });
+//     while let Some(elem) = pax_itr.next() {
+//         if elem.is
+//         let point = pax_itr.next() else {
+//             log::warn!("expected all ops to")
+//             return None;
+//         };
+//         match elem {
+//             _ => {
+//                 log::warn!("expected next op to be a line type");
+//                 return None;
+//             }
+//             PathElement::Line => todo!(),
+//             PathElement::Quadratic(c_x, c_y) => {
+//                 path_builder.quadratic_bezier_to(, )
+//             }
+//             ,
+//             PathElement::Cubic(_, _, _, _) => todo!(),
+//         }
+//     }
+//     Some(path_builder.build())
+// }
 
-fn to_pax_path(path: Path) -> Vec<PathElement> {
+fn to_pax_path<T: Identifier>(path: Subpath<T>) -> Vec<PathElement> {
     let mut pax_segs = vec![];
-    for seg in &path {
-        match seg {
-            lyon::path::Event::Begin { at } => pax_segs.push(PathElement::Point(
-                Size::Pixels(at.x.into()),
-                Size::Pixels(at.y.into()),
-            )),
-            lyon::path::Event::Line { from: _, to } => {
+    let first = path.get_segment(0).map(|s| s.start).unwrap_or_default();
+    pax_segs.push(PathElement::Point(
+        Size::Pixels(first.x.into()),
+        Size::Pixels(first.y.into()),
+    ));
+    for seg in path.iter() {
+        match seg.handles {
+            bezier_rs::BezierHandles::Linear => {
                 pax_segs.push(PathElement::Line);
                 pax_segs.push(PathElement::Point(
-                    Size::Pixels(to.x.into()),
-                    Size::Pixels(to.y.into()),
+                    Size::Pixels(seg.end.x.into()),
+                    Size::Pixels(seg.end.y.into()),
                 ));
             }
-            lyon::path::Event::Quadratic { from: _, ctrl, to } => {
+            bezier_rs::BezierHandles::Quadratic { handle: ctrl } => {
                 pax_segs.push(PathElement::Quadratic(
                     Size::Pixels(ctrl.x.into()),
                     Size::Pixels(ctrl.y.into()),
                 ));
                 pax_segs.push(PathElement::Point(
-                    Size::Pixels(to.x.into()),
-                    Size::Pixels(to.y.into()),
+                    Size::Pixels(seg.end.x.into()),
+                    Size::Pixels(seg.end.y.into()),
                 ));
             }
-            lyon::path::Event::Cubic {
-                from: _,
-                ctrl1,
-                ctrl2,
-                to,
+            bezier_rs::BezierHandles::Cubic {
+                handle_start: ctrl1,
+                handle_end: ctrl2,
             } => {
                 pax_segs.push(PathElement::Cubic(
                     Size::Pixels(ctrl1.x.into()),
@@ -202,20 +233,14 @@ fn to_pax_path(path: Path) -> Vec<PathElement> {
                     Size::Pixels(ctrl2.y.into()),
                 ));
                 pax_segs.push(PathElement::Point(
-                    Size::Pixels(to.x.into()),
-                    Size::Pixels(to.y.into()),
+                    Size::Pixels(seg.end.x.into()),
+                    Size::Pixels(seg.end.y.into()),
                 ));
             }
-            lyon::path::Event::End {
-                last: _,
-                first: _,
-                close,
-            } => {
-                if close {
-                    pax_segs.push(PathElement::Close);
-                }
-            }
         }
+    }
+    if path.closed {
+        pax_segs.push(PathElement::Close);
     }
     pax_segs
 }
