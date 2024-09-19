@@ -1,7 +1,12 @@
+use std::f64::consts::PI;
+
 use crate::{
     designer_node_type::DesignerNodeType,
     glass::ToolVisualizationState,
-    math::boolean_path_operations::{self, CompoundPath, DesignerPathId},
+    math::{
+        boolean_path_operations::{self, CompoundPath, DesignerPathId},
+        coordinate_spaces::World,
+    },
     model::{
         action::{
             orm::{CreateComponent, NodeLayoutSettings},
@@ -69,32 +74,8 @@ impl ToolBehavior for PaintBrushTool {
         ctx: &mut ActionContext,
     ) -> std::ops::ControlFlow<()> {
         let point = ctx.world_transform() * point;
-        let mut union_path = CompoundPath::from_subpath(Subpath::<DesignerPathId>::new_ellipse(
-            DVec2 {
-                x: point.x - 50.0,
-                y: point.y - 50.0,
-            },
-            DVec2 {
-                x: point.x + 50.0,
-                y: point.y + 50.0,
-            },
-        ));
-        for i in 1..=10 {
-            let point = point + Vector2::new(i as f64 * 20.0, (i as f64 * 0.2).sin() * 20.0);
-            union_path = union_path.union(&CompoundPath::from_subpath(
-                Subpath::<DesignerPathId>::new_ellipse(
-                    DVec2 {
-                        x: point.x - 50.0,
-                        y: point.y - 50.0,
-                    },
-                    DVec2 {
-                        x: point.x + 50.0,
-                        y: point.y + 50.0,
-                    },
-                ),
-            ));
-        }
 
+        let union_path = donut_out_of_circles(point);
         let pax_path = to_pax_path(&union_path);
         if let Err(e) = self.transaction.run(|| {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
@@ -150,6 +131,37 @@ impl ToolBehavior for PaintBrushTool {
     fn get_visual(&self) -> Property<ToolVisualizationState> {
         Property::new(ToolVisualizationState::default())
     }
+}
+
+fn donut_out_of_circles(point: Point2<World>) -> CompoundPath {
+    let mut union_path = CompoundPath::from_subpath(Subpath::<DesignerPathId>::new_ellipse(
+        DVec2 {
+            x: point.x - 50.0 + 100.0,
+            y: point.y - 5.0,
+        },
+        DVec2 {
+            x: point.x + 51.0 + 100.0,
+            y: point.y + 51.0,
+        },
+    ));
+    for i in 1..10 {
+        let angle = i as f64 * 2.0 * PI / 10.0;
+        let (sin, cos) = angle.sin_cos();
+        let point = point + Vector2::new(cos * 100.0, sin * 100.0);
+        union_path = union_path.union(&CompoundPath::from_subpath(
+            Subpath::<DesignerPathId>::new_ellipse(
+                DVec2 {
+                    x: point.x - 51.0,
+                    y: point.y - 51.0,
+                },
+                DVec2 {
+                    x: point.x + 51.0,
+                    y: point.y + 51.0,
+                },
+            ),
+        ));
+    }
+    union_path
 }
 
 // fn to_leon_path(path: Vec<PathElement>) -> Option<Subpath> {
