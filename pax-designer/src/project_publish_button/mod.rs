@@ -4,9 +4,9 @@ use crate::model::{
     ProjectMode,
 };
 use pax_engine::api::*;
-use pax_engine::*;
 use pax_engine::node_layout::calculate_transform_and_bounds;
 use pax_engine::pax_manifest::server::PublishResponse;
+use pax_engine::*;
 
 use pax_std::*;
 
@@ -26,12 +26,9 @@ pub struct ProjectPublishButton {
 
 #[allow(unused)]
 impl ProjectPublishButton {
-
     pub fn mount(&mut self, ctx: &NodeContext) {
         let publish_state_cloned = borrow!(ctx.designtime).publish_state.clone();
-        let deps = [
-            publish_state_cloned.untyped(),
-        ];
+        let deps = [publish_state_cloned.untyped()];
 
         let publish_success_cloned = self.publish_success.clone();
         let github_pr_url_cloned = self.github_pr_url.clone();
@@ -40,22 +37,20 @@ impl ProjectPublishButton {
         let is_publishing_cloned = self.is_publishing.clone();
 
         self.publish_state.replace_with(Property::computed(
-            move || {
-                match publish_state_cloned.get() {
-                    Some(PublishResponse::Success(success)) => {
-                        is_publishing_cloned.set(false);
-                        publish_success_cloned.set(true);
-                        github_pr_url_cloned.set(success.pull_request_url.clone());
-                        Some(PublishResponse::Success(success))
-                    }
-                    Some(PublishResponse::Error(error)) => {
-                        is_publishing_cloned.set(false);
-                        publish_error_cloned.set(true);
-                        publish_error_message_cloned.set(error.message.clone());
-                        Some(PublishResponse::Error(error))
-                    }
-                    _ => {None}
+            move || match publish_state_cloned.get() {
+                Some(PublishResponse::Success(success)) => {
+                    is_publishing_cloned.set(false);
+                    publish_success_cloned.set(true);
+                    github_pr_url_cloned.set(success.pull_request_url.clone());
+                    Some(PublishResponse::Success(success))
                 }
+                Some(PublishResponse::Error(error)) => {
+                    is_publishing_cloned.set(false);
+                    publish_error_cloned.set(true);
+                    publish_error_message_cloned.set(error.message.clone());
+                    Some(PublishResponse::Error(error))
+                }
+                _ => None,
             },
             &deps,
         ));

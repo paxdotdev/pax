@@ -215,7 +215,30 @@ impl Scroller {
     }
 
     pub fn handle_wheel(&mut self, ctx: &NodeContext, args: Event<Wheel>) {
+        if args.cancelled() {
+            return;
+        }
+        let delta_x = args.delta_x;
+        let delta_y = args.delta_y;
+        let (done_x, done_y) = self.moving_passed_bounds(ctx, delta_x, delta_y);
+        if !done_x || !done_y {
+            args.prevent_default();
+        }
         self.add_position(ctx, args.delta_x, args.delta_y);
+    }
+
+    fn moving_passed_bounds(&self, ctx: &NodeContext, dx: f64, dy: f64) -> (bool, bool) {
+        let width = self.scroll_width.get();
+        let height = self.scroll_height.get();
+        let bounds = ctx.bounds_self.get();
+        let max_bounds = (width.get_pixels(bounds.0), height.get_pixels(bounds.1));
+        let x = self.scroll_pos_x.get();
+        let y = self.scroll_pos_y.get();
+        let x = x + dx;
+        let y = y + dy;
+        let x = x.clamp(0.0, (max_bounds.0 - bounds.0).max(0.0));
+        let y = y.clamp(0.0, (max_bounds.1 - bounds.1).max(0.0));
+        (x == self.scroll_pos_x.get(), y == self.scroll_pos_y.get())
     }
 
     pub fn touch_move(&mut self, ctx: &NodeContext, args: Event<TouchMove>) {

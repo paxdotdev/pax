@@ -100,7 +100,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::literal_tuple | Rule::xo_tuple => {
             vec![Box::new(TupleMultiLineRule), Box::new(TupleDefaultRule)]
         }
-        Rule::literal_enum_value | Rule::xo_enum_or_function_call | Rule::literal_option => vec![
+        Rule::literal_enum_value | Rule::xo_enum_or_function_call => vec![
             Box::new(IdentifierCallMultiLineRule),
             Box::new(IdentifierCallDefaultRule),
         ],
@@ -147,6 +147,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::closing_tag
         | Rule::xo_symbol
         | Rule::literal_color_channel
+        | Rule::literal_option
         | Rule::EOI => vec![Box::new(RemoveWhitespaceRule)],
 
         Rule::identifier

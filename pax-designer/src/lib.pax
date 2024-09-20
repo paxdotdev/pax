@@ -50,6 +50,7 @@ if 0 == 1 {
     <RadioSet/>
     <Scroller/>
     <Link/>
+    <Carousel/>
 }
 
 @settings {
