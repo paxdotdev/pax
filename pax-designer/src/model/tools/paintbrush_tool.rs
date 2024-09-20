@@ -1,11 +1,11 @@
-use std::f64::consts::PI;
+use std::{f64::consts::PI, ops::ControlFlow};
 
 use crate::{
     designer_node_type::DesignerNodeType,
     glass::ToolVisualizationState,
     math::{
         boolean_path_operations::{self, CompoundPath, DesignerPathId},
-        coordinate_spaces::World,
+        coordinate_spaces::{Glass, World},
     },
     model::{
         action::{
@@ -30,6 +30,9 @@ use pax_std::{PathElement, Size};
 pub struct PaintBrushTool {
     path_node_being_created: UniqueTemplateNodeIdentifier,
     transaction: Transaction,
+    path: Option<CompoundPath>,
+    drawing: bool,
+    last_pos: Point2<Glass>,
 }
 
 impl PaintBrushTool {
@@ -55,6 +58,9 @@ impl PaintBrushTool {
         Ok(Self {
             path_node_being_created: uid,
             transaction: t,
+            path: None,
+            drawing: false,
+            last_pos: Point2::default(),
         })
     }
 }
@@ -62,21 +68,50 @@ impl PaintBrushTool {
 impl ToolBehavior for PaintBrushTool {
     fn pointer_down(
         &mut self,
-        _point: pax_engine::math::Point2<crate::math::coordinate_spaces::Glass>,
-        _ctx: &mut ActionContext,
-    ) -> std::ops::ControlFlow<()> {
-        std::ops::ControlFlow::Continue(())
+        point: pax_engine::math::Point2<crate::math::coordinate_spaces::Glass>,
+        ctx: &mut ActionContext,
+    ) -> ControlFlow<()> {
+        self.drawing = true;
+        self.pointer_move(point, ctx);
+        ControlFlow::Continue(())
     }
 
     fn pointer_move(
         &mut self,
         point: pax_engine::math::Point2<crate::math::coordinate_spaces::Glass>,
         ctx: &mut ActionContext,
-    ) -> std::ops::ControlFlow<()> {
+    ) -> ControlFlow<()> {
+        if (point - self.last_pos).length_squared() < 1.0 {
+            return ControlFlow::Continue(());
+        }
+        self.last_pos = point;
         let point = ctx.world_transform() * point;
 
-        let union_path = donut_out_of_circles(point);
-        let pax_path = to_pax_path(&union_path);
+        if !self.drawing {
+            return ControlFlow::Continue(());
+        }
+        // let union_path = donut_out_of_circles_scattered(point);
+        let circle = CompoundPath::from_subpath(Subpath::new_ellipse(
+            DVec2 {
+                x: point.x - 50.0,
+                y: point.y - 50.0,
+            },
+            DVec2 {
+                x: point.x + 50.0,
+                y: point.y + 50.0,
+            },
+        ));
+
+        let new_path = if let Some(path) = &self.path {
+            path.union(&circle)
+        } else {
+            circle
+        };
+
+        // let new_path = donut_out_of_circles_scattered(point);
+
+        let pax_path = to_pax_path(&new_path);
+        self.path = Some(new_path);
         if let Err(e) = self.transaction.run(|| {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             let node = dt.get_orm_mut().get_node(
@@ -89,7 +124,6 @@ impl ToolBehavior for PaintBrushTool {
             if let Some(mut node) = node {
                 let pax_value = pax_path.to_pax_value();
                 let str_val = pax_value.to_string();
-                log::debug!("str_val: {:?}", str_val);
                 // TODO don't override, just add
                 node.set_property("elements", &str_val)?;
                 node.save()
@@ -100,17 +134,16 @@ impl ToolBehavior for PaintBrushTool {
             log::warn!("failed to paint: {e}");
         }
         // TODO either commit this, or make elements a property connected to engine
-        std::ops::ControlFlow::Continue(())
+        ControlFlow::Continue(())
     }
 
     fn pointer_up(
         &mut self,
         point: pax_engine::math::Point2<crate::math::coordinate_spaces::Glass>,
         ctx: &mut ActionContext,
-    ) -> std::ops::ControlFlow<()> {
-        self.pointer_move(point, ctx);
-        // Continue here instead? If so, how to cancel?
-        std::ops::ControlFlow::Break(())
+    ) -> ControlFlow<()> {
+        self.drawing = false;
+        ControlFlow::Continue(())
     }
 
     fn finish(&mut self, _ctx: &mut ActionContext) -> anyhow::Result<()> {
@@ -120,12 +153,15 @@ impl ToolBehavior for PaintBrushTool {
 
     fn keyboard(
         &mut self,
-        _event: crate::model::input::InputEvent,
+        event: crate::model::input::InputEvent,
         _dir: crate::model::input::Dir,
         _ctx: &mut ActionContext,
-    ) -> std::ops::ControlFlow<()> {
+    ) -> ControlFlow<()> {
+        match event {
+            crate::model::input::InputEvent::FinishCurrentTool => ControlFlow::Break(()),
+            _ => ControlFlow::Continue(()),
+        }
         // TODO brush size, etc
-        std::ops::ControlFlow::Continue(())
     }
 
     fn get_visual(&self) -> Property<ToolVisualizationState> {
@@ -133,11 +169,35 @@ impl ToolBehavior for PaintBrushTool {
     }
 }
 
+fn venn_diagram(point: Point2<World>) -> CompoundPath {
+    let left = CompoundPath::from_subpath(Subpath::<DesignerPathId>::new_ellipse(
+        DVec2 {
+            x: point.x - 75.0,
+            y: point.y - 50.0,
+        },
+        DVec2 {
+            x: point.x + 25.0,
+            y: point.y + 50.0,
+        },
+    ));
+    let right = CompoundPath::from_subpath(Subpath::<DesignerPathId>::new_ellipse(
+        DVec2 {
+            x: point.x - 25.0,
+            y: point.y - 50.0,
+        },
+        DVec2 {
+            x: point.x + 75.0,
+            y: point.y + 50.0,
+        },
+    ));
+    left.union(&right)
+}
+
 fn donut_out_of_circles(point: Point2<World>) -> CompoundPath {
     let mut union_path = CompoundPath::from_subpath(Subpath::<DesignerPathId>::new_ellipse(
         DVec2 {
-            x: point.x - 50.0 + 100.0,
-            y: point.y - 5.0,
+            x: point.x - 51.0 + 100.0,
+            y: point.y - 51.0,
         },
         DVec2 {
             x: point.x + 51.0 + 100.0,
@@ -164,6 +224,48 @@ fn donut_out_of_circles(point: Point2<World>) -> CompoundPath {
     union_path
 }
 
+fn donut_out_of_circles_scattered(point: Point2<World>) -> CompoundPath {
+    let mut union_path = CompoundPath::from_subpath(Subpath::<DesignerPathId>::new_ellipse(
+        DVec2 {
+            x: point.x - 50.0 + 100.0,
+            y: point.y - 50.0,
+        },
+        DVec2 {
+            x: point.x + 50.0 + 100.0,
+            y: point.y + 50.0,
+        },
+    ));
+    for s in 1..4 {
+        for i in (s..10).step_by(3) {
+            let angle = i as f64 * 2.0 * PI / 10.0;
+            let (sin, cos) = angle.sin_cos();
+            let point = point + Vector2::new(cos * 100.0, sin * 100.0);
+            union_path = union_path.union(&CompoundPath::from_subpath(
+                Subpath::<DesignerPathId>::new_ellipse(
+                    DVec2 {
+                        x: point.x - 51.0,
+                        y: point.y - 51.0,
+                    },
+                    DVec2 {
+                        x: point.x + 51.0,
+                        y: point.y + 51.0,
+                    },
+                ),
+            ));
+        }
+    }
+    let rect = CompoundPath::from_subpath(Subpath::new_rect(
+        DVec2 {
+            x: point.x - 200.0,
+            y: point.y - 20.0,
+        },
+        DVec2 {
+            x: point.x,
+            y: point.y + 20.0,
+        },
+    ));
+    union_path.union(&rect)
+}
 // fn to_leon_path(path: Vec<PathElement>) -> Option<Subpath> {
 //     todo!()
 //     let mut path_builder = Builder::new();
