@@ -18,7 +18,7 @@ impl Identifier for DesignerPathId {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CompoundPath {
     pub subpaths: Vec<Subpath<DesignerPathId>>,
 }
@@ -48,56 +48,20 @@ impl CompoundPath {
     }
 
     pub fn union(&self, other: &Self) -> Self {
-        let self_segments: Vec<Vec<Bezier>> =
-            self.subpaths.iter().map(|s| s.iter().collect()).collect();
-        let other_segments: Vec<Vec<Bezier>> =
-            other.subpaths.iter().map(|s| s.iter().collect()).collect();
-        let mut all_intersections: Vec<(Intersection, Intersection)> = Vec::new();
-        let mut self_subgraph_has_intersections: Vec<bool> = vec![false; self.subpaths.len()];
-        let mut other_subgraph_has_intersections: Vec<bool> = vec![false; self.subpaths.len()];
-
-        for (self_sub_ind, self_subpath) in self.subpaths.iter().enumerate() {
-            for (other_sub_ind, other_subpath) in other.subpaths.iter().enumerate() {
-                for (self_ind, self_seg) in self_subpath.iter().enumerate() {
-                    for (other_ind, other_seg) in other_subpath.iter().enumerate() {
-                        let segment_intersections =
-                            intersections(&self_seg, &other_seg, Some(0.01), 0.1)
-                                .into_iter()
-                                .map(|[self_t, other_t]| {
-                                    (
-                                        Intersection {
-                                            subgraph_ind: self_sub_ind,
-                                            segment_index: self_ind,
-                                            t: self_t,
-                                        },
-                                        Intersection {
-                                            subgraph_ind: other_sub_ind,
-                                            segment_index: other_ind,
-                                            t: other_t,
-                                        },
-                                    )
-                                });
-                        if segment_intersections.len() > 0 {
-                            self_subgraph_has_intersections[self_sub_ind] = true;
-                            other_subgraph_has_intersections[other_sub_ind] = true;
-                            all_intersections.extend(segment_intersections);
-                        }
-                    }
-                }
-            }
-        }
-
+        let all_intersections = calculcate_all_intersections(&self, &other);
+        // log::debug!("all intersections: {:#?}", all_intersections);
         let intersections_len = all_intersections.len();
+
         let (self_intersections, other_intersections) =
             unzip_and_sort_with_cross_references(all_intersections);
 
         let self_path_data = PathIntersectionData {
             intersections: self_intersections,
-            beziers: self_segments,
+            beziers: self.subpaths.iter().map(|s| s.iter().collect()).collect(),
         };
         let other_path_data = PathIntersectionData {
             intersections: other_intersections,
-            beziers: other_segments,
+            beziers: other.subpaths.iter().map(|s| s.iter().collect()).collect(),
         };
         let mut intersection_visited = vec![false; intersections_len];
 
@@ -116,37 +80,93 @@ impl CompoundPath {
             let (_, start_intersection) = self_path_data.intersections[*ind];
             const EPS: f64 = 1e-1;
             // TODO make this start point coice more intelligently
-            let eps_ahead_of_start_point = self_path_data.beziers[start_intersection.subgraph_ind]
+            let eps_ahead_of_start_point = self_path_data.beziers[start_intersection.subpath_index]
                 [start_intersection.segment_index]
                 .evaluate(TValue::Parametric(
                     (start_intersection.t + EPS).clamp(0.0, 1.0),
                 ));
-            log::debug!("after");
             let point_is_inside_other = other
                 .subpaths
                 .iter()
                 .any(|s| s.point_inside(eps_ahead_of_start_point));
             !point_is_inside_other
         }) {
-            log::debug!("tracing from {:?}", start_index);
-            log::debug!("visited before: {:?}", intersection_visited);
+            // log::debug!("tracing from {:?}", start_index);
+            // log::debug!("visited before: {:?}", intersection_visited);
             let path = trace_from(
                 start_index,
                 &self_path_data,
                 &other_path_data,
                 &mut intersection_visited,
             );
-            log::debug!("visited after: {:?}", intersection_visited);
-            output_paths.push(path);
+            // log::debug!("visited after: {:?}", intersection_visited);
+            output_paths.push(Subpath::from_beziers(&path, true));
         }
 
+        // TODO this logic needs to be different for the different boolean operations,
+        // and handle holes and non-holes differently (assuming UNION + non-holes below)
+        // add all paths to output that were never crossed anywhere
+        output_paths.extend(collect_subpaths_without_intersections(
+            self,
+            self_path_data.intersections.iter().map(|(_, i)| i),
+        ));
+        output_paths.extend(collect_subpaths_without_intersections(
+            other,
+            other_path_data.intersections.iter().map(|(_, i)| i),
+        ));
+
         Self {
-            subpaths: output_paths
-                .into_iter()
-                .map(|p| Subpath::from_beziers(&p, true))
-                .collect(),
+            subpaths: output_paths,
         }
     }
+}
+
+fn calculcate_all_intersections(
+    p1: &CompoundPath,
+    p2: &CompoundPath,
+) -> Vec<(Intersection, Intersection)> {
+    let mut all_intersections: Vec<(Intersection, Intersection)> = Vec::new();
+    for (p1_subpath_index, p1_subpath) in p1.subpaths.iter().enumerate() {
+        for (p2_subpath_index, p2_subpath) in p2.subpaths.iter().enumerate() {
+            for (p1_segment_index, p1_seg) in p1_subpath.iter().enumerate() {
+                for (p2_segment_index, p2_seg) in p2_subpath.iter().enumerate() {
+                    let segment_intersections = intersections(&p1_seg, &p2_seg, Some(0.001), 0.01)
+                        .into_iter()
+                        .map(|[p1_t, p2_t]| {
+                            (
+                                Intersection {
+                                    subpath_index: p1_subpath_index,
+                                    segment_index: p1_segment_index,
+                                    t: p1_t,
+                                },
+                                Intersection {
+                                    subpath_index: p2_subpath_index,
+                                    segment_index: p2_segment_index,
+                                    t: p2_t,
+                                },
+                            )
+                        });
+                    all_intersections.extend(segment_intersections);
+                }
+            }
+        }
+    }
+    all_intersections
+}
+
+fn collect_subpaths_without_intersections<'a>(
+    path: &'a CompoundPath,
+    intersections: impl Iterator<Item = &'a Intersection>,
+) -> impl Iterator<Item = Subpath<DesignerPathId>> + 'a {
+    let mut subpaths_intersection_flags = vec![false; path.subpaths.len()];
+    for intersection in intersections {
+        subpaths_intersection_flags[intersection.subpath_index] = true;
+    }
+    subpaths_intersection_flags
+        .into_iter()
+        .zip(path.subpaths.iter())
+        .filter_map(|(intersected, subgraph)| (!intersected).then_some(subgraph))
+        .cloned()
 }
 
 fn trace_from(
@@ -178,46 +198,46 @@ fn trace_from(
         intersection_visited[self_index] = true;
 
         let (_, curr_intersection) = current.intersections[index];
-        let subpath_ind = curr_intersection.subgraph_ind;
+        let subpath_index = curr_intersection.subpath_index;
         let (segment_ind_jump_pointer, next_intersection) = current
             .intersections
             .get(index + 1)
-            .filter(|(_, i)| i.subgraph_ind == curr_intersection.subgraph_ind)
+            .filter(|(_, i)| i.subpath_index == subpath_index)
             // find start
             .unwrap_or_else(|| {
                 current
                     .intersections
                     .iter()
-                    .find(|(_, i)| i.subgraph_ind == curr_intersection.subgraph_ind)
+                    .find(|(_, i)| i.subpath_index == subpath_index)
                     .expect("current_intersection was taken from same list, and so should always exist at least one")
             });
-        log::debug!(
-            "curr: {:#?}, next: {:#?}",
-            curr_intersection,
-            next_intersection
-        );
+        // log::debug!(
+        //     "curr: {:#?}, next: {:#?}",
+        //     curr_intersection,
+        //     next_intersection
+        // );
         if curr_intersection.segment_index == next_intersection.segment_index {
-            log::debug!("one segment");
-            let segment = current.beziers[subpath_ind][curr_intersection.segment_index];
+            // log::debug!("one segment");
+            let segment = current.beziers[subpath_index][curr_intersection.segment_index];
             let part = segment.split(TValue::Parametric(curr_intersection.t))[1]
                 .split(TValue::Parametric(next_intersection.t))[0];
             union_path_segments.push(part);
         } else {
-            let first_segment = current.beziers[subpath_ind][curr_intersection.segment_index];
+            let first_segment = current.beziers[subpath_index][curr_intersection.segment_index];
             let [_before, on] = first_segment.split(TValue::Parametric(curr_intersection.t));
             union_path_segments.push(on);
             let mut count = 2;
             for seg_ind in circular_range(
                 curr_intersection.segment_index + 1,
                 next_intersection.segment_index,
-                current.beziers[subpath_ind].len(),
+                current.beziers[subpath_index].len(),
             ) {
                 count += 1;
-                let segment = current.beziers[subpath_ind][seg_ind];
+                let segment = current.beziers[subpath_index][seg_ind];
                 union_path_segments.push(segment);
             }
-            log::debug!("adding {} segments", count);
-            let last_segment = current.beziers[subpath_ind][next_intersection.segment_index];
+            // log::debug!("adding {} segments", count);
+            let last_segment = current.beziers[subpath_index][next_intersection.segment_index];
             let [on, _after] = last_segment.split(TValue::Parametric(next_intersection.t));
             union_path_segments.push(on);
         }
@@ -234,7 +254,7 @@ struct PathIntersectionData {
 
 #[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
 struct Intersection {
-    subgraph_ind: usize,
+    subpath_index: usize,
     segment_index: usize,
     t: f64,
 }
@@ -243,7 +263,7 @@ impl Eq for Intersection {}
 
 impl Ord for Intersection {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.subgraph_ind.cmp(&other.subgraph_ind).then(
+        self.subpath_index.cmp(&other.subpath_index).then(
             self.segment_index
                 .cmp(&other.segment_index)
                 .then(self.t.total_cmp(&other.t)),
