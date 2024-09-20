@@ -74,7 +74,6 @@ pub struct PaxDesigner {
 
 impl PaxDesigner {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-
         self.show_publish_button.set(PAX_PUBLISH_BUTTON_ENABLED);
 
         model::Model::init(ctx);

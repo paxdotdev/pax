@@ -74,7 +74,7 @@ impl ToolBehavior for DropComponent {
             let (w, h) = (200.0, 200.0);
             let v = Vector2::new(w, h) / 2.0;
             let bounds = AxisAlignedBox::new(point + v, point - v);
-            let root_parent = ctx.derived_state.open_container.get();
+            let root_parent = ctx.derived_state.open_container.get()[0].clone();
             let Ok(parent) = ctx.get_glass_node_by_global_id(&root_parent) else {
                 log::warn!("couldn't find open container node");
                 return ControlFlow::Break(());

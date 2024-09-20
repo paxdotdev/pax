@@ -273,7 +273,7 @@ pub struct Paste<'a> {
 
 impl Action<Vec<TemplateNodeId>> for Paste<'_> {
     fn perform(&self, ctx: &mut ActionContext) -> Result<Vec<TemplateNodeId>> {
-        let parent = ctx.derived_state.open_container.get();
+        let parent = ctx.derived_state.open_container.get()[0].clone();
         let loc = ctx.location(&parent, &TreeIndexPosition::Top);
         let t = ctx.transaction("pasting object");
         let mut dt = borrow_mut!(ctx.engine_context.designtime);

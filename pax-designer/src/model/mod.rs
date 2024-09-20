@@ -139,7 +139,7 @@ pub struct DerivedAppState {
     pub to_glass_transform: Property<Property<Transform2<Window, Glass>>>,
     pub selected_nodes: Property<Vec<(UniqueTemplateNodeIdentifier, NodeInterface)>>,
     pub selection_state: Property<SelectionState>,
-    pub open_container: Property<UniqueTemplateNodeIdentifier>,
+    pub open_container: Property<Vec<UniqueTemplateNodeIdentifier>>,
 }
 
 const INITIALIZED: &'static str = "model should have been initialized";
@@ -287,7 +287,7 @@ impl Model {
     fn derive_open_container(
         ctx: &NodeContext,
         app_state: &AppState,
-    ) -> Property<UniqueTemplateNodeIdentifier> {
+    ) -> Property<Vec<UniqueTemplateNodeIdentifier>> {
         let selected_comp = app_state.selected_component_id.clone();
         let node_ids = app_state.selected_template_node_ids.clone();
         let ctx_cp = ctx.clone();
@@ -307,10 +307,21 @@ impl Model {
                     }
                 }
                 if containers.len() == 1 {
-                    containers.into_iter().next().unwrap()
+                    let mut direct_parent = containers.into_iter().next().unwrap();
+                    let mut containers = vec![direct_parent.clone()];
+                    while let Some(next_parent) = ctx_cp
+                        .get_nodes_by_global_id(direct_parent.clone())
+                        .into_iter()
+                        .next()
+                        .and_then(|v| v.template_parent())
+                    {
+                        containers.push(next_parent.global_id().unwrap());
+                        direct_parent = next_parent.global_id().unwrap();
+                    }
+                    containers
                 } else {
                     let root = ctx_cp.get_userland_root_expanded_node();
-                    root.and_then(|n| n.global_id()).unwrap()
+                    vec![root.and_then(|n| n.global_id()).unwrap()]
                 }
             },
             &deps,

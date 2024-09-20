@@ -106,7 +106,10 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                     if let Some(vd) = defined_properties.get("{{property.name}}") {
                             match vd.clone() {
                                 {{ engine_import_path }}::pax_manifest::ValueDefinition::LiteralValue(lv) => {
-                                    let value = <{{property.property_type.type_id._type_id}}>::try_coerce(lv.clone()).unwrap();
+                                    let value = <{{property.property_type.type_id._type_id}}>::try_coerce(lv.clone()).unwrap_or_else(|err| {
+                                        log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                                        Default::default()
+                                    });
                                     properties.{{property.name}}.replace_with(Property::new_with_name(value, "{{property.name}}"));
                                 },
                                 {{ engine_import_path }}::pax_manifest::ValueDefinition::DoubleBinding(identifier) => {

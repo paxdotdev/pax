@@ -1142,6 +1142,8 @@ impl ComponentTemplate {
                 for i in indexes_to_remove.iter().rev() {
                     settings.remove(*i);
                 }
+            } else {
+                node.settings = Some(vec![]);
             }
         }
         // Add remaining (aka new properties) to settings
