@@ -123,7 +123,8 @@ impl ToolBehavior for CreateComponentTool {
             return ControlFlow::Break(());
         }
         let box_transform = bounds.as_transform();
-        let Ok(parent) = ctx.get_glass_node_by_global_id(&ctx.derived_state.open_container.get())
+        let Ok(parent) =
+            ctx.get_glass_node_by_global_id(&ctx.derived_state.open_container.get()[0].clone())
         else {
             return ControlFlow::Continue(());
         };
@@ -615,7 +616,7 @@ impl ToolBehavior for MultiSelectTool {
             bounds: (1.0, 1.0),
         };
         let glass_transform = ctx.glass_transform();
-        let open_container = ctx.derived_state.open_container.get();
+        let open_container = ctx.derived_state.open_container.get()[0].clone();
         let mut to_process = project_root.children();
         let mut hits = vec![];
         while let Some(node) = to_process.pop() {

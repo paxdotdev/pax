@@ -129,7 +129,7 @@ impl ActionContext<'_> {
             };
             if parent
                 .global_id()
-                .is_some_and(|v| self.derived_state.open_container.get() == v)
+                .is_some_and(|v| self.derived_state.open_container.get().contains(&v))
             {
                 break;
             }
@@ -142,7 +142,7 @@ impl ActionContext<'_> {
                 };
                 if next_parent
                     .global_id()
-                    .is_some_and(|v| self.derived_state.open_container.get() == v)
+                    .is_some_and(|v| self.derived_state.open_container.get().contains(&v))
                 {
                     break;
                 }

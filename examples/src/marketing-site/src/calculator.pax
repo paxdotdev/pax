@@ -1,0 +1,138 @@
+<Stacker direction=StackerDirection::Vertical>
+    <Group width=100% height=120px>
+        <Text text={self.display} id=display x=95% y=50% />
+    </Group>
+    <Stacker direction=StackerDirection::Horizontal>
+        <Button label="sin" @button_click=handle_sin class=btn_sci />
+        <Button label="cos" @button_click=handle_cos class=btn_sci />
+        <Button label="tan" @button_click=handle_tan class=btn_sci />
+        <Button label="log" @button_click=handle_log class=btn_sci />
+    </Stacker>
+    <Stacker direction=StackerDirection::Horizontal>
+        <Button label="ln" @button_click=handle_ln class=btn_sci />
+        <Button label="√" @button_click=handle_sqrt class=btn_sci />
+        <Button label="^" @button_click=handle_power class=btn_sci />
+        <Button label="π" @button_click=handle_pi class=btn_sci />
+    </Stacker>
+    <Stacker direction=StackerDirection::Horizontal>
+        <Button label="AC" @button_click=handle_clear class=btn_top />
+        <Button label="C" @button_click=handle_clear class=btn_top />
+        <Button label="+/-" class=btn_top />
+        <Button label="÷" @button_click=handle_divide class=btn_op />
+    </Stacker>
+    <Stacker direction=StackerDirection::Horizontal>
+        <Button label="7" @button_click=handle7 class=btn />
+        <Button label="8" @button_click=handle8 class=btn />
+        <Button label="9" @button_click=handle9 class=btn />
+        <Button label="×" @button_click=handle_multiply class=btn_op />
+    </Stacker>
+    <Stacker direction=StackerDirection::Horizontal>
+        <Button label="4" @button_click=handle4 class=btn />
+        <Button label="5" @button_click=handle5 class=btn />
+        <Button label="6" @button_click=handle6 class=btn />
+        <Button label="-" @button_click=handle_subtract class=btn_op />
+    </Stacker>
+    <Stacker direction=StackerDirection::Horizontal>
+        <Button label="1" @button_click=handle1 class=btn />
+        <Button label="2" @button_click=handle2 class=btn />
+        <Button label="3" @button_click=handle3 class=btn />
+        <Button label="+" @button_click=handle_add class=btn_op />
+    </Stacker>
+    <Stacker direction=StackerDirection::Horizontal>
+        <Button label="0" @button_click=handle0 class=btn_zero />
+        <Button label="." class=btn />
+        <Button label="=" @button_click=handle_equals class=btn_op />
+    </Stacker>
+</Stacker>
+
+@settings {
+    #display {
+        style: {
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light,
+            )},
+            font_size: 64px,
+            fill: WHITE,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Right,
+        }
+    }
+    .btn {
+        style: {
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Normal,
+            )},
+            font_size: 28px,
+            fill: WHITE,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+        },
+        color: rgb(51, 51, 51)
+    }
+    .btn_top {
+        style: {
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Normal,
+            )},
+            font_size: 28px,
+            fill: BLACK,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+        },
+        color: rgb(165, 165, 165)
+    }
+    .btn_op {
+        style: {
+           font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Normal,
+            )},
+            font_size: 28px,
+            fill: WHITE,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+        },
+        color: rgb(255, 159, 10)
+    }
+    .btn_zero {
+        style: {
+           font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Normal,
+            )},
+            font_size: 28px,
+            fill: WHITE,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+        },
+        color: rgb(51, 51, 51)
+    }
+    .btn_sci {
+        style: {
+           font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Normal,
+            )},
+            font_size: 24px,
+            fill: WHITE,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+        },
+        color: rgb(70, 70, 70)
+    }
+}

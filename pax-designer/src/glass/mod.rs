@@ -149,20 +149,21 @@ impl Glass {
             .replace_with(Property::computed(
                 move || {
                     let open = open_container.get();
-                    if let Some(node) = ctx.get_nodes_by_global_id(open.clone()).into_iter().next()
-                    {
-                        let open_container = open_container.clone();
-                        let deps = [open_container.untyped()];
-                        // if this is a scroller, make it open if it's id is the currently open container
-                        let _ = node.with_properties(|scroller: &mut Scroller| {
-                            scroller._clip_content.replace_with(Property::computed(
-                                move || {
-                                    let is_open = open_container.get() == open;
-                                    !is_open
-                                },
-                                &deps,
-                            ));
-                        });
+
+                    for node in open {
+                        if let Some(node_interface) =
+                            ctx.get_nodes_by_global_id(node.clone()).into_iter().next()
+                        {
+                            let open_container = open_container.clone();
+                            let deps = [open_container.untyped()];
+                            // if this is a scroller, make it open if it's id is in the currently open container set
+                            let _ = node_interface.with_properties(|scroller: &mut Scroller| {
+                                scroller._clip_content.replace_with(Property::computed(
+                                    move || !open_container.get().contains(&node),
+                                    &deps,
+                                ));
+                            });
+                        }
                     }
                     false
                 },
