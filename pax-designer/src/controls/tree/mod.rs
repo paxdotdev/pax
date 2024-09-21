@@ -116,7 +116,7 @@ impl Tree {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         model::read_app_state(|app_state| {
             let type_id = app_state.selected_component_id.clone();
-            let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
+            let manifest_ver = borrow!(ctx.designtime).get_last_rendered_manifest_version();
             let selected = app_state.selected_template_node_ids.clone();
             let ctx = ctx.clone();
             let hidden_nodes = TREE_HIDDEN_NODES.with(|p| p.clone());
