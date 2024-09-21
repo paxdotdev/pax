@@ -87,7 +87,7 @@ impl FileAndComponentPicker {
         let library_active = self.library_active.clone();
         let selected_component =
             model::read_app_state(|app_state| app_state.selected_component_id.clone());
-        let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
+        let manifest_ver = borrow!(ctx.designtime).get_last_rendered_manifest_version();
 
         let deps = [
             library_active.untyped(),

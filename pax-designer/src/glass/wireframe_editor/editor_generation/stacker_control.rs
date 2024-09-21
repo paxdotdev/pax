@@ -159,7 +159,7 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
     let to_glass_transform =
         model::read_app_state_with_derived(|_, derived| derived.to_glass_transform.get());
     let dt = borrow!(ctx.designtime);
-    let manifest_ver = dt.get_manifest_version();
+    let manifest_ver = dt.get_last_written_manifest_version();
     let object_transform = item.transform_and_bounds.clone();
     let deps = [object_transform.untyped(), manifest_ver.untyped()];
     let item_id = item.id;
