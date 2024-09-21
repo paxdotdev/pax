@@ -3072,4 +3072,296 @@ impl Calculator {
 }
 ```
 
+
+## Website
+
+A (mostly empty) landing page for a website
+
+### Code
+```rust filename=lib.rs
+#[pax]
+#[main]
+#[file("lib.pax")]
+pub struct Example {
+    pub ticks: Property<usize>,
+    pub num_clicks: Property<usize>,
+}
+
+impl Example {
+    pub fn handle_pre_render(&mut self, _ctx: &NodeContext) {
+    }
+
+    pub fn increment(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
+        let old_num_clicks = self.num_clicks.get();
+        self.num_clicks.set(old_num_clicks + 1);
+    }
+}
+```
+
+```pax filename=lib.pax
+<Scroller scroll_height=400% x=0% y=0% width=100% height=100%>
+    <Stacker width={100% + 10px} height=100% y=0% x=0% direction=StackerDirection::Vertical sizes=[Some(750px), None, None]>
+        <Group x=0 height=750px skew_y=0.00rad skew_x=0.00rad rotate=0.00rad>
+            <Image width=500px height=500px x={100% - 80px} y=53.06% source=ImageSource::Url("assets/placeholder.jpg")/>
+            <Group rotate=0.00rad skew_x=0.00rad x=10% y=41.45% height=430.05px width=466.31px>
+                <Button style={
+                    font: Font::Web(
+                        "Roboto",
+                        "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                        FontStyle::Normal,
+                        FontWeight::Normal)
+                    font_size: 12px
+                    fill: rgba(30, 28, 30, 255)
+                    align_vertical: TextAlignVertical::Center
+                    align_horizontal: TextAlignHorizontal::Center
+                    align_multiline: TextAlignHorizontal::Center
+                    underline: false
+                }
+                    rotate=0.00rad skew_x=0.00rad width=245px height=36px x=0.02% y=0.00% label="PRODUCT: BUILD UI 10X FASTER - >" outline={
+                        color: rgba(24, 22, 19, 100)
+                        width: 1.00px
+                    }
+                    color=rgba(246, 240, 234, 255)/>
+                <Text width=519.48px height=120.52px y=52.97px style={
+                    font: Font::Web(
+                        "Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap", FontStyle::Normal,
+                            FontWeight::Normal)
+                    font_size: 48px
+                    fill: rgba(0, 0, 0, 255)
+                    align_vertical: TextAlignVertical::Center
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }
+                    text="What if your website could optimize itself?"/>
+                <Text width=420px x=4.56px y=191.55px height=85px style={
+                    font: Font::Web(
+                        "Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap", FontStyle::Normal,
+                            FontWeight::Normal)
+                    font_size: 24.00px
+                    fill: rgba(33, 31, 29, 155)
+                    align_vertical: TextAlignVertical::Top
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }
+                    text="Imagine a frontend engineer and growth marketer optimizing your website 24/7. That's Coframe."/>
+                <Button style={
+                    font: Font::Web(
+                        "Noto Sans",
+                        "https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap",
+                        FontStyle::Normal,
+                        FontWeight::Normal)
+                    font_size: 16px
+                    fill: rgba(0, 0, 0, 255)
+                    align_vertical: TextAlignVertical::Center
+                    align_horizontal: TextAlignHorizontal::Center
+                    align_multiline: TextAlignHorizontal::Center
+                    underline: false
+                }
+                    label="Get in touch" color=rgba(244, 240, 234, 255) rotate=0.00rad skew_x=0.00rad width=195px height=54px x=229.56px
+                    y=330.66px outline={
+                        color: rgba(11, 0, 0, 255)
+                        width: 1.00px
+                    } hover_color=rgba(0, 6, 14, 255)/>
+                <Button style={
+                    font: Font::Web(
+                        "Noto Sans",
+                        "https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap",
+                        FontStyle::Normal,
+                        FontWeight::Normal)
+                    font_size: 16px
+                    fill: rgba(255, 255, 255, 255)
+                    align_vertical: TextAlignVertical::Center
+                    align_horizontal: TextAlignHorizontal::Center
+                    align_multiline: TextAlignHorizontal::Center
+                    underline: false
+                }
+                    label="Start optimizing" color=rgba(0, 1, 13, 255) rotate=0.00rad skew_x=0.00rad width=195px height=54px x=4.55px
+                    y=330.66px hover_color=rgba(138, 137, 137, 255)/>
+                <Text width=321.84px x=5.52px y=410.46px height=19.59px style={
+                    font: Font::Web(
+                        "Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap", FontStyle::Normal,
+                            FontWeight::Normal)
+                    font_size: 14.00px
+                    fill: rgba(33, 31, 29, 155)
+                    align_vertical: TextAlignVertical::Top
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }
+                    text="Get started for free. Integration takes 5 minutes"/>
+            </Group>
+            <Stacker direction=StackerDireciton::Horizontal y=0 x=0 height=70px width=100% sizes=[None, Some(500px), None]>
+                <Group rotate=0.00rad skew_x=0.00rad skew_y=0.00rad>
+                    <Stacker width=114.70px height=30.00px direction=StackerDirection::Horizontal y=20.00px x=14.72px>
+                        <Group skew_x=0.00rad rotate=0.00rad skew_y=0.00rad>
+                            <Image source=ImageSource::Url("assets/placeholder.jpg") skew_y=0.00rad skew_x=0.00rad rotate=0.00rad x=0/>
+                        </Group>
+                        <Group skew_y=0.00rad skew_x=0.00rad rotate=0.00rad>
+                            <Text style={
+                                font: Font::Web(
+                                    "Noto Sans",
+                                    "https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap",
+                                    FontStyle::Normal,
+                                    FontWeight::Normal)
+                                font_size: 16px
+                                fill: rgba(0, 0, 0, 255)
+                                align_vertical: TextAlignVertical::Center
+                                align_horizontal: TextAlignHorizontal::Center
+                                align_multiline: TextAlignHorizontal::Center
+                                underline: false
+                            }
+                                text="Logo" skew_x=0.00rad rotate=0.00rad height=100% skew_y=0.00rad/>
+                        </Group>
+                    </Stacker>
+                </Group>
+                <Group skew_x=0.00rad rotate=0.00rad skew_y=0.00rad>
+                    <Stacker x=0.00% y=0.00% direction=StackerDireciton::Horizontal>
+                        <Group skew_x=0.00rad rotate=0.00rad skew_y=0.00rad>
+                            <Text style={
+                                font: Font::Web(
+                                    "Source Sans Pro",
+                                    "https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700;1,900&display=swap",
+                                    FontStyle::Normal,
+                                    FontWeight::Normal)
+                                font_size: 16px
+                                fill: rgba(0, 0, 0, 255)
+                                align_vertical: TextAlignVertical::Center
+                                align_horizontal: TextAlignHorizontal::Center
+                                align_multiline: TextAlignHorizontal::Center
+                                underline: false
+                            }
+                                text="Product" skew_x=0.00rad rotate=0.00rad skew_y=0.00rad width=100% height=100%/>
+                        </Group>
+                        <Group skew_y=0.00rad rotate=0.00rad skew_x=0.00rad>
+                            <Text style={
+                                font: Font::Web(
+                                    "Source Sans Pro",
+                                    "https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700;1,900&display=swap",
+                                    FontStyle::Normal,
+                                    FontWeight::Normal)
+                                font_size: 16px
+                                fill: rgba(0, 0, 0, 255)
+                                align_vertical: TextAlignVertical::Center
+                                align_horizontal: TextAlignHorizontal::Center
+                                align_multiline: TextAlignHorizontal::Center
+                                underline: false
+                            }
+                                text="Documentation" rotate=0.00rad width=100% height=100%/>
+                        </Group>
+                        <Group skew_y=0.00rad skew_x=0.00rad rotate=0.00rad>
+                            <Text style={
+                                font: Font::Web(
+                                    "Source Sans Pro",
+                                    "https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700;1,900&display=swap",
+                                    FontStyle::Normal,
+                                    FontWeight::Normal)
+                                font_size: 16px
+                                fill: rgba(0, 0, 0, 255)
+                                align_vertical: TextAlignVertical::Center
+                                align_horizontal: TextAlignHorizontal::Center
+                                align_multiline: TextAlignHorizontal::Center
+                                underline: false
+                            }
+                                text="Contact" skew_x=0.00rad rotate=0.00rad skew_y=0.00rad width=100% height=100%/>
+                        </Group>
+                        <Group skew_x=0.00rad rotate=0.00rad skew_y=0.00rad>
+                            <Text style={
+                                font: Font::Web(
+                                    "Source Sans Pro",
+                                    "https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700;1,900&display=swap",
+                                    FontStyle::Normal,
+                                    FontWeight::Normal)
+                                font_size: 16px
+                                fill: rgba(0, 0, 0, 255)
+                                align_vertical: TextAlignVertical::Center
+                                align_horizontal: TextAlignHorizontal::Center
+                                align_multiline: TextAlignHorizontal::Center
+                                underline: false
+                            }
+                                text="Careers" skew_x=0.00rad rotate=0.00rad skew_y=0.00rad width=100% height=100%/>
+                        </Group>
+                    </Stacker>
+                </Group>
+                <Group rotate=0.00rad skew_x=0.00rad skew_y=0.00rad>
+                    <Button style={
+                        font: Font::Web(
+                            "Source Sans Pro",
+                            "https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700;1,900&display=swap",
+                            FontStyle::Normal,
+                            FontWeight::Normal)
+                        font_size: 20.00px
+                        fill: rgba(255, 255, 255, 255)
+                        align_vertical: TextAlignVertical::Center
+                        align_horizontal: TextAlignHorizontal::Center
+                        align_multiline: TextAlignHorizontal::Center
+                        underline: false
+                    }
+                        label="Get started" color=rgba(0, 3, 13, 255) rotate=0.00rad skew_x=0.00rad skew_y=0.00rad width=145px height=56px
+                        x={100% - 20px} y=10px/>
+                </Group>
+            </Stacker>
+            <Rectangle fill=rgba(246, 240, 234, 255) skew_x=0.00rad rotate=0.00rad stroke={
+                color: rgba(100, 116, 139, 255)
+                width: 1.00px
+            }
+                x=0.00% y=0.00%/>
+        </Group>
+        <Group skew_x=0.00rad rotate=0.00rad skew_y=0.00rad>
+            <Scroller scroll_height=200% rotate=0.00rad skew_x=0.00rad width=41.27% height=17.93% x=66.65% y=35.39%>
+                <Rectangle width=10.87% y=38.74% height=14.76% scale_x=139.99% scale_y=140.00% x=12.40% rotate=18.04deg stroke={
+                    color: rgba(100, 116, 139, 255)
+                    width: 1.00px
+                }/>
+                <Rectangle fill=rgba(100, 116, 139, 255) stroke={
+                    color: rgba(100, 116, 139, 255)
+                    width: 1.00px
+                } rotate=0.00rad
+                    skew_x=0.00rad x=67.17% y=51.46% width=30.90% height=34.80%/>
+                <Rectangle fill=rgba(0, 0, 1, 255) skew_y=0.00rad skew_x=0.00rad rotate=0.00rad stroke={
+                    color: rgba(100, 116, 139, 255)
+                    width: 1.00px
+                }/>
+            </Scroller>
+            <Carousel skew_x=0.00rad rotate=0.00rad skew_y=0.00rad height=100px>
+                <Rectangle fill=rgba(100, 116, 139, 255) skew_y=0.00rad rotate=0.00rad skew_x=0.00rad/>
+                <Rectangle fill=rgba(4, 4, 5, 255) stroke={
+                    color: rgba(100, 116, 139, 255)
+                    width: 1.00px
+                } rotate=0.00rad skew_x=0.00rad
+                    skew_y=0.00rad/>
+                <Rectangle fill=rgba(100, 116, 139, 255) stroke={
+                    color: rgba(100, 116, 139, 255)
+                    width: 1.00px
+                } rotate=0.00rad
+                    skew_x=0.00rad skew_y=0.00rad/>
+            </Carousel>
+            <Rectangle fill=rgba(249, 248, 248, 255) skew_y=0.00rad skew_x=0.00rad rotate=0.00rad stroke={
+                color: rgba(100, 116, 139, 255)
+                width: 1.00px
+            }/>
+        </Group>
+        <Group rotate=0.00rad skew_x=0.00rad skew_y=0.00rad>
+            <Rectangle fill=rgb(150, 150, 150) rotate=0.00rad skew_y=0.00rad skew_x=0.00rad/>
+        </Group>
+    </Stacker>
+</Scroller>
+
+@settings {
+    @pre_render: handle_pre_render
+    #text {
+        style: {
+            font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold)
+            font_size: 22px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+}
+```
+
+
 </examples>
