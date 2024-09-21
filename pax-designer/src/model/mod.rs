@@ -408,10 +408,10 @@ impl Interpolatable for Tool {}
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Tool {
     TodoTool,
-    #[default]
     PointerPercent,
     PointerPixels,
     CreateComponent(Component),
+    #[default]
     PaintBrush,
 }
 
