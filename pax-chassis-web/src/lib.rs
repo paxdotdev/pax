@@ -59,8 +59,6 @@ pub struct PaxChassisWeb {
         Box<dyn pax_runtime::cartridge::DefinitionToInstanceTraverser>,
     #[cfg(any(feature = "designtime", feature = "designer"))]
     designtime_manager: Rc<RefCell<DesigntimeManager>>,
-    #[cfg(any(feature = "designtime", feature = "designer"))]
-    last_manifest_version_rendered: usize,
 }
 
 #[wasm_bindgen]
@@ -107,7 +105,6 @@ impl PaxChassisWeb {
             drawing_contexts: Renderer::new(),
             userland_definition_to_instance_traverser,
             designtime_manager,
-            last_manifest_version_rendered: 0,
         }
     }
 
@@ -596,13 +593,20 @@ impl PaxChassisWeb {
 
     #[cfg(any(feature = "designtime", feature = "designer"))]
     pub fn update_userland_component(&mut self) {
-        let current_manifest_version = borrow!(self.designtime_manager).get_manifest_version();
+        let current_manifest_version =
+            borrow!(self.designtime_manager).get_last_written_manifest_version();
         let mut reload_queue = borrow_mut!(self.designtime_manager).take_reload_queue();
         // erase unnecessary reloads
         if reload_queue.contains(&ReloadType::FullEdit) {
             reload_queue = vec![ReloadType::FullEdit];
         };
-        if current_manifest_version.get() != self.last_manifest_version_rendered {
+        if current_manifest_version.get()
+            != self
+                .designtime_manager
+                .borrow()
+                .get_last_rendered_manifest_version()
+                .get()
+        {
             for reload_type in reload_queue {
                 match reload_type {
                     // This and FullPlay are now the same: TODO join?
@@ -656,7 +660,9 @@ impl PaxChassisWeb {
                     }
                 }
             }
-            self.last_manifest_version_rendered = current_manifest_version.get();
+            self.designtime_manager
+                .borrow_mut()
+                .set_last_rendered_manifest_version(current_manifest_version.get());
         }
     }
 

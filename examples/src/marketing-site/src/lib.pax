@@ -208,34 +208,6 @@
                 x=0.00% y=0.00%/>
         </Group>
         <Group skew_x=0.00rad rotate=0.00rad skew_y=0.00rad>
-            <Scroller scroll_height=200% rotate=0.00rad skew_x=0.00rad width=41.27% height=17.93% x=66.65% y=35.39%>
-                <Rectangle width=10.87% y=38.74% height=14.76% scale_x=139.99% scale_y=140.00% x=12.40% rotate=18.04deg stroke={
-                    color: rgba(100, 116, 139, 255)
-                    width: 1.00px
-                }/>
-                <Rectangle fill=rgba(100, 116, 139, 255) stroke={
-                    color: rgba(100, 116, 139, 255)
-                    width: 1.00px
-                } rotate=0.00rad 
-                    skew_x=0.00rad x=67.17% y=51.46% width=30.90% height=34.80%/>
-                <Rectangle fill=rgba(0, 0, 1, 255) skew_y=0.00rad skew_x=0.00rad rotate=0.00rad stroke={
-                    color: rgba(100, 116, 139, 255)
-                    width: 1.00px
-                }/>
-            </Scroller>
-            <Carousel skew_x=0.00rad rotate=0.00rad skew_y=0.00rad height=100px>
-                <Rectangle fill=rgba(100, 116, 139, 255) skew_y=0.00rad rotate=0.00rad skew_x=0.00rad/>
-                <Rectangle fill=rgba(4, 4, 5, 255) stroke={
-                    color: rgba(100, 116, 139, 255)
-                    width: 1.00px
-                } rotate=0.00rad skew_x=0.00rad 
-                    skew_y=0.00rad/>
-                <Rectangle fill=rgba(100, 116, 139, 255) stroke={
-                    color: rgba(100, 116, 139, 255)
-                    width: 1.00px
-                } rotate=0.00rad 
-                    skew_x=0.00rad skew_y=0.00rad/>
-            </Carousel>
             <Rectangle fill=rgba(249, 248, 248, 255) skew_y=0.00rad skew_x=0.00rad rotate=0.00rad stroke={
                 color: rgba(100, 116, 139, 255)
                 width: 1.00px

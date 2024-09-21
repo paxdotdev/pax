@@ -33,10 +33,9 @@ pub struct DesigntimeManager {
     orm: PaxManifestORM,
     factories: Factories,
     priv_agent_connection: Rc<RefCell<PrivilegedAgentConnection>>,
-    #[allow(unused)]
-    last_written_manifest_version: usize,
     project_query: Option<String>,
     response_queue: Rc<RefCell<Vec<DesigntimeResponseMessage>>>,
+    last_rendered_manifest_version: Property<usize>,
     pub publish_state: Property<Option<PublishResponse>>,
 }
 
@@ -63,6 +62,14 @@ fn get_server_base_url() -> String {
 }
 
 impl DesigntimeManager {
+    pub fn get_last_rendered_manifest_version(&self) -> Property<usize> {
+        self.last_rendered_manifest_version.clone()
+    }
+
+    pub fn set_last_rendered_manifest_version(&self, version: usize) {
+        self.last_rendered_manifest_version.set(version);
+    }
+
     pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Self {
         let priv_agent = Rc::new(RefCell::new(
             PrivilegedAgentConnection::new(priv_addr)
@@ -75,9 +82,9 @@ impl DesigntimeManager {
             orm,
             factories,
             priv_agent_connection: priv_agent,
-            last_written_manifest_version: 0,
             project_query: None,
             response_queue: Rc::new(RefCell::new(Vec::new())),
+            last_rendered_manifest_version: Property::new(0),
             publish_state: Default::default(),
         }
     }
@@ -228,7 +235,7 @@ impl DesigntimeManager {
         self.orm.set_reload(ReloadType::FullEdit);
     }
 
-    pub fn get_manifest_version(&self) -> Property<usize> {
+    pub fn get_last_written_manifest_version(&self) -> Property<usize> {
         self.orm.get_manifest_version()
     }
 
@@ -241,10 +248,6 @@ impl DesigntimeManager {
     }
 
     pub fn handle_recv(&mut self) -> anyhow::Result<()> {
-        let current_manifest_version = self.orm.get_manifest_version().get();
-        if current_manifest_version != self.last_written_manifest_version {
-            self.last_written_manifest_version = current_manifest_version;
-        }
         self.priv_agent_connection
             .borrow_mut()
             .handle_recv(&mut self.orm)?;
