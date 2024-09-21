@@ -50,7 +50,10 @@ impl PaintBrushTool {
                 parent_id: &parent,
                 parent_index: TreeIndexPosition::Top,
                 designer_node_type: DesignerNodeType::Path,
-                builder_extra_commands: None,
+                builder_extra_commands: Some(&|builder| {
+                    builder.set_property("stroke", "{color: RED, width: 4px}")?;
+                    Ok(())
+                }),
                 node_layout: NodeLayoutSettings::Fill,
             }
             .perform(ctx)
@@ -72,6 +75,7 @@ impl ToolBehavior for PaintBrushTool {
         ctx: &mut ActionContext,
     ) -> ControlFlow<()> {
         self.drawing = true;
+        self.last_pos = Point2::default();
         self.pointer_move(point, ctx);
         ControlFlow::Continue(())
     }
@@ -122,6 +126,7 @@ impl ToolBehavior for PaintBrushTool {
                     .contains(&crate::model::input::ModifierKey::Control),
             );
             if let Some(mut node) = node {
+                log::debug!("write segment count: {}", pax_path.len());
                 let pax_value = pax_path.to_pax_value();
                 let str_val = pax_value.to_string();
                 // TODO don't override, just add
