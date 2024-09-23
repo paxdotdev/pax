@@ -17,7 +17,10 @@ pax-designtime = {version = "0.36.9", path = "../pax-designtime"}
 anyhow = "1.0.79"
 convert_case = "0.6.0"
 bezier-rs = "0.4.0"
+# lyon = "1.0.1"
 glam = { version = "0.24.2", features = ["serde"] }
+rand = { version = "0.8.5", features = ["getrandom"] }
+getrandom = { version = "0.2.15", features = ["js"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
