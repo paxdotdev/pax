@@ -1,4 +1,9 @@
-use std::{borrow::Borrow, iter, ops::Range};
+use std::{
+    borrow::Borrow,
+    f64::consts::PI,
+    iter,
+    ops::{Mul, Range},
+};
 
 use bezier_rs::{Bezier, BezierHandles, Identifier, Subpath, TValue};
 use glam::{BVec2, DMat2, DVec2};
@@ -8,7 +13,7 @@ use crate::math::boolean_path_operations::bezier_rs_modifications::intersections
 
 mod bezier_rs_modifications;
 mod circular_range;
-const EPS: f64 = 1e-4;
+const EPS: f64 = 1e-1;
 
 /// An empty id type for use in tests
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
@@ -19,6 +24,15 @@ impl Identifier for DesignerPathId {
         Self
     }
 }
+
+// TODO:
+// - filter intersections by tangents
+// - filter intersections by corner hits
+// - limit maximum iteration count, and discard what has not been traced in an intelligent way in worst case
+// - intersections_between_subcurves takes a lot of time in degenerate cases (curves really close): investigate/fix
+//   relevant for this: https://math.stackexchange.com/questions/1616780/reliable-test-for-intersection-of-two-bezier-curves
+
+// - support other operations (difference etc.)
 
 #[derive(Clone, Debug)]
 pub struct CompoundPath {
@@ -50,14 +64,13 @@ impl CompoundPath {
     }
 
     pub fn union(&self, other: &Self) -> Self {
+        log::debug!("--- start union calc ---");
         let all_intersections = calculcate_all_intersections(&self, &other);
         let intersections_len = all_intersections.len();
 
         let (self_intersections, other_intersections) =
             unzip_and_sort_with_cross_references(all_intersections);
 
-        // log::debug!("self_intersections: {:#?}", self_intersections);
-        // log::debug!("other_intersections: {:#?}", other_intersections);
         let self_path_data = PathIntersectionData {
             intersections: self_intersections,
             beziers: self.subpaths.iter().map(|s| s.iter().collect()).collect(),
@@ -66,23 +79,25 @@ impl CompoundPath {
             intersections: other_intersections,
             beziers: other.subpaths.iter().map(|s| s.iter().collect()).collect(),
         };
+        // log::debug!("self_intersection_data: {:#?}", self_path_data);
+        // log::debug!("other_intersection_data: {:#?}", other_path_data);
         let mut intersection_visited = vec![false; intersections_len];
 
         if intersections_len % 2 != 0 {
             log::warn!("path intersection number should always be even");
-            return Self::new();
+            // return Self::new();
         }
 
         let mut output_paths = vec![];
-        while let Some(start_index) = (0..intersections_len).find(|ind| {
-            if intersection_visited[*ind] {
-                return false;
-            }
-            is_leaving_other_subpath(&self_path_data, &other_path_data, other, *ind)
-        }) {
+        while let Some(start_index) = find_next_entrypoint(
+            &self_path_data,
+            &other_path_data,
+            &other,
+            &intersection_visited,
+        ) {
             // log::debug!("tracing from {:?}", start_index);
             // log::debug!("visited before: {:?}", intersection_visited);
-            let path = trace_from(
+            let subpath = trace_from(
                 start_index,
                 &self_path_data,
                 &other_path_data,
@@ -90,7 +105,17 @@ impl CompoundPath {
             );
             // log::debug!("visited after: {:?}", intersection_visited);
             // log::debug!("path: {:#?}", path);
-            output_paths.push(Subpath::from_beziers(&path, true));
+            if subpath.len() > 1 {
+                let subpath = Subpath::from_beziers(&subpath, true);
+                // skip this subpath if to short
+                if subpath.length(Some(10)) > 2.0 * PI {
+                    output_paths.push(subpath);
+                } else {
+                    log::warn!("subpath circumfrence to short");
+                }
+            } else {
+                log::warn!("subpath length was: < 2, expected bezier segment count >= 2");
+            }
         }
 
         // TODO this logic needs to be different for the different boolean operations,
@@ -122,12 +147,31 @@ impl CompoundPath {
     }
 }
 
+fn find_next_entrypoint(
+    self_path: &PathIntersectionData,
+    other_path: &PathIntersectionData,
+    other: &CompoundPath,
+    intersection_visited: &[bool],
+) -> Option<usize> {
+    let mut possibilities: Vec<_> = (0..intersection_visited.len())
+        .filter(|ind| !intersection_visited[*ind])
+        .map(|ind| {
+            (
+                ind,
+                is_leaving_other_subpath(&self_path, &other_path, other, ind),
+            )
+        })
+        .collect();
+    possibilities.sort_unstable_by(|(_, f1), (_, f2)| f1.total_cmp(f2));
+    possibilities.last().map(|(index, _)| *index)
+}
+
 fn is_leaving_other_subpath(
     self_path: &PathIntersectionData,
     other_path: &PathIntersectionData,
     other: &CompoundPath,
     self_intersection_index: usize,
-) -> bool {
+) -> f64 {
     let (other_intersection_index, self_start_intersection) =
         self_path.intersections[self_intersection_index];
     let (_, other_start_intersection) = other_path.intersections[other_intersection_index];
@@ -140,9 +184,8 @@ fn is_leaving_other_subpath(
     let tangent_self = self_bezier.tangent(TValue::Parametric(self_start_intersection.t));
     let tangent_other = other_bezier.tangent(TValue::Parametric(other_start_intersection.t));
 
-    let res = tangent_self.perp_dot(tangent_other) > 0.0;
-    // log::debug!("leaving res: {:?}", res);
-    res
+    let cross = tangent_self.perp_dot(tangent_other);
+    cross
 }
 
 fn calculcate_all_intersections(
@@ -152,10 +195,11 @@ fn calculcate_all_intersections(
     let mut all_intersections: Vec<(Intersection, Intersection)> = Vec::new();
     for (p1_subpath_index, p1_subpath) in p1.subpaths.iter().enumerate() {
         for (p2_subpath_index, p2_subpath) in p2.subpaths.iter().enumerate() {
+            let path_start_index = all_intersections.len();
             for (p1_segment_index, p1_seg) in p1_subpath.iter().enumerate() {
                 for (p2_segment_index, p2_seg) in p2_subpath.iter().enumerate() {
                     let segment_intersections =
-                        intersections(&p1_seg, &p2_seg, Some(EPS / 4.0), EPS)
+                        intersections(&p1_seg, &p2_seg, Some(EPS / 20.0), EPS)
                             .into_iter()
                             .map(|[p1_t, p2_t]| {
                                 (
@@ -172,6 +216,27 @@ fn calculcate_all_intersections(
                                 )
                             });
                     all_intersections.extend(segment_intersections);
+                }
+            }
+            if all_intersections.len() % 2 != 0 {
+                let index = all_intersections.iter().skip(path_start_index).position(
+                    |(intersec_1, intersec_2)| {
+                        let p1_tangent = p1_subpath
+                            .get_segment(intersec_1.segment_index)
+                            .unwrap()
+                            .tangent(TValue::Parametric(intersec_1.t));
+                        let p2_tangent = p2_subpath
+                            .get_segment(intersec_2.segment_index)
+                            .unwrap()
+                            .tangent(TValue::Parametric(intersec_2.t));
+                        let tangential = p1_tangent.dot(p2_tangent).abs() > 0.999;
+                        tangential
+                    },
+                );
+                if let Some(index) = index {
+                    all_intersections.swap_remove(path_start_index + index);
+                } else {
+                    log::warn!("uneven intersections but none where tangential");
                 }
             }
         }
@@ -300,6 +365,7 @@ fn beziers_between_intersections(
     path_segments
 }
 
+#[derive(Debug)]
 struct PathIntersectionData {
     intersections: Vec<(usize, Intersection)>,
     // intersection_markings: Vec<EntryOrExit>,

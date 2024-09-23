@@ -95,10 +95,11 @@ impl ToolBehavior for PaintBrushTool {
             return ControlFlow::Continue(());
         }
         // let union_path = donut_out_of_circles_scattered(point);
+        let point_perturbed = point + Vector2::new(rand::random(), rand::random()) / 1e2;
         let circle = CompoundPath::from_subpath(Subpath::new_ellipse(
             DVec2 {
-                x: point.x - 50.0,
-                y: point.y - 50.0,
+                x: point_perturbed.x - 50.0,
+                y: point_perturbed.y - 50.0,
             },
             DVec2 {
                 x: point.x + 50.0,
@@ -114,6 +115,7 @@ impl ToolBehavior for PaintBrushTool {
 
         // let new_path = donut_out_of_circles_scattered(point);
 
+        log::debug!("subpaths: {:?}", new_path.subpaths.len());
         let pax_path = to_pax_path(&new_path);
         self.path = Some(new_path);
         if let Err(e) = self.transaction.run(|| {
