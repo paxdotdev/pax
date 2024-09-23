@@ -21,22 +21,19 @@ Generate one .pax file.
 Pax Syntax:
 IMPORTANT: PAX IS NOT RUST OR JSX IT IS A CUSTOM DSL FOR BUILDING UI COMPONENTS. DO NOT WRITE RUST CODE IN .PAX FILES.
 IMPORTANT: USE CORRECT COLOR SYNTAX, PAX DOES NOT SUPPORT HEX, use rgb(r,g,b) or rgba(r,g,b,a) with 0-255 as the values.
+IMPORTANT: BE MINDFUL OF ACCESSIBILITY - WHEN USING LIGHT-COLORED TEXT, PLACE A DARKER RECTANGLE BEHIND FOR VISIBILITY & CONTRAST
 IMPORTANT: YOU CANNOT CHAIN CLASSES OR IDS IN SETTINGS BLOCKS
 IMPORTANT: ONLY GROUP, FRAME, STACKER, SCROLLER accept children. Other components do not.
 IMPORTANT: PROPERTIES NEED TO BE SERIALIZABLE. DO NOT USE COMPLEX TYPES LIKE CLOSURES OR FUNCTIONS.
 IMPORTANT: WHENEVER YOU GET THIS ERROR "error[E0277]: the trait bound `____: Interpolatable` is not satisfied" you just need to add #[pax] to the struct _____.
-Use only properties that are in common properties.
-Strictly follow the Pax language grammar and component structure as described in the background information.
-
 
 Avoid Placeholders:
-
 Do not use TODO comments or placeholder code. Implement full, working solutions in every answer with all files.
 
 </instructions>
 
-<background_info>
 
+<background_info>
 Pax is a library for building web & native applications alongside visual creative tools
 
 ## How it works 
@@ -1807,7 +1804,7 @@ impl Font {
 
 ## Fireworks
 
-Fireworks is a collections of rectangles that alternate color and expand in different overlapping ways radiating from the center based on scroll. It produces an interesting optical affect
+Fireworks is a collections of rectangles that alternate color and expand in different overlapping ways radiating from the center based on scroll. It produces an interesting optical effect
 
 ### Code
 
@@ -2156,250 +2153,6 @@ impl ColorControl {
         }, &[self.selected_id.untyped()]));
     }
 }
-```
-
-## Mouse Animation
-
-A color full effect runs through the screen when I move my mouse across it. 
-
-### Code
-
-```rust filename=mouse-animation/src/lib.rs 
-#![allow(unused_imports)]
-
-pub mod path_animation;
-use path_animation::PathAnimation;
-
-use pax_kit::*;
-
-
-use pax_engine::math::Generic;
-use pax_engine::math::Point2;
-
-#[pax]
-#[main]
-#[file("lib.pax")]
-pub struct Example {
-    pub scroll: Property<f64>,
-}
-
-impl Example {
-    pub fn on_mouse_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
-        let (_, h) = ctx.bounds_self.get();
-        let part = event.mouse.y / h;
-        self.scroll.set(part);
-    }
-}
-
-```
-
-```pax filename=mouse-animation/src/lib.pax
-<Text x=50% y=50% text="Move mouse up & down" id=text/>
-<Group anchor_x=50% anchor_y=50% x=50% y=50% width=200% rotate=20deg>
-	for i in 0..12 {
-		<PathAnimation rotate={(i*40)deg}
-			x=50%
-			y=50%
-			path_config={
-			    amplitude: {0.03 + 0.1 * i*(i-12.0)/10.0},
-				amplitude_ramp: {0.2 + i*0.01},
-				frequency: 2.0,
-			    frequency_ramp: {0.1*i},
-			    thickness: {0.07 - 0.01*i/5.0},
-			    thickness_ramp: {0.02 - i/5.0*0.01},
-			    span: {0.1 + 0.1*i/10.0},
-			}	
-		    t={2.0*self.scroll - i/20.0}
-			fill={hsla(40.0*i, 150, 160 + 5*i, 100)}
-		/>
-	}
-</Group>
-
-@settings {
-	@mouse_move: on_mouse_move
-    #text {
-        style: TextStyle {
-            font: {Font::local("Esenka", "assets/fonts/Esenka.otf", FontStyle::Normal, FontWeight::Normal)},
-            font_size: 40px,
-            fill: BLACK,
-            align_vertical: TextAlignVertical::Center,
-            align_horizontal: TextAlignHorizontal::Center,
-        }
-    }
-}
-```
-
-```rust filename=mouse-animation/src/path_animation.rs
-#![allow(unused_imports)]
-use pax_kit::*;
-
-
-use core::f64::consts::PI;
-use pax_engine::math::Generic;
-use pax_engine::math::Point2;
-
-#[pax]
-#[custom(Default)]
-#[file("path_animation.pax")]
-pub struct PathAnimation {
-    pub t: Property<Numeric>,
-    pub resolution: Property<Numeric>,
-    pub path_config: Property<PathConfig>,
-    pub fill: Property<Color>,
-
-    //private path elements
-    pub path_elements: Property<Vec<PathElement>>,
-}
-
-impl Default for PathAnimation {
-    fn default() -> Self {
-        let fill = Property::new(Color::RED);
-        let t: Property<Numeric> = Property::new(0.0.into());
-        let resolution: Property<Numeric> = Property::new(60.into());
-        let path_config = Property::new(PathConfig {
-            amplitude: Property::new(0.3.into()),
-            amplitude_ramp: Property::new(0.3.into()),
-            frequency: Property::new(1.0.into()),
-            frequency_ramp: Property::new(1.0.into()),
-            thickness: Property::new(0.01.into()),
-            thickness_ramp: Property::new(0.3.into()),
-            span: Property::new(0.3.into()),
-        });
-
-        let path_elements = {
-            let t = t.clone();
-            let resolution = resolution.clone();
-            let path_config = path_config.clone();
-            let deps = [t.untyped(), resolution.untyped(), path_config.untyped()];
-            Property::computed(
-                move || {
-                    let profile = |t: f64| t * (t - 1.0);
-                    let conf = path_config.get();
-                    let path = |t: f64| PathPoint {
-                        point: Point2::<Generic>::new(
-                            t,
-                            0.5 + (conf.amplitude.get().to_float()
-                                + conf.amplitude_ramp.get().to_float() * t)
-                                * ((conf.frequency.get().to_float()
-                                    + conf.frequency_ramp.get().to_float() * t)
-                                    * t
-                                    * PI
-                                    * 2.0)
-                                    .sin(),
-                        ),
-                        thickness: conf.thickness.get().to_float()
-                            + conf.thickness_ramp.get().to_float() * t,
-                    };
-                    parametric_path(
-                        resolution.get().to_int() as usize,
-                        path,
-                        profile,
-                        conf.span.get().to_float(),
-                        t.get().to_float(),
-                    )
-                },
-                &deps,
-            )
-        };
-
-        Self {
-            fill,
-            path_config,
-            t,
-            resolution,
-            path_elements,
-        }
-    }
-}
-
-#[pax]
-pub struct PathConfig {
-    pub amplitude: Property<Numeric>,
-    pub amplitude_ramp: Property<Numeric>,
-    pub frequency: Property<Numeric>,
-    pub frequency_ramp: Property<Numeric>,
-    pub thickness: Property<Numeric>,
-    pub thickness_ramp: Property<Numeric>,
-    pub span: Property<Numeric>,
-}
-
-struct PathPoint {
-    point: Point2,
-    thickness: f64,
-}
-/// Takes a parametric function that describes a path:
-/// path_points: parametric value (0.0 to 1.0) -> point on path + thikness modifier
-/// path_profile: parametric value (0.0 to 1.0) -> thickness at point
-/// span: how large part of the path is drawn at any one time?
-/// returns: a function that given a time (0.0 to 1.0), gives back a path
-fn parametric_path(
-    resolution: usize,
-    path_points: impl Fn(f64) -> PathPoint,
-    path_profile: impl Fn(f64) -> f64,
-    span: f64,
-    t: f64,
-) -> Vec<PathElement> {
-    let r90 = Rotation::Degrees(90.into());
-    let ran = 0..=resolution;
-    let l: Vec<_> = ran
-        .map(|v| {
-            let s = v as f64 / resolution as f64; //0.0 to 1.0
-            let mut p = path_points(s * span + (1.0 - span) * t);
-            p.thickness *= path_profile(s);
-            p
-        })
-        .collect();
-    let mut normals = Vec::with_capacity(l.len());
-    for i in 0..l.len() {
-        normals.push(
-            match (l.get(i.overflowing_sub(1).0), l.get(i), l.get(i + 1)) {
-                (Some(a), Some(b), Some(c)) => {
-                    (a.point.lerp_towards(b.point, 0.95) - c.point.lerp_towards(b.point, 0.95))
-                        .rotate(r90.clone())
-                        .normalize()
-                        * b.thickness
-                }
-                (Some(a), Some(b), None) => {
-                    (a.point - b.point).rotate(r90.clone()).normalize() * b.thickness
-                }
-                (None, Some(a), Some(b)) => {
-                    (a.point - b.point).rotate(r90.clone()).normalize() * a.thickness
-                }
-                _ => panic!("unexpected"),
-            },
-        );
-    }
-
-    // adding/subtracting normals from path points give two lines offset by the same amount from the center
-    let top = l.iter().zip(normals.iter()).map(|(a, &b)| a.point + b);
-    let bottom = l.iter().zip(normals.iter()).map(|(a, &b)| a.point - b);
-
-    // Now join top and bottom to create pathelements
-    let mut elements: Vec<_> = top
-        .chain(bottom.rev())
-        .flat_map(|p| {
-            [
-                PathElement::Point(
-                    Size::Percent((100.0 * p.x).into()),
-                    Size::Percent((100.0 * p.y).into()),
-                ),
-                PathElement::Line,
-            ]
-        })
-        .collect();
-    // remove last line
-    elements.pop();
-    // instead close the loop
-    elements.push(PathElement::close());
-    elements
-}
-```
-
-```pax filename=mouse-animation/src/path_animation.pax
-<Path
-	fill={self.fill}
-	elements={self.path_elements}
-/>
 ```
 
 ## Space Game
@@ -3072,10 +2825,15 @@ impl Calculator {
 }
 ```
 
-
 ## Website
 
-A (mostly empty) landing page for a website
+A (mostly empty) landing page for a website.
+
+IMPORTANT: Make sure to set scroll_height explicitly, as it must be larger than
+the scroller itself in order to scroll. `k*100%`, e.g. `400%`,
+is a nice way to make `k` screens worth of content.**
+IMPORTANT: When making a website, nearly all content should be laid out using `<Stacker>`.  This will ensure fluid and responsive layouts.
+IMPORTANT: When making a website, Generate appropriate filler <Text> elements in the form of headings and paragraphs. Use contrasting typefaces and sizes for headings and paragraphs.
 
 ### Code
 ```rust filename=lib.rs
@@ -3362,6 +3120,468 @@ impl Example {
     }
 }
 ```
+
+## A color picker
+
+A color picker used in Pax Designer.
+
+```rust filename=color-picker.rs
+use pax_engine::api::{pax_value::ToFromPaxAny, *};
+use pax_engine::math::{Point2, Vector2};
+use pax_engine::*;
+use pax_std::*;
+
+thread_local! {
+    pub static GLOBAL_MOUSEUP_PROP: Property<bool> = Default::default();
+}
+
+pub(crate) fn trigger_mouseup() {
+    GLOBAL_MOUSEUP_PROP.with(|p| p.set(false));
+}
+
+#[pax]
+#[engine_import_path("pax_engine")]
+#[file("controls/settings/color_picker.pax")]
+pub struct ColorPicker {
+    pub color: Property<Color>,
+
+    // ---------color palette picker------------
+    pub picker_open: Property<bool>,
+    pub saturation_and_lightness_image_data: Property<Vec<u8>>,
+    pub hue_slider_image_data: Property<Vec<u8>>,
+    pub alpha_slider_image_data: Property<Vec<u8>>,
+
+    // 0.0-1.0 coord in palette
+    pub hue: Property<f64>,
+    pub saturation: Property<f64>,
+    pub lightness: Property<f64>,
+    pub alpha: Property<f64>,
+
+    pub mouse_is_down_on_palette: Property<bool>,
+
+    // All the below props should be private: never set by user, used for internal state
+    // TODO hook up
+    pub red: Property<String>,
+    pub green: Property<String>,
+    pub blue: Property<String>,
+    pub alpha_text: Property<String>,
+
+    pub property_listener: Property<bool>,
+    pub cycle_detection: Property<bool>,
+}
+
+impl ColorPicker {
+    pub fn on_mount(&mut self, _ctx: &NodeContext) {
+        let color = self.color.clone();
+        self.hue_slider_image_data.set(hue_slider().to_vec());
+        let cycle = self.cycle_detection.clone();
+        let deps = [color.untyped()];
+        self.hue.replace_with(Property::computed(
+            move || color.get().to_hsla_0_1()[0],
+            &deps,
+        ));
+        let color = self.color.clone();
+        self.saturation.replace_with(Property::computed(
+            move || color.get().to_hsla_0_1()[1],
+            &deps,
+        ));
+        let color = self.color.clone();
+        self.lightness.replace_with(Property::computed(
+            move || color.get().to_hsla_0_1()[2],
+            &deps,
+        ));
+        let color = self.color.clone();
+        self.alpha.replace_with(Property::computed(
+            move || color.get().to_hsla_0_1()[3],
+            &deps,
+        ));
+
+        fn get_color_channel(color: &Property<Color>, i: usize) -> String {
+            ((color.get().to_rgba_0_1()[i] * 255.0) as u8).to_string()
+        }
+
+        let color = self.color.clone();
+        let deps = [color.untyped()];
+        self.red.replace_with(Property::computed(
+            move || get_color_channel(&color, 0),
+            &deps,
+        ));
+
+        let color = self.color.clone();
+        self.green.replace_with(Property::computed(
+            move || get_color_channel(&color, 1),
+            &deps,
+        ));
+
+        let color = self.color.clone();
+        self.blue.replace_with(Property::computed(
+            move || get_color_channel(&color, 2),
+            &deps,
+        ));
+
+        let color = self.color.clone();
+        self.alpha_text.replace_with(Property::computed(
+            move || get_color_channel(&color, 3),
+            &deps,
+        ));
+
+        let hue = self.hue.clone();
+        let deps = [hue.untyped()];
+        self.saturation_and_lightness_image_data
+            .replace_with(Property::computed(
+                move || {
+                    // saturated/max brightness color with this hue
+                    palette(hue.get()).to_vec()
+                },
+                &deps,
+            ));
+
+        let hue = self.hue.clone();
+        let saturation = self.saturation.clone();
+        let lightness = self.lightness.clone();
+        let alpha = self.alpha.clone();
+        let color = self.color.clone();
+        let deps = [
+            hue.untyped(),
+            saturation.untyped(),
+            lightness.untyped(),
+            alpha.untyped(),
+        ];
+        self.property_listener.replace_with(Property::computed(
+            move || {
+                if !cycle.get() {
+                    cycle.set(true);
+                    let new_col = Color::hsla(
+                        Rotation::Percent(hue.get().into()),
+                        (saturation.get() * 255.0).into(),
+                        (lightness.get() * 255.0).into(),
+                        (alpha.get() * 255.0).into(),
+                    );
+                    color.set(new_col);
+                }
+
+                true
+            },
+            &deps,
+        ));
+        let color = self.color.clone();
+        self.alpha_slider_image_data
+            .replace_with(Property::computed(
+                move || alpha_slider(color.get()).to_vec(),
+                &deps,
+            ));
+        let glob_mouseup = GLOBAL_MOUSEUP_PROP.with(|v| v.clone());
+        let deps = [glob_mouseup.untyped()];
+        self.mouse_is_down_on_palette
+            .replace_with(Property::computed(move || glob_mouseup.get(), &deps));
+    }
+
+    pub fn open_picker(&mut self, _ctx: &NodeContext, _event: Event<Click>) {
+        self.picker_open.set(!self.picker_open.get());
+    }
+
+    pub fn palette_mouse_down(&mut self, ctx: &NodeContext, event: Event<MouseDown>) {
+        self.mouse_is_down_on_palette.set(true);
+        self.palette_set(ctx, &event.mouse)
+    }
+
+    pub fn palette_mouse_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
+        if self.mouse_is_down_on_palette.get() {
+            self.palette_set(ctx, &event.mouse);
+        }
+    }
+
+    pub fn palette_set(&mut self, ctx: &NodeContext, mouse: &MouseEventArgs) {
+        let p = Point2::new(mouse.x, mouse.y);
+        let local = ctx.local_point(p);
+        self.saturation.set(local.x.clamp(0.0, 1.0));
+        self.lightness.set(1.0 - local.y.clamp(0.0, 1.0));
+    }
+
+    pub fn pre_render(&mut self, _ctx: &NodeContext) {
+        // first time, might make property_listener dirty again
+        self.property_listener.get();
+        // on this second trigger, cycle is checked (without this it's triggered in a cycle each tick)
+        self.property_listener.get();
+        self.cycle_detection.set(false);
+    }
+
+    pub fn red_change(&mut self, _ctx: &NodeContext, event: Event<TextboxChange>) {
+        if let Some(val) = color_channel(&event.text) {
+            self.rgba_text_change(0, val);
+        }
+    }
+
+    pub fn green_change(&mut self, _ctx: &NodeContext, event: Event<TextboxChange>) {
+        if let Some(val) = color_channel(&event.text) {
+            self.rgba_text_change(1, val);
+        }
+    }
+
+    pub fn blue_change(&mut self, _ctx: &NodeContext, event: Event<TextboxChange>) {
+        if let Some(val) = color_channel(&event.text) {
+            self.rgba_text_change(2, val);
+        }
+    }
+
+    pub fn alpha_change(&mut self, _ctx: &NodeContext, event: Event<TextboxChange>) {
+        if let Some(val) = color_channel(&event.text) {
+            self.rgba_text_change(3, val);
+        }
+    }
+
+    pub fn rgba_text_change(&mut self, chan: usize, val: u8) {
+        let curr = self.color.get();
+        let mut rgba = curr.to_rgba_0_1();
+        rgba[chan] = val as f64 / 255.0;
+        let hsla = Color::rgba(
+            (rgba[0] * 255.0).into(),
+            (rgba[1] * 255.0).into(),
+            (rgba[2] * 255.0).into(),
+            (rgba[3] * 255.0).into(),
+        )
+        .to_hsla_0_1();
+        self.hue.set(hsla[0]);
+        self.saturation.set(hsla[1]);
+        self.lightness.set(hsla[2]);
+        self.alpha.set(hsla[3]);
+    }
+}
+
+#[rustfmt::skip]
+fn palette(hue: f64) -> Vec<u8> {
+    let mut res = Vec::with_capacity(5*5*4);
+    for y in 0..5 {
+        for x in 0..5 {
+            let c = Color::hsl(
+                Rotation::Percent(hue.into()),
+                (x*255/4).into(),
+                (255 - y*255/4).into(),
+            )
+            .to_rgba_0_1();
+           res.extend(c.map(|v| (v * 255.0) as u8))
+        }
+    }
+    res
+}
+
+fn hue_slider() -> [u8; 10 * 4] {
+    let mut hues = [0u8; 10 * 4];
+    for i in (0..40).step_by(4) {
+        let c = Color::hsl(
+            Rotation::Percent((i as f64 / 40.0).into()),
+            255.into(),
+            (255 / 2).into(),
+        )
+        .to_rgba_0_1();
+        hues[i..(i + 4)].copy_from_slice(&c.map(|v| (v * 255.0) as u8));
+    }
+    hues
+}
+
+fn alpha_slider(color: Color) -> [u8; 10 * 4] {
+    let mut alphas = [0u8; 10 * 4];
+    let rgba = color.to_rgba_0_1();
+    for i in (0..40).step_by(4) {
+        let c = Color::rgba(
+            (rgba[0] * 255.0).into(),
+            (rgba[1] * 255.0).into(),
+            (rgba[2] * 255.0).into(),
+            (i as f64 / 40.0 * 255.0).into(),
+        )
+        .to_rgba_0_1();
+        alphas[i..(i + 4)].copy_from_slice(&c.map(|v| (v * 255.0) as u8));
+    }
+    alphas
+}
+
+fn color_channel(text: &str) -> Option<u8> {
+    if text.is_empty() {
+        return Some(0);
+    }
+    text.parse::<u8>().ok()
+}
+```
+
+```pax filename=color-picker.pax
+if self.picker_open {
+	<Group
+		width=310px
+		height=415px
+		anchor_x=100%
+		anchor_y=100%
+		unclippable=true
+	>
+		<Group
+			x=5px
+			y=5px
+			width=300px
+			height=300px
+			@mouse_down=self.palette_mouse_down
+			@mouse_move=self.palette_mouse_move
+		>
+			<Ellipse
+				x={(self.saturation*100)%}
+				y={((1.0 - self.lightness)*100)%}
+				width=10px
+				height=10px
+				anchor_x=50%
+				anchor_y=50%
+				fill=TRANSPARENT
+				stroke={color: WHITE, width: 2px}
+			/>
+			<Frame>
+			<Image
+				x={-30px}
+				y={-30px}
+				width=360px
+				height=360px
+				source={ImageSource::Data(5, 5, self.saturation_and_lightness_image_data)}
+				fit=ImageFit::Fill
+			/>
+			</Frame>
+		</Group>
+		<Group
+			x=5px
+			width=300px
+			y=310px
+			height=100px
+		>
+			<Group
+				x=50%
+				width=290px
+				y=5px
+				height=10px
+			>
+				<Slider min=0.0 max=1.0 step=0.001 value=bind:hue accent=WHITE background=TRANSPARENT/>
+				<Image
+					source={ImageSource::Data(10, 1, self.hue_slider_image_data)}
+					fit=ImageFit::Fill
+				/>
+			</Group>
+			<Group
+				x=50%
+				width=290px
+				y=25px
+				height=10px
+			>
+				<Slider min=0.0 max=1.0 step=0.001 value=bind:alpha accent=WHITE background=TRANSPARENT/>
+				<Image
+					source={ImageSource::Data(10, 1, self.alpha_slider_image_data)}
+					fit=ImageFit::Fill
+				/>
+				<Image
+					source=ImageSource::Url("assets/color_picker/transparency_grid.png")
+					fit=ImageFit::Fill
+				/>
+			</Group>
+			<Group y=45px>
+				<Text class=rgba_label text="rgba:"/>
+				<Textbox class=input class=col_2 class=span_1 text={self.red}  @textbox_change=self.red_change/>
+				<Textbox class=input class=col_3 class=span_1 text={self.green} @textbox_change=self.green_change/>
+				<Textbox class=input class=col_4 class=span_1 text={self.blue} @textbox_change=self.blue_change/>
+				<Textbox class=input class=col_5 class=span_1 text={self.alpha_text} @textbox_change=self.alpha_change/>
+			</Group>
+		</Group>
+		<Rectangle fill=rgb(12.5%, 12.5%, 12.5%)/>
+		<EventBlocker/>
+	</Group>
+}
+
+<Rectangle corner_radii={RectangleCornerRadii::radii(5.0,5.0,5.0,5.0)} fill={self.color} @click=self.open_picker/>
+<Rectangle corner_radii={RectangleCornerRadii::radii(5.0,5.0,5.0,5.0)} fill=WHITE />
+
+@settings {
+    @mount: on_mount
+	@pre_render: pre_render
+
+    .rgba_label {
+		x: 10px
+		height: 30px
+        style: {
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light,
+            )},
+            align_horizontal: TextAlignHorizontal::Left,
+            align_vertical: TextAlignVertical::Center,
+            font_size: 14px,
+            fill: WHITE,
+        }
+    }
+
+    .input {
+        height: 30px,
+        background: rgb(12.5%, 12.5%, 12.5%),
+        stroke: {
+            color: rgb(48, 56, 62),
+            width: 1px,
+        },
+        border_radius: 5,
+        style: {
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light,
+            )},
+            font_size: 14px,
+            fill: WHITE,
+        }
+    }
+    //Note that columns account for a left-margin of 1.67%, so
+    // col_k = (k * 100/6) + 1.67%
+    .col_1 {
+        x: 1.67%,
+        anchor_x: 0%,
+    }
+    .col_2 {
+        x: 18.33%,
+        anchor_x: 0%,
+    }
+    .col_3 {
+        x: 35%,
+        anchor_x: 0%,
+    }
+    .col_4 {
+        x: 51.67%,
+        anchor_x: 0%,
+    }
+    .col_5 {
+        x: 68%,
+        anchor_x: 0%,
+    }
+    .col_6 {
+        x: 85%,
+        anchor_x: 0%,
+    }
+    //Note that the spans account for a total margin of 3.33%
+    //so span_k = ((k * 100/6) - 3.33)%
+    .span_1 {
+        width: 13.33%,
+    }
+    .span_2 {
+        width: 30%,
+    }
+    .span_3 {
+        width: 46.6667%,
+    }
+    .span_6 {
+        width: 96.66%,
+    }
+}
+
+```
+
+## Toolbar
+
+A toolbar with graphical icons for tools
+
+OBSERVE: the use of
+
+
 
 
 </examples>
