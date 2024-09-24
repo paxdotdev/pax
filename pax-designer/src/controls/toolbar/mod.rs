@@ -105,7 +105,7 @@ thread_local! {
                     ToolbarItem {
                         icon: "assets/icons/icon-brush.png",
                         tooltip: "PaintBrush Tool",
-                        event: ToolbarEvent::SelectTool(Tool::PaintBrush)
+                        event: ToolbarEvent::SelectTool(Tool::Paintbrush)
                     },
                     // ToolbarItem {
                     //     icon: "assets/icons/toolbar/icon-11-pen.png",

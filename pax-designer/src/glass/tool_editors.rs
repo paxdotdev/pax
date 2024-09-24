@@ -110,7 +110,7 @@ impl ToolBehavior for TextEditTool {
                     .get()
                     .contains(&ModifierKey::Control),
             ) {
-                builder.set_typed_property("text", self.text_binding.get())?;
+                builder.set_property_from_typed("text", Some(self.text_binding.get()))?;
                 builder
                     .save()
                     .map_err(|e| anyhow!("couldn't save text: {e}"))?;

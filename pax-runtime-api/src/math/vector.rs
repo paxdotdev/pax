@@ -122,6 +122,10 @@ impl<W: Space> Vector2<W> {
         Self::new(x, y)
     }
 
+    pub fn rotate90(self) -> Self {
+        Self::new(self.y, -self.x)
+    }
+
     pub fn mult(&self, other: Self) -> Vector2<W> {
         Vector2::new(self.x * other.x, self.y * other.y)
     }

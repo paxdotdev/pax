@@ -12,7 +12,7 @@ use crate::math::SizeUnit;
 use crate::model::action::world::Pan;
 use crate::model::input::{InputEvent, ModifierKey};
 use crate::model::tools::{
-    CreateComponentTool, MovingTool, MultiSelectTool, PaintBrushTool, ZoomToFitTool,
+    CreateComponentTool, MovingTool, MultiSelectTool, PaintbrushTool, ZoomToFitTool,
 };
 use crate::model::Component;
 use crate::model::{action, Tool};
@@ -223,7 +223,7 @@ impl Action for MouseEntryPointAction<'_> {
                             ),
                         }))));
                         }
-                        Tool::PaintBrush => match PaintBrushTool::new(ctx) {
+                        Tool::Paintbrush => match PaintbrushTool::new(ctx) {
                             Ok(paint_tool) => {
                                 tool_behavior.set(Some(Rc::new(RefCell::new(paint_tool))))
                             }

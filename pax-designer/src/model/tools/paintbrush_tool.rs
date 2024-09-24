@@ -1,6 +1,7 @@
 use std::{f64::consts::PI, ops::ControlFlow};
 
 use crate::{
+    controls::settings::property_editor::fill_property_editor::color_to_str,
     designer_node_type::DesignerNodeType,
     glass::ToolVisualizationState,
     math::{
@@ -16,10 +17,10 @@ use crate::{
     },
 };
 use anyhow::{anyhow, Result};
-use bezier_rs::{Identifier, Subpath};
+use bezier_rs::{Bezier, Identifier, Subpath};
 use glam::DVec2;
 use pax_engine::{
-    api::{borrow, borrow_mut},
+    api::{borrow, borrow_mut, Color, Interpolatable},
     log,
     math::{Point2, Space, Vector2},
     pax_manifest::{TreeIndexPosition, UniqueTemplateNodeIdentifier},
@@ -27,15 +28,40 @@ use pax_engine::{
 };
 use pax_std::{PathElement, Size};
 
-pub struct PaintBrushTool {
+pub struct PaintbrushTool {
     path_node_being_created: UniqueTemplateNodeIdentifier,
     transaction: Transaction,
     path: Option<CompoundPath>,
-    drawing: bool,
-    last_pos: Point2<Glass>,
+    last_pos: Point2<World>,
 }
 
-impl PaintBrushTool {
+thread_local! {
+    // TODO make a general way for tools to be stored in app state, combined with editor binding state
+    pub static PAINTBRUSH_TOOL: Property<PaintbrushToolSettings> = Property::new(PaintbrushToolSettings::default());
+}
+
+impl Interpolatable for PaintbrushToolSettings {}
+
+#[derive(Clone)]
+pub struct PaintbrushToolSettings {
+    pub brush_radius: f64,
+    pub fill_color: Color,
+    pub stroke_color: Color,
+    pub stroke_width: u32,
+}
+
+impl Default for PaintbrushToolSettings {
+    fn default() -> Self {
+        Self {
+            brush_radius: 30.0,
+            fill_color: Color::BLACK,
+            stroke_color: Color::GRAY,
+            stroke_width: 3,
+        }
+    }
+}
+
+impl PaintbrushTool {
     pub fn new(ctx: &mut ActionContext) -> Result<Self> {
         let parent = ctx
             .derived_state
@@ -44,6 +70,7 @@ impl PaintBrushTool {
             .into_iter()
             .next()
             .unwrap();
+        let settings = PAINTBRUSH_TOOL.with(|p| p.get());
         let t = ctx.transaction("painting");
         let uid = t.run(|| {
             CreateComponent {
@@ -51,7 +78,15 @@ impl PaintBrushTool {
                 parent_index: TreeIndexPosition::Top,
                 designer_node_type: DesignerNodeType::Path,
                 builder_extra_commands: Some(&|builder| {
-                    builder.set_property("stroke", "{color: RED, width: 4px}")?;
+                    builder.set_property(
+                        "stroke",
+                        &format!(
+                            "{{color: {}, width: {}px}}",
+                            color_to_str(settings.stroke_color.clone()),
+                            settings.stroke_width
+                        ),
+                    )?;
+                    builder.set_property("fill", &color_to_str(settings.fill_color.clone()))?;
                     Ok(())
                 }),
                 node_layout: NodeLayoutSettings::Fill,
@@ -62,21 +97,17 @@ impl PaintBrushTool {
             path_node_being_created: uid,
             transaction: t,
             path: None,
-            drawing: false,
             last_pos: Point2::default(),
         })
     }
 }
 
-impl ToolBehavior for PaintBrushTool {
+impl ToolBehavior for PaintbrushTool {
     fn pointer_down(
         &mut self,
-        point: pax_engine::math::Point2<crate::math::coordinate_spaces::Glass>,
-        ctx: &mut ActionContext,
+        _point: pax_engine::math::Point2<crate::math::coordinate_spaces::Glass>,
+        _ctx: &mut ActionContext,
     ) -> ControlFlow<()> {
-        self.drawing = true;
-        self.last_pos = Point2::default();
-        self.pointer_move(point, ctx);
         ControlFlow::Continue(())
     }
 
@@ -85,37 +116,27 @@ impl ToolBehavior for PaintBrushTool {
         point: pax_engine::math::Point2<crate::math::coordinate_spaces::Glass>,
         ctx: &mut ActionContext,
     ) -> ControlFlow<()> {
-        if (point - self.last_pos).length_squared() < 1.0 {
-            return ControlFlow::Continue(());
-        }
-        self.last_pos = point;
         let point = ctx.world_transform() * point;
-
-        if !self.drawing {
+        if (point - self.last_pos).length_squared() < 2.0 {
             return ControlFlow::Continue(());
         }
-        // let union_path = donut_out_of_circles_scattered(point);
-        let point_perturbed = point + Vector2::new(rand::random(), rand::random()) / 1e2;
-        let circle = CompoundPath::from_subpath(Subpath::new_ellipse(
-            DVec2 {
-                x: point_perturbed.x - 50.0,
-                y: point_perturbed.y - 50.0,
-            },
-            DVec2 {
-                x: point.x + 50.0,
-                y: point.y + 50.0,
-            },
-        ));
+        let r = PAINTBRUSH_TOOL.with(|p| p.get().brush_radius);
 
         let new_path = if let Some(path) = &self.path {
-            path.union(&circle)
+            let capsule = capsule_from_points_and_radius(self.last_pos, point, r);
+            path.union(&capsule)
         } else {
-            circle
+            CompoundPath::from_subpath(Subpath::new_ellipse(
+                DVec2 {
+                    x: point.x - r,
+                    y: point.y - r,
+                },
+                DVec2 {
+                    x: point.x + r,
+                    y: point.y + r,
+                },
+            ))
         };
-
-        // let new_path = donut_out_of_circles_scattered(point);
-
-        log::debug!("subpaths: {:?}", new_path.subpaths.len());
         let pax_path = to_pax_path(&new_path);
         self.path = Some(new_path);
         if let Err(e) = self.transaction.run(|| {
@@ -128,11 +149,7 @@ impl ToolBehavior for PaintBrushTool {
                     .contains(&crate::model::input::ModifierKey::Control),
             );
             if let Some(mut node) = node {
-                log::debug!("write segment count: {}", pax_path.len());
-                let pax_value = pax_path.to_pax_value();
-                let str_val = pax_value.to_string();
-                // TODO don't override, just add
-                node.set_property("elements", &str_val)?;
+                node.set_property_from_typed("elements", Some(pax_path))?;
                 node.save()
                     .map_err(|e| anyhow!("failed to write elements on draw: {e}"))?;
             }
@@ -141,16 +158,16 @@ impl ToolBehavior for PaintBrushTool {
             log::warn!("failed to paint: {e}");
         }
         // TODO either commit this, or make elements a property connected to engine
+        self.last_pos = point;
         ControlFlow::Continue(())
     }
 
     fn pointer_up(
         &mut self,
-        point: pax_engine::math::Point2<crate::math::coordinate_spaces::Glass>,
-        ctx: &mut ActionContext,
+        _point: pax_engine::math::Point2<crate::math::coordinate_spaces::Glass>,
+        _ctx: &mut ActionContext,
     ) -> ControlFlow<()> {
-        self.drawing = false;
-        ControlFlow::Continue(())
+        ControlFlow::Break(())
     }
 
     fn finish(&mut self, _ctx: &mut ActionContext) -> anyhow::Result<()> {
@@ -174,6 +191,51 @@ impl ToolBehavior for PaintBrushTool {
     fn get_visual(&self) -> Property<ToolVisualizationState> {
         Property::new(ToolVisualizationState::default())
     }
+}
+
+fn capsule_from_points_and_radius(
+    start: Point2<World>,
+    end: Point2<World>,
+    r: f64,
+) -> CompoundPath {
+    let x_e = (end - start).normalize() * r;
+    let y_e = x_e.rotate90();
+
+    let p: Vec<_> = (0..5)
+        .map(|i| {
+            let (sin, cos) = (i as f64 * PI / 4.0).sin_cos();
+            let v = sin * x_e - cos * y_e;
+            DVec2 { x: v.x, y: v.y }
+        })
+        .collect();
+    let s = DVec2 {
+        x: start.x,
+        y: start.y,
+    };
+    let e = DVec2 { x: end.x, y: end.y };
+    const RATIO_OFFSET: f64 = 0.99;
+    let beziers = [
+        Bezier::from_linear_dvec2(s - p[0], e + p[4] * RATIO_OFFSET),
+        Bezier::cubic_through_points(
+            e + p[4] * RATIO_OFFSET,
+            e + p[3] * RATIO_OFFSET,
+            e + p[2] * RATIO_OFFSET,
+            None,
+            None,
+        ),
+        Bezier::cubic_through_points(
+            e + p[2] * RATIO_OFFSET,
+            e + p[1] * RATIO_OFFSET,
+            e + p[0] * RATIO_OFFSET,
+            None,
+            None,
+        ),
+        Bezier::from_linear_dvec2(e + p[0] * RATIO_OFFSET, s - p[4]),
+        Bezier::cubic_through_points(s - p[4], s - p[3], s - p[2], None, None),
+        Bezier::cubic_through_points(s - p[2], s - p[1], s - p[0], None, None),
+    ];
+
+    CompoundPath::from_subpath(Subpath::from_beziers(&beziers, true))
 }
 
 fn venn_diagram(point: Point2<World>) -> CompoundPath {
