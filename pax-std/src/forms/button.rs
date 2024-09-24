@@ -27,8 +27,8 @@ pub struct Button {
 impl Default for Button {
     fn default() -> Self {
         Self {
-            color: Property::new(Color::rgb(27.into(), 100.into(), 242.into())),
-            hover_color: Property::new(Color::rgb(26.into(), 86.into(), 219.into())),
+            color: Property::new(Color::GRAY),
+            hover_color: Property::new(Color::INDIGO),
             border_radius: Property::new(8.0),
             label: Property::new(String::from("button")),
             style: Property::new(TextStyle {

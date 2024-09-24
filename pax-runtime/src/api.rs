@@ -20,12 +20,12 @@ use {
 
 #[derive(Clone)]
 pub struct NodeContext {
-    /// slot index of this node in it's container
+    /// slot index of this node in its container
     pub slot_index: Property<Option<usize>>,
     /// Stack frame of this component, used to look up stores
-    pub(crate) local_stack_frame: Rc<RuntimePropertiesStackFrame>,
-    /// Registered handlers on the instance node
-    pub(crate) component_origin: Weak<ExpandedNode>,
+    pub local_stack_frame: Rc<RuntimePropertiesStackFrame>,
+    /// Reference to the ExpandedNode of the component containing this node
+    pub containing_component: Weak<ExpandedNode>,
     /// The current global engine tick count
     pub frames_elapsed: Property<u64>,
     /// The bounds of this element's immediate container (parent) in px
@@ -80,7 +80,7 @@ impl NodeContext {
 
     pub fn dispatch_event(&self, identifier: &'static str) -> Result<(), String> {
         let component_origin = self
-            .component_origin
+            .containing_component
             .upgrade()
             .ok_or_else(|| "can't dispatch from root component".to_owned())?;
 
