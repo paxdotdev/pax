@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 use pax_manifest::{
+    pax_runtime_api::{PaxValue, ToPaxValue},
     NodeLocation, PropertyDefinition, SettingElement, Token, TypeId, UniqueTemplateNodeIdentifier,
     ValueDefinition,
 };
@@ -114,9 +115,32 @@ impl<'a> NodeBuilder<'a> {
         properties.into_iter().zip(values).collect()
     }
 
-    pub fn set_typed_property<T: Serialize>(&mut self, key: &str, value: T) -> Result<()> {
-        let value = serde_pax::se::to_pax::<T>(&value)?;
-        self.set_property(key, &value)
+    pub fn set_property_from_value_definition(
+        &mut self,
+        key: &str,
+        value: Option<ValueDefinition>,
+    ) -> Result<()> {
+        if !self.overwrite_expressions && !self.is_literal(key).unwrap_or(true) {
+            return Err(anyhow!("the property {key:?} is bound to an expression"));
+        }
+        if let Some(value) = value {
+            let token = Token::new_without_location(key.to_owned());
+            self.updated_property_map.insert(token, Some(value));
+        } else {
+            self.remove_property(key);
+        }
+        Ok(())
+    }
+
+    pub fn set_property_from_typed<T: ToPaxValue>(
+        &mut self,
+        key: &str,
+        value: Option<T>,
+    ) -> Result<()> {
+        self.set_property_from_value_definition(
+            key,
+            value.map(|v| ValueDefinition::LiteralValue(v.to_pax_value())),
+        )
     }
 
     pub fn is_literal(&mut self, key: &str) -> Option<bool> {
@@ -141,17 +165,14 @@ impl<'a> NodeBuilder<'a> {
     }
 
     pub fn set_property(&mut self, key: &str, value: &str) -> Result<()> {
-        if !self.overwrite_expressions && !self.is_literal(key).unwrap_or(true) {
-            return Err(anyhow!("the property {key:?} is bound to an expression"));
-        }
-        if value.is_empty() {
-            self.remove_property(key);
-            return Ok(());
-        }
-        let value = pax_manifest::utils::parse_value(value).map_err(|e| anyhow!(e.to_owned()))?;
-        let token = Token::new_without_location(key.to_owned());
-        self.updated_property_map.insert(token, Some(value));
-        Ok(())
+        self.set_property_from_value_definition(
+            key,
+            if value.is_empty() {
+                None
+            } else {
+                Some(pax_manifest::utils::parse_value(value).map_err(|e| anyhow!(e.to_owned()))?)
+            },
+        )
     }
 
     pub fn remove_property(&mut self, key: &str) {

@@ -19,7 +19,14 @@
 </Frame>
 
 <Group id=right_panel>
-    <Settings id=settings />
+    if self.tool_with_tool_editor_selected {
+        // TODO add more types here? or make everything here
+        // generated with data from the tool
+        <PaintbrushSettings/>
+    }
+    if !self.tool_with_tool_editor_selected {
+        <Settings id=settings/>
+    }
     <Rectangle class=black_bg/>
     <EventBlocker/>
 </Group>
@@ -31,6 +38,7 @@
 </Group>
 
 @settings {
+    @mount: on_mount
     #left_panel {
         width: 240px,
     }
