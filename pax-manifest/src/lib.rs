@@ -1119,21 +1119,19 @@ impl ComponentTemplate {
     pub fn update_node_properties(
         &mut self,
         id: &TemplateNodeId,
-        properties: &mut HashMap<Token, Option<ValueDefinition>>,
+        mut properties: HashMap<Token, Option<ValueDefinition>>,
     ) {
         if let Some(node) = self.nodes.get_mut(id) {
             if let Some(settings) = &mut node.settings {
                 let mut indexes_to_remove: Vec<usize> = vec![];
                 for (i, setting) in settings.iter_mut().enumerate() {
                     if let SettingElement::Setting(key, v) = setting {
-                        if let Some(new_value) = properties.get(key) {
+                        if let Some(new_value) = properties.remove(key) {
                             if let Some(updated) = new_value {
-                                *v = updated.clone();
+                                *v = updated;
                             } else {
                                 indexes_to_remove.push(i);
                             }
-                            // remove property once it's been processed
-                            properties.remove_entry(key);
                         }
                     }
                 }

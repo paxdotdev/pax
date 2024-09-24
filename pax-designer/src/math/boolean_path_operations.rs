@@ -1,5 +1,6 @@
 use std::{
     borrow::Borrow,
+    collections::HashSet,
     f64::consts::PI,
     iter,
     ops::{Mul, Range},
@@ -13,7 +14,8 @@ use crate::math::boolean_path_operations::bezier_rs_modifications::intersections
 
 mod bezier_rs_modifications;
 mod circular_range;
-const EPS: f64 = 1e-1;
+const EPS: f64 = 1e-3;
+const GROUP_EPS: f64 = 1e-1;
 
 /// An empty id type for use in tests
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
@@ -64,13 +66,15 @@ impl CompoundPath {
     }
 
     pub fn union(&self, other: &Self) -> Self {
-        log::debug!("--- start union calc ---");
+        // log::debug!("--- start union calc ---");
         let all_intersections = calculcate_all_intersections(&self, &other);
         let intersections_len = all_intersections.len();
 
         let (self_intersections, other_intersections) =
             unzip_and_sort_with_cross_references(all_intersections);
 
+        // log::debug!("self_intersections: {:#?}", self_intersections);
+        // log::debug!("other_intersections: {:#?}", other_intersections);
         let self_path_data = PathIntersectionData {
             intersections: self_intersections,
             beziers: self.subpaths.iter().map(|s| s.iter().collect()).collect(),
@@ -79,8 +83,6 @@ impl CompoundPath {
             intersections: other_intersections,
             beziers: other.subpaths.iter().map(|s| s.iter().collect()).collect(),
         };
-        // log::debug!("self_intersection_data: {:#?}", self_path_data);
-        // log::debug!("other_intersection_data: {:#?}", other_path_data);
         let mut intersection_visited = vec![false; intersections_len];
 
         if intersections_len % 2 != 0 {
@@ -169,7 +171,7 @@ fn find_next_entrypoint(
 fn is_leaving_other_subpath(
     self_path: &PathIntersectionData,
     other_path: &PathIntersectionData,
-    other: &CompoundPath,
+    _other: &CompoundPath,
     self_intersection_index: usize,
 ) -> f64 {
     let (other_intersection_index, self_start_intersection) =
@@ -195,53 +197,155 @@ fn calculcate_all_intersections(
     let mut all_intersections: Vec<(Intersection, Intersection)> = Vec::new();
     for (p1_subpath_index, p1_subpath) in p1.subpaths.iter().enumerate() {
         for (p2_subpath_index, p2_subpath) in p2.subpaths.iter().enumerate() {
-            let path_start_index = all_intersections.len();
+            let mut path_tuple_intersections = vec![];
             for (p1_segment_index, p1_seg) in p1_subpath.iter().enumerate() {
                 for (p2_segment_index, p2_seg) in p2_subpath.iter().enumerate() {
-                    let segment_intersections =
-                        intersections(&p1_seg, &p2_seg, Some(EPS / 20.0), EPS)
-                            .into_iter()
-                            .map(|[p1_t, p2_t]| {
-                                (
-                                    Intersection {
-                                        subpath_index: p1_subpath_index,
-                                        segment_index: p1_segment_index,
-                                        t: p1_t,
-                                    },
-                                    Intersection {
-                                        subpath_index: p2_subpath_index,
-                                        segment_index: p2_segment_index,
-                                        t: p2_t,
-                                    },
-                                )
-                            });
-                    all_intersections.extend(segment_intersections);
+                    let segment_intersections = intersections(&p1_seg, &p2_seg, Some(EPS), 0.01)
+                        .into_iter()
+                        .map(|[p1_t, p2_t]| {
+                            (
+                                Intersection {
+                                    subpath_index: p1_subpath_index,
+                                    segment_index: p1_segment_index,
+                                    t: p1_t,
+                                },
+                                Intersection {
+                                    subpath_index: p2_subpath_index,
+                                    segment_index: p2_segment_index,
+                                    t: p2_t,
+                                },
+                            )
+                        });
+                    path_tuple_intersections.extend(segment_intersections)
                 }
             }
-            if all_intersections.len() % 2 != 0 {
-                let index = all_intersections.iter().skip(path_start_index).position(
-                    |(intersec_1, intersec_2)| {
-                        let p1_tangent = p1_subpath
-                            .get_segment(intersec_1.segment_index)
-                            .unwrap()
-                            .tangent(TValue::Parametric(intersec_1.t));
-                        let p2_tangent = p2_subpath
-                            .get_segment(intersec_2.segment_index)
-                            .unwrap()
-                            .tangent(TValue::Parametric(intersec_2.t));
-                        let tangential = p1_tangent.dot(p2_tangent).abs() > 0.999;
-                        tangential
-                    },
-                );
-                if let Some(index) = index {
-                    all_intersections.swap_remove(path_start_index + index);
-                } else {
-                    log::warn!("uneven intersections but none where tangential");
-                }
-            }
+            cleanup_intersections(&p1_subpath, &p2_subpath, &mut path_tuple_intersections);
+            all_intersections.extend(path_tuple_intersections);
         }
     }
     all_intersections
+}
+
+#[derive(Clone)]
+struct IntersectionData {
+    index: usize,
+    point: DVec2,
+    tangent1: DVec2,
+    tangent2: DVec2,
+}
+
+impl IntersectionData {
+    fn new(
+        index: usize,
+        p1_subpath: &Subpath<DesignerPathId>,
+        p2_subpath: &Subpath<DesignerPathId>,
+        intersec_1: &Intersection,
+        intersec_2: &Intersection,
+    ) -> Self {
+        let p1_seg = p1_subpath.get_segment(intersec_1.segment_index).unwrap();
+        let p2_seg = p2_subpath.get_segment(intersec_2.segment_index).unwrap();
+        let point = p1_seg.evaluate(TValue::Parametric(intersec_1.t));
+        let tangent1 = p1_seg.tangent(TValue::Parametric(intersec_1.t));
+        let tangent2 = p2_seg.tangent(TValue::Parametric(intersec_2.t));
+
+        IntersectionData {
+            index,
+            point,
+            tangent1,
+            tangent2,
+        }
+    }
+
+    fn tangent_difference(&self) -> f64 {
+        (self.tangent1.normalize() - self.tangent2.normalize()).length()
+    }
+}
+
+fn cleanup_intersections(
+    p1_subpath: &Subpath<DesignerPathId>,
+    p2_subpath: &Subpath<DesignerPathId>,
+    path_tuple_intersections: &mut Vec<(Intersection, Intersection)>,
+) {
+    // Step 1: Convert intersections to IntersectionData for easier processing
+    let intersection_data: Vec<IntersectionData> = path_tuple_intersections
+        .iter()
+        .enumerate()
+        .map(|(index, (intersec_1, intersec_2))| {
+            IntersectionData::new(index, p1_subpath, p2_subpath, intersec_1, intersec_2)
+        })
+        .collect();
+
+    // Step 2: Group nearby intersections
+    let groups = group_nearby_intersections(&intersection_data);
+
+    // Step 3: Process each group and keep the best intersections
+    let mut indices_to_keep = process_groups(groups);
+
+    // Step 4: Ensure even number of intersections
+    if indices_to_keep.len() % 2 != 0 {
+        if let Some(index_to_remove) =
+            find_least_significant_intersection(&intersection_data, &indices_to_keep)
+        {
+            indices_to_keep.remove(&index_to_remove);
+        }
+    }
+
+    // Step 5: Update the original path_tuple_intersections vector
+    *path_tuple_intersections = indices_to_keep
+        .into_iter()
+        .map(|index| path_tuple_intersections[index].clone())
+        .collect();
+}
+
+fn group_nearby_intersections(
+    intersection_data: &[IntersectionData],
+) -> Vec<Vec<&IntersectionData>> {
+    let mut groups: Vec<Vec<&IntersectionData>> = Vec::new();
+
+    for data in intersection_data {
+        if let Some(group) = groups.iter_mut().find(|group| {
+            group
+                .iter()
+                .any(|g| (g.point - data.point).length() < GROUP_EPS)
+        }) {
+            group.push(data);
+        } else {
+            groups.push(vec![data]);
+        }
+    }
+
+    groups
+}
+
+fn process_groups(groups: Vec<Vec<&IntersectionData>>) -> HashSet<usize> {
+    let mut indices_to_keep = HashSet::new();
+
+    for group in groups {
+        if group.len() <= 2 {
+            indices_to_keep.extend(group.iter().map(|data| data.index));
+        } else {
+            let mut sorted_group = group.clone();
+            sorted_group.sort_by(|a, b| b.tangent_difference().total_cmp(&a.tangent_difference()));
+            indices_to_keep.extend(sorted_group.iter().take(2).map(|data| data.index));
+        }
+    }
+
+    indices_to_keep
+}
+
+fn find_least_significant_intersection(
+    intersection_data: &[IntersectionData],
+    indices_to_keep: &HashSet<usize>,
+) -> Option<usize> {
+    indices_to_keep
+        .iter()
+        .min_by(|&&a, &&b| {
+            intersection_data[a]
+                .tangent_difference()
+                .partial_cmp(&intersection_data[b].tangent_difference())
+                .unwrap()
+        })
+        .copied()
 }
 
 fn collect_subpaths_without_intersections<'a>(

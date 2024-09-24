@@ -239,7 +239,7 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
 
             template.update_node_properties(
                 &uni.get_template_node_id(),
-                &mut self.updated_properties.clone(),
+                self.updated_properties.clone(),
             );
             if let Some(new_type) = &self.new_type_id {
                 template.update_node_type_id(&uni.get_template_node_id(), new_type);
