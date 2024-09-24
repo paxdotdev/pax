@@ -258,7 +258,7 @@ export class NativeElementPool {
         }
         let textbox = leaf!.firstChild as HTMLTextAreaElement;
 
-        applyTextTyle(textbox, textbox, patch.style);
+        applyTextStyle(textbox, textbox, patch.style);
 
         //We may support styles other than solid in the future; this is a better default than the browser's for now
         textbox.style.borderStyle = "solid";
@@ -360,7 +360,7 @@ export class NativeElementPool {
         let leaf = this.nodesLookup.get(patch.id!);
         updateCommonProps(leaf!, patch);
         if (patch.style != null) {
-            applyTextTyle(leaf!, leaf!, patch.style);
+            applyTextStyle(leaf!, leaf!, patch.style);
         }
 
         let fields = leaf!.firstChild as HTMLFieldSetElement;
@@ -525,7 +525,7 @@ export class NativeElementPool {
         let leaf = this.nodesLookup.get(patch.id!);
         updateCommonProps(leaf!, patch);
         let dropdown = leaf!.firstChild as HTMLSelectElement;
-        applyTextTyle(dropdown, dropdown, patch.style);
+        applyTextStyle(dropdown, dropdown, patch.style);
         dropdown.style.borderStyle = "solid";
 
         if (patch.background != null) {
@@ -644,7 +644,7 @@ export class NativeElementPool {
             button.style.borderWidth = patch.outlineStrokeWidth + "px";
         }
         
-        applyTextTyle(textContainer, textChild, patch.style);
+        applyTextStyle(textContainer, textChild, patch.style);
     }
 
     buttonDelete(id: number) {
@@ -742,12 +742,12 @@ export class NativeElementPool {
             textChild.style.userSelect = patch.selectable ? "auto" : "none";
         }
 
-        applyTextTyle(leaf, textChild, patch.style);
+        applyTextStyle(leaf, textChild, patch.style);
 
         // Apply the content
         if (patch.content != null) {
             if (sanitizeContentEditableString(textChild.innerHTML) != patch.content) {
-                textChild.innerHTML = patch.content;
+                textChild.innerHTML = snarkdown(patch.content);
             }
             // Apply the link styles if they exist
             if (patch.style_link != null) {
@@ -781,9 +781,8 @@ export class NativeElementPool {
                     if (linkStyle.align_multiline) {
                         textChild.style.textAlign = getTextAlign(linkStyle.align_multiline);
                     }
-                    if (linkStyle.underline != null) {
-                        link.style.textDecoration = linkStyle.underline ? 'underline' : 'none';
-                    }
+                    //force underlining for now since we don't currently offer an API that offers sane (underlined) defaults.
+                    link.style.textDecoration = 'underline';
                 });
             }
         }
@@ -1021,7 +1020,7 @@ function toCssColor(color: ColorGroup): string {
     }        
 }
 
-function applyTextTyle(textContainer: HTMLElement, textElem: HTMLElement, style: TextStyle | undefined) {
+function applyTextStyle(textContainer: HTMLElement, textElem: HTMLElement, style: TextStyle | undefined) {
     
     // Apply TextStyle from patch.style
     if (style) {
