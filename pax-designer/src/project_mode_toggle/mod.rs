@@ -21,33 +21,40 @@ pub struct ProjectModeToggle {
 
 #[allow(unused)]
 impl ProjectModeToggle {
-    pub fn mount(&mut self, _ctx: &NodeContext) {
+    pub fn mount(&mut self, ctx: &NodeContext) {
+        // Ideally we don't do any of this, but bounds returned on first change aren't correct atm,
+        // and tool state needs to be handled for for example text better. (shows old value on return)
+        let project_mode = model::read_app_state(|app_state| app_state.project_mode.clone());
         let running = match ProjectMode::default() {
             ProjectMode::Edit => false,
             ProjectMode::Playing => true,
         };
-        self.running_mode.set(running);
-        self.edit_mode.set(!running);
+        let deps = [project_mode.untyped()];
+
+        let ctxp = ctx.clone();
+        let project_mode_cp = project_mode.clone();
+        self.running_mode.replace_with(Property::computed(
+            move || {
+                // WARNING: this won't trigger if running mode isn't used in template - hacky
+                let mut dt = borrow_mut!(ctxp.designtime);
+                dt.reload_play();
+                matches!(project_mode_cp.get(), ProjectMode::Playing)
+            },
+            &deps,
+        ));
+        let ctxp = ctx.clone();
+        self.edit_mode.replace_with(Property::computed(
+            move || {
+                // WARNING: this won't trigger if running mode isn't used in template - hacky
+                let mut dt = borrow_mut!(ctxp.designtime);
+                dt.reload_edit();
+                matches!(project_mode.get(), ProjectMode::Edit)
+            },
+            &deps,
+        ));
     }
 
     pub fn click(&mut self, ctx: &NodeContext, _event: Event<Click>) {
-        let curr = self.edit_mode.get();
-        self.edit_mode.set(!curr);
-        self.running_mode.set(curr);
-        let mode = match self.edit_mode.get() {
-            true => {
-                let mut dt = borrow_mut!(ctx.designtime);
-                dt.reload_edit();
-                ProjectMode::Edit
-            }
-            false => {
-                let mut dt = borrow_mut!(ctx.designtime);
-                dt.reload_play();
-                ProjectMode::Playing
-            }
-        };
-        // Ideally we don't do any of this, but bounds returned on first change aren't correct atm,
-        // and tool state needs to be handled for for example text better. (shows old value on return)
         model::perform_action(
             &SelectNodes {
                 ids: &[],
@@ -55,7 +62,14 @@ impl ProjectModeToggle {
             },
             ctx,
         );
+        let project_mode = model::read_app_state(|app_state| app_state.project_mode.clone());
         model::perform_action(&SetToolBehaviour(None), ctx);
-        model::perform_action(&ProjectMsg(mode), ctx);
+        model::perform_action(
+            &ProjectMsg(match project_mode.get() {
+                ProjectMode::Edit => ProjectMode::Playing,
+                ProjectMode::Playing => ProjectMode::Edit,
+            }),
+            ctx,
+        );
     }
 }
