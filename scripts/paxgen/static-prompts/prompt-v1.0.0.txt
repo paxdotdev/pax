@@ -1210,18 +1210,18 @@ fn parametric_path(
         .chain(bottom.rev())
         .flat_map(|p| {
             [
-                PathElement::Point(
+                PathElement::point(
                     Size::Percent((100.0 * p.x).into()),
                     Size::Percent((100.0 * p.y).into()),
                 ),
-                PathElement::Line,
+                PathElement::line(),
             ]
         })
         .collect();
     // remove last line
     elements.pop();
     // instead close the loop
-    elements.push(PathElement::Close);
+    elements.push(PathElement::close());
     elements
 }
 
