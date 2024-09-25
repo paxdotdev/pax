@@ -31,9 +31,6 @@ impl_default_coercion_rule!(f64, PaxValue::Numeric);
 impl_default_coercion_rule!(isize, PaxValue::Numeric);
 impl_default_coercion_rule!(usize, PaxValue::Numeric);
 
-// Pax internal types
-impl_default_coercion_rule!(Color, PaxValue::Color);
-
 pub trait CoercionRules
 where
     Self: Sized + 'static,
@@ -82,6 +79,15 @@ where
 //     TRANSPARENT,
 //     NONE,
 // }
+
+impl CoercionRules for Color {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::Color(color) => Ok(*color),
+            _ => return Err(format!("{:?} can't be coerced into a Color", value)),
+        }
+    }
+}
 
 impl CoercionRules for PathElement {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {

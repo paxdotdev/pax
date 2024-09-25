@@ -66,15 +66,12 @@ impl CompoundPath {
     }
 
     pub fn union(&self, other: &Self) -> Self {
-        // log::debug!("--- start union calc ---");
         let all_intersections = calculcate_all_intersections(&self, &other);
         let intersections_len = all_intersections.len();
 
         let (self_intersections, other_intersections) =
             unzip_and_sort_with_cross_references(all_intersections);
 
-        // log::debug!("self_intersections: {:#?}", self_intersections);
-        // log::debug!("other_intersections: {:#?}", other_intersections);
         let self_path_data = PathIntersectionData {
             intersections: self_intersections,
             beziers: self.subpaths.iter().map(|s| s.iter().collect()).collect(),
@@ -85,11 +82,6 @@ impl CompoundPath {
         };
         let mut intersection_visited = vec![false; intersections_len];
 
-        if intersections_len % 2 != 0 {
-            log::warn!("path intersection number should always be even");
-            // return Self::new();
-        }
-
         let mut output_paths = vec![];
         while let Some(start_index) = find_next_entrypoint(
             &self_path_data,
@@ -97,23 +89,17 @@ impl CompoundPath {
             &other,
             &intersection_visited,
         ) {
-            // log::debug!("tracing from {:?}", start_index);
-            // log::debug!("visited before: {:?}", intersection_visited);
             let subpath = trace_from(
                 start_index,
                 &self_path_data,
                 &other_path_data,
                 &mut intersection_visited,
             );
-            // log::debug!("visited after: {:?}", intersection_visited);
-            // log::debug!("path: {:#?}", path);
             if subpath.len() > 1 {
                 let subpath = Subpath::from_beziers(&subpath, true);
                 // skip this subpath if to short
                 if subpath.length(Some(10)) > 2.0 * PI {
                     output_paths.push(subpath);
-                } else {
-                    log::warn!("subpath circumfrence to short");
                 }
             } else {
                 log::warn!("subpath length was: < 2, expected bezier segment count >= 2");
@@ -384,12 +370,9 @@ fn trace_from(
         } else {
             current_path.intersections[current_index].0
         };
-        // log::debug!("is_self: {:?}", is_self);
         if intersection_visited[self_index] {
-            // log::debug!("stopped at: {:?} ({})", self_index, current_index);
             break;
         }
-        // log::debug!("visiting: {:?} ({})", self_index, current_index);
         intersection_visited[self_index] = true;
 
         let (_, curr_intersection) = current_path.intersections[current_index];
@@ -435,11 +418,6 @@ fn beziers_between_intersections(
     curr_intersection: &Intersection,
     next_intersection: &Intersection,
 ) -> Vec<Bezier> {
-    // log::debug!(
-    //     "computing beziers between curr inters: {:?}, next_inters: {:?}",
-    //     curr_intersection,
-    //     next_intersection
-    // );
     let mut path_segments = vec![];
     for seg_ind in circular_range::circular_range(
         curr_intersection.segment_index,
@@ -465,21 +443,14 @@ fn beziers_between_intersections(
     }
     let last = path_segments.last_mut().expect("at least one");
     *last = last.split(TValue::Parametric(end_split_t.clamp(0.0, 1.0)))[0];
-    // log::debug!("output segments: {:#?}", path_segments);
     path_segments
 }
 
 #[derive(Debug)]
 struct PathIntersectionData {
     intersections: Vec<(usize, Intersection)>,
-    // intersection_markings: Vec<EntryOrExit>,
     beziers: Vec<Vec<Bezier>>,
 }
-
-// pub enum EntryOrExit {
-//     Entry,
-//     Exit,
-// }
 
 #[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
 struct Intersection {

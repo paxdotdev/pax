@@ -1,3 +1,208 @@
+<Text y=56.43% x=96.88% height=12.40% text="Every visual change is code." style={
+    font: Font::Web(
+        "Roboto",
+        "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+        FontStyle::Normal,
+        FontWeight::Bold)
+    font_size: 35.00px
+    fill: rgba(254, 254, 254, 255)
+    align_vertical: TextAlignVertical::Bottom
+    align_horizontal: TextAlignHorizontal::Left
+    align_multiline: TextAlignHorizontal::Left
+    underline: false
+} 
+    width=46.40% rotate=-4.88deg/>
+<Link y=6.38% width=11.93% x=55.79% height=5.17% url="https://docs.pax.dev/get-started/" target=Target::New>
+    <Text y=0.00% x=100.00% text="Get Started" style={
+        font: Font::Web(
+            "Roboto",
+            "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+            FontStyle::Normal,
+            FontWeight::Bold)
+        font_size: 24px
+        fill: rgba(254, 254, 254, 255)
+        align_vertical: TextAlignVertical::Center
+        align_horizontal: TextAlignHorizontal::Center
+        align_multiline: TextAlignHorizontal::Center
+        underline: false
+    } 
+        width=100% height=100%/>
+    <Rectangle height=100% width=100% corner_radii={
+        top_left: 10
+        top_right: 10
+        bottom_left: 10
+        bottom_right: 10
+    } 
+        y=0.00% x=0.00% fill=INDIGO/>
+</Link>
+<Link y=6.17% width=11.87% x=39.96% height=5.63% url="https://docs.pax.dev" target=Target::New>
+    <Text y=0.00% x=0.00% text="Docs" style={
+        font: Font::Web(
+            "Roboto",
+            "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+            FontStyle::Normal,
+            FontWeight::Light)
+        font_size: 24px
+        fill: rgba(254, 254, 254, 255)
+        align_vertical: TextAlignVertical::Center
+        align_horizontal: TextAlignHorizontal::Center
+        align_multiline: TextAlignHorizontal::Center
+        underline: false
+    } 
+        width=100% height=100%/>
+</Link>
+<Link y=6.17% width=11.87% x=27.01% height=5.63% url="https://discord.com/invite/Eq8KWAUc6b" target=Target::New>
+    <Text y=0.00% x=0.00% text="Discord" style={
+        font: Font::Web(
+            "Roboto",
+            "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+            FontStyle::Normal,
+            FontWeight::Light)
+        font_size: 24px
+        fill: rgba(254, 254, 254, 255)
+        align_vertical: TextAlignVertical::Center
+        align_horizontal: TextAlignHorizontal::Center
+        align_multiline: TextAlignHorizontal::Center
+        underline: false
+    } 
+        width=100% height=100%/>
+</Link>
+<Link y=6.17% width=11.87% x=14.67% height=5.63% url="https://github.com/paxdotdev/pax" target=Target::New>
+    <Text y=0.00% x=0.00% text="GitHub" style={
+        font: Font::Web(
+            "Roboto",
+            "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+            FontStyle::Normal,
+            FontWeight::Light)
+        font_size: 24px
+        fill: rgba(254, 254, 254, 255)
+        align_vertical: TextAlignVertical::Center
+        align_horizontal: TextAlignHorizontal::Center
+        align_multiline: TextAlignHorizontal::Center
+        underline: false
+    } 
+        width=100% height=100%/>
+</Link>
+<Image source=ImageSource::Url("assets/pax-logo-white-on-black.png") x=2.72% height=8.88% y=5.97% width=9.71%/>
+<Carousel width=45.41% x=24.32% y=56.84% height=78.32% anchor_x=50.00% anchor_y=50.00%>
+    <Group>
+        <Calculator />
+        <Rectangle fill=rgba(30, 30, 30, 255)/>
+    </Group>
+    <Group>
+        <Fireworks />
+        <Rectangle fill=WHITE/>
+    </Group>
+    <ColorPickerExample />
+    <BreakoutGame />
+</Carousel>
+<Group x=95.19% scale_x=100% y=39.88% width=44.39% scale_y=100% height=36.88% anchor_x=100% rotate=-4.79deg>
+    <Text y=71.71% x=108.62% height=39.59% 
+        text="Build mobile apps, websites, business tools, games, digital art, interactive cartoons, desktop &amp; embedded applications, data visualizations, and more." 
+        style={
+            font: Font::Web(
+                "Roboto",
+                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Light)
+            font_size: 24.00px
+            fill: rgba(254, 254, 254, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        } 
+        width=108.20%/>
+    <Text y=18.84% x=0.15% height=42.85% text="Build user interfaces with the creative freedom of a vector design tool." style={
+        font: Font::Web(
+            "Roboto",
+            "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+            FontStyle::Normal,
+            FontWeight::Bold)
+        font_size: 38px
+        fill: rgba(254, 254, 254, 255)
+        align_vertical: TextAlignVertical::Top
+        align_horizontal: TextAlignHorizontal::Left
+        align_multiline: TextAlignHorizontal::Left
+        underline: false
+    } 
+        width=110.45%/>
+</Group>
+<Link width=38.25% y=92.58% x=96.84% height=17.30% url="https://airtable.com/appCUQtUS9g4kuQZL/pagGMVOPv9AH1cNJS/form" 
+    target=Target::New>
+    <Group y=-0.83% height=79.81% x=49.99% width=90.90%>
+        <Text y=9.36% x=55.62% height=66.15% text="Be a pilot for Pax Pro" style={
+            font: Font::Web(
+                "Roboto",
+                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold)
+            font_size: 42px
+            fill: rgba(1, 1, 1, 255)
+            align_vertical: TextAlignVertical::Bottom
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        } 
+            width=99.46%/>
+        <Text y=92.00% x=110.62% height=54.86% text="Your whole team, building together on GitHub" style={
+            font: Font::Web(
+                "Roboto",
+                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            font_size: 26px
+            fill: rgba(1, 1, 1, 255)
+            align_vertical: TextAlignVertical::Bottom
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        } 
+            width=109.92%/>
+    </Group>
+    <Group x=79.65% scale_y=140.00% height=81.05% scale_x=139.99% y=99.99% width=76.34%>
+        <Rectangle y=100.00% height=123.35% x=94.95% corner_radii={
+            top_left: 30
+            top_right: 30
+            bottom_left: 30
+            bottom_right: 30
+        } 
+            stroke={
+                color: rgba(99, 102, 241, 255)
+                width: 15.00px
+            } fill=rgba(246, 247, 248, 255) scale_x=71.42% 
+            width=132.33% scale_y=71.42%/>
+        <Rectangle y=72.04% height=130.98% x=73.65% corner_radii={
+            top_left: 30
+            top_right: 30
+            bottom_left: 30
+            bottom_right: 30
+        } 
+            stroke={
+                color: rgba(99, 102, 241, 255)
+                width: 0.00px
+            } fill=rgba(0, 0, 0, 40) width=134.69% rotate=-0.01deg 
+            scale_x=71.42% scale_y=71.42%/>
+    </Group>
+</Link>
+<Image source=ImageSource::Url("assets/Frame 2.png") y=-30.44% width=21.73% scale_y=139.99% x=116.58% scale_x=139.99% 
+    height=21.37%/>
+<Image source=ImageSource::Url("assets/Frame 1.png") x=-11.85% scale_y=139.99% width=24.22% y=-27.14% scale_x=139.99% 
+    height=16.65%/>
+<Image source=ImageSource::Url("assets/Frame 3.png") y=130.59% height=19.53% x=55.19% scale_x=139.98% scale_y=139.98% 
+    width=25.86%/>
+<Group width=74.83% height=80.63% scale_x=139.99% scale_y=139.99% x=49.10% y=48.14% rotate=-3.80deg>
+    <Rectangle x=100.00% height=43.76% y=99.99% fill=rgba(206, 207, 207, 255) width=139.95% scale_y=71.41% scale_x=71.41%/>
+    <Rectangle x=58.65% height=51.06% y=50.47% fill=rgba(46, 49, 49, 255) width=139.88% scale_x=71.41% scale_y=71.41%/>
+    <Rectangle x=0.00% height=45.02% y=0.00% fill=rgba(12, 12, 12, 255) corner_radii={
+        top_left: 0
+        top_right: 0
+        bottom_left: 0
+        bottom_right: 0
+    } 
+        width=139.96% scale_y=71.41% scale_x=71.41%/>
+</Group>
+
 @settings {
     @pre_render: handle_pre_render
     #text {
