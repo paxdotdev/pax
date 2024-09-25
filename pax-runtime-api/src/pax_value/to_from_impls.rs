@@ -56,10 +56,15 @@ impl_to_from_pax_value!(String, PaxValue::String);
 // Pax internal types
 impl_to_from_pax_value!(Numeric, PaxValue::Numeric);
 impl_to_from_pax_value!(Size, PaxValue::Size);
-impl_to_from_pax_value!(Box<Color>, PaxValue::Color);
 impl_to_from_pax_value!(Rotation, PaxValue::Rotation);
 impl_to_from_pax_value!(Percent, PaxValue::Percent);
 impl_to_from_pax_value!(PathElement, PaxValue::PathElement);
+
+impl ToPaxValue for Color {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Color(Box::new(self))
+    }
+}
 
 // Pax Vec type
 impl<T: ToPaxValue> ToPaxValue for Vec<T> {
@@ -156,7 +161,7 @@ impl ToPaxValue for Stroke {
     fn to_pax_value(self) -> PaxValue {
         PaxValue::Object(
             vec![
-                ("color".to_string(), self.color.to_pax_value()),
+                ("color".to_string(), self.color.get().to_pax_value()),
                 ("width".to_string(), self.width.to_pax_value()),
             ]
             .into_iter()

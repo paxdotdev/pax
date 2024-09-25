@@ -39,45 +39,6 @@ pub fn intersections(
 /// - `error` - For intersections where the provided bezier is non-linear, `error` defines the threshold for bounding boxes to be considered an intersection point.
 fn unfiltered_intersections(slf: &Bezier, other: &Bezier, error: Option<f64>) -> Vec<[f64; 2]> {
     let error = error.unwrap_or(0.5);
-    // if other.handles == BezierHandles::Linear {
-    //     // Rotate the bezier and the line by the angle that the line makes with the x axis
-    //     let line_directional_vector = other.end - other.start;
-    //     let angle = line_directional_vector.angle_between(DVec2::new(0., 1.));
-    //     let rotation_matrix = DMat2::from_angle(angle);
-    //     let rotated_bezier = slf.apply_transformation(|point| rotation_matrix * point);
-
-    //     // Translate the bezier such that the line becomes aligned on top of the x-axis
-    //     let vertical_distance = (rotation_matrix * other.start).x;
-    //     let translated_bezier = rotated_bezier.translate(DVec2::new(-vertical_distance, 0.));
-
-    //     // Compute the roots of the resulting bezier curve
-    //     let list_intersection_t = translated_bezier.find_tvalues_for_x(0.);
-
-    //     // Calculate line's bounding box
-    //     let [min_corner, max_corner] = other.bounding_box_of_anchors_and_handles();
-
-    //     const MAX_ABSOLUTE_DIFFERENCE: f64 = 1e-3;
-    //     return list_intersection_t
-    //         // Accept the t value if it is approximately in [0, 1] and if the corresponding coordinates are within the range of the linear line
-    //         .filter(|&t| {
-    //             dvec2_approximately_in_range(
-    //                 unrestricted_parametric_evaluate(slf, t),
-    //                 min_corner,
-    //                 max_corner,
-    //                 MAX_ABSOLUTE_DIFFERENCE,
-    //             )
-    //             .all()
-    //         })
-    //         .map(|t1| {
-    //             // MODIFIED: this needs to also return t values along the line segment
-    //             let point = slf.evaluate(TValue::Parametric(t1));
-    //             let t2 = (point - other.start).dot(line_directional_vector)
-    //                 / line_directional_vector.length_squared();
-    //             [t1.clamp(0., 1.), t2.clamp(0., 1.)]
-    //         })
-    //         .collect();
-    // }
-
     // TODO: Consider using the `intersections_between_vectors_of_curves` helper function here
     // Otherwise, use bounding box to determine intersections
     intersections_between_subcurves(slf, 0. ..1., other, 0. ..1., error)
