@@ -1043,6 +1043,23 @@ impl Reflectable for pax_runtime_api::Color {
     }
 }
 
+impl Reflectable for pax_runtime_api::PathElement {
+    fn get_import_path() -> String {
+        "pax_engine::api::PathElement".to_string()
+    }
+
+    fn get_self_pascal_identifier() -> String {
+        "PathElement".to_string()
+    }
+
+    fn get_type_id() -> TypeId {
+        TypeId::build_singleton(
+            &Self::get_import_path(),
+            Some(&Self::get_self_pascal_identifier()),
+        )
+    }
+}
+
 impl Reflectable for pax_runtime_api::ColorChannel {
     fn get_import_path() -> String {
         "pax_engine::api::ColorChannel".to_string()

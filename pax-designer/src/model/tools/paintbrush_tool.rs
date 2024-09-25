@@ -20,13 +20,13 @@ use anyhow::{anyhow, Result};
 use bezier_rs::{Bezier, Identifier, Subpath};
 use glam::DVec2;
 use pax_engine::{
-    api::{borrow, borrow_mut, Color, Interpolatable},
+    api::{borrow, borrow_mut, Color, Interpolatable, PathElement},
     log,
     math::{Point2, Space, Vector2},
     pax_manifest::{TreeIndexPosition, UniqueTemplateNodeIdentifier},
     Property, ToPaxValue,
 };
-use pax_std::{PathElement, Size};
+use pax_std::Size;
 
 pub struct PaintbrushTool {
     path_node_being_created: UniqueTemplateNodeIdentifier,
@@ -402,12 +402,12 @@ fn to_pax_path(path: &CompoundPath) -> Vec<PathElement> {
                     handle_start: ctrl1,
                     handle_end: ctrl2,
                 } => {
-                    pax_segs.push(PathElement::Cubic(
+                    pax_segs.push(PathElement::Cubic(Box::new((
                         Size::Pixels(ctrl1.x.into()),
                         Size::Pixels(ctrl1.y.into()),
                         Size::Pixels(ctrl2.x.into()),
                         Size::Pixels(ctrl2.y.into()),
-                    ));
+                    ))));
                     pax_segs.push(PathElement::Point(
                         Size::Pixels(seg.end.x.into()),
                         Size::Pixels(seg.end.y.into()),

@@ -17,6 +17,7 @@ use crate::ColorChannel;
 use crate::Fill;
 use crate::GradientStop;
 use crate::LinearGradient;
+use crate::PathElement;
 use crate::Percent;
 use crate::Property;
 use crate::RadialGradient;
@@ -58,6 +59,7 @@ impl_to_from_pax_value!(Size, PaxValue::Size);
 impl_to_from_pax_value!(Color, PaxValue::Color);
 impl_to_from_pax_value!(Rotation, PaxValue::Rotation);
 impl_to_from_pax_value!(Percent, PaxValue::Percent);
+impl_to_from_pax_value!(PathElement, PaxValue::PathElement);
 
 // Pax Vec type
 impl<T: ToPaxValue> ToPaxValue for Vec<T> {

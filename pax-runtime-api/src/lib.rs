@@ -1644,6 +1644,21 @@ impl Add for Rotation {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(crate = "crate::serde")]
+pub enum PathElement {
+    #[default]
+    Empty,
+    Point(Size, Size),
+    Line,
+    Quadratic(Size, Size),
+    Cubic(Box<(Size, Size, Size, Size)>),
+    Close,
+}
+
+impl Interpolatable for PathElement {}
+impl HelperFunctions for PathElement {}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "crate::serde")]
 pub struct Stroke {
