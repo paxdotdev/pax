@@ -57,6 +57,10 @@ html, body, #mount, canvas, .native-overlay{
     outline: none;
 }
 
+strong {
+    font-weight: 500;
+}
+
 .native-leaf {
     transform: translate3d(0, 0, 0); /* Promote to GPU layer */
     white-space: pre-wrap;
