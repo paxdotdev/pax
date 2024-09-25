@@ -1,5 +1,6 @@
 use kurbo::BezPath;
 
+use pax_engine::api::PathElement;
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
 use pax_runtime::api::{Color, Layer, RenderContext, Stroke};
 use pax_runtime::{
@@ -151,14 +152,22 @@ impl InstanceNode for PathInstance {
                                 Point { x, y }.to_kurbo_point(bounds),
                             );
                         }
-                        &PathElement::Cubic(h1_x, h1_y, h2_x, h2_y) => {
+                        PathElement::Cubic(vals) => {
                             let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
                                 log::warn!("curve expects to be followed by a point");
                                 return;
                             };
                             bez_path.curve_to(
-                                Point { x: h1_x, y: h1_y }.to_kurbo_point(bounds),
-                                Point { x: h2_x, y: h2_y }.to_kurbo_point(bounds),
+                                Point {
+                                    x: vals.0,
+                                    y: vals.1,
+                                }
+                                .to_kurbo_point(bounds),
+                                Point {
+                                    x: vals.2,
+                                    y: vals.3,
+                                }
+                                .to_kurbo_point(bounds),
                                 Point { x, y }.to_kurbo_point(bounds),
                             );
                         }
@@ -265,7 +274,7 @@ impl PathPoint {
                     while elems.len() < id + 1 {
                         elems.push(PathElement::Close)
                     }
-                    elems[id] = PathElement::point(x.get(), y.get());
+                    elems[id] = PathElement::Point(x.get(), y.get());
                 });
                 false
             },
@@ -313,7 +322,7 @@ impl PathLine {
                     while elems.len() < id + 1 {
                         elems.push(PathElement::Close)
                     }
-                    elems[id] = PathElement::line();
+                    elems[id] = PathElement::Line;
                 });
                 false
             },
@@ -360,7 +369,7 @@ impl PathClose {
                     while elems.len() < id + 1 {
                         elems.push(PathElement::Close)
                     }
-                    elems[id] = PathElement::close();
+                    elems[id] = PathElement::Close;
                 });
                 false
             },
@@ -412,7 +421,7 @@ impl PathCurve {
                     while elems.len() < id + 1 {
                         elems.push(PathElement::Close)
                     }
-                    elems[id] = PathElement::curve(x.get(), y.get());
+                    elems[id] = PathElement::Quadratic(x.get(), y.get());
                 });
                 false
             },
@@ -435,34 +444,5 @@ impl PathCurve {
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
         // trigger dirty prop to fire closure
         self.on_change.get();
-    }
-}
-
-#[pax]
-#[engine_import_path("pax_engine")]
-#[has_helpers]
-pub enum PathElement {
-    #[default]
-    Empty,
-    Point(Size, Size),
-    Line,
-    Quadratic(Size, Size),
-    Cubic(Size, Size, Size, Size),
-    Close,
-}
-
-#[helpers]
-impl PathElement {
-    pub fn line() -> Self {
-        Self::Line
-    }
-    pub fn close() -> Self {
-        Self::Close
-    }
-    pub fn point(x: Size, y: Size) -> Self {
-        Self::Point(x, y)
-    }
-    pub fn curve(x: Size, y: Size) -> Self {
-        Self::Quadratic(x, y)
     }
 }
