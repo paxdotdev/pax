@@ -24,6 +24,7 @@ use crate::model::action::{Action, ActionContext, RaycastMode};
 use crate::model::input::{Dir, ModifierKey};
 
 pub mod control_point;
+pub mod mouse_over_intents;
 pub mod outline;
 pub mod tool_editors;
 pub mod wireframe_editor;
@@ -31,6 +32,7 @@ pub mod wireframe_editor;
 pub use self::tool_editors::TextEdit;
 use crate::message_log_display::DesignerLogMsg;
 use control_point::ControlPoint;
+use mouse_over_intents::MouseOverIntents;
 use outline::PathOutline;
 use wireframe_editor::WireframeEditor;
 
@@ -41,7 +43,7 @@ pub struct Glass {
     pub tool_visual: Property<ToolVisualizationState>,
     pub on_tool_change: Property<bool>,
     // NOTE: these can be removed when for loops support nested calls:
-    // self.tool_visual.snap_lines.vertical/self.tool_visual.snap_lines.horizontal
+    // self.tool_visual.snap_lines.vertical/self.tool_visual.snap_lines.horizontal etc.
     pub tool_visual_snap_lines_vertical: Property<Vec<SnapLine>>,
     pub tool_visual_snap_lines_horizontal: Property<Vec<SnapLine>>,
     pub tool_visual_snap_lines_points: Property<Vec<Vec<f64>>>,

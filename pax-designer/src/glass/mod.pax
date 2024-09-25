@@ -27,8 +27,12 @@
 
     // -------------- tool editing visuals --------------
 
-    //Wireframe (on for all tools)
+    // Wireframe (on for all tools)
+    // that shows control points etc. for the currently selected object
     <WireframeEditor/>
+    // Intents for objects currently under the mouse, such as
+    // stacker drop locations, etc.
+    <MouseOverIntents/>
 
     // Rectangle visual
     <Group>
