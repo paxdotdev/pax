@@ -18,9 +18,9 @@ for segment in self.bounding_segments {
     @pre_render: pre_render,
     .bounding_segment {
         elements: {[
-            PathElement::point((segment.x0)px, (segment.y0)px),
-            PathElement::line(),
-            PathElement::point((segment.x1)px, (segment.y1)px)
+            PathElement::Point((segment.x0)px, (segment.y0)px),
+            PathElement::Line,
+            PathElement::Point((segment.x1)px, (segment.y1)px)
         ]},
         stroke: {
             color: BLUE
