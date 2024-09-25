@@ -7,8 +7,8 @@ use std::ops::Range;
 use crate::{
     impl_default_coercion_rule,
     math::{Transform2, Vector2},
-    Color, ColorChannel, Fill, GradientStop, LinearGradient, Numeric, PaxValue, Percent, Property,
-    RadialGradient, Rotation, Size, Stroke, Transform2D,
+    Color, ColorChannel, Fill, GradientStop, LinearGradient, Numeric, PathElement, PaxValue,
+    Percent, Property, RadialGradient, Rotation, Size, Stroke, Transform2D,
 };
 
 // Default coersion rules:
@@ -33,6 +33,7 @@ impl_default_coercion_rule!(usize, PaxValue::Numeric);
 
 // Pax internal types
 impl_default_coercion_rule!(Color, PaxValue::Color);
+impl_default_coercion_rule!(PathElement, PaxValue::PathElement);
 
 pub trait CoercionRules
 where

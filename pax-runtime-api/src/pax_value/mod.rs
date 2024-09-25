@@ -1,4 +1,4 @@
-use crate::{Color, Interpolatable, Percent, Rotation, Size};
+use crate::{Color, Interpolatable, PathElement, Percent, Rotation, Size};
 use std::{any::Any, collections::HashMap, fmt::Display};
 
 use self::numeric::Numeric;
@@ -28,6 +28,7 @@ pub enum PaxValue {
     Percent(Percent),
     Color(Color),
     Rotation(Rotation),
+    PathElement(PathElement),
     Option(Box<Option<PaxValue>>),
     Vec(Vec<PaxValue>),
     Range(Box<PaxValue>, Box<PaxValue>),
@@ -46,6 +47,20 @@ impl Display for PaxValue {
             PaxValue::Percent(p) => write!(f, "{}", p),
             PaxValue::Color(c) => write!(f, "{}", c),
             PaxValue::Rotation(r) => write!(f, "{}", r),
+            PaxValue::PathElement(path_elem) => {
+                write!(f, "PathElement::")?;
+                match path_elem {
+                    PathElement::Empty => write!(f, "Empty"),
+                    PathElement::Point(s1, s2) => write!(f, "Point({}, {})", s1, s2),
+                    PathElement::Line => write!(f, "Line"),
+                    PathElement::Quadratic(s1, s2) => write!(f, "Quadratic({}, {})", s1, s2),
+                    PathElement::Cubic(vals) => {
+                        write!(f, "Cubic({}, {}, {}, {})", vals.0, vals.1, vals.2, vals.3)
+                    }
+                    PathElement::Close => write!(f, "Close"),
+                }?;
+                Ok(())
+            }
             PaxValue::Option(o) => match o.as_ref() {
                 Some(v) => write!(f, "Some({})", v),
                 None => write!(f, "None"),
