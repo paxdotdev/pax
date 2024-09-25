@@ -1,4 +1,4 @@
-use std::{f64::consts::PI, ops::ControlFlow};
+use std::{collections::HashMap, f64::consts::PI, ops::ControlFlow};
 
 use crate::{
     controls::settings::property_editor::fill_property_editor::color_to_str,
@@ -24,7 +24,7 @@ use pax_engine::{
     log,
     math::{Point2, Space, Vector2},
     pax_manifest::{TreeIndexPosition, UniqueTemplateNodeIdentifier},
-    Property, ToPaxValue,
+    PaxValue, Property, ToPaxValue,
 };
 use pax_std::Size;
 
@@ -41,6 +41,10 @@ thread_local! {
 }
 
 impl Interpolatable for PaintbrushToolSettings {}
+
+// if this isn't used to make the draw capsule slightly cone shaped, the curve segment of the last drawn capsule end perfectly
+// overlaps the one of the new one -> bad days
+const RATIO_OFFSET: f64 = 0.99;
 
 #[derive(Clone)]
 pub struct PaintbrushToolSettings {
@@ -128,16 +132,21 @@ impl ToolBehavior for PaintbrushTool {
         } else {
             CompoundPath::from_subpath(Subpath::new_ellipse(
                 DVec2 {
-                    x: point.x - r,
-                    y: point.y - r,
+                    x: point.x - r * RATIO_OFFSET,
+                    y: point.y - r * RATIO_OFFSET,
                 },
                 DVec2 {
-                    x: point.x + r,
-                    y: point.y + r,
+                    x: point.x + r * RATIO_OFFSET,
+                    y: point.y + r * RATIO_OFFSET,
                 },
             ))
         };
         let pax_path = to_pax_path(&new_path);
+        log::debug!("size of pax value: {}", std::mem::size_of::<PaxValue>());
+        log::debug!(
+            "size of hashmap: {}",
+            std::mem::size_of::<HashMap<String, PaxValue>>()
+        );
         self.path = Some(new_path);
         if let Err(e) = self.transaction.run(|| {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
@@ -213,7 +222,6 @@ fn capsule_from_points_and_radius(
         y: start.y,
     };
     let e = DVec2 { x: end.x, y: end.y };
-    const RATIO_OFFSET: f64 = 0.99;
     let beziers = [
         Bezier::from_linear_dvec2(s - p[0], e + p[4] * RATIO_OFFSET),
         Bezier::cubic_through_points(

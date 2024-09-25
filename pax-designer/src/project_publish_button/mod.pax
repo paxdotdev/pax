@@ -91,12 +91,12 @@ if self.publish_error {
     }
     .play_triangle {
         elements: {[
-            PathElement::point(80%, 50% - 12px),
-            PathElement::line(),
-            PathElement::point(80% + 16px, 50%),
-            PathElement::line(),
-            PathElement::point(80%, 50% + 12px),
-            PathElement::close()
+            PathElement::Point(80%, 50% - 12px),
+            PathElement::Line,
+            PathElement::Point(80% + 16px, 50%),
+            PathElement::Line,
+            PathElement::Point(80%, 50% + 12px),
+            PathElement::Close
         ]},
         stroke: {
             width: 0px

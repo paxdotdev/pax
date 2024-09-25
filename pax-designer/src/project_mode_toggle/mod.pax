@@ -39,12 +39,12 @@
     }
     .play_triangle {
         elements: {[
-            PathElement::point(70%, 50% - 12px),
-            PathElement::line(),
-            PathElement::point(70% + 16px, 50%),
-            PathElement::line(),
-            PathElement::point(70%, 50% + 12px),
-            PathElement::close()
+            PathElement::Point(70%, 50% - 12px),
+            PathElement::Line,
+            PathElement::Point(70% + 16px, 50%),
+            PathElement::Line,
+            PathElement::Point(70%, 50% + 12px),
+            PathElement::Close
         ]},
         stroke: {
             width: 0px

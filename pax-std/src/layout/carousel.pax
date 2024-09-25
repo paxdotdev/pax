@@ -23,12 +23,12 @@
     #right_triangle {
         x: {50% - 8px}
         elements: {[
-            PathElement::point(50%, 50% - 12px),
-            PathElement::line(),
-            PathElement::point(50% + 16px, 50%),
-            PathElement::line(),
-            PathElement::point(50%, 50% + 12px),
-            PathElement::close()
+            PathElement::Point(50%, 50% - 12px),
+            PathElement::Line,
+            PathElement::Point(50% + 16px, 50%),
+            PathElement::Line,
+            PathElement::Point(50%, 50% + 12px),
+            PathElement::Close
         ]},
         stroke: {
             width: 0px
@@ -38,12 +38,12 @@
     #left_triangle {
         x: {50% + 8px},
         elements: {[
-            PathElement::point(50%, 50% - 12px),
-            PathElement::line(),
-            PathElement::point(50% - 16px, 50%),
-            PathElement::line(),
-            PathElement::point(50%, 50% + 12px),
-            PathElement::close()
+            PathElement::Point(50%, 50% - 12px),
+            PathElement::Line,
+            PathElement::Point(50% - 16px, 50%),
+            PathElement::Line,
+            PathElement::Point(50%, 50% + 12px),
+            PathElement::Close
         ]},
         stroke: {
             width: 0px
