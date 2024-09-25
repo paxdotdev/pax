@@ -69,6 +69,8 @@ if 0 == 1 {
     }
 
     #designer_glass {
+        // WARNING: these values are separately used to get glass transform
+        // in DerivedAppState init, change there too if you change this
         x: 240px,
         y: 60px,
         width: {100% - 480px},

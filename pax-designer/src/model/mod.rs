@@ -188,7 +188,11 @@ impl Model {
 
     fn create_derived_state(ctx: &NodeContext, app_state: &AppState) -> DerivedAppState {
         let selected_nodes = Self::derive_selected_nodes(ctx, app_state);
-        let to_glass_transform = Self::derive_to_glass_transform(ctx);
+        // WARNING: if you change this, also change the glass position in the src/lib.pax file
+        // changed to make sure this value is correctly initialized even if we start in play mode
+        let to_glass_transform = Property::new(Property::new(Transform2::translate(Vector2::new(
+            -240.0, -60.0,
+        )))); // Self::derive_to_glass_transform(ctx);
         let selection_state =
             Self::derive_selection_state(selected_nodes.clone(), to_glass_transform.clone());
         let open_containers = Self::derive_open_container(ctx, app_state);
@@ -408,10 +412,10 @@ impl Interpolatable for Tool {}
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Tool {
     TodoTool,
+    #[default]
     PointerPercent,
     PointerPixels,
     CreateComponent(Component),
-    #[default]
     Paintbrush,
 }
 
@@ -449,8 +453,8 @@ impl Interpolatable for ProjectMode {}
 
 #[derive(Default, Clone)]
 pub enum ProjectMode {
-    #[default]
     Edit,
+    #[default]
     Playing,
 }
 
