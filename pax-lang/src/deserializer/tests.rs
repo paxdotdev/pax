@@ -75,12 +75,12 @@ fn test_option() {
 #[test]
 fn test_color() {
     let color_pax = "rgba(100%, 180deg, 100, 100%)".to_string();
-    let expected = PaxValue::Color(Color::rgba(
+    let expected = PaxValue::Color(Box::new(Color::rgba(
         ColorChannel::Percent(Numeric::I64(100)),
         ColorChannel::Rotation(Rotation::Degrees(Numeric::I64(180))),
         ColorChannel::Integer(Numeric::I64(100)),
         ColorChannel::Percent(Numeric::I64(100)),
-    ));
+    )));
     let v = from_pax(&color_pax).unwrap();
     assert_eq!(expected, v);
 }
