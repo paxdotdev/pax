@@ -76,7 +76,6 @@ pub struct PaxDesigner {
 impl PaxDesigner {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         self.show_publish_button.set(PAX_PUBLISH_BUTTON_ENABLED);
-
         model::Model::init(ctx);
         model::read_app_state(|app_state| {
             self.bind_stage_property(&app_state);
@@ -235,7 +234,7 @@ impl PaxDesigner {
     }
 }
 
-pub struct ProjectMsg(ProjectMode);
+pub struct ProjectMsg(pub ProjectMode);
 
 impl Action for ProjectMsg {
     fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
