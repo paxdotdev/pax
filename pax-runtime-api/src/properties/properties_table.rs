@@ -79,6 +79,13 @@ impl PropertyTable {
         })
     }
 
+    pub fn read_value<T: PropertyValue, V>(&self, id: PropertyId, f: impl FnOnce(&T) -> V) -> V {
+        self.update_value::<T>(id);
+        self.with_property_data_mut(id, |property_data| {
+            f(&property_data.typed_data::<T>().value)
+        })
+    }
+
     // Main function to set a value of a property.
     // NOTE: This always assumes the underlying data was changed, and marks
     // it and its dependents as dirty irrespective of actual modification
