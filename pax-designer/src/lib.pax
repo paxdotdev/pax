@@ -1,4 +1,7 @@
-<ProjectModeToggle x=100% width=90px height=55px/>
+if !$mobile {
+    //Hide the toggle so we can show "play-mode" designer to mobile and simply hide the UI for showing the designer
+    <ProjectModeToggle x=100% width=90px height=55px/>
+}
 
 if self.glass_active {
     <MessageLogDisplay/>

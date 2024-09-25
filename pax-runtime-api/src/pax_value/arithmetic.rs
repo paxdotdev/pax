@@ -59,7 +59,11 @@ impl Mul for PaxValue {
             }
             (PaxValue::Bool(a), PaxValue::Percent(b))
             | (PaxValue::Percent(b), PaxValue::Bool(a)) => {
-                <Size as Into<Size>>::into(Size::Percent(b.0 * ((a as i64) as f64).into())).to_pax_value()
+                if a {
+                    return PaxValue::Percent(b);
+                } else {
+                    return PaxValue::Percent(Percent(0.into()));
+                }
             }
             (PaxValue::Size(a), PaxValue::Numeric(b))
             | (PaxValue::Numeric(b), PaxValue::Size(a)) => match a {
