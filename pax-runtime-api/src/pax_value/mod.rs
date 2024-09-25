@@ -26,7 +26,7 @@ pub enum PaxValue {
     String(String),
     Size(Size),
     Percent(Percent),
-    Color(Color),
+    Color(Box<Color>),
     Rotation(Rotation),
     PathElement(PathElement),
     Option(Box<Option<PaxValue>>),

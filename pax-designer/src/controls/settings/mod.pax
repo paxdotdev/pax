@@ -95,9 +95,9 @@ if self.is_component_selected {
     .hr {
         height: 1px,
         elements: {[
-            PathElement::point(0%, 0%),
-            PathElement::line(),
-            PathElement::point(100%, 0%),
+            PathElement::Point(0%, 0%),
+            PathElement::Line,
+            PathElement::Point(100%, 0%),
         ]},
         stroke: {
             color: rgb(48, 56, 62),

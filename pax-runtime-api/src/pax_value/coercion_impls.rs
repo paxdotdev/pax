@@ -33,7 +33,6 @@ impl_default_coercion_rule!(usize, PaxValue::Numeric);
 
 // Pax internal types
 impl_default_coercion_rule!(Color, PaxValue::Color);
-impl_default_coercion_rule!(PathElement, PaxValue::PathElement);
 
 pub trait CoercionRules
 where
@@ -84,13 +83,51 @@ where
 //     NONE,
 // }
 
+impl CoercionRules for PathElement {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        let err = format!("{:?} can't be coerced into a PathElement", value);
+        match value {
+            PaxValue::PathElement(path_elem) => Ok(path_elem),
+            // Why is this needed? should never deserialize a path into this
+            PaxValue::Enum(enum_name, enum_variant, values) => {
+                if enum_name == "PathElement" {
+                    let mut values_itr = values.into_iter();
+                    match enum_variant.as_str() {
+                        "Line" => Ok(PathElement::Line),
+                        "Close" => Ok(PathElement::Close),
+                        "Empty" => Ok(PathElement::Empty),
+                        "Point" => Ok(PathElement::Point(
+                            Size::try_coerce(values_itr.next().unwrap())?,
+                            Size::try_coerce(values_itr.next().unwrap())?,
+                        )),
+                        "Quadratic" => Ok(PathElement::Quadratic(
+                            Size::try_coerce(values_itr.next().unwrap())?,
+                            Size::try_coerce(values_itr.next().unwrap())?,
+                        )),
+                        "Cubic" => Ok(PathElement::Cubic(Box::new((
+                            Size::try_coerce(values_itr.next().unwrap())?,
+                            Size::try_coerce(values_itr.next().unwrap())?,
+                            Size::try_coerce(values_itr.next().unwrap())?,
+                            Size::try_coerce(values_itr.next().unwrap())?,
+                        )))),
+                        _ => return Err(err),
+                    }
+                } else {
+                    return Err(err);
+                }
+            }
+            _ => return Err(err),
+        }
+    }
+}
+
 // Fill is a type that other types (Color) can be coerced into, thus the default
 // from to pax macro isn't enough (only translates directly back and forth, and returns
 // an error if it contains any other type)
 impl CoercionRules for Fill {
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
         Ok(match pax_value.clone() {
-            PaxValue::Color(color) => Fill::Solid(color),
+            PaxValue::Color(color) => Fill::Solid(*color),
             PaxValue::Enum(_, variant, args) => match variant.as_str() {
                 "Solid" => {
                     let color = Color::try_coerce(args[0].clone())?;
@@ -277,7 +314,7 @@ impl CoercionRules for Stroke {
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
         Ok(match pax_value {
             PaxValue::Color(color) => Stroke {
-                color: Property::new(color),
+                color: Property::new(*color),
                 width: Property::new(Size::Pixels(1.into())),
             },
             PaxValue::Object(map) => {

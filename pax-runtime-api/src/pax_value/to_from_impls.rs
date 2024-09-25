@@ -56,7 +56,7 @@ impl_to_from_pax_value!(String, PaxValue::String);
 // Pax internal types
 impl_to_from_pax_value!(Numeric, PaxValue::Numeric);
 impl_to_from_pax_value!(Size, PaxValue::Size);
-impl_to_from_pax_value!(Color, PaxValue::Color);
+impl_to_from_pax_value!(Box<Color>, PaxValue::Color);
 impl_to_from_pax_value!(Rotation, PaxValue::Rotation);
 impl_to_from_pax_value!(Percent, PaxValue::Percent);
 impl_to_from_pax_value!(PathElement, PaxValue::PathElement);
