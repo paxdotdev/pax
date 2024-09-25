@@ -213,6 +213,7 @@ impl DesigntimeManager {
 
     pub fn reload_play(&mut self) {
         self.orm.set_reload(ReloadType::FullPlay);
+
         self.orm.increment_manifest_version();
     }
 
