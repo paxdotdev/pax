@@ -151,9 +151,10 @@ impl<T: PropertyValue> Property<T> {
     }
 
     // Get access to a reference to the inner value T.
+    // WARNING: this method can panic if this property was already borrowed,
+    // which can happen if read is called inside a read of the same property
     pub fn read<V>(&self, f: impl FnOnce(&T) -> V) -> V {
-        let val = self.get();
-        f(&val)
+        PROPERTY_TABLE.with(|t| t.read_value(self.untyped.id, f))
     }
 
     /// replaces a properties evaluation/inbounds/value to be the same as

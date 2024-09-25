@@ -229,6 +229,14 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
         }
 
         if let Some(template) = &mut component.template {
+            template.update_node_properties(
+                &uni.get_template_node_id(),
+                self.updated_properties.clone(),
+            );
+            // HACK: don't store path elements - grows large very quickly since we
+            // save this entire state on each mouse move
+            self.updated_properties
+                .remove(&Token::new_without_location("elements".to_string()));
             self._cached_node_data = Some(NodeData {
                 unique_node_identifier: uni.clone(),
                 cached_node: template
@@ -237,10 +245,6 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
                     .clone(),
             });
 
-            template.update_node_properties(
-                &uni.get_template_node_id(),
-                self.updated_properties.clone(),
-            );
             if let Some(new_type) = &self.new_type_id {
                 template.update_node_type_id(&uni.get_template_node_id(), new_type);
             }

@@ -113,61 +113,62 @@ impl InstanceNode for PathInstance {
         let layer_id = format!("{}", expanded_node.occlusion.get().occlusion_layer_id);
 
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
-            let mut bez_path = BezPath::new();
-
             let bounds = expanded_node.transform_and_bounds.get().bounds;
 
-            let elems = properties.elements.get();
-            let mut itr_elems = elems.iter();
+            // TODO make this only recompute if path changed since last frame
+            let mut bez_path = BezPath::new();
+            properties.elements.read(|elems| {
+                let mut itr_elems = elems.iter();
 
-            if let Some(elem) = itr_elems.next() {
-                if let &PathElement::Point(x, y) = elem {
-                    bez_path.move_to(Point { x, y }.to_kurbo_point(bounds));
-                } else {
-                    log::warn!("path must start with point");
-                    return;
-                }
-            }
-
-            while let Some(elem) = itr_elems.next() {
-                match elem {
-                    &PathElement::Point(x, y) => {
+                if let Some(elem) = itr_elems.next() {
+                    if let &PathElement::Point(x, y) = elem {
                         bez_path.move_to(Point { x, y }.to_kurbo_point(bounds));
+                    } else {
+                        log::warn!("path must start with point");
+                        return;
                     }
-                    &PathElement::Line => {
-                        let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
-                            log::warn!("line expects to be followed by a point");
-                            return;
-                        };
-                        bez_path.line_to(Point { x, y }.to_kurbo_point(bounds));
-                    }
-                    &PathElement::Quadratic(h_x, h_y) => {
-                        let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
-                            log::warn!("curve expects to be followed by a point");
-                            return;
-                        };
-                        bez_path.quad_to(
-                            Point { x: h_x, y: h_y }.to_kurbo_point(bounds),
-                            Point { x, y }.to_kurbo_point(bounds),
-                        );
-                    }
-                    &PathElement::Cubic(h1_x, h1_y, h2_x, h2_y) => {
-                        let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
-                            log::warn!("curve expects to be followed by a point");
-                            return;
-                        };
-                        bez_path.curve_to(
-                            Point { x: h1_x, y: h1_y }.to_kurbo_point(bounds),
-                            Point { x: h2_x, y: h2_y }.to_kurbo_point(bounds),
-                            Point { x, y }.to_kurbo_point(bounds),
-                        );
-                    }
-                    &PathElement::Close => {
-                        bez_path.close_path();
-                    }
-                    PathElement::Empty => (), //no-op
                 }
-            }
+
+                while let Some(elem) = itr_elems.next() {
+                    match elem {
+                        &PathElement::Point(x, y) => {
+                            bez_path.move_to(Point { x, y }.to_kurbo_point(bounds));
+                        }
+                        &PathElement::Line => {
+                            let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
+                                log::warn!("line expects to be followed by a point");
+                                return;
+                            };
+                            bez_path.line_to(Point { x, y }.to_kurbo_point(bounds));
+                        }
+                        &PathElement::Quadratic(h_x, h_y) => {
+                            let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
+                                log::warn!("curve expects to be followed by a point");
+                                return;
+                            };
+                            bez_path.quad_to(
+                                Point { x: h_x, y: h_y }.to_kurbo_point(bounds),
+                                Point { x, y }.to_kurbo_point(bounds),
+                            );
+                        }
+                        &PathElement::Cubic(h1_x, h1_y, h2_x, h2_y) => {
+                            let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
+                                log::warn!("curve expects to be followed by a point");
+                                return;
+                            };
+                            bez_path.curve_to(
+                                Point { x: h1_x, y: h1_y }.to_kurbo_point(bounds),
+                                Point { x: h2_x, y: h2_y }.to_kurbo_point(bounds),
+                                Point { x, y }.to_kurbo_point(bounds),
+                            );
+                        }
+                        &PathElement::Close => {
+                            bez_path.close_path();
+                        }
+                        PathElement::Empty => (), //no-op
+                    }
+                }
+            });
 
             let tab = expanded_node.transform_and_bounds.get();
             let transform = Into::<kurbo::Affine>::into(tab.transform);

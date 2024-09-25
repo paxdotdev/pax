@@ -500,7 +500,7 @@ fn test_to_and_back(
     parent_transform_and_bounds: TransformAndBounds<NodeLocal, Window>,
 ) {
     let t_and_b = pax_engine::node_layout::calculate_transform_and_bounds(
-        original_props.clone(),
+        &original_props,
         parent_transform_and_bounds,
     );
     let inv_config = original_props.into_decomposition_config();
