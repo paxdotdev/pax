@@ -29,14 +29,16 @@ pub fn compute_tab(
     Property::computed(
         move || {
             let container_t_and_b = container_transform_and_bounds.get();
-            let transform_and_bounds =
-                calculate_transform_and_bounds(layout_properties.get(), container_t_and_b.clone());
-            let extra_transform = extra_transform.get();
-            if let Some(transform) = extra_transform {
-                transform.apply(transform_and_bounds)
-            } else {
-                transform_and_bounds
-            }
+            layout_properties.read(|layout_properties| {
+                let transform_and_bounds =
+                    calculate_transform_and_bounds(&layout_properties, container_t_and_b.clone());
+                let extra_transform = extra_transform.get();
+                if let Some(transform) = extra_transform {
+                    transform.apply(transform_and_bounds)
+                } else {
+                    transform_and_bounds
+                }
+            })
         },
         &deps,
     )
@@ -55,7 +57,7 @@ pub fn calculate_transform_and_bounds(
         scale_y,
         skew_x,
         skew_y,
-    }: LayoutProperties,
+    }: &LayoutProperties,
     TransformAndBounds {
         transform: container_transform,
         bounds: container_bounds,
@@ -111,8 +113,14 @@ pub fn calculate_transform_and_bounds(
     ));
 
     let scale = Vector2::new(
-        scale_x.map(|s| s.0.to_float() / 100.0).unwrap_or(1.0),
-        scale_y.map(|s| s.0.to_float() / 100.0).unwrap_or(1.0),
+        scale_x
+            .as_ref()
+            .map(|s| s.0.to_float() / 100.0)
+            .unwrap_or(1.0),
+        scale_y
+            .as_ref()
+            .map(|s| s.0.to_float() / 100.0)
+            .unwrap_or(1.0),
     );
 
     let skew = Vector2::new(
@@ -426,7 +434,7 @@ impl ComputableTransform<NodeLocal, Window> for Transform2D {
             skew_y: self.skew.as_ref().map(|v| v[1].clone()),
         };
 
-        let curr = calculate_transform_and_bounds(layout_properties, bounds.clone());
+        let curr = calculate_transform_and_bounds(&layout_properties, bounds.clone());
         match &self.previous {
             Some(previous) => (*previous).apply(curr),
             None => curr,
