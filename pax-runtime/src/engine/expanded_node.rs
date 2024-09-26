@@ -466,9 +466,6 @@ impl ExpandedNode {
         if self.attached.get() == 0 {
             self.attached.set(self.attached.get() + 1);
             context.add_to_cache(&self);
-            borrow!(self.instance_node)
-                .clone()
-                .handle_mount(&self, context);
             if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
                 for handler in borrow!(registry)
                     .handlers
@@ -482,6 +479,9 @@ impl ExpandedNode {
                     )
                 }
             }
+            borrow!(self.instance_node)
+                .clone()
+                .handle_mount(&self, context);
             // Mount slot children and children AFTER mounting self
             if let Some(slot_children) = borrow!(self.expanded_slot_children).as_ref() {
                 for slot_child in slot_children {

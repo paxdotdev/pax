@@ -1,7 +1,4 @@
-// HACK: makes root mount before projectmodetoggle
-if true {
-    <ProjectModeToggle x=100% width=90px height=55px/>
-}
+<ProjectModeToggle x=100% width=90px height=55px/>
 
 if self.glass_active {
     <MessageLogDisplay/>
