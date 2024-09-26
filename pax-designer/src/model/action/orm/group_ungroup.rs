@@ -61,7 +61,7 @@ impl Action for GroupSelected {
             orm.get_node_location(&node_inside_group.id)
         };
 
-        let root_parent = ctx.derived_state.open_container.get()[0].clone();
+        let root_parent = ctx.derived_state.open_containers.get()[0].clone();
 
         // -------- Create a group ------------
         let group_parent_data = ctx.get_glass_node_by_global_id(&root_parent).unwrap();

@@ -8,6 +8,7 @@ use crate::glass::ToolVisualizationState;
 use crate::math::coordinate_spaces::SelectionSpace;
 use crate::math::coordinate_spaces::World;
 use crate::math::SizeUnit;
+use crate::model;
 use crate::model::action::ActionContext;
 use crate::model::input::RawInput;
 use crate::DESIGNER_GLASS_ID;
@@ -49,6 +50,7 @@ use crate::math::coordinate_spaces::{self, Glass};
 mod selection_state;
 pub use selection_state::*;
 
+use self::action::designer_raycast_window;
 use self::action::pointer::MouseEntryPointAction;
 use self::action::pointer::Pointer;
 use self::action::UndoRedoStack;
@@ -139,7 +141,10 @@ pub struct DerivedAppState {
     pub to_glass_transform: Property<Property<Transform2<Window, Glass>>>,
     pub selected_nodes: Property<Vec<(UniqueTemplateNodeIdentifier, NodeInterface)>>,
     pub selection_state: Property<SelectionState>,
-    pub open_container: Property<Vec<UniqueTemplateNodeIdentifier>>,
+    /// The currently open containers, example: the parent group of the rectangle currently selected, and the scroller this group is inside
+    pub open_containers: Property<Vec<UniqueTemplateNodeIdentifier>>,
+    /// the objects currently under the mouse that intents should be shown for
+    pub intent_objects: Property<Vec<NodeInterface>>,
 }
 
 const INITIALIZED: &'static str = "model should have been initialized";
@@ -197,11 +202,19 @@ impl Model {
             Self::derive_selection_state(selected_nodes.clone(), to_glass_transform.clone());
         let open_containers = Self::derive_open_container(ctx, app_state);
 
+        let intent_objects = Self::derive_intent_objects(
+            ctx,
+            app_state,
+            &selected_nodes,
+            &to_glass_transform.get(),
+            &open_containers,
+        );
         DerivedAppState {
             to_glass_transform,
             selection_state,
-            open_container: open_containers,
+            open_containers,
             selected_nodes,
+            intent_objects,
         }
     }
 
@@ -327,6 +340,41 @@ impl Model {
                     let root = ctx_cp.get_userland_root_expanded_node();
                     vec![root.and_then(|n| n.global_id()).unwrap()]
                 }
+            },
+            &deps,
+        )
+    }
+
+    fn derive_intent_objects(
+        ctx: &NodeContext,
+        app_state: &AppState,
+        selected_nodes: &Property<Vec<(UniqueTemplateNodeIdentifier, NodeInterface)>>,
+        glass_transform: &Property<Transform2<Window, Glass>>,
+        open_containers: &Property<Vec<UniqueTemplateNodeIdentifier>>,
+    ) -> Property<Vec<NodeInterface>> {
+        let mouse_position = app_state.mouse_position.clone();
+        let glass_transform = glass_transform.clone();
+        let selected_nodes = selected_nodes.clone();
+        let open_containers = open_containers.clone();
+        let deps = [mouse_position.untyped()];
+        let ctx = ctx.clone();
+        Property::computed(
+            move || {
+                let window_point = glass_transform.get().inverse() * mouse_position.get();
+                // TODO make this hit things like stackers inside stackers, to show intents for them as well
+                designer_raycast_window(
+                    window_point,
+                    open_containers.clone(),
+                    &ctx,
+                    action::RaycastMode::Top,
+                    &selected_nodes
+                        .get()
+                        .into_iter()
+                        .map(|(_, n)| n)
+                        .collect::<Vec<_>>(),
+                )
+                .as_slice()
+                .to_vec()
             },
             &deps,
         )

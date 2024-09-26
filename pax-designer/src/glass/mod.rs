@@ -141,7 +141,7 @@ impl Glass {
         let dt = borrow!(ctx.designtime);
         let manifest_ver = dt.get_manifest_version();
         let open_container =
-            model::read_app_state_with_derived(|_, derived| derived.open_container.clone());
+            model::read_app_state_with_derived(|_, derived| derived.open_containers.clone());
         let deps = [manifest_ver.untyped(), open_container.untyped()];
         // make scroller not clip if a child is selected
         // for now only scroller needs somewhat special behavior

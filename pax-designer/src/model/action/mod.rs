@@ -99,57 +99,13 @@ impl ActionContext<'_> {
         skip: &[NodeInterface],
     ) -> Option<NodeInterface> {
         let window_point = self.glass_transform().get().inverse() * point;
-        let all_elements_beneath_ray = self.engine_context.raycast(window_point, false);
-
-        let userland = self.engine_context.get_userland_root_expanded_node()?;
-        let userland_id = userland.global_id();
-
-        let mut potential_targets = all_elements_beneath_ray
-            .into_iter()
-            .filter(|elem| !skip.iter().any(|v| elem == v || elem.is_descendant_of(v)))
-            .filter(|elem| elem.is_descendant_of(&userland));
-
-        if let RaycastMode::RawNth(index) = mode {
-            return potential_targets.nth(index);
-        }
-
-        let mut target = potential_targets.next()?;
-
-        // Find the ancestor that is a direct root element inside container
-        // or one that's in the current edit root
-        loop {
-            let Some(parent) = target.template_parent() else {
-                break;
-            };
-
-            // check one step ahead if we are drilling into a group or similar
-
-            if parent.global_id() == userland_id {
-                break;
-            };
-            if parent
-                .global_id()
-                .is_some_and(|v| self.derived_state.open_container.get().contains(&v))
-            {
-                break;
-            }
-            if matches!(mode, RaycastMode::DrillOne) {
-                let Some(next_parent) = parent.template_parent() else {
-                    break;
-                };
-                if next_parent.global_id() == userland_id {
-                    break;
-                };
-                if next_parent
-                    .global_id()
-                    .is_some_and(|v| self.derived_state.open_container.get().contains(&v))
-                {
-                    break;
-                }
-            }
-            target = target.template_parent().unwrap();
-        }
-        Some(target)
+        designer_raycast_window(
+            window_point,
+            self.derived_state.open_containers.clone(),
+            &self.engine_context,
+            mode,
+            skip,
+        )
     }
 
     pub fn location(
@@ -281,4 +237,64 @@ pub enum RaycastMode {
     DrillOne,
     // Hit all elements, and choose the nth hit
     RawNth(usize),
+}
+
+pub fn designer_raycast_window(
+    point: Point2<Window>,
+    open_containers: Property<Vec<UniqueTemplateNodeIdentifier>>,
+    ctx: &NodeContext,
+    mode: RaycastMode,
+    skip: &[NodeInterface],
+) -> Option<NodeInterface> {
+    let all_elements_beneath_ray = ctx.raycast(point, false);
+
+    let userland = ctx.get_userland_root_expanded_node()?;
+    let userland_id = userland.global_id();
+
+    let mut potential_targets = all_elements_beneath_ray
+        .into_iter()
+        .filter(|elem| !skip.iter().any(|v| elem == v || elem.is_descendant_of(v)))
+        .filter(|elem| elem.is_descendant_of(&userland));
+
+    if let RaycastMode::RawNth(index) = mode {
+        return potential_targets.nth(index);
+    }
+
+    let mut target = potential_targets.next()?;
+
+    // Find the ancestor that is a direct root element inside container
+    // or one that's in the current edit root
+    loop {
+        let Some(parent) = target.template_parent() else {
+            break;
+        };
+
+        // check one step ahead if we are drilling into a group or similar
+
+        if parent.global_id() == userland_id {
+            break;
+        };
+        if parent
+            .global_id()
+            .is_some_and(|v| open_containers.get().contains(&v))
+        {
+            break;
+        }
+        if matches!(mode, RaycastMode::DrillOne) {
+            let Some(next_parent) = parent.template_parent() else {
+                break;
+            };
+            if next_parent.global_id() == userland_id {
+                break;
+            };
+            if next_parent
+                .global_id()
+                .is_some_and(|v| open_containers.get().contains(&v))
+            {
+                break;
+            }
+        }
+        target = target.template_parent().unwrap();
+    }
+    Some(target)
 }

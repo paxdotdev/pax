@@ -321,7 +321,7 @@ pub fn raycast_slot(
         .raycast(ctx.glass_transform().get().inverse() * point, true);
     let root = ctx.engine_context.get_userland_root_expanded_node()?;
 
-    let open_container = ctx.derived_state.open_container.get()[0].clone();
+    let open_container = ctx.derived_state.open_containers.get()[0].clone();
     let slot_hit = all_elements_beneath_ray
         .into_iter()
         .filter(|n| n.is_descendant_of(&root))
