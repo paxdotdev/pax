@@ -135,7 +135,7 @@ pub struct SelectAllInOpenContainer;
 
 impl Action for SelectAllInOpenContainer {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
-        let open_container = ctx.derived_state.open_container.get()[0].clone();
+        let open_container = ctx.derived_state.open_containers.get()[0].clone();
         let node = ctx.get_glass_node_by_global_id(&open_container)?;
         let select_ids: Vec<_> = node
             .raw_node_interface

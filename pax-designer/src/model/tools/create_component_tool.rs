@@ -113,7 +113,7 @@ impl ToolBehavior for CreateComponentTool {
         }
         let box_transform = bounds.as_transform();
         let Ok(parent) =
-            ctx.get_glass_node_by_global_id(&ctx.derived_state.open_container.get()[0])
+            ctx.get_glass_node_by_global_id(&ctx.derived_state.open_containers.get()[0])
         else {
             return ControlFlow::Continue(());
         };
