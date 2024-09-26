@@ -9,6 +9,7 @@ use crate::{
     TransformAndBounds,
 };
 
+use math::Transform2;
 use pax_runtime_api::math::Point2;
 pub use pax_runtime_api::*;
 
@@ -41,7 +42,9 @@ pub struct NodeContext {
     /// Borrow of the RuntimeContext, used at least for exposing raycasting to userland
     pub(crate) runtime_context: Rc<RuntimeContext>,
 
-    pub(crate) node_transform_and_bounds: TransformAndBounds<NodeLocal, Window>,
+    pub node_transform_and_bounds: TransformAndBounds<NodeLocal, Window>,
+
+    pub slot_children: Property<Vec<Rc<ExpandedNode>>>,
 
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,

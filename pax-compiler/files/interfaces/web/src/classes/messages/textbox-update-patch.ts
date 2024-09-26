@@ -13,8 +13,11 @@ export class TextboxUpdatePatch {
     public focus_on_mount?: boolean;
     public transform?: number[];
     public text?: string;
+    public placeholder?: string;
     objectManager: ObjectManager;
     public style?: TextStyle;
+    public outline_width?: number;
+    public outline_color?: ColorGroup;
 
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
@@ -31,7 +34,10 @@ export class TextboxUpdatePatch {
         this.background = jsonMessage["background"];
         this.border_radius = jsonMessage["border_radius"];
         this.focus_on_mount = jsonMessage["focus_on_mount"];
+        this.placeholder = jsonMessage["placeholder"];
         const styleMessage = jsonMessage["style"];
+        this.outline_width = jsonMessage["outline_width"];
+        this.outline_color = jsonMessage["outline_color"];
 
         if (styleMessage) {
             this.style = this.objectManager.getFromPool(TEXT_STYLE, this.objectManager);

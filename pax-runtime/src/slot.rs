@@ -60,10 +60,16 @@ impl InstanceNode for SlotInstance {
         let weak_ref_self = Rc::downgrade(expanded_node);
         let cloned_context = Rc::clone(context);
 
-        // index should be renamed slot_node_id
-        let showing_node = expanded_node
-            .with_properties_unwrapped(|properties: &mut Slot| properties.showing_node.clone());
-        let deps = vec![showing_node.untyped()];
+        let containing = expanded_node.containing_component.upgrade();
+        let containing = &containing
+            .as_ref()
+            .expect("slot to have a containing component");
+
+        let nodes = containing.expanded_and_flattened_slot_children.clone();
+
+        let index = expanded_node
+            .with_properties_unwrapped(|properties: &mut Slot| properties.index.clone());
+        let deps = vec![index.untyped(), nodes.untyped()];
 
         expanded_node
             .children
@@ -72,8 +78,14 @@ impl InstanceNode for SlotInstance {
                     let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
                         panic!("ran evaluator after expanded node dropped (repeat elem)")
                     };
+                    let node_rc =
+                        nodes.read(|nodes| nodes.get(index.get().to_int() as usize).cloned());
+                    let node = match &node_rc {
+                        Some(rc) => Rc::downgrade(rc),
+                        None => Weak::new(),
+                    };
                     cloned_expanded_node.attach_children(
-                        showing_node.get().upgrade().as_slice().to_vec(),
+                        node.upgrade().as_slice().to_vec(),
                         &cloned_context,
                         &cloned_expanded_node.parent_frame,
                     )
@@ -81,26 +93,6 @@ impl InstanceNode for SlotInstance {
                 &deps,
                 &format!("slot_children (node id: {})", expanded_node.id.0),
             ));
-    }
-
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
-        let containing = expanded_node.containing_component.upgrade();
-        let nodes = &containing
-            .as_ref()
-            .expect("slot to have a containing component")
-            .expanded_and_flattened_slot_children;
-        expanded_node.with_properties_unwrapped(|properties: &mut Slot| {
-            let node_rc =
-                nodes.read(|nodes| nodes.get(properties.index.get().to_int() as usize).cloned());
-            let node = match &node_rc {
-                Some(rc) => Rc::downgrade(rc),
-                None => Weak::new(),
-            };
-            if properties.showing_node.get().upgrade().map(|v| v.id) != node.upgrade().map(|v| v.id)
-            {
-                properties.showing_node.set(node);
-            }
-        });
     }
 
     fn resolve_debug(

@@ -501,6 +501,10 @@ pub struct TextboxPatch {
     pub border_radius: Option<f64>,
     pub style: Option<TextStyleMessage>,
     pub focus_on_mount: Option<bool>,
+    pub placeholder: Option<String>,
+    pub outline_color: Option<ColorMessage>,
+    pub outline_width: Option<f64>,
+    pub is_text_area: Option<bool>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
