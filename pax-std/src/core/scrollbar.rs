@@ -202,6 +202,10 @@ impl InstanceNode for ScrollbarInstance {
                     props.scroll_x.set(args.scroll_x);
                 }
                 if (props.scroll_y.get() - args.scroll_y).abs() > 1e-4 {
+                    log::warn!(
+                        "setting scroll_y based on native interrupt: {}",
+                        args.scroll_y
+                    );
                     props.scroll_y.set(args.scroll_y);
                 }
             });

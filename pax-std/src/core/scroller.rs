@@ -4,6 +4,7 @@ use pax_engine::api::{Event, Wheel};
 use pax_engine::api::{Property, Size};
 use pax_engine::*;
 use pax_runtime::api::{NodeContext, TouchEnd, TouchMove, TouchStart, OS};
+use pax_runtime::TransformAndBounds;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -61,6 +62,7 @@ pub struct Scroller {
     pub _momentum_y: Property<f64>,
     pub _damping: Property<f64>,
     pub _slot_children_count: Property<usize>,
+    pub _ticks_since_mount: Property<usize>,
 }
 
 impl Default for Scroller {
@@ -76,6 +78,7 @@ impl Default for Scroller {
             _momentum_y: Default::default(),
             _damping: Default::default(),
             _slot_children_count: Default::default(),
+            _ticks_since_mount: Property::new(0),
         }
     }
 }
@@ -130,7 +133,36 @@ impl Scroller {
         self._platform_params.set(scroll_params);
     }
 
+    fn bind_to_slot_children(&self, ctx: &NodeContext) {
+        let slot_children = ctx.slot_children.clone();
+        let self_transform = ctx.node_transform_and_bounds.clone();
+        let deps = [slot_children.untyped()];
+
+        if self.scroll_height.get() == Default::default() {
+            self.scroll_height.replace_with(Property::computed(
+                move || {
+                    let slot_children = slot_children.get();
+                    let mut max_height: f64 = 0.0;
+                    let parent_y = self_transform.transform.m[5];
+                    for child in slot_children.iter() {
+                        let tab = child.transform_and_bounds.get();
+                        let y = tab.transform.m[5] - parent_y;
+                        max_height = max_height.max(tab.bounds.1 + y);
+                    }
+                    Size::Pixels(max_height.into())
+                },
+                &deps,
+            ));
+        }
+    }
+
     pub fn update(&mut self, ctx: &NodeContext) {
+        self._ticks_since_mount
+            .set(self._ticks_since_mount.get() + 1);
+        if self._ticks_since_mount.get() == 5 {
+            self.bind_to_slot_children(ctx);
+        }
+
         let mom_x = self._momentum_x.get();
         let mom_y = self._momentum_y.get();
         if no_touches() {
@@ -175,6 +207,7 @@ impl Scroller {
 
     pub fn add_position(&self, ctx: &NodeContext, dx: f64, dy: f64) {
         let (bounds_x, bounds_y) = ctx.bounds_self.get();
+        // log::warn!("running update");
         let (max_bounds_x, max_bounds_y) = (
             self.scroll_width.get().get_pixels(bounds_x),
             self.scroll_height.get().get_pixels(bounds_y),
@@ -183,6 +216,7 @@ impl Scroller {
         let old_y = self.scroll_pos_y.get();
         let target_x = old_x + dx;
         let target_y = old_y + dy;
+
         let clamped_target_x = target_x.clamp(0.0, (max_bounds_x - bounds_x).max(0.0));
         let clamped_target_y = target_y.clamp(0.0, (max_bounds_y - bounds_y).max(0.0));
         if (self.scroll_pos_x.get() - clamped_target_x).abs() > 1e-3 {

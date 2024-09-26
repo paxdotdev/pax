@@ -805,6 +805,7 @@ fn create_new_common_properties(
         unclippable: resolve_property("unclippable", defined_properties, stack_frame),
         _raycastable: resolve_property("_raycastable", defined_properties, stack_frame),
         _suspended: resolve_property("_suspended", defined_properties, stack_frame),
+        layout_mode: resolve_property("layout_mode", defined_properties, stack_frame),
     }))
 }
 
@@ -857,6 +858,11 @@ fn update_common_properties(
     ));
     cp._suspended.replace_with(resolve_property(
         "_suspended",
+        defined_properties,
+        stack_frame,
+    ));
+    cp.layout_mode.replace_with(resolve_property(
+        "layout_mode",
         defined_properties,
         stack_frame,
     ));
