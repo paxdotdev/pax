@@ -1,0 +1,39 @@
+<Scroller y=0 height=100% x=0 width=100%>
+    if is_ai {
+    <Text x=10px y=10px width=45% style={
+        font: Font::Web(
+            "JetBrains Mono",
+            "https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800&display=swap",
+            FontStyle::Normal,
+            FontWeight::Normal)
+        font_size: 30.00px
+        fill: rgba(253, 255, 255, 255)
+        align_vertical: TextAlignVertical::Top
+        align_horizontal: TextAlignHorizontal::Left
+        align_multiline: TextAlignHorizontal::Left
+        underline: false
+    } 
+        text={" 🤖: " + text}/>
+        }
+    if !is_ai {
+            <Text x={100%-10px} y=20px width=45% style={
+        font: Font::Web(
+            "JetBrains Mono",
+            "https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800&display=swap",
+            FontStyle::Normal,
+            FontWeight::Normal)
+        font_size: 30.00px
+        fill: rgba(253, 255, 255, 255)
+        align_vertical: TextAlignVertical::Top
+        align_horizontal: TextAlignHorizontal::Right
+        align_multiline: TextAlignHorizontal::Left
+        underline: false
+    } 
+        text={"🧑‍🎨: " + text}/>
+    }
+    <Rectangle fill=rgba(0, 0, 0, 255) skew_x=0.00rad rotate=0.00rad stroke={
+        color: rgba(255, 255, 255, 255)
+        width: 0.00px
+    } 
+        height=100% x=-0.00% y=0.00%/>
+</Scroller>

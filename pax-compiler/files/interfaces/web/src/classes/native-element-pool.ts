@@ -267,17 +267,35 @@ export class NativeElementPool {
             textbox.style.background = toCssColor(patch.background);
         }
 
-        if (patch.border_radius != null) {
-            textbox.style.borderRadius = patch.border_radius + "px";
-        }
-
-        if (patch.stroke_color != null) {
-            textbox.style.borderColor = toCssColor(patch.stroke_color);
+        if (patch.outline_width != null) {
+            if (patch.outline_width < 0.1) {
+                textbox.style.outline = "none";
+            } else {
+                textbox.style.outlineWidth = patch.outline_width + "px";
+                if (patch.outline_color != null) {
+                    textbox.style.outlineColor = toCssColor(patch.outline_color);
+                }
+            }
         }
 
         if (patch.stroke_width != null) {
-            textbox.style.borderWidth = patch.stroke_width + "px";
+            if (patch.stroke_width < 0.1) {
+                textbox.style.border = "none";
+            } else {
+                //We may support styles other than solid in the future; this is a better default than the browser's for now
+                textbox.style.borderStyle = "solid";
+                textbox.style.borderWidth = patch.stroke_width + "px";
+                if (patch.stroke_color != null) {
+                    textbox.style.borderColor = toCssColor(patch.stroke_color);
+                }
+                if (patch.border_radius != null) {
+                    textbox.style.borderRadius = patch.border_radius + "px";
+                }
+            }
+        }
 
+        if (patch.placeholder != null) {
+            textbox.placeholder = patch.placeholder;
         }
 
         // Apply the content

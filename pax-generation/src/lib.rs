@@ -14,7 +14,7 @@ const CLAUDE_API_URL: &str = "https://api.anthropic.com/v1/messages";
 const OPENAI_API_URL: &str = "https://api.openai.com/v1/chat/completions";
 
 // Include the system prompt from the file in the cargo manifest root
-const SYSTEM_PROMPT: &str = include_str!("../system_prompt.txt");
+const SYSTEM_PROMPT: &str = include_str!("../system_prompt_v2.txt");
 
 macro_rules! project_root {
     () => {
@@ -36,7 +36,7 @@ impl AIModel {
     fn as_str(&self) -> &'static str {
         match self {
             AIModel::Claude3 => "claude-3-5-sonnet-20240620",
-            AIModel::GPT4 => "gpt-4o-mini",
+            AIModel::GPT4 => "gpt-4o",
         }
     }
 }

@@ -20,9 +20,11 @@ use crate::common::patch_if_needed;
 pub struct Textbox {
     pub text: Property<String>,
     pub background: Property<Color>,
+    pub placeholder: Property<String>,
     pub stroke: Property<Stroke>,
     pub border_radius: Property<Numeric>,
     pub style: Property<TextStyle>,
+    pub outline: Property<Stroke>,
     pub focus_on_mount: Property<bool>,
 }
 
@@ -35,6 +37,11 @@ impl Default for Textbox {
                 color: Property::new(Color::rgb(209.into(), 213.into(), 219.into())),
                 width: Property::new(Size::Pixels(1.into())),
             }),
+            outline: Property::new(Stroke {
+                color: Property::new(Color::rgb(0.into(), 0.into(), 0.into())),
+                width: Property::new(Size::Pixels(1.into())),
+            }),
+            placeholder: Property::new("".into()),
             border_radius: Property::new(8.0.into()),
             style: Property::new(TextStyle {
                 font: Property::new(Font::default()),
@@ -157,6 +164,21 @@ impl InstanceNode for TextboxInstance {
                                 &mut old_state.focus_on_mount,
                                 &mut patch.focus_on_mount,
                                 properties.focus_on_mount.get(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.placeholder,
+                                &mut patch.placeholder,
+                                properties.placeholder.get(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.outline_color,
+                                &mut patch.outline_color,
+                                (&properties.outline.get().color.get()).into(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.outline_width,
+                                &mut patch.outline_width,
+                                properties.outline.get().width.get().get_pixels(width),
                             ),
                         ];
                         if updates.into_iter().any(|v| v == true) {

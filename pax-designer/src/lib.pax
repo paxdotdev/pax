@@ -39,7 +39,9 @@ if self.glass_active {
 
 }
 if self.play_active {
-    <InlineFrame />
+    <Group id=project_container _suspended=false>
+        <InlineFrame />
+    </Group>
 }
 
 // To include primitives in manifest

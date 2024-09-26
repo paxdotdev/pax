@@ -261,7 +261,7 @@ impl ExpandedNode {
     pub fn recreate_with_new_data(
         self: &Rc<Self>,
         template: Rc<dyn InstanceNode>,
-        _context: &Rc<RuntimeContext>,
+        context: &Rc<RuntimeContext>,
     ) {
         *borrow_mut!(self.instance_node) = Rc::clone(&template);
         (&template
@@ -274,6 +274,7 @@ impl ExpandedNode {
             Rc::clone(&self.stack),
             Some(Rc::clone(&self)),
         );
+        self.bind_to_parent_bounds(context);
     }
 
     pub fn fully_recreate_with_new_data(
@@ -424,18 +425,18 @@ impl ExpandedNode {
     /// need to be here since all property dependencies can be set up and removed during mount/unmount
     pub fn recurse_update(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
         if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
-            if !self.suspended.get() {
-                for handler in borrow!(registry)
-                    .handlers
-                    .get("tick")
-                    .unwrap_or(&Vec::new())
-                {
-                    (handler.function)(
-                        Rc::clone(&*borrow!(self.properties)),
-                        &self.get_node_context(context),
-                        None,
-                    )
-                }
+            //if !self.suspended.get() {
+            for handler in borrow!(registry)
+                .handlers
+                .get("tick")
+                .unwrap_or(&Vec::new())
+            {
+                (handler.function)(
+                    Rc::clone(&*borrow!(self.properties)),
+                    &self.get_node_context(context),
+                    None,
+                )
+                // }
             }
         }
         Rc::clone(&*borrow!(self.instance_node)).update(&self, context);
@@ -605,6 +606,15 @@ impl ExpandedNode {
                 .unwrap_or_default()
         };
 
+        let slot_children = if borrow!(self.instance_node).base().flags().is_component {
+            self.expanded_and_flattened_slot_children.clone()
+        } else {
+            self.containing_component
+                .upgrade()
+                .map(|v| v.expanded_and_flattened_slot_children.clone())
+                .unwrap_or_default()
+        };
+
         let last_frame = Rc::new(RefCell::new(globals.frames_elapsed.get()));
         let suspended = self.suspended.clone();
         let frames_elapsed = globals.frames_elapsed.clone();
@@ -636,6 +646,7 @@ impl ExpandedNode {
             os: globals.os.clone(),
             get_elapsed_millis: globals.get_elapsed_millis,
             slot_children_count,
+            slot_children,
             node_transform_and_bounds: self.transform_and_bounds.get(),
             #[cfg(feature = "designtime")]
             designtime: globals.designtime.clone(),

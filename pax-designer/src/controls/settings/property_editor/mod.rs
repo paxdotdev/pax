@@ -51,7 +51,7 @@ impl PropertyEditor {
         let snid = self.snid.clone();
         let name = self.name.clone();
         let ind = self.ind.clone();
-        let manifest_ver = borrow!(ctxs.designtime).get_last_rendered_manifest_version();
+        let manifest_ver = borrow!(ctxs.designtime).get_last_written_manifest_version();
         let deps = [
             stid.untyped(),
             snid.untyped(),
