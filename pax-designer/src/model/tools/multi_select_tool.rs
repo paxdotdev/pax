@@ -60,7 +60,7 @@ impl ToolBehavior for MultiSelectTool {
         let glass_transform = ctx.glass_transform();
         let open_container = ctx
             .derived_state
-            .open_container
+            .open_containers
             .get()
             .into_iter()
             .next()

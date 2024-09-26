@@ -69,7 +69,7 @@ impl PaintbrushTool {
     pub fn new(ctx: &mut ActionContext) -> Result<Self> {
         let parent = ctx
             .derived_state
-            .open_container
+            .open_containers
             .get()
             .into_iter()
             .next()

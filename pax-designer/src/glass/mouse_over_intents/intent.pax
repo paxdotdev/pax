@@ -1,0 +1,11 @@
+<Rectangle
+    _raycastable=false
+    x={self.data.x}
+    y={self.data.y}
+    rotate={(self.data.rotation)rad}
+    width={self.data.width}
+    height={self.data.height}
+    fill={self.data.fill}
+    stroke={{width: (self.data.stroke_width_pixels)px color: self.data.stroke }}
+    @mouse_up=self.on_mouse_up
+/>
