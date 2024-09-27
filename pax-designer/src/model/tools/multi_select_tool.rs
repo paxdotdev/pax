@@ -132,9 +132,7 @@ impl ToolBehavior for MultiSelectTool {
                         stroke: Color::rgba(50.into(), 50.into(), 100.into(), 200.into()),
                         fill: Color::rgba(100.into(), 100.into(), 255.into(), 30.into()),
                     },
-                    outline: Default::default(),
-                    snap_lines: Default::default(),
-                    event_blocker_active: true,
+                    ..Default::default()
                 }
             },
             &deps,

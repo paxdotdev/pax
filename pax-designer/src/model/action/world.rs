@@ -126,7 +126,11 @@ impl Action for ZoomToFit {
         // TODO improve this to make the viewport nicely placed after zoom in
         let new_transform = Transform2::<Window, World>::translate(self.top_left.to_vector())
             * Transform2::scale((self.bottom_right.x - self.top_left.x) / bounds.0);
-        ctx.app_state.glass_to_world_transform.set(new_transform);
+        ctx.app_state.glass_to_world_transform.ease_to(
+            new_transform,
+            20,
+            pax_engine::api::EasingCurve::OutQuad,
+        );
         Ok(())
     }
 }

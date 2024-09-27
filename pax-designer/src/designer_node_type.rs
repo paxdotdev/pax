@@ -4,6 +4,12 @@ use pax_engine::{
     pax_manifest::{PaxType, TypeId},
 };
 
+use self::designer_behavior_extensions::{
+    designer_stacker_behavior::StackerDesignerBehavior, DesignerComponentBehaviorExtensions,
+};
+
+pub mod designer_behavior_extensions;
+
 /// This should be the type always used for getting metadata about and
 /// performing checks on type in the designer, instead of checking using node methods
 #[derive(PartialEq, Clone)]
@@ -42,6 +48,8 @@ pub struct DesignerNodeTypeData {
     /// characterized as a slot container
     pub is_slot_container: bool,
     pub type_id: TypeId,
+    // is this a component, and if so, does it's template contain slots
+    pub has_slots: bool,
 }
 
 impl DesignerNodeType {
@@ -209,6 +217,7 @@ impl DesignerNodeType {
             ),
         };
 
+        let has_slots = orm.component_has_slots(&type_id);
         // move to match statement above if more types need this specified
         let is_slot_container = self != &DesignerNodeType::Scroller;
 
@@ -218,6 +227,19 @@ impl DesignerNodeType {
             is_container,
             is_slot_container,
             type_id,
+            has_slots,
+        }
+    }
+
+    /// Get intent behavior of this node type
+    pub fn designer_behavior_extensions(&self) -> Box<dyn DesignerComponentBehaviorExtensions> {
+        match self {
+            DesignerNodeType::Stacker => Box::new(StackerDesignerBehavior),
+            _ => {
+                struct DefaultDesignerBehavior;
+                impl DesignerComponentBehaviorExtensions for DefaultDesignerBehavior {}
+                Box::new(DefaultDesignerBehavior)
+            }
         }
     }
 }
