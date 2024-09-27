@@ -3,6 +3,13 @@
     @drop=handle_drop
 >
 
+    // ------------------- Intents ---------------------
+    // Intents for objects currently under the mouse, such as
+    // stacker drop locations, etc.
+    for data in self.tool_visual.intent_areas {
+        <Intent data=data/>
+    }
+
     // --------------- Snap line visuals ---------------- 
     for x in self.tool_visual.snap_lines.vertical {
         <Rectangle x={(x.line)px} width=1px height=100% fill={x.color}/>
@@ -29,11 +36,6 @@
     // that shows control points etc. for the currently selected object
     <WireframeEditor/>
 
-    // Intents for objects currently under the mouse, such as
-    // stacker drop locations, etc.
-    for data in self.tool_visual.intent_areas {
-        <Intent data=data/>
-    }
 
     // Rectangle visual
     <Group>

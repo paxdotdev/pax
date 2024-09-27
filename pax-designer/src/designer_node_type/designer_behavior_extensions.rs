@@ -21,7 +21,8 @@ pub struct IntentState {
 }
 
 pub struct IntentDefinition {
-    pub area: Transform2<NodeLocal>,
+    pub hit_area: Transform2<NodeLocal>,
+    pub draw_area: Transform2<NodeLocal>,
     pub fill: Color,
     pub stroke: Option<(f64, Color)>,
     pub intent_drop_behavior_factory: Box<dyn Fn(&[NodeInterface]) -> Box<dyn Action>>,

@@ -12,7 +12,7 @@ use crate::model::action::orm::{RedoRequested, SerializeRequested, UndoRequested
 use crate::model::SelectionStateSnapshot;
 use crate::{controls::toolbar, glass, llm_interface::SetLLMPromptState};
 
-use super::action::orm::group_ungroup::{GroupSelected, GroupType, UngroupSelected};
+use super::action::orm::group_ungroup::{GroupNodes, GroupSelected, GroupType, UngroupSelected};
 use super::action::orm::other::SwapFillStrokeAction;
 use super::action::orm::space_movement::TranslateFromSnapshot;
 use super::action::orm::tree_movement::{RelativeMove, RelativeMoveSelected};
