@@ -28,8 +28,13 @@ pub struct IntentDef {
 }
 
 impl IntentDef {
-    pub fn new(transform: Transform2<NodeLocal, Glass>, fill: Color, stroke: Color) -> Self {
+    pub fn new(
+        transform: Transform2<NodeLocal, Glass>,
+        fill: Color,
+        stroke: Option<(f64, Color)>,
+    ) -> Self {
         let parts: TransformParts = transform.into();
+        let (stroke_width_pixels, stroke) = stroke.unwrap_or((0.0, Color::BLACK));
         Self {
             x: parts.origin.x,
             y: parts.origin.y,
@@ -38,7 +43,7 @@ impl IntentDef {
             height: parts.scale.y,
             fill,
             stroke,
-            stroke_width_pixels: 1.0,
+            stroke_width_pixels,
         }
     }
 }

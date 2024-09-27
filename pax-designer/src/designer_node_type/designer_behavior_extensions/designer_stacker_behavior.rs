@@ -1,7 +1,7 @@
 use pax_engine::{
     api::{Color, Interpolatable},
     log,
-    math::{Transform2, Vector2},
+    math::{Point2, Transform2, Vector2},
     pax_manifest::{TreeIndexPosition, UniqueTemplateNodeIdentifier},
     pax_runtime::TransformAndBounds,
     NodeInterface, NodeLocal, Slot,
@@ -82,54 +82,71 @@ fn create_all_drop_between_intents(
     slot_data: &[(usize, TransformAndBounds<NodeLocal>)],
     stacker_id: &UniqueTemplateNodeIdentifier,
 ) {
-    const DROP_BETWEEN_INTENT_HEIGHT: f64 = 15.0;
-    let (first_ind, slot_t_and_b) = slot_data
-        .first()
-        .expect("should at least be one slot because of check above");
-    let (width, _) = slot_t_and_b.bounds;
-    intent_areas.push(create_drop_between_intent(
-        stacker_id.clone(),
-        slot_t_and_b.transform
-            * Transform2::<NodeLocal>::translate(Vector2::new(width / 2.0, 0.0))
-            * Transform2::<NodeLocal>::scale_sep(Vector2::new(
-                width - DROP_BETWEEN_INTENT_HEIGHT * 1.5,
-                DROP_BETWEEN_INTENT_HEIGHT,
-            ))
-            * Transform2::<NodeLocal>::translate(Vector2::new(-0.5, 0.0)),
-        *first_ind,
-    ));
+    const INTENT_HEIGHT: f64 = 15.0;
     for slots in slot_data.windows(2) {
         let (_, t_and_b_over) = slots[0];
         let (index_under, t_and_b_under) = slots[1];
-        let t_and_b_between = t_and_b_over.interpolate(&t_and_b_under, 0.5);
-        let (width, height) = t_and_b_between.bounds;
-        let intent_area = t_and_b_between.transform
-            * Transform2::<NodeLocal>::translate(Vector2::new(width / 2.0, height / 2.0))
-            * Transform2::<NodeLocal>::scale_sep(Vector2::new(
-                width - DROP_BETWEEN_INTENT_HEIGHT * 1.5,
-                DROP_BETWEEN_INTENT_HEIGHT,
-            ))
+        let line_transform = estimate_transform_between(t_and_b_under, t_and_b_over);
+        // Create the intent area transform
+        let (width, _) = line_transform.bounds;
+        let line_width = width - INTENT_HEIGHT;
+        let intent_area = line_transform.transform
+            * Transform2::<NodeLocal>::translate(Vector2::new(width / 2.0, 0.0))
+            * Transform2::<NodeLocal>::scale_sep(Vector2::new(line_width, INTENT_HEIGHT))
             * Transform2::<NodeLocal>::translate(Vector2::new(-0.5, -0.5));
+
         intent_areas.push(create_drop_between_intent(
             stacker_id.clone(),
             intent_area,
             index_under,
         ));
     }
-    let (last_ind, slot_t_and_b) = slot_data
+
+    // add first element
+    let (first_ind, mut slot_t_and_b) = slot_data
+        .first()
+        .expect("should at least be one slot because of check above");
+    if let Some(between_first) = intent_areas.first() {
+        let (_, _, v) = between_first.area.decompose();
+        let edge = find_most_aligned_edge(&slot_t_and_b.corners(), &-v);
+        slot_t_and_b = segment_to_transform_and_bounds(edge.0, edge.1);
+    }
+    let (width, _) = slot_t_and_b.bounds;
+    intent_areas.insert(
+        0,
+        create_drop_between_intent(
+            stacker_id.clone(),
+            slot_t_and_b.transform
+                * Transform2::<NodeLocal>::translate(Vector2::new(width / 2.0, 0.0))
+                * Transform2::<NodeLocal>::scale_sep(Vector2::new(
+                    width - INTENT_HEIGHT * 1.5,
+                    INTENT_HEIGHT,
+                ))
+                * Transform2::<NodeLocal>::translate(Vector2::new(-0.5, 0.0)),
+            *first_ind,
+        ),
+    );
+
+    // add last element
+    let (last_ind, mut slot_t_and_b) = slot_data
         .last()
         .expect("should at least be one slot because of check above");
-    let (width, height) = slot_t_and_b.bounds;
+    if let Some(between_last) = intent_areas.first() {
+        let (_, _, v) = between_last.area.decompose();
+        let edge = find_most_aligned_edge(&slot_t_and_b.corners(), &v);
+        slot_t_and_b = segment_to_transform_and_bounds(edge.0, edge.1);
+    }
+    let (width, _) = slot_t_and_b.bounds;
     intent_areas.push(create_drop_between_intent(
         stacker_id.clone(),
         slot_t_and_b.transform
-            * Transform2::<NodeLocal>::translate(Vector2::new(width / 2.0, height))
+            * Transform2::<NodeLocal>::translate(Vector2::new(width / 2.0, 0.0))
             * Transform2::<NodeLocal>::scale_sep(Vector2::new(
-                width - DROP_BETWEEN_INTENT_HEIGHT * 1.5,
-                DROP_BETWEEN_INTENT_HEIGHT,
+                width - INTENT_HEIGHT * 1.5,
+                INTENT_HEIGHT,
             ))
-            * Transform2::<NodeLocal>::translate(Vector2::new(-0.5, -1.0)),
-        *last_ind + 1,
+            * Transform2::<NodeLocal>::translate(Vector2::new(-0.5, 0.0)),
+        *last_ind,
     ));
 }
 
@@ -162,7 +179,7 @@ fn create_drop_between_intent(
     IntentDefinition {
         area: transform,
         fill: Color::rgba(0.into(), 0.into(), 0.into(), 70.into()),
-        stroke: Color::rgba(50.into(), 50.into(), 50.into(), 150.into()),
+        stroke: None,
         intent_drop_behavior_factory: Box::new(move |selected_nodes| {
             Box::new({
                 StackerDropBetweenAction {
@@ -228,7 +245,7 @@ fn create_drop_into_intent(
     IntentDefinition {
         area: transform,
         fill: Color::rgba(255.into(), 255.into(), 255.into(), 40.into()),
-        stroke: Color::rgba(200.into(), 200.into(), 200.into(), 150.into()),
+        stroke: None,
         intent_drop_behavior_factory: Box::new(move |selected_nodes| {
             Box::new({
                 StackerDropIntoAction {
@@ -239,4 +256,82 @@ fn create_drop_into_intent(
             })
         }),
     }
+}
+
+fn estimate_transform_between(
+    t_and_b_under: TransformAndBounds<NodeLocal>,
+    t_and_b_over: TransformAndBounds<NodeLocal>,
+) -> TransformAndBounds<NodeLocal> {
+    // Extract corners of both rectangles
+    let corners_under = t_and_b_under.corners();
+    let corners_over = t_and_b_over.corners();
+
+    // Calculate centroids
+    let centroid_under = calculate_centroid(&corners_under);
+    let centroid_over = calculate_centroid(&corners_over);
+
+    // Vector from under to over centroid
+    let centroid_vector = centroid_over - centroid_under;
+
+    // Find the edges most parallel to the centroid vector
+    let edge_under = find_most_aligned_edge(&corners_under, &centroid_vector);
+    let mut edge_over = find_most_aligned_edge(&corners_over, &(-centroid_vector));
+
+    // if segment vectors not pointing in same dir,
+    // re-orient one
+    if edge_over.1 * edge_under.1 < 0.0 {
+        edge_over = (edge_over.0 + edge_over.1, -edge_over.1);
+    }
+
+    // Calculate the line
+    let start = edge_under.0.midpoint_towards(edge_over.0);
+    let direction = (edge_under.1 + edge_over.1) / 2.0;
+    segment_to_transform_and_bounds(start, direction)
+}
+
+fn segment_to_transform_and_bounds(
+    point: Point2<NodeLocal>,
+    dir: Vector2<NodeLocal>,
+) -> TransformAndBounds<NodeLocal> {
+    let dir_n = dir.normalize();
+    let normal = dir_n.normal();
+
+    // Create a transform that maps (0,0)-(1,0) to the line, spanning the entire space
+    let transform = Transform2::new([dir_n.x, dir_n.y, normal.x, normal.y, point.x, point.y]);
+
+    TransformAndBounds {
+        transform,
+        bounds: (dir.length(), 1.0),
+    }
+}
+
+fn calculate_centroid(corners: &[Point2<NodeLocal>; 4]) -> Point2<NodeLocal> {
+    (corners
+        .iter()
+        .map(|v| v.to_vector())
+        .reduce(|a, b| a + b)
+        .unwrap()
+        / 4.0)
+        .to_point()
+}
+
+fn find_most_aligned_edge(
+    corners: &[Point2<NodeLocal>; 4],
+    reference: &Vector2<NodeLocal>,
+) -> (Point2<NodeLocal>, Vector2<NodeLocal>) {
+    let edges = [
+        (corners[0], corners[3] - corners[0]),
+        (corners[1], corners[0] - corners[1]),
+        (corners[2], corners[1] - corners[2]),
+        (corners[3], corners[2] - corners[3]),
+    ];
+    edges
+        .iter()
+        .map(|(start, dir)| {
+            let similarity = reference.cross(dir.normalize());
+            ((*start, *dir), similarity)
+        })
+        .max_by(|(_, a), (_, b)| a.total_cmp(&b))
+        .map(|(val, _)| val)
+        .unwrap()
 }
