@@ -2,17 +2,23 @@ use std::any::Any;
 
 use crate::{
     designer_node_type::DesignerNodeType,
-    math::{DecompositionConfiguration, IntoDecompositionConfiguration},
+    math::{coordinate_spaces::Glass, DecompositionConfiguration, IntoDecompositionConfiguration},
     model::{
-        action::world::{SelectMode, SelectNodes},
-        action::{orm::group_ungroup, Action, ActionContext},
+        action::{
+            orm::group_ungroup,
+            world::{SelectMode, SelectNodes},
+            Action, ActionContext,
+        },
         GlassNode, GlassNodeSnapshot, SelectionStateSnapshot,
     },
 };
 use anyhow::{anyhow, Context, Result};
-use pax_engine::api::{borrow, borrow_mut};
 use pax_engine::pax_manifest::{
     NodeLocation, TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier,
+};
+use pax_engine::{
+    api::{borrow, borrow_mut},
+    NodeLocal,
 };
 use pax_engine::{
     log,
@@ -33,9 +39,49 @@ pub enum GroupType {
 pub struct GroupSelected {
     pub group_type: GroupType,
 }
-
 impl Action for GroupSelected {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+        let selected: SelectionStateSnapshot = (&ctx.derived_state.selection_state.get()).into();
+        // ------------ Figure out the location the group should be at ---------
+        let Some(node_inside_group) = selected.items.first() else {
+            return Err(anyhow!("nothing selected to group"));
+        };
+        let group_location = {
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            let orm = dt.get_orm_mut();
+            orm.get_node_location(&node_inside_group.id)
+        };
+
+        let root_parent = ctx.derived_state.open_containers.get()[0].clone();
+
+        GroupNodes {
+            group_type: self.group_type,
+            group_bounds: selected.total_bounds.cast_spaces(),
+            nodes: &selected
+                .items
+                .iter()
+                .map(|i| i.id.clone())
+                .collect::<Vec<_>>(),
+            group_parent: &root_parent,
+            group_location_index: group_location
+                .map(|l| l.index)
+                .unwrap_or(TreeIndexPosition::Top),
+        }
+        .perform(ctx)?;
+        Ok(())
+    }
+}
+
+pub struct GroupNodes<'n> {
+    pub group_type: GroupType,
+    pub group_parent: &'n UniqueTemplateNodeIdentifier,
+    pub group_location_index: TreeIndexPosition,
+    pub group_bounds: TransformAndBounds<NodeLocal, Glass>,
+    pub nodes: &'n [UniqueTemplateNodeIdentifier],
+}
+
+impl Action<UniqueTemplateNodeIdentifier> for GroupNodes<'_> {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<UniqueTemplateNodeIdentifier> {
         let group_type = match self.group_type {
             GroupType::Link => DesignerNodeType::Link,
             GroupType::Group => DesignerNodeType::Group,
@@ -49,22 +95,14 @@ impl Action for GroupSelected {
             ));
         }
 
-        let selected: SelectionStateSnapshot = (&ctx.derived_state.selection_state.get()).into();
-
-        // ------------ Figure out the location the group should be at ---------
-        let Some(node_inside_group) = selected.items.first() else {
-            return Err(anyhow!("nothing selected to group"));
-        };
-        let group_location = {
-            let mut dt = borrow_mut!(ctx.engine_context.designtime);
-            let orm = dt.get_orm_mut();
-            orm.get_node_location(&node_inside_group.id)
-        };
-
-        let root_parent = ctx.derived_state.open_containers.get()[0].clone();
+        let glass_nodes: Vec<_> = self
+            .nodes
+            .iter()
+            .map(|id| ctx.get_glass_node_by_global_id(id))
+            .collect::<Result<_, _>>()?;
 
         // -------- Create a group ------------
-        let group_parent_data = ctx.get_glass_node_by_global_id(&root_parent).unwrap();
+        let group_parent_data = ctx.get_glass_node_by_global_id(&self.group_parent).unwrap();
 
         let parent_is_slot_container = (|| {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
@@ -77,7 +115,7 @@ impl Action for GroupSelected {
         })()
         .unwrap_or(false);
 
-        let group_transform_and_bounds = selected.total_bounds.as_pure_size().cast_spaces();
+        let group_transform_and_bounds = self.group_bounds.as_pure_size();
         let t = ctx.transaction(&format!(
             "grouping selected objects into {}",
             group_type_metadata
@@ -102,22 +140,20 @@ impl Action for GroupSelected {
             let group_uid = CreateComponent {
                 parent_id: &group_parent_data.id,
                 node_layout,
-                parent_index: group_location
-                    .map(|l| l.index)
-                    .unwrap_or(TreeIndexPosition::Top),
+                parent_index: self.group_location_index.clone(),
                 designer_node_type: group_type,
                 builder_extra_commands: None,
             }
             .perform(ctx)?;
 
             // ---------- Move nodes into newly created group ----------
-            for node in &selected.items {
+            for node in &glass_nodes {
                 MoveNode {
                     node_id: &node.id,
                     index: TreeIndexPosition::Bottom,
                     new_parent_uid: &group_uid,
                     node_layout: NodeLayoutSettings::KeepScreenBounds {
-                        node_transform_and_bounds: &node.transform_and_bounds.as_pure_size(),
+                        node_transform_and_bounds: &node.transform_and_bounds.get().as_pure_size(),
                         parent_transform_and_bounds: &group_transform_and_bounds,
                         node_decomposition_config: &node
                             .layout_properties
@@ -134,7 +170,7 @@ impl Action for GroupSelected {
             }
             .perform(ctx)?;
 
-            Ok(())
+            Ok(group_uid)
         })
     }
 }
