@@ -1,5 +1,6 @@
+use anyhow::anyhow;
 use pax_engine::{
-    api::{Color, Interpolatable},
+    api::{borrow, borrow_mut, Color, Interpolatable},
     log,
     math::{Point2, Transform2, Vector2},
     pax_manifest::{TreeIndexPosition, UniqueTemplateNodeIdentifier},
@@ -9,12 +10,17 @@ use pax_engine::{
 
 use crate::{
     designer_node_type::{designer_behavior_extensions::IntentDefinition, DesignerNodeType},
+    math::IntoDecompositionConfiguration,
     model::{
         action::{
-            orm::{tree_movement::MoveNode, NodeLayoutSettings},
+            orm::{
+                group_ungroup::{GroupNodes, GroupType},
+                tree_movement::MoveNode,
+                NodeLayoutSettings,
+            },
             Action, ActionContext,
         },
-        GlassNode,
+        GlassNode, GlassNodeSnapshot,
     },
 };
 
@@ -44,7 +50,10 @@ impl DesignerComponentBehaviorExtensions for StackerDesignerBehavior {
             return IntentState {
                 intent_areas: vec![create_drop_into_intent(
                     stacker_id,
-                    Transform2::identity(),
+                    TransformAndBounds {
+                        transform: Transform2::identity(),
+                        bounds: (1.0, 1.0),
+                    },
                     0,
                 )],
             };
@@ -82,22 +91,13 @@ fn create_all_drop_between_intents(
     slot_data: &[(usize, TransformAndBounds<NodeLocal>)],
     stacker_id: &UniqueTemplateNodeIdentifier,
 ) {
-    const INTENT_HEIGHT: f64 = 15.0;
     for slots in slot_data.windows(2) {
         let (_, t_and_b_over) = slots[0];
         let (index_under, t_and_b_under) = slots[1];
         let line_transform = estimate_transform_between(t_and_b_under, t_and_b_over);
-        // Create the intent area transform
-        let (width, _) = line_transform.bounds;
-        let line_width = width - INTENT_HEIGHT;
-        let intent_area = line_transform.transform
-            * Transform2::<NodeLocal>::translate(Vector2::new(width / 2.0, 0.0))
-            * Transform2::<NodeLocal>::scale_sep(Vector2::new(line_width, INTENT_HEIGHT))
-            * Transform2::<NodeLocal>::translate(Vector2::new(-0.5, -0.5));
-
         intent_areas.push(create_drop_between_intent(
             stacker_id.clone(),
-            intent_area,
+            line_transform,
             index_under,
         ));
     }
@@ -107,52 +107,35 @@ fn create_all_drop_between_intents(
         .first()
         .expect("should at least be one slot because of check above");
     if let Some(between_first) = intent_areas.first() {
-        let (_, _, v) = between_first.area.decompose();
+        let (_, _, v) = between_first.hit_area.decompose();
         let edge = find_most_aligned_edge(&slot_t_and_b.corners(), &-v);
         slot_t_and_b = segment_to_transform_and_bounds(edge.0, edge.1);
     }
-    let (width, _) = slot_t_and_b.bounds;
     intent_areas.insert(
         0,
-        create_drop_between_intent(
-            stacker_id.clone(),
-            slot_t_and_b.transform
-                * Transform2::<NodeLocal>::translate(Vector2::new(width / 2.0, 0.0))
-                * Transform2::<NodeLocal>::scale_sep(Vector2::new(
-                    width - INTENT_HEIGHT * 1.5,
-                    INTENT_HEIGHT,
-                ))
-                * Transform2::<NodeLocal>::translate(Vector2::new(-0.5, 0.0)),
-            *first_ind,
-        ),
+        create_drop_between_intent(stacker_id.clone(), slot_t_and_b, *first_ind),
     );
 
     // add last element
     let (last_ind, mut slot_t_and_b) = slot_data
         .last()
         .expect("should at least be one slot because of check above");
-    if let Some(between_last) = intent_areas.first() {
-        let (_, _, v) = between_last.area.decompose();
+    if let Some(between_last) = intent_areas.last() {
+        let (_, _, v) = between_last.hit_area.decompose();
         let edge = find_most_aligned_edge(&slot_t_and_b.corners(), &v);
+        // TODO this changes height, make it consistent
         slot_t_and_b = segment_to_transform_and_bounds(edge.0, edge.1);
     }
-    let (width, _) = slot_t_and_b.bounds;
     intent_areas.push(create_drop_between_intent(
         stacker_id.clone(),
-        slot_t_and_b.transform
-            * Transform2::<NodeLocal>::translate(Vector2::new(width / 2.0, 0.0))
-            * Transform2::<NodeLocal>::scale_sep(Vector2::new(
-                width - INTENT_HEIGHT * 1.5,
-                INTENT_HEIGHT,
-            ))
-            * Transform2::<NodeLocal>::translate(Vector2::new(-0.5, 0.0)),
-        *last_ind,
+        slot_t_and_b,
+        *last_ind + 1,
     ));
 }
 
 fn create_drop_between_intent(
     parent_stacker: UniqueTemplateNodeIdentifier,
-    transform: Transform2<NodeLocal>,
+    draw_area: TransformAndBounds<NodeLocal>,
     index: usize,
 ) -> IntentDefinition {
     struct StackerDropBetweenAction {
@@ -161,6 +144,15 @@ fn create_drop_between_intent(
         nodes_to_move: Vec<NodeInterface>,
     }
 
+    const INTENT_HEIGHT: f64 = 40.0;
+    let (width, height) = draw_area.bounds;
+    let hit_area = draw_area.transform
+        * Transform2::<NodeLocal>::translate(Vector2::new(width / 2.0, height / 2.0))
+        * Transform2::<NodeLocal>::scale_sep(Vector2::new(
+            width - INTENT_HEIGHT * 1.5,
+            INTENT_HEIGHT,
+        ))
+        * Transform2::<NodeLocal>::translate(Vector2::new(-0.5, -0.5));
     impl Action for StackerDropBetweenAction {
         fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
             // TODO handle multiple node moving by grouping them before moving into stacker.
@@ -177,8 +169,9 @@ fn create_drop_between_intent(
     }
 
     IntentDefinition {
-        area: transform,
-        fill: Color::rgba(0.into(), 0.into(), 0.into(), 70.into()),
+        hit_area,
+        draw_area: draw_area.as_transform(),
+        fill: Color::rgb(245.into(), 0.into(), 245.into()),
         stroke: None,
         intent_drop_behavior_factory: Box::new(move |selected_nodes| {
             Box::new({
@@ -197,19 +190,10 @@ fn create_all_drop_into_intents(
     slot_data: &[(usize, TransformAndBounds<NodeLocal>)],
     stacker_id: &UniqueTemplateNodeIdentifier,
 ) {
-    const DROP_INTO_PADDING: f64 = 15.0;
     for (index, t_and_b_into) in slot_data {
-        let (width, height) = t_and_b_into.bounds;
-        let intent_area = t_and_b_into.transform
-            * Transform2::<NodeLocal>::translate(Vector2::new(width / 2.0, height / 2.0))
-            * Transform2::<NodeLocal>::scale_sep(Vector2::new(
-                width - 2.0 * DROP_INTO_PADDING,
-                height - 2.0 * DROP_INTO_PADDING,
-            ))
-            * Transform2::<NodeLocal>::translate(Vector2::new(-0.5, -0.5));
         intent_areas.push(create_drop_into_intent(
             stacker_id.clone(),
-            intent_area,
+            *t_and_b_into,
             *index,
         ));
     }
@@ -217,7 +201,7 @@ fn create_all_drop_into_intents(
 
 fn create_drop_into_intent(
     parent_stacker: UniqueTemplateNodeIdentifier,
-    transform: Transform2<NodeLocal>,
+    draw_area: TransformAndBounds<NodeLocal>,
     index: usize,
 ) -> IntentDefinition {
     struct StackerDropIntoAction {
@@ -226,26 +210,82 @@ fn create_drop_into_intent(
         nodes_to_move: Vec<NodeInterface>,
     }
 
+    const DROP_INTO_PADDING: f64 = 20.0;
+    let (width, height) = draw_area.bounds;
+    let hit_area = draw_area.transform
+        * Transform2::<NodeLocal>::translate(Vector2::new(width / 2.0, height / 2.0))
+        * Transform2::<NodeLocal>::scale_sep(Vector2::new(
+            width - 2.0 * DROP_INTO_PADDING,
+            height - 2.0 * DROP_INTO_PADDING,
+        ))
+        * Transform2::<NodeLocal>::translate(Vector2::new(-0.5, -0.5));
+
     impl Action for StackerDropIntoAction {
         fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
-            let node = self.nodes_to_move.first().unwrap();
-            // TODO find container at index, if a container, add to it, otherwise
-            // group and add. (make this a single operation "add to or group"?)
-            // MoveNode {
-            //     node_id: &node.global_id().unwrap(),
-            //     new_parent_uid: &self.parent_stacker,
-            //     index: self.index.clone(),
-            //     node_layout: NodeLayoutSettings::<NodeLocal>::Fill,
-            // }
-            // .perform(ctx)?;
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            let orm = dt.get_orm_mut();
+            let stacker_template_child_ids = orm
+                .get_node_children(self.parent_stacker.clone())
+                .map_err(|e| anyhow!("failed to get children {e}"))?;
+            let moving_into =
+                &stacker_template_child_ids[self.index.get_index(stacker_template_child_ids.len())];
+
+            let node_snapshots: Vec<GlassNodeSnapshot> = self
+                .nodes_to_move
+                .iter()
+                .map(|n| (&GlassNode::new(&n, &ctx.glass_transform())).into())
+                .collect();
+            let into_node = ctx.get_glass_node_by_global_id(moving_into)?;
+            let into_t_and_b = into_node.parent_transform_and_bounds.get();
+
+            // used by below actions
+            drop(dt);
+
+            let into_metadata = {
+                let into_type = ctx.designer_node_type(moving_into);
+                let dt = borrow_mut!(ctx.engine_context.designtime);
+                into_type.metadata(dt.get_orm())
+            };
+
+            // TODO how to handle slot containers? and scroller for that matter?
+            let move_into = if into_metadata.is_container && !into_metadata.is_slot_container {
+                moving_into.clone()
+            } else {
+                let group_id = GroupNodes {
+                    group_type: GroupType::Group,
+                    nodes: &[moving_into.clone()],
+                    group_bounds: into_t_and_b,
+                    group_parent: &self.parent_stacker,
+                    group_location_index: self.index.clone(),
+                }
+                .perform(ctx)?;
+                group_id
+            };
+
+            for node in node_snapshots {
+                MoveNode {
+                    node_id: &node.id,
+                    new_parent_uid: &move_into,
+                    index: TreeIndexPosition::Top,
+                    node_layout: NodeLayoutSettings::KeepScreenBounds {
+                        node_transform_and_bounds: &node.transform_and_bounds,
+                        node_decomposition_config: &node
+                            .layout_properties
+                            .into_decomposition_config(),
+                        parent_transform_and_bounds: &into_t_and_b,
+                    },
+                }
+                .perform(ctx)?;
+            }
             Ok(())
         }
     }
 
     IntentDefinition {
-        area: transform,
-        fill: Color::rgba(255.into(), 255.into(), 255.into(), 40.into()),
-        stroke: None,
+        hit_area,
+        draw_area: draw_area.as_transform(),
+        fill: Color::TRANSPARENT,
+        stroke: Some((1.0, Color::rgb(245.into(), 0.into(), 245.into()))),
         intent_drop_behavior_factory: Box::new(move |selected_nodes| {
             Box::new({
                 StackerDropIntoAction {

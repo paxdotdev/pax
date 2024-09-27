@@ -115,7 +115,7 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                 RaycastMode::Top,
                 &[self.initial_node.raw_node_interface.clone()],
             ) {
-                // TODO PERF if hit same object as before, skip re-running this
+                // TODO PERF if hit same object as before, skip re-running get_intents, and just do the rest
                 let node_type = ctx.designer_node_type(&node.global_id().unwrap());
                 let intents = node_type
                     .designer_behavior_extensions()
@@ -128,17 +128,25 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                     tool_visual.intent_areas = intents
                         .intent_areas
                         .iter()
-                        .map(|intent| {
-                            let transform = node_transform.transform * intent.area;
-                            IntentDef::new(transform, intent.fill.clone(), intent.stroke.clone())
+                        .find_map(|intent| {
+                            let transform = node_transform.transform * intent.draw_area;
+                            let hit_transform = node_transform.transform * intent.hit_area;
+                            hit_transform.contains_point(point).then(|| {
+                                IntentDef::new(
+                                    transform,
+                                    intent.fill.clone(),
+                                    intent.stroke.clone(),
+                                )
+                            })
                         })
-                        .collect();
+                        .as_slice()
+                        .to_vec();
                 });
                 let drop_intent_state: Vec<_> = intents
                     .intent_areas
                     .into_iter()
                     .map(|intent| {
-                        let transform = node_transform.transform * intent.area;
+                        let transform = node_transform.transform * intent.hit_area;
                         (transform, intent.intent_drop_behavior_factory)
                     })
                     .collect();
@@ -148,6 +156,7 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
         }
 
         fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
+            log::debug!("hit pointer up");
             for (area, action_factory) in &self.drop_intent_state {
                 if area.contains_point(point) {
                     // TODO transaction?
