@@ -147,7 +147,17 @@ pub fn calculate_transform_and_bounds(
 
 /// Properties that are currently re-computed each frame before rendering.
 
-impl<F, T> Interpolatable for TransformAndBounds<F, T> {}
+impl<F: Space, T: Space> Interpolatable for TransformAndBounds<F, T> {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        TransformAndBounds {
+            transform: self.transform.interpolate(&other.transform, t),
+            bounds: (
+                self.bounds.0 + (other.bounds.0 - self.bounds.0) * t,
+                self.bounds.1 + (other.bounds.1 - self.bounds.1) * t,
+            ),
+        }
+    }
+}
 
 pub struct TransformAndBounds<F, T = F> {
     pub transform: Transform2<F, T>,

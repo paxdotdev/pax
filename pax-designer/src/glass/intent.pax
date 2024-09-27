@@ -7,5 +7,4 @@
     height={self.data.height}
     fill={self.data.fill}
     stroke={{width: (self.data.stroke_width_pixels)px color: self.data.stroke }}
-    @mouse_up=self.on_mouse_up
 />

@@ -1,7 +1,7 @@
 use crate::Interpolatable;
 
 use super::{Generic, Point2, Space, Vector2};
-use std::{marker::PhantomData, ops::Mul};
+use std::{f64::consts::PI, marker::PhantomData, ops::Mul};
 
 //-----------------------------------------------------------
 // Pax matrix/transform class heavily borrows from kurbos
@@ -11,7 +11,42 @@ use std::{marker::PhantomData, ops::Mul};
 // Kurbo is distributed under an MIT license.
 //-----------------------------------------------------------
 
-impl<W: Space, T: Space> Interpolatable for Transform2<W, T> {}
+impl<W: Space, T: Space> Interpolatable for Transform2<W, T> {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        let parts1: TransformParts = (*self).into();
+        let parts2: TransformParts = (*other).into();
+
+        // Interpolate origin
+        let origin = parts1.origin + (parts2.origin - parts1.origin) * t;
+
+        // Interpolate scale
+        let scale = parts1.scale + (parts2.scale - parts1.scale) * t;
+
+        // Interpolate skew
+        let skew = parts1.skew + (parts2.skew - parts1.skew) * t;
+
+        // Interpolate rotation
+        let mut rotation = parts1.rotation + (parts2.rotation - parts1.rotation) * t;
+
+        // Ensure rotation takes the shortest path
+        if (parts2.rotation - parts1.rotation).abs() > PI {
+            if parts2.rotation > parts1.rotation {
+                rotation += 2.0 * PI * (1.0 - t);
+            } else {
+                rotation -= 2.0 * PI * (1.0 - t);
+            }
+        }
+
+        // Construct and return the interpolated transform
+        TransformParts {
+            origin,
+            scale,
+            skew,
+            rotation,
+        }
+        .into()
+    }
+}
 
 pub struct Transform2<WFrom = Generic, WTo = WFrom> {
     pub m: [f64; 6],

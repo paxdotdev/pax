@@ -733,13 +733,14 @@ impl TreeIndexPosition {
     }
 
     pub fn new(index: usize, len: usize) -> Self {
-        if index == 0 {
-            TreeIndexPosition::Top
-        } else if index == len - 1 {
-            TreeIndexPosition::Bottom
-        } else {
-            TreeIndexPosition::At(index)
-        }
+        // if index == 0 {
+        //     TreeIndexPosition::Top
+        // } else if index == len - 1 {
+        //     TreeIndexPosition::Bottom
+        // } else {
+        //     TreeIndexPosition::At(index)
+        // }
+        TreeIndexPosition::At(index)
     }
 }
 
@@ -1216,19 +1217,20 @@ impl ComponentTemplate {
         None
     }
 
-    pub fn detach_node(&mut self, id: &TemplateNodeId) {
+    pub fn detach_node(&mut self, id: &TemplateNodeId) -> NodeLocation {
         let current_location = self
             .get_location(id)
             .expect("Node doesn't exist in template");
         let parent = match current_location.get_tree_location() {
             TreeLocation::Root => {
                 self.root.retain(|root_node| *root_node != *id);
-                return;
+                return current_location;
             }
             TreeLocation::Parent(parent) => parent,
         };
         let children = self.children.get_mut(&parent).unwrap();
         children.retain(|child| *child != *id);
+        current_location
     }
 
     pub fn get_siblings(&self, id: &TemplateNodeId) -> Option<VecDeque<TemplateNodeId>> {
@@ -1240,40 +1242,28 @@ impl ComponentTemplate {
     }
 
     pub fn move_node(&mut self, id: &TemplateNodeId, new_location: NodeLocation) {
-        self.detach_node(&id);
-        match new_location.get_tree_location() {
-            TreeLocation::Root => match new_location.index {
-                TreeIndexPosition::Top => {
-                    self.root.push_front(id.clone());
+        let old_location = self.detach_node(id);
+        let (target_list, index) = match new_location.get_tree_location() {
+            TreeLocation::Root => (&mut self.root, new_location.index),
+            TreeLocation::Parent(p) => (
+                self.children.entry(p.clone()).or_default(),
+                new_location.index,
+            ),
+        };
+        let mut index = match index {
+            TreeIndexPosition::Top => 0,
+            TreeIndexPosition::Bottom => target_list.len(),
+            TreeIndexPosition::At(i) => i,
+        };
+        // Adjust index if moving within the same parent
+        if old_location.tree_location == new_location.tree_location {
+            if let TreeIndexPosition::At(old_index) = old_location.index {
+                if old_index < index {
+                    index = index.saturating_sub(1);
                 }
-                TreeIndexPosition::Bottom => {
-                    self.root.push_back(id.clone());
-                }
-                TreeIndexPosition::At(index) => {
-                    let index = index.clamp(0, self.root.len());
-                    self.root.insert(index, id.clone());
-                }
-            },
-            TreeLocation::Parent(p) => match new_location.index {
-                TreeIndexPosition::Top => {
-                    self.children
-                        .entry(p.clone())
-                        .or_default()
-                        .push_front(id.clone());
-                }
-                TreeIndexPosition::Bottom => {
-                    self.children
-                        .entry(p.clone())
-                        .or_default()
-                        .push_back(id.clone());
-                }
-                TreeIndexPosition::At(index) => {
-                    let children = self.children.entry(p.clone()).or_default();
-                    let index = index.clamp(0, children.len());
-                    children.insert(index, id.clone());
-                }
-            },
+            }
         }
+        target_list.insert(index.clamp(0, target_list.len()), id.clone());
     }
 
     pub fn get_all_children_relationships(

@@ -24,15 +24,16 @@ use crate::model::action::{Action, ActionContext, RaycastMode};
 use crate::model::input::{Dir, ModifierKey};
 
 pub mod control_point;
-pub mod mouse_over_intents;
+pub mod intent;
 pub mod outline;
 pub mod tool_editors;
 pub mod wireframe_editor;
 
+use self::intent::IntentDef;
 pub use self::tool_editors::TextEdit;
 use crate::message_log_display::DesignerLogMsg;
 use control_point::ControlPoint;
-use mouse_over_intents::MouseOverIntents;
+use intent::Intent;
 use outline::PathOutline;
 use wireframe_editor::WireframeEditor;
 
@@ -42,13 +43,6 @@ use wireframe_editor::WireframeEditor;
 pub struct Glass {
     pub tool_visual: Property<ToolVisualizationState>,
     pub on_tool_change: Property<bool>,
-    // NOTE: these can be removed when for loops support nested calls:
-    // self.tool_visual.snap_lines.vertical/self.tool_visual.snap_lines.horizontal etc.
-    pub tool_visual_snap_lines_vertical: Property<Vec<SnapLine>>,
-    pub tool_visual_snap_lines_horizontal: Property<Vec<SnapLine>>,
-    pub tool_visual_snap_lines_points: Property<Vec<Vec<f64>>>,
-    pub tool_visual_event_blocker_active: Property<bool>,
-
     // used to make scroller containers open if manifest version changed
     pub scroller_manifest_version_listener: Property<bool>,
 }
@@ -58,80 +52,49 @@ impl Glass {
         let tool_behavior = model::read_app_state(|app_state| app_state.tool_behavior.clone());
         let deps = [tool_behavior.untyped()];
         let tool_visual = self.tool_visual.clone();
-        let (mouse_pos, world_transform) = model::read_app_state(|app_state| {
-            (
-                app_state.mouse_position.clone(),
-                app_state.glass_to_world_transform.clone(),
-            )
-        });
-        let tool_visual_snap_lines_vertical = self.tool_visual_snap_lines_vertical.clone();
-        let tool_visual_snap_lines_horizontal = self.tool_visual_snap_lines_horizontal.clone();
-        let tool_visual_snap_lines_points = self.tool_visual_snap_lines_points.clone();
-        let tool_visual_event_blocker_active = self.tool_visual_event_blocker_active.clone();
-        let ctxp = ctx.clone();
+        // let (mouse_pos, world_transform) = model::read_app_state(|app_state| {
+        //     (
+        //         app_state.mouse_position.clone(),
+        //         app_state.glass_to_world_transform.clone(),
+        //     )
+        // });
+        // let ctxp = ctx.clone();
         self.on_tool_change.replace_with(Property::computed(
             move || {
                 tool_visual.replace_with(if let Some(tool_behavior) = tool_behavior.get() {
-                    let tool_visual_state = tool_behavior.borrow_mut().get_visual();
-                    // NOTE: these can be removed when for loops support nested calls:
-                    // self.tool_visual.snap_lines.vertical/self.tool_visual.snap_lines.horizontal
-                    let tv = tool_visual_state.clone();
-                    let deps = [tv.untyped()];
-                    tool_visual_snap_lines_vertical.replace_with(Property::computed(
-                        move || tv.get().snap_lines.vertical,
-                        &deps,
-                    ));
-                    let tv = tool_visual_state.clone();
-                    tool_visual_snap_lines_horizontal.replace_with(Property::computed(
-                        move || tv.get().snap_lines.horizontal,
-                        &deps,
-                    ));
-                    let tv = tool_visual_state.clone();
-                    tool_visual_snap_lines_points.replace_with(Property::computed(
-                        move || tv.get().snap_lines.points,
-                        &deps,
-                    ));
-                    let tv = tool_visual_state.clone();
-                    tool_visual_event_blocker_active.replace_with(Property::computed(
-                        move || tv.get().event_blocker_active,
-                        &deps,
-                    ));
-                    tool_visual_state
+                    tool_behavior.borrow().get_visual()
                 } else {
-                    tool_visual_snap_lines_vertical.replace_with(Property::default());
-                    tool_visual_snap_lines_horizontal.replace_with(Property::default());
-                    tool_visual_snap_lines_points.replace_with(Property::default());
-                    tool_visual_event_blocker_active.replace_with(Property::new(true));
                     // Default ToolVisualziation behavior
-                    let deps = [mouse_pos.untyped(), world_transform.untyped()];
-                    let mouse_pos = mouse_pos.clone();
-                    let ctx = ctxp.clone();
-                    Property::computed(
-                        move || {
-                            let (hit, to_glass) = model::with_action_context(&ctx, |ac| {
-                                (
-                                    ac.raycast_glass(mouse_pos.get(), RaycastMode::Top, &[]),
-                                    ac.glass_transform(),
-                                )
-                            });
-                            ToolVisualizationState {
-                                rect_tool: Default::default(),
-                                outline: hit
-                                    .map(|h| {
-                                        PathOutline::from_bounds(
-                                            TransformAndBounds {
-                                                transform: to_glass.get(),
-                                                bounds: (1.0, 1.0),
-                                            } * h.transform_and_bounds().get(),
-                                        )
-                                    })
-                                    .unwrap_or_default(),
-                                snap_lines: Default::default(),
-                                event_blocker_active: true,
-                            }
-                        },
-                        &deps,
-                    )
+                    // let deps = [mouse_pos.untyped(), world_transform.untyped()];
+                    // let mouse_pos = mouse_pos.clone();
+                    // let ctx = ctxp.clone();
+                    // Property::computed(
+                    // move || {
+                    // let (hit, to_glass) = model::with_action_context(&ctx, |ac| {
+                    //     (
+                    //         ac.raycast_glass(mouse_pos.get(), RaycastMode::Top, &[]),
+                    //         ac.glass_transform(),
+                    //     )
+                    // });
+                    // ToolVisualizationState {
+                    //     rect_tool: Default::default(),
+                    // outline: hit
+                    //     .map(|h| {
+                    //         PathOutline::from_bounds(
+                    //             TransformAndBounds {
+                    //                 transform: to_glass.get(),
+                    //                 bounds: (1.0, 1.0),
+                    //             } * h.transform_and_bounds().get(),
+                    //         )
+                    //     })
+                    //     .unwrap_or_default(),
+                    // snap_lines: Default::default(),
+                    // event_blocker_active: true,
+                    //         }
+                    //     },
+                    //     &deps,
+                    // )
+                    Property::default()
                 });
                 true
             },
@@ -382,16 +345,18 @@ impl Action for SetEditingComponent {
 #[engine_import_path("pax_engine")]
 #[custom(Default)]
 pub struct ToolVisualizationState {
-    // rectangle drawing tool. Used during object creation
-    // and for multi-select
+    /// rectangle drawing tool. Used during object creation
+    /// and for multi-select
     pub rect_tool: RectTool,
-    // Highlight around an object when mouse is over
+    /// Highlight around an object when mouse is over
     pub outline: Vec<PathElement>,
-
+    /// snap lines
     pub snap_lines: SnapInfo,
-    // only dissabled when we need to interact with the nodes in the glass,
-    // for example when editing text
+    /// only dissabled when we need to interact with the nodes in the glass,
+    /// for example when editing text
     pub event_blocker_active: bool,
+    /// tool intent areas (not raycasted - drop behavior is handled separately by the tool itself)
+    pub intent_areas: Vec<IntentDef>,
 }
 
 impl Default for ToolVisualizationState {
@@ -401,6 +366,7 @@ impl Default for ToolVisualizationState {
             outline: Default::default(),
             snap_lines: Default::default(),
             event_blocker_active: true,
+            intent_areas: Vec::new(),
         }
     }
 }

@@ -22,6 +22,7 @@ use pax_runtime::api::NodeContext;
             slot(i)
         </Group>
     }
+    <Rectangle fill=TRANSPARENT/>
 
     @settings {
         @mount: on_mount
