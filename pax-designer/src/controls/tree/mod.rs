@@ -318,24 +318,6 @@ impl Tree {
                     .get_siblings(&to_node.id)
                     .and_then(|v| v.iter().position(|n| n == &to_node.id))
                     .map(|v| v + (!top_half) as usize)
-                    .map(|v| {
-                        let same_parent = Some(&to_node_container.id)
-                            == from_node
-                                .raw_node_interface
-                                .template_parent()
-                                .and_then(|n| n.global_id())
-                                .as_ref();
-                        let old_index = dt
-                            .get_orm_mut()
-                            .get_siblings(&from_node.id)
-                            .and_then(|v| v.iter().position(|n| n == &from_node.id))
-                            .unwrap_or_default();
-                        if same_parent && old_index < v {
-                            v.saturating_sub(1)
-                        } else {
-                            v
-                        }
-                    })
                     .unwrap_or_default();
                 TreeIndexPosition::At(pos)
             });

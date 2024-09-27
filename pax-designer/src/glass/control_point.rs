@@ -124,10 +124,8 @@ impl ToolBehavior for ControlPointTool {
             let deps = [snap_lines.untyped()];
             Property::computed(
                 move || ToolVisualizationState {
-                    rect_tool: Default::default(),
-                    outline: Default::default(),
                     snap_lines: snap_lines.get(),
-                    event_blocker_active: true,
+                    ..Default::default()
                 },
                 &deps,
             )

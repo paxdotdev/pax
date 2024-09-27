@@ -188,9 +188,8 @@ impl ToolBehavior for CreateComponentTool {
                         stroke: Color::rgba(0.into(), 0.into(), 255.into(), 200.into()),
                         fill: Color::rgba(0.into(), 0.into(), 255.into(), 30.into()),
                     },
-                    outline: Default::default(),
                     snap_lines: snap_lines.get(),
-                    event_blocker_active: true,
+                    ..Default::default()
                 }
             },
             &deps,

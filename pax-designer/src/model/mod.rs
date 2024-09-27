@@ -143,8 +143,6 @@ pub struct DerivedAppState {
     pub selection_state: Property<SelectionState>,
     /// The currently open containers, example: the parent group of the rectangle currently selected, and the scroller this group is inside
     pub open_containers: Property<Vec<UniqueTemplateNodeIdentifier>>,
-    /// the objects currently under the mouse that intents should be shown for
-    pub intent_objects: Property<Vec<NodeInterface>>,
 }
 
 const INITIALIZED: &'static str = "model should have been initialized";
@@ -202,19 +200,11 @@ impl Model {
             Self::derive_selection_state(selected_nodes.clone(), to_glass_transform.clone());
         let open_containers = Self::derive_open_container(ctx, app_state);
 
-        let intent_objects = Self::derive_intent_objects(
-            ctx,
-            app_state,
-            &selected_nodes,
-            &to_glass_transform.get(),
-            &open_containers,
-        );
         DerivedAppState {
             to_glass_transform,
             selection_state,
             open_containers,
             selected_nodes,
-            intent_objects,
         }
     }
 

@@ -4,15 +4,13 @@
 >
 
     // --------------- Snap line visuals ---------------- 
-    // TODO should be replaced by self.tool_visual.snap_lines.vertical once
-    // nested lookups in for loop sources work
-    for x in self.tool_visual_snap_lines_vertical {
+    for x in self.tool_visual.snap_lines.vertical {
         <Rectangle x={(x.line)px} width=1px height=100% fill={x.color}/>
     }
-    for y in self.tool_visual_snap_lines_horizontal {
+    for y in self.tool_visual.snap_lines.horizontal {
         <Rectangle y={(y.line)px} width=100% height=1px fill={y.color}/>
     }
-    for p in self.tool_visual_snap_lines_points {
+    for p in self.tool_visual.snap_lines.points {
         <Ellipse
             anchor_x=50%
             anchor_y=50%
@@ -30,9 +28,12 @@
     // Wireframe (on for all tools)
     // that shows control points etc. for the currently selected object
     <WireframeEditor/>
+
     // Intents for objects currently under the mouse, such as
     // stacker drop locations, etc.
-    <MouseOverIntents/>
+    for data in self.tool_visual.intent_areas {
+        <Intent data=data/>
+    }
 
     // Rectangle visual
     <Group>
@@ -51,7 +52,7 @@
     // This blocks interaction with nodes underneath, such as native buttons
     // displaying "hovered" state, etc. Needs to be disabled for for example
     // text interaction
-    if self.tool_visual_event_blocker_active {
+    if self.tool_visual.event_blocker_active {
         <EventBlocker id=backing_plate/>
     }
 </Group>
