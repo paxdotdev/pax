@@ -56,6 +56,15 @@ impl<W: Space> Vector2<W> {
             _panthom: PhantomData,
         }
     }
+
+    pub fn x() -> Self {
+        Self::new(1.0, 0.0)
+    }
+
+    pub fn y() -> Self {
+        Self::new(0.0, 1.0)
+    }
+
     pub fn normal(&self) -> Self {
         Self::new(-self.y, self.x)
     }

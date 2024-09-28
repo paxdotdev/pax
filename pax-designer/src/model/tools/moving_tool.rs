@@ -28,6 +28,8 @@ use crate::{
     },
 };
 
+use super::tool_plugins::drop_intent_handler::DropIntentHandler;
+
 pub struct MovingTool {
     hit: NodeInterface,
     pickup_point: Point2<Glass>,
@@ -36,6 +38,7 @@ pub struct MovingTool {
     vis: Property<ToolVisualizationState>,
     transaction: Option<Transaction>,
     node_hit_was_selected_before: bool,
+    drop_intent_handler: DropIntentHandler,
 }
 
 impl MovingTool {
@@ -52,38 +55,23 @@ impl MovingTool {
         }
 
         let intent_snapper = IntentSnapper::new_from_scene(&ctx, &[hit.global_id().unwrap()]);
+        let drop_intent_handler = DropIntentHandler::new(
+            &selected
+                .items
+                .iter()
+                .map(|n| n.raw_node_interface.clone())
+                .collect::<Vec<_>>(),
+        );
 
         // set visualization outline to always be the bounds of the parent of the moving node
-        let dt = borrow!(ctx.engine_context.designtime);
-        let manifest_ver = dt.get_orm().get_manifest_version();
-        let glass_transform = ctx.glass_transform();
-        let slot_child_index = hit.global_id().unwrap().clone();
         let snap_lines = intent_snapper.get_snap_lines_prop();
-        let deps = [
-            glass_transform.untyped(),
-            manifest_ver.untyped(),
-            snap_lines.untyped(),
-        ];
-        let ctx_e = ctx.engine_context.clone();
+        let intent_areas = drop_intent_handler.get_intent_areas_prop();
+        let deps = [snap_lines.untyped(), intent_areas.untyped()];
         let vis = Property::computed(
-            move || {
-                if let Some(slot_child_parent) = ctx_e
-                    .get_nodes_by_global_id(slot_child_index.clone())
-                    .into_iter()
-                    .next()
-                    .and_then(|n| n.render_parent())
-                {
-                    let slot_child_parent = GlassNode::new(&slot_child_parent, &glass_transform);
-                    let outline =
-                        PathOutline::from_bounds(slot_child_parent.transform_and_bounds.get());
-                    ToolVisualizationState {
-                        outline,
-                        snap_lines: snap_lines.get(),
-                        ..Default::default()
-                    }
-                } else {
-                    Default::default()
-                }
+            move || ToolVisualizationState {
+                snap_lines: snap_lines.get(),
+                intent_areas: intent_areas.get(),
+                ..Default::default()
             },
             &deps,
         );
@@ -97,6 +85,7 @@ impl MovingTool {
             vis,
             transaction: None,
             node_hit_was_selected_before: node_hit_was_selected,
+            drop_intent_handler,
         }
     }
 }
@@ -189,13 +178,15 @@ impl ToolBehavior for MovingTool {
             return ControlFlow::Break(());
         };
 
+        self.drop_intent_handler.update(ctx, point);
         ControlFlow::Continue(())
     }
 
     fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
         // move last little distance to pointer up position
         self.pointer_move(point, ctx);
-        if self.transaction.is_none() && self.node_hit_was_selected_before {
+        let moved = self.drop_intent_handler.handle_drop(ctx);
+        if self.transaction.is_none() && self.node_hit_was_selected_before && !moved {
             let _ = SelectNodes {
                 ids: &[self.hit.global_id().unwrap().get_template_node_id()],
                 mode: SelectMode::Dynamic,

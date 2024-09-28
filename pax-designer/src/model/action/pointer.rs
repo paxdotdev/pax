@@ -151,16 +151,8 @@ impl Action for MouseEntryPointAction<'_> {
                             .with_post_creation_hook(|ctx, post_creation_data| {
                                 for i in 1..=3 {
                                     let c = 210 - 60 * (i % 2);
-                                    let group_id = CreateComponent {
-                                        parent_id: &post_creation_data.uid,
-                                        parent_index: TreeIndexPosition::Top,
-                                        designer_node_type: DesignerNodeType::Group,
-                                        builder_extra_commands: None,
-                                        node_layout: NodeLayoutSettings::Fill,
-                                    }
-                                    .perform(ctx)?;
                                     CreateComponent {
-                                        parent_id: &group_id,
+                                        parent_id: &post_creation_data.uid,
                                         parent_index: TreeIndexPosition::Top,
                                         designer_node_type: DesignerNodeType::Rectangle,
                                         builder_extra_commands: Some(&|builder| {

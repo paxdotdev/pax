@@ -1,5 +1,6 @@
 use std::{any::Any, cell::RefCell, ops::ControlFlow, rc::Rc};
 
+use model::tools::tool_plugins::drop_intent_handler::DropIntentHandler;
 use pax_engine::api::{borrow, borrow_mut, Color};
 use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_engine::{
@@ -45,10 +46,7 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
         initial_node: GlassNodeSnapshot,
         pickup_point: Point2<Glass>,
         _before_move_undo_id: usize,
-        drop_intent_state: Vec<(
-            Transform2<NodeLocal, Glass>,
-            Box<dyn Fn(&[NodeInterface]) -> Box<dyn Action>>,
-        )>,
+        drop_intent_handler: DropIntentHandler,
         vis: Property<ToolVisualizationState>,
     }
 
@@ -109,64 +107,16 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                 pax_engine::log::error!("Error moving slot object: {:?}", e);
             }
 
-            if let Some(node) = ctx.raycast_glass(
-                point,
-                // TODO hit things like stackers even with no items in them?
-                RaycastMode::Top,
-                &[self.initial_node.raw_node_interface.clone()],
-            ) {
-                // TODO PERF if hit same object as before, skip re-running get_intents, and just do the rest
-                let node_type = ctx.designer_node_type(&node.global_id().unwrap());
-                let intents = node_type
-                    .designer_behavior_extensions()
-                    .get_intents(ctx, &node);
-                let to_glass_transform = ctx.glass_transform();
-                let node_transform = GlassNode::new(&node, &to_glass_transform)
-                    .transform_and_bounds
-                    .get();
-                self.vis.update(|tool_visual| {
-                    tool_visual.intent_areas = intents
-                        .intent_areas
-                        .iter()
-                        .find_map(|intent| {
-                            let transform = node_transform.transform * intent.draw_area;
-                            let hit_transform = node_transform.transform * intent.hit_area;
-                            hit_transform.contains_point(point).then(|| {
-                                IntentDef::new(
-                                    transform,
-                                    intent.fill.clone(),
-                                    intent.stroke.clone(),
-                                )
-                            })
-                        })
-                        .as_slice()
-                        .to_vec();
-                });
-                let drop_intent_state: Vec<_> = intents
-                    .intent_areas
-                    .into_iter()
-                    .map(|intent| {
-                        let transform = node_transform.transform * intent.hit_area;
-                        (transform, intent.intent_drop_behavior_factory)
-                    })
-                    .collect();
-                self.drop_intent_state = drop_intent_state;
-            }
+            self.drop_intent_handler.update(ctx, point);
             ControlFlow::Continue(())
         }
 
-        fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
-            log::debug!("hit pointer up");
-            for (area, action_factory) in &self.drop_intent_state {
-                if area.contains_point(point) {
-                    // TODO transaction?
-                    let action = action_factory(&[self.initial_node.raw_node_interface.clone()]);
-                    if let Err(e) = action.perform(ctx) {
-                        log::warn!("failed to perform intent movement: {e}");
-                    };
-                    break;
-                }
-            }
+        fn pointer_up(
+            &mut self,
+            _point: Point2<Glass>,
+            ctx: &mut ActionContext,
+        ) -> ControlFlow<()> {
+            self.drop_intent_handler.handle_drop(ctx);
             ControlFlow::Break(())
         }
 
@@ -196,12 +146,24 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                 let dt = borrow!(ctx.engine_context.designtime);
                 let before_move_undo_id = dt.get_orm().get_last_undo_id().unwrap_or(0);
 
+                let drop_intent_handler =
+                    DropIntentHandler::new(&[slot_child.raw_node_interface.clone()]);
+                let intent_areas = drop_intent_handler.get_intent_areas_prop();
+                let deps = [intent_areas.untyped()];
+
+                let vis = Property::computed(
+                    move || ToolVisualizationState {
+                        intent_areas: intent_areas.get(),
+                        ..Default::default()
+                    },
+                    &deps,
+                );
                 Rc::new(RefCell::new(SlotBehavior {
                     initial_node: (&slot_child).into(),
                     pickup_point: p,
                     _before_move_undo_id: before_move_undo_id,
-                    drop_intent_state: Default::default(),
-                    vis: Property::new(ToolVisualizationState::default()),
+                    vis,
+                    drop_intent_handler,
                 }))
             }),
             double_click_behavior: Rc::new(|_| ()),
