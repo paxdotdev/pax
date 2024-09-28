@@ -2,6 +2,7 @@ mod create_component_tool;
 mod moving_tool;
 mod multi_select_tool;
 mod paintbrush_tool;
+pub mod tool_plugins;
 mod zoom_to_fit_tool;
 
 pub use create_component_tool::*;

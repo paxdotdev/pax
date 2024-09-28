@@ -1586,7 +1586,7 @@ impl Interpolatable for Rotation {
 impl Rotation {
     #[allow(non_snake_case)]
     pub fn ZERO() -> Self {
-        Self::Radians(Numeric::F64(0.0))
+        Self::Degrees(Numeric::F64(0.0))
     }
 
     /// Returns a float proportional to `0deg : 0.0 :: 360deg :: 1.0`, in the domain 𝕗𝟞𝟜

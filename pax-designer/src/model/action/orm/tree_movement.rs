@@ -32,12 +32,24 @@ impl<S: Space> Action for MoveNode<'_, S> {
 
         // some move operations take place before the nodes exist, so don't error if this check
         // can't be made. could potentially check this using the ORM instead at some point
-        if let (Some(node), Some(parent)) = (node, new_parent) {
+        if let (Some(node), Some(parent)) = (&node, &new_parent) {
             if parent.is_descendant_of(&node) {
                 return Err(anyhow!("can't move parent into a child"));
             }
             if parent == node {
                 return Err(anyhow!("can't move node into itself"));
+            }
+        }
+
+        if let Some(parent) = new_parent {
+            let metadata = ctx
+                .designer_node_type(&parent.global_id().unwrap())
+                .metadata(borrow!(ctx.engine_context.designtime).get_orm());
+            if !metadata.is_container {
+                return Err(anyhow!(
+                    "can't move node into {} - not a container",
+                    metadata.name
+                ));
             }
         }
 
