@@ -50,7 +50,6 @@ use crate::math::coordinate_spaces::{self, Glass};
 mod selection_state;
 pub use selection_state::*;
 
-use self::action::designer_raycast_window;
 use self::action::pointer::MouseEntryPointAction;
 use self::action::pointer::Pointer;
 use self::action::UndoRedoStack;
@@ -251,6 +250,8 @@ impl Model {
         )
     }
 
+    /// TODO use this again to get glass location dynamically if needed
+    #[allow(unused)]
     fn derive_to_glass_transform(
         ctx: &NodeContext,
     ) -> Property<Property<Transform2<Window, Glass>>> {
@@ -330,41 +331,6 @@ impl Model {
                     let root = ctx_cp.get_userland_root_expanded_node();
                     vec![root.and_then(|n| n.global_id()).unwrap()]
                 }
-            },
-            &deps,
-        )
-    }
-
-    fn derive_intent_objects(
-        ctx: &NodeContext,
-        app_state: &AppState,
-        selected_nodes: &Property<Vec<(UniqueTemplateNodeIdentifier, NodeInterface)>>,
-        glass_transform: &Property<Transform2<Window, Glass>>,
-        open_containers: &Property<Vec<UniqueTemplateNodeIdentifier>>,
-    ) -> Property<Vec<NodeInterface>> {
-        let mouse_position = app_state.mouse_position.clone();
-        let glass_transform = glass_transform.clone();
-        let selected_nodes = selected_nodes.clone();
-        let open_containers = open_containers.clone();
-        let deps = [mouse_position.untyped()];
-        let ctx = ctx.clone();
-        Property::computed(
-            move || {
-                let window_point = glass_transform.get().inverse() * mouse_position.get();
-                // TODO make this hit things like stackers inside stackers, to show intents for them as well
-                designer_raycast_window(
-                    window_point,
-                    open_containers.clone(),
-                    &ctx,
-                    action::RaycastMode::Top,
-                    &selected_nodes
-                        .get()
-                        .into_iter()
-                        .map(|(_, n)| n)
-                        .collect::<Vec<_>>(),
-                )
-                .as_slice()
-                .to_vec()
             },
             &deps,
         )

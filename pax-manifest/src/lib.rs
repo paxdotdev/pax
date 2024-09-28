@@ -732,14 +732,7 @@ impl TreeIndexPosition {
         }
     }
 
-    pub fn new(index: usize, len: usize) -> Self {
-        // if index == 0 {
-        //     TreeIndexPosition::Top
-        // } else if index == len - 1 {
-        //     TreeIndexPosition::Bottom
-        // } else {
-        //     TreeIndexPosition::At(index)
-        // }
+    pub fn new(index: usize) -> Self {
         TreeIndexPosition::At(index)
     }
 }
@@ -1199,7 +1192,6 @@ impl ComponentTemplate {
             let mut node_location = NodeLocation::root(self.containing_component.clone());
             node_location.set_index(TreeIndexPosition::new(
                 self.root.iter().position(|x| *x == *id).unwrap(),
-                self.root.len(),
             ));
             return Some(node_location);
         }
@@ -1209,7 +1201,6 @@ impl ComponentTemplate {
                     NodeLocation::parent(self.containing_component.clone(), parent.clone());
                 node_location.set_index(TreeIndexPosition::new(
                     children.iter().position(|x| *x == *id).unwrap(),
-                    children.len(),
                 ));
                 return Some(node_location);
             }
