@@ -103,32 +103,33 @@ fn create_all_drop_between_intents(
     }
 
     // add first element
-    let (first_ind, mut slot_t_and_b) = slot_data
+    let (first_ind, slot_t_and_b_first) = slot_data
         .first()
         .expect("should at least be one slot because of check above");
-    if let Some(between_first) = intent_areas.first() {
-        let (_, _, v) = between_first.hit_area.decompose();
-        let edge = find_most_aligned_edge(&slot_t_and_b.corners(), &-v);
-        slot_t_and_b = segment_to_transform_and_bounds(edge.0, edge.1);
-    }
+    let side_dir = intent_areas
+        .first()
+        .map(|b| -b.draw_area.decompose().2)
+        .unwrap_or(Vector2::y());
+    let edge = find_most_aligned_edge(&slot_t_and_b_first.corners(), &side_dir);
+    let first_segment_area = segment_to_transform_and_bounds(edge.0, edge.1);
     intent_areas.insert(
         0,
-        create_drop_between_intent(stacker_id.clone(), slot_t_and_b, *first_ind),
+        create_drop_between_intent(stacker_id.clone(), first_segment_area, *first_ind),
     );
 
     // add last element
-    let (last_ind, mut slot_t_and_b) = slot_data
+    let (last_ind, slot_t_and_b_last) = slot_data
         .last()
         .expect("should at least be one slot because of check above");
-    if let Some(between_last) = intent_areas.last() {
-        let (_, _, v) = between_last.hit_area.decompose();
-        let edge = find_most_aligned_edge(&slot_t_and_b.corners(), &v);
-        // TODO this changes height, make it consistent
-        slot_t_and_b = segment_to_transform_and_bounds(edge.0, edge.1);
-    }
+    let side_dir = intent_areas
+        .last()
+        .map(|b| b.draw_area.decompose().2)
+        .unwrap_or(-Vector2::y()); // this doesn't work for stacker if horizontal AND only has one element
+    let edge = find_most_aligned_edge(&slot_t_and_b_last.corners(), &side_dir);
+    let last_segment_area = segment_to_transform_and_bounds(edge.0, edge.1);
     intent_areas.push(create_drop_between_intent(
         stacker_id.clone(),
-        slot_t_and_b,
+        last_segment_area,
         *last_ind + 1,
     ));
 }
@@ -144,6 +145,21 @@ fn create_drop_between_intent(
         nodes_to_move: Vec<NodeInterface>,
     }
 
+    impl Action for StackerDropBetweenAction {
+        fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
+            for node in self.nodes_to_move.iter().rev() {
+                MoveNode {
+                    node_id: &node.global_id().unwrap(),
+                    new_parent_uid: &self.parent_stacker,
+                    index: self.index.clone(),
+                    node_layout: NodeLayoutSettings::<NodeLocal>::Fill,
+                }
+                .perform(ctx)?;
+            }
+            Ok(())
+        }
+    }
+
     const INTENT_HEIGHT: f64 = 40.0;
     let (width, height) = draw_area.bounds;
     let hit_area = draw_area.transform
@@ -153,20 +169,6 @@ fn create_drop_between_intent(
             INTENT_HEIGHT,
         ))
         * Transform2::<NodeLocal>::translate(Vector2::new(-0.5, -0.5));
-    impl Action for StackerDropBetweenAction {
-        fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
-            // TODO handle multiple node moving by grouping them before moving into stacker.
-            let node = self.nodes_to_move.first().unwrap();
-            MoveNode {
-                node_id: &node.global_id().unwrap(),
-                new_parent_uid: &self.parent_stacker,
-                index: self.index.clone(),
-                node_layout: NodeLayoutSettings::<NodeLocal>::Fill,
-            }
-            .perform(ctx)?;
-            Ok(())
-        }
-    }
 
     IntentDefinition {
         hit_area,
@@ -210,16 +212,6 @@ fn create_drop_into_intent(
         nodes_to_move: Vec<NodeInterface>,
     }
 
-    const DROP_INTO_PADDING: f64 = 20.0;
-    let (width, height) = draw_area.bounds;
-    let hit_area = draw_area.transform
-        * Transform2::<NodeLocal>::translate(Vector2::new(width / 2.0, height / 2.0))
-        * Transform2::<NodeLocal>::scale_sep(Vector2::new(
-            width - 2.0 * DROP_INTO_PADDING,
-            height - 2.0 * DROP_INTO_PADDING,
-        ))
-        * Transform2::<NodeLocal>::translate(Vector2::new(-0.5, -0.5));
-
     impl Action for StackerDropIntoAction {
         fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
@@ -248,7 +240,7 @@ fn create_drop_into_intent(
             };
 
             // TODO how to handle slot containers? and scroller for that matter?
-            let move_into = if into_metadata.is_container && !into_metadata.is_slot_container {
+            let move_into = if into_metadata.is_container {
                 moving_into.clone()
             } else {
                 let group_id = GroupNodes {
@@ -281,6 +273,16 @@ fn create_drop_into_intent(
         }
     }
 
+    const DROP_INTO_PADDING: f64 = 20.0;
+    let (width, height) = draw_area.bounds;
+    let hit_area = draw_area.transform
+        * Transform2::<NodeLocal>::translate(Vector2::new(width / 2.0, height / 2.0))
+        * Transform2::<NodeLocal>::scale_sep(Vector2::new(
+            width - 2.0 * DROP_INTO_PADDING,
+            height - 2.0 * DROP_INTO_PADDING,
+        ))
+        * Transform2::<NodeLocal>::translate(Vector2::new(-0.5, -0.5));
+
     IntentDefinition {
         hit_area,
         draw_area: draw_area.as_transform(),
@@ -307,8 +309,8 @@ fn estimate_transform_between(
     let corners_over = t_and_b_over.corners();
 
     // Calculate centroids
-    let centroid_under = calculate_centroid(&corners_under);
-    let centroid_over = calculate_centroid(&corners_over);
+    let centroid_under = centroid(&corners_under);
+    let centroid_over = centroid(&corners_over);
 
     // Vector from under to over centroid
     let centroid_vector = centroid_over - centroid_under;
@@ -345,7 +347,7 @@ fn segment_to_transform_and_bounds(
     }
 }
 
-fn calculate_centroid(corners: &[Point2<NodeLocal>; 4]) -> Point2<NodeLocal> {
+fn centroid(corners: &[Point2<NodeLocal>; 4]) -> Point2<NodeLocal> {
     (corners
         .iter()
         .map(|v| v.to_vector())
@@ -357,7 +359,7 @@ fn calculate_centroid(corners: &[Point2<NodeLocal>; 4]) -> Point2<NodeLocal> {
 
 fn find_most_aligned_edge(
     corners: &[Point2<NodeLocal>; 4],
-    reference: &Vector2<NodeLocal>,
+    direction: &Vector2<NodeLocal>,
 ) -> (Point2<NodeLocal>, Vector2<NodeLocal>) {
     let edges = [
         (corners[0], corners[3] - corners[0]),
@@ -368,7 +370,7 @@ fn find_most_aligned_edge(
     edges
         .iter()
         .map(|(start, dir)| {
-            let similarity = reference.cross(dir.normalize());
+            let similarity = direction.cross(dir.normalize());
             ((*start, *dir), similarity)
         })
         .max_by(|(_, a), (_, b)| a.total_cmp(&b))
