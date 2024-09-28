@@ -219,8 +219,11 @@ fn create_drop_into_intent(
             let stacker_template_child_ids = orm
                 .get_node_children(self.parent_stacker.clone())
                 .map_err(|e| anyhow!("failed to get children {e}"))?;
-            let moving_into =
-                &stacker_template_child_ids[self.index.get_index(stacker_template_child_ids.len())];
+            let Some(moving_into) = stacker_template_child_ids
+                .get(self.index.get_index(stacker_template_child_ids.len()))
+            else {
+                return Err(anyhow!("moving into stacker cell that didn't exist"));
+            };
 
             let node_snapshots: Vec<GlassNodeSnapshot> = self
                 .nodes_to_move
