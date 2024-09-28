@@ -52,48 +52,11 @@ impl Glass {
         let tool_behavior = model::read_app_state(|app_state| app_state.tool_behavior.clone());
         let deps = [tool_behavior.untyped()];
         let tool_visual = self.tool_visual.clone();
-        // let (mouse_pos, world_transform) = model::read_app_state(|app_state| {
-        //     (
-        //         app_state.mouse_position.clone(),
-        //         app_state.glass_to_world_transform.clone(),
-        //     )
-        // });
-        // let ctxp = ctx.clone();
         self.on_tool_change.replace_with(Property::computed(
             move || {
                 tool_visual.replace_with(if let Some(tool_behavior) = tool_behavior.get() {
                     tool_behavior.borrow().get_visual()
                 } else {
-                    // Default ToolVisualziation behavior
-                    // let deps = [mouse_pos.untyped(), world_transform.untyped()];
-                    // let mouse_pos = mouse_pos.clone();
-                    // let ctx = ctxp.clone();
-                    // Property::computed(
-                    // move || {
-                    // let (hit, to_glass) = model::with_action_context(&ctx, |ac| {
-                    //     (
-                    //         ac.raycast_glass(mouse_pos.get(), RaycastMode::Top, &[]),
-                    //         ac.glass_transform(),
-                    //     )
-                    // });
-                    // ToolVisualizationState {
-                    //     rect_tool: Default::default(),
-                    // outline: hit
-                    //     .map(|h| {
-                    //         PathOutline::from_bounds(
-                    //             TransformAndBounds {
-                    //                 transform: to_glass.get(),
-                    //                 bounds: (1.0, 1.0),
-                    //             } * h.transform_and_bounds().get(),
-                    //         )
-                    //     })
-                    //     .unwrap_or_default(),
-                    // snap_lines: Default::default(),
-                    // event_blocker_active: true,
-                    //         }
-                    //     },
-                    //     &deps,
-                    // )
                     Property::default()
                 });
                 true
