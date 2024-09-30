@@ -1,4 +1,4 @@
-use pax_engine::{log, math::Point2, NodeInterface, Property};
+use pax_engine::{api::borrow, log, math::Point2, NodeInterface, Property};
 
 use crate::{
     glass::intent::IntentDef,
@@ -41,7 +41,9 @@ impl DropIntentHandler {
         };
         // TODO PERF if hit same object as before, skip re-running get_intents, and just do the rest again (cached)
         let node_type = ctx.designer_node_type(&node.global_id().unwrap());
-        let intents = node_type
+        let node_type_metadata =
+            node_type.metadata(borrow!(ctx.engine_context.designtime).get_orm());
+        let intents = node_type_metadata
             .designer_behavior_extensions()
             .get_intents(ctx, &node);
         let to_glass_transform = ctx.glass_transform();

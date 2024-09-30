@@ -5,11 +5,11 @@ use pax_engine::{
 };
 
 use crate::model::action::{Action, ActionContext};
-pub mod designer_stacker_behavior;
+pub mod designer_slot_component_behavior;
 
 /// This trait could at some point be exposed to users, allowing to override behavior of objects in the designer.
 /// Note that some designer specific things are used here that would need to be replaced/thought about (ActionContext, etc)
-pub trait DesignerComponentBehaviorExtensions {
+pub trait DesignerBehaviorExtensions {
     fn get_intents(&self, _ctx: &mut ActionContext, _node: &NodeInterface) -> IntentState {
         IntentState::default()
     }

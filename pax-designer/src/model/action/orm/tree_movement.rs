@@ -14,7 +14,7 @@ pub struct MoveNode<'a, S = Generic> {
     pub node_id: &'a UniqueTemplateNodeIdentifier,
     pub new_parent_uid: &'a UniqueTemplateNodeIdentifier,
     pub index: TreeIndexPosition,
-    pub node_layout: NodeLayoutSettings<'a, S>,
+    pub new_node_layout: Option<NodeLayoutSettings<'a, S>>,
 }
 
 impl<S: Space> Action for MoveNode<'_, S> {
@@ -60,11 +60,14 @@ impl<S: Space> Action for MoveNode<'_, S> {
             };
         }
 
-        SetNodeLayout {
-            id: self.node_id,
-            node_layout: &self.node_layout,
+        if let Some(node_layout) = &self.new_node_layout {
+            SetNodeLayout {
+                id: self.node_id,
+                node_layout,
+            }
+            .perform(ctx)?;
         }
-        .perform(ctx)?;
+
         let parent_location = ctx.location(self.new_parent_uid, &self.index);
         {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);

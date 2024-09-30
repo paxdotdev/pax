@@ -45,9 +45,9 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
     struct SlotBehavior {
         initial_node: GlassNodeSnapshot,
         pickup_point: Point2<Glass>,
-        _before_move_undo_id: usize,
         drop_intent_handler: DropIntentHandler,
         vis: Property<ToolVisualizationState>,
+        transaction: model::action::Transaction,
     }
 
     let to_glass_transform =
@@ -90,22 +90,23 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
             };
 
             let glass_curr_node = GlassNode::new(&curr_node, &ctx.glass_transform());
-            if let Err(e) = (SetNodeLayout {
-                id: &self.initial_node.id,
-                node_layout: &NodeLayoutSettings::KeepScreenBounds {
-                    node_transform_and_bounds: &(move_translation
-                        * self.initial_node.transform_and_bounds),
-                    parent_transform_and_bounds: &glass_curr_node.parent_transform_and_bounds.get(),
-                    node_decomposition_config: &self
-                        .initial_node
-                        .layout_properties
-                        .into_decomposition_config(),
-                },
-            }
-            .perform(ctx))
-            {
-                pax_engine::log::error!("Error moving slot object: {:?}", e);
-            }
+            let _ = self.transaction.run(|| {
+                SetNodeLayout {
+                    id: &self.initial_node.id,
+                    node_layout: &NodeLayoutSettings::KeepScreenBounds {
+                        node_transform_and_bounds: &(move_translation
+                            * self.initial_node.transform_and_bounds),
+                        parent_transform_and_bounds: &glass_curr_node
+                            .parent_transform_and_bounds
+                            .get(),
+                        node_decomposition_config: &self
+                            .initial_node
+                            .layout_properties
+                            .into_decomposition_config(),
+                    },
+                }
+                .perform(ctx)
+            });
 
             self.drop_intent_handler.update(ctx, point);
             ControlFlow::Continue(())
@@ -116,7 +117,12 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
             _point: Point2<Glass>,
             ctx: &mut ActionContext,
         ) -> ControlFlow<()> {
-            self.drop_intent_handler.handle_drop(ctx);
+            if let Err(e) = self.transaction.run(|| {
+                self.drop_intent_handler.handle_drop(ctx);
+                Ok(())
+            }) {
+                log::warn!("failed slot dot movement: {e}");
+            };
             ControlFlow::Break(())
         }
 
@@ -143,13 +149,11 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
     fn slot_dot_control_factory(slot_child: GlassNode) -> ControlPointToolFactory {
         ControlPointToolFactory {
             tool_factory: Rc::new(move |ctx, p| {
-                let dt = borrow!(ctx.engine_context.designtime);
-                let before_move_undo_id = dt.get_orm().get_last_undo_id().unwrap_or(0);
-
                 let drop_intent_handler =
                     DropIntentHandler::new(&[slot_child.raw_node_interface.clone()]);
                 let intent_areas = drop_intent_handler.get_intent_areas_prop();
                 let deps = [intent_areas.untyped()];
+                let transaction = ctx.transaction("slot dot move");
 
                 let vis = Property::computed(
                     move || ToolVisualizationState {
@@ -161,9 +165,9 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                 Rc::new(RefCell::new(SlotBehavior {
                     initial_node: (&slot_child).into(),
                     pickup_point: p,
-                    _before_move_undo_id: before_move_undo_id,
                     vis,
                     drop_intent_handler,
+                    transaction,
                 }))
             }),
             double_click_behavior: Rc::new(|_| ()),
