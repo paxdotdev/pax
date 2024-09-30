@@ -32,13 +32,16 @@ pub struct StackerDesignerBehavior;
 // implemented directly on stacker instead of on this type (would also allow for
 // different behaviors depending on stacker props)
 impl DesignerComponentBehaviorExtensions for StackerDesignerBehavior {
-    fn get_intents(&self, ctx: &mut ActionContext, node: &NodeInterface) -> IntentState {
+    fn get_intents(&self, ctx: &mut ActionContext, stacker_node: &NodeInterface) -> IntentState {
         // TODO move this logic to make it available in MovingTool as well
-        let mut search_space = vec![node.clone()];
+        let mut search_space = vec![stacker_node.clone()];
         let mut slot_nodes_sorted = vec![];
-        let curr_node_t_and_b = node.transform_and_bounds().get();
-        let stacker_id = node.global_id().unwrap();
+        let curr_node_t_and_b = stacker_node.transform_and_bounds().get();
+        let stacker_id = stacker_node.global_id().unwrap();
         while let Some(node) = search_space.pop() {
+            if node.containing_component() != Some(stacker_node.clone()) && stacker_node != &node {
+                continue;
+            }
             search_space.extend(node.children());
             let node_type = ctx.designer_node_type(&node.global_id().unwrap());
             if matches!(node_type, DesignerNodeType::Slot) {
