@@ -42,15 +42,22 @@ impl<S: Space> Action for MoveNode<'_, S> {
         }
 
         if let Some(parent) = new_parent {
-            let metadata = ctx
-                .designer_node_type(&parent.global_id().unwrap())
-                .metadata(borrow!(ctx.engine_context.designtime).get_orm());
-            if !metadata.is_container {
-                return Err(anyhow!(
-                    "can't move node into {} - not a container",
-                    metadata.name
-                ));
-            }
+            if Some(&parent)
+                != ctx
+                    .engine_context
+                    .get_userland_root_expanded_node()
+                    .as_ref()
+            {
+                let metadata = ctx
+                    .designer_node_type(&parent.global_id().unwrap())
+                    .metadata(borrow!(ctx.engine_context.designtime).get_orm());
+                if !metadata.is_container {
+                    return Err(anyhow!(
+                        "can't move node into {} - not a container",
+                        metadata.name
+                    ));
+                }
+            };
         }
 
         SetNodeLayout {
