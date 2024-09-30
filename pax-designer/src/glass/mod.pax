@@ -62,7 +62,6 @@
 @settings {
     @mount: on_mount,
     @tick: on_pre_render,
-    @double_click: handle_double_click
     @context_menu: self.context_menu
 
     #project {

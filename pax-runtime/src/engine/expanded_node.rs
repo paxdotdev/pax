@@ -264,6 +264,7 @@ impl ExpandedNode {
         _context: &Rc<RuntimeContext>,
     ) {
         *borrow_mut!(self.instance_node) = Rc::clone(&template);
+        log::debug!("recreate");
         (&template
             .base()
             .instance_prototypical_common_properties_factory)(
@@ -634,6 +635,7 @@ impl ExpandedNode {
             runtime_context: ctx.clone(),
             platform: globals.platform.clone(),
             os: globals.os.clone(),
+            get_ellapsed_millis: globals.get_ellapsed_millis,
             slot_children_count,
             node_transform_and_bounds: self.transform_and_bounds.get(),
             #[cfg(feature = "designtime")]

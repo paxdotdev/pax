@@ -1,4 +1,7 @@
-use std::rc::{Rc, Weak};
+use std::{
+    rc::{Rc, Weak},
+    time::Instant,
+};
 
 use_RefCell!();
 use crate::{
@@ -42,6 +45,7 @@ pub struct NodeContext {
 
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
+    pub(crate) get_ellapsed_millis: Rc<dyn Fn() -> u128>,
 }
 
 impl NodeContext {
@@ -55,6 +59,11 @@ impl NodeContext {
 
     pub fn local_point(&self, p: Point2<Window>) -> Point2<NodeLocal> {
         self.node_transform_and_bounds.as_transform().inverse() * p
+    }
+
+    /// Get std::time::Instant::now()
+    pub fn ellapsed_time_millis(&self) -> u128 {
+        (self.get_ellapsed_millis)()
     }
 
     pub fn navigate_to(&self, url: &str, target: NavigationTarget) {
