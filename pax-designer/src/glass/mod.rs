@@ -1,3 +1,6 @@
+use std::rc::Rc;
+use std::time::Instant;
+
 use anyhow::anyhow;
 use pax_engine::api::Fill;
 use pax_engine::api::*;
@@ -45,6 +48,8 @@ pub struct Glass {
     pub on_tool_change: Property<bool>,
     // used to make scroller containers open if manifest version changed
     pub scroller_manifest_version_listener: Property<bool>,
+    // TODO this needs to track real time, not frame count, eventually
+    pub time_last_click: Property<u64>,
 }
 
 impl Glass {
@@ -114,11 +119,9 @@ impl Glass {
         args.prevent_default();
     }
 
-    pub fn handle_double_click(&mut self, ctx: &NodeContext, event: Event<DoubleClick>) {
-        // if a ControlPoint was double clicked, don't handle glass double click
-        if event.cancelled() {
-            return;
-        }
+    // NOTE: This is NOT triggered by engine - we are handling our own double click behavior
+    // by checking time in self.handle_mouse_down
+    pub fn handle_double_click(&mut self, ctx: &NodeContext, event: &Event<MouseDown>) {
         // TODO move to another file (need to figure out structure)
         let info = model::read_app_state(|app_state| {
             let selected_nodes = app_state.selected_template_node_ids.get();
@@ -193,6 +196,13 @@ impl Glass {
     }
 
     pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: Event<MouseDown>) {
+        let last_time = self.time_last_click.get();
+        let curr_time = ctx.ellapsed_time_millis() as u64;
+        if (curr_time - last_time) < 500 {
+            self.handle_double_click(ctx, &args);
+        }
+        self.time_last_click.set(curr_time);
+
         let prevent_default = || args.prevent_default();
         model::perform_action(
             &crate::model::action::pointer::MouseEntryPointAction {

@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Display;
 use std::ops::{Add, Deref, Mul, Neg, Sub};
+use std::time::Instant;
 
 use crate::math::Space;
 use kurbo::BezPath;
@@ -915,6 +916,8 @@ impl<I: Interpolatable> Interpolatable for Vec<I> {
             .collect()
     }
 }
+
+impl Interpolatable for Instant {}
 
 impl Interpolatable for char {}
 
