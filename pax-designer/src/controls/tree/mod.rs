@@ -1,6 +1,7 @@
 use anyhow::Result;
 use pax_designtime::orm::PaxManifestORM;
 use pax_engine::api::*;
+use pax_engine::math::Generic;
 use pax_engine::node_layout::LayoutProperties;
 use pax_engine::*;
 use pax_manifest::{
@@ -321,39 +322,33 @@ impl Tree {
                     .unwrap_or_default();
                 TreeIndexPosition::At(pos)
             });
-            let keep_bounds = NodeLayoutSettings::KeepScreenBounds {
-                node_transform_and_bounds: &from_node.transform_and_bounds.get(),
-                node_decomposition_config: &from_node.layout_properties.into_decomposition_config(),
-                parent_transform_and_bounds: &to_node_container.transform_and_bounds.get(),
-            };
-            let node_layout = if to_node_container
-                .get_node_type(&ctx.engine_context)
-                .metadata(&borrow!(ctx.engine_context.designtime).get_orm())
-                .is_slot_container
-            {
-                NodeLayoutSettings::Fill::<Glass>
-            } else {
-                // TODO decide how to handle tree movement:
-                // - keeping screen bounds most intuitive (is what Figma does)
-                //   but this makes objects that have expressions be immovable
-                // - keep all properties (makes everything with exprs movable)
-                // - keep some properties (still would complain if x/y is expr):
-                // ```
-                // NodeLayoutSettings::WithProperties(LayoutProperties {
-                //     x: Some(Size::ZERO()),
-                //     y: Some(Size::ZERO()),
-                //     ..from_node.layout_properties
-                // })
-                // ```
-                keep_bounds
-            };
+
+            // ----------------------------------------------
+            // This is the old code for new_node_layout, remove if keeping
+            // properties is working nicely.
+            // ----------------------------------------------
+            // let keep_bounds = NodeLayoutSettings::KeepScreenBounds {
+            //     node_transform_and_bounds: &from_node.transform_and_bounds.get(),
+            //     node_decomposition_config: &from_node.layout_properties.into_decomposition_config(),
+            //     parent_transform_and_bounds: &to_node_container.transform_and_bounds.get(),
+            // };
+            // let node_layout = if to_node_container
+            //     .get_node_type(&ctx.engine_context)
+            //     .metadata(&borrow!(ctx.engine_context.designtime).get_orm())
+            //     .is_slot_container
+            // {
+            //     NodeLayoutSettings::Fill::<Glass>
+            // } else {
+            //     keep_bounds
+            // };
+            // ---------------------------------------------
             let t = ctx.transaction("moving object in tree");
             t.run(|| {
-                MoveNode {
+                MoveNode::<Generic> {
                     node_id: &from_node.id,
                     new_parent_uid: &to_node_container.id,
                     index,
-                    node_layout,
+                    new_node_layout: None,
                 }
                 .perform(ctx)
             })

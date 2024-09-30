@@ -24,22 +24,26 @@ use crate::{
     },
 };
 
-use super::{DesignerComponentBehaviorExtensions, IntentState};
+use super::{DesignerBehaviorExtensions, IntentState};
 
-pub struct StackerDesignerBehavior;
+pub struct SlotComponentDesignerBehavior {
+    pub edge_eval_vertical: Box<dyn Fn(&NodeInterface) -> bool>,
+}
 
 // Designer Behavior Extensions could be moved to userland at some point and be
-// implemented directly on stacker instead of on this type (would also allow for
-// different behaviors depending on stacker props)
-impl DesignerComponentBehaviorExtensions for StackerDesignerBehavior {
-    fn get_intents(&self, ctx: &mut ActionContext, stacker_node: &NodeInterface) -> IntentState {
+// implemented directly on component instead of on this type (would also allow for
+// different behaviors depending on component props)
+impl DesignerBehaviorExtensions for SlotComponentDesignerBehavior {
+    fn get_intents(&self, ctx: &mut ActionContext, component_node: &NodeInterface) -> IntentState {
         // TODO move this logic to make it available in MovingTool as well
-        let mut search_space = vec![stacker_node.clone()];
+        let mut search_space = vec![component_node.clone()];
         let mut slot_nodes_sorted = vec![];
-        let curr_node_t_and_b = stacker_node.transform_and_bounds().get();
-        let stacker_id = stacker_node.global_id().unwrap();
+        let curr_node_t_and_b = component_node.transform_and_bounds().get();
+        let component_id = component_node.global_id().unwrap();
         while let Some(node) = search_space.pop() {
-            if node.containing_component() != Some(stacker_node.clone()) && stacker_node != &node {
+            if node.containing_component() != Some(component_node.clone())
+                && component_node != &node
+            {
                 continue;
             }
             search_space.extend(node.children());
@@ -52,10 +56,10 @@ impl DesignerComponentBehaviorExtensions for StackerDesignerBehavior {
         if slot_nodes_sorted.is_empty() {
             return IntentState {
                 intent_areas: vec![create_drop_into_intent(
-                    stacker_id,
+                    component_id,
                     TransformAndBounds {
                         transform: Transform2::identity(),
-                        bounds: (1.0, 1.0),
+                        bounds: curr_node_t_and_b.bounds,
                     },
                     0,
                 )],
@@ -82,8 +86,12 @@ impl DesignerComponentBehaviorExtensions for StackerDesignerBehavior {
             .collect();
 
         let mut intent_areas = vec![];
-        create_all_drop_between_intents(&mut intent_areas, &slot_data, &stacker_id);
-        create_all_drop_into_intents(&mut intent_areas, &slot_data, &stacker_id);
+        let default_dir = match (self.edge_eval_vertical)(component_node) {
+            true => Vector2::y(),
+            false => Vector2::x(),
+        };
+        create_all_drop_between_intents(&mut intent_areas, &slot_data, &component_id, default_dir);
+        create_all_drop_into_intents(&mut intent_areas, &slot_data, &component_id);
 
         IntentState { intent_areas }
     }
@@ -92,14 +100,15 @@ impl DesignerComponentBehaviorExtensions for StackerDesignerBehavior {
 fn create_all_drop_between_intents(
     intent_areas: &mut Vec<IntentDefinition>,
     slot_data: &[(usize, TransformAndBounds<NodeLocal>)],
-    stacker_id: &UniqueTemplateNodeIdentifier,
+    component_id: &UniqueTemplateNodeIdentifier,
+    default_dir: Vector2<NodeLocal>,
 ) {
     for slots in slot_data.windows(2) {
         let (_, t_and_b_over) = slots[0];
         let (index_under, t_and_b_under) = slots[1];
         let line_transform = estimate_transform_between(t_and_b_under, t_and_b_over);
         intent_areas.push(create_drop_between_intent(
-            stacker_id.clone(),
+            component_id.clone(),
             line_transform,
             index_under,
         ));
@@ -112,12 +121,12 @@ fn create_all_drop_between_intents(
     let side_dir = intent_areas
         .first()
         .map(|b| -b.draw_area.decompose().2)
-        .unwrap_or(-Vector2::y());
+        .unwrap_or(-default_dir);
     let edge = find_most_aligned_edge(&slot_t_and_b_first.corners(), &side_dir);
     let first_segment_area = segment_to_transform_and_bounds(edge.0, edge.1);
     intent_areas.insert(
         0,
-        create_drop_between_intent(stacker_id.clone(), first_segment_area, *first_ind),
+        create_drop_between_intent(component_id.clone(), first_segment_area, *first_ind),
     );
 
     // add last element
@@ -127,42 +136,42 @@ fn create_all_drop_between_intents(
     let side_dir = intent_areas
         .last()
         .map(|b| b.draw_area.decompose().2)
-        .unwrap_or(Vector2::y()); // this doesn't work for stacker if horizontal AND only has one element
+        .unwrap_or(default_dir);
     let edge = find_most_aligned_edge(&slot_t_and_b_last.corners(), &side_dir);
     let last_segment_area = segment_to_transform_and_bounds(edge.0, edge.1);
     intent_areas.push(create_drop_between_intent(
-        stacker_id.clone(),
+        component_id.clone(),
         last_segment_area,
         *last_ind + 1,
     ));
 }
 
+struct SlotComponentDropBetweenAction {
+    parent_component: UniqueTemplateNodeIdentifier,
+    index: TreeIndexPosition,
+    nodes_to_move: Vec<NodeInterface>,
+}
+
+impl Action for SlotComponentDropBetweenAction {
+    fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
+        for node in self.nodes_to_move.iter().rev() {
+            MoveNode {
+                node_id: &node.global_id().unwrap(),
+                new_parent_uid: &self.parent_component,
+                index: self.index.clone(),
+                new_node_layout: Some(NodeLayoutSettings::<NodeLocal>::Fill),
+            }
+            .perform(ctx)?;
+        }
+        Ok(())
+    }
+}
+
 fn create_drop_between_intent(
-    parent_stacker: UniqueTemplateNodeIdentifier,
+    parent_component: UniqueTemplateNodeIdentifier,
     draw_area: TransformAndBounds<NodeLocal>,
     index: usize,
 ) -> IntentDefinition {
-    struct StackerDropBetweenAction {
-        parent_stacker: UniqueTemplateNodeIdentifier,
-        index: TreeIndexPosition,
-        nodes_to_move: Vec<NodeInterface>,
-    }
-
-    impl Action for StackerDropBetweenAction {
-        fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
-            for node in self.nodes_to_move.iter().rev() {
-                MoveNode {
-                    node_id: &node.global_id().unwrap(),
-                    new_parent_uid: &self.parent_stacker,
-                    index: self.index.clone(),
-                    node_layout: NodeLayoutSettings::<NodeLocal>::Fill,
-                }
-                .perform(ctx)?;
-            }
-            Ok(())
-        }
-    }
-
     const INTENT_HEIGHT: f64 = 40.0;
     let (width, height) = draw_area.bounds;
     let hit_area = draw_area.transform
@@ -180,9 +189,9 @@ fn create_drop_between_intent(
         stroke: None,
         intent_drop_behavior_factory: Box::new(move |selected_nodes| {
             Box::new({
-                StackerDropBetweenAction {
+                SlotComponentDropBetweenAction {
                     index: TreeIndexPosition::At(index),
-                    parent_stacker: parent_stacker.to_owned(),
+                    parent_component: parent_component.to_owned(),
                     nodes_to_move: selected_nodes.to_owned(),
                 }
             })
@@ -193,11 +202,11 @@ fn create_drop_between_intent(
 fn create_all_drop_into_intents(
     intent_areas: &mut Vec<IntentDefinition>,
     slot_data: &[(usize, TransformAndBounds<NodeLocal>)],
-    stacker_id: &UniqueTemplateNodeIdentifier,
+    component_id: &UniqueTemplateNodeIdentifier,
 ) {
     for (index, t_and_b_into) in slot_data {
         intent_areas.push(create_drop_into_intent(
-            stacker_id.clone(),
+            component_id.clone(),
             *t_and_b_into,
             *index,
         ));
@@ -205,28 +214,46 @@ fn create_all_drop_into_intents(
 }
 
 fn create_drop_into_intent(
-    parent_stacker: UniqueTemplateNodeIdentifier,
+    parent_component: UniqueTemplateNodeIdentifier,
     draw_area: TransformAndBounds<NodeLocal>,
     index: usize,
 ) -> IntentDefinition {
-    struct StackerDropIntoAction {
-        parent_stacker: UniqueTemplateNodeIdentifier,
+    struct SlotComponentDropIntoAction {
+        parent_component: UniqueTemplateNodeIdentifier,
         index: TreeIndexPosition,
         nodes_to_move: Vec<NodeInterface>,
     }
 
-    impl Action for StackerDropIntoAction {
+    impl Action for SlotComponentDropIntoAction {
         fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             let orm = dt.get_orm_mut();
-            let stacker_template_child_ids = orm
-                .get_node_children(self.parent_stacker.clone())
+            let component_template_child_ids = orm
+                .get_node_children(self.parent_component.clone())
                 .map_err(|e| anyhow!("failed to get children {e}"))?;
-            let Some(moving_into) = stacker_template_child_ids
-                .get(self.index.get_index(stacker_template_child_ids.len()))
+            let Some(moving_into) = component_template_child_ids
+                .get(self.index.get_index(component_template_child_ids.len()))
             else {
-                return Err(anyhow!("moving into stacker cell that didn't exist"));
+                // component might be embty, if so just place anywhere
+                drop(dt);
+                return SlotComponentDropBetweenAction {
+                    parent_component: self.parent_component.clone(),
+                    index: TreeIndexPosition::Bottom,
+                    nodes_to_move: self.nodes_to_move.clone(),
+                }
+                .perform(ctx);
             };
+
+            if self.nodes_to_move.len() == 1
+                && self
+                    .nodes_to_move
+                    .first()
+                    .and_then(|n| n.global_id())
+                    .as_ref()
+                    == Some(moving_into)
+            {
+                return Err(anyhow!("Can't move into self"));
+            }
 
             let node_snapshots: Vec<GlassNodeSnapshot> = self
                 .nodes_to_move
@@ -253,7 +280,7 @@ fn create_drop_into_intent(
                     group_type: GroupType::Group,
                     nodes: &[moving_into.clone()],
                     group_bounds: into_t_and_b,
-                    group_parent: &self.parent_stacker,
+                    group_parent: &self.parent_component,
                     group_location_index: self.index.clone(),
                 }
                 .perform(ctx)?;
@@ -265,13 +292,13 @@ fn create_drop_into_intent(
                     node_id: &node.id,
                     new_parent_uid: &move_into,
                     index: TreeIndexPosition::Top,
-                    node_layout: NodeLayoutSettings::KeepScreenBounds {
+                    new_node_layout: Some(NodeLayoutSettings::KeepScreenBounds {
                         node_transform_and_bounds: &node.transform_and_bounds,
                         node_decomposition_config: &node
                             .layout_properties
                             .into_decomposition_config(),
                         parent_transform_and_bounds: &into_t_and_b,
-                    },
+                    }),
                 }
                 .perform(ctx)?;
             }
@@ -296,9 +323,9 @@ fn create_drop_into_intent(
         stroke: Some((1.0, Color::rgb(245.into(), 0.into(), 245.into()))),
         intent_drop_behavior_factory: Box::new(move |selected_nodes| {
             Box::new({
-                StackerDropIntoAction {
+                SlotComponentDropIntoAction {
                     index: TreeIndexPosition::At(index),
-                    parent_stacker: parent_stacker.to_owned(),
+                    parent_component: parent_component.to_owned(),
                     nodes_to_move: selected_nodes.to_owned(),
                 }
             })

@@ -186,14 +186,20 @@ impl ToolBehavior for MovingTool {
     fn pointer_up(&mut self, point: Point2<Glass>, ctx: &mut ActionContext) -> ControlFlow<()> {
         // move last little distance to pointer up position
         self.pointer_move(point, ctx);
-        let moved = self.drop_intent_handler.handle_drop(ctx);
-        if self.transaction.is_none() && self.node_hit_was_selected_before && !moved {
+
+        if let Some(transaction) = &self.transaction {
+            let _ = transaction.run(|| {
+                self.drop_intent_handler.handle_drop(ctx);
+                Ok(())
+            });
+        } else if self.node_hit_was_selected_before {
             let _ = SelectNodes {
                 ids: &[self.hit.global_id().unwrap().get_template_node_id()],
                 mode: SelectMode::Dynamic,
             }
             .perform(ctx);
         }
+
         ControlFlow::Break(())
     }
 

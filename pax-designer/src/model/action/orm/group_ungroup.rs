@@ -152,13 +152,13 @@ impl Action<UniqueTemplateNodeIdentifier> for GroupNodes<'_> {
                     node_id: &node.id,
                     index: TreeIndexPosition::Bottom,
                     new_parent_uid: &group_uid,
-                    node_layout: NodeLayoutSettings::KeepScreenBounds {
+                    new_node_layout: Some(NodeLayoutSettings::KeepScreenBounds {
                         node_transform_and_bounds: &node.transform_and_bounds.get().as_pure_size(),
                         parent_transform_and_bounds: &group_transform_and_bounds,
                         node_decomposition_config: &node
                             .layout_properties
                             .into_decomposition_config(),
-                    },
+                    }),
                 }
                 .perform(ctx)?;
             }
@@ -235,11 +235,11 @@ impl Action for UngroupSelected {
                         node_id: &child,
                         new_parent_uid: &parent.id,
                         index: new_node_index.clone(),
-                        node_layout: NodeLayoutSettings::KeepScreenBounds {
+                        new_node_layout: Some(NodeLayoutSettings::KeepScreenBounds {
                             parent_transform_and_bounds: &group_parent_bounds,
                             node_transform_and_bounds: &child_t_and_b,
                             node_decomposition_config: &child_inv_config,
-                        },
+                        }),
                     }
                     .perform(ctx)?;
                 }
