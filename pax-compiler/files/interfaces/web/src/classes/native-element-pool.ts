@@ -10,7 +10,7 @@ import {ButtonUpdatePatch} from "./messages/button-update-patch";
 import {ImageLoadPatch} from "./messages/image-load-patch";
 import {ContainerStyle, OcclusionLayerManager} from "./occlusion-context";
 import {ObjectManager} from "../pools/object-manager";
-import {INPUT, BUTTON, DIV, OCCLUSION_CONTEXT, SELECT} from "../pools/supported-objects";
+import {IMAGE, INPUT, BUTTON, DIV, OCCLUSION_CONTEXT, SELECT} from "../pools/supported-objects";
 import {packAffineCoeffsIntoMatrix3DString, readImageToByteBuffer} from "../utils/helpers";
 import {ColorGroup, TextStyle, getAlignItems, getJustifyContent, getTextAlign} from "./text";
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
@@ -21,6 +21,7 @@ import { DropdownUpdatePatch } from "./messages/dropdown-update-patch";
 import { SliderUpdatePatch } from "./messages/slider-update-patch";
 import { EventBlockerUpdatePatch } from "./messages/event-blocker-update-patch";
 import { NavigationPatch } from "./messages/navigation-patch";
+import { NativeImageUpdatePatch } from "./messages/native-image-update-patch";
 
 export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
@@ -158,6 +159,45 @@ export class NativeElementPool {
     }
 
     checkboxDelete(id: number) {
+        let oldNode = this.nodesLookup.get(id);
+        if (oldNode){
+            let parent = oldNode.parentElement;
+            parent!.removeChild(oldNode);
+            this.nodesLookup.delete(id);
+        }
+    }
+
+    nativeImageCreate(patch: AnyCreatePatch) {
+        console.assert(patch.id != null);
+        console.assert(patch.occlusionLayerId != null);
+        
+        const nativeImage = this.objectManager.getFromPool(IMAGE) as HTMLInputElement;
+        nativeImage.style.margin = "0";
+
+        let nativeImage_div: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        nativeImage_div.appendChild(nativeImage);
+        nativeImage_div.setAttribute("class", NATIVE_LEAF_CLASS)
+        nativeImage_div.setAttribute("pax_id", String(patch.id));
+        if(patch.id != undefined && patch.occlusionLayerId != undefined){
+            this.layers.addElement(nativeImage_div, patch.parentFrame, patch.occlusionLayerId);
+        }
+        this.nodesLookup.set(patch.id!, nativeImage_div);
+    }
+
+    
+    nativeImageUpdate(patch: NativeImageUpdatePatch) {
+        let leaf = this.nodesLookup.get(patch.id!);
+        let nativeImage = leaf!.firstChild as HTMLInputElement;
+        updateCommonProps(leaf!, patch);
+        if (patch.url != null) {
+            nativeImage.setAttribute("src", patch.url);
+        }
+        if (patch.fit != null) {
+            nativeImage.style.objectFit = patch.fit;
+        }
+    }
+
+    nativeImageDelete(id: number) {
         let oldNode = this.nodesLookup.get(id);
         if (oldNode){
             let parent = oldNode.parentElement;

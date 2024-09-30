@@ -24,6 +24,9 @@ pub enum NativeMessage {
     CheckboxCreate(AnyCreatePatch),
     CheckboxUpdate(CheckboxPatch),
     CheckboxDelete(u32),
+    NativeImageCreate(AnyCreatePatch),
+    NativeImageUpdate(NativeImagePatch),
+    NativeImageDelete(u32),
     TextboxCreate(AnyCreatePatch),
     TextboxUpdate(TextboxPatch),
     TextboxDelete(u32),
@@ -418,6 +421,18 @@ pub struct CheckboxPatch {
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub checked: Option<bool>,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize, Clone)]
+#[repr(C)]
+pub struct NativeImagePatch {
+    pub id: u32,
+    pub transform: Option<Vec<f64>>,
+    pub size_x: Option<f64>,
+    pub size_y: Option<f64>,
+    pub url: Option<String>,
+    pub fit: Option<String>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
