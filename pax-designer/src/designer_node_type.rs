@@ -3,9 +3,10 @@ use pax_engine::{
     api::{borrow, NodeContext},
     pax_manifest::{PaxType, TypeId},
 };
+use pax_std::Stacker;
 
 use self::designer_behavior_extensions::{
-    designer_stacker_behavior::StackerDesignerBehavior, DesignerComponentBehaviorExtensions,
+    designer_slot_component_behavior::SlotComponentDesignerBehavior, DesignerBehaviorExtensions,
 };
 
 pub mod designer_behavior_extensions;
@@ -51,6 +52,35 @@ pub struct DesignerNodeTypeData {
     pub type_id: TypeId,
     // is this a component, and if so, does it's template contain slots
     pub has_slots: bool,
+    node_type: DesignerNodeType,
+}
+
+impl DesignerNodeTypeData {
+    /// Get intent behavior of this node type
+    pub fn designer_behavior_extensions(&self) -> Box<dyn DesignerBehaviorExtensions> {
+        match self.node_type {
+            DesignerNodeType::Stacker => Box::new(SlotComponentDesignerBehavior {
+                edge_eval_vertical: Box::new(|node| {
+                    node.with_properties(|props: &mut Stacker| match props.direction.get() {
+                        pax_std::StackerDirection::Vertical => true,
+                        pax_std::StackerDirection::Horizontal => false,
+                    })
+                    .unwrap_or(true)
+                }),
+            }),
+            _ => {
+                if self.has_slots {
+                    Box::new(SlotComponentDesignerBehavior {
+                        edge_eval_vertical: Box::new(|_| true),
+                    })
+                } else {
+                    struct DefaultDesignerBehavior;
+                    impl DesignerBehaviorExtensions for DefaultDesignerBehavior {}
+                    Box::new(DefaultDesignerBehavior)
+                }
+            }
+        }
+    }
 }
 
 impl DesignerNodeType {
@@ -229,18 +259,7 @@ impl DesignerNodeType {
             is_slot_container,
             type_id,
             has_slots,
-        }
-    }
-
-    /// Get intent behavior of this node type
-    pub fn designer_behavior_extensions(&self) -> Box<dyn DesignerComponentBehaviorExtensions> {
-        match self {
-            DesignerNodeType::Stacker => Box::new(StackerDesignerBehavior),
-            _ => {
-                struct DefaultDesignerBehavior;
-                impl DesignerComponentBehaviorExtensions for DefaultDesignerBehavior {}
-                Box::new(DefaultDesignerBehavior)
-            }
+            node_type: self.clone(),
         }
     }
 }
