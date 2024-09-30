@@ -109,7 +109,7 @@ fn create_all_drop_between_intents(
     let side_dir = intent_areas
         .first()
         .map(|b| -b.draw_area.decompose().2)
-        .unwrap_or(Vector2::y());
+        .unwrap_or(-Vector2::y());
     let edge = find_most_aligned_edge(&slot_t_and_b_first.corners(), &side_dir);
     let first_segment_area = segment_to_transform_and_bounds(edge.0, edge.1);
     intent_areas.insert(
@@ -124,7 +124,7 @@ fn create_all_drop_between_intents(
     let side_dir = intent_areas
         .last()
         .map(|b| b.draw_area.decompose().2)
-        .unwrap_or(-Vector2::y()); // this doesn't work for stacker if horizontal AND only has one element
+        .unwrap_or(Vector2::y()); // this doesn't work for stacker if horizontal AND only has one element
     let edge = find_most_aligned_edge(&slot_t_and_b_last.corners(), &side_dir);
     let last_segment_area = segment_to_transform_and_bounds(edge.0, edge.1);
     intent_areas.push(create_drop_between_intent(
