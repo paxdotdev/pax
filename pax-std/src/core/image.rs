@@ -163,8 +163,6 @@ impl InstanceNode for ImageInstance {
             let stretch_w = container_width / image_width;
             let stretch_h = container_height / image_height;
             let (width, height) = match props.fit.get() {
-                ImageFit::FillVertical => (image_width * stretch_h, image_height * stretch_h),
-                ImageFit::FillHorizontal => (image_width * stretch_w, image_height * stretch_w),
                 ImageFit::Fill => {
                     let stretch = stretch_h.max(stretch_w);
                     (image_width * stretch, image_height * stretch)
@@ -205,10 +203,6 @@ impl InstanceNode for ImageInstance {
 #[pax]
 #[engine_import_path("pax_engine")]
 pub enum ImageFit {
-    /// Scale the image to perfectly fit within it's bounds vertically
-    FillVertical,
-    /// Scale the image to perfectly fit within it's bounds horizontally
-    FillHorizontal,
     /// Scale the image to perfectly fit within it's bounds, choosing vertical or horizontal
     /// based on which of them makes it fill the container, possibly clipping parts of the image
     Fill,

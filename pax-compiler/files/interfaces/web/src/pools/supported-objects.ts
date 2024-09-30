@@ -1,5 +1,6 @@
 import {AnyCreatePatch} from "../classes/messages/any-create-patch";
 import {FrameUpdatePatch} from "../classes/messages/frame-update-patch";
+import {NativeImageUpdatePatch} from "../classes/messages/native-image-update-patch";
 import {TextUpdatePatch} from "../classes/messages/text-update-patch";
 import {ScrollerUpdatePatch} from "../classes/messages/scroller-update-patch";
 import {ImageLoadPatch} from "../classes/messages/image-load-patch";
@@ -22,6 +23,7 @@ export const OBJECT = "Object";
 export const ARRAY = "Array";
 export const DIV = "DIV";
 export const INPUT = "Input";
+export const IMAGE = "Image";
 export const SELECT = "Select";
 export const BUTTON = "Button";
 export const CANVAS = "Canvas";
@@ -33,6 +35,7 @@ export const IMAGE_LOAD_PATCH = "IMAGE LOAD PATCH";
 export const SCROLLER_UPDATE_PATCH = "Scroller Update Patch";
 export const NAVIGATION_PATCH = "Navigation Patch";
 export const TEXT_UPDATE_PATCH = "Text Update Patch";
+export const NATIVE_IMAGE_UPDATE_PATCH = "Native Image Update Patch";
 export const CHECKBOX_UPDATE_PATCH = "Checkbox Update Patch";
 export const TEXTBOX_UPDATE_PATCH = "Textbox Update Patch";
 export const DROPDOWN_UPDATE_PATCH = "Dropdown Update Patch";
@@ -63,6 +66,14 @@ export let SUPPORTED_OBJECTS = [{
     {
         name: INPUT,
         factory: () => document.createElement("input"),
+        cleanUp: (input: HTMLInputElement) => {
+            input.removeAttribute("style");
+            input.innerHTML= "";
+        }
+    },
+    {
+        name: IMAGE,
+        factory: () => document.createElement("img"),
         cleanUp: (input: HTMLInputElement) => {
             input.removeAttribute("style");
             input.innerHTML= "";
@@ -143,6 +154,11 @@ export let SUPPORTED_OBJECTS = [{
         name: TEXT_UPDATE_PATCH,
         factory: (objectManager: ObjectManager) => new TextUpdatePatch(objectManager),
         cleanUp: (patch: TextUpdatePatch) => {patch.cleanUp()},
+    },
+    {
+        name: NATIVE_IMAGE_UPDATE_PATCH,
+        factory: () => new NativeImageUpdatePatch(),
+        cleanUp: (patch: NativeImageUpdatePatch) => {patch.cleanUp()},
     },
     {
         name: CHECKBOX_UPDATE_PATCH,
