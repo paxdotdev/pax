@@ -29,6 +29,7 @@ impl DropIntentHandler {
     }
 
     pub fn update(&mut self, ctx: &mut ActionContext, point: Point2<Glass>) {
+        self.drop_intent_curent_action_factory = None;
         let Some(node) = ctx.raycast_glass(
             point,
             // TODO hit things like stackers even with no items in them?

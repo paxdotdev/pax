@@ -53,6 +53,7 @@ impl MovingTool {
             }
             .perform(ctx);
         }
+        let selected = ctx.derived_state.selection_state.get();
 
         let intent_snapper = IntentSnapper::new_from_scene(&ctx, &[hit.global_id().unwrap()]);
         let drop_intent_handler = DropIntentHandler::new(
