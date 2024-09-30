@@ -243,17 +243,30 @@ impl Action for MouseEntryPointAction<'_> {
                 match res {
                     std::ops::ControlFlow::Continue(_) => false,
                     std::ops::ControlFlow::Break(_) => {
-                        // TODO this could most likely be done in a nicer way:
-                        // make a tool "stack", and return to last tool here instead
                         if let Err(e) = tool.finish(ctx) {
                             log::warn!("finishing tool failed: {e}");
                         };
-                        ctx.app_state
-                            .selected_tool
-                            .set(match ctx.app_state.unit_mode.get() {
-                                SizeUnit::Pixels => Tool::PointerPixels,
-                                SizeUnit::Percent => Tool::PointerPercent,
-                            });
+                        // TODO this could most likely be done in a nicer way:
+                        // make a tool "stack", and return to last tool here
+                        // instead. How to handle ToolBehavior vs Toolbar state
+                        // if doing this? (needs to be synced). Associate each
+                        // ToolBehavior with a Tool in toolbar?
+                        // TODO might want to make a toolbar click immediately
+                        // activate a tool, and then make the tool itself handle
+                        // mousedown. (would allow for easier way for tool
+                        // settings view to show on tool selection)
+                        match ctx.app_state.selected_tool.get() {
+                            Tool::Paintbrush => (),
+                            _ => {
+                                ctx.app_state.selected_tool.set(
+                                    match ctx.app_state.unit_mode.get() {
+                                        SizeUnit::Pixels => Tool::PointerPixels,
+                                        SizeUnit::Percent => Tool::PointerPercent,
+                                    },
+                                );
+                            }
+                        }
+
                         true
                     }
                 }

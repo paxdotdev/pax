@@ -15,6 +15,8 @@ use pax_runtime::DefinitionToInstanceTraverser;
 use pax_runtime_api::borrow_mut;
 use pax_runtime_api::Event;
 use pax_runtime_api::Focus;
+use web_time::Duration;
+use web_time::Instant;
 use_RefCell!();
 
 use std::rc::Rc;
@@ -75,7 +77,7 @@ impl PaxChassisWeb {
         userland_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
         designer_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
-        let (width, height, os_info) = Self::init_common();
+        let (width, height, os_info, get_ellapsed_millis) = Self::init_common();
         let query_string = window()
             .unwrap()
             .location()
@@ -97,6 +99,7 @@ impl PaxChassisWeb {
             designtime_manager.clone(),
             Platform::Web,
             os_info,
+            get_ellapsed_millis,
         );
         let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
         Self {
@@ -112,7 +115,7 @@ impl PaxChassisWeb {
     pub async fn new(
         definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
-        let (width, height, os_info) = Self::init_common();
+        let (width, height, os_info, get_time) = Self::init_common();
 
         let main_component_instance =
             definition_to_instance_traverser.get_main_component(USERLAND_COMPONENT_ROOT);
@@ -121,6 +124,7 @@ impl PaxChassisWeb {
             (width, height),
             Platform::Web,
             os_info,
+            get_time,
         );
 
         let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
@@ -131,7 +135,7 @@ impl PaxChassisWeb {
         }
     }
 
-    fn init_common() -> (f64, f64, OS) {
+    fn init_common() -> (f64, f64, OS, Box<dyn Fn() -> u128>) {
         let window = window().unwrap();
         let user_agent_str = window.navigator().user_agent().ok();
         let os_info = user_agent_str
@@ -140,7 +144,9 @@ impl PaxChassisWeb {
 
         let width = window.inner_width().unwrap().as_f64().unwrap();
         let height = window.inner_height().unwrap().as_f64().unwrap();
-        (width, height, os_info)
+        let start = Instant::now();
+        let get_time = Box::new(move || start.elapsed().as_millis());
+        (width, height, os_info, get_time)
     }
 }
 
