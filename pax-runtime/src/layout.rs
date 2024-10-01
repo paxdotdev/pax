@@ -177,7 +177,7 @@ impl<F: Space, T: Space> Default for TransformAndBounds<F, T> {
     fn default() -> Self {
         Self {
             transform: Default::default(),
-            bounds: (100.0, 100.0),
+            bounds: (200.0, 200.0),
         }
     }
 }

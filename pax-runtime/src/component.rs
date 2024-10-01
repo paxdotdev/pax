@@ -43,6 +43,7 @@ impl InstanceNode for ComponentInstance {
                 invisible_to_raycasting: true,
                 layer: Layer::DontCare,
                 is_component: true,
+                is_slot: false,
             },
         );
         Rc::new(ComponentInstance {

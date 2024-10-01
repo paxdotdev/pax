@@ -24,8 +24,7 @@ use std::collections::HashMap;
 
 use pax_manifest::pax_runtime_api::{Interpolatable, Property};
 use pax_manifest::{
-    ComponentDefinition, ComponentTemplate, NodeLocation, PaxManifest, SettingElement,
-    TemplateNodeDefinition, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
+    ComponentDefinition, ComponentTemplate, NodeLocation, PaxManifest, SettingElement, SettingsBlockElement, TemplateNodeDefinition, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition
 };
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
@@ -393,8 +392,9 @@ impl PaxManifestORM {
         &mut self,
         component_type_id: TypeId,
         template: ComponentTemplate,
+        settings_block: Vec<SettingsBlockElement>,
     ) -> Result<usize, String> {
-        let command = template::ReplaceTemplateRequest::new(component_type_id, template);
+        let command = template::ReplaceTemplateRequest::new(component_type_id, template, settings_block);
         let resp = self.execute_command(command)?;
         Ok(resp.get_id())
     }
