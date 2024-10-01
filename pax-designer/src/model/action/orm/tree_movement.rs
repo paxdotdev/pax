@@ -68,12 +68,28 @@ impl<S: Space> Action for MoveNode<'_, S> {
             .perform(ctx)?;
         }
 
-        let parent_location = ctx.location(self.new_parent_uid, &self.index);
         {
+            let mut new_location = ctx.location(self.new_parent_uid, &self.index);
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            let old_location = dt
+                .get_orm()
+                .get_node_location(self.node_id)
+                .ok_or_else(|| anyhow!("failed to get old node location"))?;
+            if old_location.tree_location == new_location.tree_location {
+                if let TreeIndexPosition::At(old_index) = old_location.index {
+                    let index = match new_location.index {
+                        TreeIndexPosition::Top => 0,
+                        TreeIndexPosition::Bottom => usize::MAX,
+                        TreeIndexPosition::At(i) => i,
+                    };
+                    if old_index < index {
+                        new_location.index = TreeIndexPosition::At(index.saturating_sub(1));
+                    }
+                }
+            }
             let _undo_id = dt
                 .get_orm_mut()
-                .move_node(self.node_id.clone(), parent_location.clone())
+                .move_node(self.node_id.clone(), new_location.clone())
                 .map_err(|e| anyhow!("couldn't move child node {:?}", e))?;
         }
 

@@ -369,9 +369,9 @@ impl PaxManifestORM {
         self.undo_stack.last().map(|l| l.0)
     }
 
-    pub fn undo_until(&mut self, command_id: usize) -> Result<(), String> {
+    pub fn undo_until(&mut self, command_id: Option<usize>) -> Result<(), String> {
         while let Some((id, _)) = self.undo_stack.last() {
-            if *id == command_id {
+            if command_id.is_some_and(|c_id| c_id == *id) {
                 break;
             }
             self.undo()?;
