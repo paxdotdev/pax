@@ -49,11 +49,13 @@ impl CreateComponentTool {
         designer_node_type: DesignerNodeType,
         ctx: &ActionContext,
     ) -> Self {
+        let intent_snapper = IntentSnapper::new_from_scene(ctx, &[]);
+        let offset = intent_snapper.snap(&[point], false, false);
         Self {
             designer_node_type,
-            origin: point,
+            origin: point + offset,
             bounds: Property::new(AxisAlignedBox::new(Point2::default(), Point2::default())),
-            intent_snapper: IntentSnapper::new_from_scene(ctx, &[]),
+            intent_snapper,
             builder_extra_commands: None,
             post_creation_hook: None,
         }
