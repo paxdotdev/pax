@@ -7,6 +7,7 @@ use pax_engine::{
     pax_runtime::TransformAndBounds,
     NodeInterface, NodeLocal, Slot,
 };
+use pax_engine::api::Percent;
 
 use crate::{
     designer_node_type::{designer_behavior_extensions::IntentDefinition, DesignerNodeType},
@@ -185,8 +186,9 @@ fn create_drop_between_intent(
     IntentDefinition {
         hit_area,
         draw_area: draw_area.as_transform(),
-        fill: Color::rgb(245.into(), 0.into(), 245.into()),
-        stroke: None,
+        fill: Color::TRANSPARENT,
+        //thick green band for "black keys" between slots
+        stroke: Some((2.5, Color::rgb(0.into(), Percent(90.0.into()).into(), 0.into()))),
         intent_drop_behavior_factory: Box::new(move |selected_nodes| {
             Box::new({
                 SlotComponentDropBetweenAction {
@@ -319,8 +321,9 @@ fn create_drop_into_intent(
     IntentDefinition {
         hit_area,
         draw_area: draw_area.as_transform(),
-        fill: Color::TRANSPARENT,
-        stroke: Some((1.0, Color::rgb(245.into(), 0.into(), 245.into()))),
+        //magenta translucent overlay for "white key" slots
+        fill: Color::rgba(Percent(90.0.into()).into(), 0.into(),Percent(90.0.into()).into(), Percent(10.0.into()).into()),
+        stroke: Some((2.0, Color::rgb(Percent(90.0.into()).into(), 0.into(), Percent(90.0.into()).into()))),
         intent_drop_behavior_factory: Box::new(move |selected_nodes| {
             Box::new({
                 SlotComponentDropIntoAction {
