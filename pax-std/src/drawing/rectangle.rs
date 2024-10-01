@@ -36,6 +36,7 @@ impl InstanceNode for RectangleInstance {
                     invisible_to_raycasting: false,
                     layer: Layer::Canvas,
                     is_component: false,
+                    is_slot: false,
                 },
             ),
         })

@@ -80,7 +80,7 @@ impl PrivilegedAgentConnection {
                             }
                             AgentMessage::UpdateTemplateRequest(resp) => {
                                 manager
-                                    .replace_template(resp.type_id, resp.new_template)
+                                    .replace_template(resp.type_id, resp.new_template, resp.settings_block)
                                     .map_err(|e| anyhow!(e))?;
                             }
                             _ => {}

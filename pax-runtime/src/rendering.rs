@@ -181,6 +181,17 @@ pub trait InstanceNode {
     ) {
         // no-op for many
     }
+
+    fn handle_control_flow_expansion(
+        &self,
+        expanded_node: &Rc<ExpandedNode>,
+        _context: &Rc<RuntimeContext>,
+    ) {
+        let env = Rc::clone(&expanded_node.stack);
+        let children = borrow!(self.base().get_instance_children());
+        let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
+
+    }
 }
 
 pub struct BaseInstance {
@@ -220,6 +231,9 @@ pub struct InstanceFlags {
 
     /// Only true for ComponentInstance
     pub is_component: bool,
+
+    /// Is this node a `Slot`?
+    pub is_slot: bool,
 }
 
 impl BaseInstance {

@@ -47,6 +47,7 @@ impl InstanceNode for SlotInstance {
                     invisible_to_raycasting: true,
                     layer: Layer::DontCare,
                     is_component: false,
+                    is_slot: true,
                 },
             ),
         })

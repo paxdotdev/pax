@@ -23,7 +23,7 @@ use pax_engine::*;
 
     <Group y=30px height={100% - 30px}>
     	slot(self.selected)
-    </Group>
+    </Group>5
     <Rectangle y=30px height={100% - 30px} fill={self.color}/>
 
     @settings {

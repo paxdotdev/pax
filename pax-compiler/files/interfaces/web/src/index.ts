@@ -124,6 +124,7 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
     //necessary manual cleanup
     chassis.deallocate(memorySliceSpec);
 
+    console.log("Render loop");
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, get_latest_memory))
 }
 

@@ -67,6 +67,7 @@ impl InstanceNode for RadioSetInstance {
                     invisible_to_raycasting: false,
                     layer: Layer::Native,
                     is_component: false,
+                    is_slot: false,
                 },
             ),
         })
