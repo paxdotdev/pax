@@ -35,6 +35,7 @@ impl InstanceNode for InlineFrameInstance {
                     invisible_to_raycasting: true,
                     layer: Layer::DontCare,
                     is_component: false,
+                    is_slot: false,
                 },
             ),
         })

@@ -33,6 +33,7 @@ impl InstanceNode for EllipseInstance {
                     invisible_to_raycasting: false,
                     layer: Layer::Canvas,
                     is_component: false,
+                    is_slot: false,
                 },
             ),
         })

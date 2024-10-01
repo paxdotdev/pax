@@ -89,7 +89,7 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
                             &content,
                         )
                         .expect("Unsuccessful parse");
-                        let _settings =
+                        let settings =
                             pax_manifest::parsing::parse_settings_from_component_definition_string(
                                 ast.clone(),
                             );
@@ -108,6 +108,7 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
                             AgentMessage::UpdateTemplateRequest(Box::new(UpdateTemplateRequest {
                                 type_id: self_type_id,
                                 new_template,
+                                settings_block: settings,
                             }));
                         let serialized_msg = rmp_serde::to_vec(&msg).unwrap();
                         ctx.binary(serialized_msg);

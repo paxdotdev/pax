@@ -51,6 +51,7 @@ export class NativeElementPool {
                 }
                 resize_requests.push(message);
             }
+            console.log("resize_requests", resize_requests);
             this.chassis!.interrupt!(JSON.stringify({
                 "ChassisResizeRequestCollection": resize_requests,
             }), undefined);

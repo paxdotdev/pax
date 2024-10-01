@@ -51,6 +51,7 @@ impl InstanceNode for ImageInstance {
                     invisible_to_raycasting: false,
                     layer: pax_runtime::api::Layer::Canvas,
                     is_component: false,
+                    is_slot: false,
                 },
             ),
             needs_to_load_data: Default::default(),

@@ -23,6 +23,7 @@ pub mod context_menu;
 pub mod designer_node_type;
 pub mod glass;
 pub mod utils;
+pub mod console;
 
 pub mod controls;
 pub mod llm_interface;
@@ -43,6 +44,7 @@ use llm_interface::LLMInterface;
 use message_log_display::MessageLogDisplay;
 use project_mode_toggle::ProjectModeToggle;
 use project_publish_button::ProjectPublishButton;
+use console::Console;
 
 use pax_std::*;
 

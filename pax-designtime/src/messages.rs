@@ -1,4 +1,4 @@
-use pax_manifest::{ComponentTemplate, TypeId};
+use pax_manifest::{ComponentTemplate, SettingsBlockElement, TypeId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -53,4 +53,6 @@ pub struct UpdateTemplateRequest {
     pub type_id: TypeId,
     /// The new template for the component.
     pub new_template: ComponentTemplate,
+    /// The settings block for the component.
+    pub settings_block: Vec<SettingsBlockElement>,
 }

@@ -458,9 +458,23 @@ impl ExpandedNode {
                 }
             }
         }
-        for child in self.children.get().iter() {
-            child.recurse_update(context);
+        let is_slot = borrow!(self.instance_node).base().flags().is_slot;
+        if !is_slot {
+            for child in self.children.get().iter() {
+                child.recurse_update(context);
+            }
         }
+    }
+
+
+    pub fn recurse_control_flow_expansion(
+        self: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+    ) {
+        borrow!(self.instance_node)
+        .clone()
+        .handle_control_flow_expansion(&self, context);
+
     }
 
     pub fn recurse_mount(self: &Rc<Self>, context: &Rc<RuntimeContext>) {

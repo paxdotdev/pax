@@ -144,11 +144,14 @@ impl Scroller {
                     let slot_children = slot_children.get();
                     let mut max_height: f64 = 0.0;
                     let parent_y = self_transform.transform.m[5];
+                    //log::warn!("Recomputing max height of scroller: num of children :{}, parent_y: {}", slot_children.len(), parent_y);
                     for child in slot_children.iter() {
                         let tab = child.transform_and_bounds.get();
                         let y = tab.transform.m[5] - parent_y;
+                      //  log::warn!("tab transform: {:?}; y: {:?} ; tab bounds: {:?}", tab.transform, parent_y, tab.bounds);
                         max_height = max_height.max(tab.bounds.1 + y);
                     }
+                    //log::warn!("Max height of scroller: {}", max_height);
                     Size::Pixels(max_height.into())
                 },
                 &deps,
@@ -159,7 +162,8 @@ impl Scroller {
     pub fn update(&mut self, ctx: &NodeContext) {
         self._ticks_since_mount
             .set(self._ticks_since_mount.get() + 1);
-        if self._ticks_since_mount.get() == 5 {
+        if self._ticks_since_mount.get() == 10 {
+            log::warn!("Ran update 10 times since mount");
             self.bind_to_slot_children(ctx);
         }
 
