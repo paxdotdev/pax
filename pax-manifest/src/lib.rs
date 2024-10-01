@@ -1233,7 +1233,7 @@ impl ComponentTemplate {
     }
 
     pub fn move_node(&mut self, id: &TemplateNodeId, new_location: NodeLocation) {
-        let old_location = self.detach_node(id);
+        self.detach_node(id);
         let (target_list, index) = match new_location.get_tree_location() {
             TreeLocation::Root => (&mut self.root, new_location.index),
             TreeLocation::Parent(p) => (
@@ -1241,19 +1241,11 @@ impl ComponentTemplate {
                 new_location.index,
             ),
         };
-        let mut index = match index {
+        let index = match index {
             TreeIndexPosition::Top => 0,
             TreeIndexPosition::Bottom => target_list.len(),
             TreeIndexPosition::At(i) => i,
         };
-        // Adjust index if moving within the same parent
-        if old_location.tree_location == new_location.tree_location {
-            if let TreeIndexPosition::At(old_index) = old_location.index {
-                if old_index < index {
-                    index = index.saturating_sub(1);
-                }
-            }
-        }
         target_list.insert(index.clamp(0, target_list.len()), id.clone());
     }
 

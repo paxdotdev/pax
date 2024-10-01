@@ -264,7 +264,6 @@ impl ExpandedNode {
         _context: &Rc<RuntimeContext>,
     ) {
         *borrow_mut!(self.instance_node) = Rc::clone(&template);
-        log::debug!("recreate");
         (&template
             .base()
             .instance_prototypical_common_properties_factory)(

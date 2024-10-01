@@ -51,18 +51,24 @@ impl UndoRedoStack {
     }
 
     fn undo(&self, orm: &mut PaxManifestORM) -> Option<()> {
-        let curr_id = orm.get_last_undo_id()?;
-        let undo_id = borrow_mut!(self.undo_stack).pop()?;
+        let curr_id = orm.get_last_undo_id();
+        let undo_id = borrow_mut!(self.undo_stack).pop();
+        log::trace!("undo from {:?} to {:?} (non-inclusive)", curr_id, undo_id);
         orm.undo_until(undo_id).ok()?;
-        borrow_mut!(self.redo_stack).push(curr_id);
+        if let Some(curr_id) = curr_id {
+            borrow_mut!(self.redo_stack).push(curr_id);
+        }
         Some(())
     }
 
     fn redo(&self, orm: &mut PaxManifestORM) -> Option<()> {
-        let curr_id = orm.get_last_undo_id()?;
+        let curr_id = orm.get_last_undo_id();
         let redo_id = borrow_mut!(self.redo_stack).pop()?;
+        log::trace!("redo from {:?} to {} (inclusive)", curr_id, redo_id);
         orm.redo_including(redo_id).ok()?;
-        borrow_mut!(self.undo_stack).push(curr_id);
+        if let Some(curr_id) = curr_id {
+            borrow_mut!(self.undo_stack).push(curr_id);
+        }
         Some(())
     }
 }
@@ -76,10 +82,24 @@ pub struct ActionContext<'a> {
     pub engine_context: &'a NodeContext,
     pub app_state: &'a mut AppState,
     pub derived_state: &'a DerivedAppState,
-    pub undo_stack: &'a Rc<UndoRedoStack>,
+    undo_stack: &'a Rc<UndoRedoStack>,
 }
 
-impl ActionContext<'_> {
+impl<'a> ActionContext<'a> {
+    pub fn new(
+        engine_context: &'a NodeContext,
+        app_state: &'a mut AppState,
+        derived_state: &'a DerivedAppState,
+        undo_stack: &'a Rc<UndoRedoStack>,
+    ) -> Self {
+        Self {
+            engine_context,
+            app_state,
+            derived_state,
+            undo_stack,
+        }
+    }
+
     pub fn world_transform(&self) -> Transform2<Glass, World> {
         self.app_state.glass_to_world_transform.get()
     }
@@ -207,7 +227,7 @@ impl ActionContext<'_> {
 }
 
 pub struct Transaction {
-    before_undo_id: usize,
+    before_undo_id: Option<usize>,
     design_time: Rc<RefCell<DesigntimeManager>>,
     component_id: Property<TypeId>,
     undo_stack: Rc<UndoRedoStack>,
@@ -217,11 +237,9 @@ pub struct Transaction {
 
 impl Transaction {
     pub fn new(ctx: &ActionContext, user_action_message: &str) -> Self {
+        log::trace!("transaction {:?} created", user_action_message);
         let design_time = Rc::clone(&ctx.engine_context.designtime);
-        let before_undo_id = borrow!(design_time)
-            .get_orm()
-            .get_last_undo_id()
-            .unwrap_or(0);
+        let before_undo_id = borrow!(design_time).get_orm().get_last_undo_id();
         let component_id = ctx.app_state.selected_component_id.clone();
         Self {
             undo_stack: Rc::clone(&ctx.undo_stack),
@@ -263,8 +281,11 @@ impl Transaction {
 
 impl Drop for Transaction {
     fn drop(&mut self) {
+        log::trace!("transaction {:?} finished", self.user_action_message);
         if borrow!(self.result).is_ok() {
-            self.undo_stack.push(self.before_undo_id);
+            if let Some(undo_before) = self.before_undo_id {
+                self.undo_stack.push(undo_before);
+            }
             let mut dt = borrow_mut!(self.design_time);
             if let Err(e) = dt.send_component_update(&self.component_id.get()) {
                 pax_engine::log::error!("failed to save component to file: {:?}", e);

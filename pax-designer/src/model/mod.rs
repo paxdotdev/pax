@@ -352,12 +352,12 @@ pub fn with_action_context<R: 'static>(
             ref mut derived_state,
             ..
         } = model.as_mut().expect(INITIALIZED);
-        func(&mut ActionContext {
-            undo_stack,
-            engine_context: ctx,
+        func(&mut ActionContext::new(
+            ctx,
             app_state,
             derived_state,
-        })
+            undo_stack,
+        ))
     })
 }
 
