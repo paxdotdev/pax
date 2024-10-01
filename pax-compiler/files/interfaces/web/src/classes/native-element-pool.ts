@@ -710,7 +710,7 @@ export class NativeElementPool {
             }
         }
 
-        if (start_listening != null) {
+        if (start_listening) {
             this.resizeObserver.observe(leaf);
         }
 

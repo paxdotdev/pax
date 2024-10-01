@@ -162,13 +162,6 @@ impl ControlPoint {
             if let Some(funcs) = funcs {
                 let pos = Point2::new(args.mouse.x, args.mouse.y);
                 let behavior = model::with_action_context(ctx, |ac| {
-                    // save-point before we start executing control point behavior
-                    let before_undo_id = borrow!(ac.engine_context.designtime)
-                        .get_orm()
-                        .get_last_undo_id()
-                        .unwrap_or(0);
-                    ac.undo_stack.push(before_undo_id);
-
                     (funcs[self.ind.get().to_int() as usize].tool_factory)(
                         ac,
                         ac.glass_transform().get() * pos,

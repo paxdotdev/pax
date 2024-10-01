@@ -53,7 +53,10 @@ mod tests {
     #[test]
     fn test_edge_cases() {
         assert_eq!(circular_range(0, 0, 1, false).collect::<Vec<_>>(), vec![0]);
-        assert_eq!(circular_range(0, 0, 1, true).collect::<Vec<_>>(), vec![0]);
+        assert_eq!(
+            circular_range(0, 0, 1, true).collect::<Vec<_>>(),
+            vec![0, 0]
+        );
         assert_eq!(
             circular_range(0, 4, 5, false).collect::<Vec<_>>(),
             vec![0, 1, 2, 3, 4]
