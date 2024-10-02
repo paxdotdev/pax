@@ -4,7 +4,7 @@ use std::fmt::Display;
 use std::hash::Hasher;
 use std::{cmp::Ordering, hash::Hash};
 
-use pax_lang::interpreter::{PaxExpression, PaxIdentifier};
+pub use pax_lang::interpreter::{PaxExpression, PaxIdentifier, PaxPrimary};
 use pax_lang::DependencyCollector;
 use pax_message::serde::{Deserialize, Serialize};
 pub use pax_runtime_api;

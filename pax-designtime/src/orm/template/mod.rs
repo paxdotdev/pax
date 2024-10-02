@@ -1,9 +1,10 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use pax_manifest::{
-    pax_runtime_api::ToPaxValue, ComponentDefinition, ComponentTemplate, NodeLocation, NodeType,
-    PaxManifest, SettingElement, TemplateNodeDefinition, TemplateNodeId, Token, TreeIndexPosition,
-    TreeLocation, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
+    pax_runtime_api::ToPaxValue, ComponentDefinition, ComponentTemplate,
+    ControlFlowRepeatPredicateDefinition, ExpressionInfo, NodeLocation, NodeType, PaxManifest,
+    SettingElement, TemplateNodeDefinition, TemplateNodeId, Token, TreeIndexPosition, TreeLocation,
+    TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 use serde_derive::{Deserialize, Serialize};
 
@@ -159,6 +160,9 @@ impl Undo for AddTemplateNodeRequest {
 pub struct UpdateTemplateNodeRequest {
     uni: UniqueTemplateNodeIdentifier,
     updated_properties: HashMap<Token, Option<ValueDefinition>>,
+    updated_repeat_predicate_definition: Option<Option<ControlFlowRepeatPredicateDefinition>>,
+    updated_repeat_source_expression: Option<Option<ExpressionInfo>>,
+    updated_conditional_expression: Option<Option<ExpressionInfo>>,
     new_type_id: Option<TypeId>,
     new_location: Option<NodeLocation>,
     // Used for Undo/Redo
@@ -172,6 +176,9 @@ impl UpdateTemplateNodeRequest {
         new_type_id: Option<TypeId>,
         updated_properties: HashMap<Token, Option<ValueDefinition>>,
         new_location: Option<NodeLocation>,
+        updated_repeat_predicate_definition: Option<Option<ControlFlowRepeatPredicateDefinition>>,
+        updated_repeat_source_expression: Option<Option<ExpressionInfo>>,
+        updated_conditional_expression: Option<Option<ExpressionInfo>>,
     ) -> Self {
         Self {
             uni,
@@ -180,6 +187,9 @@ impl UpdateTemplateNodeRequest {
             new_type_id,
             _cached_node_data: None,
             _cached_move: None,
+            updated_repeat_predicate_definition,
+            updated_repeat_source_expression,
+            updated_conditional_expression,
         }
     }
 }
