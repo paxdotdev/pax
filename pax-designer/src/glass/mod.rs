@@ -197,7 +197,7 @@ impl Glass {
 
     pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: Event<MouseDown>) {
         let last_time = self.time_last_click.get();
-        let curr_time = ctx.ellapsed_time_millis() as u64;
+        let curr_time = ctx.elapsed_time_millis() as u64;
         if (curr_time - last_time) < 500 {
             self.handle_double_click(ctx, &args);
         }

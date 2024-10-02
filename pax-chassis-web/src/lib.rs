@@ -77,7 +77,7 @@ impl PaxChassisWeb {
         userland_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
         designer_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
-        let (width, height, os_info, get_ellapsed_millis) = Self::init_common();
+        let (width, height, os_info, get_elapsed_millis) = Self::init_common();
         let query_string = window()
             .unwrap()
             .location()
@@ -99,7 +99,7 @@ impl PaxChassisWeb {
             designtime_manager.clone(),
             Platform::Web,
             os_info,
-            get_ellapsed_millis,
+            get_elapsed_millis,
         );
         let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
         Self {

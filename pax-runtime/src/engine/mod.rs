@@ -45,7 +45,7 @@ pub struct Globals {
     pub os: OS,
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
-    pub get_ellapsed_millis: Rc<dyn Fn() -> u128>,
+    pub get_elapsed_millis: Rc<dyn Fn() -> u128>,
 }
 
 impl Globals {
@@ -259,7 +259,7 @@ impl PaxEngine {
         viewport_size: (f64, f64),
         platform: Platform,
         os: OS,
-        get_ellapsed_millis: Box<dyn Fn() -> u128>,
+        get_elapsed_millis: Box<dyn Fn() -> u128>,
     ) -> Self {
         use crate::api::math::Transform2;
         use pax_runtime_api::{properties, Functions};
@@ -275,7 +275,7 @@ impl PaxEngine {
             }),
             platform,
             os,
-            get_ellapsed_millis: Rc::from(get_ellapsed_millis),
+            get_elapsed_millis: Rc::from(get_elapsed_millis),
         };
         let runtime_context = Rc::new(RuntimeContext::new(globals));
         let root_node =
@@ -296,7 +296,7 @@ impl PaxEngine {
         designtime: Rc<RefCell<DesigntimeManager>>,
         platform: Platform,
         os: OS,
-        get_ellapsed_millis: Box<dyn Fn() -> u128>,
+        get_elapsed_millis: Box<dyn Fn() -> u128>,
     ) -> Self {
         use pax_runtime_api::{math::Transform2, properties, Functions};
         Functions::register_all_functions();
@@ -312,7 +312,7 @@ impl PaxEngine {
             platform,
             os,
             designtime: designtime.clone(),
-            get_ellapsed_millis: Rc::from(get_ellapsed_millis),
+            get_elapsed_millis: Rc::from(get_elapsed_millis),
         };
 
         let mut runtime_context = Rc::new(RuntimeContext::new(

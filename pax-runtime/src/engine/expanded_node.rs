@@ -609,10 +609,10 @@ impl ExpandedNode {
         let suspended = self.suspended.clone();
         let frames_elapsed = globals.frames_elapsed.clone();
         let deps = [frames_elapsed.untyped(), suspended.untyped()];
-        // TODO: this still triggers the dirty dag dependencies of ellapsed
+        // TODO: this still triggers the dirty dag dependencies of elapsed
         // frames even if the value is the same. Try to make it not trigger
         // dependencides when frozen
-        let frames_ellapsed_frozen_if_suspended = Property::computed(
+        let frames_elapsed_frozen_if_suspended = Property::computed(
             move || {
                 if suspended.get() {
                     *borrow!(last_frame)
@@ -628,13 +628,13 @@ impl ExpandedNode {
             slot_index: self.slot_index.clone(),
             local_stack_frame: Rc::clone(&self.stack),
             containing_component: Weak::clone(&self.containing_component),
-            frames_elapsed: frames_ellapsed_frozen_if_suspended,
+            frames_elapsed: frames_elapsed_frozen_if_suspended,
             bounds_self,
             bounds_parent,
             runtime_context: ctx.clone(),
             platform: globals.platform.clone(),
             os: globals.os.clone(),
-            get_ellapsed_millis: globals.get_ellapsed_millis,
+            get_elapsed_millis: globals.get_elapsed_millis,
             slot_children_count,
             node_transform_and_bounds: self.transform_and_bounds.get(),
             #[cfg(feature = "designtime")]

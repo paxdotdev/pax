@@ -45,7 +45,7 @@ pub struct NodeContext {
 
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
-    pub(crate) get_ellapsed_millis: Rc<dyn Fn() -> u128>,
+    pub(crate) get_elapsed_millis: Rc<dyn Fn() -> u128>,
 }
 
 impl NodeContext {
@@ -62,8 +62,8 @@ impl NodeContext {
     }
 
     /// Get std::time::Instant::now()
-    pub fn ellapsed_time_millis(&self) -> u128 {
-        (self.get_ellapsed_millis)()
+    pub fn elapsed_time_millis(&self) -> u128 {
+        (self.get_elapsed_millis)()
     }
 
     pub fn navigate_to(&self, url: &str, target: NavigationTarget) {
