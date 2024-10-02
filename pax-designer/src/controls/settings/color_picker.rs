@@ -129,15 +129,7 @@ impl ColorPicker {
                         (lightness.get() * 255.0).into(),
                         (alpha.get() * 255.0).into(),
                     );
-                    if color.get() == Color::BLACK
-                        && new_col
-                            == Color::hsla(
-                                Rotation::Percent(0.0.into()),
-                                0.0.into(),
-                                0.0.into(),
-                                255.0.into(),
-                            )
-                    {
+                    if color.get().to_rgba_0_1() == new_col.to_rgba_0_1() {
                         return true;
                     }
                     color.set(new_col);
