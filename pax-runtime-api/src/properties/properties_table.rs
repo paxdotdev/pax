@@ -311,7 +311,6 @@ impl PropertyTable {
             // an invalid state (borrowed, in with_property_data closure, etc.)
             // as this function is provided by a user of the property system and
             // can do arbitrary sets/ gets/drops etc (that need the prop data)
-
             let new_value = { evaluator() };
             self.with_property_data_mut(id, |property_data| {
                 let typed_data = property_data.typed_data();
