@@ -146,14 +146,13 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
         }
     }
 
-    // resize points
-
+    // slot-divider resizer style
     let control_point_styling = ControlPointStyling {
         affected_by_transform: true,
         round: false,
-        stroke: Color::rgba(255.into(), 255.into(), 255.into(), 150.into()),
-        fill: Color::rgba(255.into(), 255.into(), 255.into(), 100.into()),
-        stroke_width_pixels: 2.0,
+        stroke: Color::RED,
+        fill: Color::rgba(255.into(), 255.into(), 255.into(), 150.into()),
+        stroke_width_pixels: 1.0,
         width: -1.0,
         height: -1.0,
     };
@@ -215,8 +214,12 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
                 .collect();
 
             let mut cp_style = control_point_styling.clone();
-            const MAJOR: f64 = 50.0;
-            const MINOR: f64 = 7.0;
+
+            //width / height of slot-divider resizer's major axis
+            const MAJOR: f64 = 24.0;
+
+            //width / height of slot-divider resizer's minor axis
+            const MINOR: f64 = 6.0;
             match dir {
                 StackerDirection::Vertical => {
                     cp_style.width = MAJOR;

@@ -178,10 +178,10 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
         round: true,
         stroke: Color::RED,
         fill: Color::rgba(255.into(), 255.into(), 255.into(), 150.into()),
-        stroke_width_pixels: 2.0,
+        stroke_width_pixels: 1.0,
         affected_by_transform: false,
-        width: 15.0,
-        height: 15.0,
+        width: 14.0,
+        height: 14.0,
     };
 
     let t_and_b = slot_parent_node.transform_and_bounds();
