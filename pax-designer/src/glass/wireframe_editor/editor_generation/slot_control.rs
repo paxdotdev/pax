@@ -155,12 +155,6 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                 let deps = [intent_areas.untyped()];
                 let transaction = ctx.transaction("slot dot move");
 
-                // set visualization outline to always be the bounds of the parent of the moving node
-                let manifest_ver = dt.get_last_written_manifest_version();
-                let glass_transform = ctx.glass_transform();
-                let slot_child_index = slot_child.id.clone();
-                let deps = [glass_transform.untyped(), manifest_ver.untyped()];
-                let ctx = ctx.engine_context.clone();
                 let vis = Property::computed(
                     move || ToolVisualizationState {
                         intent_areas: intent_areas.get(),
