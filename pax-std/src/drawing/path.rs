@@ -91,6 +91,7 @@ impl InstanceNode for PathInstance {
                 children_with_envs,
                 context,
                 &expanded_node.parent_frame,
+                true,
             );
             // set slot children to all to make children compute and update their slot index
             // (see expanded_node compute_expanded and flattened children)
