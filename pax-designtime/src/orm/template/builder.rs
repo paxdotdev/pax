@@ -2,14 +2,14 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 use pax_manifest::{
-    pax_runtime_api::{PaxValue, ToPaxValue},
-    NodeLocation, PropertyDefinition, SettingElement, Token, TypeId, UniqueTemplateNodeIdentifier,
+    pax_runtime_api::ToPaxValue, ControlFlowRepeatPredicateDefinition,
+    ControlFlowSettingsDefinition, ExpressionInfo, NodeLocation, PaxExpression, PaxPrimary,
+    PropertyDefinition, SettingElement, Token, TypeId, UniqueTemplateNodeIdentifier,
     ValueDefinition,
 };
-use serde::Serialize;
 
 use super::{AddTemplateNodeRequest, GetTemplateNodeRequest, NodeType, UpdateTemplateNodeRequest};
-use crate::{orm::PaxManifestORM, serde_pax};
+use crate::orm::PaxManifestORM;
 
 /// Builder for creating and modifying template nodes in the PaxManifest.
 pub struct NodeBuilder<'a> {
@@ -17,6 +17,9 @@ pub struct NodeBuilder<'a> {
     containing_component_type_id: TypeId,
     node_type_id: TypeId,
     updated_property_map: HashMap<Token, Option<ValueDefinition>>,
+    updated_repeat_predicate_definition: Option<Option<ControlFlowRepeatPredicateDefinition>>,
+    updated_repeat_source_expression: Option<Option<ExpressionInfo>>,
+    updated_conditional_expression: Option<Option<ExpressionInfo>>,
     unique_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     location: Option<NodeLocation>,
     overwrite_expressions: bool,
@@ -39,6 +42,7 @@ impl<'a> NodeBuilder<'a> {
             containing_component_type_id,
             node_type_id,
             updated_property_map: HashMap::new(),
+            updated_repeat_predicate_definition: None,
             unique_node_identifier: None,
             location: None,
             overwrite_expressions,
@@ -61,6 +65,7 @@ impl<'a> NodeBuilder<'a> {
                 node_type_id: node.type_id,
                 updated_property_map: HashMap::new(),
                 unique_node_identifier: Some(uni),
+                updated_repeat_predicate_definition: None,
                 location,
                 overwrite_expressions,
             })
@@ -79,6 +84,17 @@ impl<'a> NodeBuilder<'a> {
 
     pub fn get_type_id(&self) -> TypeId {
         self.node_type_id.clone()
+    }
+
+    pub fn get_control_flow_properties(&mut self) -> Option<ControlFlowSettingsDefinition> {
+        if let Some(uni) = &self.unique_node_identifier {
+            let resp = self
+                .orm
+                .execute_command(GetTemplateNodeRequest { uni: uni.clone() })
+                .unwrap();
+            return resp.node?.control_flow_settings.clone();
+        }
+        None
     }
 
     pub fn get_all_properties(&mut self) -> Vec<(PropertyDefinition, Option<ValueDefinition>)> {
@@ -113,6 +129,84 @@ impl<'a> NodeBuilder<'a> {
             .collect();
 
         properties.into_iter().zip(values).collect()
+    }
+
+    pub fn set_control_flow_source(&mut self, value: &str) -> Result<()> {
+        let repeat_source_expression = self
+            .updated_repeat_source_expression
+            .get_or_insert_with(|| None);
+        if value.is_empty() {
+            return Ok(());
+        }
+
+        let value = pax_manifest::utils::parse_value(value).map_err(|e| anyhow!(e.to_owned()))?;
+        let expression = match value {
+            ValueDefinition::LiteralValue(value) => ExpressionInfo {
+                expression: PaxExpression::Primary(Box::new(PaxPrimary::Literal(value))),
+                dependencies: vec![],
+            },
+            ValueDefinition::Expression(expression) => expression,
+            ValueDefinition::Identifier(identifier) => ExpressionInfo {
+                expression: PaxExpression::Primary(Box::new(PaxPrimary::Identifier(
+                    identifier,
+                    vec![],
+                ))),
+                dependencies: vec![],
+            },
+            _ => return Err(anyhow!("a control flow source needs to be an expression")),
+        };
+        *repeat_source_expression = Some(expression);
+        Ok(())
+    }
+
+    pub fn set_control_flow_predicate(&mut self, value: &str) -> Result<()> {
+        let control_flow_predicate_definition = self
+            .updated_repeat_predicate_definition
+            .get_or_insert_with(|| None);
+        if value.is_empty() {
+            return Ok(());
+        }
+        if let Some((a, b)) = value.split_once(", ") {
+            // assume a tuple
+            let (a, b) = (a.trim_start_matches("("), b.trim_start_matches(")"));
+            *control_flow_predicate_definition = Some(
+                ControlFlowRepeatPredicateDefinition::ElemIdIndexId(a.to_string(), b.to_string()),
+            );
+        } else {
+            *control_flow_predicate_definition = Some(
+                ControlFlowRepeatPredicateDefinition::ElemId(value.to_string()),
+            );
+            //assume a single elem
+        }
+        todo!()
+    }
+
+    pub fn set_conditional_source(&mut self, value: &str) -> Result<()> {
+        let conditional_expression = self
+            .updated_conditional_expression
+            .get_or_insert_with(|| None);
+        if value.is_empty() {
+            return Ok(());
+        }
+
+        let value = pax_manifest::utils::parse_value(value).map_err(|e| anyhow!(e.to_owned()))?;
+        let expression = match value {
+            ValueDefinition::LiteralValue(value) => ExpressionInfo {
+                expression: PaxExpression::Primary(Box::new(PaxPrimary::Literal(value))),
+                dependencies: vec![],
+            },
+            ValueDefinition::Expression(expression) => expression,
+            ValueDefinition::Identifier(identifier) => ExpressionInfo {
+                expression: PaxExpression::Primary(Box::new(PaxPrimary::Identifier(
+                    identifier,
+                    vec![],
+                ))),
+                dependencies: vec![],
+            },
+            _ => return Err(anyhow!("a control flow source needs to be an expression")),
+        };
+        *conditional_expression = Some(expression);
+        Ok(())
     }
 
     pub fn set_property_from_value_definition(
@@ -196,6 +290,9 @@ impl<'a> NodeBuilder<'a> {
                 Some(self.node_type_id),
                 self.updated_property_map,
                 Some(location),
+                self.updated_repeat_predicate_definition,
+                self.updated_repeat_source_expression,
+                self.updated_conditional_expression,
             ))?;
             resp.command_id
         } else {
