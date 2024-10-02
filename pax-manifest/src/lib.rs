@@ -1150,6 +1150,35 @@ impl ComponentTemplate {
         }
     }
 
+    pub fn update_control_flow_properties(
+        &mut self,
+        id: &TemplateNodeId,
+        repeat_predicate_definition: Option<Option<ControlFlowRepeatPredicateDefinition>>,
+        repeat_source_expression: Option<Option<ExpressionInfo>>,
+        conditional_expression: Option<Option<ExpressionInfo>>,
+        slot_index_expression: Option<Option<ExpressionInfo>>,
+    ) {
+        let Some(control_flow_settings) = self
+            .nodes
+            .get_mut(id)
+            .and_then(|n| n.control_flow_settings.as_mut())
+        else {
+            return;
+        };
+        if let Some(value) = repeat_predicate_definition {
+            control_flow_settings.repeat_predicate_definition = value;
+        }
+        if let Some(value) = repeat_source_expression {
+            control_flow_settings.repeat_source_expression = value;
+        }
+        if let Some(value) = conditional_expression {
+            control_flow_settings.condition_expression = value;
+        }
+        if let Some(value) = slot_index_expression {
+            control_flow_settings.slot_index_expression = value;
+        }
+    }
+
     pub fn find_node_with_str_id(&self, id: &str) -> Option<&TemplateNodeId> {
         for (i, n) in &self.nodes {
             if let Some(settings) = &n.settings {

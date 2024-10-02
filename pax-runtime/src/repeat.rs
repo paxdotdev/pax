@@ -3,7 +3,6 @@ use std::iter;
 use std::rc::Rc;
 use_RefCell!();
 
-use pax_runtime_api::pax_value::ToFromPaxAny;
 use pax_runtime_api::CoercionRules;
 use pax_runtime_api::{
     borrow, borrow_mut, use_RefCell, ImplToFromPaxAny, PaxValue, Property, ToPaxValue, Variable,
@@ -29,8 +28,8 @@ impl ImplToFromPaxAny for RepeatProperties {}
 #[derive(Default)]
 pub struct RepeatProperties {
     pub source_expression: Property<PaxValue>,
-    pub iterator_i_symbol: Option<String>,
-    pub iterator_elem_symbol: Option<String>,
+    pub iterator_i_symbol: Property<Option<String>>,
+    pub iterator_elem_symbol: Property<Option<String>>,
 }
 
 impl ToPaxValue for RepeatProperties {
@@ -130,9 +129,15 @@ impl InstanceNode for RepeatInstance {
                 properties.iterator_elem_symbol.clone()
             });
 
-        let deps = [source_expression.untyped()];
+        let deps = [
+            source_expression.untyped(),
+            i_symbol.untyped(),
+            elem_symbol.untyped(),
+        ];
 
         let last_length = Rc::new(RefCell::new(0));
+        let last_elem_sym = Rc::new(RefCell::new(None));
+        let last_i_sym = Rc::new(RefCell::new(None));
 
         expanded_node
             .children
@@ -151,11 +156,16 @@ impl InstanceNode for RepeatInstance {
                         log::warn!("source is not a vec");
                         0
                     };
-
-                    if source_len == *borrow!(last_length) {
+                    if source_len == *borrow!(last_length)
+                        && i_symbol.read(|i| i == &*borrow!(last_i_sym))
+                        && elem_symbol.read(|e| e == &*borrow!(last_elem_sym))
+                    {
                         return cloned_expanded_node.children.get();
                     }
                     *borrow_mut!(last_length) = source_len;
+                    *borrow_mut!(last_i_sym) = i_symbol.get();
+                    *borrow_mut!(last_elem_sym) = elem_symbol.get();
+
                     let template_children = cloned_self.base().get_instance_children();
                     let children_with_envs = iter::repeat(template_children)
                         .take(source_len)
@@ -182,15 +192,15 @@ impl InstanceNode for RepeatInstance {
                             );
 
                             let mut scope: HashMap<String, Variable> = HashMap::new();
-                            if let Some(ref i_symbol) = i_symbol {
+                            if let Some(i_symbol) = i_symbol.get() {
                                 scope.insert(
                                     i_symbol.clone(),
                                     Variable::new_from_typed_property(property_i),
                                 );
                             }
-                            if let Some(ref elem_symbol) = elem_symbol {
+                            if let Some(elem_symbol) = elem_symbol.get() {
                                 scope.insert(
-                                    elem_symbol.clone(),
+                                    elem_symbol,
                                     Variable::new_from_typed_property(property_elem),
                                 );
                             }

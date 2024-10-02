@@ -125,7 +125,7 @@ impl ToolBehavior for CreateComponentTool {
             let uid = CreateComponent {
                 parent_id: &parent.id,
                 parent_index: TreeIndexPosition::Top,
-                node_layout: NodeLayoutSettings::KeepScreenBounds {
+                node_layout: Some(NodeLayoutSettings::KeepScreenBounds {
                     node_transform_and_bounds: &TransformAndBounds {
                         transform: box_transform,
                         bounds: (1.0, 1.0),
@@ -139,7 +139,7 @@ impl ToolBehavior for CreateComponentTool {
                         unit_height: unit,
                         ..Default::default()
                     },
-                },
+                }),
                 designer_node_type: self.designer_node_type.clone(),
                 builder_extra_commands: self.builder_extra_commands.as_ref().map(|v| v.as_ref()),
             }

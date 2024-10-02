@@ -93,7 +93,7 @@ impl PaintbrushTool {
                     builder.set_property("fill", &color_to_str(settings.fill_color.clone()))?;
                     Ok(())
                 }),
-                node_layout: NodeLayoutSettings::Fill,
+                node_layout: Some(NodeLayoutSettings::Fill),
             }
             .perform(ctx)
         })?;

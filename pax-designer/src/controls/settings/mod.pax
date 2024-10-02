@@ -62,6 +62,13 @@ if self.is_component_selected {
     </Scroller>
 }
 
+if self.is_control_flow_if_selected {
+    <ControlFlowIfEditor stid={self.stid} snid={self.snid}/>
+}
+if self.is_control_flow_for_selected {
+    <ControlFlowForEditor stid={self.stid} snid={self.snid}/>
+}
+
 @settings {
     @mount: on_mount
     .h1 {

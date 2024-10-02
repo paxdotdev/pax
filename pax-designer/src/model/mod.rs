@@ -419,12 +419,12 @@ pub enum Tool {
     #[default]
     PointerPercent,
     PointerPixels,
-    CreateComponent(Component),
+    CreateComponent(ToolbarComponent),
     Paintbrush,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Component {
+pub enum ToolbarComponent {
     #[default]
     Rectangle,
     Ellipse,

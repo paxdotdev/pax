@@ -91,6 +91,26 @@ impl DesignerContextMenu {
         self.close_menu();
     }
 
+    pub fn group_conditional(&mut self, ctx: &NodeContext, _args: Event<Click>) {
+        model::perform_action(
+            &GroupSelected {
+                group_type: GroupType::Conditional,
+            },
+            ctx,
+        );
+        self.close_menu();
+    }
+
+    pub fn group_repeat(&mut self, ctx: &NodeContext, _args: Event<Click>) {
+        model::perform_action(
+            &GroupSelected {
+                group_type: GroupType::Repeat,
+            },
+            ctx,
+        );
+        self.close_menu();
+    }
+
     pub fn ungroup(&mut self, ctx: &NodeContext, _args: Event<Click>) {
         model::perform_action(&UngroupSelected {}, ctx);
         self.close_menu();

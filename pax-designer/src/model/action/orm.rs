@@ -48,7 +48,7 @@ pub struct CreateComponent<'a> {
     pub parent_index: TreeIndexPosition,
     pub designer_node_type: DesignerNodeType,
     pub builder_extra_commands: Option<&'a dyn Fn(&mut NodeBuilder) -> Result<()>>,
-    pub node_layout: NodeLayoutSettings<'a, Glass>,
+    pub node_layout: Option<NodeLayoutSettings<'a, Glass>>,
 }
 
 impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
@@ -83,58 +83,62 @@ impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
         // outer. Eventually, create a general framework for figuring out "true"
         // parent bounds for all containers. (more complicated for stacker where
         // it depends on number of children)
-        if let NodeLayoutSettings::KeepScreenBounds {
-            node_transform_and_bounds,
-            node_decomposition_config,
-            ..
-        } = self.node_layout
-        {
-            let mut dt = borrow_mut!(ctx.engine_context.designtime);
-            let orm = dt.get_orm_mut();
-            if let Some(parent) = orm.get_node(self.parent_id.clone(), false) {
-                if DesignerNodeType::from_type_id(parent.get_type_id())
-                    == DesignerNodeType::Scroller
-                {
-                    drop(dt);
-                    let node = ctx
-                        .engine_context
-                        .get_nodes_by_id("_scroller_inner_container")
-                        .into_iter()
-                        .filter_map(|n| {
-                            let mut steps = 0;
-                            let mut node = n.clone();
-                            while let Some(parent) = node.template_parent() {
-                                if &parent.global_id().unwrap() == self.parent_id {
-                                    break;
+        if let Some(node_layout) = &self.node_layout {
+            if let NodeLayoutSettings::KeepScreenBounds {
+                node_transform_and_bounds,
+                node_decomposition_config,
+                ..
+            } = node_layout
+            {
+                let mut dt = borrow_mut!(ctx.engine_context.designtime);
+                let orm = dt.get_orm_mut();
+                if let Some(parent) = orm.get_node(self.parent_id.clone(), false) {
+                    if DesignerNodeType::from_type_id(parent.get_type_id())
+                        == DesignerNodeType::Scroller
+                    {
+                        drop(dt);
+                        let node = ctx
+                            .engine_context
+                            .get_nodes_by_id("_scroller_inner_container")
+                            .into_iter()
+                            .filter_map(|n| {
+                                let mut steps = 0;
+                                let mut node = n.clone();
+                                while let Some(parent) = node.template_parent() {
+                                    if &parent.global_id().unwrap() == self.parent_id {
+                                        break;
+                                    }
+                                    node = parent;
+                                    steps += 1;
                                 }
-                                node = parent;
-                                steps += 1;
+                                node.template_parent().is_some().then_some((n, steps))
+                            })
+                            .min_by_key(|(_, v)| *v);
+                        if let Some((node, _)) = node {
+                            let glass_node = GlassNode::new(&node, &ctx.glass_transform());
+                            SetNodeLayout {
+                                id: &save_data.unique_id,
+                                node_layout: &NodeLayoutSettings::KeepScreenBounds {
+                                    node_transform_and_bounds,
+                                    node_decomposition_config,
+                                    parent_transform_and_bounds: &glass_node
+                                        .transform_and_bounds
+                                        .get(),
+                                },
                             }
-                            node.template_parent().is_some().then_some((n, steps))
-                        })
-                        .min_by_key(|(_, v)| *v);
-                    if let Some((node, _)) = node {
-                        let glass_node = GlassNode::new(&node, &ctx.glass_transform());
-                        SetNodeLayout {
-                            id: &save_data.unique_id,
-                            node_layout: &NodeLayoutSettings::KeepScreenBounds {
-                                node_transform_and_bounds,
-                                node_decomposition_config,
-                                parent_transform_and_bounds: &glass_node.transform_and_bounds.get(),
-                            },
+                            .perform(ctx)?;
+                            return Ok(save_data.unique_id);
                         }
-                        .perform(ctx)?;
-                        return Ok(save_data.unique_id);
                     }
                 }
             }
-        }
 
-        SetNodeLayout {
-            id: &save_data.unique_id,
-            node_layout: &self.node_layout,
+            SetNodeLayout {
+                id: &save_data.unique_id,
+                node_layout: &node_layout,
+            }
+            .perform(ctx)?;
         }
-        .perform(ctx)?;
 
         Ok(save_data.unique_id)
     }

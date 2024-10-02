@@ -252,7 +252,7 @@ impl Glass {
                 let uid = CreateComponent {
                     parent_id: &parent.id,
                     parent_index: pax_manifest::TreeIndexPosition::Top,
-                    node_layout: model::action::orm::NodeLayoutSettings::KeepScreenBounds {
+                    node_layout: Some(model::action::orm::NodeLayoutSettings::KeepScreenBounds {
                         node_transform_and_bounds: &TransformAndBounds {
                             transform: AxisAlignedBox::new(cw + v, cw - v).as_transform(),
                             bounds: (1.0, 1.0),
@@ -260,7 +260,7 @@ impl Glass {
                         .as_pure_size(),
                         parent_transform_and_bounds: &parent.transform_and_bounds.get(),
                         node_decomposition_config: &Default::default(),
-                    },
+                    }),
                     designer_node_type: DesignerNodeType::Image,
                     builder_extra_commands: Some(&|builder| {
                         builder.set_property(

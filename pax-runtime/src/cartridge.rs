@@ -388,8 +388,10 @@ pub trait DefinitionToInstanceTraverser {
                                 &dependencies,
                                 "repeat source vec",
                             ));
-                        repeat.iterator_i_symbol = index;
-                        repeat.iterator_elem_symbol = elem;
+                        repeat.iterator_i_symbol.replace_with(Property::new(index));
+                        repeat
+                            .iterator_elem_symbol
+                            .replace_with(Property::new(elem));
                         return None;
                     }
 
@@ -407,8 +409,12 @@ pub trait DefinitionToInstanceTraverser {
                             "repeat source vec",
                         );
 
-                        properties.iterator_i_symbol = index;
-                        properties.iterator_elem_symbol = elem;
+                        properties
+                            .iterator_i_symbol
+                            .replace_with(Property::new(index));
+                        properties
+                            .iterator_elem_symbol
+                            .replace_with(Property::new(elem));
                         properties.to_pax_any()
                     })))
                 });

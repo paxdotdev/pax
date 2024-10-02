@@ -1,6 +1,6 @@
 use pax_designtime::{orm::PaxManifestORM, DesigntimeManager};
 use pax_engine::{
-    api::{borrow, NodeContext},
+    api::{borrow, Interpolatable, NodeContext},
     pax_manifest::{PaxType, TypeId},
 };
 use pax_std::Stacker;
@@ -11,6 +11,7 @@ use self::designer_behavior_extensions::{
 
 pub mod designer_behavior_extensions;
 
+impl Interpolatable for DesignerNodeType {}
 /// This should be the type always used for getting metadata about and
 /// performing checks on type in the designer, instead of checking using node methods
 #[derive(PartialEq, Clone, Debug)]
@@ -32,8 +33,8 @@ pub enum DesignerNodeType {
     Slider,
     Dropdown,
     RadioSet,
-    If,
-    For,
+    Conditional,
+    Repeat,
     Slot,
     Unregistered,
     Carousel,
@@ -86,8 +87,8 @@ impl DesignerNodeTypeData {
 impl DesignerNodeType {
     pub fn from_type_id(type_id: TypeId) -> Self {
         match type_id.get_pax_type() {
-            PaxType::If => DesignerNodeType::If,
-            PaxType::Repeat => DesignerNodeType::For,
+            PaxType::If => DesignerNodeType::Conditional,
+            PaxType::Repeat => DesignerNodeType::Repeat,
             PaxType::Slot => DesignerNodeType::Slot,
             _ => {
                 let Some(import_path) = type_id.import_path() else {
@@ -228,8 +229,8 @@ impl DesignerNodeType {
                 TypeId::build_singleton("pax_std::forms::dropdown::Dropdown", None),
                 false,
             ),
-            DesignerNodeType::If => ("If", "if", TypeId::build_if(), true),
-            DesignerNodeType::For => ("For", "for", TypeId::build_repeat(), true),
+            DesignerNodeType::Conditional => ("If", "if", TypeId::build_if(), true),
+            DesignerNodeType::Repeat => ("For", "for", TypeId::build_repeat(), true),
             DesignerNodeType::Unregistered => {
                 ("[Unregistered Type]", "component", TypeId::default(), false)
             }
