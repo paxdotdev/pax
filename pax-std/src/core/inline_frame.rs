@@ -63,8 +63,12 @@ impl InstanceNode for InlineFrameInstance {
     fn handle_mount(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, ctx: &Rc<RuntimeContext>) {
         let instance_node = Rc::clone(&*borrow!(ctx.userland_frame_instance_node));
         let children_with_envs = vec![(instance_node, ctx.globals().stack_frame())];
-        let new_children =
-            expanded_node.generate_children(children_with_envs, ctx, &expanded_node.parent_frame);
+        let new_children = expanded_node.generate_children(
+            children_with_envs,
+            ctx,
+            &expanded_node.parent_frame,
+            true,
+        );
         *borrow_mut!(ctx.userland_root_expanded_node) = Some(Rc::clone(&new_children[0].clone()));
         expanded_node.children.set(new_children);
     }

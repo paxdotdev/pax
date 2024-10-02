@@ -51,7 +51,6 @@ export class NativeElementPool {
                 }
                 resize_requests.push(message);
             }
-            console.log("resize_requests", resize_requests);
             this.chassis!.interrupt!(JSON.stringify({
                 "ChassisResizeRequestCollection": resize_requests,
             }), undefined);
@@ -894,18 +893,6 @@ export class NativeElementPool {
             leaf.style.height = patch.sizeY + "px";
         }
 
-        if (patch.scrollX != null) {
-            leaf.scrollLeft = patch.scrollX;
-        }
-        if (patch.scrollY != null) {
-            leaf.scrollTop = patch.scrollY;
-        }
-
-        // Handle transform
-        if (patch.transform != null) {
-            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
-        }
-
         if (patch.sizeInnerPaneX != null) {
             if (patch.sizeInnerPaneX! <= parseFloat(leaf.style.width)) {
                 leaf.style.overflowX = "hidden";
@@ -922,6 +909,20 @@ export class NativeElementPool {
             }
             scroller_inner.style.height = patch.sizeInnerPaneY + "px";
         }
+
+        if (patch.scrollX != null) {
+            leaf.scrollLeft = patch.scrollX;
+        }
+        if (patch.scrollY != null) {
+            leaf.scrollTop = patch.scrollY;
+        }
+
+        // Handle transform
+        if (patch.transform != null) {
+            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+        }
+
+       
     }
 
     scrollerDelete(id: number){

@@ -25,7 +25,6 @@ pub struct Message {
     pub text: String,
 }
 
-
 #[pax]
 #[engine_import_path("pax_engine")]
 pub struct EnqueuedScrollSet {
@@ -35,7 +34,7 @@ pub struct EnqueuedScrollSet {
 
 impl Console {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-      self.messages.set(vec![
+        self.messages.set(vec![
         Message {
           is_ai: false,
           text: "Hello, world!".to_string(),
@@ -48,30 +47,30 @@ impl Console {
     }
 
     fn scroll_to_end(&mut self, ctx: &NodeContext) {
-      let enqueue_scroll_set = EnqueuedScrollSet {
-        frame: ctx.frames_elapsed.get() + 1,
-        scroll_y: f64::MAX,
-      };
-      self.enqueue_scroll_set.set(Some(enqueue_scroll_set));
+        let enqueue_scroll_set = EnqueuedScrollSet {
+            frame: ctx.frames_elapsed.get() + 1,
+            scroll_y: f64::MAX,
+        };
+        self.enqueue_scroll_set.set(Some(enqueue_scroll_set));
     }
 
     pub fn text_input(&mut self, ctx: &NodeContext, args: Event<TextboxChange>) {
-      let mut messages = self.messages.get();
-      messages.push(Message {
-          is_ai: false,
-          text: args.text.clone(),
-      });
-      self.messages.set(messages);
-      self.scroll_to_end(ctx);
-      self.textbox.set("".to_string());
+        let mut messages = self.messages.get();
+        messages.push(Message {
+            is_ai: false,
+            text: args.text.clone(),
+        });
+        self.messages.set(messages);
+        self.scroll_to_end(ctx);
+        self.textbox.set("".to_string());
     }
 
     pub fn update(&mut self, _ctx: &NodeContext) {
-      if let Some(e) = self.enqueue_scroll_set.get() {
-        if e.frame == _ctx.frames_elapsed.get() {
-          self.scroll_y.set(e.scroll_y);
-          self.enqueue_scroll_set.set(None);
+        if let Some(e) = self.enqueue_scroll_set.get() {
+            if e.frame == _ctx.frames_elapsed.get() {
+                self.scroll_y.set(e.scroll_y);
+                self.enqueue_scroll_set.set(None);
+            }
         }
-      }
     }
 }

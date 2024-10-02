@@ -41,10 +41,12 @@ pub struct NodeContext {
     pub slot_children_count: Property<usize>,
     /// Borrow of the RuntimeContext, used at least for exposing raycasting to userland
     pub(crate) runtime_context: Rc<RuntimeContext>,
-
+    /// The transform of this node in the global coordinate space
     pub node_transform_and_bounds: TransformAndBounds<NodeLocal, Window>,
-
+    /// Slot children of this node
     pub slot_children: Property<Vec<Rc<ExpandedNode>>>,
+    /// A property that can be depended on to dirty when a slot child is attached
+    pub slot_children_attached_listener: Property<()>,
 
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,

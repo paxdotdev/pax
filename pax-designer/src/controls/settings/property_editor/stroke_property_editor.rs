@@ -84,7 +84,6 @@ impl StrokePropertyEditor {
                 if stroke_width_cloned.get() == 0.0 && !external_cloned.get() {
                     stroke_width_cloned.set(1.0);
                 }
-                external_cloned.set(false);
                 color.get()
             },
             &[color_dep],
