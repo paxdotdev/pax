@@ -172,9 +172,15 @@ const FONT_FAMILIES: &[(&str, &str)] = &[
 ];
 
 const FONT_WEIGHTS: &[(&str, FontWeight)] = &[
+    ("Thin", FontWeight::Thin),
+    ("ExtraLight", FontWeight::ExtraLight),
     ("Light", FontWeight::Light),
     ("Normal", FontWeight::Normal),
+    ("Medium", FontWeight::Medium),
+    ("SemiBold", FontWeight::SemiBold),
     ("Bold", FontWeight::Bold),
+    ("ExtraBold", FontWeight::ExtraBold),
+    ("Black", FontWeight::Black),
 ];
 
 impl TextStylePropertyEditor {
@@ -222,11 +228,13 @@ impl TextStylePropertyEditor {
         self.text_style.replace_with(Property::computed(
             move || {
                 external_change.set(true);
-                let value = pax_engine::pax_lang::from_pax(&data.get().get_value_as_str(&cctx));
+                let pax = &data.get().get_value_as_str(&cctx);
+                let value = pax_engine::pax_lang::from_pax(pax);
                 if let Ok(value) = value {
                     let style: TextStyle = TextStyle::try_coerce(value).unwrap_or_default();
                     return style;
                 }
+                log::warn!("failed to read textstyle: {}", pax);
                 TextStyle::default()
             },
             &deps,
