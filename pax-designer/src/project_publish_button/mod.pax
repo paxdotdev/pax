@@ -24,9 +24,9 @@ if self.publish_error {
     </Group>
 }
 
-<Group x={100% - 240px} anchor_x=100% y=5px width=200px height=50px @click=self.click>
+<Group x={100% - 240px} anchor_x=100% y=5px width=150px height=50px @click=self.click>
     <Group x=50% y=50% height={100% - 10px}>
-        <Text text="Push Changes" id=button_text />
+        <Text text="Ship it  🚀" id=button_text />
         <Rectangle fill=INDIGO corner_radii={RectangleCornerRadii::radii(5.0,5.0,5.0,5.0)} />
     </Group>
 </Group>
@@ -62,7 +62,7 @@ if self.publish_error {
                 "ff-real-headline-pro",
                 "https://use.typekit.net/ivu7epf.css",
                 FontStyle::Normal,
-                FontWeight::Bold,
+                FontWeight::Light,
             )},
             font_size: 20px,
             fill: WHITE,
