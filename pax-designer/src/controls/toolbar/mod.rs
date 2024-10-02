@@ -18,7 +18,7 @@ use crate::math::SizeUnit;
 use crate::model::action::tool::SetToolBehaviour;
 use crate::model::action::world::SelectNodes;
 use crate::model::action::{Action, ActionContext};
-use crate::model::{self, Component, ProjectMode, Tool, ToolBehavior};
+use crate::model::{self, ProjectMode, Tool, ToolBehavior, ToolbarComponent};
 use crate::ProjectMsg;
 use anyhow::Result;
 use toolbar_item::ToolbarItemVisual;
@@ -118,12 +118,12 @@ thread_local! {
                     ToolbarItem {
                         icon: "assets/icons/icon-rectangle.png",
                         tooltip: "Rectangle Creation Tool",
-                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Rectangle))
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::Rectangle))
                     },
                     ToolbarItem {
                         icon: "assets/icons/icon-ellipse.png",
                         tooltip: "Ellipse Creation Tool",
-                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Ellipse))
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::Ellipse))
                     }
                 ]
             },
@@ -132,7 +132,7 @@ thread_local! {
                     ToolbarItem {
                         icon: "assets/icons/icon-text.png",
                         tooltip: "Text Creation Tool",
-                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Text))
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::Text))
                     },
                 ]
             },
@@ -141,12 +141,12 @@ thread_local! {
                     ToolbarItem {
                         icon: "assets/icons/icon-stacker.png",
                         tooltip: "Stacker Creation Tool",
-                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Stacker))
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::Stacker))
                     },
                     ToolbarItem {
                         icon: "assets/icons/icon-scroller.png",
                         tooltip: "Scroller Creation Tool",
-                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Scroller))
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::Scroller))
                     },
                 ]
             },
@@ -155,32 +155,32 @@ thread_local! {
                     ToolbarItem {
                         icon: "assets/icons/icon-checkbox.png",
                         tooltip: "Checkbox Creation Tool",
-                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Checkbox))
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::Checkbox))
                     },
                     ToolbarItem {
                         icon: "assets/icons/icon-textbox.png",
                         tooltip: "Textbox Creation Tool",
-                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Textbox))
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::Textbox))
                     },
                     ToolbarItem {
                         icon: "assets/icons/icon-button.png",
                         tooltip: "Button Creation Tool",
-                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Button))
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::Button))
                     },
                     ToolbarItem {
                         icon: "assets/icons/icon-slider.png",
                         tooltip: "Slider Creation Tool",
-                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Slider))
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::Slider))
                     },
                     ToolbarItem {
                         icon: "assets/icons/icon-dropdown.png",
                         tooltip: "Dropdown Creation Tool",
-                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::Dropdown))
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::Dropdown))
                     },
                     ToolbarItem {
                         icon: "assets/icons/icon-component.png",
                         tooltip: "RadioSet Creation Tool",
-                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(Component::RadioSet))
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::RadioSet))
                     },
                 ]
             },

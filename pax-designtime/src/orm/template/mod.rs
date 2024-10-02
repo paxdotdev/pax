@@ -31,6 +31,14 @@ pub struct AddTemplateNodeRequest {
     _cached_node_data: Option<NodeData>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct ControlFlowSettingsDefinitionUpdate {
+    pub repeat_predicate_definition: Option<Option<ControlFlowRepeatPredicateDefinition>>,
+    pub repeat_source_expression: Option<Option<ExpressionInfo>>,
+    pub conditional_expression: Option<Option<ExpressionInfo>>,
+    pub slot_index_expression: Option<Option<ExpressionInfo>>,
+}
+
 impl AddTemplateNodeRequest {
     pub fn new(
         containing_component_type_id: TypeId,
@@ -160,11 +168,9 @@ impl Undo for AddTemplateNodeRequest {
 pub struct UpdateTemplateNodeRequest {
     uni: UniqueTemplateNodeIdentifier,
     updated_properties: HashMap<Token, Option<ValueDefinition>>,
-    updated_repeat_predicate_definition: Option<Option<ControlFlowRepeatPredicateDefinition>>,
-    updated_repeat_source_expression: Option<Option<ExpressionInfo>>,
-    updated_conditional_expression: Option<Option<ExpressionInfo>>,
     new_type_id: Option<TypeId>,
     new_location: Option<NodeLocation>,
+    control_flow_updates: ControlFlowSettingsDefinitionUpdate,
     // Used for Undo/Redo
     _cached_node_data: Option<NodeData>,
     _cached_move: Option<MoveTemplateNodeRequest>,
@@ -176,9 +182,7 @@ impl UpdateTemplateNodeRequest {
         new_type_id: Option<TypeId>,
         updated_properties: HashMap<Token, Option<ValueDefinition>>,
         new_location: Option<NodeLocation>,
-        updated_repeat_predicate_definition: Option<Option<ControlFlowRepeatPredicateDefinition>>,
-        updated_repeat_source_expression: Option<Option<ExpressionInfo>>,
-        updated_conditional_expression: Option<Option<ExpressionInfo>>,
+        control_flow_updates: ControlFlowSettingsDefinitionUpdate,
     ) -> Self {
         Self {
             uni,
@@ -187,9 +191,7 @@ impl UpdateTemplateNodeRequest {
             new_type_id,
             _cached_node_data: None,
             _cached_move: None,
-            updated_repeat_predicate_definition,
-            updated_repeat_source_expression,
-            updated_conditional_expression,
+            control_flow_updates,
         }
     }
 }
@@ -242,6 +244,15 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
             template.update_node_properties(
                 &uni.get_template_node_id(),
                 self.updated_properties.clone(),
+            );
+            template.update_control_flow_properties(
+                &uni.get_template_node_id(),
+                self.control_flow_updates
+                    .repeat_predicate_definition
+                    .clone(),
+                self.control_flow_updates.repeat_source_expression.clone(),
+                self.control_flow_updates.conditional_expression.clone(),
+                self.control_flow_updates.slot_index_expression.clone(),
             );
             // HACK: don't store path elements - grows large very quickly since we
             // save this entire state on each mouse move

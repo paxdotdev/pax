@@ -1,5 +1,5 @@
 if self.visible {
-    <Group x={(self.pos_x)px} y={(self.pos_y)px} width=150px height=206px>
+    <Group x={(self.pos_x)px} y={(self.pos_y)px} width=150px height=240px>
         <Stacker width={100% - 10px} height={100% - 10px} x=50% y=50% direction=StackerDirection::Vertical >
             <Group height=28px @click=self.group>
                 <Text height=100% text="Group" id=text x=5px/>
@@ -9,6 +9,12 @@ if self.visible {
             </Group>
             <Group height=28px @click=self.group_link>
                 <Text height=100% text="Make Link" id=text x=5px/>
+            </Group>
+            <Group height=28px @click=self.group_repeat>
+                <Text height=100% text="Repeat" id=text x=5px/>
+            </Group>
+            <Group height=28px @click=self.group_conditional>
+                <Text height=100% text="Make Conditional" id=text x=5px/>
             </Group>
             <Group height=28px @click=self.move_top>
                 <Text height=100% text="Move to Top" id=text x=5px/>

@@ -54,7 +54,6 @@ impl Mul for PaxValue {
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => (a * b).to_pax_value(),
             (PaxValue::Bool(a), PaxValue::Numeric(b))
             | (PaxValue::Numeric(b), PaxValue::Bool(a)) => {
-
                 (Numeric::I64(a as i64) * b).to_pax_value()
             }
             (PaxValue::Bool(a), PaxValue::Percent(b))
