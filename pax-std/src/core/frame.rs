@@ -128,7 +128,7 @@ impl InstanceNode for FrameInstance {
         // NOTE: overwrite frame to be a new prop for all deps
         let this_frame_prop = Property::new(Some(expanded_node.id));
         let new_children =
-            expanded_node.generate_children(children_with_envs, context, &this_frame_prop);
+            expanded_node.generate_children(children_with_envs, context, &this_frame_prop, true);
         expanded_node.children.set(new_children);
 
         // send update message when relevant properties change

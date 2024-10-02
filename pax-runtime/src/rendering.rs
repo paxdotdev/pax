@@ -146,6 +146,7 @@ pub trait InstanceNode {
             children_with_envs,
             context,
             &expanded_node.parent_frame,
+            true,
         );
         expanded_node.children.set(new_children);
     }
@@ -182,15 +183,18 @@ pub trait InstanceNode {
         // no-op for many
     }
 
-    fn handle_control_flow_expansion(
-        &self,
-        expanded_node: &Rc<ExpandedNode>,
+    fn handle_control_flow_node_expansion(
+        self: Rc<Self>,
+        _expanded_node: &Rc<ExpandedNode>,
         _context: &Rc<RuntimeContext>,
     ) {
-        let env = Rc::clone(&expanded_node.stack);
-        let children = borrow!(self.base().get_instance_children());
-        let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
+    }
 
+    fn handle_setup_slot_children(
+        self: Rc<Self>,
+        _expanded_node: &Rc<ExpandedNode>,
+        _context: &Rc<RuntimeContext>,
+    ) {
     }
 }
 

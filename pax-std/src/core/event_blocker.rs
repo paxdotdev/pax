@@ -62,6 +62,7 @@ impl InstanceNode for EventBlockerInstance {
             children_with_envs,
             context,
             &expanded_node.parent_frame,
+            true,
         );
         expanded_node.children.set(new_children);
 

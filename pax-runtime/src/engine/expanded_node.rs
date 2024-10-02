@@ -126,6 +126,9 @@ pub struct ExpandedNode {
 
     /// used by native elements to trigger sending of native messages
     pub native_message_listener: Property<()>,
+
+    /// used to know when a slot child is attached
+    pub slot_child_attached_listener: Property<()>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -254,6 +257,7 @@ impl ExpandedNode {
             slot_index: Property::default(),
             suspended: Property::new(false),
             native_message_listener: Property::default(),
+            slot_child_attached_listener: Property::default(),
         });
         res
     }
@@ -365,13 +369,13 @@ impl ExpandedNode {
 
             // suspension is used in the designer to turn of/on tick/update
             child.inherit_suspend(self);
+            child.bind_to_parent_bounds(context);
         }
         if self.attached.get() > 0 {
             for child in curr_children.iter() {
                 Rc::clone(child).recurse_unmount(context);
             }
             for child in new_children.iter() {
-                child.bind_to_parent_bounds(context);
                 Rc::clone(child).recurse_mount(context);
             }
         }
@@ -415,9 +419,18 @@ impl ExpandedNode {
         templates: impl IntoIterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
         context: &Rc<RuntimeContext>,
         parent_frame: &Property<Option<ExpandedNodeIdentifier>>,
+        is_mount: bool,
     ) -> Vec<Rc<ExpandedNode>> {
         let new_children = self.create_children_detached(templates, context, &Rc::downgrade(&self));
-        let res = self.attach_children(new_children, context, parent_frame);
+        let res = if is_mount {
+            self.attach_children(new_children, context, parent_frame)
+        } else {
+            for child in new_children.iter() {
+                child.recurse_control_flow_expansion(context);
+            }
+
+            new_children
+        };
         res
     }
 
@@ -458,27 +471,37 @@ impl ExpandedNode {
                 }
             }
         }
-        let is_slot = borrow!(self.instance_node).base().flags().is_slot;
-        if !is_slot {
-            for child in self.children.get().iter() {
-                child.recurse_update(context);
-            }
+
+        for child in self.children.get().iter() {
+            child.recurse_update(context);
+        }
+        if borrow!(self.instance_node).base().flags().is_component {
+            self.compute_flattened_slot_children();
         }
     }
 
-
-    pub fn recurse_control_flow_expansion(
-        self: &Rc<Self>,
-        context: &Rc<RuntimeContext>,
-    ) {
+    pub fn recurse_control_flow_expansion(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
         borrow!(self.instance_node)
-        .clone()
-        .handle_control_flow_expansion(&self, context);
-
+            .clone()
+            .handle_control_flow_node_expansion(&self, context);
     }
 
     pub fn recurse_mount(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
         if self.attached.get() == 0 {
+            // create slot children
+            borrow!(self.instance_node)
+                .clone()
+                .handle_setup_slot_children(&self, context);
+
+            // a pre-mounting pass to make sure all slot children are expanded and we compute the correct flattened slot children
+            if let Some(slot_children) = borrow!(self.expanded_slot_children).as_ref() {
+                for slot_child in slot_children {
+                    slot_child.recurse_control_flow_expansion(context);
+                }
+                // this is needed to reslove slot connections in a single tick
+                self.compute_flattened_slot_children();
+            }
+
             self.attached.set(self.attached.get() + 1);
             context.add_to_cache(&self);
             if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
@@ -497,14 +520,6 @@ impl ExpandedNode {
             borrow!(self.instance_node)
                 .clone()
                 .handle_mount(&self, context);
-            // Mount slot children and children AFTER mounting self
-            if let Some(slot_children) = borrow!(self.expanded_slot_children).as_ref() {
-                for slot_child in slot_children {
-                    slot_child.recurse_mount(context);
-                }
-            }
-            // this is needed to resolve slot connections in a single tick
-            self.compute_flattened_slot_children();
         }
     }
 
@@ -629,6 +644,16 @@ impl ExpandedNode {
                 .unwrap_or_default()
         };
 
+        let slot_children_attached_listener =
+            if borrow!(self.instance_node).base().flags().is_component {
+                self.slot_child_attached_listener.clone()
+            } else {
+                self.containing_component
+                    .upgrade()
+                    .map(|v| v.slot_child_attached_listener.clone())
+                    .unwrap_or_default()
+            };
+
         let last_frame = Rc::new(RefCell::new(globals.frames_elapsed.get()));
         let suspended = self.suspended.clone();
         let frames_elapsed = globals.frames_elapsed.clone();
@@ -662,6 +687,7 @@ impl ExpandedNode {
             slot_children_count,
             slot_children,
             node_transform_and_bounds: self.transform_and_bounds.get(),
+            slot_children_attached_listener,
             #[cfg(feature = "designtime")]
             designtime: globals.designtime.clone(),
         }

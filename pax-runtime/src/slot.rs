@@ -67,6 +67,7 @@ impl InstanceNode for SlotInstance {
             .expect("slot to have a containing component");
 
         let nodes = containing.expanded_and_flattened_slot_children.clone();
+        let listener = containing.slot_child_attached_listener.clone();
 
         let index = expanded_node
             .with_properties_unwrapped(|properties: &mut Slot| properties.index.clone());
@@ -85,11 +86,13 @@ impl InstanceNode for SlotInstance {
                         Some(rc) => Rc::downgrade(rc),
                         None => Weak::new(),
                     };
-                    cloned_expanded_node.attach_children(
+                    let ret = cloned_expanded_node.attach_children(
                         node.upgrade().as_slice().to_vec(),
                         &cloned_context,
                         &cloned_expanded_node.parent_frame,
-                    )
+                    );
+                    listener.set(());
+                    ret
                 },
                 &deps,
                 &format!("slot_children (node id: {})", expanded_node.id.0),

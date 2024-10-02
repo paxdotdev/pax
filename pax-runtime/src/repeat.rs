@@ -111,6 +111,25 @@ impl InstanceNode for RepeatInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
+        self.handle_setup(expanded_node, context, true);
+    }
+
+    fn handle_control_flow_node_expansion(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RuntimeContext>,
+    ) {
+        self.handle_setup(expanded_node, context, false);
+    }
+}
+
+impl RepeatInstance {
+    fn handle_setup(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RuntimeContext>,
+        is_mount: bool,
+    ) {
         // No-op: wait with creating child-nodes until update tick, since the
         // condition has then been evaluated
         let weak_ref_self = Rc::downgrade(expanded_node);
@@ -140,9 +159,7 @@ impl InstanceNode for RepeatInstance {
         let last_elem_sym = Rc::new(RefCell::new(None));
         let last_i_sym = Rc::new(RefCell::new(None));
 
-        expanded_node
-            .children
-            .replace_with(Property::computed_with_name(
+        let children = Property::computed_with_name(
                 move || {
                     let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
                         panic!("ran evaluator after expanded node dropped (repeat elem)")
@@ -206,21 +223,23 @@ impl InstanceNode for RepeatInstance {
                                 );
                             }
 
-                            let new_env = cloned_expanded_node.stack.push(scope);
-                            borrow!(children)
-                                .clone()
-                                .into_iter()
-                                .zip(iter::repeat(new_env))
-                        });
-                    let ret = cloned_expanded_node.generate_children(
-                        children_with_envs,
-                        &cloned_context,
-                        &cloned_expanded_node.parent_frame,
-                    );
-                    ret
-                },
-                &deps,
-                &format!("repeat_children (node id: {})", expanded_node.id.0),
-            ));
+                        let new_env = cloned_expanded_node.stack.push(scope);
+                        borrow!(children)
+                            .clone()
+                            .into_iter()
+                            .zip(iter::repeat(new_env))
+                    });
+                let ret = cloned_expanded_node.generate_children(
+                    children_with_envs,
+                    &cloned_context,
+                    &cloned_expanded_node.parent_frame,
+                    is_mount,
+                );
+                ret
+            },
+            &deps,
+            &format!("repeat_children (node id: {})", expanded_node.id.0),
+        );
+        expanded_node.children.replace_with(children);
     }
 }

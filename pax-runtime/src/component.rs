@@ -53,7 +53,7 @@ impl InstanceNode for ComponentInstance {
         })
     }
 
-    fn handle_mount(
+    fn handle_setup_slot_children(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
@@ -75,12 +75,19 @@ impl InstanceNode for ComponentInstance {
             );
             *borrow_mut!(expanded_node.expanded_slot_children) = Some(new_slot_children);
         }
-        let mut properties_scope = borrow!(expanded_node.properties_scope).clone();
+    }
+
+    fn handle_mount(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RuntimeContext>,
+    ) {
+        let mut properties_scope = borrow_mut!(expanded_node.properties_scope);
         properties_scope.insert(
             "$suspended".to_string(),
             Variable::new_from_typed_property(expanded_node.suspended.clone()),
         );
-        let new_env = expanded_node.stack.push(properties_scope);
+        let new_env = expanded_node.stack.push(properties_scope.clone());
         let children = borrow!(self.template);
         let children_with_envs = children.iter().cloned().zip(iter::repeat(new_env));
         expanded_node.children.replace_with(Property::new_with_name(
@@ -88,10 +95,10 @@ impl InstanceNode for ComponentInstance {
                 children_with_envs,
                 context,
                 &expanded_node.parent_frame,
+                true,
             ),
             &format!("component (node id: {})", expanded_node.id.0),
         ));
-        // update slot children
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
@@ -100,15 +107,6 @@ impl InstanceNode for ComponentInstance {
                 slot_child.recurse_unmount(context);
             }
         }
-    }
-
-    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
-        if let Some(slot_children) = borrow_mut!(expanded_node.expanded_slot_children).as_ref() {
-            for slot_child in slot_children {
-                slot_child.recurse_update(context);
-            }
-        }
-        expanded_node.compute_flattened_slot_children();
     }
 
     fn resolve_debug(

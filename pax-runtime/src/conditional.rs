@@ -63,6 +63,37 @@ impl InstanceNode for ConditionalInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
+        self.handle_setup(expanded_node, context, true);
+    }
+
+    fn handle_control_flow_node_expansion(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RuntimeContext>,
+    ) {
+        self.handle_setup(expanded_node, context, false);
+    }
+
+    fn resolve_debug(
+        &self,
+        f: &mut std::fmt::Formatter,
+        _expanded_node: Option<&ExpandedNode>,
+    ) -> std::fmt::Result {
+        f.debug_struct("Conditional").finish()
+    }
+
+    fn base(&self) -> &BaseInstance {
+        &self.base
+    }
+}
+
+impl ConditionalInstance {
+    fn handle_setup(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RuntimeContext>,
+        is_mount: bool,
+    ) {
         let weak_ref_self = Rc::downgrade(expanded_node);
         let cloned_self = Rc::clone(&self);
         let cloned_context = Rc::clone(context);
@@ -95,6 +126,7 @@ impl InstanceNode for ConditionalInstance {
                             children_with_envs,
                             &cloned_context,
                             &cloned_expanded_node.parent_frame,
+                            is_mount,
                         );
                         res
                     } else {
@@ -102,23 +134,12 @@ impl InstanceNode for ConditionalInstance {
                             vec![],
                             &cloned_context,
                             &cloned_expanded_node.parent_frame,
+                            is_mount,
                         )
                     }
                 },
                 &[dep],
                 &format!("conditional_children (node id: {})", expanded_node.id.0),
             ));
-    }
-
-    fn resolve_debug(
-        &self,
-        f: &mut std::fmt::Formatter,
-        _expanded_node: Option<&ExpandedNode>,
-    ) -> std::fmt::Result {
-        f.debug_struct("Conditional").finish()
-    }
-
-    fn base(&self) -> &BaseInstance {
-        &self.base
     }
 }
