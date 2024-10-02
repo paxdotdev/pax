@@ -169,6 +169,10 @@ const FONT_FAMILIES: &[(&str, &str)] = &[
         "Unknown",
         "",
     ),
+    (
+       "ff-real-headline-pro",
+       "https://use.typekit.net/ivu7epf.css",        
+    ),
 ];
 
 const FONT_WEIGHTS: &[(&str, FontWeight)] = &[
@@ -231,10 +235,9 @@ impl TextStylePropertyEditor {
                 let pax = &data.get().get_value_as_str(&cctx);
                 let value = pax_engine::pax_lang::from_pax(pax);
                 if let Ok(value) = value {
-                    let style: TextStyle = TextStyle::try_coerce(value).unwrap_or_default();
-                    return style;
+                    let style: Result<TextStyle, String> = TextStyle::try_coerce(value);
+                    return style.unwrap_or_default();
                 }
-                log::warn!("failed to read textstyle: {}", pax);
                 TextStyle::default()
             },
             &deps,
@@ -352,6 +355,7 @@ impl TextStylePropertyEditor {
                     2 => TextAlignVertical::Bottom,
                     _ => unreachable!("index out of bounds"),
                 };
+                let font_color = font_color.get();
                 if !external_change.get() {
                     let text_style = TextStyle {
                         font: Property::new(Font::Web(
@@ -361,7 +365,7 @@ impl TextStylePropertyEditor {
                             weight.clone(),
                         )),
                         font_size: Property::new(font_size),
-                        fill: Property::new(font_color.get()),
+                        fill: Property::new(font_color),
                         underline: Property::new(false),
                         align_multiline: Property::new(h_align.clone()),
                         align_vertical: Property::new(v_align.clone()),
