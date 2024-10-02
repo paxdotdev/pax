@@ -3,12 +3,16 @@ use pax_engine::*;
 use pax_manifest::*;
 use std::collections::HashMap;
 
-use crate::model;
+use crate::{designer_node_type::DesignerNodeType, model};
 use pax_std::*;
 
 use convert_case::{Case, Casing};
 pub mod color_picker;
+pub mod control_flow_for_editor;
+pub mod control_flow_if_editor;
 pub mod property_editor;
+use control_flow_for_editor::ControlFlowForEditor;
+use control_flow_if_editor::ControlFlowIfEditor;
 use property_editor::PropertyEditor;
 
 #[pax]
@@ -16,6 +20,8 @@ use property_editor::PropertyEditor;
 #[file("controls/settings/mod.pax")]
 pub struct Settings {
     pub is_component_selected: Property<bool>,
+    pub is_control_flow_if_selected: Property<bool>,
+    pub is_control_flow_for_selected: Property<bool>,
     pub selected_component_name: Property<String>,
     pub custom_properties: Property<Vec<PropertyArea>>,
     pub custom_properties_total_height: Property<f64>,
@@ -42,7 +48,7 @@ thread_local! {
 impl Settings {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         model::read_app_state(|app_state| {
-            self.bind_is_component_selected(&app_state);
+            self.bind_selected(&app_state, ctx);
             self.bind_snid(&app_state);
             self.bind_stid(&app_state);
             self.bind_custom_properties(ctx);
@@ -50,13 +56,67 @@ impl Settings {
         });
     }
 
-    fn bind_is_component_selected(&mut self, app_state: &model::AppState) {
+    fn bind_selected(&mut self, app_state: &model::AppState, ctx: &NodeContext) {
         let stnids = app_state.selected_template_node_ids.clone();
-        let deps = [stnids.untyped()];
+        let comp_type_id = self.stid.clone();
+        let deps = [stnids.untyped(), comp_type_id.untyped()];
+        let ctx = ctx.clone();
+        let node_type = Property::computed(
+            move || {
+                let Some(node_id) = stnids.read(|ids| (ids.len() == 1).then(|| ids[0].clone()))
+                else {
+                    return None;
+                };
+                let uni = UniqueTemplateNodeIdentifier::build(comp_type_id.get(), node_id);
+                let mut dt = borrow_mut!(ctx.designtime);
+                let orm = dt.get_orm_mut();
+                let Some(node) = orm.get_node(uni.clone(), false) else {
+                    return Some(DesignerNodeType::Unregistered);
+                };
+                let node_type = DesignerNodeType::from_type_id(node.get_type_id());
+                Some(node_type)
+            },
+            &deps,
+        );
+
+        let deps = [node_type.untyped()];
+        let node_type_cp = node_type.clone();
         self.is_component_selected.replace_with(Property::computed(
-            move || stnids.read(|ids| ids.len()) == 1,
+            move || {
+                let Some(node_type) = node_type_cp.get() else {
+                    return false;
+                };
+                !matches!(
+                    node_type,
+                    DesignerNodeType::Conditional
+                        | DesignerNodeType::Repeat
+                        | DesignerNodeType::Slot
+                )
+            },
             &deps,
         ));
+        let node_type_cp = node_type.clone();
+        self.is_control_flow_if_selected
+            .replace_with(Property::computed(
+                move || {
+                    let Some(node_type) = node_type_cp.get() else {
+                        return false;
+                    };
+                    matches!(node_type, DesignerNodeType::Conditional)
+                },
+                &deps,
+            ));
+        let node_type_cp = node_type.clone();
+        self.is_control_flow_for_selected
+            .replace_with(Property::computed(
+                move || {
+                    let Some(node_type) = node_type_cp.get() else {
+                        return false;
+                    };
+                    matches!(node_type, DesignerNodeType::Repeat)
+                },
+                &deps,
+            ));
     }
 
     fn bind_snid(&mut self, app_state: &model::AppState) {

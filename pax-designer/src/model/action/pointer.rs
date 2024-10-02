@@ -14,7 +14,7 @@ use crate::model::input::{InputEvent, ModifierKey};
 use crate::model::tools::{
     CreateComponentTool, MovingTool, MultiSelectTool, PaintbrushTool, ZoomToFitTool,
 };
-use crate::model::Component;
+use crate::model::ToolbarComponent;
 use crate::model::{action, Tool};
 use crate::model::{AppState, StageInfo};
 use crate::SetStage;
@@ -96,17 +96,17 @@ impl Action for MouseEntryPointAction<'_> {
                         }
                         Tool::CreateComponent(component) => {
                             tool_behavior.set(Some(Rc::new(RefCell::new(match component {
-                            Component::Rectangle => CreateComponentTool::new(
+                            ToolbarComponent::Rectangle => CreateComponentTool::new(
                                 point_glass,
                                 DesignerNodeType::Rectangle,
                                 ctx,
                             ),
-                            Component::Ellipse => CreateComponentTool::new(
+                            ToolbarComponent::Ellipse => CreateComponentTool::new(
                                 point_glass,
                                 DesignerNodeType::Ellipse,
                                 ctx,
                             ),
-                            Component::Text => CreateComponentTool::new(
+                            ToolbarComponent::Text => CreateComponentTool::new(
                                 point_glass,
                                 DesignerNodeType::Text,
                                 ctx,
@@ -122,7 +122,7 @@ impl Action for MouseEntryPointAction<'_> {
                                 .perform(ctx)?;
                                 Ok(())
                             }),
-                            Component::Scroller => CreateComponentTool::new(
+                            ToolbarComponent::Scroller => CreateComponentTool::new(
                                 point_glass,
                                 DesignerNodeType::Scroller,
                                 ctx,
@@ -138,12 +138,12 @@ impl Action for MouseEntryPointAction<'_> {
                                     builder_extra_commands: Some(&|builder| {
                                         builder.set_property("fill", "GRAY")
                                     }),
-                                    node_layout: NodeLayoutSettings::Fill,
+                                    node_layout: Some(NodeLayoutSettings::Fill),
                                 }
                                 .perform(ctx)?;
                                 Ok(())
                             }),
-                            Component::Stacker => CreateComponentTool::new(
+                            ToolbarComponent::Stacker => CreateComponentTool::new(
                                 point_glass,
                                 DesignerNodeType::Stacker,
                                 ctx,
@@ -161,7 +161,7 @@ impl Action for MouseEntryPointAction<'_> {
                                                 &format!("rgb({}, {}, {})", c, c, c),
                                             )
                                         }),
-                                        node_layout: NodeLayoutSettings::Fill,
+                                        node_layout: Some(NodeLayoutSettings::Fill),
                                     }
                                     .perform(ctx)?;
                                 }
@@ -183,32 +183,32 @@ impl Action for MouseEntryPointAction<'_> {
                                 }
                                 Ok(())
                             }),
-                            Component::Checkbox => CreateComponentTool::new(
+                            ToolbarComponent::Checkbox => CreateComponentTool::new(
                                 point_glass,
                                 DesignerNodeType::Checkbox,
                                 ctx,
                             ),
-                            Component::Textbox => CreateComponentTool::new(
+                            ToolbarComponent::Textbox => CreateComponentTool::new(
                                 point_glass,
                                 DesignerNodeType::Textbox,
                                 ctx,
                             ),
-                            Component::Button => CreateComponentTool::new(
+                            ToolbarComponent::Button => CreateComponentTool::new(
                                 point_glass,
                                 DesignerNodeType::Button,
                                 ctx,
                             ),
-                            Component::Slider => CreateComponentTool::new(
+                            ToolbarComponent::Slider => CreateComponentTool::new(
                                 point_glass,
                                 DesignerNodeType::Slider,
                                 ctx,
                             ),
-                            Component::Dropdown => CreateComponentTool::new(
+                            ToolbarComponent::Dropdown => CreateComponentTool::new(
                                 point_glass,
                                 DesignerNodeType::Dropdown,
                                 ctx,
                             ),
-                            Component::RadioSet => CreateComponentTool::new(
+                            ToolbarComponent::RadioSet => CreateComponentTool::new(
                                 point_glass,
                                 DesignerNodeType::RadioSet,
                                 ctx,

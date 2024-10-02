@@ -623,12 +623,34 @@ impl PaxChassisWeb {
                         engine.full_reload_userland(root);
                     }
                     ReloadType::Partial(uni) => {
-                        let instance_node = self
+                        let manifest = self
                             .userland_definition_to_instance_traverser
-                            .build_template_node(
-                                &uni.get_containing_component_type_id(),
-                                &uni.get_template_node_id(),
-                            );
+                            .get_manifest();
+                        let containing_component = manifest
+                            .components
+                            .get(&uni.get_containing_component_type_id())
+                            .unwrap();
+                        let containing_template = containing_component.template.as_ref().unwrap();
+                        let tnd = containing_template
+                            .get_node(&uni.get_template_node_id())
+                            .unwrap();
+                        let pax_type = tnd.type_id.get_pax_type();
+                        let instance_node = match pax_type {
+                            pax_manifest::PaxType::If
+                            | pax_manifest::PaxType::Slot
+                            | pax_manifest::PaxType::Repeat => self
+                                .userland_definition_to_instance_traverser
+                                .build_control_flow(
+                                    &uni.get_containing_component_type_id(),
+                                    &uni.get_template_node_id(),
+                                ),
+                            _ => self
+                                .userland_definition_to_instance_traverser
+                                .build_template_node(
+                                    &uni.get_containing_component_type_id(),
+                                    &uni.get_template_node_id(),
+                                ),
+                        };
                         let mut engine = borrow_mut!(self.engine);
                         engine.partial_update_expanded_node(Rc::clone(&instance_node));
                     }

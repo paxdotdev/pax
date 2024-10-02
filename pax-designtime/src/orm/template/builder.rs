@@ -8,7 +8,10 @@ use pax_manifest::{
     ValueDefinition,
 };
 
-use super::{AddTemplateNodeRequest, GetTemplateNodeRequest, NodeType, UpdateTemplateNodeRequest};
+use super::{
+    AddTemplateNodeRequest, ControlFlowSettingsDefinitionUpdate, GetTemplateNodeRequest, NodeType,
+    UpdateTemplateNodeRequest,
+};
 use crate::orm::PaxManifestORM;
 
 /// Builder for creating and modifying template nodes in the PaxManifest.
@@ -17,9 +20,7 @@ pub struct NodeBuilder<'a> {
     containing_component_type_id: TypeId,
     node_type_id: TypeId,
     updated_property_map: HashMap<Token, Option<ValueDefinition>>,
-    updated_repeat_predicate_definition: Option<Option<ControlFlowRepeatPredicateDefinition>>,
-    updated_repeat_source_expression: Option<Option<ExpressionInfo>>,
-    updated_conditional_expression: Option<Option<ExpressionInfo>>,
+    control_flow_updates: ControlFlowSettingsDefinitionUpdate,
     unique_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     location: Option<NodeLocation>,
     overwrite_expressions: bool,
@@ -42,10 +43,10 @@ impl<'a> NodeBuilder<'a> {
             containing_component_type_id,
             node_type_id,
             updated_property_map: HashMap::new(),
-            updated_repeat_predicate_definition: None,
             unique_node_identifier: None,
             location: None,
             overwrite_expressions,
+            control_flow_updates: ControlFlowSettingsDefinitionUpdate::default(),
         }
     }
 
@@ -65,7 +66,7 @@ impl<'a> NodeBuilder<'a> {
                 node_type_id: node.type_id,
                 updated_property_map: HashMap::new(),
                 unique_node_identifier: Some(uni),
-                updated_repeat_predicate_definition: None,
+                control_flow_updates: ControlFlowSettingsDefinitionUpdate::default(),
                 location,
                 overwrite_expressions,
             })
@@ -131,9 +132,10 @@ impl<'a> NodeBuilder<'a> {
         properties.into_iter().zip(values).collect()
     }
 
-    pub fn set_control_flow_source(&mut self, value: &str) -> Result<()> {
+    pub fn set_repeat_source(&mut self, value: &str) -> Result<()> {
         let repeat_source_expression = self
-            .updated_repeat_source_expression
+            .control_flow_updates
+            .repeat_source_expression
             .get_or_insert_with(|| None);
         if value.is_empty() {
             return Ok(());
@@ -159,31 +161,36 @@ impl<'a> NodeBuilder<'a> {
         Ok(())
     }
 
-    pub fn set_control_flow_predicate(&mut self, value: &str) -> Result<()> {
+    pub fn set_repeat_predicate(&mut self, value: &str) -> Result<()> {
         let control_flow_predicate_definition = self
-            .updated_repeat_predicate_definition
+            .control_flow_updates
+            .repeat_predicate_definition
             .get_or_insert_with(|| None);
         if value.is_empty() {
             return Ok(());
         }
         if let Some((a, b)) = value.split_once(", ") {
             // assume a tuple
-            let (a, b) = (a.trim_start_matches("("), b.trim_start_matches(")"));
+            let (a, b) = (
+                a.trim_start_matches("(").trim(),
+                b.trim_end_matches(")").trim(),
+            );
             *control_flow_predicate_definition = Some(
                 ControlFlowRepeatPredicateDefinition::ElemIdIndexId(a.to_string(), b.to_string()),
             );
         } else {
+            //assume a single elem
             *control_flow_predicate_definition = Some(
                 ControlFlowRepeatPredicateDefinition::ElemId(value.to_string()),
             );
-            //assume a single elem
         }
-        todo!()
+        Ok(())
     }
 
     pub fn set_conditional_source(&mut self, value: &str) -> Result<()> {
         let conditional_expression = self
-            .updated_conditional_expression
+            .control_flow_updates
+            .conditional_expression
             .get_or_insert_with(|| None);
         if value.is_empty() {
             return Ok(());
@@ -290,26 +297,58 @@ impl<'a> NodeBuilder<'a> {
                 Some(self.node_type_id),
                 self.updated_property_map,
                 Some(location),
-                self.updated_repeat_predicate_definition,
-                self.updated_repeat_source_expression,
-                self.updated_conditional_expression,
+                self.control_flow_updates,
             ))?;
             resp.command_id
         } else {
+            let node_data = match self.node_type_id.get_pax_type() {
+                pax_manifest::PaxType::If
+                | pax_manifest::PaxType::Slot
+                | pax_manifest::PaxType::Repeat => {
+                    let control_flow_settings_defintion = ControlFlowSettingsDefinition {
+                        repeat_predicate_definition: self
+                            .control_flow_updates
+                            .repeat_predicate_definition
+                            .flatten(),
+                        repeat_source_expression: self
+                            .control_flow_updates
+                            .repeat_source_expression
+                            .flatten(),
+                        condition_expression: self
+                            .control_flow_updates
+                            .conditional_expression
+                            .flatten(),
+                        slot_index_expression: self
+                            .control_flow_updates
+                            .slot_index_expression
+                            .flatten(),
+                    };
+
+                    NodeType::ControlFlow(Box::new(control_flow_settings_defintion))
+                }
+                pax_manifest::PaxType::Comment => {
+                    NodeType::Comment("COMMENT BUILDER WRITING NOT IMPLEMENTED".to_string())
+                }
+                pax_manifest::PaxType::BlankComponent { .. }
+                | pax_manifest::PaxType::Singleton { .. } => {
+                    let settings = self
+                        .updated_property_map
+                        .iter()
+                        .filter_map(|(k, v)| {
+                            v.as_ref()
+                                .map(|value| SettingElement::Setting(k.clone(), value.clone()))
+                        })
+                        .collect::<Vec<SettingElement>>();
+                    NodeType::Template(settings)
+                }
+                _ => return Err("failed to save node - unsupported type".to_string()),
+            };
             // Node does not exist
-            let settings = self
-                .updated_property_map
-                .iter()
-                .filter_map(|(k, v)| {
-                    v.as_ref()
-                        .map(|value| SettingElement::Setting(k.clone(), value.clone()))
-                })
-                .collect::<Vec<SettingElement>>();
 
             let resp = self.orm.execute_command(AddTemplateNodeRequest::new(
                 self.containing_component_type_id,
                 self.node_type_id,
-                NodeType::Template(settings),
+                node_data,
                 self.location,
             ))?;
             self.location = self.orm.manifest.get_node_location(&resp.uni);

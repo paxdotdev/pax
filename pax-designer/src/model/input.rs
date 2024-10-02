@@ -21,7 +21,7 @@ use super::action::world::SelectAllInOpenContainer;
 use super::read_app_state;
 use super::{
     action::{self, orm::DeleteSelected, world, Action, ActionContext},
-    Component, Tool,
+    Tool, ToolbarComponent,
 };
 
 impl Interpolatable for InputMapper {}
@@ -51,20 +51,20 @@ impl Default for InputMapper {
                 // rectangle
                 (
                     (RawInput::R, HashSet::new()),
-                    InputEvent::SelectTool(Tool::CreateComponent(Component::Rectangle)),
+                    InputEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::Rectangle)),
                 ),
                 (
                     (RawInput::M, HashSet::new()),
-                    InputEvent::SelectTool(Tool::CreateComponent(Component::Rectangle)),
+                    InputEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::Rectangle)),
                 ),
                 // ellipse
                 (
                     (RawInput::O, HashSet::new()),
-                    InputEvent::SelectTool(Tool::CreateComponent(Component::Ellipse)),
+                    InputEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::Ellipse)),
                 ),
                 (
                     (RawInput::E, HashSet::new()),
-                    InputEvent::SelectTool(Tool::CreateComponent(Component::Ellipse)),
+                    InputEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::Ellipse)),
                 ),
                 // pointers
                 (
@@ -78,16 +78,16 @@ impl Default for InputMapper {
                 // text
                 (
                     (RawInput::T, HashSet::new()),
-                    InputEvent::SelectTool(Tool::CreateComponent(Component::Text)),
+                    InputEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::Text)),
                 ),
                 (
                     (RawInput::T, HashSet::from([ModifierKey::Shift])),
-                    InputEvent::SelectTool(Tool::CreateComponent(Component::Textbox)),
+                    InputEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::Textbox)),
                 ),
                 // button
                 (
                     (RawInput::B, HashSet::new()),
-                    InputEvent::SelectTool(Tool::CreateComponent(Component::Button)),
+                    InputEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::Button)),
                 ),
                 // -- Group/ungroup ops
                 (

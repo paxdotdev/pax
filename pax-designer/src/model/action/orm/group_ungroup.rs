@@ -13,6 +13,7 @@ use crate::{
     },
 };
 use anyhow::{anyhow, Context, Result};
+use pax_designtime::orm::template::builder::NodeBuilder;
 use pax_engine::pax_manifest::{
     NodeLocation, TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier,
 };
@@ -34,6 +35,8 @@ use super::{tree_movement::MoveNode, CreateComponent, NodeLayoutSettings};
 pub enum GroupType {
     Link,
     Group,
+    Repeat,
+    Conditional,
 }
 
 pub struct GroupSelected {
@@ -82,10 +85,34 @@ pub struct GroupNodes<'n> {
 
 impl Action<UniqueTemplateNodeIdentifier> for GroupNodes<'_> {
     fn perform(&self, ctx: &mut ActionContext) -> Result<UniqueTemplateNodeIdentifier> {
-        let group_type = match self.group_type {
-            GroupType::Link => DesignerNodeType::Link,
-            GroupType::Group => DesignerNodeType::Group,
-        };
+        type BuilderExtraCommands<'a> = Option<&'a dyn Fn(&mut NodeBuilder) -> Result<()>>;
+        let (group_type, builder_extra_commands, group_has_size): (_, BuilderExtraCommands, _) =
+            match self.group_type {
+                GroupType::Link => (DesignerNodeType::Link, None, true),
+                GroupType::Group => (DesignerNodeType::Group, None, true),
+                GroupType::Repeat => (
+                    DesignerNodeType::Repeat,
+                    Some(
+                        &(|builder| {
+                            // sane
+                            builder.set_repeat_source("{0..5}")?;
+                            builder.set_repeat_predicate("i")?;
+                            Ok(())
+                        }),
+                    ),
+                    false,
+                ),
+                GroupType::Conditional => (
+                    DesignerNodeType::Conditional,
+                    Some(
+                        &(|builder| {
+                            builder.set_conditional_source("true")?;
+                            Ok(())
+                        }),
+                    ),
+                    false,
+                ),
+            };
         let group_type_metadata =
             group_type.metadata(&borrow!(ctx.engine_context.designtime).get_orm());
 
@@ -127,7 +154,7 @@ impl Action<UniqueTemplateNodeIdentifier> for GroupNodes<'_> {
         t.run(|| {
             let group_parent_t_and_b = group_parent_data.transform_and_bounds.get().as_pure_size();
             let decomp_config = Default::default();
-            let node_layout = if parent_is_slot_container {
+            let node_layout = group_has_size.then_some(if parent_is_slot_container {
                 NodeLayoutSettings::Fill
             } else {
                 NodeLayoutSettings::KeepScreenBounds {
@@ -135,14 +162,14 @@ impl Action<UniqueTemplateNodeIdentifier> for GroupNodes<'_> {
                     parent_transform_and_bounds: &group_parent_t_and_b,
                     node_decomposition_config: &decomp_config,
                 }
-            };
+            });
 
             let group_uid = CreateComponent {
                 parent_id: &group_parent_data.id,
                 node_layout,
                 parent_index: self.group_location_index.clone(),
                 designer_node_type: group_type,
-                builder_extra_commands: None,
+                builder_extra_commands,
             }
             .perform(ctx)?;
 
@@ -152,13 +179,18 @@ impl Action<UniqueTemplateNodeIdentifier> for GroupNodes<'_> {
                     node_id: &node.id,
                     index: TreeIndexPosition::Bottom,
                     new_parent_uid: &group_uid,
-                    new_node_layout: Some(NodeLayoutSettings::KeepScreenBounds {
-                        node_transform_and_bounds: &node.transform_and_bounds.get().as_pure_size(),
-                        parent_transform_and_bounds: &group_transform_and_bounds,
-                        node_decomposition_config: &node
-                            .layout_properties
-                            .into_decomposition_config(),
-                    }),
+                    new_node_layout: group_has_size.then_some(
+                        NodeLayoutSettings::KeepScreenBounds {
+                            node_transform_and_bounds: &node
+                                .transform_and_bounds
+                                .get()
+                                .as_pure_size(),
+                            parent_transform_and_bounds: &group_transform_and_bounds,
+                            node_decomposition_config: &node
+                                .layout_properties
+                                .into_decomposition_config(),
+                        },
+                    ),
                 }
                 .perform(ctx)?;
             }
