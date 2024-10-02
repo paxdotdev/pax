@@ -32,7 +32,7 @@ Follow the [Get Started](https://docs.pax.dev/get-started/) instructions in the 
 You can try out Pax Designer on your workstation by following the [“Get Started”]((https://docs.pax.dev/get-started/)) directions.  
 This will run Pax Designer locally and allow you to make changes to the template starter project visually and via code.
 
-For a robust real-world project built in Pax, see [Pax Designer's source code](https://github.com/paxdotdev/pax/tree/dev/pax-designer), which is 100% Pax.
+For a robust real-world project built in Pax, see [Pax Designer's source code](https://github.com/paxdotdev/pax/tree/dev/pax-designer), built entirely in Pax.
 
 ## Docs
 
