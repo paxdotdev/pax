@@ -701,6 +701,7 @@ export class NativeElementPool {
     }
 
     textUpdate(patch: TextUpdatePatch) {
+        console.log(patch);
         let leaf = this.nodesLookup.get(patch.id!) as HTMLElement;
         let textChild = leaf!.firstChild as HTMLElement;
         // should be start listening to this elements size and
@@ -727,7 +728,6 @@ export class NativeElementPool {
         }
 
         if (start_listening) {
-            console.log(patch);
             this.resizeObserver.observe(leaf);
         }
 
