@@ -8,25 +8,25 @@ if self.visible {
                 <Text height=100% text="Ungroup" id=text x=5px/>
             </Group>
             <Group height=28px @click=self.group_link>
-                <Text height=100% text="Make Link" id=text x=5px/>
+                <Text height=100% width=100% text="Make Link" id=text x=5px/>
             </Group>
             <Group height=28px @click=self.group_repeat>
-                <Text height=100% text="Repeat" id=text x=5px/>
+                <Text height=100% width=100% text="Repeat" id=text x=5px/>
             </Group>
             <Group height=28px @click=self.group_conditional>
-                <Text height=100% text="Make Conditional" id=text x=5px/>
+                <Text height=100% width=100% text="Make Conditional" id=text x=5px/>
             </Group>
             <Group height=28px @click=self.move_top>
-                <Text height=100% text="Move to Top" id=text x=5px/>
+                <Text height=100% width=100% text="Move to Top" id=text x=5px/>
             </Group>
             <Group height=28px @click=self.move_bump_up>
-                <Text height=100% text="Move Up" id=text x=5px/>
+                <Text height=100% width=100% text="Move Up" id=text x=5px/>
             </Group>
             <Group height=28px @click=self.move_bump_down>
-                <Text height=100% text="Move Down" id=text x=5px/>
+                <Text height=100% width=100% text="Move Down" id=text x=5px/>
             </Group>
             <Group height=28px @click=self.move_bottom>
-                <Text height=100% text="Move to Bottom" id=text x=5px/>
+                <Text height=100% width=100% text="Move to Bottom" id=text x=5px/>
             </Group>
             //Create component
             // <Group height=25px @click=self.create_component>

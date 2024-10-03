@@ -1,9 +1,10 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use pax_manifest::{
-    pax_runtime_api::ToPaxValue, ComponentDefinition, ComponentTemplate, ControlFlowRepeatPredicateDefinition, ExpressionInfo, NodeLocation, NodeType,
-    PaxManifest, SettingElement, SettingsBlockElement, TemplateNodeDefinition, TemplateNodeId,
-    Token, TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
+    pax_runtime_api::ToPaxValue, ComponentDefinition, ComponentTemplate,
+    ControlFlowRepeatPredicateDefinition, ExpressionInfo, NodeLocation, NodeType, PaxManifest,
+    SettingElement, SettingsBlockElement, TemplateNodeDefinition, TemplateNodeId, Token,
+    TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 use serde_derive::{Deserialize, Serialize};
 

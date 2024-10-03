@@ -160,68 +160,67 @@ impl RepeatInstance {
         let last_i_sym = Rc::new(RefCell::new(None));
 
         let children = Property::computed_with_name(
-                move || {
-                    let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
-                        panic!("ran evaluator after expanded node dropped (repeat elem)")
-                    };
-                    let source = source_expression.get();
-                    let source_len = if let PaxValue::Range(start, end) = source {
-                        (isize::try_coerce(*end).unwrap() - isize::try_coerce(*start).unwrap())
-                            as usize
-                    } else if let PaxValue::Vec(v) = source {
-                        v.len()
-                    } else {
-                        log::warn!("source is not a vec");
-                        0
-                    };
-                    if source_len == *borrow!(last_length)
-                        && i_symbol.read(|i| i == &*borrow!(last_i_sym))
-                        && elem_symbol.read(|e| e == &*borrow!(last_elem_sym))
-                    {
-                        return cloned_expanded_node.children.get();
-                    }
-                    *borrow_mut!(last_length) = source_len;
-                    *borrow_mut!(last_i_sym) = i_symbol.get();
-                    *borrow_mut!(last_elem_sym) = elem_symbol.get();
+            move || {
+                let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
+                    panic!("ran evaluator after expanded node dropped (repeat elem)")
+                };
+                let source = source_expression.get();
+                let source_len = if let PaxValue::Range(start, end) = source {
+                    (isize::try_coerce(*end).unwrap() - isize::try_coerce(*start).unwrap()) as usize
+                } else if let PaxValue::Vec(v) = source {
+                    v.len()
+                } else {
+                    log::warn!("source is not a vec");
+                    0
+                };
+                if source_len == *borrow!(last_length)
+                    && i_symbol.read(|i| i == &*borrow!(last_i_sym))
+                    && elem_symbol.read(|e| e == &*borrow!(last_elem_sym))
+                {
+                    return cloned_expanded_node.children.get();
+                }
+                *borrow_mut!(last_length) = source_len;
+                *borrow_mut!(last_i_sym) = i_symbol.get();
+                *borrow_mut!(last_elem_sym) = elem_symbol.get();
 
-                    let template_children = cloned_self.base().get_instance_children();
-                    let children_with_envs = iter::repeat(template_children)
-                        .take(source_len)
-                        .enumerate()
-                        .flat_map(|(i, children)| {
-                            let property_i = Property::new(i);
-                            let cp_source_expression = source_expression.clone();
-                            let property_elem = Property::computed_with_name(
-                                move || {
-                                    let source = cp_source_expression.get();
-                                    if let PaxValue::Range(start, _) = source {
-                                        let start = isize::try_coerce(*start).unwrap();
-                                        let elem = (start + i as isize).to_pax_value();
-                                        elem
-                                    } else if let PaxValue::Vec(v) = source {
-                                        v[i].clone()
-                                    } else {
-                                        log::warn!("source is not a vec");
-                                        Default::default()
-                                    }
-                                },
-                                &[source_expression.untyped()],
-                                "repeat elem",
+                let template_children = cloned_self.base().get_instance_children();
+                let children_with_envs = iter::repeat(template_children)
+                    .take(source_len)
+                    .enumerate()
+                    .flat_map(|(i, children)| {
+                        let property_i = Property::new(i);
+                        let cp_source_expression = source_expression.clone();
+                        let property_elem = Property::computed_with_name(
+                            move || {
+                                let source = cp_source_expression.get();
+                                if let PaxValue::Range(start, _) = source {
+                                    let start = isize::try_coerce(*start).unwrap();
+                                    let elem = (start + i as isize).to_pax_value();
+                                    elem
+                                } else if let PaxValue::Vec(v) = source {
+                                    v[i].clone()
+                                } else {
+                                    log::warn!("source is not a vec");
+                                    Default::default()
+                                }
+                            },
+                            &[source_expression.untyped()],
+                            "repeat elem",
+                        );
+
+                        let mut scope: HashMap<String, Variable> = HashMap::new();
+                        if let Some(i_symbol) = i_symbol.get() {
+                            scope.insert(
+                                i_symbol.clone(),
+                                Variable::new_from_typed_property(property_i),
                             );
-
-                            let mut scope: HashMap<String, Variable> = HashMap::new();
-                            if let Some(i_symbol) = i_symbol.get() {
-                                scope.insert(
-                                    i_symbol.clone(),
-                                    Variable::new_from_typed_property(property_i),
-                                );
-                            }
-                            if let Some(elem_symbol) = elem_symbol.get() {
-                                scope.insert(
-                                    elem_symbol,
-                                    Variable::new_from_typed_property(property_elem),
-                                );
-                            }
+                        }
+                        if let Some(elem_symbol) = elem_symbol.get() {
+                            scope.insert(
+                                elem_symbol,
+                                Variable::new_from_typed_property(property_elem),
+                            );
+                        }
 
                         let new_env = cloned_expanded_node.stack.push(scope);
                         borrow!(children)
