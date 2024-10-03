@@ -51,6 +51,7 @@ export class NativeElementPool {
                 }
                 resize_requests.push(message);
             }
+            console.log("Sending resize requests", resize_requests);
             this.chassis!.interrupt!(JSON.stringify({
                 "ChassisResizeRequestCollection": resize_requests,
             }), undefined);
@@ -259,9 +260,6 @@ export class NativeElementPool {
         let textbox = leaf!.firstChild as HTMLTextAreaElement;
 
         applyTextStyle(textbox, textbox, patch.style);
-
-        //We may support styles other than solid in the future; this is a better default than the browser's for now
-        textbox.style.borderStyle = "solid";
 
         if (patch.background != null) {
             textbox.style.background = toCssColor(patch.background);
@@ -729,6 +727,7 @@ export class NativeElementPool {
         }
 
         if (start_listening) {
+            console.log(patch);
             this.resizeObserver.observe(leaf);
         }
 
