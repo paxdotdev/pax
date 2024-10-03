@@ -297,17 +297,17 @@ export class NativeElementPool {
 
         // Apply the content
         if (patch.text != null) {
-
             // Check if the input element is focused — we want to maintain the user's cursor position if so
             if (document.activeElement === textbox) {
+                let new_text = patch.text!;
                 // Get the current selection range
-                const selectionStart = textbox.selectionStart || 0;
+                const selectionStart = textbox.selectionStart || new_text.length;
 
                 // Update the content of the input
-                textbox.value = patch.text;
+                textbox.value = new_text;
 
                 // Calculate the new cursor position, clamped to the new length of the input value
-                const newCursorPosition = Math.min(selectionStart, patch.text.length);
+                const newCursorPosition = Math.min(selectionStart, new_text.length);
 
                 // Set the cursor position to the beginning of the former selection range
                 textbox.setSelectionRange(newCursorPosition, newCursorPosition);
@@ -315,8 +315,6 @@ export class NativeElementPool {
                 // If the textbox isn't selected, just update its content
                 textbox.value = patch.text;
             }
-
-
         }
        
         if (patch.focus_on_mount) {
@@ -734,7 +732,7 @@ export class NativeElementPool {
             leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
 
-        if (patch.editable != null) {
+        if (patch.editable) {
             textChild.setAttribute("contenteditable", patch.editable.toString());
             const selection = window.getSelection();
             selection!.removeAllRanges();
