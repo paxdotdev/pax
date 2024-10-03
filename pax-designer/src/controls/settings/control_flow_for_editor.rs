@@ -20,7 +20,7 @@ impl ControlFlowForEditor {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         // TODO hook up for source/predicate to reactively be read on manifest change
         let dt = borrow!(ctx.designtime);
-        let manifest_ver = dt.get_manifest_version();
+        let manifest_ver = dt.get_last_rendered_manifest_version();
         let deps = [manifest_ver.untyped()];
         let ctx = ctx.clone();
         let stid = self.stid.clone();
