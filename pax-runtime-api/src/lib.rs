@@ -402,46 +402,6 @@ pub struct ContextMenu {
     pub mouse: MouseEventArgs,
 }
 
-/// A LayoutMode describes how container should calculate its position
-/// TopDown: Container bounds and position are set and children can refer to it
-/// BottomsUp: Container bounds and position are calculated from children
-
-#[derive(Debug, Default, Clone, Deserialize, Serialize)]
-pub enum LayoutMode {
-    #[default]
-    TopDown,
-    BottomsUp,
-}
-
-impl Interpolatable for LayoutMode {}
-
-impl ToPaxValue for LayoutMode {
-    fn to_pax_value(self) -> PaxValue {
-        //PaxValue::Enum("LayoutMode", "TopDown" , vec![])
-        match self {
-            LayoutMode::TopDown => {
-                PaxValue::Enum("LayoutMode".to_string(), "TopDown".to_string(), vec![])
-            }
-            LayoutMode::BottomsUp => {
-                PaxValue::Enum("LayoutMode".to_string(), "BottomsUp".to_string(), vec![])
-            }
-        }
-    }
-}
-
-impl CoercionRules for LayoutMode {
-    fn try_coerce(value: PaxValue) -> Result<Self, String> {
-        match value {
-            PaxValue::Enum(_, v, _) => match v.as_str() {
-                "TopDown" => Ok(LayoutMode::TopDown),
-                "BottomsUp" => Ok(LayoutMode::BottomsUp),
-                _ => Err("Invalid LayoutMode".to_string()),
-            },
-            _ => Err("Invalid LayoutMode".to_string()),
-        }
-    }
-}
-
 /// A Size value that can be either a concrete pixel value
 /// or a percent of parent bounds.
 
@@ -642,7 +602,6 @@ pub struct CommonProperties {
     pub unclippable: Property<Option<bool>>,
     pub _raycastable: Property<Option<bool>>,
     pub _suspended: Property<Option<bool>>,
-    pub layout_mode: Property<Option<LayoutMode>>,
 }
 
 impl CommonProperties {
@@ -698,7 +657,6 @@ impl CommonProperties {
             unclippable,
             _raycastable,
             _suspended,
-            layout_mode,
             // NOTE: remember to add an entry to the hashmap bellow as well
         } = self;
 
@@ -766,10 +724,6 @@ impl CommonProperties {
             (
                 "_suspended".to_string(),
                 Variable::new_from_typed_property(_suspended.clone()),
-            ),
-            (
-                "layout_mode".to_string(),
-                Variable::new_from_typed_property(layout_mode.clone()),
             ),
         ])
     }
