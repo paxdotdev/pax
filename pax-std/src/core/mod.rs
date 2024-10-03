@@ -1,4 +1,5 @@
 pub mod blank;
+pub mod combo_box;
 pub mod event_blocker;
 pub mod frame;
 pub mod group;
@@ -17,6 +18,7 @@ pub mod tooltip;
 pub mod inline_frame;
 
 pub use blank::*;
+pub use combo_box::*;
 pub use event_blocker::*;
 pub use frame::*;
 pub use group::*;
