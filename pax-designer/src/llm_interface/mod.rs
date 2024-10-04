@@ -43,11 +43,7 @@ impl LLMInterface {
     pub fn textbox_change(&mut self, ctx: &NodeContext, args: Event<TextboxChange>) {
         model::perform_action(&SetLLMPromptState(false), ctx);
         self.request.set(String::new());
-        let request = &args.text;
-        let mut dt = borrow_mut!(ctx.designtime);
-        if let Err(e) = dt.llm_request(request) {
-            pax_engine::log::warn!("llm request failed: {:?}", e);
-        };
+        
     }
 
     pub fn hide(&mut self, ctx: &NodeContext, event: Event<Click>) {

@@ -4,18 +4,6 @@ use pax_runtime_api::{CoercionRules, HelperFunctions, Interpolatable, PaxValue, 
 use serde::{Deserialize, Serialize};
 use std::cell::Ref;
 
-#[derive(Deserialize, Serialize)]
-pub struct LLMRequest {
-    pub manifest: PaxManifest,
-    pub prompt: String,
-}
-
-impl LLMRequest {
-    pub fn new(manifest: PaxManifest, prompt: String) -> Self {
-        Self { manifest, prompt }
-    }
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct PublishRequest {
     pub manifest: PaxManifest,

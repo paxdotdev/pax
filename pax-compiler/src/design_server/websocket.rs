@@ -15,9 +15,9 @@ use pax_designtime::messages::{
 use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
 use std::collections::HashMap;
 
-use self::socket_message_accumulator::SocketMessageAccumulator;
+pub mod socket_message_accumulator;
 
-mod socket_message_accumulator;
+pub use socket_message_accumulator::SocketMessageAccumulator;
 
 pub struct PrivilegedAgentWebSocket {
     state: Data<AppState>,
@@ -190,10 +190,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                         eprintln!("server couldn't write to served folder: {:?}", path);
                     };
                 }
-                Ok(
-                    AgentMessage::UpdateTemplateRequest(_)
-                    | AgentMessage::ProjectFileChangedNotification(_)
-                    | AgentMessage::LoadManifestResponse(_),
+                Ok(_
                 ) => {}
                 Err(e) => {
                     eprintln!("Deserialization error: {:?}", e);
