@@ -119,7 +119,6 @@ impl Command<UpdateClassRequest> for UpdateClassRequest {
                 })
             }
         }
-        log::debug!("executing update class command");
         Ok(UpdateClassResponse { command_id: None })
     }
 
@@ -140,10 +139,24 @@ impl Undo for UpdateClassRequest {
                 )
             })?;
         let settings = component.settings.get_or_insert_with(Default::default);
-        settings.retain(|v| match v {
-            SettingsBlockElement::SelectorBlock(token, _) => token.token_value != self.class_name,
-            _ => true,
-        });
+        if let Some(before_changes) = &self.block_before_changes {
+            let class = settings.iter_mut().find(|v| match &v {
+                SettingsBlockElement::SelectorBlock(token, _) => {
+                    token.token_value == self.class_name
+                }
+                _ => false,
+            });
+            if let Some(class) = class {
+                *class = before_changes.clone();
+            }
+        } else {
+            settings.retain(|v| match v {
+                SettingsBlockElement::SelectorBlock(token, _) => {
+                    token.token_value != self.class_name
+                }
+                _ => true,
+            });
+        }
         Ok(())
     }
 }

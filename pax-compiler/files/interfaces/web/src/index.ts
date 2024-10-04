@@ -40,6 +40,7 @@ let messages : any[];
 let nativePool = new NativeElementPool(objectManager);
 let textDecoder = new TextDecoder();
 let initializedChassis = false;
+export let is_in_dom_manipulation_with_focus_func = false;
 
 export function mount(selector_or_element: string | Element, extensionlessUrl: string) {
 
@@ -116,7 +117,9 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
         initializedChassis = true;
     }
 
-    processMessages(messages, chassis, objectManager);
+    performDOMManipulationWithFocus(() => {
+        processMessages(messages, chassis, objectManager);
+    });
 
     //draw canvas elements
     chassis.render();
@@ -305,3 +308,22 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
     });
 }
 
+
+// This function is needed to re-apply focus after dom manipulations,
+// why is focus lost in the first place?
+function performDOMManipulationWithFocus(manipulationCallback: () => void): void {
+    is_in_dom_manipulation_with_focus_func = true;
+    const focusedElement = document.activeElement as HTMLElement;
+    let cursorPosition: number | null = null;
+    if (focusedElement && (focusedElement.tagName === 'INPUT' || focusedElement.tagName === 'TEXTAREA')) {
+        cursorPosition = (focusedElement as HTMLInputElement | HTMLTextAreaElement).selectionStart;
+    }
+    manipulationCallback();
+    if (focusedElement) {
+        focusedElement.focus();
+        if (cursorPosition !== null && 'setSelectionRange' in focusedElement) {
+            (focusedElement as HTMLInputElement | HTMLTextAreaElement).setSelectionRange(cursorPosition, cursorPosition);
+        }
+    }
+    is_in_dom_manipulation_with_focus_func = false;
+}

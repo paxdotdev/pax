@@ -32,19 +32,31 @@ pub struct Controls {
 #[engine_import_path("pax_engine")]
 pub enum SettingsViewPage {
     PaintbrushEditor,
-    NodeEditor,
     #[default]
+    NodeEditor,
     ClassEditor,
 }
 
 impl Controls {
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
-        let selected_tool = model::read_app_state(|app_state| app_state.selected_tool.clone());
-        let deps = [selected_tool.untyped()];
-        // self.tool_with_tool_editor_selected
-        //     .replace_with(Property::computed(
-        //         move || selected_tool.get() == Tool::Paintbrush,
-        //         &deps,
-        //     ));
+        let (selected_tool, current_class_editing) = model::read_app_state(|app_state| {
+            (
+                app_state.selected_tool.clone(),
+                app_state.current_editor_class_name.clone(),
+            )
+        });
+        let deps = [selected_tool.untyped(), current_class_editing.untyped()];
+        self.settings_view_page.replace_with(Property::computed(
+            move || {
+                if current_class_editing.get().is_some() {
+                    return SettingsViewPage::ClassEditor;
+                }
+                if selected_tool.get() == Tool::Paintbrush {
+                    return SettingsViewPage::PaintbrushEditor;
+                }
+                SettingsViewPage::NodeEditor
+            },
+            &deps,
+        ));
     }
 }

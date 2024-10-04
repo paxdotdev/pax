@@ -97,7 +97,7 @@ pub struct AppState {
     /// editor if true? or could it be a type of tool/toolbehavior once that
     /// concept is generalized (since we also want different behavior on
     /// screen when this is open - outline etc).
-    pub current_editor_class_name: Property<String>,
+    pub current_editor_class_name: Property<Option<String>>,
 
     //---------------glass------------------
     /// Size and color of the glass stage for the current view, this is the
@@ -193,7 +193,7 @@ impl Model {
                 height: 786,
                 color: Color::WHITE,
             }),
-            current_editor_class_name: Property::new(".input".to_string()),
+            current_editor_class_name: Property::new(Some(".input".to_string())),
             ..Default::default()
         }
     }
