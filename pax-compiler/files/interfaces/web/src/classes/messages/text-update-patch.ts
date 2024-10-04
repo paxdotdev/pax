@@ -13,6 +13,7 @@ export class TextUpdatePatch {
     public depth?: number;
     public editable?: boolean;
     public selectable?: boolean;
+    public markdown?: boolean;
     objectManager: ObjectManager;
 
     constructor(objectManager: ObjectManager) {
@@ -28,6 +29,7 @@ export class TextUpdatePatch {
         this.depth = jsonMessage["depth"];
         this.editable = jsonMessage["editable"];
         this.selectable = jsonMessage["selectable"];
+        this.markdown = jsonMessage["markdown"];
 
         const styleMessage = jsonMessage["style"];
         if (styleMessage) {
@@ -54,5 +56,6 @@ export class TextUpdatePatch {
         this.style_link = undefined;
         this.editable = false;
         this.selectable = false;
+        this.markdown = false;
     }
 }
