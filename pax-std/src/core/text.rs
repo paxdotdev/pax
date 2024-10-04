@@ -34,6 +34,7 @@ pub struct Text {
     pub text: Property<String>,
     pub style: Property<TextStyle>,
     pub _style_link: Property<TextStyle>,
+    pub markdown: Property<bool>,
 }
 
 impl Default for Text {
@@ -44,6 +45,7 @@ impl Default for Text {
             text: Property::new("".to_string()),
             style: Property::new(TextStyle::default()),
             _style_link: Property::new(TextStyle::default()),
+            markdown: Property::new(false),
         }
     }
 }
@@ -157,6 +159,11 @@ impl InstanceNode for TextInstance {
                                 &mut patch.content,
                                 properties.text.get(),
                             ),
+                            patch_if_needed(
+                                &mut old_state.markdown,
+                                &mut patch.markdown,
+                                properties.markdown.get(),
+                            ),
                             // Styles
                             patch_if_needed(
                                 &mut old_state.style,
@@ -188,6 +195,14 @@ impl InstanceNode for TextInstance {
                             ),
                         ];
                         if updates.into_iter().any(|v| v == true) {
+                            // HACK: markdown flag and content is needed at the same time, so if we have one,
+                            // include the other:
+                            if patch.markdown.is_some() && patch.content.is_none() {
+                                patch.content = Some(properties.text.get());
+                            }
+                            if patch.content.is_some() && patch.markdown.is_none() {
+                                patch.markdown = Some(properties.markdown.get());
+                            }
                             context.enqueue_native_message(pax_message::NativeMessage::TextUpdate(
                                 patch,
                             ));
