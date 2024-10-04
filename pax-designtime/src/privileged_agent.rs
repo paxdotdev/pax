@@ -1,22 +1,22 @@
 use std::net::SocketAddr;
 
 use crate::{
-    messages::{AgentMessage, ComponentSerializationRequest, LoadFileToStaticDirRequest},
+    messages::{AgentMessage, ComponentSerializationRequest, LLMRequest, LoadFileToStaticDirRequest},
     orm::PaxManifestORM,
 };
 use anyhow::{anyhow, Result};
 use ewebsock::{WsEvent, WsMessage};
 use pax_manifest::{ComponentDefinition, PaxManifest};
 
-pub struct PrivilegedAgentConnection {
+pub struct WebSocketConnection {
     sender: ewebsock::WsSender,
     recver: ewebsock::WsReceiver,
     pub alive: bool,
 }
 
-impl PrivilegedAgentConnection {
-    pub fn new(addr: SocketAddr) -> Result<Self> {
-        let url = format!("ws://{}/ws", addr);
+impl WebSocketConnection {
+    pub fn new(addr: SocketAddr, versioning_prefix: Option<&str>) -> Result<Self> {
+        let url = format!("ws://{}{}/ws", addr, versioning_prefix.unwrap_or_else(||""));
         let (sender, recver) =
             ewebsock::connect(url).map_err(|_| anyhow!("couldn't create socket connection"))?;
         Ok(Self {
@@ -43,6 +43,18 @@ impl PrivilegedAgentConnection {
         } else {
             Err(anyhow!(
                 "couldn't send component update: connection to design-server was lost"
+            ))
+        }
+    }
+
+    pub fn send_llm_request(&mut self, llm_request: LLMRequest) -> Result<()> {
+        if self.alive {
+            let msg_bytes = rmp_serde::to_vec(&AgentMessage::LLMRequest(llm_request))?;
+            self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "couldn't send LLM request: connection to pub pax was lost"
             ))
         }
     }
@@ -86,6 +98,20 @@ impl PrivilegedAgentConnection {
                                         resp.settings_block,
                                     )
                                     .map_err(|e| anyhow!(e))?;
+                            },
+                            AgentMessage::LLMPartialResponse(partial) => {
+                                manager.add_new_message(partial.request_id, partial.message);
+                            }
+                            AgentMessage::LLMFinalResponse(final_response) => {
+                                manager.add_new_message(final_response.request_id, final_response.message);
+                                let new_comp = final_response.component_definition;
+                                manager
+                                .replace_template(
+                                    new_comp.type_id,
+                                    new_comp.template.unwrap_or_default(),
+                                    new_comp.settings.unwrap_or_default(),
+                                )
+                                .map_err(|e| anyhow!(e))?;
                             }
                             _ => {}
                         }
