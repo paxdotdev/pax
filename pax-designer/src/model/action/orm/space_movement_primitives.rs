@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use pax_designtime::orm::template::builder::NodeBuilder;
+use pax_designtime::orm::template::node_builder::NodeBuilder;
 use pax_engine::{
     api::{borrow_mut, Rotation},
     math::Space,

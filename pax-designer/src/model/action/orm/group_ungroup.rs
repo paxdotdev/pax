@@ -13,7 +13,7 @@ use crate::{
     },
 };
 use anyhow::{anyhow, Context, Result};
-use pax_designtime::orm::template::builder::NodeBuilder;
+use pax_designtime::orm::template::node_builder::NodeBuilder;
 use pax_engine::pax_manifest::{
     NodeLocation, TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier,
 };

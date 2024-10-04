@@ -17,7 +17,7 @@ use crate::model::input::{InputEvent, ModifierKey};
 use crate::model::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot};
 use crate::{math::BoxPoint, model, model::AppState};
 use anyhow::{anyhow, Context, Result};
-use pax_designtime::orm::template::builder::{self, NodeBuilder};
+use pax_designtime::orm::template::node_builder::{self, NodeBuilder};
 use pax_designtime::orm::{MoveToComponentEntry, SubTrees};
 use pax_designtime::{DesigntimeManager, Serializer};
 use pax_engine::api::{borrow, borrow_mut, Rotation};
