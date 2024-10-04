@@ -16,6 +16,8 @@ pub struct Console {
     pub textbox: Property<String>,
     pub scroll_y: Property<f64>,
     pub enqueue_scroll_set: Property<Option<EnqueuedScrollSet>>,
+    pub request_id: Property<u64>,
+    pub llm_response_listener: Property<bool>,
 }
 
 #[pax]
@@ -34,34 +36,58 @@ pub struct EnqueuedScrollSet {
 
 impl Console {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        self.messages.set(vec![
-        Message {
-          is_ai: false,
-          text: "Hello, world!".to_string(),
-        },
-        Message {
-          is_ai: true,
-          text: "Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur? ".to_string(),
-        },
-      ]);
-    }
+        let new_message_listener = ctx.designtime.borrow().get_llm_new_message_listener();
+        let deps = &[new_message_listener.untyped()];
+        let messages_cloned = self.messages.clone();
+        let dt = ctx.designtime.clone();
+        let current_id_cloned = self.request_id.clone();
+        self.llm_response_listener.replace_with(Property::computed(
+            move || {
+                let mut messages = messages_cloned.get();
+                let current_id = current_id_cloned.get();
+                let mut design_time = dt.borrow_mut();
+                let mut llm_message = design_time.get_llm_messages(current_id);
+                llm_message.reverse();
+                for message in llm_message {
+                    messages.push(Message {
+                        is_ai: true,
+                        text: message.clone(),
+                    });
+                }
+                messages_cloned.set(messages);
+                false
+            },
+            deps,
+        ));
 
-    fn scroll_to_end(&mut self, ctx: &NodeContext) {
-        let enqueue_scroll_set = EnqueuedScrollSet {
-            frame: ctx.frames_elapsed.get() + 1,
-            scroll_y: f64::MAX,
-        };
-        self.enqueue_scroll_set.set(Some(enqueue_scroll_set));
+        let frames_elapsed = ctx.frames_elapsed.clone();
+        let messages_cloned = self.messages.clone();
+        self.enqueue_scroll_set.replace_with(Property::computed(
+            move || {
+                let enqueue_scroll_set = EnqueuedScrollSet {
+                    frame: frames_elapsed.get() + 1,
+                    scroll_y: f64::MAX,
+                };
+                Some(enqueue_scroll_set)
+            },
+            &[messages_cloned.untyped()],
+        ));
     }
 
     pub fn text_input(&mut self, ctx: &NodeContext, args: Event<TextboxChange>) {
         let mut messages = self.messages.get();
+        let request = &args.text;
         messages.push(Message {
             is_ai: false,
-            text: args.text.clone(),
+            text: request.clone(),
         });
+        let new_request_id = self.request_id.get() + 1;
+        self.request_id.set(new_request_id);
+        let mut dt = borrow_mut!(ctx.designtime);
+        if let Err(e) = dt.llm_request(request, new_request_id) {
+            pax_engine::log::warn!("llm request failed: {:?}", e);
+        };
         self.messages.set(messages);
-        self.scroll_to_end(ctx);
         self.textbox.set("".to_string());
     }
 
@@ -72,5 +98,6 @@ impl Console {
                 self.enqueue_scroll_set.set(None);
             }
         }
+        self.llm_response_listener.get();
     }
 }

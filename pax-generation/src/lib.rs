@@ -9,6 +9,8 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::thread::sleep;
+use futures::channel::mpsc;
 
 const CLAUDE_API_URL: &str = "https://api.anthropic.com/v1/messages";
 const OPENAI_API_URL: &str = "https://api.openai.com/v1/chat/completions";
@@ -303,8 +305,6 @@ impl PaxAppGenerator {
 
         let response = request.json(&body).send().await?.json::<Value>().await?;
 
-        println!("Raw API response: {:?}", response); // Debug print
-
         match self.model {
             AIModel::Claude3 => {
                 if let Some(error) = response.get("error") {
@@ -372,7 +372,7 @@ impl PaxAppGenerator {
 
         for (filename, content) in pax_files {
             match parse_pax_err(Rule::pax_component_definition, content) {
-                Ok(_) => println!("Successfully parsed: {}", filename),
+                Ok(_) => {},
                 Err(e) => parse_errors.push((filename.clone(), e.to_string())),
             }
         }
@@ -431,84 +431,80 @@ impl PaxAppGenerator {
         }
         Ok(files_content)
     }
-    pub async fn update_pax_file(
-        &self,
-        pax_content: &str,
-        prompt: &str,
-    ) -> Result<String, Box<dyn Error>> {
-        println!("\n--- Starting PAX File Update ---");
-        println!("Prompt: {}", prompt);
+pub async fn update_pax_file(
+    &self,
+    pax_content: &str,
+    prompt: &str,
+    request_id: u64,
+    tx: mpsc::UnboundedSender<(u64, String)>, // Adding the sender to the function signature
+) -> Result<String, Box<dyn Error>> {
+    let mut messages = vec![
+        Message {
+            role: "system".to_string(),
+            content: SYSTEM_PROMPT.to_string(),
+        },
+        Message {
+            role: "user".to_string(),
+            content: format!(
+                "Here's the current PAX file content:\n\n```pax\n{}\n```\n\nPlease update this PAX file based on the following request:\n{}",
+                pax_content, prompt
+            ),
+        },
+    ];
 
-        let mut messages = vec![
-            Message {
-                role: "system".to_string(),
-                content: SYSTEM_PROMPT.to_string(),
-            },
-            Message {
-                role: "user".to_string(),
-                content: format!(
-                    "Here's the current PAX file content:\n\n```pax\n{}\n```\n\nPlease update this PAX file based on the following request:\n{}",
-                    pax_content, prompt
-                ),
-            },
-        ];
+    let mut retry_count = 0;
+    const MAX_RETRIES: usize = 5;
 
-        let mut retry_count = 0;
-        const MAX_RETRIES: usize = 5;
+    while retry_count < MAX_RETRIES {
+        tx.unbounded_send((request_id, "--- Sending Prompt to AI ---".to_string()))?;
+        let response = self.send_prompt(&messages).await?;
+        //tx.unbounded_send((request_id, "Received response from AI.".to_string()))?;
 
-        while retry_count < MAX_RETRIES {
-            println!("\n--- Sending Prompt to AI ---");
-            let response = self.send_prompt(&messages).await?;
-            println!("Received response from AI.");
+        messages.push(Message {
+            role: "assistant".to_string(),
+            content: response.clone(),
+        });
 
-            messages.push(Message {
-                role: "assistant".to_string(),
-                content: response.clone(),
-            });
-
-            println!("\n--- Parsing Response ---");
-            match self.parse_response(&response) {
-                Ok(resp) => {
-                    let (_, pax_files) = resp;
-                    println!("\n--- Pre-parsing updated PAX file ---");
-                    let parse_errors = self.pre_parse_pax_files(&pax_files);
-                    if parse_errors.is_empty() {
-                        println!("Updated PAX file parsed successfully.");
-                        return Ok(pax_files[0].1.clone());
-                    } else {
-                        println!("PAX parsing errors detected:");
-                        for (_, error) in &parse_errors {
-                            println!("- {}", error);
-                        }
-
-                        let error_message = format!(
-                            "The updated PAX file failed to parse. Error: {}. Please fix the PAX syntax errors and provide the corrected code.",
-                            parse_errors[0].1
-                        );
-                        messages.push(Message {
-                            role: "user".to_string(),
-                            content: error_message,
-                        });
-                        println!("Sending error message to AI for correction.");
-                        retry_count += 1;
-                    }
-                }
-                Err(e) => {
-                    println!("Error extracting PAX content: {}", e);
-                    let error_message = format!("The previous response could not be parsed correctly. Error: {}. Please provide the updated PAX file again, ensuring that it's properly formatted within a PAX code block.", e);
+        //tx.unbounded_send((request_id,"--- Parsing Response ---".to_string()))?;
+        match self.parse_response(&response) {
+            Ok(resp) => {
+                let (_, pax_files) = resp;
+                let parse_errors = self.pre_parse_pax_files(&pax_files);
+                if parse_errors.is_empty() {
+                    return Ok(pax_files[0].1.clone());
+                } else {
+                    tx.unbounded_send((request_id,"PAX parsing errors detected:".to_string()))?;
+                    let error_message = format!(
+                        "The updated PAX file failed to parse. Error: {}. Please fix the PAX syntax errors and provide the corrected code.",
+                        parse_errors[0].1
+                    );
                     messages.push(Message {
                         role: "user".to_string(),
                         content: error_message,
                     });
+                    tx.unbounded_send((request_id,"Sending error message to AI for correction.".to_string()))?;
                     retry_count += 1;
                 }
             }
+            Err(e) => {
+                let error_message = format!(
+                    "The previous response could not be parsed correctly. Error: {}. Please provide the updated PAX file again, ensuring that it's properly formatted within a PAX code block.",
+                    e
+                );
+                messages.push(Message {
+                    role: "user".to_string(),
+                    content: error_message,
+                });
+                retry_count += 1;
+            }
         }
-
-        Err(format!(
-            "Maximum retries ({}) reached while updating PAX file.",
-            MAX_RETRIES
-        )
-        .into())
     }
+
+    Err(format!(
+        "Maximum retries ({}) reached while updating PAX file.",
+        MAX_RETRIES
+    )
+    .into())
+}
+
 }

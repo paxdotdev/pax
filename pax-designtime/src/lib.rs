@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::{Ipv4Addr, SocketAddr, ToSocketAddrs};
 use std::rc::Rc;
 
 pub mod orm;
@@ -10,9 +10,10 @@ pub mod privileged_agent;
 pub mod messages;
 pub mod serde_pax;
 
+use messages::LLMRequest;
 use orm::ReloadType;
 use pax_manifest::pax_runtime_api::Property;
-use privileged_agent::PrivilegedAgentConnection;
+use privileged_agent::WebSocketConnection;
 
 use core::fmt::Debug;
 
@@ -32,7 +33,8 @@ use crate::orm::PaxManifestORM;
 pub struct DesigntimeManager {
     orm: PaxManifestORM,
     factories: Factories,
-    priv_agent_connection: Rc<RefCell<PrivilegedAgentConnection>>,
+    priv_agent_connection: Rc<RefCell<WebSocketConnection>>,
+    pub_pax_connection: Rc<RefCell<WebSocketConnection>>,
     project_query: Option<String>,
     response_queue: Rc<RefCell<Vec<DesigntimeResponseMessage>>>,
     last_rendered_manifest_version: Property<usize>,
@@ -50,8 +52,9 @@ impl Debug for DesigntimeManager {
     }
 }
 
-const ENDPOINT_LLM: &str = "/v0/llm_request";
+const VERSION_PREFIX: &str = "/v0";
 const ENDPOINT_PUBLISH: &str = "/v0/publish";
+
 const PROD_PUB_PAX_SERVER: &str = "https://pub.pax.dev";
 
 fn get_server_base_url() -> String {
@@ -70,9 +73,20 @@ impl DesigntimeManager {
         self.last_rendered_manifest_version.set(version);
     }
 
+    pub fn get_llm_messages(&mut self, request_id: u64) -> Vec<String>{
+        self.orm.get_messages(request_id)
+    }
+
     pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Self {
         let priv_agent = Rc::new(RefCell::new(
-            PrivilegedAgentConnection::new(priv_addr)
+            WebSocketConnection::new(priv_addr, None)
+                .expect("couldn't connect to privileged agent"),
+        ));
+
+        let address: String = get_server_base_url();
+        let socket_addr: SocketAddr = address.parse().expect("Invalid address");
+        let pub_pax = Rc::new(RefCell::new(
+            WebSocketConnection::new(socket_addr, Some(VERSION_PREFIX))
                 .expect("couldn't connect to privileged agent"),
         ));
 
@@ -82,6 +96,7 @@ impl DesigntimeManager {
             orm,
             factories,
             priv_agent_connection: priv_agent,
+            pub_pax_connection: pub_pax,
             project_query: None,
             response_queue: Rc::new(RefCell::new(Vec::new())),
             last_rendered_manifest_version: Property::new(0),
@@ -104,6 +119,10 @@ impl DesigntimeManager {
         Ok(())
     }
 
+    pub fn get_llm_new_message_listener(&self) -> Property<()> {
+        self.orm.new_message.clone()
+    }
+
     pub fn get_manifest_loaded_from_server_prop(&self) -> Property<bool> {
         self.orm.manifest_loaded_from_server.clone()
     }
@@ -114,47 +133,19 @@ impl DesigntimeManager {
             .borrow_mut()
             .send_component_update(component)?;
 
-        for c in self.orm.get_new_components() {
-            self.priv_agent_connection
-                .borrow_mut()
-                .send_component_update(&c)?;
-        }
-
         Ok(())
     }
 
-    pub fn llm_request(&mut self, prompt: &str) -> anyhow::Result<()> {
+    pub fn llm_request(&mut self, prompt: &str, request_id: u64) -> anyhow::Result<()> {
         let manifest = self.orm.get_manifest().clone();
 
         let llm_request = LLMRequest {
             manifest: manifest.clone(),
             prompt: prompt.to_string(),
+            request_id,
         };
 
-        let queue_cloned = self.response_queue.clone();
-
-        wasm_bindgen_futures::spawn_local(async move {
-            let url = get_server_base_url() + ENDPOINT_LLM;
-
-            let response = reqwasm::http::Request::post(&url)
-                .header("Content-Type", "application/json")
-                .body(serde_json::to_string(&llm_request).unwrap())
-                .send()
-                .await;
-
-            log::info!("response_text: {:?}", response);
-            let updated_main_component: ComponentDefinition =
-                response.unwrap().json().await.unwrap();
-            log::info!(
-                "updated_main_component: {:?}",
-                updated_main_component.template
-            );
-            queue_cloned
-                .borrow_mut()
-                .push(DesigntimeResponseMessage::LLMResponse(
-                    updated_main_component,
-                ));
-        });
+        self.pub_pax_connection.borrow_mut().send_llm_request(llm_request)?;
 
         Ok(())
     }
@@ -249,6 +240,10 @@ impl DesigntimeManager {
 
     pub fn handle_recv(&mut self) -> anyhow::Result<()> {
         self.priv_agent_connection
+            .borrow_mut()
+            .handle_recv(&mut self.orm)?;
+
+        self.pub_pax_connection
             .borrow_mut()
             .handle_recv(&mut self.orm)?;
 

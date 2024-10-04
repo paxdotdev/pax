@@ -21,6 +21,7 @@
 //! For usage examples see the tests in `pax-designtime/src/orm/tests.rs`.
 
 use std::collections::HashMap;
+use std::hash::Hash;
 
 use pax_manifest::pax_runtime_api::{Interpolatable, Property};
 use pax_manifest::{
@@ -71,6 +72,8 @@ pub struct PaxManifestORM {
     new_components: Vec<TypeId>,
     reload_queue: Vec<ReloadType>,
     pub manifest_loaded_from_server: Property<bool>,
+    pub llm_messages: HashMap<u64, Vec<String>>,
+    pub new_message: Property<()>,
 }
 
 impl PaxManifestORM {
@@ -85,7 +88,18 @@ impl PaxManifestORM {
             new_components: Vec::new(),
             reload_queue: Vec::new(),
             manifest_loaded_from_server: Property::new(false),
+            llm_messages: HashMap::new(),
+            new_message: Property::new(()),
         }
+    }
+
+    pub fn add_new_message(&mut self, request_id: u64, message: String){
+        self.llm_messages.entry(request_id).or_insert(Vec::new()).push(message);
+        self.new_message.set(());
+    }
+
+    pub fn get_messages(&mut self, request_id: u64) -> Vec<String> {
+        self.llm_messages.remove(&request_id).unwrap_or_default()
     }
 
     pub fn get_new_components(&mut self) -> Vec<ComponentDefinition> {

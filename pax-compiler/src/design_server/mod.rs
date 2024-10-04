@@ -25,6 +25,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use websocket::PrivilegedAgentWebSocket;
+use websocket::SocketMessageAccumulator;
+
 
 pub mod code_serialization;
 #[allow(unused)]
