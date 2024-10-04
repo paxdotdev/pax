@@ -1,7 +1,9 @@
 use std::net::SocketAddr;
 
 use crate::{
-    messages::{AgentMessage, ComponentSerializationRequest, LLMRequest, LoadFileToStaticDirRequest},
+    messages::{
+        AgentMessage, ComponentSerializationRequest, LLMRequest, LoadFileToStaticDirRequest,
+    },
     orm::PaxManifestORM,
 };
 use anyhow::{anyhow, Result};
@@ -16,7 +18,11 @@ pub struct WebSocketConnection {
 
 impl WebSocketConnection {
     pub fn new(addr: SocketAddr, versioning_prefix: Option<&str>) -> Result<Self> {
-        let url = format!("ws://{}{}/ws", addr, versioning_prefix.unwrap_or_else(||""));
+        let url = format!(
+            "ws://{}{}/ws",
+            addr,
+            versioning_prefix.unwrap_or_else(|| "")
+        );
         let (sender, recver) =
             ewebsock::connect(url).map_err(|_| anyhow!("couldn't create socket connection"))?;
         Ok(Self {
@@ -98,20 +104,23 @@ impl WebSocketConnection {
                                         resp.settings_block,
                                     )
                                     .map_err(|e| anyhow!(e))?;
-                            },
+                            }
                             AgentMessage::LLMPartialResponse(partial) => {
                                 manager.add_new_message(partial.request_id, partial.message);
                             }
                             AgentMessage::LLMFinalResponse(final_response) => {
-                                manager.add_new_message(final_response.request_id, final_response.message);
+                                manager.add_new_message(
+                                    final_response.request_id,
+                                    final_response.message,
+                                );
                                 let new_comp = final_response.component_definition;
                                 manager
-                                .replace_template(
-                                    new_comp.type_id,
-                                    new_comp.template.unwrap_or_default(),
-                                    new_comp.settings.unwrap_or_default(),
-                                )
-                                .map_err(|e| anyhow!(e))?;
+                                    .replace_template(
+                                        new_comp.type_id,
+                                        new_comp.template.unwrap_or_default(),
+                                        new_comp.settings.unwrap_or_default(),
+                                    )
+                                    .map_err(|e| anyhow!(e))?;
                             }
                             _ => {}
                         }

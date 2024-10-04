@@ -102,7 +102,7 @@ impl PaxAppGenerator {
 
             println!("\n--- Parsing Response ---");
             match self.parse_response(&response) {
-                Ok((rust_files, pax_files)) => {
+                Ok((rust_files, pax_files, _resp)) => {
                     let mut all_files: Vec<(String, String)> =
                         rust_files.into_iter().chain(pax_files.clone()).collect();
 
@@ -342,7 +342,7 @@ impl PaxAppGenerator {
     fn parse_response(
         &self,
         response: &str,
-    ) -> Result<(Vec<(String, String)>, Vec<(String, String)>), Box<dyn Error>> {
+    ) -> Result<(Vec<(String, String)>, Vec<(String, String)>, String), Box<dyn Error>> {
         let rust_regex = Regex::new(r"(?s)```rust(?: filename=(.*?\.rs))?\n(.*?)```")?;
         let pax_regex = Regex::new(r"(?s)```pax(?: filename=(.*?\.pax))?\n(.*?)```")?;
 
@@ -364,7 +364,8 @@ impl PaxAppGenerator {
             return Err("No Rust or PAX files found in response".into());
         }
 
-        Ok((rust_files, pax_files))
+        // Return the parsed files along with the original LLM response text
+        Ok((rust_files, pax_files, response.to_string()))
     }
 
     fn pre_parse_pax_files(&self, pax_files: &[(String, String)]) -> Vec<(String, String)> {
@@ -437,7 +438,7 @@ pub async fn update_pax_file(
     prompt: &str,
     request_id: u64,
     tx: mpsc::UnboundedSender<(u64, String)>, // Adding the sender to the function signature
-) -> Result<String, Box<dyn Error>> {
+) -> Result<(String, String), Box<dyn Error>> {
     let mut messages = vec![
         Message {
             role: "system".to_string(),
@@ -456,22 +457,20 @@ pub async fn update_pax_file(
     const MAX_RETRIES: usize = 5;
 
     while retry_count < MAX_RETRIES {
-        tx.unbounded_send((request_id, "--- Sending Prompt to AI ---".to_string()))?;
+        tx.unbounded_send((request_id, "--- Sent request to OpenAI ---".to_string()))?;
         let response = self.send_prompt(&messages).await?;
-        //tx.unbounded_send((request_id, "Received response from AI.".to_string()))?;
+        tx.unbounded_send((request_id, "Received response from OpenAI.".to_string()))?;
 
         messages.push(Message {
             role: "assistant".to_string(),
             content: response.clone(),
         });
-
-        //tx.unbounded_send((request_id,"--- Parsing Response ---".to_string()))?;
         match self.parse_response(&response) {
             Ok(resp) => {
-                let (_, pax_files) = resp;
+                let (_, pax_files, resp) = resp;
                 let parse_errors = self.pre_parse_pax_files(&pax_files);
                 if parse_errors.is_empty() {
-                    return Ok(pax_files[0].1.clone());
+                    return Ok((pax_files[0].1.clone(), resp));
                 } else {
                     tx.unbounded_send((request_id,"PAX parsing errors detected:".to_string()))?;
                     let error_message = format!(

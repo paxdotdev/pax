@@ -93,8 +93,11 @@ impl PaxManifestORM {
         }
     }
 
-    pub fn add_new_message(&mut self, request_id: u64, message: String){
-        self.llm_messages.entry(request_id).or_insert(Vec::new()).push(message);
+    pub fn add_new_message(&mut self, request_id: u64, message: String) {
+        self.llm_messages
+            .entry(request_id)
+            .or_insert(Vec::new())
+            .push(message);
         self.new_message.set(());
     }
 

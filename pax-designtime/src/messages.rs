@@ -1,6 +1,8 @@
 use std::fmt::Formatter;
 
-use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, SettingsBlockElement, TypeId};
+use pax_manifest::{
+    ComponentDefinition, ComponentTemplate, PaxManifest, SettingsBlockElement, TypeId,
+};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
@@ -21,7 +23,6 @@ pub enum AgentMessage {
     LLMFinalResponse(LLMFinalResponse),
 }
 
-
 #[derive(Deserialize, Serialize)]
 pub struct LLMRequest {
     pub manifest: PaxManifest,
@@ -39,8 +40,12 @@ impl Debug for LLMRequest {
 }
 
 impl LLMRequest {
-    pub fn new(manifest: PaxManifest, prompt: String, request_id: u64 ) -> Self {
-        Self { manifest, prompt, request_id }
+    pub fn new(manifest: PaxManifest, prompt: String, request_id: u64) -> Self {
+        Self {
+            manifest,
+            prompt,
+            request_id,
+        }
     }
 }
 
@@ -52,7 +57,10 @@ pub struct LLMPartialResponse {
 
 impl LLMPartialResponse {
     pub fn new(request_id: u64, message: String) -> Self {
-        Self { request_id, message }
+        Self {
+            request_id,
+            message,
+        }
     }
 }
 
@@ -73,11 +81,18 @@ impl Debug for LLMFinalResponse {
 }
 
 impl LLMFinalResponse {
-    pub fn new(request_id: u64, message: String, component_definition: ComponentDefinition) -> Self {
-        Self { request_id, message, component_definition }
+    pub fn new(
+        request_id: u64,
+        message: String,
+        component_definition: ComponentDefinition,
+    ) -> Self {
+        Self {
+            request_id,
+            message,
+            component_definition,
+        }
     }
 }
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LoadFileToStaticDirRequest {
