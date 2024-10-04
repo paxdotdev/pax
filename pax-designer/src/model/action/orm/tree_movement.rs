@@ -136,7 +136,8 @@ impl Action for RelativeMoveSelected {
                                 let Some(uid) = siblings.get(index) else {
                                     break;
                                 };
-                                let Some(node) = dt.get_orm_mut().get_node(uid.clone(), false)
+                                let Some(node) =
+                                    dt.get_orm_mut().get_node_builder(uid.clone(), false)
                                 else {
                                     break;
                                 };
@@ -156,7 +157,8 @@ impl Action for RelativeMoveSelected {
                                 let Some(uid) = siblings.get(index) else {
                                     break;
                                 };
-                                let Some(node) = dt.get_orm_mut().get_node(uid.clone(), false)
+                                let Some(node) =
+                                    dt.get_orm_mut().get_node_builder(uid.clone(), false)
                                 else {
                                     break;
                                 };

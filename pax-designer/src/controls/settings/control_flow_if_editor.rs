@@ -30,7 +30,7 @@ impl ControlFlowIfEditor {
                 let uni = UniqueTemplateNodeIdentifier::build(stid.get(), snid.get());
                 if let Some(conditional_expression) = dt
                     .get_orm_mut()
-                    .get_node(uni, false)
+                    .get_node_builder(uni, false)
                     .and_then(|mut n| n.get_control_flow_properties())
                     .and_then(|cf| cf.condition_expression)
                 {
@@ -51,7 +51,7 @@ impl ControlFlowIfEditor {
             let mut dt = borrow_mut!(ctx.designtime);
             let orm = dt.get_orm_mut();
             let mut node = orm
-                .get_node(uid, true)
+                .get_node_builder(uid, true)
                 .ok_or_else(|| anyhow!("failed to get node"))?;
             node.set_conditional_source(&format!("{{{}}}", event.text))
                 .map_err(|e| anyhow!("failed to set conditional source: {e}"))?;

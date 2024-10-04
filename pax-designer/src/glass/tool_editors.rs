@@ -41,7 +41,7 @@ impl TextEditTool {
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
         let import_path = dt
             .get_orm_mut()
-            .get_node(
+            .get_node_builder(
                 uid.clone(),
                 ctx.app_state
                     .modifiers
@@ -103,7 +103,7 @@ impl ToolBehavior for TextEditTool {
         t.run(|| {
             // commit text changes
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
-            if let Some(mut builder) = dt.get_orm_mut().get_node(
+            if let Some(mut builder) = dt.get_orm_mut().get_node_builder(
                 self.uid.clone(),
                 ctx.app_state
                     .modifiers

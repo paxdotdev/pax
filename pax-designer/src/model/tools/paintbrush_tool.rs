@@ -145,7 +145,7 @@ impl ToolBehavior for PaintbrushTool {
         self.path = Some(new_path);
         if let Err(e) = self.transaction.run(|| {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
-            let node = dt.get_orm_mut().get_node(
+            let node = dt.get_orm_mut().get_node_builder(
                 self.path_node_being_created.clone(),
                 ctx.app_state
                     .modifiers

@@ -135,7 +135,7 @@ impl Action<UniqueTemplateNodeIdentifier> for GroupNodes<'_> {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             let orm = dt.get_orm_mut();
             let parent_type_id = orm
-                .get_node(group_parent_data.id.clone(), false)?
+                .get_node_builder(group_parent_data.id.clone(), false)?
                 .get_type_id();
             let node_type = DesignerNodeType::from_type_id(parent_type_id);
             Some(node_type.metadata(&dt.get_orm()).is_slot_container)
@@ -220,7 +220,7 @@ impl Action for UngroupSelected {
                     let mut dt = borrow_mut!(ctx.engine_context.designtime);
                     let node = dt
                         .get_orm_mut()
-                        .get_node(group.id.clone(), false)
+                        .get_node_builder(group.id.clone(), false)
                         .ok_or_else(|| anyhow!("no thing"))?;
                     let node_type = DesignerNodeType::from_type_id(node.get_type_id());
                     if !node_type.metadata(&dt.get_orm()).is_container {

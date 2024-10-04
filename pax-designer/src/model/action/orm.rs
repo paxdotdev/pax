@@ -92,7 +92,7 @@ impl Action<UniqueTemplateNodeIdentifier> for CreateComponent<'_> {
             {
                 let mut dt = borrow_mut!(ctx.engine_context.designtime);
                 let orm = dt.get_orm_mut();
-                if let Some(parent) = orm.get_node(self.parent_id.clone(), false) {
+                if let Some(parent) = orm.get_node_builder(self.parent_id.clone(), false) {
                     if DesignerNodeType::from_type_id(parent.get_type_id())
                         == DesignerNodeType::Scroller
                     {

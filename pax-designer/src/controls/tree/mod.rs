@@ -157,7 +157,7 @@ impl Tree {
                     let uuid = UniqueTemplateNodeIdentifier::build(selected_comp.get(), node_id);
                     let type_id_of_tree_target = {
                         let mut dt = borrow_mut!(ctx.designtime);
-                        let builder = dt.get_orm_mut().get_node(uuid, false).unwrap();
+                        let builder = dt.get_orm_mut().get_node_builder(uuid, false).unwrap();
                         builder.get_type_id()
                     };
                     model::perform_action(&SetEditingComponent(type_id_of_tree_target), &ctx);

@@ -1,0 +1,159 @@
+<Scroller scroll_height={(400 + self.custom_properties_total_height + 5.0)px}>
+    <Group x=5px width={100% - 10px}>
+        // custom properties at top since we want things like color picker
+        // to be drawn above the rest of the settings view (and z-index isn't supported yet)
+        <Group y=343px>
+            for property in self.custom_properties {
+                <Group y={(property.vertical_pos)px} height={(property.vertical_space)px}>
+                    <PropertyEditor y=40px ind={property.index} name={property.name} write_target={WriteTarget::Class(stid, class_name)} 
+                        is_custom_property=true
+                    />
+                    <Path class=hr/>
+                    <Text class=col_1 width=100% text={property.name_friendly} class=h2 y=10px/>
+                </Group>
+            }
+        </Group>
+    </Group>
+</Scroller>
+
+@settings {
+    @mount: on_mount
+    .h1 {
+        height: 32px
+        width: {100% - 30px}
+        style: {
+            font_size: 22px,
+                font: {Font::Web(
+                    "ff-real-headline-pro",
+                    "https://use.typekit.net/ivu7epf.css",
+                    FontStyle::Normal,
+                    FontWeight::Light,
+                )},
+            fill: WHITE,
+        }
+    }
+    .h2 {
+        height: 20px,
+        style: {
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light
+            )},
+            font_size: 16px,
+            fill: WHITE,
+        }
+    }
+
+    .hr {
+        height: 1px,
+        elements: {[
+            PathElement::Point(0%, 0%),
+            PathElement::Line,
+            PathElement::Point(100%, 0%),
+        ]},
+        stroke: {
+            color: rgb(48, 56, 62),
+            width: 1px,
+        },
+        fill: NONE
+    }
+
+    .property_label {
+        height: 20px,
+        y: 50%,
+        selectable: false,
+        anchor_y: 50%,
+        style: {
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light
+            )},
+            font_size: 14px,
+            fill: rgba(255, 255, 255, 67%),
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Right,
+        }
+    }
+
+    .property_label_larger {
+        height: 26px,
+        y: 50%,
+        anchor_y: 50%,
+        style: {
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Thin
+            )},
+            font_size: 20px,
+            fill: rgba(255, 255, 255, 67%),
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Right,
+        }
+    }
+
+    // col_k = (k * 100/8) + 1.67%
+    .col_1 {
+        x: 1.67%,  // 0 * (100/8) + 1.67%
+        anchor_x: 0%,
+    }
+    .col_2 {
+        x: 14.17%,  // 1 * (100/8) + 1.67%
+        anchor_x: 0%,
+    }
+    .col_3 {
+        x: 26.67%,  // 2 * (100/8) + 1.67%
+        anchor_x: 0%,
+    }
+    .col_4 {
+        x: 39.17%,  // 3 * (100/8) + 1.67%
+        anchor_x: 0%,
+    }
+    .col_5 {
+        x: 51.67%,  // 4 * (100/8) + 1.67%
+        anchor_x: 0%,
+    }
+    .col_6 {
+        x: 64.17%,  // 5 * (100/8) + 1.67%
+        anchor_x: 0%,
+    }
+    .col_7 {
+        x: 76.67%,  // 6 * (100/8) + 1.67%
+        anchor_x: 0%,
+    }
+    .col_8 {
+        x: 89.17%,  // 7 * (100/8) + 1.67%
+        anchor_x: 0%,
+    }
+
+    // span_k = ((k * 100/8) - 3.33)%
+    .span_1 {
+        width: 9.17%,  // (1 * 100/8) - 3.33
+    }
+    .span_2 {
+        width: 21.67%,  // (2 * 100/8) - 3.33
+    }
+    .span_3 {
+        width: 34.17%,  // (3 * 100/8) - 3.33
+    }
+    .span_4 {
+        width: 46.67%,  // (4 * 100/8) - 3.33
+    }
+    .span_5 {
+        width: 59.17%,  // (5 * 100/8) - 3.33
+    }
+    .span_6 {
+        width: 71.67%,  // (6 * 100/8) - 3.33
+    }
+    .span_7 {
+        width: 84.17%,  // (7 * 100/8) - 3.33
+    }
+    .span_8 {
+        width: 96.67%,  // (8 * 100/8) - 3.33
+    }
+}

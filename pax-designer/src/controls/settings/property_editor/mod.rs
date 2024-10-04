@@ -26,6 +26,10 @@ use text_property_editor::TextPropertyEditor;
 use text_style_property_editor::TextStylePropertyEditor;
 
 use crate::model;
+/// Used by containers of property editors (added to local store)
+/// to let PropertyEditors communicate upwardly what size they want to take up (height)
+pub struct PropertyAreas(pub Property<Vec<f64>>);
+impl Store for PropertyAreas {}
 
 #[pax]
 #[engine_import_path("pax_engine")]
@@ -50,7 +54,7 @@ pub enum WriteTarget {
     #[default]
     None,
     TemplateNode(TypeId, TemplateNodeId),
-    Class, // TODO fill in data
+    Class(TypeId, String),
 }
 
 impl PropertyEditor {
@@ -173,8 +177,13 @@ impl PropertyEditorData {
                 &UniqueTemplateNodeIdentifier::build(stid.clone(), snid.clone()),
                 self.name.as_str(),
             ),
-            WriteTarget::Class => {
-                todo!()
+            WriteTarget::Class(stid, class_ident) => {
+                // TODO PERF: expensive?
+                let class = orm.get_class(stid, class_ident).ok()?;
+                class
+                    .into_iter()
+                    .find_map(|(v, _, type_id)| (v == self.name).then_some(type_id))
+                    .flatten()
             }
         }
     }
@@ -182,10 +191,20 @@ impl PropertyEditorData {
     pub fn get_value(&self, ctx: &NodeContext) -> Option<ValueDefinition> {
         let dt = borrow!(ctx.designtime);
         let orm = dt.get_orm();
-        orm.get_property(
-            &UniqueTemplateNodeIdentifier::build(self.stid.clone(), self.snid.clone()),
-            self.name.as_str(),
-        )
+        match &self.write_target {
+            WriteTarget::None => None,
+            WriteTarget::TemplateNode(stid, snid) => orm.get_property(
+                &UniqueTemplateNodeIdentifier::build(stid.clone(), snid.clone()),
+                self.name.as_str(),
+            ),
+            WriteTarget::Class(stid, class_ident) => {
+                // TODO PERF: expensive?
+                let class = orm.get_class(stid, class_ident).ok()?;
+                class
+                    .into_iter()
+                    .find_map(|(v, value, _)| (v == self.name).then_some(value))
+            }
+        }
     }
 
     pub fn get_value_as_str(&self, ctx: &NodeContext) -> String {
@@ -198,29 +217,32 @@ impl PropertyEditorData {
         // save-point before property edit
         let t = model::with_action_context(ctx, |ac| ac.transaction("updating property"));
         t.run(|| {
-            match self.with_node_def(ctx, |mut node| {
-                node.set_property(&self.name, val.trim())?;
-                node.save().map_err(|e| anyhow!("{:?}", e)).map(|_| ())
-            }) {
-                Some(res) => res,
-                None => Err(anyhow!("has no definition")),
+            let mut dt = borrow_mut!(ctx.designtime);
+            let orm = dt.get_orm_mut();
+            match &self.write_target {
+                WriteTarget::None => (),
+                WriteTarget::TemplateNode(stid, snid) => {
+                    let mut node = orm
+                        .get_node_builder(
+                            UniqueTemplateNodeIdentifier::build(stid.clone(), snid.clone()),
+                            // TODO how to handle this? The UI should probably show in some way
+                            // if this already contains an expression, and if so not show the normal editor
+                            true,
+                        )
+                        .ok_or_else(|| anyhow!("couldn't get node builder"))?;
+                    node.set_property(&self.name, val.trim())?;
+                    node.save().map_err(|e| anyhow!("{:?}", e))?;
+                }
+                WriteTarget::Class(stid, class_ident) => {
+                    let mut class = orm.get_class_builder(stid.clone(), class_ident);
+                    class.set_property(&self.name, val)?;
+                    class
+                        .save()
+                        .map_err(|e| anyhow!("failed to write class property: {e}"))?;
+                }
             }
+            Ok(())
         })
-    }
-
-    pub fn with_node_def<T>(
-        &self,
-        ctx: &NodeContext,
-        f: impl FnOnce(NodeBuilder<'_>) -> T,
-    ) -> Option<T> {
-        let mut dt = borrow_mut!(ctx.designtime);
-        let node_definition = dt.get_orm_mut().get_node(
-            UniqueTemplateNodeIdentifier::build(self.stid.clone(), self.snid.clone()),
-            // TODO how to handle this? The UI should probably show in some way
-            // if this already contains an expression, and if so not show the normal editor
-            true,
-        )?;
-        Some(f(node_definition))
     }
 }
 

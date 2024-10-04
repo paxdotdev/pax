@@ -332,7 +332,7 @@ impl Editor {
         let item = selection.items.into_iter().next().unwrap();
         let type_id = {
             let mut dt = borrow_mut!(ctx.designtime);
-            let Some(builder) = dt.get_orm_mut().get_node(item.id.clone(), false) else {
+            let Some(builder) = dt.get_orm_mut().get_node_builder(item.id.clone(), false) else {
                 return Vec::default();
             };
             builder.get_type_id()
