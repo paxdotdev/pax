@@ -1,6 +1,6 @@
 <Scroller y=0 height=100% x=0 width=100%>
     if is_ai {
-    <Text x=10px y=10px width=46% style={
+    <Text x=10px y=10px width=100% style={
         font: Font::Web(
             "JetBrains Mono",
             "https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800&display=swap",
@@ -16,7 +16,7 @@
         text={" 🤖: " + text}/>
         }
     if !is_ai {
-            <Text x={100%-10px} y=20px width=46% style={
+            <Text x={100%-10px} y=20px width=100% style={
         font: Font::Web(
             "JetBrains Mono",
             "https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800&display=swap",

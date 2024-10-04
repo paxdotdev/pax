@@ -184,15 +184,6 @@ thread_local! {
                     },
                 ]
             },
-            ToolbarEntry {
-                items: vec![
-                    ToolbarItem {
-                        icon: "assets/icons/icon-robot.png",
-                        tooltip: "AI Assistance",
-                        event: ToolbarEvent::PerformAction(Box::new(SetLLMPromptState(true)))
-                    },
-                ]
-            },
         ];
 }
 

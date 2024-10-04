@@ -7,7 +7,6 @@ if self.glass_active {
     <Stacker sizes=[None, Some(300px)]>
         <Frame>
             <MessageLogDisplay/>
-            <LLMInterface/>
             if show_publish_button {
                 <ProjectPublishButton/>
             }
