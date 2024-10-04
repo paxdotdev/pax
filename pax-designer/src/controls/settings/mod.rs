@@ -15,7 +15,7 @@ use control_flow_for_editor::ControlFlowForEditor;
 use control_flow_if_editor::ControlFlowIfEditor;
 use property_editor::PropertyEditor;
 
-use self::property_editor::{PropertyAreas, WriteTarget};
+use self::property_editor::{PropertyArea, PropertyAreas, WriteTarget};
 
 #[pax]
 #[engine_import_path("pax_engine")]
@@ -30,17 +30,6 @@ pub struct Settings {
     pub stid: Property<TypeId>,
     pub snid: Property<TemplateNodeId>,
     pub property_areas: Property<Vec<f64>>,
-}
-
-#[pax]
-#[engine_import_path("pax_engine")]
-#[custom(Imports)]
-pub struct PropertyArea {
-    pub vertical_space: f64,
-    pub vertical_pos: f64,
-    pub name: String,
-    pub name_friendly: String,
-    pub index: usize,
 }
 
 const SPACING: f64 = 10.0;

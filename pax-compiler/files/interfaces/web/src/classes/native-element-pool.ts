@@ -22,6 +22,7 @@ import { SliderUpdatePatch } from "./messages/slider-update-patch";
 import { EventBlockerUpdatePatch } from "./messages/event-blocker-update-patch";
 import { NavigationPatch } from "./messages/navigation-patch";
 import { NativeImageUpdatePatch } from "./messages/native-image-update-patch";
+import { is_in_dom_manipulation_with_focus_func } from "..";
 
 export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
@@ -225,14 +226,18 @@ export class NativeElementPool {
         });
 
         textbox.addEventListener("change", (_event) => {
-            let message = {
-                "FormTextboxChange": {
-                    "id": patch.id!,
-                    "text": textbox.value,
+            // if not surpressed, this will trigger when re-selected after dom manipulation
+            if (!is_in_dom_manipulation_with_focus_func) {
+                let message = {
+                    "FormTextboxChange": {
+                        "id": patch.id!,
+                        "text": textbox.value,
+                    }
                 }
+                this.chassis!.interrupt(JSON.stringify(message), undefined);
             }
-            this.chassis!.interrupt(JSON.stringify(message), undefined);
         });
+        
 
         let textboxDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         textboxDiv.appendChild(textbox);

@@ -1,9 +1,10 @@
-<Scroller scroll_height={(400 + self.custom_properties_total_height + 5.0)px}>
+
+<Scroller scroll_height={(120 + self.class_properties_total_height + 5.0)px}>
     <Group x=5px width={100% - 10px}>
-        // custom properties at top since we want things like color picker
+        // class properties at top since we want things like color picker
         // to be drawn above the rest of the settings view (and z-index isn't supported yet)
-        <Group y=343px>
-            for property in self.custom_properties {
+        <Group y=40px>
+            for property in self.class_properties {
                 <Group y={(property.vertical_pos)px} height={(property.vertical_space)px}>
                     <PropertyEditor y=40px ind={property.index} name={property.name} write_target={WriteTarget::Class(stid, class_name)} 
                         is_custom_property=true
@@ -13,11 +14,47 @@
                 </Group>
             }
         </Group>
+        <Text text={self.class_name} class=h1 class=col_1 class=span_6/>
+        <Group y={(self.class_properties_total_height + 100)px}>
+            <ComboBox class=input  class=col_1 class=span_6 options=all_available_properties selected=bind:selected_property_index/>
+            <Group height=30px x=100% width=50px @click=self.add_class_property>
+                <Text class=text text="Add" width=100% height=100%/>
+                <Rectangle fill=rgb(70, 70, 70)
+            	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
+                />
+            </Group>
+            <Textbox y=40px class=input class=col_1 class=span_6 text=bind:new_property_value/>
+        </Group>
+        <Group x=100% width=50px height=50px @click=self.close_class_editor>
+            <Image x=50% y=50% width=20px height=20px source={ImageSource::Url("assets/icons/x.png")}/>
+            <Rectangle fill=TRANSPARENT/>
+        </Group>
     </Group>
 </Scroller>
 
 @settings {
     @mount: on_mount
+
+    .input {
+        height: 30px,
+        background: rgb(12.5%, 12.5%, 12.5%),
+        stroke: {
+            color: rgb(48, 56, 62),
+            width: 1px,
+        },
+        border_radius: 5,
+        style: {
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light,
+            )},
+            font_size: 14px,
+            fill: WHITE,
+        }
+    }
+    
     .h1 {
         height: 32px
         width: {100% - 30px}
@@ -94,6 +131,22 @@
             fill: rgba(255, 255, 255, 67%),
             align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Right,
+        }
+    }
+
+    .text {
+        style: {
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Bold,
+            )},
+            font_size: 10px,
+            fill: WHITE,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+            align_multiline: TextAlignHorizontal::Center
         }
     }
 
