@@ -26,11 +26,11 @@ pub fn generate_cartridge_partial_rs(
     let generated_lib_rs = templating::press_template_codegen_cartridge_snippet(
         templating::TemplateArgsCodegenCartridgeSnippet {
             cartridge_struct_id: merged_manifest.get_main_cartridge_struct_id(),
-            definition_to_instance_traverser_struct_id: merged_manifest
+            definition_to_instance_traverser_struct_id: userland_manifest
                 .get_main_definition_to_instance_traverser_struct_id(),
             components: merged_manifest.generate_codegen_component_info(),
             common_properties: CommonProperty::get_as_common_property(),
-            type_table: merged_manifest.type_table.clone(),
+            type_table: userland_manifest.type_table.clone(),
             is_designtime: cfg!(feature = "designtime"),
             userland_manifest_json: serde_json::to_string(userland_manifest).unwrap(),
             designer_manifest_json: if let Some(designer_manifest) = designer_manifest {

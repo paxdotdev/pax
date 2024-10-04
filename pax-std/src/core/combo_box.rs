@@ -27,7 +27,7 @@ use pax_runtime::api::NodeContext;
             <Rectangle fill={stroke.color}/>
         </Scroller>
     }
-    if self.text != "" && !_options_visible {
+    if self.selected != None && !_options_visible {
         <Group  @click=self.remove_index x=100% width=30px>
             <EventBlocker/>
             <Path class=x_symbol x=50% y=50% width=15px height=15px/>
@@ -150,7 +150,6 @@ impl ComboBox {
             } else {
                 "".to_string()
             };
-            log::debug!("selected set to: {} (ind {:?})", new_value, selected);
             text.set(new_value);
             options_visible.set(false);
             true
@@ -192,7 +191,6 @@ pub struct ComboBoxListItem {
 
 impl ComboBoxListItem {
     pub fn on_click(&mut self, ctx: &NodeContext, _event: Event<MouseDown>) {
-        log::debug!("selecting index: {:?}", self.data.get().index);
         if let Some(index) = self.data.get().index {
             ctx.peek_local_store(|SelectedIndProp(selected): &mut SelectedIndProp| {
                     selected.set(Some(index));

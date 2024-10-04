@@ -21,15 +21,12 @@
 //! For usage examples see the tests in `pax-designtime/src/orm/tests.rs`.
 
 use std::collections::HashMap;
-use std::hash::Hash;
 
-use pax_manifest::code_serialization::{
-    diff, diff_html, press_code_serialization_template, serialize_component_to_file,
-};
+use pax_manifest::code_serialization::{diff_html, press_code_serialization_template};
 use pax_manifest::pax_runtime_api::{Interpolatable, Property};
 use pax_manifest::{
-    ComponentDefinition, ComponentTemplate, NodeLocation, PaxManifest, SettingElement,
-    SettingsBlockElement, TemplateNodeDefinition, TemplateNodeId, TypeId,
+    ComponentDefinition, ComponentTemplate, NodeLocation, PaxManifest, PropertyDefinition,
+    SettingElement, SettingsBlockElement, TemplateNodeDefinition, TemplateNodeId, TypeId,
     UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 use serde_derive::{Deserialize, Serialize};
@@ -213,6 +210,14 @@ impl PaxManifestORM {
         ))
     }
 
+    pub fn get_all_property_definitions(&self) -> Vec<&PropertyDefinition> {
+        self.manifest
+            .type_table
+            .values()
+            .flat_map(|v| v.property_definitions.iter())
+            .collect()
+    }
+
     pub fn get_class(
         &self,
         type_id: &TypeId,
@@ -237,12 +242,7 @@ impl PaxManifestORM {
             .ok_or_else(|| anyhow!("no class with name {name}"))?;
         // TODO PERF: keep track of cached String -> TypeId map, that get's re-generated on
         // manifest version change.
-        let property_definitions: Vec<_> = self
-            .manifest
-            .type_table
-            .values()
-            .flat_map(|t| t.property_definitions.iter())
-            .collect();
+        let property_definitions = self.get_all_property_definitions();
 
         let mut res = vec![];
 

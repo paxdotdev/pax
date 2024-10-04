@@ -25,6 +25,18 @@ use stroke_property_editor::StrokePropertyEditor;
 use text_property_editor::TextPropertyEditor;
 use text_style_property_editor::TextStylePropertyEditor;
 
+// Used by containers of property editors
+#[pax]
+#[engine_import_path("pax_engine")]
+#[custom(Imports)]
+pub struct PropertyArea {
+    pub vertical_space: f64,
+    pub vertical_pos: f64,
+    pub name: String,
+    pub name_friendly: String,
+    pub index: usize,
+}
+
 use crate::model;
 /// Used by containers of property editors (added to local store)
 /// to let PropertyEditors communicate upwardly what size they want to take up (height)
