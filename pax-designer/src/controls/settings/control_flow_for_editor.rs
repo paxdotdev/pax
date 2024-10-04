@@ -31,7 +31,7 @@ impl ControlFlowForEditor {
                 let uni = UniqueTemplateNodeIdentifier::build(stid.get(), snid.get());
                 if let Some(control_flow_data) = dt
                     .get_orm_mut()
-                    .get_node(uni, false)
+                    .get_node_builder(uni, false)
                     .and_then(|mut n| n.get_control_flow_properties())
                 {
                     (
@@ -71,7 +71,7 @@ impl ControlFlowForEditor {
             let mut dt = borrow_mut!(ctx.designtime);
             let orm = dt.get_orm_mut();
             let mut node = orm
-                .get_node(uid, true)
+                .get_node_builder(uid, true)
                 .ok_or_else(|| anyhow!("failed to get node"))?;
             node.set_repeat_source(&format!("{{{}}}", event.text))
                 .map_err(|e| anyhow!("failed to set repeat source: {e}"))?;
@@ -88,7 +88,7 @@ impl ControlFlowForEditor {
             let mut dt = borrow_mut!(ctx.designtime);
             let orm = dt.get_orm_mut();
             let mut node = orm
-                .get_node(uid, true)
+                .get_node_builder(uid, true)
                 .ok_or_else(|| anyhow!("failed to get node"))?;
             node.set_repeat_predicate(&format!("{}", event.text))
                 .map_err(|e| anyhow!("failed to set repeat predicate: {e}"))?;

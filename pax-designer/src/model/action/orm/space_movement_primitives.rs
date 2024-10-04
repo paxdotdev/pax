@@ -92,7 +92,7 @@ struct SetNodeLayoutProperties<'a> {
 impl Action for SetNodeLayoutProperties<'_> {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        let Some(mut builder) = dt.get_orm_mut().get_node(
+        let Some(mut builder) = dt.get_orm_mut().get_node_builder(
             self.id.clone(),
             ctx.app_state
                 .modifiers

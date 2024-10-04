@@ -3,9 +3,7 @@ use pax_engine::*;
 use pax_manifest::*;
 use pax_std::*;
 
-use crate::controls::settings::AREAS_PROP;
-
-use super::PropertyEditorData;
+use super::{PropertyAreas, PropertyEditorData};
 
 #[pax]
 #[engine_import_path("pax_engine")]
@@ -24,7 +22,7 @@ impl CornerRadiiPropertyEditor {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let index = self.data.get().editor_index;
         if index != 0 {
-            AREAS_PROP.with(|areas| {
+            let _ = ctx.peek_local_store(|PropertyAreas(areas): &mut PropertyAreas| {
                 areas.update(|areas| {
                     while areas.len() <= index {
                         areas.push(0.0)

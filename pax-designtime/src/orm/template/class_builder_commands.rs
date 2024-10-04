@@ -200,7 +200,7 @@ impl Command<AddClassRequest> for AddClassRequest {
 
 impl Undo for AddClassRequest {
     fn undo(&mut self, manifest: &mut PaxManifest) -> Result<(), String> {
-        // TODO undo adding of class
-        Ok(())
+        todo!()
+        // Ok(())
     }
 }

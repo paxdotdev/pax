@@ -15,6 +15,8 @@ use control_flow_for_editor::ControlFlowForEditor;
 use control_flow_if_editor::ControlFlowIfEditor;
 use property_editor::PropertyEditor;
 
+use self::property_editor::{PropertyAreas, WriteTarget};
+
 #[pax]
 #[engine_import_path("pax_engine")]
 #[file("controls/settings/mod.pax")]
@@ -27,6 +29,7 @@ pub struct Settings {
     pub custom_properties_total_height: Property<f64>,
     pub stid: Property<TypeId>,
     pub snid: Property<TemplateNodeId>,
+    pub property_areas: Property<Vec<f64>>,
 }
 
 #[pax]
@@ -41,12 +44,10 @@ pub struct PropertyArea {
 }
 
 const SPACING: f64 = 10.0;
-thread_local! {
-    pub static AREAS_PROP: Property<Vec<f64>> = Property::new(Vec::new());
-}
 
 impl Settings {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
+        ctx.push_local_store(PropertyAreas(self.property_areas.clone()));
         model::read_app_state(|app_state| {
             self.bind_selected(&app_state, ctx);
             self.bind_snid(&app_state);
@@ -70,7 +71,7 @@ impl Settings {
                 let uni = UniqueTemplateNodeIdentifier::build(comp_type_id.get(), node_id);
                 let mut dt = borrow_mut!(ctx.designtime);
                 let orm = dt.get_orm_mut();
-                let Some(node) = orm.get_node(uni.clone(), false) else {
+                let Some(node) = orm.get_node_builder(uni.clone(), false) else {
                     return Some(DesignerNodeType::Unregistered);
                 };
                 let node_type = DesignerNodeType::from_type_id(node.get_type_id());
@@ -151,7 +152,7 @@ impl Settings {
         );
         // Here, AREAS_PROP and the above custom prop definition is being combined to what
         // actually gets rendered
-        let areas = AREAS_PROP.with(|p| p.clone());
+        let areas = self.property_areas.clone();
         let adjusted_custom_props =
             self.adjust_custom_props_positions(custom_props_default_position, areas);
 
@@ -202,7 +203,7 @@ impl Settings {
                     selected_component_name.set("".to_owned())
                 }
 
-                let Some(mut node) = dt.get_orm_mut().get_node(uni, false) else {
+                let Some(mut node) = dt.get_orm_mut().get_node_builder(uni, false) else {
                     return vec![];
                 };
 

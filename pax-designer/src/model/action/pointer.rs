@@ -169,7 +169,7 @@ impl Action for MouseEntryPointAction<'_> {
                                     let mut dt = borrow_mut!(ctx.engine_context.designtime);
                                     let mut node = dt
                                         .get_orm_mut()
-                                        .get_node(post_creation_data.uid.clone(), false)
+                                        .get_node_builder(post_creation_data.uid.clone(), false)
                                         .ok_or_else(|| anyhow!("couldn't get stacker node"))?;
                                     if post_creation_data.bounds.width()
                                         > post_creation_data.bounds.height()

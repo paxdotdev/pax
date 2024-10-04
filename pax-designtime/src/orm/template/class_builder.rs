@@ -23,9 +23,9 @@ impl<'a> ClassBuilder<'a> {
     pub fn new(orm: &'a mut PaxManifestORM, component_type_id: TypeId, name: &'a str) -> Self {
         Self {
             orm,
-            containing_component_type_id: todo!(),
-            class_name: todo!(),
-            updated_class_properties: todo!(),
+            containing_component_type_id: component_type_id,
+            class_name: name,
+            updated_class_properties: HashMap::new(),
         }
     }
 
@@ -64,7 +64,7 @@ impl<'a> ClassBuilder<'a> {
         self.updated_class_properties.insert(key.to_string(), None);
     }
 
-    pub fn save(mut self) -> Result<ClassSaveData, String> {
+    pub fn save(self) -> Result<ClassSaveData, String> {
         let resp = self.orm.execute_command(UpdateClassRequest::new(
             self.containing_component_type_id,
             self.class_name,
