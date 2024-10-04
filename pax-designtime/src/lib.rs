@@ -73,7 +73,7 @@ impl DesigntimeManager {
         self.last_rendered_manifest_version.set(version);
     }
 
-    pub fn get_llm_messages(&mut self, request_id: u64) -> Vec<String>{
+    pub fn get_llm_messages(&mut self, request_id: u64) -> Vec<String> {
         self.orm.get_messages(request_id)
     }
 
@@ -145,7 +145,9 @@ impl DesigntimeManager {
             request_id,
         };
 
-        self.pub_pax_connection.borrow_mut().send_llm_request(llm_request)?;
+        self.pub_pax_connection
+            .borrow_mut()
+            .send_llm_request(llm_request)?;
 
         Ok(())
     }

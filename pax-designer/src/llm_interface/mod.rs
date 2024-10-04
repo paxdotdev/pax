@@ -43,7 +43,6 @@ impl LLMInterface {
     pub fn textbox_change(&mut self, ctx: &NodeContext, args: Event<TextboxChange>) {
         model::perform_action(&SetLLMPromptState(false), ctx);
         self.request.set(String::new());
-        
     }
 
     pub fn hide(&mut self, ctx: &NodeContext, event: Event<Click>) {

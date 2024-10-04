@@ -190,8 +190,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                         eprintln!("server couldn't write to served folder: {:?}", path);
                     };
                 }
-                Ok(_
-                ) => {}
+                Ok(_) => {}
                 Err(e) => {
                     eprintln!("Deserialization error: {:?}", e);
                 }
