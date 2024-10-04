@@ -28,7 +28,7 @@ impl Action for SwapFillStrokeAction {
                 let mut dt = borrow_mut!(ctx.engine_context.designtime);
                 let mut node = dt
                     .get_orm_mut()
-                    .get_node(
+                    .get_node_builder(
                         uid,
                         ctx.app_state
                             .modifiers

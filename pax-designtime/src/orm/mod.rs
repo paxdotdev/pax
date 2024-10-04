@@ -36,6 +36,7 @@ use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
 
+use self::template::class_builder::ClassBuilder;
 use self::template::{
     node_builder::NodeBuilder, ConvertToComponentRequest, RemoveTemplateNodeRequest,
 };
@@ -343,12 +344,20 @@ impl PaxManifestORM {
         Ok(res.get_created().to_vec())
     }
 
-    pub fn get_node(
+    pub fn get_node_builder(
         &mut self,
         uni: UniqueTemplateNodeIdentifier,
         overwrite_expressions: bool,
     ) -> Option<NodeBuilder> {
         NodeBuilder::retrieve_node(self, uni, overwrite_expressions)
+    }
+
+    pub fn get_class_builder<'a>(
+        &'a mut self,
+        component_type_id: TypeId,
+        class_name: &'a str,
+    ) -> ClassBuilder<'a> {
+        ClassBuilder::new(self, component_type_id, class_name)
     }
 
     pub fn get_main_component(&self) -> &TypeId {

@@ -19,13 +19,16 @@
 </Frame>
 
 <Group id=right_panel>
-    if self.tool_with_tool_editor_selected {
+    if self.settings_view_page == SettingsViewPage::PaintbrushEditor {
         // TODO add more types here? or make everything here
-        // generated with data from the tool
+        // generated with data from the tool (or dynamic components)
         <PaintbrushSettings/>
     }
-    if !self.tool_with_tool_editor_selected {
-        <Settings id=settings/>
+    if self.settings_view_page == SettingsViewPage::NodeEditor {
+        <Settings/>
+    }
+    if self.settings_view_page == SettingsViewPage::ClassEditor {
+        <ClassSettingsEditor/>
     }
     <Rectangle class=black_bg/>
     <EventBlocker/>

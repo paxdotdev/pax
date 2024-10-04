@@ -200,7 +200,7 @@ impl<'a> ActionContext<'a> {
     pub fn designer_node_type(&self, id: &UniqueTemplateNodeIdentifier) -> DesignerNodeType {
         let mut dt = borrow_mut!(self.engine_context.designtime);
         let orm = dt.get_orm_mut();
-        let Some(node) = orm.get_node(id.clone(), false) else {
+        let Some(node) = orm.get_node_builder(id.clone(), false) else {
             return DesignerNodeType::Unregistered;
         };
         DesignerNodeType::from_type_id(node.get_type_id())

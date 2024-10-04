@@ -134,7 +134,7 @@ impl Glass {
                 selected_node_id.clone(),
             );
             let mut dt = borrow_mut!(ctx.designtime);
-            let builder = dt.get_orm_mut().get_node(
+            let builder = dt.get_orm_mut().get_node_builder(
                 uid.clone(),
                 app_state.modifiers.get().contains(&ModifierKey::Control),
             )?;

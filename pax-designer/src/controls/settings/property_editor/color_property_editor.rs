@@ -2,9 +2,8 @@ use pax_engine::api::{pax_value::ToFromPaxAny, *};
 use pax_engine::*;
 
 use crate::controls::settings::color_picker::ColorPicker;
-use crate::controls::settings::AREAS_PROP;
 
-use super::PropertyEditorData;
+use super::{PropertyAreas, PropertyEditorData};
 
 use pax_std::*;
 
@@ -22,7 +21,7 @@ impl ColorPropertyEditor {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let index = self.data.get().editor_index;
         if index != 0 {
-            AREAS_PROP.with(|areas| {
+            let _ = ctx.peek_local_store(|PropertyAreas(areas): &mut PropertyAreas| {
                 areas.update(|areas| {
                     while areas.len() <= index {
                         areas.push(0.0)

@@ -67,7 +67,7 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             let mut builder = dt
                 .get_orm_mut()
-                .get_node(
+                .get_node_builder(
                     self.stacker_node.id.clone(),
                     ctx.app_state
                         .modifiers
@@ -127,7 +127,7 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
                 let mut dt = borrow_mut!(ctx.engine_context.designtime);
                 let mut builder = dt
                     .get_orm_mut()
-                    .get_node(
+                    .get_node_builder(
                         stacker_id_2.clone(),
                         ctx.app_state
                             .modifiers

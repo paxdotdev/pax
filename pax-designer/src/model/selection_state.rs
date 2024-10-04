@@ -198,7 +198,7 @@ impl GlassNode {
 
     pub fn get_node_type(&self, ctx: &NodeContext) -> DesignerNodeType {
         let mut dt = borrow_mut!(ctx.designtime);
-        let Some(node) = dt.get_orm_mut().get_node(self.id.clone(), false) else {
+        let Some(node) = dt.get_orm_mut().get_node_builder(self.id.clone(), false) else {
             return DesignerNodeType::Unregistered;
         };
         DesignerNodeType::from_type_id(node.get_type_id())
