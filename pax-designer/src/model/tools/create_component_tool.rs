@@ -1,6 +1,6 @@
 use std::ops::ControlFlow;
 
-use pax_designtime::orm::template::builder::NodeBuilder;
+use pax_designtime::orm::template::node_builder::NodeBuilder;
 use pax_engine::{
     api::Color,
     math::{Point2, Vector2},

@@ -36,7 +36,9 @@ use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
 
-use self::template::{builder::NodeBuilder, ConvertToComponentRequest, RemoveTemplateNodeRequest};
+use self::template::{
+    node_builder::NodeBuilder, ConvertToComponentRequest, RemoveTemplateNodeRequest,
+};
 use self::template::{GetChildrenRequest, MoveTemplateNodeRequest, PasteSubTreeRequest};
 
 use anyhow::{anyhow, Result};
@@ -208,6 +210,79 @@ impl PaxManifestORM {
             uni.get_containing_component_type_id(),
             template.get_parent(&uni.get_template_node_id())?,
         ))
+    }
+
+    pub fn get_class(
+        &self,
+        type_id: &TypeId,
+        name: &str,
+    ) -> Result<Vec<(String, ValueDefinition, Option<TypeId>)>> {
+        let component = self
+            .manifest
+            .components
+            .get(&type_id)
+            .ok_or_else(|| anyhow!("couldn't find component with type id: {type_id:?}"))?;
+        let Some(settings) = &component.settings else {
+            return Err(anyhow!("component has no settings"));
+        };
+        let class_block = settings
+            .iter()
+            .find_map(|setting| match setting {
+                pax_manifest::SettingsBlockElement::SelectorBlock(token, block) => {
+                    (token.token_value == name).then_some(block)
+                }
+                _ => None,
+            })
+            .ok_or_else(|| anyhow!("no class with name {name}"))?;
+        // TODO PERF: keep track of cached String -> TypeId map, that get's re-generated on
+        // manifest version change.
+        let property_definitions: Vec<_> = self
+            .manifest
+            .type_table
+            .values()
+            .flat_map(|t| t.property_definitions.iter())
+            .collect();
+
+        let mut res = vec![];
+
+        for element in &class_block.elements {
+            if let SettingElement::Setting(token, value_definition) = element {
+                let name = token.token_value.clone();
+                let property_definitions_with_name: Vec<_> = property_definitions
+                    .iter()
+                    .copied()
+                    .filter(|pd| pd.name == name)
+                    .collect();
+                let potential_type = &property_definitions_with_name[0].type_id;
+                let found_type = property_definitions_with_name
+                    .iter()
+                    .all(|pd| &pd.type_id == potential_type)
+                    .then_some(potential_type.clone());
+                res.push((name, value_definition.clone(), found_type));
+            }
+        }
+        Ok(res)
+    }
+
+    pub fn get_classes(&self, type_id: &TypeId) -> Result<Vec<String>> {
+        let component = self
+            .manifest
+            .components
+            .get(&type_id)
+            .ok_or_else(|| anyhow!("couldn't find component with type id: {type_id:?}"))?;
+        let Some(settings) = &component.settings else {
+            return Ok(vec![]);
+        };
+        let classes: Vec<_> = settings
+            .iter()
+            .filter_map(|setting| match setting {
+                pax_manifest::SettingsBlockElement::SelectorBlock(token, _block) => {
+                    Some(token.token_value.to_string())
+                }
+                _ => None,
+            })
+            .collect();
+        Ok(classes)
     }
 
     pub fn move_node(
@@ -469,6 +544,8 @@ pub enum UndoRedoCommand {
     RemoveTemplateNodeRequest(Box<template::RemoveTemplateNodeRequest>),
     MoveTemplateNodeRequest(Box<template::MoveTemplateNodeRequest>),
     UpdateTemplateNodeRequest(Box<template::UpdateTemplateNodeRequest>),
+    AddClassRequest(Box<template::AddClassRequest>),
+    UpdateClassRequest(Box<template::UpdateClassRequest>),
     PasteSubTreeRequest(Box<template::PasteSubTreeRequest>),
     ReplaceTemplateRequest(Box<template::ReplaceTemplateRequest>),
     ConvertToComponentRequest(Box<template::ConvertToComponentRequest>),
@@ -482,6 +559,8 @@ impl UndoRedoCommand {
             UndoRedoCommand::AddTemplateNodeRequest(command) => command.undo(manifest),
             UndoRedoCommand::RemoveTemplateNodeRequest(command) => command.undo(manifest),
             UndoRedoCommand::UpdateTemplateNodeRequest(command) => command.undo(manifest),
+            UndoRedoCommand::AddClassRequest(command) => command.undo(manifest),
+            UndoRedoCommand::UpdateClassRequest(command) => command.undo(manifest),
             UndoRedoCommand::PasteSubTreeRequest(command) => command.undo(manifest),
             UndoRedoCommand::ReplaceTemplateRequest(command) => command.undo(manifest),
             UndoRedoCommand::ConvertToComponentRequest(command) => command.undo(manifest),
@@ -501,6 +580,12 @@ impl UndoRedoCommand {
                 let _ = command.execute(manifest);
             }
             UndoRedoCommand::UpdateTemplateNodeRequest(command) => {
+                let _ = command.execute(manifest);
+            }
+            UndoRedoCommand::AddClassRequest(command) => {
+                let _ = command.execute(manifest);
+            }
+            UndoRedoCommand::UpdateClassRequest(command) => {
                 let _ = command.execute(manifest);
             }
             UndoRedoCommand::PasteSubTreeRequest(command) => {

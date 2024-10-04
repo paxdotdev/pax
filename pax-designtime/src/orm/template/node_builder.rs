@@ -3,13 +3,13 @@ use std::collections::HashMap;
 use anyhow::{anyhow, Result};
 use pax_manifest::{
     pax_runtime_api::ToPaxValue, ControlFlowRepeatPredicateDefinition,
-    ControlFlowSettingsDefinition, ExpressionInfo, NodeLocation, PaxExpression, PaxPrimary,
-    PropertyDefinition, SettingElement, Token, TypeId, UniqueTemplateNodeIdentifier,
+    ControlFlowSettingsDefinition, ExpressionInfo, NodeLocation, NodeType, PaxExpression,
+    PaxPrimary, PropertyDefinition, SettingElement, Token, TypeId, UniqueTemplateNodeIdentifier,
     ValueDefinition,
 };
 
 use super::{
-    AddTemplateNodeRequest, ControlFlowSettingsDefinitionUpdate, GetTemplateNodeRequest, NodeType,
+    AddTemplateNodeRequest, ControlFlowSettingsDefinitionUpdate, GetTemplateNodeRequest,
     UpdateTemplateNodeRequest,
 };
 use crate::orm::PaxManifestORM;

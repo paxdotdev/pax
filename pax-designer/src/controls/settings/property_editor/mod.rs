@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use pax_designtime::orm::template::builder::NodeBuilder;
+use pax_designtime::orm::template::node_builder::NodeBuilder;
 use pax_designtime::orm::template::NodeAction;
 use pax_engine::api::*;
 use pax_engine::*;
@@ -31,10 +31,9 @@ use crate::model;
 #[engine_import_path("pax_engine")]
 #[file("controls/settings/property_editor/mod.pax")]
 pub struct PropertyEditor {
+    pub write_target: Property<WriteTarget>,
     pub name: Property<String>,
     pub ind: Property<usize>,
-    pub stid: Property<TypeId>,
-    pub snid: Property<TemplateNodeId>,
     pub is_custom_property: Property<bool>,
 
     // internal repr, always set to collection of above
@@ -45,26 +44,32 @@ pub struct PropertyEditor {
     pub fx_background_color: Property<Color>,
 }
 
+#[pax]
+#[engine_import_path("pax_engine")]
+pub enum WriteTarget {
+    #[default]
+    None,
+    TemplateNode(TypeId, TemplateNodeId),
+    Class, // TODO fill in data
+}
+
 impl PropertyEditor {
     pub fn on_mount(&mut self, ctxs: &NodeContext) {
-        let stid = self.stid.clone();
-        let snid = self.snid.clone();
-        let name = self.name.clone();
         let ind = self.ind.clone();
+        let write_target = self.write_target.clone();
+        let name = self.name.clone();
         let manifest_ver = borrow!(ctxs.designtime).get_last_written_manifest_version();
         let deps = [
-            stid.untyped(),
-            snid.untyped(),
-            name.untyped(),
             ind.untyped(),
+            name.untyped(),
             manifest_ver.untyped(),
+            write_target.untyped(),
         ];
         self.data.replace_with(Property::computed(
             move || PropertyEditorData {
                 editor_index: ind.get(),
+                write_target: write_target.get(),
                 name: name.get(),
-                stid: stid.get(),
-                snid: snid.get(),
             },
             &deps,
         ));
@@ -154,23 +159,30 @@ pub struct PropertyEditorData {
     // this is used  by the custom properties to communicate back to the
     // settings editor to set its height
     pub editor_index: usize,
+    pub write_target: WriteTarget,
     pub name: String,
-    pub stid: TypeId,
-    pub snid: TemplateNodeId,
 }
 
 impl PropertyEditorData {
     pub fn get_prop_type_id(&self, ctx: &NodeContext) -> Option<TypeId> {
         let dt = borrow!(ctx.designtime);
-        dt.get_orm().get_property_type(
-            &UniqueTemplateNodeIdentifier::build(self.stid.clone(), self.snid.clone()),
-            self.name.as_str(),
-        )
+        let orm = dt.get_orm();
+        match &self.write_target {
+            WriteTarget::None => None,
+            WriteTarget::TemplateNode(stid, snid) => orm.get_property_type(
+                &UniqueTemplateNodeIdentifier::build(stid.clone(), snid.clone()),
+                self.name.as_str(),
+            ),
+            WriteTarget::Class => {
+                todo!()
+            }
+        }
     }
 
     pub fn get_value(&self, ctx: &NodeContext) -> Option<ValueDefinition> {
         let dt = borrow!(ctx.designtime);
-        dt.get_orm().get_property(
+        let orm = dt.get_orm();
+        orm.get_property(
             &UniqueTemplateNodeIdentifier::build(self.stid.clone(), self.snid.clone()),
             self.name.as_str(),
         )
