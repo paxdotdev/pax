@@ -49,15 +49,14 @@
     #top_panel {
         height: 60px,
         x: 240px,
-        width: {100% - 240px}
+        width: {100% - (2*240)px}
     }
 
     #right_panel {
         width: 240px,
         anchor_x: 100%,
         x: 100%,
-        y: 60px,
-        height: {100% - 60px}
+        height: 100%
     }
 
     .black_bg {

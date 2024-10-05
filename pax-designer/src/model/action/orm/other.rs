@@ -36,7 +36,7 @@ impl Action for SwapFillStrokeAction {
                             .contains(&ModifierKey::Control),
                     )
                     .unwrap();
-                let props = node.get_all_properties();
+                let props = node.get_all_property_definitions();
                 let stroke = props
                     .iter()
                     .find_map(|(p, v)| (p.name == "stroke").then_some(v));
