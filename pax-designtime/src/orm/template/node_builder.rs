@@ -4,8 +4,8 @@ use anyhow::{anyhow, Result};
 use pax_manifest::{
     pax_runtime_api::ToPaxValue, ControlFlowRepeatPredicateDefinition,
     ControlFlowSettingsDefinition, ExpressionInfo, NodeLocation, NodeType, PaxExpression,
-    PaxPrimary, PropertyDefinition, SettingElement, Token, TypeId, UniqueTemplateNodeIdentifier,
-    ValueDefinition,
+    PaxIdentifier, PaxPrimary, PropertyDefinition, SettingElement, Token, TypeId,
+    UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 
 use super::{
@@ -98,11 +98,13 @@ impl<'a> NodeBuilder<'a> {
         None
     }
 
-    pub fn get_all_properties(&mut self) -> Vec<(PropertyDefinition, Option<ValueDefinition>)> {
+    pub fn get_all_property_definitions(
+        &mut self,
+    ) -> Vec<(PropertyDefinition, Option<ValueDefinition>)> {
         let properties = self
             .orm
             .manifest
-            .get_all_component_properties(&self.node_type_id);
+            .get_all_component_property_definitions(&self.node_type_id);
 
         let mut full_settings: HashMap<Token, ValueDefinition> = HashMap::new();
         if let Some(uni) = &self.unique_node_identifier {
@@ -130,6 +132,30 @@ impl<'a> NodeBuilder<'a> {
             .collect();
 
         properties.into_iter().zip(values).collect()
+    }
+
+    pub fn get_all_applied_classes(&mut self) -> Vec<String> {
+        let mut classes = vec![];
+        if let Some(uni) = &self.unique_node_identifier {
+            let resp = self
+                .orm
+                .execute_command(GetTemplateNodeRequest { uni: uni.clone() })
+                .unwrap();
+            if let Some(node) = resp.node {
+                if let Some(settings) = node.settings {
+                    for setting in settings {
+                        if let SettingElement::Setting(token, value) = setting {
+                            if token.token_value == "class" {
+                                if let ValueDefinition::Identifier(PaxIdentifier { name }) = value {
+                                    classes.push(name);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        classes
     }
 
     pub fn set_repeat_source(&mut self, value: &str) -> Result<()> {

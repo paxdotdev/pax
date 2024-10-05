@@ -57,7 +57,10 @@ impl PaxManifest {
             .get(&uni.template_node_id)
     }
 
-    pub fn get_all_component_properties(&self, type_id: &TypeId) -> Vec<PropertyDefinition> {
+    pub fn get_all_component_property_definitions(
+        &self,
+        type_id: &TypeId,
+    ) -> Vec<PropertyDefinition> {
         if let None = self.components.get(type_id) {
             return Vec::default();
         }
@@ -83,7 +86,7 @@ impl PaxManifest {
 
     pub fn get_all_property_names(&self, type_id: &TypeId) -> HashSet<String> {
         let mut ret = HashSet::new();
-        self.get_all_component_properties(type_id)
+        self.get_all_component_property_definitions(type_id)
             .iter()
             .for_each(|prop| {
                 ret.insert(prop.name.clone());
