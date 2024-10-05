@@ -193,7 +193,6 @@ impl Model {
                 height: 786,
                 color: Color::WHITE,
             }),
-            current_editor_class_name: Property::new(Some(".input".to_string())),
             ..Default::default()
         }
     }

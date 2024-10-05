@@ -1,4 +1,7 @@
 #![allow(unused)]
+use std::cell::Cell;
+use std::rc::Rc;
+
 use crate::{Group, Rectangle, Scroller, Stacker, Text, Path, EventBlocker};
 use crate::{TextStyle, Textbox};
 use pax_engine::api::{Click, Event, MouseDown, Store, Stroke, TextboxChange};
@@ -21,7 +24,7 @@ use pax_runtime::api::NodeContext;
         >
             <Stacker gutter=1px>
                 for option_data in self._filtered_options {
-                    <ComboBoxListItem style=style background=background data={option_data}/>
+                    <ComboBoxListItem style=style background=background data={option_data} @new_item=self.dispatch_new_item/>
                 }
             </Stacker>
             <Rectangle fill={stroke.color}/>
@@ -87,6 +90,7 @@ pub struct ComboBox {
     pub text: Property<String>,
     pub selected: Property<Option<usize>>,
     pub options: Property<Vec<String>>,
+    pub new_item: Property<NewItem>,
 
     // styling
     pub background: Property<Color>,
@@ -101,6 +105,18 @@ pub struct ComboBox {
     pub _selected_listener: Property<bool>,
 }
 
+#[pax]
+#[engine_import_path("pax_engine")]
+pub enum NewItem {
+    // Show "No items found", and don't allow adding a new item
+    #[default]
+    Disallow,
+    /// Allows for invalid text in the text box on commit, setting selected to None
+    AllowInvalid,
+    // Custom name for the item shown if no matches, when clicked, triggers the @new_item custom event
+    Text(String),
+}
+
 const ZERO_WIDTH_SPACE: &str = "\u{200B}";
 
 struct SelectedIndProp(Property<Option<usize>>);
@@ -112,6 +128,7 @@ impl ComboBox {
         let options = self.options.clone();
         let text = self.text.clone();
         let deps = [options.untyped(), text.untyped()];
+        let new_item = self.new_item.clone();
         self._filtered_options.replace_with(Property::computed(
             move || {
                 options.read(|options| {
@@ -121,11 +138,15 @@ impl ComboBox {
                         let mut filtered_options: Vec<_> = options_sorted
                             .into_iter()
                             .filter(|(_, t)| t.contains(text))
-                            .map(|(i, v)| ListItemData { text: v.clone(), index: Some(i) })
+                            .map(|(i, v)| ListItemData { text: v.clone(), event: ComboBoxItemClickEvent::SelectIndex(i) })
                             .collect();
                         filtered_options.sort_by_key(|v| v.text.starts_with(text));
                         if filtered_options.is_empty() {
-                            filtered_options.push(ListItemData { text: String::from("No Results Found"), index: None })
+                            match new_item.get() {                            
+                                NewItem::Disallow => filtered_options.push(ListItemData { text: String::from("No Results Found"), event: ComboBoxItemClickEvent::None }),
+                                NewItem::Text(text) => filtered_options.push(ListItemData{ text, event: ComboBoxItemClickEvent::NewItem }),
+                                NewItem::AllowInvalid => (),
+                            }
                         }
                         filtered_options
                     })
@@ -136,10 +157,12 @@ impl ComboBox {
         let text = self.text.clone();
         let options = self.options.clone();
         let options_visible = self._options_visible.clone();
+        let new_item_behavior = self.new_item.clone();
         
         let selected = self.selected.clone();
         let deps = [selected.untyped()];
 
+        let last = Rc::new(Cell::new(None));
         self._selected_listener.replace_with(Property::computed(move || {
             let selected = selected.get();
             let new_value = if let Some(selected) = selected {
@@ -150,8 +173,16 @@ impl ComboBox {
             } else {
                 "".to_string()
             };
-            text.set(new_value);
+            match new_item_behavior.get() {
+                NewItem::AllowInvalid =>  {
+                    if last.get() != selected {
+                        text.set(new_value)
+                    }
+                },
+                _ => text.set(new_value)
+            }
             options_visible.set(false);
+            last.set(selected);
             true
         }, &deps));
     }
@@ -172,7 +203,14 @@ impl ComboBox {
     pub fn update(&mut self, ctx: &NodeContext) {
         self._selected_listener.get();
     }
+
+    pub fn dispatch_new_item(&mut self, ctx: &NodeContext) {
+        log::debug!("dispatched new item");
+        ctx.dispatch_event("new_item").unwrap();
+    }
 }
+
+
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined(
@@ -191,10 +229,14 @@ pub struct ComboBoxListItem {
 
 impl ComboBoxListItem {
     pub fn on_click(&mut self, ctx: &NodeContext, _event: Event<MouseDown>) {
-        if let Some(index) = self.data.get().index {
-            ctx.peek_local_store(|SelectedIndProp(selected): &mut SelectedIndProp| {
-                    selected.set(Some(index));
-            });
+        match self.data.get().event {
+            ComboBoxItemClickEvent::None => (),
+            ComboBoxItemClickEvent::SelectIndex(index) => {
+                let _ = ctx.peek_local_store(|SelectedIndProp(selected): &mut SelectedIndProp| {
+                        selected.set(Some(index));
+                });
+            },
+            ComboBoxItemClickEvent::NewItem => {ctx.dispatch_event("new_item");}
         }
     }
 }
@@ -203,5 +245,14 @@ impl ComboBoxListItem {
 #[engine_import_path("pax_engine")]
 pub struct ListItemData {
     pub text: String,
-    pub index: Option<usize>,
+    pub event: ComboBoxItemClickEvent,
+}
+
+#[pax]
+#[engine_import_path("pax_engine")]
+pub enum ComboBoxItemClickEvent {
+    #[default]
+    None,
+    SelectIndex(usize),
+    NewItem,
 }

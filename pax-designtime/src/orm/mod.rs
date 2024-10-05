@@ -283,6 +283,7 @@ impl PaxManifestORM {
                 _ => None,
             })
             .collect();
+        log::debug!("classes: {:#?}", classes);
         Ok(classes)
     }
 

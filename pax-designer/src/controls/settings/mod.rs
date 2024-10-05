@@ -7,10 +7,12 @@ use crate::{designer_node_type::DesignerNodeType, model};
 use pax_std::*;
 
 use convert_case::{Case, Casing};
+pub mod class_selector;
 pub mod color_picker;
 pub mod control_flow_for_editor;
 pub mod control_flow_if_editor;
 pub mod property_editor;
+use class_selector::ClassSelector;
 use control_flow_for_editor::ControlFlowForEditor;
 use control_flow_if_editor::ControlFlowIfEditor;
 use property_editor::PropertyEditor;
@@ -196,7 +198,7 @@ impl Settings {
                     return vec![];
                 };
 
-                let props = node.get_all_properties();
+                let props = node.get_all_property_definitions();
                 props
                     .into_iter()
                     .filter(|(prop_def, _)| {

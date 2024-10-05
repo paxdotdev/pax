@@ -1,0 +1,110 @@
+<ComboBox class=input class=col_1 class=span_6 options=available_classes text=bind:new_class_text new_item=NewItem::AllowInvalid/>
+<Group height=30px x=100% width=50px @click=self.add_class>
+    <Text class=text text="Add" width=100% height=100%/>
+    <Rectangle fill=rgb(70, 70, 70)
+	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
+    />
+</Group>
+for (class, i) in self.current_classes {
+    <Text y={(40 + i*40)px} class=text text={class} width=100% height=30px/>
+}
+
+
+@settings {
+	@mount: on_mount
+    .input {
+        height: 30px,
+        background: rgb(12.5%, 12.5%, 12.5%),
+        stroke: {
+            color: rgb(48, 56, 62),
+            width: 1px,
+        },
+        border_radius: 5,
+        style: {
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light,
+            )},
+            font_size: 14px,
+            fill: WHITE,
+        }
+    }
+
+    .text {
+        style: {
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Bold,
+            )},
+            font_size: 10px,
+            fill: WHITE,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+
+    // col_k = (k * 100/8) + 1.67%
+    .col_1 {
+        x: 1.67%,  // 0 * (100/8) + 1.67%
+        anchor_x: 0%,
+    }
+    .col_2 {
+        x: 14.17%,  // 1 * (100/8) + 1.67%
+        anchor_x: 0%,
+    }
+    .col_3 {
+        x: 26.67%,  // 2 * (100/8) + 1.67%
+        anchor_x: 0%,
+    }
+    .col_4 {
+        x: 39.17%,  // 3 * (100/8) + 1.67%
+        anchor_x: 0%,
+    }
+    .col_5 {
+        x: 51.67%,  // 4 * (100/8) + 1.67%
+        anchor_x: 0%,
+    }
+    .col_6 {
+        x: 64.17%,  // 5 * (100/8) + 1.67%
+        anchor_x: 0%,
+    }
+    .col_7 {
+        x: 76.67%,  // 6 * (100/8) + 1.67%
+        anchor_x: 0%,
+    }
+    .col_8 {
+        x: 89.17%,  // 7 * (100/8) + 1.67%
+        anchor_x: 0%,
+    }
+
+    // span_k = ((k * 100/8) - 3.33)%
+    .span_1 {
+        width: 9.17%,  // (1 * 100/8) - 3.33
+    }
+    .span_2 {
+        width: 21.67%,  // (2 * 100/8) - 3.33
+    }
+    .span_3 {
+        width: 34.17%,  // (3 * 100/8) - 3.33
+    }
+    .span_4 {
+        width: 46.67%,  // (4 * 100/8) - 3.33
+    }
+    .span_5 {
+        width: 59.17%,  // (5 * 100/8) - 3.33
+    }
+    .span_6 {
+        width: 71.67%,  // (6 * 100/8) - 3.33
+    }
+    .span_7 {
+        width: 84.17%,  // (7 * 100/8) - 3.33
+    }
+    .span_8 {
+        width: 96.67%,  // (8 * 100/8) - 3.33
+    }
+}
