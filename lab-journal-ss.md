@@ -9,7 +9,7 @@ good one and should pave the way for complete dirty dag.
 
 Some general changes and design choices:
 
- - ExpandedNode has recieved a lot more responsibilites. Most logic for
+ - ExpandedNode has received a lot more responsibilities. Most logic for
    modifying the tree, handling updates and rendering has been moved here.
 	 The thought is that operations like "set_children" naturally should set either
 	 themselves or their containing component as their new containing component, and
@@ -26,12 +26,12 @@ If you'd like to understand it better I recommend to first look at the methods
 in ExpandedNode, and then on for example in conditional.rs "recompute_children
 and update methods.
 
-Below are some thoughs around how to reintroduce slot when the Expanded node
+Below are some thoughts around how to reintroduce slot when the Expanded node
 tree isn't re-expanded each frame, but sub-trees are instead surgically
 updated when a property that requires an update triggers.
 
 Suppose this is the state of the ExpandedNode tree: (v chain denoting that the
-stacker owns this sepparate "shadow" tree disconnected from the main one).
+stacker owns this separate "shadow" tree disconnected from the main one).
 
  root:  ExpandedNode (ComponentInstance)
  │
@@ -56,7 +56,7 @@ er each frame │
 (ie reacts to └───── ExpandedNode (Rectangle)
 changes in
 properties and possibly re-expands children.
-This tree needs to NOT fire mount or dissmount
+This tree needs to NOT fire mount or dismount
 or native patch events.
 
 However when a part of this shadow tree is mounted in a slot, mount needs to be
@@ -72,7 +72,7 @@ if attached), without effecting the expansion of sub-trees that are active
 Something to think about: What is the expected behaviour if two slots reference
 the same ExpandedNode? (ie slot(0) exists twice in a component). Long term it might
 be nice to allow a component to for example be rendered twice with the same underlying
-ExpandedNode. What would this require? Or maybe just dissallow this.
+ExpandedNode. What would this require? Or maybe just disallow this.
 
 
 ### Slot children and shadow trees,
@@ -84,7 +84,7 @@ maybe layout calc should be another pass than the "should recompute
 children" pass, done directly before rendering on the tree itself.
 
 - the idea of "attached" needs to stay around, to mange expansions of sub-trees
-  that need to fire on-mount/dissmount events
+  that need to fire on-mount/dismount events
 - merge update and recompute children (one is simply always calling the other if needed)
 - everything else than "update_children" is as separate passes. (compute_tab is atm what is causing a problem).
 
@@ -96,7 +96,7 @@ For slot this results in:
 
 If the entire expanded node tree has no repeat/conditionals, the canvas index of
 each node can be computed once and never changes. With repeat and conditionals
-however, indicies will need to be shifted arround to allow for arbitrary
+however, indices will need to be shifted around to allow for arbitrary
 insertions of native/canvas layers between existing ones.
 
 Some options:
@@ -114,7 +114,7 @@ Some options:
 Go for the first one initially?
 
 Sending of create/destroy is done in mount/dismount. This means that a node
-changing layer would need to dissmount and mount again with a different ID
+changing layer would need to dismount and mount again with a different ID
 the way things are structured at the moment. Could a new layer ID instead be
 introduced as part of an update patch somehow? That might be simpler (and allow
 for movement of native elems instead of destruction and creation?).
@@ -134,7 +134,7 @@ Now to the problem: In the engine tick method I would like to do something like
 this:
 
 1. calculate updates to ExpandedNode graph
-2. re-calculate occlusion indicies for all nodes, and append OcclusionUpdate
+2. re-calculate occlusion indices for all nodes, and append OcclusionUpdate
    messages to the message queue for native elements.
 3. draw non-native elements to canvas.
 4. send messages back to chassi for processing of native elements
@@ -147,8 +147,8 @@ doing something like this (reordering of last list):
 
 
 1. calculate updates to ExpandedNode graph
-3. draw non-native elements to canvas (before occlusion indicies are updated).
-2. re-calculate occlusion indicies for all nodes, and append OcclusionUpdate
+3. draw non-native elements to canvas (before occlusion indices are updated).
+2. re-calculate occlusion indices for all nodes, and append OcclusionUpdate
    messages to the message queue for native elements.
 4. send messages back to chassi for processing of native elements
 

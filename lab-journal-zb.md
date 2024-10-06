@@ -680,7 +680,7 @@ We need a fn:
 ```
 compute_properties_fn: |mut properties: PropertiesCoproduct, rtc: &RenderTreeContext|{
     if let PropertiesCoproduct::HelloWorld(mut properties_cast) = properties {
-        //Note: this is code-genned based on parsed knowlege of the properties
+        //Note: this is code-genned based on parsed knowledge of the properties
         //      of `Root`
         properties_cast.deeper_struct.compute_in_place(rtc);
         properties_cast.current_rotation.compute_in_place(rtc);
@@ -1059,7 +1059,7 @@ type of &self can be passed to our stored fn.
 
 
 *Important distinction:* event handlers (methods) do NOT
-acept a `&self` for the element attached to the method —they accept a `&self` for
+accept a `&self` for the element attached to the method —they accept a `&self` for
 the component (or `repeat`/etc.) owning the relevant stack frame.
 
 One possibility: generate a `HandlersCoproduct`, akin to `PropertiesCoproduct`, that generates
@@ -1335,8 +1335,8 @@ pub struct TimelineSegment {
 }
 
 
-//more spatial, ASCII-art-like.  Mildly awkard to type/maintain, but not so bad; big ergonomic benefits, and
-//UX can be improved through tooling, e.g. like the markdown table plugin in j                                                etbrains IDEs 
+//more spatial, ASCII-art-like.  Mildly awkward to type/maintain, but not so bad; big ergonomic benefits, and
+//UX can be improved through tooling, e.g. like the markdown table plugin in jetbrains IDEs
 # some-rect {
     fill: @timeline {
         (0           ,             10,           100)
@@ -1623,7 +1623,7 @@ probably by a special syntax around handler binding
 
 might be able to embed "metadata" in the ID and parse it later, but that's kludgy
 
-Could also add a Vec<usize> to ArgsClick, which can keep indecies (only; not data, which would really be nice to have)
+Could also add a Vec<usize> to ArgsClick, which can keep indices (only; not data, which would really be nice to have)
 
 
 #### embed args, codegen with compiler
@@ -1808,7 +1808,7 @@ for slot_children, and other cases where we don't (e.g. a Stacker
 with insufficient slot_children should render empty cells, not the surplus slot_children that were
 passed somewhere higher in the render tree.)
 
-We could pipe slot_children explicily, e.g. Repeat hand-picks an
+We could pipe slot_children explicitly, e.g. Repeat hand-picks an
 slot_child for each ComponentInstance, attaches it to that stack frame,
 and we go on our merry way.
 
@@ -1835,7 +1835,7 @@ Probably our best bet is for the lookup to be dynamic on StackFrame itself.
 
 1. register children to StackFrame `slot_children` naively, no unpacking
 2. expose `nth_slot_child` on StackFrame, which
-    1. somehow knows when to stop traversing stack upwards to seek slot_child list (special flag on componentinstance => stackframe ? hard-coded in Repeat where it instantiates Compoennt, for example), and
+    1. somehow knows when to stop traversing stack upwards to seek slot_child list (special flag on componentinstance => stackframe ? hard-coded in Repeat where it instantiates Component, for example), and
     2. expands `should_flatten` nodes to compute its index lookup. naively, this can start O(n)
 3.
 Where `nth_slot_child` checks all nodes for `should_flatten`, grabbing
@@ -3535,7 +3535,7 @@ users of the legacy `pax` fully qualify its usage `/bin/pax`, or otherwise alias
                 [x] dev env
                 [x] deployment
         [x] Make CLI main async, "race" nominal actions against update check; give up on update check if a nominal update finishes before update check finishes.  Otherwise, print message after nominal action (incl ctrl-c) if a newer version is available.
-        [x] Wrap `Command`s with an async-friendly, interruptable wrapper that handles e.g. ctrl-c
+        [x] Wrap `Command`s with an async-friendly, interruptible wrapper that handles e.g. ctrl-c
         [x] Seek to make shell scripts compatible with this async mechanism, too
     [x] libdev checks a locally running server (http://localhost:9000) vs. prod checks a live server (https://update.pax.dev)
         - Made it an explicit env option, PAX_UPDATE_SERVER
@@ -4451,7 +4451,7 @@ Is there a path to a less naive approach?
 - `key` becomes a common property, either a u32 or a String, and could be set anywhere, though is only read in the context of the top-level children of `Repeat`.
 - `key` _might_ become a member of the id chain!!  instead of the default int-index Vec<u64>.  Would need to figure out how to consolidate possible string key-ids with those u64s.  
   one possible approach could be to shift u64 => i64, and to associate negative values with some sort of string LUT.  So -1 would map to "foo", which the user passes as key, and -1 gets inserted into the id_chain instead of the repeat index.
-  This would be portable across the native bridge; too — id_chain remains globablly unique/identifying, but the implementation details of the lookups / negative numbers are encapsulated by Repeat.
+  This would be portable across the native bridge; too — id_chain remains globally unique/identifying, but the implementation details of the lookups / negative numbers are encapsulated by Repeat.
 
 
 ### On `if` ... `else if` ... `else`,  if-else ladders
@@ -4566,7 +4566,7 @@ we can map this data into imperative Rust if/else if/else statements, like we do
     ``` 
     In the above scenario, you could imagine each of the repeats "shifting" such that a given id_chain is suddenly ...
     No - because the first int in the id_chain is the instance_id, which is married to a specific instance and globally unique
-    So the repeat_indicies component of the id_chain (indicies after the zeroth) could become ambiguous in the tree above
+    So the repeat_indices component of the id_chain (indices after the zeroth) could become ambiguous in the tree above
     But the full id_chain remains sound.
 [x] Refactor "component template frame" computation order; support recursing mid-frame
     [x] Handle slot children: compute properties first, before recursing into next component template subtree
@@ -4828,7 +4828,7 @@ Probably we will want to edit pax-designer's Cargo.toml, injecting a path to the
 Then, we refer to e.g. `userland_project::designtime` from pax-designer, and can get a handle to the API, ORM, etc.
 
 In terms of where the ORM data actually lives, we should likely attach it to the DesignerState object and ensure it's serializable,
-so that we can trasnfer that state when we swap out a wasm slug
+so that we can transfer that state when we swap out a wasm slug
 
 Detail: We may want to use something other than JSON for our state transfer mechanism, e.g. protobufs or flatbuffers.  It's probably worth
 the disk footprint overhead for the designer, since it should significantly boost speed of state transfer

@@ -1,4 +1,4 @@
-// ------------------------------- Coersion rules ----------------------------------
+// ------------------------------- Coercion rules ----------------------------------
 // default coercion only allows a single type: the type expected
 // custom coercion rules can be implemented by a type
 
@@ -11,7 +11,7 @@ use crate::{
     Percent, Property, RadialGradient, Rotation, Size, Stroke, Transform2D,
 };
 
-// Default coersion rules:
+// Default coercion rules:
 // call Into::<first param>::into() on contents of second enum variant
 impl_default_coercion_rule!(bool, PaxValue::Bool);
 

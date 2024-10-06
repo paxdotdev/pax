@@ -8,7 +8,7 @@ macro_rules! impl_default_coercion_rule {
                     Ok(val.into())
                 } else {
                     Err(format!(
-                        "cound't coerce {:?} into {}",
+                        "couldn't coerce {:?} into {}",
                         pax_value,
                         std::any::type_name::<$Type>()
                     ))

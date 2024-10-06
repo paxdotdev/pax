@@ -136,7 +136,7 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
 
     let mut merged_manifest = userland_manifest.clone();
 
-    //Hack: add a wrapper component so UniqueTemplateNodeIdentifer is a suitable uniqueid, even for root nodes
+    //Hack: add a wrapper component so UniqueTemplateNodeIdentifier is a suitable uniqueid, even for root nodes
     let wrapper_type_id = TypeId::build_singleton("ROOT_COMPONENT", Some("RootComponent"));
     let mut tnd = TemplateNodeDefinition::default();
     tnd.type_id = userland_manifest.main_component_type_id.clone();

@@ -33,7 +33,7 @@ Currently Pax uses `dynamic analysis` to reflect on the property + struct schema
 This dynamic analysis introduces substantial complexity to our build process, and all of this work could be done strictly statically, similarly to how `rust-analyzer` crawls a program to find property + struct schema.
 
 ### Ternaries in PAXEL:
-Using ternaries in expressions is a powerful way to compress logic — currently to express conditions in PAXEL you must use an outer if statement + two mostly duplicated arms of template: `if foo == bar { <SomeComponent prop=a /> } if foo != bar {<SomeComponent prop=b />}.  This can be simplified with PAXEL ternaries like `<SomeComponent prop={foo == bar ? a : b} />`.  As a syntactic alternative, since PAXEL compiles into Rust we could easily rely on Rust's treatment of if statments as expressions instead of the more arcane ternary syntax, e.g. `<SomeComponent prop={if foo == bar { a } else { b }} />`
+Using ternaries in expressions is a powerful way to compress logic — currently to express conditions in PAXEL you must use an outer if statement + two mostly duplicated arms of template: `if foo == bar { <SomeComponent prop=a /> } if foo != bar {<SomeComponent prop=b />}.  This can be simplified with PAXEL ternaries like `<SomeComponent prop={foo == bar ? a : b} />`.  As a syntactic alternative, since PAXEL compiles into Rust we could easily rely on Rust's treatment of if statements as expressions instead of the more arcane ternary syntax, e.g. `<SomeComponent prop={if foo == bar { a } else { b }} />`
 
 ### Router component
 Similar to e.g. React Router, but designed with cross-platform concerns in mind.  

@@ -23,7 +23,7 @@ pub struct PropertyData {
     pub inbound: Vec<PropertyId>,
     // List of properties that depend on this value
     pub outbound: Vec<PropertyId>,
-    // Dirty bit set if a depency further up in the dirty-dag tree
+    // Dirty bit set if a dependency further up in the dirty-dag tree
     // has been changed. For computed this can be any other props,
     // for literals, only time variable
     pub dirty: bool,
@@ -136,7 +136,7 @@ impl PropertyTable {
     }
 
     // Add a transition to the transitionmanager, making the value slowly change over time
-    // Currently this only transitions the literal value of the property (and updates dependends accordingly)
+    // Currently this only transitions the literal value of the property (and updates dependents accordingly)
     // This has no special interactions with computed properties
     pub fn transition<T: PropertyValue>(
         &self,
@@ -244,7 +244,7 @@ impl PropertyTable {
         // with targets inbound. (only does something for computed values)
         self.disconnect_inbound(source_id);
 
-        // copy nessesary internal state from target to source
+        // copy necessary internal state from target to source
         self.with_property_data_mut(source_id, |source_property_data| {
             self.with_property_data_mut(target_id, |target_property_data| {
                 // Copy over inbound, dirty state, and current value to source

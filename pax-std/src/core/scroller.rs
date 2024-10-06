@@ -204,7 +204,7 @@ impl Scroller {
         TOUCH_TRACKER.with_borrow_mut(|touches| {
             let last = touches
                 .get_mut(&ident)
-                .expect("should have recieved touch down before touch move");
+                .expect("should have received touch down before touch move");
             let delta_x = last.x - x;
             let delta_y = last.y - y;
             last.x = x;
