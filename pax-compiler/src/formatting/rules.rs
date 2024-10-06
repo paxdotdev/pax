@@ -993,7 +993,7 @@ fn has_multi_line_children(children: &Vec<Child>) -> bool {
     false
 }
 
-fn greedy_append_with_line_limit(children: Vec<Child>, seperator: &str) -> String {
+fn greedy_append_with_line_limit(children: Vec<Child>, separator: &str) -> String {
     let mut formatted_node = String::new();
     let mut current_formatted_line = String::new();
     let mut first_line = true;
@@ -1001,7 +1001,7 @@ fn greedy_append_with_line_limit(children: Vec<Child>, seperator: &str) -> Strin
         let child_lines: Vec<&str> = child.formatted_node.split('\n').collect();
         let first_line_of_child = child_lines[0].len();
         if i > 0 {
-            current_formatted_line.push_str(seperator);
+            current_formatted_line.push_str(separator);
         }
 
         if current_formatted_line.len() + first_line_of_child > LINE_LIMIT {

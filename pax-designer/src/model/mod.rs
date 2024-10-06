@@ -56,7 +56,7 @@ use self::action::UndoRedoStack;
 use self::input::ModifierKey;
 use self::input::{Dir, InputEvent, InputMapper};
 
-/// Represents the global source-of-truth for the desinger.
+/// Represents the global source-of-truth for the designer.
 /// Invalid if any of the bellow :INVALID_IF: statements hold true.
 /// Effort has been put in to expose as few invalid states as possible.
 /// NOTE: Only add a new field to this struct if:

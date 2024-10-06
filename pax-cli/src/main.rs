@@ -167,7 +167,7 @@ fn main() -> Result<(), Report> {
             true,
         );
     })
-    .expect("ctrl-c hook should have been set up sucessfully");
+    .expect("ctrl-c hook should have been set up successfully");
 
     let res = perform_nominal_action(matches, Arc::clone(&process_child_ids));
     perform_cleanup(new_version_info, process_child_ids, is_libdev_mode, false);

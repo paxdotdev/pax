@@ -99,7 +99,7 @@ impl PaxDesigner {
                 let stage = app_state.stage.get();
                 let Some(glass_node) = ctx.get_nodes_by_id(DESIGNER_GLASS_ID).into_iter().next()
                 else {
-                    log::warn!("cound't hook up glass to world transform: couldn't find designer glass node");
+                    log::warn!("couldn't hook up glass to world transform: couldn't find designer glass node");
                     return;
                 };
                 let (w, h) = glass_node.transform_and_bounds().get().bounds;
@@ -214,7 +214,7 @@ impl PaxDesigner {
         tree::trigger_global_mouseup();
         if toolbar::dropdown_is_in_open_state() {
             model::perform_action(
-                // if done directly, would not have time to intercept mouse event futher down to select a new tool
+                // if done directly, would not have time to intercept mouse event further down to select a new tool
                 &Schedule {
                     action: Rc::new(CloseDropdown),
                 },

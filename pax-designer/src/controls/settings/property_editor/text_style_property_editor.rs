@@ -246,7 +246,7 @@ impl TextStylePropertyEditor {
         let text_style = self.text_style.clone();
         let deps = [text_style.untyped()];
 
-        // sync indicies (family, weight) with current text style
+        // sync indices (family, weight) with current text style
         let families = self.font_families.clone();
         let ts = text_style.clone();
         self.font_family_index.replace_with(Property::computed(

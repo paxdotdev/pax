@@ -401,7 +401,7 @@ fn test_all_quadrants() {
 // funky. the solutions are valid BUT there might be many (possibly all 8 that
 // are possible) could at some point more intelligently choose the solution
 // instead of just take the first possible one (which is the interior),
-// more complicated when an object is rotated (then some of the 8 solutions dissapear)
+// more complicated when an object is rotated (then some of the 8 solutions disappear)
 //
 // What this means for this test method is that it might fail even when
 // the bounding box of the returned solutions looks identical to the
@@ -490,9 +490,9 @@ fn test_object_larger_than_parent() {
 
 /// Helper method to test conversion to transform and back to layout props, and
 /// then checking that the layout props are approximately the same
-/// NOTE: If a test fails, that does NOT nessesarily mean that the returned
+/// NOTE: If a test fails, that does NOT necessarily mean that the returned
 /// Layoutproperties don't visually cover the same area, but could be related to
-/// HOW the solution is shosen. This can be verified visually by plugging in both
+/// HOW the solution is chosen. This can be verified visually by plugging in both
 /// original_properties and recovered properties in the designer settings menu.
 fn test_to_and_back(
     test_case_desc: &str,

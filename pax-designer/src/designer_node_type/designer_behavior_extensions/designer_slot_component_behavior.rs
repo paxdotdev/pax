@@ -75,7 +75,7 @@ impl DesignerBehaviorExtensions for SlotComponentDesignerBehavior {
             .enumerate()
             .map(|(i, n)| {
                 let slot_node_t_and_b = n.transform_and_bounds().get();
-                // ideally make a way to get node relative bounds directy from engine
+                // ideally make a way to get node relative bounds directly from engine
                 let parent_relative_slot_t_and_b = TransformAndBounds {
                     transform: curr_node_t_and_b.transform,
                     bounds: (1.0, 1.0),
