@@ -739,14 +739,14 @@ pub trait ComponentFactory {
         handlers: Vec<(String, Vec<String>)>,
     ) -> Rc<RefCell<HandlerRegistry>>;
 
-    // Takes a hander registry and adds the given inline handlers to it
+    // Takes a handler registry and adds the given inline handlers to it
     fn add_inline_handlers(
         &self,
         handlers: Vec<(String, String)>,
         registry: Rc<RefCell<HandlerRegistry>>,
     ) -> Rc<RefCell<HandlerRegistry>>;
 
-    // Calls the instantion function for the component
+    // Calls the instantiation function for the component
     fn build_component(&self, args: InstantiationArgs) -> Rc<dyn InstanceNode>;
 
     // Returns the property scope for the component

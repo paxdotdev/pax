@@ -126,7 +126,7 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWebSocket {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         let Ok(msg) = msg else {
-            eprintln!("failed to recieve on socket");
+            eprintln!("failed to receive on socket");
             return;
         };
 
@@ -160,7 +160,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                 Ok(AgentMessage::LoadFileToStaticDirRequest(load_info)) => {
                     let LoadFileToStaticDirRequest { name, data } = load_info;
                     println!(
-                        "recieved a file {} (size: {})! root dir to write to: {:?}",
+                        "received a file {} (size: {})! root dir to write to: {:?}",
                         name,
                         data.len(),
                         self.state.userland_project_root.lock().unwrap(),
@@ -199,7 +199,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                 }
             }
         } else if let Ok(None) = processed_message {
-            // Do nothing, wait until entire message has been recieved
+            // Do nothing, wait until entire message has been received
         } else {
             eprintln!("unhandled socket message");
         }

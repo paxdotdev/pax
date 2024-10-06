@@ -598,7 +598,7 @@ impl PaxChassisWeb {
     pub fn update_userland_component(&mut self) {
         let current_manifest_version = borrow!(self.designtime_manager).get_manifest_version();
         let mut reload_queue = borrow_mut!(self.designtime_manager).take_reload_queue();
-        // erase unnessessary reloads
+        // erase unnecessary reloads
         if reload_queue.contains(&ReloadType::FullEdit) {
             reload_queue = vec![ReloadType::FullEdit];
         };

@@ -46,8 +46,8 @@ pub struct DesignerNodeTypeData {
     pub image_path: String,
     pub is_container: bool,
     /// This is true for stacker and other types that place their children in
-    /// a custom configuration. (not nessesarily true for all containers using
-    /// slots). Ie scrollers slots allways take upp the full space, and so is not
+    /// a custom configuration. (not necessarily true for all containers using
+    /// slots). Ie scrollers slots always take up the full space, and so is not
     /// characterized as a slot container
     pub is_slot_container: bool,
     pub type_id: TypeId,
@@ -94,7 +94,7 @@ impl DesignerNodeType {
                 let Some(import_path) = type_id.import_path() else {
                     return DesignerNodeType::Unregistered;
                 };
-                // TODO make this and  the metadata method use the same constants, or maybe even a signle
+                // TODO make this and  the metadata method use the same constants, or maybe even a single
                 // Vec<(TypeId, DesignerNodeType)> that can be searched in either direction.
                 match import_path.trim_start_matches("pax_std::") {
                     "core::group::Group" => DesignerNodeType::Group,

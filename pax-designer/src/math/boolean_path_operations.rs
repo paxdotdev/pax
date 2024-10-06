@@ -66,7 +66,7 @@ impl CompoundPath {
     }
 
     pub fn union(&self, other: &Self) -> Self {
-        let all_intersections = calculcate_all_intersections(&self, &other);
+        let all_intersections = calculate_all_intersections(&self, &other);
         let intersections_len = all_intersections.len();
 
         let (self_intersections, other_intersections) =
@@ -164,7 +164,7 @@ fn is_leaving_other_subpath(
         self_path.intersections[self_intersection_index];
     let (_, other_start_intersection) = other_path.intersections[other_intersection_index];
 
-    // TODO make this start point coice more intelligently
+    // TODO make this start point choice more intelligently
     let self_bezier = self_path.beziers[self_start_intersection.subpath_index]
         [self_start_intersection.segment_index];
     let other_bezier = other_path.beziers[other_start_intersection.subpath_index]
@@ -176,7 +176,7 @@ fn is_leaving_other_subpath(
     cross
 }
 
-fn calculcate_all_intersections(
+fn calculate_all_intersections(
     p1: &CompoundPath,
     p2: &CompoundPath,
 ) -> Vec<(Intersection, Intersection)> {

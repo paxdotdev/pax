@@ -115,7 +115,7 @@ impl Action for ResizeFromSnapshot<'_> {
 
         let anchor: Transform2<SelectionSpace> = Transform2::translate(fixed.to_vector());
 
-        // This is the "frame of refernce" from which all objects that
+        // This is the "frame of reference" from which all objects that
         // are currently selected should be resized
         let to_local = TransformAndBounds {
             transform: selection_space * anchor,
@@ -188,7 +188,7 @@ impl Action for RotateFromSnapshot<'_> {
             rotation = snapped_rotation - original_rotation;
         }
 
-        // This is the "frame of refernce" from which all objects that
+        // This is the "frame of reference" from which all objects that
         // are currently selected should be resized
         let to_local = TransformAndBounds {
             transform: Transform2::<SelectionSpace, Glass>::translate(anchor_point.to_vector()),

@@ -35,8 +35,8 @@ pub struct InputMapper {
 impl Default for InputMapper {
     fn default() -> Self {
         Self {
-            // Modifer key map. Most likely platform specific at some point,
-            // might be configuratble in settings?
+            // Modifier key map. Most likely platform specific at some point,
+            // might be configurable in settings?
             modifier_map: HashMap::from([
                 (RawInput::Control, ModifierKey::Control),
                 (RawInput::Meta, ModifierKey::Meta),

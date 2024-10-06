@@ -129,7 +129,7 @@ impl std::fmt::Debug for PaxAny {
 
 impl Interpolatable for PaxValue {}
 
-/// This trait is implemented by all types that has a bultin equivalent
+/// This trait is implemented by all types that has a builtin equivalent
 /// representation (see to_from_impls module) This is NOT responsible for
 /// coercing between types, but returns an err in all cases where the underlying
 /// type is not exactly what is expected

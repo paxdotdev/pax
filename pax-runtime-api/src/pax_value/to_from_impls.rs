@@ -45,7 +45,7 @@ impl_to_from_pax_value!(f64, PaxValue::Numeric, Numeric::F64);
 impl_to_from_pax_value!(isize, PaxValue::Numeric, Numeric::ISize);
 impl_to_from_pax_value!(usize, PaxValue::Numeric, Numeric::USize);
 
-// don't allow to be serialized/deserialized sucessfully, just store it as a dyn Any
+// don't allow to be serialized/deserialized successfully, just store it as a dyn Any
 impl ImplToFromPaxAny for () {}
 
 // for now. TBD how to handle this when we join Transform2D with Transform2 at some point

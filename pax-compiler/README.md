@@ -1,6 +1,6 @@
 # Pax-Compiler
 
-This document describes the high-level archiecture of pax-compiler.
+This document describes the high-level architecture of pax-compiler.
 
 For more information refer to our [docs](https://docs.pax.dev/reference-compilation-model.html).
 

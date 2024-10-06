@@ -44,11 +44,11 @@ pub struct ExpandedNode {
     pub instance_node: RefCell<InstanceNodePtr>,
 
     /// Pointer (`Weak` to avoid Rc cycle memory leaks) to the ExpandedNode
-    /// redered directly above this one.
+    /// rendered directly above this one.
     pub render_parent: RefCell<Weak<ExpandedNode>>,
 
     /// Pointer (`Weak` to avoid Rc cycle memory leaks) to the ExpandedNode
-    /// in the template directy aboe this one.
+    /// in the template directly above this one.
     pub template_parent: Weak<ExpandedNode>,
 
     /// Id of closest frame present in the node tree.
@@ -110,7 +110,7 @@ pub struct ExpandedNode {
 
     /// Occlusion layer for this node. Used by canvas elements to decide what canvas to draw on, and
     /// by native elements to move to the correct native layer.
-    // occlusionID (clanvas/native layer) + z-index
+    // occlusionID (canvas/native layer) + z-index
     pub occlusion: Cell<Occlusion>,
 
     /// A map of all properties available on this expanded node.
@@ -302,8 +302,8 @@ impl ExpandedNode {
     }
 
     /// Returns whether this node is a descendant of the ExpandedNode described by `other_expanded_node_id` (id)
-    /// Currently requires traversing linked list of ancestory, incurring a O(log(n)) cost for a tree of `n` elements.
-    /// This could be mitigated with caching/memoization, perhaps by storing a HashSet on each ExpandedNode describing its ancestory chain.
+    /// Currently requires traversing linked list of ancestry, incurring a O(log(n)) cost for a tree of `n` elements.
+    /// This could be mitigated with caching/memoization, perhaps by storing a HashSet on each ExpandedNode describing its ancestry chain.
     pub fn is_descendant_of(&self, other_expanded_node_id: &ExpandedNodeIdentifier) -> bool {
         if let Some(parent) = borrow!(self.render_parent).upgrade() {
             // We have a parent — if it matches the ID, this node is indeed an ancestor of other_expanded_node_id.  Otherwise, recurse upward.
@@ -488,7 +488,7 @@ impl ExpandedNode {
                     slot_child.recurse_mount(context);
                 }
             }
-            // this is needed to reslove slot connections in a single tick
+            // this is needed to resolve slot connections in a single tick
             self.compute_flattened_slot_children();
         }
     }

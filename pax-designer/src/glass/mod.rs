@@ -325,7 +325,7 @@ pub struct ToolVisualizationState {
     pub outline: Vec<PathElement>,
     /// snap lines
     pub snap_lines: SnapInfo,
-    /// only dissabled when we need to interact with the nodes in the glass,
+    /// only disabled when we need to interact with the nodes in the glass,
     /// for example when editing text
     pub event_blocker_active: bool,
     /// tool intent areas (not raycasted - drop behavior is handled separately by the tool itself)
