@@ -25,18 +25,13 @@ impl<'a> ClassBuilder<'a> {
         component_type_id: TypeId,
         name: &'a str,
     ) -> Result<Self> {
-        let class_name = if name.starts_with('.') {
-            name.to_string()
-        } else {
-            format!(".{}", name)
-        };
-        if !pax_manifest::utils::valid_class(&class_name) {
+        if !pax_manifest::utils::valid_class_or_id(&name) {
             return Err(anyhow!("not a valid class identifier"));
         }
         Ok(Self {
             orm,
             containing_component_type_id: component_type_id,
-            class_name,
+            class_name: name.to_string(),
             updated_class_properties: HashMap::new(),
         })
     }

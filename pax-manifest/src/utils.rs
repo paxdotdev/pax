@@ -15,8 +15,11 @@ pub fn parse_value(raw_value: &str) -> Result<ValueDefinition, &str> {
     Ok(res)
 }
 
-pub fn valid_class(class_ident: &str) -> bool {
-    let class_ident = class_ident.trim_start_matches('.');
+pub fn valid_class_or_id(class_ident: &str) -> bool {
+    if !(class_ident.starts_with('.') || class_ident.starts_with('#')) {
+        return false;
+    }
+    let class_ident = class_ident.trim_start_matches('.').trim_start_matches('#');
     if class_ident.is_empty() {
         return false;
     }
