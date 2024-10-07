@@ -1,8 +1,8 @@
-use crate::design_server::{
-    code_serialization::serialize_component_to_file, AppState, FileContent, WatcherFileChanged,
-};
+use crate::design_server::{AppState, FileContent, WatcherFileChanged};
 
-use pax_manifest::parsing::TemplateNodeParseContext;
+use pax_manifest::{
+    code_serialization::serialize_component_to_file, parsing::TemplateNodeParseContext,
+};
 
 use actix::{Actor, AsyncContext, Handler, Running, StreamHandler};
 use actix_web::web::Data;

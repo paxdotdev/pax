@@ -344,7 +344,6 @@ impl<'a> NodeBuilder<'a> {
                 _ => return Err("failed to save node - unsupported type".to_string()),
             };
             // Node does not exist
-
             let resp = self.orm.execute_command(AddTemplateNodeRequest::new(
                 self.containing_component_type_id,
                 self.node_type_id,

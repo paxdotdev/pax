@@ -23,6 +23,9 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
+use pax_manifest::code_serialization::{
+    diff, diff_html, press_code_serialization_template, serialize_component_to_file,
+};
 use pax_manifest::pax_runtime_api::{Interpolatable, Property};
 use pax_manifest::{
     ComponentDefinition, ComponentTemplate, NodeLocation, PaxManifest, SettingElement,
@@ -73,11 +76,17 @@ pub struct PaxManifestORM {
     reload_queue: Vec<ReloadType>,
     pub manifest_loaded_from_server: Property<bool>,
     pub llm_messages: HashMap<u64, Vec<String>>,
-    pub new_message: Property<()>,
+    pub new_message: Property<Option<MessageType>>,
+    pub last_serialized_version: HashMap<TypeId, ComponentDefinition>,
 }
 
 impl PaxManifestORM {
     pub fn new(manifest: PaxManifest) -> Self {
+        let mut last_serialized_version = HashMap::new();
+        for component in manifest.components.values() {
+            last_serialized_version.insert(component.type_id.clone(), component.clone());
+        }
+
         PaxManifestORM {
             manifest,
             undo_stack: Vec::new(),
@@ -89,7 +98,8 @@ impl PaxManifestORM {
             reload_queue: Vec::new(),
             manifest_loaded_from_server: Property::new(false),
             llm_messages: HashMap::new(),
-            new_message: Property::new(()),
+            new_message: Property::new(None),
+            last_serialized_version,
         }
     }
 
@@ -98,7 +108,7 @@ impl PaxManifestORM {
             .entry(request_id)
             .or_insert(Vec::new())
             .push(message);
-        self.new_message.set(());
+        self.new_message.set(Some(MessageType::LLM));
     }
 
     pub fn get_messages(&mut self, request_id: u64) -> Vec<String> {
@@ -342,6 +352,24 @@ impl PaxManifestORM {
         Ok(())
     }
 
+    pub fn send_component_update(&mut self, type_id: &TypeId) {
+        let current_component = self.manifest.components.get(type_id).unwrap().clone();
+        let prev_component: Option<ComponentDefinition> =
+            self.last_serialized_version.get(type_id).cloned();
+        if let Some(prev_component) = prev_component {
+            let prev_serialized = press_code_serialization_template(prev_component.clone());
+            let post_serialized = press_code_serialization_template(current_component.clone());
+            let diff = diff_html(&prev_serialized, &post_serialized);
+            log::warn!("{:?}", diff);
+            let message_type = diff.map(|d| MessageType::Serialization(d));
+            if let Some(_) = message_type {
+                self.new_message.set(message_type);
+            }
+        }
+        self.last_serialized_version
+            .insert(type_id.clone(), current_component);
+    }
+
     pub fn execute_command<R: Request, C>(&mut self, mut command: C) -> Result<R::Response, String>
     where
         C: Command<R>,
@@ -515,3 +543,11 @@ pub struct SubTrees {
     children: HashMap<TemplateNodeId, Vec<TemplateNodeId>>,
     nodes: HashMap<TemplateNodeId, TemplateNodeDefinition>,
 }
+
+#[derive(Serialize, Deserialize, Clone)]
+pub enum MessageType {
+    Serialization(String),
+    LLM,
+}
+
+impl Interpolatable for MessageType {}

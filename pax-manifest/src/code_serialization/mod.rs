@@ -14,12 +14,9 @@ use tera::{Context, Tera};
 
 use include_dir::{include_dir, Dir};
 
-use pax_manifest::{
-    pax_runtime_api::PaxValue, ComponentDefinition, ExpressionInfo, PaxManifest, PaxType,
-};
-
-use crate::{
-    formatting::format_pax_template,
+use crate::{pax_runtime_api::PaxValue, ComponentDefinition, ExpressionInfo, PaxManifest, PaxType};
+use pax_lang::{
+    formatting::{format_file, format_pax_template},
     helpers::{replace_by_line_column, InlinedTemplateFinder},
 };
 
@@ -104,17 +101,53 @@ pub fn press_code_serialization_template(args: ComponentDefinition) -> String {
     format_pax_template(template).expect("Failed to format template")
 }
 
-fn print_diff(old_content: &str, new_content: &str, _file_path: &str) {
+pub fn diff(old_content: &str, new_content: &str) -> Option<String> {
     let diff = TextDiff::from_lines(old_content, new_content);
+    let mut all_diffs = vec![];
     for change in diff.iter_all_changes() {
         let output = match change.tag() {
             ChangeTag::Delete => Some(format!("-{}", change).red()),
             ChangeTag::Insert => Some(format!("+{}", change).green()),
             ChangeTag::Equal => None,
         };
+
         if let Some(o) = output {
-            print!("{}", o);
+            all_diffs.push(format!("{}", o));
         }
+    }
+    if all_diffs.len() > 0 {
+        Some(all_diffs.join(""))
+    } else {
+        None
+    }
+}
+
+pub fn diff_html(old_content: &str, new_content: &str) -> Option<String> {
+    let diff = TextDiff::from_lines(old_content, new_content);
+    let mut all_diffs = vec![];
+
+    for change in diff.iter_all_changes() {
+        let output = match change.tag() {
+            ChangeTag::Delete => Some(format!(
+                "<span style=\"color: red;\">-{} </span>",
+                html_escape::encode_text(&change.to_string())
+            )),
+            ChangeTag::Insert => Some(format!(
+                "<span style=\"color: green;\">+{} </span>",
+                html_escape::encode_text(&change.to_string())
+            )),
+            ChangeTag::Equal => None,
+        };
+
+        if let Some(o) = output {
+            all_diffs.push(o);
+        }
+    }
+
+    if !all_diffs.is_empty() {
+        Some(all_diffs.join(""))
+    } else {
+        None
     }
 }
 
@@ -136,7 +169,9 @@ pub fn serialize_component_to_file(component: &ComponentDefinition, file_path: S
                 .expect("Failed to write to file");
 
             // Print the diff
-            print_diff(&old_content, &serialized_component, &file_path);
+            if let Some(diff) = diff(&old_content, &serialized_component) {
+                println!("{}", diff);
+            }
         }
         Some("rs") => write_inlined_pax(serialized_component, path, pascal_identifier),
         _ => panic!("Unsupported file extension."),

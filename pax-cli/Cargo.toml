@@ -19,6 +19,7 @@ colored = "2.0.0"
 ctrlc = { version = "3.4.4", features = ["termination"] }
 nix = "0.20.2"
 pax-compiler = {path = "../pax-compiler", version = "0.36.9"}
+pax-lang = {path = "../pax-lang", version = "0.36.9"}
 pax-language-server = {path = "../pax-language-server", version = "0.36.9"}
 reqwest = "0.11.18"
 rustc_version = "0.4.0"

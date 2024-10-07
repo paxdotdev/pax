@@ -1,8 +1,8 @@
 mod rules;
 
 use crate::helpers::{replace_by_line_column, InlinedTemplateFinder};
+use crate::{parse_pax_err, Rule};
 use color_eyre::eyre::{self, Report};
-use pax_lang::{parse_pax_err, Rule};
 use std::fs;
 use std::path::Path;
 use syn::parse_file;
