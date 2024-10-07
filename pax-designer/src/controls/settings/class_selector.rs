@@ -97,9 +97,9 @@ impl ClassSelector {
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined(
-    <Group  @click=self.remove x=100% width=30px>
+    <Group  @click=self.remove x=100% width=20px>
         <EventBlocker/>
-        <Path class=x_symbol x=50% y=50% width=15px height=15px/>
+        <Path class=x_symbol x=50% y=50% width=9px height=9px/>
     </Group>
     <EventBlocker @double_click=on_name_click/>
     <Text x=3px class=input text=class width={100%-3px} height=100%/>
@@ -117,9 +117,9 @@ impl ClassSelector {
                     "ff-real-headline-pro",
                     "https://use.typekit.net/ivu7epf.css",
                     FontStyle::Normal,
-                    FontWeight::Light,
+                    FontWeight::ExtraLight,
                 )},
-                font_size: 14px,
+                font_size: 11px,
                 align_vertical: TextAlignVertical::Center,
                 align_multiline: TextAlignHorizontal::Center
                 fill: WHITE,

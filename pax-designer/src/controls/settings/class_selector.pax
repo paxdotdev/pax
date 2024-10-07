@@ -1,14 +1,15 @@
 <ComboBox class=input class=col_1 class=span_6 options=available_classes text=bind:new_class_text new_item=NewItem::AllowInvalid/>
-<Group height=30px x=100% width=50px @click=self.add_class>
+<Group height=25px x=100% width=50px @click=self.add_class>
     <Text class=text text="Add" width=100% height=100%/>
     <Rectangle fill=rgb(70, 70, 70)
 	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
     />
 </Group>
 <Scroller
-    y=40px
+    y=35px
     height={100% - 40px}
-    scroll_height={(Math::len(self.current_classes)*100/3)%}
+    width={100% + 8px}
+    scroll_height={(Math::len(self.current_classes)*20)px}
 >
     <Stacker>
         for (class, i) in self.current_classes {
@@ -21,7 +22,7 @@
 @settings {
 	@mount: on_mount
     .input {
-        height: 30px,
+        height: 25px,
         background: rgb(12.5%, 12.5%, 12.5%),
         stroke: {
             color: rgb(48, 56, 62),
