@@ -3,7 +3,7 @@ if self.is_component_selected {
         <Group x=5px width={100% - 10px}>
             // custom properties at top since we want things like color picker
             // to be drawn above the rest of the settings view (and z-index isn't supported yet)
-            <Group y=500px>
+            <Group y=490px>
                 for property in self.custom_properties {
                     <Group y={(property.vertical_pos)px} height={(property.vertical_space)px}>
                         <PropertyEditor y=40px ind={property.index} name={property.name} write_target={WriteTarget::TemplateNode(stid, snid)} 
@@ -16,18 +16,20 @@ if self.is_component_selected {
             </Group>
 
             <Text y=18px text={self.selected_component_name} class=h1 class=col_1 class=span_6 />
-            <Group y=60px height=120px>
+            <Text y=60px text="Classes" class=h2 class=col_1 class=span_6 />
+            <Group y=90px height=90px>
                 <ClassSelector stid=stid snid=snid/>
             </Group>
-            <Group y=197px>
-                <Group height=70px>
-                    <Group y=0px height=30px>
+            <Group y=180px>
+                <Group height=100px>
+                    <Text text="Layout" class=h2 class=col_1 class=span_6 />
+                    <Group y=30px height=30px>
                         <Text text="x" class=property_label class=col_1 class=span_1 />
                         <PropertyEditor write_target={WriteTarget::TemplateNode(stid, snid)} name="x" class=col_2 class=span_3 />
                         <Text text="y" class=property_label class=col_5 class=span_1 />
                         <PropertyEditor write_target={WriteTarget::TemplateNode(stid, snid)} name="y" class=col_6 class=span_3 />
                     </Group>
-                    <Group y=40px height=30px>
+                    <Group y=70px height=30px>
                         <Text text="w" class=property_label class=col_1 class=span_1 />
                         <PropertyEditor write_target={WriteTarget::TemplateNode(stid, snid)} name="width" class=col_2 class=span_3 />
                         <Text text="h" class=property_label class=col_5 class=span_1 />
@@ -35,7 +37,7 @@ if self.is_component_selected {
                     </Group>
                 </Group>
                 <Path class=hr y=77px class=col_1 class=span_6 />
-                <Group y=80px height=180px>
+                <Group y=110px height=180px>
                     <Text text="Transform" class=h2 class=col_1 class=span_6 />
                     <Group y=30px height={100% - 30px}>
                         <Group y=0px height=30px>
