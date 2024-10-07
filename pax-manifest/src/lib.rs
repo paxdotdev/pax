@@ -16,6 +16,7 @@ pub mod server;
 pub mod utils;
 
 pub mod cartridge_generation;
+pub mod code_serialization;
 pub mod constants;
 
 /// Definition container for an entire Pax cartridge

@@ -7,10 +7,12 @@ pub use pest_derive::Parser;
 
 mod parsing;
 pub use parsing::get_pax_pratt_parser;
+pub mod formatting;
 
 pub mod deserializer;
 pub mod interpreter;
 pub use deserializer::from_pax;
+pub mod helpers;
 
 pub use interpreter::{
     computable::Computable, parse_pax_expression, property_resolution::DependencyCollector,

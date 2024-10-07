@@ -51,7 +51,6 @@ export class NativeElementPool {
                 }
                 resize_requests.push(message);
             }
-            console.log("Sending resize requests", resize_requests);
             this.chassis!.interrupt!(JSON.stringify({
                 "ChassisResizeRequestCollection": resize_requests,
             }), undefined);
@@ -701,7 +700,6 @@ export class NativeElementPool {
     }
 
     textUpdate(patch: TextUpdatePatch) {
-        console.log(patch);
         let leaf = this.nodesLookup.get(patch.id!) as HTMLElement;
         let textChild = leaf!.firstChild as HTMLElement;
         // should be start listening to this elements size and
@@ -764,7 +762,7 @@ export class NativeElementPool {
         // Apply the content
         if (patch.content != null) {
             if (sanitizeContentEditableString(textChild.innerHTML) != patch.content) {
-                textChild.innerHTML = snarkdown(patch.content);
+                textChild.innerHTML = patch.content;
             }
             // Apply the link styles if they exist
             if (patch.style_link != null) {

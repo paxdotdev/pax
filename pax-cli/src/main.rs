@@ -296,7 +296,7 @@ fn perform_nominal_action(
             let path = std::env::current_dir().unwrap();
             let file_path = path.join(file);
 
-            pax_compiler::formatting::format_file(file_path.to_str().unwrap())?;
+            pax_lang::formatting::format_file(file_path.to_str().unwrap())?;
             Ok(())
         }
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable

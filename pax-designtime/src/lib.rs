@@ -11,7 +11,7 @@ pub mod messages;
 pub mod serde_pax;
 
 use messages::LLMRequest;
-use orm::ReloadType;
+use orm::{MessageType, ReloadType};
 use pax_manifest::pax_runtime_api::Property;
 use privileged_agent::WebSocketConnection;
 
@@ -119,7 +119,7 @@ impl DesigntimeManager {
         Ok(())
     }
 
-    pub fn get_llm_new_message_listener(&self) -> Property<()> {
+    pub fn get_new_message_listener(&self) -> Property<Option<MessageType>> {
         self.orm.new_message.clone()
     }
 
@@ -128,6 +128,7 @@ impl DesigntimeManager {
     }
 
     pub fn send_component_update(&mut self, type_id: &TypeId) -> anyhow::Result<()> {
+        self.orm.send_component_update(type_id);
         let component = self.orm.get_component(type_id)?;
         self.priv_agent_connection
             .borrow_mut()

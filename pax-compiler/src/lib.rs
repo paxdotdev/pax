@@ -15,7 +15,6 @@ extern crate serde;
 extern crate core;
 mod building;
 mod cartridge_generation;
-pub mod formatting;
 pub mod helpers;
 
 pub mod design_server;
