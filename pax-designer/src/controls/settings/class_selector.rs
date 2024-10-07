@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use anyhow::Result;
 use pax_engine::api::*;
 use pax_engine::pax_manifest::{TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
@@ -52,32 +53,38 @@ impl ClassSelector {
         let ctx = ctx.clone();
         self.current_classes.replace_with(Property::computed(
             move || {
-                log::debug!(
-                    "vals: {:?}, {:?}",
-                    stid.get().import_path(),
-                    snid.get().as_usize()
-                );
                 let mut dt = borrow_mut!(ctx.designtime);
                 let orm = dt.get_orm_mut();
                 let Some(mut properties) = orm.get_node_builder(
                     UniqueTemplateNodeIdentifier::build(stid.get(), snid.get()),
                     false,
                 ) else {
-                    log::debug!("failed to get node classes");
                     return vec![];
                 };
                 let out = properties.get_all_applied_classes();
-                log::debug!("out: {:?}", out);
                 out
             },
             &deps,
         ));
     }
 
-    pub fn add_class(&mut self, ctx: &NodeContext, event: Event<Click>) {
-        log::debug!("add class: {}", self.new_class_text.get());
-        // let dt = borrow!(ctx.designtime);
-        // let orm = dt.get_orm_mut();
+    pub fn add_class(&mut self, ctx: &NodeContext, _event: Event<Click>) {
+        let uni = UniqueTemplateNodeIdentifier::build(self.stid.get(), self.snid.get());
+        let t = model::with_action_context(ctx, |ac| ac.transaction("add class"));
+        let mut dt = borrow_mut!(ctx.designtime);
+        let orm = dt.get_orm_mut();
+        let _ = t.run(|| {
+            let Some(mut node_builder) = orm.get_node_builder(uni.clone(), false) else {
+                log::warn!("no node: {uni:?}");
+                return Err(anyhow!("failed to retrieve node"));
+            };
+            node_builder.add_class(&self.new_class_text.get())?;
+            node_builder
+                .save()
+                .map_err(|e| anyhow!("failed to save node: {e}"))?;
+            self.new_class_text.set("".to_string());
+            Ok(())
+        });
     }
 }
 
@@ -90,23 +97,94 @@ impl ClassSelector {
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined(
+    <Group  @click=self.remove x=100% width=30px>
+        <EventBlocker/>
+        <Path class=x_symbol x=50% y=50% width=15px height=15px/>
+    </Group>
+    <EventBlocker @click=on_name_click/>
     <Text x=3px class=input text=class width={100%-3px} height=100%/>
-    <Rectangle fill=black/>
+    <Rectangle fill={rgb(12.5%, 12.5%, 12.5%)}
+            stroke={
+                color: rgb(48, 56, 62),
+                width: 1px,
+            }
+    />
 
     @settings {
-        @mouse_down: on_click
+        .input {
+            style: {
+                font: {Font::Web(
+                    "ff-real-headline-pro",
+                    "https://use.typekit.net/ivu7epf.css",
+                    FontStyle::Normal,
+                    FontWeight::Light,
+                )},
+                font_size: 14px,
+                fill: WHITE,
+            }
+        }
+        .x_symbol {
+            elements: {[
+                PathElement::Point(0%, 10%),
+                PathElement::Line,
+                PathElement::Point(50% - 10%, 50%),
+                PathElement::Line,
+                PathElement::Point(0%, 100% - 10%),
+                PathElement::Line,
+                PathElement::Point(10%, 100%),
+                PathElement::Line,
+                PathElement::Point(50%, 50% + 10%),
+                PathElement::Line,
+                PathElement::Point(100% - 10%, 100%),
+                PathElement::Line,
+                PathElement::Point(100%, 100% - 10%),
+                PathElement::Line,
+                PathElement::Point(50% + 10%, 50%),
+                PathElement::Line,
+                PathElement::Point(100%, 10%),
+                PathElement::Line,
+                PathElement::Point(100% - 10%, 0%),
+                PathElement::Line,
+                PathElement::Point(50%, 50% - 10%),
+                PathElement::Line,
+                PathElement::Point(10%, 0%),
+                PathElement::Close
+            ]},
+            stroke: {
+                width: 0
+            },
+            fill: rgb(200, 200, 200)
+        }
     }
 )]
 pub struct ListItem {
-    pub class: Property<String>,
+    pub stid: Property<TypeId>,
+    pub snid: Property<TemplateNodeId>,
+    pub text: Property<String>,
 }
 
 impl ListItem {
     pub fn on_name_click(&mut self, ctx: &NodeContext, _event: Event<Click>) {
-        model::perform_action(&EditClass(self.class.get()), ctx);
+        model::perform_action(&EditClass(self.text.get()), ctx);
     }
 
-    pub fn remove(&mut self, ctx: &NodeContext, event: Event<Click>) {}
+    pub fn remove(&mut self, ctx: &NodeContext, _event: Event<Click>) {
+        let uni = UniqueTemplateNodeIdentifier::build(self.stid.get(), self.snid.get());
+        let t = model::with_action_context(ctx, |ac| ac.transaction("add class"));
+        let mut dt = borrow_mut!(ctx.designtime);
+        let orm = dt.get_orm_mut();
+        let _ = t.run(|| {
+            let Some(mut node_builder) = orm.get_node_builder(uni.clone(), false) else {
+                log::warn!("no node: {uni:?}");
+                return Err(anyhow!("failed to retrieve node"));
+            };
+            node_builder.remove_class(&self.text.get())?;
+            node_builder
+                .save()
+                .map_err(|e| anyhow!("failed to save node: {e}"))?;
+            Ok(())
+        });
+    }
 }
 
 struct EditClass(String);
@@ -115,7 +193,7 @@ impl Action for EditClass {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         ctx.app_state
             .current_editor_class_name
-            .set(Some(self.0.clone()));
+            .set(Some(format!("{}", self.0)));
         Ok(())
     }
 }

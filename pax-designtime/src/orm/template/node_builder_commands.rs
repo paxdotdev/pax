@@ -166,6 +166,7 @@ impl Undo for AddTemplateNodeRequest {
 pub struct UpdateTemplateNodeRequest {
     uni: UniqueTemplateNodeIdentifier,
     updated_properties: HashMap<Token, Option<ValueDefinition>>,
+    updated_classes: HashMap<String, bool>,
     new_type_id: Option<TypeId>,
     new_location: Option<NodeLocation>,
     control_flow_updates: ControlFlowSettingsDefinitionUpdate,
@@ -179,12 +180,14 @@ impl UpdateTemplateNodeRequest {
         uni: UniqueTemplateNodeIdentifier,
         new_type_id: Option<TypeId>,
         updated_properties: HashMap<Token, Option<ValueDefinition>>,
+        updated_classes: HashMap<String, bool>,
         new_location: Option<NodeLocation>,
         control_flow_updates: ControlFlowSettingsDefinitionUpdate,
     ) -> Self {
         Self {
             uni,
             updated_properties,
+            updated_classes,
             new_location,
             new_type_id,
             _cached_node_data: None,
@@ -243,6 +246,7 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
                 &uni.get_template_node_id(),
                 self.updated_properties.clone(),
             );
+            template.update_classes(&uni.get_template_node_id(), self.updated_classes.clone());
             template.update_control_flow_properties(
                 &uni.get_template_node_id(),
                 self.control_flow_updates

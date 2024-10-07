@@ -12,7 +12,7 @@ use super::{
     AddTemplateNodeRequest, ControlFlowSettingsDefinitionUpdate, GetTemplateNodeRequest,
     UpdateTemplateNodeRequest,
 };
-use crate::orm::PaxManifestORM;
+use crate::orm::{valid_class, PaxManifestORM};
 
 /// Builder for creating and modifying template nodes in the PaxManifest.
 pub struct NodeBuilder<'a> {
@@ -20,6 +20,8 @@ pub struct NodeBuilder<'a> {
     containing_component_type_id: TypeId,
     node_type_id: TypeId,
     updated_property_map: HashMap<Token, Option<ValueDefinition>>,
+    // true = insert, false = remove
+    updated_classes: HashMap<String, bool>,
     control_flow_updates: ControlFlowSettingsDefinitionUpdate,
     unique_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     location: Option<NodeLocation>,
@@ -43,6 +45,7 @@ impl<'a> NodeBuilder<'a> {
             containing_component_type_id,
             node_type_id,
             updated_property_map: HashMap::new(),
+            updated_classes: HashMap::new(),
             unique_node_identifier: None,
             location: None,
             overwrite_expressions,
@@ -65,6 +68,7 @@ impl<'a> NodeBuilder<'a> {
                 containing_component_type_id: uni.get_containing_component_type_id(),
                 node_type_id: node.type_id,
                 updated_property_map: HashMap::new(),
+                updated_classes: HashMap::new(),
                 unique_node_identifier: Some(uni),
                 control_flow_updates: ControlFlowSettingsDefinitionUpdate::default(),
                 location,
@@ -307,6 +311,32 @@ impl<'a> NodeBuilder<'a> {
         self.updated_property_map.insert(key, None);
     }
 
+    pub fn add_class(&mut self, class: &str) -> Result<()> {
+        if !valid_class(class) {
+            return Err(anyhow!("not valid class identifier"));
+        }
+        let class = if class.starts_with('.') {
+            class.to_string()
+        } else {
+            format!(".{}", class)
+        };
+        self.updated_classes.insert(class, true);
+        Ok(())
+    }
+
+    pub fn remove_class(&mut self, class: &str) -> Result<()> {
+        if !valid_class(class) {
+            return Err(anyhow!("not a valid class identifier"));
+        }
+        let class = if class.starts_with('.') {
+            class.to_string()
+        } else {
+            format!(".{}", class)
+        };
+        self.updated_classes.insert(class, false);
+        Ok(())
+    }
+
     pub fn set_location(&mut self, location: NodeLocation) {
         self.location = Some(location);
     }
@@ -322,6 +352,7 @@ impl<'a> NodeBuilder<'a> {
                 uni.clone(),
                 Some(self.node_type_id),
                 self.updated_property_map,
+                self.updated_classes,
                 Some(location),
                 self.control_flow_updates,
             ))?;
@@ -364,6 +395,14 @@ impl<'a> NodeBuilder<'a> {
                             v.as_ref()
                                 .map(|value| SettingElement::Setting(k.clone(), value.clone()))
                         })
+                        .chain(self.updated_classes.iter().filter_map(|(k, v)| {
+                            v.then_some(SettingElement::Setting(
+                                Token::new_without_location("class".to_string()),
+                                ValueDefinition::Identifier(PaxIdentifier {
+                                    name: format!(".{}", k),
+                                }),
+                            ))
+                        }))
                         .collect::<Vec<SettingElement>>();
                     NodeType::Template(settings)
                 }
