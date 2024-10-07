@@ -2,7 +2,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use crate::{Group, Rectangle, Scroller, Stacker, Text, Path, EventBlocker};
+use crate::{EventBlocker, Group, Path, Rectangle, Scroller, Stacker, Text};
 use crate::{TextStyle, Textbox};
 use pax_engine::api::{Click, Event, MouseDown, Store, Stroke, TextboxChange};
 use pax_engine::api::{Color, Property};
@@ -14,7 +14,7 @@ use pax_runtime::api::NodeContext;
 #[inlined(
     if _options_visible {
         <Scroller
-            anchor_y=0% 
+            anchor_y=0%
             y={100%+1px}
             height=500%
             width={100% + 8px}
@@ -133,18 +133,28 @@ impl ComboBox {
             move || {
                 options.read(|options| {
                     text.read(|text| {
-                        let mut options_sorted: Vec<(usize, &String)> = options.iter().enumerate().collect();
+                        let mut options_sorted: Vec<(usize, &String)> =
+                            options.iter().enumerate().collect();
                         options_sorted.sort_by_key(|&(_, v)| v);
                         let mut filtered_options: Vec<_> = options_sorted
                             .into_iter()
                             .filter(|(_, t)| t.contains(text))
-                            .map(|(i, v)| ListItemData { text: v.clone(), event: ComboBoxItemClickEvent::SelectIndex(i) })
+                            .map(|(i, v)| ListItemData {
+                                text: v.clone(),
+                                event: ComboBoxItemClickEvent::SelectIndex(i),
+                            })
                             .collect();
                         filtered_options.sort_by_key(|v| v.text.starts_with(text));
                         if filtered_options.is_empty() {
-                            match new_item.get() {                            
-                                NewItem::Disallow => filtered_options.push(ListItemData { text: String::from("No Results Found"), event: ComboBoxItemClickEvent::None }),
-                                NewItem::Text(text) => filtered_options.push(ListItemData{ text, event: ComboBoxItemClickEvent::NewItem }),
+                            match new_item.get() {
+                                NewItem::Disallow => filtered_options.push(ListItemData {
+                                    text: String::from("No Results Found"),
+                                    event: ComboBoxItemClickEvent::None,
+                                }),
+                                NewItem::Text(text) => filtered_options.push(ListItemData {
+                                    text,
+                                    event: ComboBoxItemClickEvent::NewItem,
+                                }),
                                 NewItem::AllowInvalid => (),
                             }
                         }
@@ -158,33 +168,36 @@ impl ComboBox {
         let options = self.options.clone();
         let options_visible = self._options_visible.clone();
         let new_item_behavior = self.new_item.clone();
-        
+
         let selected = self.selected.clone();
         let deps = [selected.untyped()];
 
         let last = Rc::new(Cell::new(None));
-        self._selected_listener.replace_with(Property::computed(move || {
-            let selected = selected.get();
-            let new_value = if let Some(selected) = selected {
-                options.read(|options| {
-                    let index = selected.clamp(0, options.len()); 
-                    options[index].clone()
-                }) 
-            } else {
-                "".to_string()
-            };
-            match new_item_behavior.get() {
-                NewItem::AllowInvalid =>  {
-                    if last.get() != selected || text.get().is_empty() {
-                        text.set(new_value)
+        self._selected_listener.replace_with(Property::computed(
+            move || {
+                let selected = selected.get();
+                let new_value = if let Some(selected) = selected {
+                    options.read(|options| {
+                        let index = selected.clamp(0, options.len());
+                        options[index].clone()
+                    })
+                } else {
+                    "".to_string()
+                };
+                match new_item_behavior.get() {
+                    NewItem::AllowInvalid => {
+                        if last.get() != selected || text.get().is_empty() {
+                            text.set(new_value)
+                        }
                     }
-                },
-                _ => text.set(new_value)
-            }
-            options_visible.set(false);
-            last.set(selected);
-            true
-        }, &deps));
+                    _ => text.set(new_value),
+                }
+                options_visible.set(false);
+                last.set(selected);
+                true
+            },
+            &deps,
+        ));
     }
 
     pub fn on_click(&mut self, ctx: &NodeContext, _event: Event<Click>) {
@@ -209,7 +222,6 @@ impl ComboBox {
     }
 }
 
-
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined(
@@ -232,10 +244,12 @@ impl ComboBoxListItem {
             ComboBoxItemClickEvent::None => (),
             ComboBoxItemClickEvent::SelectIndex(index) => {
                 let _ = ctx.peek_local_store(|SelectedIndProp(selected): &mut SelectedIndProp| {
-                        selected.set(Some(index));
+                    selected.set(Some(index));
                 });
-            },
-            ComboBoxItemClickEvent::NewItem => {ctx.dispatch_event("new_item");}
+            }
+            ComboBoxItemClickEvent::NewItem => {
+                ctx.dispatch_event("new_item");
+            }
         }
     }
 }

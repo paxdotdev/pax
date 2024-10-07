@@ -20,18 +20,25 @@ pub struct ClassSaveData {
 }
 
 impl<'a> ClassBuilder<'a> {
-    pub fn new(orm: &'a mut PaxManifestORM, component_type_id: TypeId, name: &'a str) -> Self {
+    pub fn new(
+        orm: &'a mut PaxManifestORM,
+        component_type_id: TypeId,
+        name: &'a str,
+    ) -> Result<Self> {
         let class_name = if name.starts_with('.') {
             name.to_string()
         } else {
             format!(".{}", name)
         };
-        Self {
+        if !pax_manifest::utils::valid_class(&class_name) {
+            return Err(anyhow!("not a valid class identifier"));
+        }
+        Ok(Self {
             orm,
             containing_component_type_id: component_type_id,
             class_name,
             updated_class_properties: HashMap::new(),
-        }
+        })
     }
 
     pub fn set_property_from_value_definition(

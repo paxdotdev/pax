@@ -15,7 +15,6 @@
             <ListItem text={class} stid=stid snid=snid/>
         }
     </Stacker>
-    <Rectangle fill={stroke.color}/>
 </Scroller>
 
 

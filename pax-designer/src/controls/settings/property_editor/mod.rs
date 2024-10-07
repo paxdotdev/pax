@@ -246,7 +246,7 @@ impl PropertyEditorData {
                     node.save().map_err(|e| anyhow!("{:?}", e))?;
                 }
                 WriteTarget::Class(stid, class_ident) => {
-                    let mut class = orm.get_class_builder(stid.clone(), class_ident);
+                    let mut class = orm.get_class_builder(stid.clone(), class_ident)?;
                     class.set_property(&self.name, val)?;
                     class
                         .save()

@@ -14,3 +14,14 @@ pub fn parse_value(raw_value: &str) -> Result<ValueDefinition, &str> {
     let res = parse_value_definition(value);
     Ok(res)
 }
+
+pub fn valid_class(class_ident: &str) -> bool {
+    let class_ident = class_ident.trim_start_matches('.');
+    if class_ident.is_empty() {
+        return false;
+    }
+    let Ok(parse) = PaxParser::parse(Rule::identifier, class_ident) else {
+        return false;
+    };
+    parse.as_str() == class_ident
+}
