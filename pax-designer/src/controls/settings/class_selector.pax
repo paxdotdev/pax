@@ -5,9 +5,18 @@
 	    corner_radii={RectangleCornerRadii::radii(3.0,3.0,3.0,3.0)}
     />
 </Group>
-for (class, i) in self.current_classes {
-    <Text y={(40 + i*40)px} class=text text={class} width=100% height=30px/>
-}
+<Scroller
+    y=40px
+    height={100% - 40px}
+    scroll_height={(Math::len(self.current_classes)*100/3)%}
+>
+    <Stacker>
+        for (class, i) in self.current_classes {
+            <ListItem text={class} stid=stid snid=snid/>
+        }
+    </Stacker>
+    <Rectangle fill={stroke.color}/>
+</Scroller>
 
 
 @settings {

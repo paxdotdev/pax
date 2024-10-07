@@ -1,6 +1,6 @@
 
-<Scroller scroll_height={(120 + self.class_properties_total_height + 5.0)px}>
-    <Group x=5px width={100% - 10px}>
+<Scroller scroll_height={(220 + self.class_properties_total_height + 5.0)px}>
+    <Group y=100px x=5px width={100% - 10px}>
         // class properties at top since we want things like color picker
         // to be drawn above the rest of the settings view (and z-index isn't supported yet)
         <Group y=40px>
@@ -14,7 +14,7 @@
                 </Group>
             }
         </Group>
-        <Text text={self.class_name} class=h1 class=col_1 class=span_6/>
+        <Text y=10px text={self.class_name} class=h1 class=col_1 class=span_6/>
         <Group y={(self.class_properties_total_height + 100)px}>
             <ComboBox class=input  class=col_1 class=span_6 options=all_available_properties selected=bind:selected_property_index/>
             <Group height=30px x=100% width=50px @click=self.add_class_property>

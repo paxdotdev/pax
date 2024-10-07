@@ -30,7 +30,7 @@ use pax_runtime::api::NodeContext;
             <Rectangle fill={stroke.color}/>
         </Scroller>
     }
-    if self.selected != None && !_options_visible {
+    if self.text != "" && self.selected != None && !_options_visible {
         <Group  @click=self.remove_index x=100% width=30px>
             <EventBlocker/>
             <Path class=x_symbol x=50% y=50% width=15px height=15px/>
@@ -175,7 +175,7 @@ impl ComboBox {
             };
             match new_item_behavior.get() {
                 NewItem::AllowInvalid =>  {
-                    if last.get() != selected {
+                    if last.get() != selected || text.get().is_empty() {
                         text.set(new_value)
                     }
                 },
@@ -205,7 +205,6 @@ impl ComboBox {
     }
 
     pub fn dispatch_new_item(&mut self, ctx: &NodeContext) {
-        log::debug!("dispatched new item");
         ctx.dispatch_event("new_item").unwrap();
     }
 }

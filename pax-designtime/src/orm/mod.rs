@@ -235,7 +235,7 @@ impl PaxManifestORM {
             .iter()
             .find_map(|setting| match setting {
                 pax_manifest::SettingsBlockElement::SelectorBlock(token, block) => {
-                    (token.token_value == name).then_some(block)
+                    (token.token_value.ends_with(name)).then_some(block)
                 }
                 _ => None,
             })
@@ -278,12 +278,11 @@ impl PaxManifestORM {
             .iter()
             .filter_map(|setting| match setting {
                 pax_manifest::SettingsBlockElement::SelectorBlock(token, _block) => {
-                    Some(token.token_value.to_string())
+                    Some(token.token_value.trim_start_matches('.').to_string())
                 }
                 _ => None,
             })
             .collect();
-        log::debug!("classes: {:#?}", classes);
         Ok(classes)
     }
 
@@ -647,3 +646,8 @@ pub enum MessageType {
 }
 
 impl Interpolatable for MessageType {}
+
+pub fn valid_class(class_ident: &str) -> bool {
+    // TODO fill in
+    true
+}

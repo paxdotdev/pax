@@ -21,7 +21,7 @@ pub struct UpdateClassRequest {
 impl UpdateClassRequest {
     pub fn new(
         containing_component_type_id: TypeId,
-        name: &str,
+        name: String,
         updated_class_properties: HashMap<String, Option<ValueDefinition>>,
     ) -> Self {
         Self {
