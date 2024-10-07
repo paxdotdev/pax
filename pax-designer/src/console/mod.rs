@@ -17,7 +17,7 @@ pub struct Console {
     pub scroll_y: Property<f64>,
     pub enqueue_scroll_set: Property<Option<EnqueuedScrollSet>>,
     pub request_id: Property<u64>,
-    pub llm_response_listener: Property<bool>,
+    pub external_message_listener: Property<bool>,
 }
 
 #[pax]
@@ -36,29 +36,43 @@ pub struct EnqueuedScrollSet {
 
 impl Console {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let new_message_listener = ctx.designtime.borrow().get_llm_new_message_listener();
+        let new_message_listener = ctx.designtime.borrow().get_new_message_listener();
         let deps = &[new_message_listener.untyped()];
         let messages_cloned = self.messages.clone();
         let dt = ctx.designtime.clone();
         let current_id_cloned = self.request_id.clone();
-        self.llm_response_listener.replace_with(Property::computed(
-            move || {
-                let mut messages = messages_cloned.get();
-                let current_id = current_id_cloned.get();
-                let mut design_time = dt.borrow_mut();
-                let mut llm_message = design_time.get_llm_messages(current_id);
-                llm_message.reverse();
-                for message in llm_message {
-                    messages.push(Message {
-                        is_ai: true,
-                        text: message.clone(),
-                    });
-                }
-                messages_cloned.set(messages);
-                false
-            },
-            deps,
-        ));
+        self.external_message_listener
+            .replace_with(Property::computed(
+                move || {
+                    let mut messages = messages_cloned.get();
+                    let current_id = current_id_cloned.get();
+                    if let Some(message_type) = new_message_listener.get() {
+                        match message_type {
+                            pax_designtime::orm::MessageType::LLM => {
+                                let mut design_time = dt.borrow_mut();
+                                let mut llm_message = design_time.get_llm_messages(current_id);
+                                llm_message.reverse();
+                                for message in llm_message {
+                                    messages.push(Message {
+                                        is_ai: true,
+                                        text: message.clone(),
+                                    });
+                                }
+                                messages_cloned.set(messages);
+                            }
+                            pax_designtime::orm::MessageType::Serialization(msg) => {
+                                messages.push(Message {
+                                    is_ai: true,
+                                    text: msg.clone(),
+                                });
+                                messages_cloned.set(messages);
+                            }
+                        }
+                    }
+                    false
+                },
+                deps,
+            ));
 
         let frames_elapsed = ctx.frames_elapsed.clone();
         let messages_cloned = self.messages.clone();
@@ -98,6 +112,6 @@ impl Console {
                 self.enqueue_scroll_set.set(None);
             }
         }
-        self.llm_response_listener.get();
+        self.external_message_listener.get();
     }
 }
