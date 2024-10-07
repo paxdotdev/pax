@@ -1154,6 +1154,46 @@ impl ComponentTemplate {
         }
     }
 
+    pub fn update_classes(&mut self, id: &TemplateNodeId, classes: HashMap<String, bool>) {
+        if let Some(node) = self.nodes.get_mut(id) {
+            if let Some(settings) = &mut node.settings {
+                let mut indexes_to_remove: Vec<usize> = vec![];
+                for (i, setting) in settings.iter_mut().enumerate() {
+                    if let SettingElement::Setting(key, value) = setting {
+                        if &key.token_value == "class" {
+                            if let ValueDefinition::Identifier(value) = value {
+                                if !*classes.get(&format!(".{}", value.name)).unwrap_or(&true) {
+                                    indexes_to_remove.push(i);
+                                }
+                            }
+                        }
+                    }
+                }
+                // Remove classes that have been set to None
+                for i in indexes_to_remove.iter().rev() {
+                    settings.remove(*i);
+                }
+            } else {
+                node.settings = Some(vec![]);
+            }
+        }
+        // Add new classes to settings
+        for (k, v) in classes.iter() {
+            if let Some(node) = self.nodes.get_mut(id) {
+                if let Some(settings) = &mut node.settings {
+                    if *v {
+                        settings.push(SettingElement::Setting(
+                            Token::new_without_location("class".to_string()),
+                            ValueDefinition::Identifier(PaxIdentifier {
+                                name: k.trim_start_matches('.').to_string(),
+                            }),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
     pub fn update_control_flow_properties(
         &mut self,
         id: &TemplateNodeId,
