@@ -1167,6 +1167,13 @@ impl ComponentTemplate {
                                 }
                             }
                         }
+                        if &key.token_value == "id" {
+                            if let ValueDefinition::Identifier(value) = value {
+                                if !*classes.get(&format!("#{}", value.name)).unwrap_or(&true) {
+                                    indexes_to_remove.push(i);
+                                }
+                            }
+                        }
                     }
                 }
                 // Remove classes that have been set to None
@@ -1182,10 +1189,15 @@ impl ComponentTemplate {
             if let Some(node) = self.nodes.get_mut(id) {
                 if let Some(settings) = &mut node.settings {
                     if *v {
+                        let is_class = k.starts_with('.');
+                        let key = if is_class { "class" } else { "id" }.to_string();
                         settings.push(SettingElement::Setting(
-                            Token::new_without_location("class".to_string()),
+                            Token::new_without_location(key),
                             ValueDefinition::Identifier(PaxIdentifier {
-                                name: k.trim_start_matches('.').to_string(),
+                                name: k
+                                    .trim_start_matches('.')
+                                    .trim_start_matches('#')
+                                    .to_string(),
                             }),
                         ));
                     }

@@ -71,9 +71,9 @@ impl ClassSelector {
     pub fn add_class(&mut self, ctx: &NodeContext, _event: Event<Click>) {
         let uni = UniqueTemplateNodeIdentifier::build(self.stid.get(), self.snid.get());
         let t = model::with_action_context(ctx, |ac| ac.transaction("add class"));
-        let mut dt = borrow_mut!(ctx.designtime);
-        let orm = dt.get_orm_mut();
         let _ = t.run(|| {
+            let mut dt = borrow_mut!(ctx.designtime);
+            let orm = dt.get_orm_mut();
             let Some(mut node_builder) = orm.get_node_builder(uni.clone(), false) else {
                 log::warn!("no node: {uni:?}");
                 return Err(anyhow!("failed to retrieve node"));
@@ -173,9 +173,9 @@ impl ListItem {
     pub fn remove(&mut self, ctx: &NodeContext, _event: Event<Click>) {
         let uni = UniqueTemplateNodeIdentifier::build(self.stid.get(), self.snid.get());
         let t = model::with_action_context(ctx, |ac| ac.transaction("remove class"));
-        let mut dt = borrow_mut!(ctx.designtime);
-        let orm = dt.get_orm_mut();
         let _ = t.run(|| {
+            let mut dt = borrow_mut!(ctx.designtime);
+            let orm = dt.get_orm_mut();
             let Some(mut node_builder) = orm.get_node_builder(uni.clone(), false) else {
                 log::warn!("no node: {uni:?}");
                 return Err(anyhow!("failed to retrieve node"));

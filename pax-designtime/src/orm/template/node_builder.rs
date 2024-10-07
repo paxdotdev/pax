@@ -149,9 +149,12 @@ impl<'a> NodeBuilder<'a> {
                 if let Some(settings) = node.settings {
                     for setting in settings {
                         if let SettingElement::Setting(token, value) = setting {
-                            if token.token_value == "class" {
-                                if let ValueDefinition::Identifier(PaxIdentifier { name }) = value {
-                                    classes.push(name);
+                            if let ValueDefinition::Identifier(PaxIdentifier { name }) = value {
+                                if token.token_value == "class" {
+                                    classes.push(format!(".{}", name));
+                                }
+                                if token.token_value == "id" {
+                                    classes.push(format!("#{}", name));
                                 }
                             }
                         }
@@ -312,28 +315,18 @@ impl<'a> NodeBuilder<'a> {
     }
 
     pub fn add_class(&mut self, class: &str) -> Result<()> {
-        if !pax_manifest::utils::valid_class(class) {
+        if !pax_manifest::utils::valid_class_or_id(class) {
             return Err(anyhow!("not valid class identifier"));
         }
-        let class = if class.starts_with('.') {
-            class.to_string()
-        } else {
-            format!(".{}", class)
-        };
-        self.updated_classes.insert(class, true);
+        self.updated_classes.insert(class.to_string(), true);
         Ok(())
     }
 
     pub fn remove_class(&mut self, class: &str) -> Result<()> {
-        if !pax_manifest::utils::valid_class(class) {
+        if !pax_manifest::utils::valid_class_or_id(class) {
             return Err(anyhow!("not a valid class identifier"));
         }
-        let class = if class.starts_with('.') {
-            class.to_string()
-        } else {
-            format!(".{}", class)
-        };
-        self.updated_classes.insert(class, false);
+        self.updated_classes.insert(class.to_string(), false);
         Ok(())
     }
 
@@ -396,10 +389,14 @@ impl<'a> NodeBuilder<'a> {
                                 .map(|value| SettingElement::Setting(k.clone(), value.clone()))
                         })
                         .chain(self.updated_classes.iter().filter_map(|(k, v)| {
+                            let is_class = k.starts_with('.');
+                            let key = k.trim_start_matches('.').trim_start_matches('#');
                             v.then_some(SettingElement::Setting(
-                                Token::new_without_location("class".to_string()),
+                                Token::new_without_location(
+                                    if is_class { "class" } else { "id" }.to_string(),
+                                ),
                                 ValueDefinition::Identifier(PaxIdentifier {
-                                    name: format!(".{}", k),
+                                    name: key.to_string(),
                                 }),
                             ))
                         }))
