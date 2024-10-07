@@ -762,7 +762,7 @@ export class NativeElementPool {
         // Apply the content
         if (patch.content != null) {
             if (sanitizeContentEditableString(textChild.innerHTML) != patch.content) {
-                textChild.innerHTML = patch.content;
+                textChild.innerHTML = snarkdown(patch.content);
             }
             // Apply the link styles if they exist
             if (patch.style_link != null) {
