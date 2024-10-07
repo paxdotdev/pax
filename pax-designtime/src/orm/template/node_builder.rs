@@ -12,7 +12,7 @@ use super::{
     AddTemplateNodeRequest, ControlFlowSettingsDefinitionUpdate, GetTemplateNodeRequest,
     UpdateTemplateNodeRequest,
 };
-use crate::orm::{valid_class, PaxManifestORM};
+use crate::orm::PaxManifestORM;
 
 /// Builder for creating and modifying template nodes in the PaxManifest.
 pub struct NodeBuilder<'a> {
@@ -312,7 +312,7 @@ impl<'a> NodeBuilder<'a> {
     }
 
     pub fn add_class(&mut self, class: &str) -> Result<()> {
-        if !valid_class(class) {
+        if !pax_manifest::utils::valid_class(class) {
             return Err(anyhow!("not valid class identifier"));
         }
         let class = if class.starts_with('.') {
@@ -325,7 +325,7 @@ impl<'a> NodeBuilder<'a> {
     }
 
     pub fn remove_class(&mut self, class: &str) -> Result<()> {
-        if !valid_class(class) {
+        if !pax_manifest::utils::valid_class(class) {
             return Err(anyhow!("not a valid class identifier"));
         }
         let class = if class.starts_with('.') {

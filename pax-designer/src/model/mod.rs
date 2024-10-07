@@ -89,14 +89,9 @@ pub struct AppState {
     /// we decide to write to clipboard
     /// INVALID_IF: no invalid states (that is the responsibility of the designer)
     pub clip_board: Property<SubTrees>,
-    /// The currently open/last open class name that was being edited in this component
+    /// The currently open class name that is being edited in this component.
+    /// Some(class) if editor is open, othewise None.
     /// INVALID_IF: this class doesn't exist for the component referenced by selected_component_id
-    /// TODO this feels a little wonky - don't need this state when the class
-    /// editor isn't open, but might care about selection state even when it is
-    /// (so can't be an enum). Possibly store as optional, always showing class
-    /// editor if true? or could it be a type of tool/toolbehavior once that
-    /// concept is generalized (since we also want different behavior on
-    /// screen when this is open - outline etc).
     pub current_editor_class_name: Property<Option<String>>,
 
     //---------------glass------------------
