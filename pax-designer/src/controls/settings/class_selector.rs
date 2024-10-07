@@ -101,7 +101,7 @@ impl ClassSelector {
         <EventBlocker/>
         <Path class=x_symbol x=50% y=50% width=15px height=15px/>
     </Group>
-    <EventBlocker @click=on_name_click/>
+    <EventBlocker @double_click=on_name_click/>
     <Text x=3px class=input text=class width={100%-3px} height=100%/>
     <Rectangle fill={rgb(12.5%, 12.5%, 12.5%)}
             stroke={
@@ -120,6 +120,8 @@ impl ClassSelector {
                     FontWeight::Light,
                 )},
                 font_size: 14px,
+                align_vertical: TextAlignVertical::Center,
+                align_multiline: TextAlignHorizontal::Center
                 fill: WHITE,
             }
         }
@@ -164,13 +166,13 @@ pub struct ListItem {
 }
 
 impl ListItem {
-    pub fn on_name_click(&mut self, ctx: &NodeContext, _event: Event<Click>) {
+    pub fn on_name_click(&mut self, ctx: &NodeContext, _event: Event<DoubleClick>) {
         model::perform_action(&EditClass(self.text.get()), ctx);
     }
 
     pub fn remove(&mut self, ctx: &NodeContext, _event: Event<Click>) {
         let uni = UniqueTemplateNodeIdentifier::build(self.stid.get(), self.snid.get());
-        let t = model::with_action_context(ctx, |ac| ac.transaction("add class"));
+        let t = model::with_action_context(ctx, |ac| ac.transaction("remove class"));
         let mut dt = borrow_mut!(ctx.designtime);
         let orm = dt.get_orm_mut();
         let _ = t.run(|| {

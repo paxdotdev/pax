@@ -223,6 +223,9 @@ impl PaxManifestORM {
         type_id: &TypeId,
         name: &str,
     ) -> Result<Vec<(String, ValueDefinition, Option<TypeId>)>> {
+        if !pax_manifest::utils::valid_class(name) {
+            return Err(anyhow!("not a valid class name"));
+        }
         let component = self
             .manifest
             .components
@@ -356,7 +359,7 @@ impl PaxManifestORM {
         &'a mut self,
         component_type_id: TypeId,
         class_name: &'a str,
-    ) -> ClassBuilder<'a> {
+    ) -> Result<ClassBuilder<'a>> {
         ClassBuilder::new(self, component_type_id, class_name)
     }
 
@@ -553,7 +556,6 @@ pub enum UndoRedoCommand {
     RemoveTemplateNodeRequest(Box<template::RemoveTemplateNodeRequest>),
     MoveTemplateNodeRequest(Box<template::MoveTemplateNodeRequest>),
     UpdateTemplateNodeRequest(Box<template::UpdateTemplateNodeRequest>),
-    AddClassRequest(Box<template::AddClassRequest>),
     UpdateClassRequest(Box<template::UpdateClassRequest>),
     PasteSubTreeRequest(Box<template::PasteSubTreeRequest>),
     ReplaceTemplateRequest(Box<template::ReplaceTemplateRequest>),
@@ -568,7 +570,6 @@ impl UndoRedoCommand {
             UndoRedoCommand::AddTemplateNodeRequest(command) => command.undo(manifest),
             UndoRedoCommand::RemoveTemplateNodeRequest(command) => command.undo(manifest),
             UndoRedoCommand::UpdateTemplateNodeRequest(command) => command.undo(manifest),
-            UndoRedoCommand::AddClassRequest(command) => command.undo(manifest),
             UndoRedoCommand::UpdateClassRequest(command) => command.undo(manifest),
             UndoRedoCommand::PasteSubTreeRequest(command) => command.undo(manifest),
             UndoRedoCommand::ReplaceTemplateRequest(command) => command.undo(manifest),
@@ -589,9 +590,6 @@ impl UndoRedoCommand {
                 let _ = command.execute(manifest);
             }
             UndoRedoCommand::UpdateTemplateNodeRequest(command) => {
-                let _ = command.execute(manifest);
-            }
-            UndoRedoCommand::AddClassRequest(command) => {
                 let _ = command.execute(manifest);
             }
             UndoRedoCommand::UpdateClassRequest(command) => {
@@ -646,8 +644,3 @@ pub enum MessageType {
 }
 
 impl Interpolatable for MessageType {}
-
-pub fn valid_class(class_ident: &str) -> bool {
-    // TODO fill in
-    true
-}

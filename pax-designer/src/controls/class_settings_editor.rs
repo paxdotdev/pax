@@ -197,7 +197,7 @@ impl ClassSettingsEditor {
             let mut dt = borrow_mut!(ctx.designtime);
             let orm = dt.get_orm_mut();
             let class_name = self.class_name.get();
-            let mut builder = orm.get_class_builder(self.stid.get(), &class_name);
+            let mut builder = orm.get_class_builder(self.stid.get(), &class_name)?;
             builder.set_property(&key, &value)?;
             builder
                 .save()

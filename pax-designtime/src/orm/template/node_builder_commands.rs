@@ -201,6 +201,7 @@ pub struct UpdateTemplateNodeResponse {
     pub command_id: Option<usize>,
     _affected_component_type_id: TypeId,
     _affected_unique_node_identifier: UniqueTemplateNodeIdentifier,
+    _needs_full_reload: bool,
 }
 
 impl Request for UpdateTemplateNodeRequest {
@@ -215,9 +216,11 @@ impl Response for UpdateTemplateNodeResponse {
         self.command_id.unwrap()
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
-        Some(ReloadType::Partial(
-            self._affected_unique_node_identifier.clone(),
-        ))
+        Some(if self._needs_full_reload {
+            ReloadType::FullEdit
+        } else {
+            ReloadType::Partial(self._affected_unique_node_identifier.clone())
+        })
     }
 }
 
@@ -283,6 +286,8 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
             command_id: None,
             _affected_component_type_id: uni.get_containing_component_type_id(),
             _affected_unique_node_identifier: uni,
+            // At the moment class changes aren't reloaded by a partial update
+            _needs_full_reload: !self.updated_classes.is_empty(),
         })
     }
 

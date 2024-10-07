@@ -25,7 +25,7 @@
             </Group>
             <Textbox y=40px class=input class=col_1 class=span_6 text=bind:new_property_value/>
         </Group>
-        <Group x=100% width=50px height=50px @click=self.close_class_editor>
+        <Group x=100% width=40px height=40px @click=self.close_class_editor>
             <Image x=50% y=50% width=20px height=20px source={ImageSource::Url("assets/icons/x.png")}/>
             <Rectangle fill=TRANSPARENT/>
         </Group>
