@@ -223,7 +223,7 @@ impl PaxManifestORM {
         type_id: &TypeId,
         name: &str,
     ) -> Result<Vec<(String, ValueDefinition, Option<TypeId>)>> {
-        if !pax_manifest::utils::valid_class(name) {
+        if !pax_manifest::utils::valid_class_or_id(name) {
             return Err(anyhow!("not a valid class name"));
         }
         let component = self
@@ -281,7 +281,8 @@ impl PaxManifestORM {
             .iter()
             .filter_map(|setting| match setting {
                 pax_manifest::SettingsBlockElement::SelectorBlock(token, _block) => {
-                    Some(token.token_value.trim_start_matches('.').to_string())
+                    log::debug!("token: {:?}", token);
+                    Some(token.token_value.to_string())
                 }
                 _ => None,
             })
