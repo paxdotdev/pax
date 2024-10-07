@@ -1,5 +1,4 @@
-<Scroller>
-<Group @wheel=self.handle_wheel x=101.31% y=-6.23%>
+<Group @wheel=self.handle_wheel>
     <Text x=0% y=0% text="SCROLL" height=100% width=100% style={
         font: Font::Web(
             "Roboto",
@@ -17,8 +16,6 @@
         <Rectangle class=rect width=300px height=300px/>
     }
 </Group>
-</Scroller>
-
 
 @settings {
     @tick: handle_tick
