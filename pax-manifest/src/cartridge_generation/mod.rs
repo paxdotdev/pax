@@ -78,6 +78,8 @@ impl PaxManifest {
         add("wheel", "Wheel");
         add("drop", "Drop");
         add("focused", "Focus");
+        add("select_start", "SelectStart");
+
         map.insert("pre_render".to_string(), None);
         map.insert("mount".to_string(), None);
         map.insert("unmount".to_string(), None);

@@ -7,7 +7,9 @@ use std::rc::Rc;
 
 use kurbo::Affine;
 use pax_message::NativeMessage;
-use pax_runtime_api::{pax_value::PaxAny, use_RefCell, Event, Focus, Variable, Window, OS};
+use pax_runtime_api::{
+    pax_value::PaxAny, use_RefCell, Event, Focus, SelectStart, Variable, Window, OS,
+};
 
 use crate::api::{KeyDown, KeyPress, KeyUp, NodeContext, RenderContext};
 use piet::InterpolationMode;
@@ -417,6 +419,19 @@ impl PaxEngine {
         self.root_expanded_node
             .recurse_visit_postorder(&mut |expanded_node| {
                 prevent_default |= expanded_node.dispatch_focus(
+                    Event::new(args.clone()),
+                    &self.runtime_context.globals(),
+                    &self.runtime_context,
+                );
+            });
+        prevent_default
+    }
+
+    pub fn global_dispatch_select_start(&self, args: SelectStart) -> bool {
+        let mut prevent_default = false;
+        self.root_expanded_node
+            .recurse_visit_postorder(&mut |expanded_node| {
+                prevent_default |= expanded_node.dispatch_select_start(
                     Event::new(args.clone()),
                     &self.runtime_context.globals(),
                     &self.runtime_context,

@@ -15,7 +15,7 @@ use pax_runtime::DefinitionToInstanceTraverser;
 use pax_runtime_api::borrow_mut;
 use pax_runtime_api::Event;
 use pax_runtime_api::Focus;
-use web_time::Duration;
+use pax_runtime_api::SelectStart;
 use web_time::Instant;
 use_RefCell!();
 
@@ -468,6 +468,9 @@ impl PaxChassisWeb {
                     &globals,
                     &engine.runtime_context,
                 )
+            }
+            NativeInterrupt::SelectStart(_args) => {
+                engine.global_dispatch_select_start(SelectStart {})
             }
             NativeInterrupt::MouseMove(args) => {
                 let topmost_node = engine
