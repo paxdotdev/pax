@@ -56,6 +56,7 @@ pub enum NativeMessage {
 #[repr(C)]
 pub enum NativeInterrupt {
     ChassisResizeRequestCollection(Vec<ChassisResizeRequestArgs>),
+    SelectStart(SelectStartArgs),
     Focus(FocusInterruptArgs),
     Clap(ClapInterruptArgs),
     Scroll(ScrollInterruptArgs),
@@ -104,6 +105,10 @@ pub struct FormCheckboxToggleArgs {
 #[derive(Deserialize)]
 #[repr(C)]
 pub struct FocusInterruptArgs {}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct SelectStartArgs {}
 
 #[derive(Deserialize)]
 #[repr(C)]

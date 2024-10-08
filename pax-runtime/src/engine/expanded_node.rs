@@ -2,7 +2,8 @@ use crate::api::TextInput;
 use crate::node_interface::NodeLocal;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::{
-    borrow, borrow_mut, use_RefCell, Focus, Interpolatable, Percent, Property, Variable, Viewport,
+    borrow, borrow_mut, use_RefCell, Focus, Interpolatable, Percent, Property, SelectStart,
+    Variable, Viewport,
 };
 
 use crate::api::math::Point2;
@@ -11,8 +12,9 @@ use crate::constants::{
     CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, DROP_HANDLERS, FOCUSED_HANDLERS,
     KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS, KEY_UP_HANDLERS, MOUSE_DOWN_HANDLERS,
     MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS, MOUSE_OVER_HANDLERS, MOUSE_UP_HANDLERS,
-    SCROLL_HANDLERS, TEXTBOX_CHANGE_HANDLERS, TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS,
-    TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
+    SCROLL_HANDLERS, SELECT_START_HANDLERS, TEXTBOX_CHANGE_HANDLERS, TEXTBOX_INPUT_HANDLERS,
+    TEXT_INPUT_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS,
+    WHEEL_HANDLERS,
 };
 use_RefCell!();
 use crate::{ExpandedNodeIdentifier, Globals, LayoutProperties, TransformAndBounds};
@@ -806,6 +808,12 @@ impl ExpandedNode {
     dispatch_event_handler!(dispatch_wheel, Wheel, WHEEL_HANDLERS, true);
     dispatch_event_handler!(dispatch_drop, Drop, DROP_HANDLERS, true);
     dispatch_event_handler!(dispatch_focus, Focus, FOCUSED_HANDLERS, false);
+    dispatch_event_handler!(
+        dispatch_select_start,
+        SelectStart,
+        SELECT_START_HANDLERS,
+        false
+    );
 
     pub fn dispatch_custom_event(
         &self,

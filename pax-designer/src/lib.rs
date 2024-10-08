@@ -183,10 +183,8 @@ impl PaxDesigner {
     }
 
     pub fn handle_mouse_move(&mut self, ctx: &NodeContext, args: Event<MouseMove>) {
-        let prevent_default = || args.prevent_default();
         model::perform_action(
             &crate::model::action::pointer::MouseEntryPointAction {
-                prevent_default: &prevent_default,
                 event: Pointer::Move,
                 button: args.mouse.button.clone(),
                 point: Point2::new(args.mouse.x, args.mouse.y),
@@ -201,11 +199,9 @@ impl PaxDesigner {
         // the elements to keep listening to mouse ups outside of the objects.
         // see: https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events#capturing_the_pointer
 
-        let prevent_default = || event.prevent_default();
         // NOTE: this was originally on glass
         model::perform_action(
             &crate::model::action::pointer::MouseEntryPointAction {
-                prevent_default: &prevent_default,
                 event: Pointer::Up,
                 button: event.mouse.button.clone(),
                 point: Point2::new(event.mouse.x, event.mouse.y),

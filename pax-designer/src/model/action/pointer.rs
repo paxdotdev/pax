@@ -25,8 +25,7 @@ use pax_engine::log;
 use pax_engine::math::Point2;
 use pax_engine::pax_manifest::{TreeIndexPosition, TypeId, Unit};
 
-pub struct MouseEntryPointAction<'a> {
-    pub prevent_default: &'a dyn Fn(),
+pub struct MouseEntryPointAction {
     pub event: Pointer,
     pub button: MouseButton,
     pub point: Point2<Window>,
@@ -39,7 +38,7 @@ pub enum Pointer {
     Up,
 }
 
-impl Action for MouseEntryPointAction<'_> {
+impl Action for MouseEntryPointAction {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
         let point_glass = ctx.glass_transform().get() * self.point;
         ctx.app_state.mouse_position.set(point_glass);
@@ -80,7 +79,6 @@ impl Action for MouseEntryPointAction<'_> {
                 MouseButton::Left => {
                     match ctx.app_state.selected_tool.get() {
                         Tool::PointerPercent | Tool::PointerPixels => {
-                            (self.prevent_default)();
                             if let Some(hit) = ctx.raycast_glass(point_glass, RaycastMode::Top, &[])
                             {
                                 tool_behavior.set(Some(Rc::new(RefCell::new(MovingTool::new(
