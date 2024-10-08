@@ -14,6 +14,7 @@ use messages::LLMRequest;
 use orm::{MessageType, ReloadType};
 use pax_manifest::pax_runtime_api::Property;
 use privileged_agent::WebSocketConnection;
+use url::Url;
 
 use core::fmt::Debug;
 
@@ -77,16 +78,15 @@ impl DesigntimeManager {
         self.orm.get_messages(request_id)
     }
 
-    pub fn new_with_addr(manifest: PaxManifest, priv_addr: SocketAddr) -> Self {
+    pub fn new(manifest: PaxManifest) -> Self {
         let priv_agent = Rc::new(RefCell::new(
-            WebSocketConnection::new(priv_addr, None)
+            WebSocketConnection::new("ws://localhost:8080", None)
                 .expect("couldn't connect to privileged agent"),
         ));
 
         let address: String = get_server_base_url();
-        let socket_addr: SocketAddr = address.parse().expect("Invalid address");
         let pub_pax = Rc::new(RefCell::new(
-            WebSocketConnection::new(socket_addr, Some(VERSION_PREFIX))
+            WebSocketConnection::new(&address, Some(VERSION_PREFIX))
                 .expect("couldn't connect to privileged agent"),
         ));
 
@@ -103,11 +103,6 @@ impl DesigntimeManager {
             publish_state: Default::default(),
         }
     }
-
-    pub fn new(manifest: PaxManifest) -> Self {
-        Self::new_with_addr(manifest, SocketAddr::from((Ipv4Addr::LOCALHOST, 8080)))
-    }
-
     pub fn set_project(&mut self, project_query: String) {
         self.project_query = Some(project_query);
     }
