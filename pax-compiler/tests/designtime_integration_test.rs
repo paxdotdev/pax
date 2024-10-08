@@ -90,10 +90,10 @@ async fn designtime_integration_test() {
     let path = current_dir.join("tests/data/designtime_integration_test.pax");
     let path_str = path.to_str().expect("Path is not a valid UTF-8 string");
 
-    let srv = get_test_server();
+    let _srv = get_test_server();
 
     let manifest: PaxManifest = create_basic_manifest(path_str.to_owned());
-    let mut designer = pax_designtime::DesigntimeManager::new_with_addr(manifest, srv.addr());
+    let mut designer = pax_designtime::DesigntimeManager::new(manifest);
     designer.send_component_update(&component_type_id).unwrap();
 
     std::thread::sleep(Duration::from_secs(1));
