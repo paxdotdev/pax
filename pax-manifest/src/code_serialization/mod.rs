@@ -152,13 +152,17 @@ pub fn diff_html(old_content: &str, new_content: &str) -> Option<String> {
     let mut all_diffs = vec![];
 
     for change in diff.iter_all_changes() {
+
+        //handle edge-cases where the change is empty
+        if change.to_string().trim() == "" { continue; }
+
         let output = match change.tag() {
             ChangeTag::Delete => Some(format!(
-                "<span style=\"color: red;\">-{} </span>",
+                "<br/><span style=\"color: red;\">---<code>{}</code></span>",
                 html_escape::encode_text(&change.to_string())
             )),
             ChangeTag::Insert => Some(format!(
-                "<span style=\"color: green;\">+{} </span>",
+                "<span style=\"color: green;\">+++<code>{}</code></span>",
                 html_escape::encode_text(&change.to_string())
             )),
             ChangeTag::Equal => None,
