@@ -126,7 +126,7 @@ impl ClassSettingsEditor {
         stid: Property<TypeId>,
         class_name: Property<String>,
     ) -> Property<Vec<PropertyArea>> {
-        let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
+        let manifest_ver = borrow!(ctx.designtime).get_last_written_manifest_version();
         let deps = [stid.untyped(), class_name.untyped(), manifest_ver.untyped()];
         Property::computed(
             move || {

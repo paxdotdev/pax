@@ -124,8 +124,14 @@ impl PaxDesigner {
     fn bind_stage_property(&mut self, app_state: &model::AppState) {
         let stage = app_state.stage.clone();
         let deps = [stage.untyped()];
-        self.stage
-            .replace_with(Property::computed(move || stage.get(), &deps));
+        log::debug!("binding stage prop");
+        self.stage.replace_with(Property::computed(
+            move || {
+                log::debug!("stage changed: {:?}", stage.get());
+                stage.get()
+            },
+            &deps,
+        ));
     }
 
     pub fn focused(&mut self, _ctx: &NodeContext, _args: Event<Focus>) {

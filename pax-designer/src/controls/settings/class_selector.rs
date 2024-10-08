@@ -28,7 +28,7 @@ impl ClassSelector {
 
     fn bind_available_classes(&self, ctx: &NodeContext) {
         let stid = self.stid.clone();
-        let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
+        let manifest_ver = borrow!(ctx.designtime).get_last_written_manifest_version();
         let deps = [stid.untyped(), manifest_ver.untyped()];
         let ctx = ctx.clone();
         self.available_classes.replace_with(Property::computed(
@@ -48,7 +48,7 @@ impl ClassSelector {
     fn bind_current_classes(&self, ctx: &NodeContext) {
         let stid = self.stid.clone();
         let snid = self.snid.clone();
-        let manifest_ver = borrow!(ctx.designtime).get_manifest_version();
+        let manifest_ver = borrow!(ctx.designtime).get_last_written_manifest_version();
         let deps = [stid.untyped(), manifest_ver.untyped(), snid.untyped()];
         let ctx = ctx.clone();
         self.current_classes.replace_with(Property::computed(
