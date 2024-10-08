@@ -680,11 +680,16 @@ export class NativeElementPool {
 
         let textDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let textChild: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        textDiv.addEventListener("click", (_event) => {
+            if (textDiv.contentEditable != "false") {
+                textChild.focus();
+            }
+        });
         textChild.addEventListener("input", (_event) => {
             let message = {
               "TextInput": {
                 "id": patch.id!,
-                "text": sanitizeContentEditableString(textChild.innerHTML),
+                "text": textChild.innerText,
               }
             };
 
@@ -738,21 +743,26 @@ export class NativeElementPool {
         }
 
         if (patch.editable) {
-            textChild.setAttribute("contenteditable", patch.editable.toString());
             const selection = window.getSelection();
             selection!.removeAllRanges();
             if (patch.editable == true) {
+                textChild.setAttribute("contenteditable", "plaintext-only");
                 textChild.style.outline = "none";
 
-                 // Select all text in the editable div
-                const range = document.createRange();
-                range.selectNodeContents(textChild);
-                selection!.addRange(range);
 
                 setTimeout(() => {
-                  textChild.focus();
+                    textChild.focus();
+
+                    // Move the cursor to the end of the text
+                    const range = document.createRange();
+                    range.selectNodeContents(textChild);
+                    const selection = window.getSelection();
+                    selection!.removeAllRanges();
+                    selection!.addRange(range)                    
                 }, 1);
                 // Focus on the editable div
+            } else {
+                textChild.setAttribute("contenteditable", "false");
             }
         }
 
@@ -764,7 +774,7 @@ export class NativeElementPool {
 
         // Apply the content
         if (patch.content != null) {
-            if (sanitizeContentEditableString(textChild.innerHTML) != patch.content) {
+            if (textChild.innerText != patch.content) {
                 if (patch.markdown) {
                     textChild.innerHTML = snarkdown(patch.content);
                 } else {
@@ -1071,16 +1081,6 @@ function applyTextStyle(textContainer: HTMLElement, textElem: HTMLElement, style
             textElem.style.textAlign = getTextAlign(style.align_multiline);
         }
     }
-}
-
-
-// why all the replaces?:
-// see: https://stackoverflow.com/questions/13762863/contenteditable-field-to-maintain-newlines-upon-database-entry
-function sanitizeContentEditableString(string: string): string {
-    return (string
-        .replace(/<br\s*\/*>/ig, '\n') 
-        .replace(/(<(p|div))/ig, '\n$1') 
-        .replace(/(<([^>]+)>)/ig, "")?? '');
 }
 
 function updateCommonProps(leaf: HTMLElement, patch: any) {
