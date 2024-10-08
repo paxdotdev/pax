@@ -9,6 +9,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use ewebsock::{WsEvent, WsMessage};
 use pax_manifest::{ComponentDefinition, PaxManifest};
+use url::Url;
 
 pub struct WebSocketConnection {
     sender: ewebsock::WsSender,
@@ -17,14 +18,33 @@ pub struct WebSocketConnection {
 }
 
 impl WebSocketConnection {
-    pub fn new(addr: SocketAddr, versioning_prefix: Option<&str>) -> Result<Self> {
-        let url = format!(
-            "ws://{}{}/ws",
-            addr,
-            versioning_prefix.unwrap_or_else(|| "")
-        );
+    pub fn new(addr: &str, versioning_prefix: Option<&str>) -> Result<Self> {
+        // Parse the address as a URL
+        let mut url = Url::parse(addr).map_err(|e| anyhow!("Invalid URL: {}", e))?;
+
+        // Change the scheme to 'ws' or 'wss' depending on the original scheme
+        let ws_scheme = match url.scheme() {
+            "http" => "ws",
+            "https" => "wss",
+            "ws" | "wss" => url.scheme(),
+            _ => return Err(anyhow!("Unsupported URL scheme: {}", url.scheme())),
+        }
+        .to_owned();
+
+        url.set_scheme(&ws_scheme)
+            .map_err(|_| anyhow!("Failed to set URL scheme"))?;
+
+        // Append the versioning prefix and '/ws' to the path
+        let versioning_prefix = versioning_prefix.unwrap_or("");
+        let new_path = format!("{}/ws", versioning_prefix);
+        url.set_path(&new_path);
+
+        let url_str = url.to_string();
+
+        // Connect using ewebsock
         let (sender, recver) =
-            ewebsock::connect(url).map_err(|_| anyhow!("couldn't create socket connection"))?;
+            ewebsock::connect(url_str).map_err(|_| anyhow!("Couldn't create socket connection"))?;
+
         Ok(Self {
             sender,
             recver,
