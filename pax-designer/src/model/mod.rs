@@ -461,8 +461,8 @@ impl Interpolatable for ProjectMode {}
 
 #[derive(Default, Clone)]
 pub enum ProjectMode {
-    Edit,
     #[default]
+    Edit,
     Playing,
 }
 

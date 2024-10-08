@@ -920,7 +920,15 @@ The standard library includes:
 
 **`<Frame />`** - Exactly like a Group, except requires a `size`, and introduces a clipping context outside of its rectangular boundaries.  Any element that would be rendered outside of those boundaries gets clipped (hidden from view / non-interactable.)
 
-**`<Image />`** - allows embedding and rendering a bitmap or vector image. Name imaginative image paths descriptively so that they may be used as a singular input to diffusion models.
+**`<Image />`** - allows embedding and rendering a bitmap or vector image.
+When generating an image, the available assets are:
+ - "assets/rock-band.png"
+ - "assets/rock-band-hard-core.png"
+ - "assets/band-logo.png"
+ - "assets/band-logo-hard-core.png"
+ - "assets/placeholder.png"
+When someone asks to generate something for their rock band, choose the "rock-band" variants, unless they explicitly ask for it to be hard-core.
+For any other images, use the "placeholder" variant.
 
 **`<Scroller />`** - like a Frame, except allows scrolling on any of `x` or `y` axes.  Scrolling will be handled natively via the chassis, and the `Scroller`'s position will reflect the position of the native scrolling container.
 
@@ -3728,7 +3736,7 @@ A scrollable marketing website for a generic product. Note that content should b
 <Scroller scroll_height=400% x=0% y=0% width=100% height=100%>
     <Stacker width={100% + 10px} height=100% y=0% x=0% direction=StackerDirection::Vertical sizes=[Some(750px), None, None]>
         <Group x=0 height=750px skew_y=0.00rad skew_x=0.00rad rotate=0.00rad>
-            <Image width=500px height=500px x={100% - 80px} y=53.06% source=ImageSource::Url("assets/placeholder.jpg")/>
+            <Image width=500px height=500px x={100% - 80px} y=53.06% source=ImageSource::Url("assets/placeholder.png")/>
             <Group rotate=0.00rad skew_x=0.00rad x=10% y=41.45% height=430.05px width=466.31px>
                 <Button style={
                     font: Font::Web(
@@ -3822,7 +3830,7 @@ A scrollable marketing website for a generic product. Note that content should b
                 <Group rotate=0.00rad skew_x=0.00rad skew_y=0.00rad>
                     <Stacker width=114.70px height=30.00px direction=StackerDirection::Horizontal y=20.00px x=14.72px>
                         <Group skew_x=0.00rad rotate=0.00rad skew_y=0.00rad>
-                            <Image source=ImageSource::Url("assets/placeholder.jpg") skew_y=0.00rad skew_x=0.00rad rotate=0.00rad x=0/>
+                            <Image source=ImageSource::Url("assets/placeholder.png") skew_y=0.00rad skew_x=0.00rad rotate=0.00rad x=0/>
                         </Group>
                         <Group skew_y=0.00rad skew_x=0.00rad rotate=0.00rad>
                             <Text style={
