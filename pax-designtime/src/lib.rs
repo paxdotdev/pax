@@ -114,7 +114,7 @@ impl DesigntimeManager {
         Ok(())
     }
 
-    pub fn get_new_message_listener(&self) -> Property<Option<MessageType>> {
+    pub fn get_new_message_listener(&self) -> Property<Vec<MessageType>> {
         self.orm.new_message.clone()
     }
 

@@ -76,7 +76,7 @@ pub struct PaxManifestORM {
     reload_queue: Vec<ReloadType>,
     pub manifest_loaded_from_server: Property<bool>,
     pub llm_messages: HashMap<u64, Vec<String>>,
-    pub new_message: Property<Option<MessageType>>,
+    pub new_message: Property<Vec<MessageType>>,
     pub last_serialized_version: HashMap<TypeId, ComponentDefinition>,
 }
 
@@ -98,17 +98,28 @@ impl PaxManifestORM {
             reload_queue: Vec::new(),
             manifest_loaded_from_server: Property::new(false),
             llm_messages: HashMap::new(),
-            new_message: Property::new(None),
+            new_message: Property::new(vec![]),
             last_serialized_version,
         }
     }
 
-    pub fn add_new_message(&mut self, request_id: u64, message: String) {
+    pub fn add_new_message(
+        &mut self,
+        request_id: u64,
+        message: String,
+        component: Option<ComponentDefinition>,
+    ) {
+        log::debug!("message");
         self.llm_messages
             .entry(request_id)
             .or_insert(Vec::new())
             .push(message);
-        self.new_message.set(Some(MessageType::LLM));
+        self.new_message.update(|msgs| {
+            msgs.push(match component {
+                Some(component) => MessageType::LLMSuccess(component),
+                None => MessageType::LLMPartial,
+            })
+        });
     }
 
     pub fn get_messages(&mut self, request_id: u64) -> Vec<String> {
@@ -458,8 +469,10 @@ impl PaxManifestORM {
                 .unwrap_or("".to_string());
             let diff = diff_html(&prev_serialized, &post_serialized);
             let message_type = diff.map(|d| MessageType::Serialization(d));
-            if let Some(_) = message_type {
-                self.new_message.set(message_type);
+            if let Some(message) = message_type {
+                self.new_message.update(|msgs| {
+                    msgs.push(message);
+                });
             }
         }
         self.last_serialized_version
@@ -648,7 +661,8 @@ pub struct SubTrees {
 #[derive(Serialize, Deserialize, Clone)]
 pub enum MessageType {
     Serialization(String),
-    LLM,
+    LLMPartial,
+    LLMSuccess(ComponentDefinition),
 }
 
 impl Interpolatable for MessageType {}
