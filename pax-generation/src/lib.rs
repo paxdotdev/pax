@@ -16,7 +16,7 @@ const CLAUDE_API_URL: &str = "https://api.anthropic.com/v1/messages";
 const OPENAI_API_URL: &str = "https://api.openai.com/v1/chat/completions";
 
 // Include the system prompt from the file in the cargo manifest root
-const SYSTEM_PROMPT: &str = include_str!("../system_prompt_v2.txt");
+const SYSTEM_PROMPT: &str = include_str!("../system_prompt_v3.txt");
 
 macro_rules! project_root {
     () => {
@@ -31,14 +31,20 @@ fn output_dir() -> PathBuf {
 #[derive(Clone, Copy)]
 pub enum AIModel {
     Claude3,
-    GPT4,
+    GPT4o,
+    GPT4oMini,
+    O1,
+    O1Mini,
 }
 
 impl AIModel {
     fn as_str(&self) -> &'static str {
         match self {
             AIModel::Claude3 => "claude-3-5-sonnet-20240620",
-            AIModel::GPT4 => "gpt-4o",
+            AIModel::GPT4o => "gpt-4o",
+            AIModel::GPT4oMini => "gpt-4o-mini",
+            AIModel::O1 => "o1-preview",
+            AIModel::O1Mini => "o1-mini",
         }
     }
 }
@@ -274,7 +280,7 @@ impl PaxAppGenerator {
                     body,
                 )
             }
-            AIModel::GPT4 => {
+            AIModel::GPT4o | AIModel::GPT4oMini | AIModel::O1 | AIModel::O1Mini => {
                 let api_messages: Vec<Value> = messages
                     .iter()
                     .map(|m| json!({ "role": &m.role, "content": &m.content }))
@@ -318,7 +324,7 @@ impl PaxAppGenerator {
                         .map(String::from)
                 }
             }
-            AIModel::GPT4 => {
+            AIModel::GPT4o | AIModel::O1 | AIModel::O1Mini | AIModel::GPT4oMini => {
                 if let Some(error) = response.get("error") {
                     Err(format!("API Error: {:?}", error).into())
                 } else {
@@ -328,7 +334,7 @@ impl PaxAppGenerator {
                         .and_then(|obj| obj["message"]["content"].as_str())
                         .ok_or_else(|| {
                             let error_msg = format!(
-                                "Unexpected response format for GPT-4. Response: {:?}",
+                                "Unexpected response format for GPT-4o. Response: {:?}",
                                 response
                             );
                             error_msg.into()
