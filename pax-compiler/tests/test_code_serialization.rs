@@ -4,10 +4,10 @@ use std::io::{self, Read};
 
 use std::sync::{Arc, Mutex};
 
-use pax_compiler::design_server::code_serialization::serialize_component_to_file;
-use pax_compiler::formatting::format_file;
-use pax_compiler::helpers::clear_inlined_template;
 use pax_compiler::run_parser_binary;
+use pax_lang::formatting::format_file;
+use pax_lang::helpers::clear_inlined_template;
+use pax_manifest::code_serialization::serialize_component_to_file;
 use pax_manifest::PaxManifest;
 
 const PATH: &str = "tests/data/code_serialization/serialization_test_project";
