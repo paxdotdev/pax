@@ -150,8 +150,8 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
     let control_point_styling = ControlPointStyling {
         affected_by_transform: true,
         round: false,
-        stroke: Color::RED,
-        fill: Color::rgba(255.into(), 255.into(), 255.into(), 150.into()),
+        stroke_color: Color::RED,
+        fill_color: Color::rgba(255.into(), 255.into(), 255.into(), 150.into()),
         stroke_width_pixels: 1.0,
         width: -1.0,
         height: -1.0,

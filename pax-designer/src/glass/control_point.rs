@@ -204,8 +204,8 @@ pub struct ControlPointDef {
 pub struct ControlPointStyling {
     pub affected_by_transform: bool,
     pub round: bool,
-    pub stroke: Color,
-    pub fill: Color,
+    pub stroke_color: Color,
+    pub fill_color: Color,
     pub stroke_width_pixels: f64,
     pub width: f64,
     pub height: f64,

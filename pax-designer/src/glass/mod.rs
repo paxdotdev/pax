@@ -322,7 +322,7 @@ pub struct ToolVisualizationState {
     /// and for multi-select
     pub rect_tool: RectTool,
     /// Highlight around an object when mouse is over
-    pub outline: Vec<PathElement>,
+    pub object_outline: Vec<PathElement>,
     /// snap lines
     pub snap_lines: SnapInfo,
     /// only disabled when we need to interact with the nodes in the glass,
@@ -336,7 +336,7 @@ impl Default for ToolVisualizationState {
     fn default() -> Self {
         Self {
             rect_tool: Default::default(),
-            outline: Default::default(),
+            object_outline: Default::default(),
             snap_lines: Default::default(),
             event_blocker_active: true,
             intent_areas: Vec::new(),
@@ -367,8 +367,8 @@ pub struct RectTool {
     pub y: Size,
     pub width: Size,
     pub height: Size,
-    pub fill: Color,
-    pub stroke: Color,
+    pub fill_color: Color,
+    pub stroke_color: Color,
 }
 
 impl Default for RectTool {
@@ -378,8 +378,8 @@ impl Default for RectTool {
             y: Size::ZERO(),
             width: Size::ZERO(),
             height: Size::ZERO(),
-            fill: Color::TRANSPARENT,
-            stroke: Color::TRANSPARENT,
+            fill_color: Color::TRANSPARENT,
+            stroke_color: Color::TRANSPARENT,
         }
     }
 }

@@ -41,7 +41,7 @@ impl Default for Dropdown {
             style: Property::new(TextStyle {
                 font: Property::new(Font::default()),
                 font_size: Property::new(Size::Pixels(Numeric::F64(14.0))),
-                fill: Property::new(Color::BLACK),
+                fill: Property::new(Fill::Solid(Color::BLACK)),
                 underline: Property::new(false),
                 align_horizontal: Property::new(TextAlignHorizontal::Left),
                 align_multiline: Property::new(TextAlignHorizontal::Left),

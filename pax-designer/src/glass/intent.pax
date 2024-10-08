@@ -1,10 +1,10 @@
 <Rectangle
     _raycastable=false
-    x={self.data.x}
-    y={self.data.y}
-    rotate={(self.data.rotation)rad}
-    width={self.data.width}
-    height={self.data.height}
-    fill={self.data.fill}
-    stroke={{width: (self.data.stroke_width_pixels)px color: self.data.stroke }}
+    x={self.data.intent_x}
+    y={self.data.intent_y}
+    rotate={(self.data.intent_rotation)rad}
+    width={self.data.intent_width}
+    height={self.data.intent_height}
+    fill={self.data.intent_fill}
+    stroke={{width: (self.data.intent_stroke_width_pixels)px color: self.data.intent_stroke }}
 />

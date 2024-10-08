@@ -2,7 +2,7 @@ use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 
-use pax_engine::api::{Color, Layer, Numeric, Property, RenderContext, Size};
+use pax_engine::api::{Color, Fill, Layer, Numeric, Property, RenderContext, Size};
 use pax_engine::*;
 
 use pax_message::{
@@ -263,7 +263,7 @@ pub struct TextStyle {
     #[serde(default)]
     pub font_size: Property<Size>,
     #[serde(default)]
-    pub fill: Property<Color>,
+    pub fill: Property<Fill>,
     #[serde(default)]
     pub underline: Property<bool>,
     #[serde(default)]
@@ -279,7 +279,7 @@ impl Default for TextStyle {
         Self {
             font: Property::new(Font::default()),
             font_size: Property::new(Size::Pixels(Numeric::F64(20.0))),
-            fill: Property::new(Color::BLACK),
+            fill: Property::new(Fill::Solid(Color::BLACK)),
             underline: Property::new(false),
             align_multiline: Property::new(TextAlignHorizontal::Left),
             align_vertical: Property::new(TextAlignVertical::Top),
@@ -293,7 +293,19 @@ impl<'a> Into<TextStyleMessage> for &'a TextStyle {
         TextStyleMessage {
             font: Some(self.font.get().clone().into()),
             font_size: Some(self.font_size.get().expect_pixels().to_float()),
-            fill: Some(Into::<ColorMessage>::into(&self.fill.get())),
+            fill: Some(Into::<ColorMessage>::into(&match self.fill.get() {
+                Fill::Solid(color) => color,
+                Fill::LinearGradient(lgrad) => lgrad
+                    .stops
+                    .first()
+                    .map(|f| f.color.clone())
+                    .unwrap_or_default(),
+                Fill::RadialGradient(rgrad) => rgrad
+                    .stops
+                    .first()
+                    .map(|f| f.color.clone())
+                    .unwrap_or_default(),
+            })),
             underline: Some(self.underline.get().clone()),
             align_multiline: Some(Into::<TextAlignHorizontalMessage>::into(
                 &self.align_multiline.get(),
@@ -329,10 +341,22 @@ impl PartialEq<TextStyleMessage> for TextStyle {
                 < 1e-3
         });
 
-        let fill_equal = other
-            .fill
-            .as_ref()
-            .map_or(false, |fill| self.fill.get().eq(fill));
+        let fill_equal = other.fill.as_ref().map_or(false, |fill| {
+            match self.fill.get() {
+                Fill::Solid(color) => color,
+                Fill::LinearGradient(lgrad) => lgrad
+                    .stops
+                    .first()
+                    .map(|f| f.color.clone())
+                    .unwrap_or_default(),
+                Fill::RadialGradient(rgrad) => rgrad
+                    .stops
+                    .first()
+                    .map(|f| f.color.clone())
+                    .unwrap_or_default(),
+            }
+            .eq(fill)
+        });
 
         let underline_equal = other
             .underline

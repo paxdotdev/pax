@@ -176,8 +176,8 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
 
     let slot_dot_point_styling = ControlPointStyling {
         round: true,
-        stroke: Color::RED,
-        fill: Color::rgba(255.into(), 255.into(), 255.into(), 150.into()),
+        stroke_color: Color::RED,
+        fill_color: Color::rgba(255.into(), 255.into(), 255.into(), 150.into()),
         stroke_width_pixels: 1.0,
         affected_by_transform: false,
         width: 14.0,

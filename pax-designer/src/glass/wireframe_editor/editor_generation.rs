@@ -129,8 +129,8 @@ impl Editor {
         ];
         let rotate_control_point_styling = ControlPointStyling {
             round: true,
-            stroke: Color::TRANSPARENT,
-            fill: Color::TRANSPARENT,
+            stroke_color: Color::TRANSPARENT,
+            fill_color: Color::TRANSPARENT,
             stroke_width_pixels: 0.0,
             width: 38.0,
             height: 38.0,
@@ -237,8 +237,8 @@ impl Editor {
 
         let resize_control_point_styling = ControlPointStyling {
             round: false,
-            stroke: Color::BLUE,
-            fill: Color::WHITE,
+            stroke_color: Color::BLUE,
+            fill_color: Color::WHITE,
             stroke_width_pixels: 1.0,
             width: 8.0,
             height: 8.0,
@@ -308,8 +308,8 @@ impl Editor {
 
         let anchor_control_point_styling = ControlPointStyling {
             round: true,
-            stroke: Color::BLUE,
-            fill: Color::rgba(255.into(), 255.into(), 255.into(), 150.into()),
+            stroke_color: Color::BLUE,
+            fill_color: Color::rgba(255.into(), 255.into(), 255.into(), 150.into()),
             stroke_width_pixels: 1.0,
             width: 10.0,
             height: 10.0,

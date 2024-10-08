@@ -129,8 +129,8 @@ impl ToolBehavior for MultiSelectTool {
                         y: Size::Pixels(bounds.top_left().y.into()),
                         width: Size::Pixels(bounds.width().into()),
                         height: Size::Pixels(bounds.height().into()),
-                        stroke: Color::rgba(50.into(), 50.into(), 100.into(), 200.into()),
-                        fill: Color::rgba(100.into(), 100.into(), 255.into(), 30.into()),
+                        stroke_color: Color::rgba(50.into(), 50.into(), 100.into(), 200.into()),
+                        fill_color: Color::rgba(100.into(), 100.into(), 255.into(), 30.into()),
                     },
                     ..Default::default()
                 }
