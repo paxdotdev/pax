@@ -29,7 +29,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     io::stdin().read_line(&mut choice)?;
     let model = match choice.trim() {
         "1" => AIModel::Claude3,
-        "2" => AIModel::GPT4,
+        "2" => AIModel::GPT4o,
         _ => {
             println!("Invalid choice. Defaulting to Claude 3.");
             AIModel::Claude3
@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let api_key = match model {
         AIModel::Claude3 => claude_api_key,
-        AIModel::GPT4 => openai_api_key,
+        AIModel::GPT4o => openai_api_key,
     };
 
     println!("Is this a designer project? (yes/no):");
