@@ -195,6 +195,10 @@ impl Glass {
         }
     }
 
+    pub fn handle_select_start(&mut self, _ctx: &NodeContext, event: Event<SelectStart>) {
+        event.prevent_default();
+    }
+
     pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: Event<MouseDown>) {
         let last_time = self.time_last_click.get();
         let curr_time = ctx.elapsed_time_millis() as u64;
@@ -203,11 +207,8 @@ impl Glass {
         }
         self.time_last_click.set(curr_time);
 
-        // always doing this doesn't allow for text boxes being de-selected in settings/llm prompt
-        let prevent_default = || args.prevent_default();
         model::perform_action(
             &crate::model::action::pointer::MouseEntryPointAction {
-                prevent_default: &prevent_default,
                 event: Pointer::Down,
                 button: args.mouse.button.clone(),
                 point: Point2::new(args.mouse.x, args.mouse.y),

@@ -63,6 +63,7 @@
     @mount: on_mount,
     @tick: on_pre_render,
     @context_menu: self.context_menu
+    @select_start: self.handle_select_start
 
     #project {
         x: 265px,

@@ -250,6 +250,10 @@ pub struct KeyDown {
     pub keyboard: KeyboardEventArgs,
 }
 
+/// User is pressing a key.
+#[derive(Clone)]
+pub struct SelectStart {}
+
 /// User has released a key.
 #[derive(Clone)]
 pub struct KeyUp {

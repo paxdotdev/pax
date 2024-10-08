@@ -74,6 +74,16 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, true);
+    window.addEventListener('selectstart', (evt) => {
+        // this value was previously set on window
+        let event = {
+            "SelectStart": {}
+        };
+        let res = chassis.interrupt(JSON.stringify(event), []);
+        if (res.prevent_default) {
+            evt.preventDefault();
+        }
+    }, true);
     window.addEventListener('mousemove', (evt) => {
         // this value was previously set on window
         let button = (window as any).current_button || 'Left';
