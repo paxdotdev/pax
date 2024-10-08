@@ -2,11 +2,14 @@
 
 use ::core::f64;
 
+use anyhow::anyhow;
 use pax_engine::{api::*, *};
 use pax_std::*;
 
 pub mod card;
 pub use card::*;
+
+use crate::model;
 
 #[pax]
 #[engine_import_path("pax_engine")]
@@ -41,14 +44,38 @@ impl Console {
         let messages_cloned = self.messages.clone();
         let dt = ctx.designtime.clone();
         let current_id_cloned = self.request_id.clone();
+        let ctx_p = ctx.clone();
         self.external_message_listener
             .replace_with(Property::computed(
                 move || {
                     let mut messages = messages_cloned.get();
                     let current_id = current_id_cloned.get();
-                    if let Some(message_type) = new_message_listener.get() {
+                    let mut new_messages = vec![];
+                    new_message_listener.update(|messages| {
+                        new_messages = std::mem::take(messages);
+                    });
+                    while let Some(message_type) = new_messages.pop() {
                         match message_type {
-                            pax_designtime::orm::MessageType::LLM => {
+                            pax_designtime::orm::MessageType::LLMSuccess(component) => {
+                                log::debug!("LLM SUCCESS MESSAGE");
+                                model::with_action_context(&ctx_p, |ctx| {
+                                    let t = ctx.transaction("llm update");
+                                    if let Err(e) = t.run(|| {
+                                        let mut dt = borrow_mut!(ctx.engine_context.designtime);
+                                        let orm = dt.get_orm_mut();
+                                        orm.replace_template(
+                                            component.type_id,
+                                            component.template.unwrap_or_default(),
+                                            component.settings.unwrap_or_default(),
+                                        )
+                                        .map_err(|e| anyhow!(e))?;
+                                        Ok(())
+                                    }) {
+                                        log::warn!("failed llm message component update {:?}", e);
+                                    };
+                                });
+                            }
+                            pax_designtime::orm::MessageType::LLMPartial => {
                                 let mut design_time = dt.borrow_mut();
                                 let mut llm_message = design_time.get_llm_messages(current_id);
                                 llm_message.reverse();
@@ -58,14 +85,14 @@ impl Console {
                                         text: message.clone(),
                                     });
                                 }
-                                messages_cloned.set(messages);
+                                messages_cloned.set(messages.clone());
                             }
                             pax_designtime::orm::MessageType::Serialization(msg) => {
                                 messages.push(Message {
                                     is_ai: true,
                                     text: msg.clone(),
                                 });
-                                messages_cloned.set(messages);
+                                messages_cloned.set(messages.clone());
                             }
                         }
                     }
