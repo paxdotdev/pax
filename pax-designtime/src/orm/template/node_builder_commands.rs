@@ -3,8 +3,8 @@ use std::{collections::HashMap, path::PathBuf};
 use pax_manifest::{
     pax_runtime_api::ToPaxValue, ComponentDefinition, ComponentTemplate,
     ControlFlowRepeatPredicateDefinition, ExpressionInfo, NodeLocation, NodeType, PaxManifest,
-    SettingElement, TemplateNodeDefinition, TemplateNodeId, Token, TreeIndexPosition, TreeLocation,
-    TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
+    SettingElement, SettingsBlockElement, TemplateNodeDefinition, TemplateNodeId, Token,
+    TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 use serde_derive::{Deserialize, Serialize};
 
@@ -777,15 +777,23 @@ impl Command<GetAllTemplateNodeRequest> for GetAllTemplateNodeRequest {
 pub struct ReplaceTemplateRequest {
     component_type_id: TypeId,
     new_template: ComponentTemplate,
+    settings_block: Vec<SettingsBlockElement>,
     _cached_prev_template: Option<ComponentTemplate>,
+    _cached_prev_settings_block: Option<Vec<SettingsBlockElement>>,
 }
 
 impl ReplaceTemplateRequest {
-    pub fn new(component_type_id: TypeId, new_template: ComponentTemplate) -> Self {
+    pub fn new(
+        component_type_id: TypeId,
+        new_template: ComponentTemplate,
+        settings_block: Vec<SettingsBlockElement>,
+    ) -> Self {
         Self {
             component_type_id,
             new_template,
+            settings_block,
             _cached_prev_template: None,
+            _cached_prev_settings_block: None,
         }
     }
 }
@@ -819,8 +827,11 @@ impl Command<ReplaceTemplateRequest> for ReplaceTemplateRequest {
             .unwrap();
 
         self._cached_prev_template.clone_from(&component.template);
+        self._cached_prev_settings_block
+            .clone_from(&component.settings);
 
         component.template = Some(self.new_template.clone());
+        component.settings = Some(self.settings_block.clone());
 
         Ok(ReplaceTemplateResponse {
             command_id: None,
@@ -842,6 +853,9 @@ impl Undo for ReplaceTemplateRequest {
             .get_mut(&self.component_type_id)
             .unwrap();
         component.template.clone_from(&self._cached_prev_template);
+        component
+            .settings
+            .clone_from(&self._cached_prev_settings_block);
         Ok(())
     }
 }
