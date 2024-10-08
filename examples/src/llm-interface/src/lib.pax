@@ -2,7 +2,7 @@
     <Stacker rotate=0.00rad skew_x=0.00rad skew_y=0.00rad sizes=[None, Some(70px)]>
         <Scroller skew_x=0.00rad skew_y=0.00rad rotate=0.00rad scroll_pos_y=bind:scroll_y>
             for (message, i) in messages {
-                <Card x=0px y={i*200px} height=200px width=100% is_ai={message.is_ai} text={message.text} />
+                <BasicCard x=0px y={i*200px} height=200px width=100% is_ai={message.is_ai} text={message.text} />
             }
         </Scroller>
         <Textbox stroke={
