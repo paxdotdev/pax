@@ -357,10 +357,11 @@ impl PaxManifestORM {
         let prev_component: Option<ComponentDefinition> =
             self.last_serialized_version.get(type_id).cloned();
         if let Some(prev_component) = prev_component {
-            let prev_serialized = press_code_serialization_template(prev_component.clone());
-            let post_serialized = press_code_serialization_template(current_component.clone());
+            let prev_serialized =
+                press_code_serialization_template(prev_component.clone()).unwrap_or("".to_string());
+            let post_serialized = press_code_serialization_template(current_component.clone())
+                .unwrap_or("".to_string());
             let diff = diff_html(&prev_serialized, &post_serialized);
-            log::warn!("{:?}", diff);
             let message_type = diff.map(|d| MessageType::Serialization(d));
             if let Some(_) = message_type {
                 self.new_message.set(message_type);
