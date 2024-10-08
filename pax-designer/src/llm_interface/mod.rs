@@ -40,12 +40,12 @@ impl LLMInterface {
             .replace_with(Property::computed(move || state.get(), &deps));
     }
 
-    pub fn textbox_change(&mut self, ctx: &NodeContext, args: Event<TextboxChange>) {
+    pub fn textbox_change(&mut self, ctx: &NodeContext, _args: Event<TextboxChange>) {
         model::perform_action(&SetLLMPromptState(false), ctx);
         self.request.set(String::new());
     }
 
-    pub fn hide(&mut self, ctx: &NodeContext, event: Event<Click>) {
+    pub fn hide(&mut self, ctx: &NodeContext, _event: Event<Click>) {
         model::perform_action(&SetLLMPromptState(false), ctx);
     }
 }

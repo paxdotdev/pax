@@ -64,41 +64,66 @@ fn to_pax_expression(args: &HashMap<String, tera::Value>) -> tera::Result<tera::
 }
 
 /// Serialize a component to a string
-pub fn press_code_serialization_template(args: ComponentDefinition) -> String {
+pub fn press_code_serialization_template(args: ComponentDefinition) -> Result<String, String> {
     let mut tera = Tera::default();
 
     tera.register_function("to_pax_value", to_pax_value);
     tera.register_function("to_pax_expression", to_pax_expression);
 
-    tera.add_raw_template(
-        MACROS_TEMPLATE,
-        TEMPLATE_DIR
-            .get_file(MACROS_TEMPLATE)
-            .unwrap()
-            .contents_utf8()
-            .unwrap(),
-    )
-    .expect("Failed to add macros.tera");
+    // Add macros template
+    let macros_file = TEMPLATE_DIR
+        .get_file(MACROS_TEMPLATE)
+        .ok_or_else(|| format!("Failed to get template file: {}", MACROS_TEMPLATE))?;
+
+    let macros_template_contents = macros_file
+        .contents_utf8()
+        .ok_or_else(|| format!("Failed to read template contents: {}", MACROS_TEMPLATE))?;
+
+    tera.add_raw_template(MACROS_TEMPLATE, macros_template_contents)
+        .map_err(|err| format!("Failed to add template '{}': {}", MACROS_TEMPLATE, err))?;
+
+    // Add manifest code serialization template
+    let manifest_file = TEMPLATE_DIR
+        .get_file(MANIFEST_CODE_SERIALIZATION_TEMPLATE)
+        .ok_or_else(|| {
+            format!(
+                "Failed to get template file: {}",
+                MANIFEST_CODE_SERIALIZATION_TEMPLATE
+            )
+        })?;
+
+    let manifest_template_contents = manifest_file.contents_utf8().ok_or_else(|| {
+        format!(
+            "Failed to read template contents: {}",
+            MANIFEST_CODE_SERIALIZATION_TEMPLATE
+        )
+    })?;
 
     tera.add_raw_template(
         MANIFEST_CODE_SERIALIZATION_TEMPLATE,
-        TEMPLATE_DIR
-            .get_file(MANIFEST_CODE_SERIALIZATION_TEMPLATE)
-            .unwrap()
-            .contents_utf8()
-            .unwrap(),
+        manifest_template_contents,
     )
-    .expect("Failed to add manifest-code-serialization.tera");
+    .map_err(|err| {
+        format!(
+            "Failed to add template '{}': {}",
+            MANIFEST_CODE_SERIALIZATION_TEMPLATE, err
+        )
+    })?;
 
-    let context = Context::from_serialize(args).unwrap();
+    // Serialize context
+    let context = tera::Context::from_serialize(args)
+        .map_err(|err| format!("Failed to serialize context: {}", err))?;
 
-    // Serialize component
+    // Render template
     let template = tera
         .render(MANIFEST_CODE_SERIALIZATION_TEMPLATE, &context)
-        .expect("Failed to render template");
+        .map_err(|err| format!("Failed to render template: {}", err))?;
 
-    // Format component
-    format_pax_template(template).expect("Failed to format template")
+    // Format template
+    let formatted_template = format_pax_template(template)
+        .map_err(|err| format!("Failed to format template: {}", err))?;
+
+    Ok(formatted_template)
 }
 
 pub fn diff(old_content: &str, new_content: &str) -> Option<String> {
@@ -156,7 +181,7 @@ pub fn diff_html(old_content: &str, new_content: &str) -> Option<String> {
 pub fn serialize_component_to_file(component: &ComponentDefinition, file_path: String) {
     let path = Path::new(&file_path);
     let pascal_identifier = component.type_id.get_pascal_identifier().unwrap();
-    let serialized_component = press_code_serialization_template(component.clone());
+    let serialized_component = press_code_serialization_template(component.clone()).unwrap();
 
     // adds rust file if we're serializing a new component
     serialize_new_component_rust_file(component, file_path.clone());
@@ -195,7 +220,7 @@ pub fn serialize_main_component_to_string(manifest: &PaxManifest) -> String {
     let mc = manifest.components.get(&manifest.main_component_type_id);
     if let Some(mc) = mc {
         if let Some(_) = &mc.template {
-            return press_code_serialization_template(mc.clone());
+            return press_code_serialization_template(mc.clone()).unwrap();
         }
     }
     "".to_string()
