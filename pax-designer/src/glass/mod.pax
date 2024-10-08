@@ -85,9 +85,9 @@
 
     #rect_tool {
         stroke: {
-            color: {self.tool_visual.rect_tool.stroke}
+            color: {self.tool_visual.rect_tool.stroke_color}
             width: 1px
         }
-        fill: {self.tool_visual.rect_tool.fill}
+        fill: {self.tool_visual.rect_tool.fill_color}
     }
 }

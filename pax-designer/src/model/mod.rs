@@ -184,8 +184,8 @@ impl Model {
         AppState {
             selected_component_id: Property::new(main_component_type_id),
             stage: Property::new(StageInfo {
-                width: 1380,
-                height: 786,
+                stage_width: 1380,
+                stage_height: 786,
                 color: Color::WHITE,
             }),
             ..Default::default()
@@ -469,15 +469,7 @@ pub enum ProjectMode {
 #[pax]
 #[engine_import_path("pax_engine")]
 pub struct StageInfo {
-    pub width: u32,
-    pub height: u32,
-    pub color: Color,
-}
-
-#[pax]
-#[engine_import_path("pax_engine")]
-pub struct StageBoundingBox {
-    pub width: u32,
-    pub height: u32,
+    pub stage_width: u32,
+    pub stage_height: u32,
     pub color: Color,
 }

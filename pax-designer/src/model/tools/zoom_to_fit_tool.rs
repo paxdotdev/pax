@@ -78,8 +78,8 @@ impl ToolBehavior for ZoomToFitTool {
                         y: Size::Pixels(bounds.top_left().y.into()),
                         width: Size::Pixels(bounds.width().into()),
                         height: Size::Pixels(bounds.height().into()),
-                        stroke: Color::rgba(0.into(), 20.into(), 200.into(), 200.into()),
-                        fill: Color::rgba(0.into(), 20.into(), 200.into(), 30.into()),
+                        stroke_color: Color::rgba(0.into(), 20.into(), 200.into(), 200.into()),
+                        fill_color: Color::rgba(0.into(), 20.into(), 200.into(), 30.into()),
                     },
                     ..Default::default()
                 }
