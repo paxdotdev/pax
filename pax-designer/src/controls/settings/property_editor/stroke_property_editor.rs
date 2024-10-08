@@ -80,10 +80,11 @@ impl StrokePropertyEditor {
         let external_cloned = self.external.clone();
         let color = Property::computed(
             move || {
+                let color = color.get();
                 if stroke_width_cloned.get() == 0.0 && !external_cloned.get() {
                     stroke_width_cloned.set(1.0);
                 }
-                color.get()
+                color
             },
             &[color_dep],
         );

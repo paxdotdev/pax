@@ -126,21 +126,14 @@ impl WebSocketConnection {
                                     .map_err(|e| anyhow!(e))?;
                             }
                             AgentMessage::LLMPartialResponse(partial) => {
-                                manager.add_new_message(partial.request_id, partial.message);
+                                manager.add_new_message(partial.request_id, partial.message, None);
                             }
                             AgentMessage::LLMFinalResponse(final_response) => {
                                 manager.add_new_message(
                                     final_response.request_id,
                                     final_response.message,
+                                    Some(final_response.component_definition),
                                 );
-                                let new_comp = final_response.component_definition;
-                                manager
-                                    .replace_template(
-                                        new_comp.type_id,
-                                        new_comp.template.unwrap_or_default(),
-                                        new_comp.settings.unwrap_or_default(),
-                                    )
-                                    .map_err(|e| anyhow!(e))?;
                             }
                             _ => {}
                         }
