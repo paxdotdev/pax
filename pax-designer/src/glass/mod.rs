@@ -203,6 +203,7 @@ impl Glass {
         }
         self.time_last_click.set(curr_time);
 
+        // always doing this doesn't allow for text boxes being de-selected in settings/llm prompt
         let prevent_default = || args.prevent_default();
         model::perform_action(
             &crate::model::action::pointer::MouseEntryPointAction {

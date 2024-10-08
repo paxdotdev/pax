@@ -289,7 +289,6 @@ impl PaxManifestORM {
             .iter()
             .filter_map(|setting| match setting {
                 pax_manifest::SettingsBlockElement::SelectorBlock(token, _block) => {
-                    log::debug!("token: {:?}", token);
                     Some(token.token_value.to_string())
                 }
                 _ => None,

@@ -151,6 +151,7 @@ impl InstanceNode for TextInstance {
                             cp.width.get().is_some().then_some(width).unwrap_or(-1.0),
                             cp.height.get().is_some().then_some(height).unwrap_or(-1.0),
                         );
+                        let suspended = expanded_node.suspended.get();
 
                         let updates = [
                             // Content
@@ -183,7 +184,7 @@ impl InstanceNode for TextInstance {
                             patch_if_needed(
                                 &mut old_state.selectable,
                                 &mut patch.selectable,
-                                properties.selectable.get(),
+                                properties.selectable.get() && !suspended, // if suspended, make not selectable
                             ),
                             // Transform and bounds
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),

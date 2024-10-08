@@ -7,6 +7,7 @@ use pax_engine::{log, math::Point2, Property};
 use pax_std::core::text::Text;
 
 use crate::model::action::tool::SetToolBehaviour;
+use crate::model::action::world::{SelectMode, SelectNodes};
 use crate::model::input::{InputEvent, ModifierKey};
 use crate::{
     math::coordinate_spaces::Glass,
@@ -78,9 +79,6 @@ impl ToolBehavior for TextEditTool {
                 return ControlFlow::Continue(());
             }
         }
-        if let Err(e) = self.finish(ctx) {
-            log::warn!("failed to save text change: {e}");
-        };
         ControlFlow::Break(())
     }
 
@@ -99,6 +97,12 @@ impl ToolBehavior for TextEditTool {
         });
 
         let t = ctx.transaction("text edit");
+
+        SelectNodes {
+            ids: &[],
+            mode: SelectMode::DiscardOthers,
+        }
+        .perform(ctx)?;
 
         t.run(|| {
             // commit text changes
