@@ -35,7 +35,7 @@ pub struct Toolbar {
 #[pax]
 #[engine_import_path("pax_engine")]
 pub struct ToolbarItemView {
-    pub background: bool,
+    pub fill_background: bool,
     pub tooltip: String,
     pub icon: String,
     pub more_than_one_item: bool,
@@ -202,7 +202,7 @@ impl Toolbar {
                 .map(|(row, entry)| {
                     let first = entry.items.first().unwrap();
                     ToolbarItemView {
-                        background: false,
+                        fill_background: false,
                         tooltip: String::from(first.tooltip),
                         icon: String::from(first.icon),
                         more_than_one_item: entry.items.len() > 1,
@@ -243,7 +243,7 @@ impl Toolbar {
                         .iter()
                         .enumerate()
                         .map(|(col, item)| ToolbarItemView {
-                            background: true,
+                            fill_background: true,
                             tooltip: String::from(item.tooltip),
                             icon: String::from(item.icon),
                             more_than_one_item: false,
@@ -273,7 +273,7 @@ impl Toolbar {
                                     if toolbar_tool == tool.get() {
                                         entries.update(|entries| {
                                             entries[row] = ToolbarItemView {
-                                                background: false,
+                                                fill_background: false,
                                                 tooltip: String::from(item.tooltip),
                                                 icon: String::from(item.icon),
                                                 more_than_one_item: entry.items.len() > 1,

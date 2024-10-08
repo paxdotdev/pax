@@ -1,4 +1,5 @@
 use crate::*;
+use pax_engine::api::Fill;
 use pax_engine::*;
 use pax_message::{AnyCreatePatch, ButtonPatch};
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell, Color, Numeric, Size, Stroke};
@@ -34,7 +35,7 @@ impl Default for Button {
             style: Property::new(TextStyle {
                 font: Property::new(Font::default()),
                 font_size: Property::new(Size::Pixels(Numeric::F64(20.0))),
-                fill: Property::new(Color::WHITE),
+                fill: Property::new(Fill::Solid(Color::WHITE)),
                 underline: Property::new(false),
                 align_multiline: Property::new(TextAlignHorizontal::Center),
                 align_vertical: Property::new(TextAlignVertical::Center),

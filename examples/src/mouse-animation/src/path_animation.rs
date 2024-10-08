@@ -13,7 +13,7 @@ pub struct PathAnimation {
     pub t: Property<Numeric>,
     pub resolution: Property<Numeric>,
     pub path_config: Property<PathConfig>,
-    pub fill: Property<Color>,
+    pub fill: Property<Fill>,
 
     //private path elements
     pub path_elements: Property<Vec<PathElement>>,

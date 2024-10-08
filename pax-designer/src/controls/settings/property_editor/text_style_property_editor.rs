@@ -32,7 +32,7 @@ pub struct TextStylePropertyEditor {
     pub v_align_index: Property<u32>,
 
     // TODO
-    pub font_size: Property<String>,
+    pub font_size_str: Property<String>,
     pub font_color: Property<Color>,
 
     pub property_listeners: Property<bool>,
@@ -122,7 +122,7 @@ impl TextStylePropertyEditor {
         ));
 
         let ts = text_style.clone();
-        self.font_size.replace_with(Property::computed(
+        self.font_size_str.replace_with(Property::computed(
             move || match ts.get().font_size.get() {
                 Size::Pixels(px) => format!("{}px", px),
                 Size::Percent(perc) => format!("{}%", perc),
@@ -132,8 +132,13 @@ impl TextStylePropertyEditor {
         ));
 
         let ts = text_style.clone();
-        self.font_color
-            .replace_with(Property::computed(move || ts.get().fill.get(), &deps));
+        self.font_color.replace_with(Property::computed(
+            move || match ts.get().fill.get() {
+                Fill::Solid(color) => color,
+                _ => Default::default(),
+            },
+            &deps,
+        ));
 
         let ts = text_style.clone();
         self.v_align_index.replace_with(Property::computed(
@@ -159,14 +164,14 @@ impl TextStylePropertyEditor {
         let deps = [
             self.font_family_index.untyped(),
             self.font_weight_index.untyped(),
-            self.font_size.untyped(),
+            self.font_size_str.untyped(),
             self.v_align_index.untyped(),
             self.h_align_index.untyped(),
             self.font_color.untyped(),
         ];
         let font_family_index = self.font_family_index.clone();
         let font_weight_index = self.font_weight_index.clone();
-        let font_size = self.font_size.clone();
+        let font_size = self.font_size_str.clone();
         let v_align_index = self.v_align_index.clone();
         let h_align_index = self.h_align_index.clone();
         let font_color = self.font_color.clone();
@@ -209,7 +214,7 @@ impl TextStylePropertyEditor {
                             weight.clone(),
                         )),
                         font_size: Property::new(font_size),
-                        fill: Property::new(font_color),
+                        fill: Property::new(Fill::Solid(font_color)),
                         underline: Property::new(false),
                         align_multiline: Property::new(h_align.clone()),
                         align_vertical: Property::new(v_align.clone()),
@@ -259,7 +264,12 @@ impl TextStylePropertyEditor {
                 Size::Combined(px, perc) => format!("{}px + {}%", px, perc),
             },
             {
-                let rgba = text_style.fill.get().to_rgba_0_1();
+                let rgba = match text_style.fill.get() {
+                    Fill::Solid(color) => color,
+                    Fill::LinearGradient(_) => todo!(),
+                    Fill::RadialGradient(_) => todo!(),
+                }
+                .to_rgba_0_1();
                 format!(
                     "rgba({}, {}, {}, {})",
                     (rgba[0] * 255.0) as u8,
@@ -283,7 +293,7 @@ impl TextStylePropertyEditor {
     }
 
     pub fn size_change(&mut self, _ctx: &NodeContext, event: Event<TextboxChange>) {
-        self.font_size.set(event.text.clone());
+        self.font_size_str.set(event.text.clone());
     }
 
     pub fn h_align_left(&mut self, _ctx: &NodeContext, _event: Event<Click>) {

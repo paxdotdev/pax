@@ -12,8 +12,8 @@ pub struct DirectionPropertyEditor {
     pub data: Property<PropertyEditorData>,
 
     // All the below props should be private: never set by user, used for internal state
-    pub horizontal: Property<Color>,
-    pub vertical: Property<Color>,
+    pub horizontal_color: Property<Color>,
+    pub vertical_color: Property<Color>,
     pub is_vertical: Property<bool>,
 }
 
@@ -47,7 +47,7 @@ impl DirectionPropertyEditor {
         let activated_cp = activated.clone();
         let deactivated_cp = deactivated.clone();
         let deps = [is_vert.untyped()];
-        self.vertical.replace_with(Property::computed(
+        self.vertical_color.replace_with(Property::computed(
             move || match is_vert.get() {
                 true => activated_cp.clone(),
                 false => deactivated_cp.clone(),
@@ -55,7 +55,7 @@ impl DirectionPropertyEditor {
             &deps,
         ));
         let is_vert = self.is_vertical.clone();
-        self.horizontal.replace_with(Property::computed(
+        self.horizontal_color.replace_with(Property::computed(
             move || match is_vert.get() {
                 true => deactivated.clone(),
                 false => activated.clone(),

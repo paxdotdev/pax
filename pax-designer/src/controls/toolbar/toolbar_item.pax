@@ -6,7 +6,7 @@
     <Tooltip  @click=self.on_click tip={self.data.tooltip}>
         <Image class=icon source={ImageSource::Url(self.data.icon)}/>
     </Tooltip>
-    if self.data.background {
+    if self.data.fill_background {
         <Rectangle
             fill=rgb(12.5%, 12.5%, 12.5%)
         />

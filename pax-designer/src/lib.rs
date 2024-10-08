@@ -107,8 +107,8 @@ impl PaxDesigner {
                 let (w, h) = glass_node.transform_and_bounds().get().bounds;
                 app_state.glass_to_world_transform.set(
                     Transform2::<World>::translate(Vector2::new(
-                        stage.width as f64 / 2.0,
-                        stage.height as f64 / 2.0,
+                        stage.stage_width as f64 / 2.0,
+                        stage.stage_height as f64 / 2.0,
                     )) * Transform2::scale(1.4)
                         * Transform2::<math::coordinate_spaces::Glass>::translate(-Vector2::new(
                             w / 2.0,

@@ -1,11 +1,12 @@
 use kurbo::BezPath;
 
-use pax_engine::api::PathElement;
+use pax_engine::api::{Fill, PathElement};
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
 use pax_runtime::api::{Color, Layer, RenderContext, Stroke};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
+use piet::{LinearGradient, RadialGradient};
 
 use crate::common::Point;
 use pax_engine::*;
@@ -22,7 +23,7 @@ use std::rc::Rc;
 pub struct Path {
     pub elements: Property<Vec<PathElement>>,
     pub stroke: Property<Stroke>,
-    pub fill: Property<Color>,
+    pub fill: Property<Fill>,
 }
 
 impl Path {
@@ -196,10 +197,34 @@ impl InstanceNode for PathInstance {
             let duplicate_transformed_bez_path = transformed_bez_path.clone();
             //our "save point" before clipping — restored to in the post_render
 
-            let color = properties.fill.get().to_piet_color();
             rc.save(&layer_id);
+            match properties.fill.get() {
+                Fill::Solid(color) => {
+                    rc.fill(
+                        &layer_id,
+                        transformed_bez_path,
+                        &color.to_piet_color().into(),
+                    );
+                }
+                Fill::LinearGradient(linear) => {
+                    let linear_gradient = LinearGradient::new(
+                        Fill::to_unit_point(linear.start, (width, height)),
+                        Fill::to_unit_point(linear.end, (width, height)),
+                        Fill::to_piet_gradient_stops(linear.stops.clone()),
+                    );
+                    rc.fill(&layer_id, transformed_bez_path, &linear_gradient.into())
+                }
+                Fill::RadialGradient(radial) => {
+                    let origin = Fill::to_unit_point(radial.start, (width, height));
+                    let center = Fill::to_unit_point(radial.end, (width, height));
+                    let gradient_stops = Fill::to_piet_gradient_stops(radial.stops.clone());
+                    let radial_gradient = RadialGradient::new(radial.radius, gradient_stops)
+                        .with_center(center)
+                        .with_origin(origin);
+                    rc.fill(&layer_id, transformed_bez_path, &radial_gradient.into());
+                }
+            }
             rc.clip(&layer_id, transformed_clip_path.clone());
-            rc.fill(&layer_id, transformed_bez_path, &color.into());
             if properties
                 .stroke
                 .get()

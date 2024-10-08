@@ -17,14 +17,14 @@ impl Intent {}
 #[pax]
 #[engine_import_path("pax_engine")]
 pub struct IntentDef {
-    pub x: f64,
-    pub y: f64,
-    pub rotation: f64,
-    pub width: f64,
-    pub height: f64,
-    pub stroke: Color,
-    pub fill: Color,
-    pub stroke_width_pixels: f64,
+    pub intent_x: f64,
+    pub intent_y: f64,
+    pub intent_rotation: f64,
+    pub intent_width: f64,
+    pub intent_height: f64,
+    pub intent_stroke: Color,
+    pub intent_fill: Color,
+    pub intent_stroke_width_pixels: f64,
 }
 
 impl IntentDef {
@@ -36,14 +36,14 @@ impl IntentDef {
         let parts: TransformParts = transform.into();
         let (stroke_width_pixels, stroke) = stroke.unwrap_or((0.0, Color::BLACK));
         Self {
-            x: parts.origin.x,
-            y: parts.origin.y,
-            rotation: parts.rotation,
-            width: parts.scale.x,
-            height: parts.scale.y,
-            fill,
-            stroke,
-            stroke_width_pixels,
+            intent_x: parts.origin.x,
+            intent_y: parts.origin.y,
+            intent_rotation: parts.rotation,
+            intent_width: parts.scale.x,
+            intent_height: parts.scale.y,
+            intent_fill: fill,
+            intent_stroke: stroke,
+            intent_stroke_width_pixels: stroke_width_pixels,
         }
     }
 }

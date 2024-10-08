@@ -22,7 +22,7 @@ pub struct Textbox {
     pub background: Property<Color>,
     pub placeholder: Property<String>,
     pub stroke: Property<Stroke>,
-    pub border_radius: Property<Numeric>,
+    pub border_radius: Property<f64>,
     pub style: Property<TextStyle>,
     pub outline: Property<Stroke>,
     pub focus_on_mount: Property<bool>,
@@ -46,7 +46,7 @@ impl Default for Textbox {
             style: Property::new(TextStyle {
                 font: Property::new(Font::default()),
                 font_size: Property::new(Size::Pixels(Numeric::F64(14.0))),
-                fill: Property::new(Color::BLACK),
+                fill: Property::new(Fill::Solid(Color::BLACK)),
                 underline: Property::new(false),
                 align_horizontal: Property::new(TextAlignHorizontal::Left),
                 align_multiline: Property::new(TextAlignHorizontal::Left),
@@ -159,7 +159,7 @@ impl InstanceNode for TextboxInstance {
                             patch_if_needed(
                                 &mut old_state.border_radius,
                                 &mut patch.border_radius,
-                                properties.border_radius.get().to_float(),
+                                properties.border_radius.get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.focus_on_mount,

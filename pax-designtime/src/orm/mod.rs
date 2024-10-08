@@ -245,24 +245,32 @@ impl PaxManifestORM {
             .ok_or_else(|| anyhow!("no class with name {name}"))?;
         // TODO PERF: keep track of cached String -> TypeId map, that get's re-generated on
         // manifest version change.
-        let property_definitions = self.get_all_property_definitions();
-
+        let property_definitions: Vec<_> = self.get_all_property_definitions();
         let mut res = vec![];
 
         for element in &class_block.elements {
             if let SettingElement::Setting(token, value_definition) = element {
                 let name = token.token_value.clone();
-                let property_definitions_with_name: Vec<_> = property_definitions
+                let mut property_definitions_with_name: Vec<_> = property_definitions
                     .iter()
                     .copied()
                     .filter(|pd| pd.name == name)
+                    .map(|pd| (&pd.name, &pd.type_id))
                     .collect();
-                let potential_type = &property_definitions_with_name[0].type_id;
-                let found_type = property_definitions_with_name
-                    .iter()
-                    .all(|pd| &pd.type_id == potential_type)
-                    .then_some(potential_type.clone());
-                res.push((name, value_definition.clone(), found_type));
+                property_definitions_with_name.sort();
+                property_definitions_with_name.dedup();
+                let property_type = if property_definitions_with_name.len() != 1 {
+                    log::warn!(
+                        "class property with name {:?} has an abiguous type, possible types: {:#?}",
+                        name,
+                        property_definitions_with_name
+                    );
+                    None
+                } else {
+                    property_definitions_with_name.into_iter().next()
+                }
+                .map(|(_, v)| v);
+                res.push((name, value_definition.clone(), property_type.cloned()));
             }
         }
         Ok(res)
