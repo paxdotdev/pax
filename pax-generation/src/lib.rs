@@ -261,7 +261,7 @@ impl PaxAppGenerator {
 
                 let mut body = json!({
                     "model": self.model.as_str(),
-                    "max_tokens": 4096,
+                    "max_tokens": 8192,
                     "messages": api_messages,
                     "temperature": 0.5,
                 });
@@ -289,7 +289,7 @@ impl PaxAppGenerator {
                 let body = json!({
                     "model": self.model.as_str(),
                     "messages": api_messages,
-                    "max_tokens": 4096,
+                    "max_tokens": 8192,
                     "temperature": 0.1,
                 });
 
