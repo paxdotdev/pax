@@ -1,4 +1,4 @@
-export class ObjectPool<T extends HTMLElement> {
+export class ObjectPool<T> {
     private pool: T[] = [];
     private readonly factory: (args?: any) => T;
     private readonly cleanUp: (item: T) => void;
@@ -17,11 +17,6 @@ export class ObjectPool<T extends HTMLElement> {
 
     put(item: T) {
         this.cleanUp(item);
-        if ((item as HTMLElement).attributes !== undefined)
-        {
-            const attrs = Array.from(item.attributes);
-            attrs.forEach(attr => item.removeAttribute(attr.name));
-        }
         this.pool.push(item);
     }
 }
