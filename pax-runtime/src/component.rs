@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
 
-use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::{
     borrow, borrow_mut, use_RefCell, Interpolatable, PaxValue, Property, ToPaxValue, Variable,
 };
@@ -12,7 +11,7 @@ use_RefCell!();
 use crate::api::{Layer, Timeline};
 use crate::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstanceNodePtrList,
-    InstantiationArgs, RuntimeContext, RuntimePropertiesStackFrame,
+    InstantiationArgs, RuntimeContext,
 };
 
 /// A render node with its own runtime context.  Will push a frame
@@ -99,6 +98,18 @@ impl InstanceNode for ComponentInstance {
             ),
             &format!("component (node id: {})", expanded_node.id.0),
         ));
+    }
+
+    /// Updates the expanded node, recomputing its properties and possibly updating its children
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
+        expanded_node.compute_flattened_slot_children();
+        expanded_node
+            .expanded_and_flattened_slot_children
+            .read(|slot_children| {
+                for child in slot_children {
+                    child.recurse_update(context);
+                }
+            });
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {

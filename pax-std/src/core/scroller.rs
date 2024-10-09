@@ -4,7 +4,6 @@ use pax_engine::api::{Event, Wheel};
 use pax_engine::api::{Property, Size};
 use pax_engine::*;
 use pax_runtime::api::{NodeContext, TouchEnd, TouchMove, TouchStart, OS};
-use pax_runtime::TransformAndBounds;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -52,6 +51,7 @@ pub struct Scroller {
     pub scroll_pos_y: Property<f64>,
     pub scroll_width: Property<Size>,
     pub scroll_height: Property<Size>,
+    pub auto_size: Property<bool>,
 
     // used by pax create (might want to just make public at some point)
     pub _clip_content: Property<bool>,
@@ -72,6 +72,7 @@ impl Default for Scroller {
             scroll_pos_y: Default::default(),
             scroll_width: Default::default(),
             scroll_height: Default::default(),
+            auto_size: Property::new(false),
             _clip_content: Property::new(true),
             _platform_params: Default::default(),
             _momentum_x: Default::default(),
@@ -165,7 +166,7 @@ impl Scroller {
     pub fn update(&mut self, ctx: &NodeContext) {
         self._ticks_since_mount
             .set(self._ticks_since_mount.get() + 1);
-        if self._ticks_since_mount.get() == 10 {
+        if self._ticks_since_mount.get() == 10 && self.auto_size.get() {
             self.bind_to_slot_children(ctx);
         }
 
