@@ -152,9 +152,10 @@ pub fn diff_html(old_content: &str, new_content: &str) -> Option<String> {
     let mut all_diffs = vec![];
 
     for change in diff.iter_all_changes() {
-
         //handle edge-cases where the change is empty
-        if change.to_string().trim() == "" { continue; }
+        if change.to_string().trim() == "" {
+            continue;
+        }
 
         let output = match change.tag() {
             ChangeTag::Delete => Some(format!(
