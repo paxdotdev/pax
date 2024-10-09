@@ -110,10 +110,8 @@ export let SUPPORTED_OBJECTS = [{
         name: DIV,
         factory: () => document.createElement('div'),
         cleanUp: (div: HTMLDivElement) => {
-            while (div.attributes.length > 0) {
-                div.removeAttribute(div.attributes[0].name);
-            }
-            div.innerHTML = '';
+            const attrs = Array.from(div.attributes);
+            attrs.forEach(attr => div.removeAttribute(attr.name));
         },
     },
     {
