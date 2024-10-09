@@ -212,10 +212,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
     window.addEventListener('keydown', (evt) => {
         let dom_node_selected = document.activeElement != document.body;
         // TODO figure out how to handle this more robustly
-        if (dom_node_selected && !(
-                evt.key === 'Escape' || evt.key == "Meta" || evt.key == "Control" || 
-                evt.key === '+' || evt.key === '-'
-            )) {
+        if (dom_node_selected) {
             return;
         }
         
