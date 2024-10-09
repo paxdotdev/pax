@@ -1,4 +1,4 @@
-<Scroller y=0 height=100% x=0 width=100%>
+<Scroller y=0 height=100% x=0 width=100% auto_size=true>
     if is_ai {
     <Text x=10px y=10px width=100% style={
         font: Font::Web(
