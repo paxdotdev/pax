@@ -78,9 +78,9 @@ impl DesigntimeManager {
         self.orm.get_messages(request_id)
     }
 
-    pub fn new(manifest: PaxManifest) -> Self {
+    pub fn new_with_local_addr(manifest: PaxManifest, local_addr: &str) -> Self {
         let priv_agent = Rc::new(RefCell::new(
-            WebSocketConnection::new("ws://localhost:8080", None)
+            WebSocketConnection::new(local_addr, None)
                 .expect("couldn't connect to privileged agent"),
         ));
 
@@ -103,6 +103,10 @@ impl DesigntimeManager {
             publish_state: Default::default(),
         }
     }
+    pub fn new(manifest: PaxManifest) -> Self {
+        Self::new_with_local_addr(manifest, "ws://localhost:8080")
+    }
+
     pub fn set_project(&mut self, project_query: String) {
         self.project_query = Some(project_query);
     }
