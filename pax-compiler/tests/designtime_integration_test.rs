@@ -5,6 +5,7 @@ use std::{
 };
 
 use actix_web::{web::Data, App};
+use color_eyre::owo_colors::OwoColorize;
 use pax_compiler::design_server::{web_socket, AppState};
 use pax_manifest::{
     ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, PaxManifest,
@@ -91,9 +92,10 @@ async fn designtime_integration_test() {
     let path_str = path.to_str().expect("Path is not a valid UTF-8 string");
 
     let _srv = get_test_server();
-
+    let socket_addr = _srv.addr();
+    let url = format!("ws://{}", socket_addr);
     let manifest: PaxManifest = create_basic_manifest(path_str.to_owned());
-    let mut designer = pax_designtime::DesigntimeManager::new(manifest);
+    let mut designer = pax_designtime::DesigntimeManager::new_with_local_addr(manifest, &url);
     designer.send_component_update(&component_type_id).unwrap();
 
     std::thread::sleep(Duration::from_secs(1));
