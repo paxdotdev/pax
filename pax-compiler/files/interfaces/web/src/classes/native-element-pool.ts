@@ -742,10 +742,10 @@ export class NativeElementPool {
             leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
 
-        if (patch.editable) {
-            const selection = window.getSelection();
-            selection!.removeAllRanges();
+        if (patch.editable != null) {
             if (patch.editable == true) {
+                const selection = window.getSelection();
+                selection!.removeAllRanges();
                 textChild.setAttribute("contenteditable", "plaintext-only");
                 textChild.style.outline = "none";
 
