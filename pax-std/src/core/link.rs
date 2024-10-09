@@ -1,5 +1,5 @@
-use pax_engine::api::Property;
-use pax_engine::api::{Click, Event, NavigationTarget};
+use pax_engine::api::{Clap, Property};
+use pax_engine::api::{Event, NavigationTarget};
 use pax_engine::*;
 use pax_runtime::api::NodeContext;
 
@@ -12,7 +12,7 @@ use pax_runtime::api::NodeContext;
 
     @settings {
         @mount: on_mount
-        @click: on_click
+        @clap: on_clap
     }
 
 )]
@@ -46,7 +46,7 @@ impl Link {
         self._slot_children
             .replace_with(Property::computed(move || s.get(), &deps));
     }
-    pub fn on_click(&mut self, ctx: &NodeContext, _event: Event<Click>) {
+    pub fn on_clap(&mut self, ctx: &NodeContext, _event: Event<Clap>) {
         ctx.navigate_to(&self.url.get(), self.target.get().into());
     }
 }
