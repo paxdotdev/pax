@@ -24,6 +24,7 @@ use pax_engine::{
     log,
     math::{Point2, Space, Vector2},
     pax_manifest::{TreeIndexPosition, UniqueTemplateNodeIdentifier},
+    pax_runtime::TransformAndBounds,
     PaxValue, Property, ToPaxValue,
 };
 use pax_std::Size;
@@ -141,7 +142,16 @@ impl ToolBehavior for PaintbrushTool {
                 },
             ))
         };
-        let pax_path = to_pax_path(&new_path);
+        let Ok(path_node) = ctx.get_glass_node_by_global_id(&self.path_node_being_created) else {
+            log::warn!("failed to get path node");
+            return ControlFlow::Continue(());
+        };
+        let world_t_and_b = TransformAndBounds {
+            transform: ctx.world_transform(),
+            bounds: (1.0, 1.0),
+        } * path_node.transform_and_bounds.get();
+
+        let pax_path = to_pax_path(&new_path, world_t_and_b.bounds);
         self.path = Some(new_path);
         if let Err(e) = self.transaction.run(|| {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
@@ -241,31 +251,31 @@ fn capsule_from_points_and_radius(
     CompoundPath::from_subpath(Subpath::from_beziers(&beziers, true))
 }
 
-fn to_pax_path(path: &CompoundPath) -> Vec<PathElement> {
+fn to_pax_path(path: &CompoundPath, bounds: (f64, f64)) -> Vec<PathElement> {
     let mut pax_segs = vec![];
     for subpath in &path.subpaths {
         let first = subpath.get_segment(0).map(|s| s.start).unwrap_or_default();
         pax_segs.push(PathElement::Point(
-            Size::Pixels(first.x.into()),
-            Size::Pixels(first.y.into()),
+            Size::Percent((100.0 * first.x / bounds.0).into()),
+            Size::Percent((100.0 * first.y / bounds.1).into()),
         ));
         for seg in subpath.iter() {
             match seg.handles {
                 bezier_rs::BezierHandles::Linear => {
                     pax_segs.push(PathElement::Line);
                     pax_segs.push(PathElement::Point(
-                        Size::Pixels(seg.end.x.into()),
-                        Size::Pixels(seg.end.y.into()),
+                        Size::Percent((100.0 * seg.end.x / bounds.0).into()),
+                        Size::Percent((100.0 * seg.end.y / bounds.1).into()),
                     ));
                 }
                 bezier_rs::BezierHandles::Quadratic { handle: ctrl } => {
                     pax_segs.push(PathElement::Quadratic(
-                        Size::Pixels(ctrl.x.into()),
-                        Size::Pixels(ctrl.y.into()),
+                        Size::Percent((100.0 * ctrl.x / bounds.0).into()),
+                        Size::Percent((100.0 * ctrl.y / bounds.1).into()),
                     ));
                     pax_segs.push(PathElement::Point(
-                        Size::Pixels(seg.end.x.into()),
-                        Size::Pixels(seg.end.y.into()),
+                        Size::Percent((100.0 * seg.end.x / bounds.0).into()),
+                        Size::Percent((100.0 * seg.end.y / bounds.1).into()),
                     ));
                 }
                 bezier_rs::BezierHandles::Cubic {
@@ -273,14 +283,14 @@ fn to_pax_path(path: &CompoundPath) -> Vec<PathElement> {
                     handle_end: ctrl2,
                 } => {
                     pax_segs.push(PathElement::Cubic(Box::new((
-                        Size::Pixels(ctrl1.x.into()),
-                        Size::Pixels(ctrl1.y.into()),
-                        Size::Pixels(ctrl2.x.into()),
-                        Size::Pixels(ctrl2.y.into()),
+                        Size::Percent((100.0 * ctrl1.x / bounds.0).into()),
+                        Size::Percent((100.0 * ctrl1.y / bounds.1).into()),
+                        Size::Percent((100.0 * ctrl2.x / bounds.0).into()),
+                        Size::Percent((100.0 * ctrl2.y / bounds.1).into()),
                     ))));
                     pax_segs.push(PathElement::Point(
-                        Size::Pixels(seg.end.x.into()),
-                        Size::Pixels(seg.end.y.into()),
+                        Size::Percent((100.0 * seg.end.x / bounds.0).into()),
+                        Size::Percent((100.0 * seg.end.y / bounds.1).into()),
                     ));
                 }
             }
