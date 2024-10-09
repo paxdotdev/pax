@@ -18,12 +18,15 @@ import { SliderUpdatePatch } from "../classes/messages/slider-update-patch";
 import { RadioSetUpdatePatch } from "../classes/messages/radio-set-update-patch";
 import { EventBlockerUpdatePatch } from "../classes/messages/event-blocker-update-patch";
 import { NavigationPatch } from "../classes/messages/navigation-patch";
+import {YoutubeVideoUpdatePatch} from "../classes/messages/youtube-video-update-patch";
 
 export const OBJECT = "Object";
 export const ARRAY = "Array";
 export const DIV = "DIV";
 export const INPUT = "Input";
 export const IMAGE = "Image";
+
+export const YOUTUBE_VIDEO = "Youtube Video";
 export const SELECT = "Select";
 export const BUTTON = "Button";
 export const CANVAS = "Canvas";
@@ -36,6 +39,7 @@ export const SCROLLER_UPDATE_PATCH = "Scroller Update Patch";
 export const NAVIGATION_PATCH = "Navigation Patch";
 export const TEXT_UPDATE_PATCH = "Text Update Patch";
 export const NATIVE_IMAGE_UPDATE_PATCH = "Native Image Update Patch";
+export const YOUTUBE_VIDEO_UPDATE_PATCH = "Youtube Video Update Patch";
 export const CHECKBOX_UPDATE_PATCH = "Checkbox Update Patch";
 export const TEXTBOX_UPDATE_PATCH = "Textbox Update Patch";
 export const DROPDOWN_UPDATE_PATCH = "Dropdown Update Patch";
@@ -106,7 +110,9 @@ export let SUPPORTED_OBJECTS = [{
         name: DIV,
         factory: () => document.createElement('div'),
         cleanUp: (div: HTMLDivElement) => {
-            div.removeAttribute('style');
+            while (div.attributes.length > 0) {
+                div.removeAttribute(div.attributes[0].name);
+            }
             div.innerHTML = '';
         },
     },
@@ -124,6 +130,16 @@ export let SUPPORTED_OBJECTS = [{
             canvas.height = 0;
             canvas.id = '';
             canvas.removeAttribute('style');
+        },
+    },
+    {
+        name: YOUTUBE_VIDEO,
+        factory: () => {
+            let iframe = document.createElement('iframe');
+            return iframe
+        },
+        cleanUp: (iframe: HTMLIFrameElement) => {
+            iframe.src = "";
         },
     },
     {

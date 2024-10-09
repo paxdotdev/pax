@@ -11,6 +11,8 @@ pub mod scroller;
 pub mod text;
 pub mod tooltip;
 
+pub mod youtube_video;
+
 //Only exposing inline_frame when designtime feature is enabled,
 //mostly as a safety measure to prevent it from being used in userland
 //(unless or until we want to support a specific use-case)
@@ -29,3 +31,4 @@ pub use scrollbar::*;
 pub use scroller::*;
 pub use text::*;
 pub use tooltip::*;
+pub use youtube_video::*;
