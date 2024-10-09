@@ -27,6 +27,9 @@ pub enum NativeMessage {
     NativeImageCreate(AnyCreatePatch),
     NativeImageUpdate(NativeImagePatch),
     NativeImageDelete(u32),
+    YoutubeVideoCreate(AnyCreatePatch),
+    YoutubeVideoUpdate(YoutubeVideoPatch),
+    YoutubeVideoDelete(u32),
     TextboxCreate(AnyCreatePatch),
     TextboxUpdate(TextboxPatch),
     TextboxDelete(u32),
@@ -438,6 +441,17 @@ pub struct NativeImagePatch {
     pub size_y: Option<f64>,
     pub url: Option<String>,
     pub fit: Option<String>,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize, Clone)]
+#[repr(C)]
+pub struct YoutubeVideoPatch {
+    pub id: u32,
+    pub transform: Option<Vec<f64>>,
+    pub size_x: Option<f64>,
+    pub size_y: Option<f64>,
+    pub url: Option<String>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]

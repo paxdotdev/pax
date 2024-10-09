@@ -18,14 +18,14 @@ fn init_cartridge() -> Box<dyn {{ engine_import_path }}::pax_runtime::cartridge:
 
 fn init_manifest() -> pax_manifest::PaxManifest {
     let userland_manifest_json = r#######"{{userland_manifest_json}}"#######;
-    let manifest : {{ engine_import_path }}::pax_manifest::PaxManifest = {{ engine_import_path }}::serde_json::from_str(userland_manifest_json).unwrap();
+    let manifest : {{ engine_import_path }}::pax_manifest::PaxManifest = {{ engine_import_path }}::serde_json::from_str(userland_manifest_json).expect("Failed to deserialize manifest");
     manifest
 }
 
 #[cfg(any(feature = "designer", feature = "designtime"))]
 fn init_designer_manifest() -> {{ engine_import_path }}::pax_manifest::PaxManifest {
     let designer_manifest_json = r#######"{{designer_manifest_json}}"#######;
-    let designer_manifest : {{ engine_import_path }}::pax_manifest::PaxManifest = {{ engine_import_path }}::serde_json::from_str(designer_manifest_json).unwrap();
+    let designer_manifest : {{ engine_import_path }}::pax_manifest::PaxManifest = {{ engine_import_path }}::serde_json::from_str(designer_manifest_json).expect("Failed to deserialize designer manifest");
     designer_manifest
 }
 
