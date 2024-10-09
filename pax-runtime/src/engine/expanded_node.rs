@@ -473,12 +473,11 @@ impl ExpandedNode {
                 }
             }
         }
-
-        for child in self.children.get().iter() {
-            child.recurse_update(context);
-        }
         if borrow!(self.instance_node).base().flags().is_component {
             self.compute_flattened_slot_children();
+        }
+        for child in self.children.get().iter() {
+            child.recurse_update(context);
         }
     }
 
