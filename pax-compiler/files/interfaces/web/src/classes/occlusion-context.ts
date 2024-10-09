@@ -53,7 +53,9 @@ export class OcclusionLayerManager {
     addElement(element: HTMLElement, parent_container: number | undefined, occlusionLayerId: number){
         this.growTo(occlusionLayerId);
         let attach_point = this.getOrCreateContainer(parent_container, occlusionLayerId);
-        attach_point.appendChild(element);
+        if (!attach_point.contains(element)) {
+            attach_point.appendChild(element);
+        }        
     }
 
     // If a div for the container referenced already exists, returns it. if not,
@@ -117,15 +119,16 @@ export class OcclusionLayerManager {
         this.layers!.forEach((layer, layerIndex) => {
             const currentElement = layer.native!.querySelector(`[data-container-id="${id}"]`) as HTMLElement;
             if (currentElement) {
-                // Remove from current parent
-                currentElement.parentElement!.removeChild(currentElement);
-
-                // Add to new parent
                 const newParentElement = this.getOrCreateContainer(new_parent_id, layerIndex);
-                newParentElement.appendChild(currentElement);
+        
+                // Check if the current parent is different from the new parent
+                if (currentElement.parentElement !== newParentElement) {
+                    // Add to new parent
+                    newParentElement.appendChild(currentElement);
+                }
             }
-        });
-    }
+        });    
+}
 
     removeContainer(id: number) {
         let container = this.containers.get(id);
