@@ -10,7 +10,16 @@ import {ButtonUpdatePatch} from "./messages/button-update-patch";
 import {ImageLoadPatch} from "./messages/image-load-patch";
 import {ContainerStyle, OcclusionLayerManager} from "./occlusion-context";
 import {ObjectManager} from "../pools/object-manager";
-import {IMAGE, INPUT, BUTTON, DIV, OCCLUSION_CONTEXT, SELECT} from "../pools/supported-objects";
+import {
+    IMAGE,
+    INPUT,
+    BUTTON,
+    DIV,
+    OCCLUSION_CONTEXT,
+    SELECT,
+    YOUTUBE_VIDEO,
+    YOUTUBE_VIDEO_UPDATE_PATCH
+} from "../pools/supported-objects";
 import {packAffineCoeffsIntoMatrix3DString, readImageToByteBuffer} from "../utils/helpers";
 import {ColorGroup, TextStyle, getAlignItems, getJustifyContent, getTextAlign} from "./text";
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
@@ -22,6 +31,7 @@ import { SliderUpdatePatch } from "./messages/slider-update-patch";
 import { EventBlockerUpdatePatch } from "./messages/event-blocker-update-patch";
 import { NavigationPatch } from "./messages/navigation-patch";
 import { NativeImageUpdatePatch } from "./messages/native-image-update-patch";
+import { YoutubeVideoUpdatePatch } from "./messages/youtube-video-update-patch";
 import { is_in_dom_manipulation_with_focus_func } from "..";
 
 export class NativeElementPool {
@@ -199,6 +209,56 @@ export class NativeElementPool {
     }
 
     nativeImageDelete(id: number) {
+        let oldNode = this.nodesLookup.get(id);
+        if (oldNode){
+            let parent = oldNode.parentElement;
+            parent!.removeChild(oldNode);
+            this.nodesLookup.delete(id);
+        }
+    }
+
+    youtubeVideoCreate(patch: AnyCreatePatch) {
+        console.assert(patch.id != null);
+        console.assert(patch.occlusionLayerId != null);
+
+        const youtubeVideo = this.objectManager.getFromPool(YOUTUBE_VIDEO) as HTMLIFrameElement;
+        youtubeVideo.width = "560";
+        youtubeVideo.height = "315";
+        youtubeVideo.title = "YouTube video player";
+        youtubeVideo.frameBorder = "0";
+        youtubeVideo.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+        youtubeVideo.referrerPolicy = "strict-origin-when-cross-origin";
+        youtubeVideo.allowFullscreen = true;
+
+        let youtubeVideo_div: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        youtubeVideo_div.appendChild(youtubeVideo as Node);
+        //The above fails: 'appendChild' on 'Node': parameter 1 is not of type 'Node'
+
+        youtubeVideo_div.setAttribute("class", NATIVE_LEAF_CLASS)
+        youtubeVideo_div.setAttribute("pax_id", String(patch.id));
+        if(patch.id != undefined && patch.occlusionLayerId != undefined){
+            this.layers.addElement(youtubeVideo_div, patch.parentFrame, patch.occlusionLayerId);
+        }
+        this.nodesLookup.set(patch.id!, youtubeVideo_div);
+    }
+
+    youtubeVideoUpdate(patch: YoutubeVideoUpdatePatch) {
+        //retrieve the iframe; update its width, height, and src
+        let leaf = this.nodesLookup.get(patch.id!);
+        let youtubeVideo = leaf!.firstChild as HTMLIFrameElement;
+        updateCommonProps(leaf!, patch);
+        if (patch.url != null) {
+            youtubeVideo.src = patch.url;
+        }
+        if (patch.size_x != null) {
+            youtubeVideo.width = patch.size_x.toString();
+        }
+        if (patch.size_y != null) {
+            youtubeVideo.height = patch.size_y.toString();
+        }
+    }
+
+    youtubeVideoDelete(id: number) {
         let oldNode = this.nodesLookup.get(id);
         if (oldNode){
             let parent = oldNode.parentElement;

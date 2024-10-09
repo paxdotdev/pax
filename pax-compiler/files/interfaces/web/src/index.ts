@@ -34,6 +34,7 @@ import { DropdownUpdatePatch } from "./classes/messages/dropdown-update-patch";
 import { SliderUpdatePatch } from "./classes/messages/slider-update-patch";
 import { NavigationPatch } from "./classes/messages/navigation-patch";
 import { NativeImageUpdatePatch } from "./classes/messages/native-image-update-patch";
+import { YoutubeVideoUpdatePatch } from "./classes/messages/youtube-video-update-patch";
 
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let messages : any[];
@@ -246,6 +247,19 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
         }else if (unwrapped_msg["NativeImageDelete"]) {
             let msg = unwrapped_msg["NativeImageDelete"];
             nativePool.nativeImageDelete(msg)
+        }else if(unwrapped_msg["YoutubeVideoCreate"]) {
+            let msg = unwrapped_msg["YoutubeVideoCreate"]
+            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+            patch.fromPatch(msg);
+            nativePool.youtubeVideoCreate(patch);
+        } else if (unwrapped_msg["YoutubeVideoUpdate"]){
+            let msg = unwrapped_msg["YoutubeVideoUpdate"]
+            let patch: YoutubeVideoUpdatePatch = objectManager.getFromPool(NATIVE_IMAGE_UPDATE_PATCH, objectManager);
+            patch.fromPatch(msg);
+            nativePool.youtubeVideoUpdate(patch);
+        }else if (unwrapped_msg["YoutubeVideoDelete"]) {
+            let msg = unwrapped_msg["YoutubeVideoDelete"];
+            nativePool.youtubeVideoDelete(msg)
         } else if(unwrapped_msg["FrameCreate"]) {
             let msg = unwrapped_msg["FrameCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
