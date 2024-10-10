@@ -1,6 +1,6 @@
 [package]
 name = "pax-manifest"
-version = "0.37.0"
+version = "0.37.1"
 authors = ["Zack Brown <zack@pax.dev>", "Warfa Jibril <warfa@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -14,9 +14,9 @@ parsing = []
 [lib]
 
 [dependencies]
-pax-message = {path="../pax-message", version="0.37.0"}
-pax-runtime-api = {path="../pax-runtime-api", version="0.37.0"}
-pax-lang = {version = "0.37.0", path="../pax-lang"}
+pax-message = {path="../pax-message", version="0.37.1"}
+pax-runtime-api = {path="../pax-runtime-api", version="0.37.1"}
+pax-lang = {version = "0.37.1", path="../pax-lang"}
 kurbo = "0.9.0"
 log = "0.4.20"
 colored = "2.0.0"
