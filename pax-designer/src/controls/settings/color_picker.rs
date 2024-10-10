@@ -1,7 +1,14 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use pax_engine::api::{pax_value::ToFromPaxAny, *};
 use pax_engine::math::{Point2, Vector2};
+use pax_engine::pax_runtime::ExpandedNodeIdentifier;
 use pax_engine::*;
 use pax_std::*;
+
+use crate::model;
+use crate::model::action::Transaction;
 
 thread_local! {
     pub static GLOBAL_MOUSEUP_PROP: Property<bool> = Default::default();
@@ -40,6 +47,14 @@ pub struct ColorPicker {
 
     pub property_listener: Property<bool>,
     pub cycle_detection: Property<bool>,
+}
+
+pub fn close_color_pickers() {
+    OPEN_COLOR_PICKER.with(|p| p.set(None));
+}
+
+thread_local! {
+    static OPEN_COLOR_PICKER: Property<Option<ExpandedNodeIdentifier>> = Property::new(None);
 }
 
 impl ColorPicker {
@@ -151,8 +166,23 @@ impl ColorPicker {
             .replace_with(Property::computed(move || glob_mouseup.get(), &deps));
     }
 
-    pub fn open_picker(&mut self, _ctx: &NodeContext, _event: Event<Click>) {
-        self.picker_open.set(!self.picker_open.get());
+    pub fn open_picker(&mut self, ctx: &NodeContext, _event: Event<Click>) {
+        let open = OPEN_COLOR_PICKER.with(|p| p.clone());
+        let id = ctx.get_node_interface().unwrap().engine_id();
+        let deps = [open.untyped()];
+        self.picker_open.replace_with(Property::computed(
+            move || open.get().is_some_and(|i| i == id),
+            &deps,
+        ));
+        OPEN_COLOR_PICKER.with(|p| {
+            p.update(|open| {
+                if open.is_some_and(|i| i == id) {
+                    *open = None;
+                } else {
+                    *open = Some(id);
+                }
+            });
+        });
     }
 
     pub fn palette_mouse_down(&mut self, ctx: &NodeContext, event: Event<MouseDown>) {

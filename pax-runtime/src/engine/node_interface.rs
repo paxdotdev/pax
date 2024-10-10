@@ -4,6 +4,7 @@ use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_runtime_api::Property;
 use pax_runtime_api::{borrow, pax_value::ToFromPaxAny, Interpolatable};
 
+use crate::ExpandedNodeIdentifier;
 use crate::{
     api::{math::Space, Window},
     ExpandedNode, LayoutProperties, TransformAndBounds,
@@ -59,6 +60,10 @@ impl NodeInterface {
         let instance_node = borrow!(self.inner.instance_node);
         let base = instance_node.base();
         base.template_node_identifier.clone()
+    }
+
+    pub fn engine_id(&self) -> ExpandedNodeIdentifier {
+        self.inner.id.clone()
     }
 
     pub fn layout_properties(&self) -> LayoutProperties {

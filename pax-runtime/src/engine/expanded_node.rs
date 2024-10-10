@@ -151,7 +151,7 @@ impl Interpolatable for ExpandedNode {}
 macro_rules! dispatch_event_handler {
     ($fn_name:ident, $arg_type:ty, $handler_key:ident, $recurse:expr) => {
         pub fn $fn_name(
-            &self,
+            self: &Rc<Self>,
             event: Event<$arg_type>,
             globals: &Globals,
             ctx: &Rc<RuntimeContext>,
@@ -621,7 +621,7 @@ impl ExpandedNode {
         func(self);
     }
 
-    pub fn get_node_context<'a>(&'a self, ctx: &Rc<RuntimeContext>) -> NodeContext {
+    pub fn get_node_context(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) -> NodeContext {
         let globals = ctx.globals();
         let t_and_b = self.transform_and_bounds.clone();
         let deps = [t_and_b.untyped()];
@@ -822,7 +822,7 @@ impl ExpandedNode {
     );
 
     pub fn dispatch_custom_event(
-        &self,
+        self: &Rc<Self>,
         identifier: &str,
         ctx: &Rc<RuntimeContext>,
     ) -> Result<(), String> {
