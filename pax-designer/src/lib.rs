@@ -34,7 +34,7 @@ pub mod project_mode_toggle;
 pub mod project_publish_button;
 
 use console::Console;
-use context_menu::DesignerContextMenu;
+use context_menu::{ContextMenuMsg, DesignerContextMenu};
 use controls::{
     settings::color_picker,
     toolbar::{self, CloseDropdown},
@@ -194,10 +194,20 @@ impl PaxDesigner {
     }
 
     pub fn handle_mouse_up(&mut self, ctx: &NodeContext, event: Event<MouseUp>) {
-        // TODO: the below todos refer to the original locations of these event handlers.
-        // long term some form of pointer capture would be useful to allow
-        // the elements to keep listening to mouse ups outside of the objects.
-        // see: https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events#capturing_the_pointer
+        if event.mouse.button != MouseButton::Right {
+            model::perform_action(
+                // if triggered directly, doesn't have time to register click on context menu
+                &Schedule {
+                    action: Rc::new(ContextMenuMsg::Close),
+                },
+                ctx,
+            );
+        }
+
+        // TODO: long term some form of pointer capture would be useful to
+        // allow the elements to keep listening to mouse ups outside of the
+        // objects. see:
+        // https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events#capturing_the_pointer
 
         // NOTE: this was originally on glass
         model::perform_action(

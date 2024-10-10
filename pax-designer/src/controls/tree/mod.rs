@@ -1,7 +1,7 @@
 use anyhow::Result;
 use pax_designtime::orm::PaxManifestORM;
 use pax_engine::api::*;
-use pax_engine::math::Generic;
+use pax_engine::math::{Generic, Point2};
 use pax_engine::node_layout::LayoutProperties;
 use pax_engine::*;
 use pax_manifest::{
@@ -22,6 +22,7 @@ use serde::Deserialize;
 use std::collections::{HashMap, HashSet, VecDeque};
 use treeobj::TreeObj;
 
+use crate::context_menu::ContextMenuMsg;
 use crate::designer_node_type::DesignerNodeType;
 use crate::glass::SetEditingComponent;
 use crate::math::coordinate_spaces::Glass;
@@ -49,7 +50,7 @@ impl Interpolatable for TreeMsg {}
 #[derive(Clone)]
 pub enum TreeMsg {
     ObjDoubleClicked(usize),
-    ObjMouseDown(usize, f64),
+    ObjMouseDown(usize, f64, MouseButton),
     ObjMouseMove(usize, f64, bool),
 }
 
@@ -165,19 +166,35 @@ impl Tree {
                     // reset this, movement can happen when the new tree is loaded on mouse release
                     self.dragging.set(false);
                 }
-                TreeMsg::ObjMouseDown(sender, x_offset) => {
-                    model::perform_action(
-                        &SelectNodes {
-                            ids: &[tree_obj.read(|t| t[sender].node_id.clone())],
-                            mode: model::action::world::SelectMode::Dynamic,
-                        },
-                        &ctx,
-                    );
-                    dragging.set(true);
-                    drag_id_start.set(sender);
-                    self.drag_x_start.set(x_offset);
-                    self.drag_indent
-                        .set(tree_obj.read(|t| t[sender].indent_level));
+                TreeMsg::ObjMouseDown(sender, x_offset, button) => {
+                    let node_id = tree_obj.read(|t| t[sender].node_id.clone());
+                    let clicked_is_selected = model::read_app_state(|app_state| {
+                        app_state
+                            .selected_template_node_ids
+                            .read(|selected| selected.contains(&node_id))
+                    });
+                    if button != MouseButton::Right {
+                        model::perform_action(
+                            &SelectNodes {
+                                ids: &[node_id],
+                                mode: model::action::world::SelectMode::Dynamic,
+                            },
+                            &ctx,
+                        );
+                        dragging.set(true);
+                        drag_id_start.set(sender);
+                        self.drag_x_start.set(x_offset);
+                        self.drag_indent
+                            .set(tree_obj.read(|t| t[sender].indent_level));
+                    } else if !clicked_is_selected {
+                        model::perform_action(
+                            &SelectNodes {
+                                ids: &[node_id],
+                                mode: model::action::world::SelectMode::DiscardOthers,
+                            },
+                            &ctx,
+                        );
+                    }
                 }
                 // TODO make less ugly
                 TreeMsg::ObjMouseMove(sender, x_offset, top_half) => {
@@ -255,6 +272,16 @@ impl Tree {
             }
             self.dragging.set(false);
         }
+    }
+
+    pub fn context_menu(&mut self, ctx: &NodeContext, event: Event<ContextMenu>) {
+        model::perform_action(
+            &ContextMenuMsg::Open {
+                pos: Point2::new(event.mouse.x, event.mouse.y),
+            },
+            ctx,
+        );
+        event.prevent_default();
     }
 
     // TODO make less ugly

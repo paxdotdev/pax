@@ -145,7 +145,8 @@ thread_local! {
 #[derive(Clone, Default)]
 pub enum ContextMenuMsg {
     Open {
-        pos: Point2<Glass>,
+        pos: Point2<Window>,
+        // TODO add options here on what to show
     },
     #[default]
     Close,

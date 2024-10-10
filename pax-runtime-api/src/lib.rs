@@ -283,7 +283,7 @@ pub struct MouseEventArgs {
     pub modifiers: Vec<ModifierKey>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum MouseButton {
     Left,
     Right,

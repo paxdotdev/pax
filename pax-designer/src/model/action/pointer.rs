@@ -50,12 +50,8 @@ impl Action for MouseEntryPointAction {
             (self.event, self.button.clone()),
             (Pointer::Down, MouseButton::Right)
         ) {
-            ContextMenuMsg::Open { pos: point_glass }.perform(ctx)?;
+            ContextMenuMsg::Open { pos: self.point }.perform(ctx)?;
             return Ok(());
-        }
-
-        if matches!(self.event, Pointer::Down) {
-            ContextMenuMsg::Close.perform(ctx)?;
         }
 
         // If no tool is active, activate a tool on mouse down
