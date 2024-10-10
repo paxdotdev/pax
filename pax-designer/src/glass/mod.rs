@@ -12,6 +12,7 @@ use pax_std::*;
 use serde::Deserialize;
 
 use crate::controls::file_and_component_picker::SetLibraryState;
+use crate::controls::settings::color_picker::close_color_pickers;
 use crate::designer_node_type::DesignerNodeType;
 use crate::model::action::orm::CreateComponent;
 use crate::model::action::tool::SetToolBehaviour;
@@ -215,6 +216,9 @@ impl Glass {
             },
             ctx,
         );
+
+        // TODO remove once input focus state handles this in the engine
+        close_color_pickers();
     }
 
     pub fn handle_wheel(&mut self, ctx: &NodeContext, args: Event<Wheel>) {

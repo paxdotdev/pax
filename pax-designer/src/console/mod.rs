@@ -57,7 +57,6 @@ impl Console {
                     while let Some(message_type) = new_messages.pop() {
                         match message_type {
                             pax_designtime::orm::MessageType::LLMSuccess(component) => {
-                                log::debug!("LLM SUCCESS MESSAGE");
                                 model::with_action_context(&ctx_p, |ctx| {
                                     let t = ctx.transaction("llm update");
                                     if let Err(e) = t.run(|| {

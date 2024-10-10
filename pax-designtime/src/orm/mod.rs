@@ -109,7 +109,6 @@ impl PaxManifestORM {
         message: String,
         component: Option<ComponentDefinition>,
     ) {
-        log::debug!("message");
         self.llm_messages
             .entry(request_id)
             .or_insert(Vec::new())
