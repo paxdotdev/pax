@@ -1,6 +1,4 @@
 use crate::controls::settings::property_editor::fill_property_editor::color_to_str;
-use crate::controls::settings::property_editor::stringify_value_definition;
-use crate::controls::settings::property_editor::stroke_property_editor::stroke_as_str;
 use crate::model::action::{Action, ActionContext};
 use crate::model::input::ModifierKey;
 use anyhow::anyhow;
@@ -43,19 +41,26 @@ impl Action for SwapFillStrokeAction {
                 let fill = props
                     .iter()
                     .find_map(|(p, v)| (p.name == "fill").then_some(v));
-                let (Some(Some(stroke)), Some(Some(fill))) = (stroke, fill) else {
-                    return Err(anyhow!("object doesn't have stroke and fill"));
+                let (
+                    Some(Some(ValueDefinition::LiteralValue(stroke))),
+                    Some(Some(ValueDefinition::LiteralValue(fill))),
+                ) = (stroke, fill)
+                else {
+                    return Err(anyhow!(
+                        "object doesn't have stroke and fill properties where both are literals"
+                    ));
                 };
-                let stroke = pax_engine::pax_lang::from_pax(&stringify_value_definition(stroke))
-                    .map(|v| Stroke::try_coerce(v))?
-                    .map_err(|e| anyhow!("failed to get stroke {e}"))?;
-                let fill = pax_engine::pax_lang::from_pax(&stringify_value_definition(fill))
-                    .map(|v| Fill::try_coerce(v))?
-                    .map_err(|e| anyhow!("failed to get fill {e}"))?;
+
+                let (Ok(stroke), Ok(fill)) = (
+                    Stroke::try_coerce(stroke.clone()),
+                    Fill::try_coerce(fill.clone()),
+                ) else {
+                    return Err(anyhow!("stroke or fill property type was unexpected"));
+                };
 
                 let new_stroke = Stroke {
-                    color: Property::new(match fill {
-                        Fill::Solid(color) => color,
+                    color: Property::new(match &fill {
+                        Fill::Solid(color) => color.clone(),
                         // TODO when stroke supports gradient
                         Fill::LinearGradient(l) => l
                             .stops
@@ -70,13 +75,8 @@ impl Action for SwapFillStrokeAction {
                     }),
                     ..stroke
                 };
-                let stroke_str = stroke_as_str(
-                    new_stroke.color.get(),
-                    new_stroke.width.get().expect_pixels().to_float(),
-                );
-                let fill_str = color_to_str(stroke.color.get());
-                node.set_property("stroke", &stroke_str)?;
-                node.set_property("fill", &fill_str)?;
+                node.set_property_from_typed("stroke", Some(new_stroke))?;
+                node.set_property_from_typed("fill", Some(stroke.color.get()))?;
                 node.save()
                     .map_err(|e| anyhow!("failed to swap fill/stroke: {e}"))?;
             }

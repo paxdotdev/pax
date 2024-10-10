@@ -1084,7 +1084,7 @@ impl Into<Rotation> for Percent {
 pub enum ColorChannel {
     Rotation(Rotation),
     /// [0,255]
-    Integer(Numeric),
+    Integer(u8),
     /// [0.0, 100.0]
     Percent(Numeric),
 }
@@ -1113,7 +1113,7 @@ impl From<Numeric> for Rotation {
 
 impl From<Numeric> for ColorChannel {
     fn from(value: Numeric) -> Self {
-        Self::Integer(value)
+        Self::Integer(value.to_int().clamp(0, 255) as u8)
     }
 }
 
@@ -1123,7 +1123,7 @@ impl ColorChannel {
         match self {
             Self::Percent(per) => (per.to_float() / 100.0).clamp(0_f64, 1_f64),
             Self::Integer(zero_to_255) => {
-                let f_zero: f64 = (*zero_to_255).to_float();
+                let f_zero = (*zero_to_255) as f64;
                 (f_zero / 255.0_f64).clamp(0_f64, 1_f64)
             }
             Self::Rotation(rot) => rot.to_float_0_1(),

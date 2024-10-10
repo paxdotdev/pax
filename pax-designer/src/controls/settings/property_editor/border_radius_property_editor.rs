@@ -1,5 +1,5 @@
-use pax_engine::api::*;
 use pax_engine::*;
+use pax_engine::{api::*, pax_manifest::utils::parse_value};
 use pax_manifest::*;
 use pax_std::*;
 
@@ -37,7 +37,11 @@ impl BorderRadiusPropertyEditor {
         self.textbox.replace_with(Property::computed(
             move || {
                 err.set("".to_string());
-                data.get().get_value_as_str(&ctx)
+                // TODO assert is number?
+                data.get()
+                    .get_value(&ctx)
+                    .map(|v| v.to_string())
+                    .unwrap_or_default()
             },
             &deps,
         ));
@@ -49,7 +53,15 @@ impl BorderRadiusPropertyEditor {
 
     pub fn text_change(&mut self, ctx: &NodeContext, args: Event<TextboxChange>) {
         self.textbox.set(args.text.to_owned());
-        if let Err(_error) = self.data.get().set_value(ctx, &args.text) {
+        // TODO parse a int instead, and wrap in PaxValue directly?
+        let value = match parse_value(&args.text) {
+            Ok(value) => value,
+            Err(e) => {
+                log::warn!("failed to parse value in border radius editor: {e}");
+                return;
+            }
+        };
+        if let Err(_error) = self.data.get().set_value(ctx, Some(value)) {
             self.error.set("error".to_owned());
         } else {
             self.error.set("".to_owned());

@@ -119,6 +119,7 @@ pub fn press_code_serialization_template(args: ComponentDefinition) -> Result<St
         .render(MANIFEST_CODE_SERIALIZATION_TEMPLATE, &context)
         .map_err(|err| format!("Failed to render template: {}", err))?;
 
+    eprintln!("TEMPLATE: {template}");
     // Format template
     let formatted_template = format_pax_template(template)
         .map_err(|err| format!("Failed to format template: {}", err))?;

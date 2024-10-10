@@ -1,10 +1,11 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use pax_designtime::orm::template::node_builder::NodeBuilder;
 use pax_designtime::orm::template::NodeAction;
 use pax_engine::api::*;
 use pax_engine::*;
 use pax_manifest::*;
 use pax_std::*;
+use std::collections::HashMap;
 use std::fmt::Write;
 
 pub mod border_radius_property_editor;
@@ -150,23 +151,76 @@ impl PropertyEditor {
 
     pub fn toggle_literal(&mut self, ctx: &NodeContext, _event: Event<Click>) {
         let data = self.data.get();
-        let val = data.get_value(&ctx);
-        let res = if matches!(val, Some(ValueDefinition::Expression(_))) {
-            data.set_value(&ctx, "")
-        } else {
-            let str_val = data.get_value_as_str(ctx);
-            if str_val.is_empty() {
-                // don't convert to expression if empty
-                Ok(())
-            } else {
-                let str_val_expr = format!("{{{str_val}}}");
-                data.set_value(&ctx, &str_val_expr)
+        let Some(val) = data.get_value(&ctx) else {
+            log::warn!("can't toggle property that is not present");
+            return;
+        };
+        let toggled_value = match toggle_value(val) {
+            Ok(value) => value,
+            Err(e) => {
+                log::warn!("failed to toggle value: {e}");
+                return;
             }
         };
-        if let Err(e) = res {
-            log::warn!("couldn't toggle expr: {e}");
+
+        if let Err(e) = data.set_value(ctx, Some(toggled_value)) {
+            log::warn!("couldn't write toggled value: {e}");
         }
     }
+}
+
+pub fn toggle_value(value: ValueDefinition) -> anyhow::Result<ValueDefinition> {
+    let toggled_val = match value {
+        ValueDefinition::Undefined => bail!("can't toggle undefined"),
+        ValueDefinition::LiteralValue(value) => ValueDefinition::Expression(ExpressionInfo {
+            expression: PaxExpression::Primary(Box::new(PaxPrimary::Literal(value))),
+            dependencies: vec![],
+        }),
+        ValueDefinition::Block(_) => bail!("can't toggle block"),
+        ValueDefinition::Expression(expr) => {
+            if !expr.dependencies.is_empty() {
+                bail!("can't toggle expression with dependencies");
+            }
+            ValueDefinition::LiteralValue(try_extract_pax_value(expr.expression)?)
+        }
+        ValueDefinition::Identifier(_) => bail!("can't toggle identifier"),
+        ValueDefinition::DoubleBinding(_) => bail!("can't toggle double binding"),
+        ValueDefinition::EventBindingTarget(_) => bail!("can't toggle event"),
+    };
+    Ok(toggled_val)
+}
+
+fn try_extract_pax_value(expr: PaxExpression) -> anyhow::Result<PaxValue> {
+    let res = match expr {
+        PaxExpression::Primary(primary) => match *primary {
+            PaxPrimary::Literal(value) => value,
+            PaxPrimary::Grouped(_, _) => bail!("can't toggle expression with perenthesiss"),
+            PaxPrimary::Identifier(_, _) => {
+                bail!("can't toggle expression with dependencies")
+            }
+            PaxPrimary::Object(obj) => PaxValue::Object(
+                obj.into_iter()
+                    .map(|(name, val)| {
+                        let pax_value = match try_extract_pax_value(val) {
+                            Ok(value) => value,
+                            Err(e) => bail!("object field wasn't a literal: {e}"),
+                        };
+                        Ok((name, pax_value))
+                    })
+                    .collect::<anyhow::Result<HashMap<String, PaxValue>>>()?,
+            ),
+            PaxPrimary::FunctionOrEnum(_, _, _) => bail!("can't toggle function/enum"),
+            PaxPrimary::Range(_, _) => bail!("can't toggle range"),
+            PaxPrimary::Tuple(_) => bail!("can't toggle tuple"),
+            PaxPrimary::List(list) => PaxValue::Vec(
+                list.into_iter()
+                    .map(|v| try_extract_pax_value(v))
+                    .collect::<anyhow::Result<_>>()?,
+            ),
+        },
+        _ => bail!("can't toggle expression with operators"),
+    };
+    Ok(res)
 }
 
 #[pax]
@@ -200,6 +254,22 @@ impl PropertyEditorData {
         }
     }
 
+    pub fn get_value_typed<T: CoercionRules>(&self, ctx: &NodeContext) -> anyhow::Result<T> {
+        let Some(value_def) = self.get_value(&ctx) else {
+            return Err(anyhow!("value not set/present in template"));
+        };
+        let ValueDefinition::LiteralValue(value) = value_def else {
+            return Err(anyhow!("value not a literal, was \"{}\"", value_def));
+        };
+        T::try_coerce(value).map_err(|e| {
+            anyhow!(
+                "failed to coerce into {}: {}",
+                std::any::type_name::<T>(),
+                e
+            )
+        })
+    }
+
     pub fn get_value(&self, ctx: &NodeContext) -> Option<ValueDefinition> {
         let dt = borrow!(ctx.designtime);
         let orm = dt.get_orm();
@@ -219,15 +289,27 @@ impl PropertyEditorData {
         }
     }
 
-    pub fn get_value_as_str(&self, ctx: &NodeContext) -> String {
-        self.get_value(ctx)
-            .map(|v| stringify_value_definition(&v))
-            .unwrap_or_default()
+    pub fn set_value_typed<T: ToPaxValue>(&self, ctx: &NodeContext, val: T) -> anyhow::Result<()> {
+        let pax_def = ValueDefinition::LiteralValue(val.to_pax_value());
+        self.set_value(ctx, Some(pax_def))
     }
 
-    pub fn set_value(&self, ctx: &NodeContext, val: &str) -> anyhow::Result<()> {
+    pub fn set_value(&self, ctx: &NodeContext, val: Option<ValueDefinition>) -> anyhow::Result<()> {
+        log::warn!(
+            "property editor setting {} property {} to {}",
+            self.name,
+            match self.write_target {
+                WriteTarget::None => "(none)",
+                WriteTarget::TemplateNode(_, _) => "template node",
+                WriteTarget::Class(_, _) => "class",
+            },
+            val.as_ref()
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "<none>".to_string())
+        );
         // save-point before property edit
-        let t = model::with_action_context(ctx, |ac| ac.transaction("updating property"));
+        // TODO remove and make more granular
+        let t = model::with_action_context(ctx, |ctx| ctx.transaction("update value"));
         t.run(|| {
             let mut dt = borrow_mut!(ctx.designtime);
             let orm = dt.get_orm_mut();
@@ -242,12 +324,12 @@ impl PropertyEditorData {
                             true,
                         )
                         .ok_or_else(|| anyhow!("couldn't get node builder"))?;
-                    node.set_property(&self.name, val.trim())?;
+                    node.set_property_from_value_definition(&self.name, val)?;
                     node.save().map_err(|e| anyhow!("{:?}", e))?;
                 }
                 WriteTarget::Class(stid, class_ident) => {
                     let mut class = orm.get_class_builder(stid.clone(), class_ident)?;
-                    class.set_property(&self.name, val)?;
+                    class.set_property_from_value_definition(&self.name, val)?;
                     class
                         .save()
                         .map_err(|e| anyhow!("failed to write class property: {e}"))?;
@@ -255,34 +337,5 @@ impl PropertyEditorData {
             }
             Ok(())
         })
-    }
-}
-
-pub fn stringify_value_definition(value: &ValueDefinition) -> String {
-    match value {
-        ValueDefinition::LiteralValue(v) => v.to_string(),
-        ValueDefinition::Expression(e) => format!("{{{}}}", e),
-        ValueDefinition::DoubleBinding(i) | ValueDefinition::Identifier(i) => i.to_string(),
-        ValueDefinition::Block(LiteralBlockDefinition { elements, .. }) => {
-            let mut block = String::new();
-            write!(block, "{{").unwrap();
-            for e in elements {
-                match e {
-                    SettingElement::Setting(Token { token_value, .. }, value) => {
-                        write!(
-                            block,
-                            "{}: {} ",
-                            token_value,
-                            stringify_value_definition(value)
-                        )
-                        .unwrap();
-                    }
-                    SettingElement::Comment(_) => (),
-                }
-            }
-            write!(block, "}}").unwrap();
-            block
-        }
-        _ => "(UNSUPPORTED BINDING TYPE)".to_owned(),
     }
 }

@@ -9,7 +9,7 @@ pub mod error;
 mod helpers;
 mod tests;
 
-use self::helpers::{PaxEnum, PaxObject, PaxSeq};
+use self::helpers::{ColorChannelInteger, PaxEnum, PaxObject, PaxSeq};
 
 pub use error::{Error, Result};
 
@@ -138,7 +138,7 @@ impl<'de> PaxDeserializer<'de> {
                 let channel = self.ast.into_inner().next().unwrap();
                 match channel.as_rule() {
                     Rule::literal_number_integer => {
-                        visitor.visit_enum(PaxEnum::new(INTEGER, Some(channel)))
+                        visitor.visit_enum(ColorChannelInteger(channel.as_str().parse().unwrap()))
                     }
                     Rule::literal_number_with_unit => {
                         let unit = channel.clone().into_inner().nth(1).unwrap().as_str().trim();
