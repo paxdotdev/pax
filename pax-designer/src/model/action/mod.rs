@@ -235,6 +235,14 @@ pub struct Transaction {
     user_action_message: String,
 }
 
+impl std::fmt::Debug for Transaction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Transaction")
+            .field("user_action_message", &self.user_action_message)
+            .finish_non_exhaustive()
+    }
+}
+
 impl Transaction {
     pub fn new(ctx: &ActionContext, user_action_message: &str) -> Self {
         log::trace!("transaction {:?} created", user_action_message);

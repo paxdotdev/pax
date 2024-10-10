@@ -1,7 +1,4 @@
-use std::{
-    rc::{Rc, Weak},
-    time::Instant,
-};
+use std::rc::{Rc, Weak};
 
 use_RefCell!();
 use crate::{
@@ -9,15 +6,12 @@ use crate::{
     TransformAndBounds,
 };
 
-use math::Transform2;
 use pax_runtime_api::math::Point2;
 pub use pax_runtime_api::*;
 
+use crate::node_interface::NodeInterface;
 #[cfg(feature = "designtime")]
-use {
-    crate::node_interface::NodeInterface, pax_designtime::DesigntimeManager,
-    pax_manifest::UniqueTemplateNodeIdentifier,
-};
+use {pax_designtime::DesigntimeManager, pax_manifest::UniqueTemplateNodeIdentifier};
 
 #[derive(Clone)]
 pub struct NodeContext {
@@ -64,6 +58,10 @@ impl NodeContext {
 
     pub fn local_point(&self, p: Point2<Window>) -> Point2<NodeLocal> {
         self.node_transform_and_bounds.as_transform().inverse() * p
+    }
+
+    pub fn get_node_interface(&self) -> Option<NodeInterface> {
+        Weak::upgrade(&self.containing_component).map(|v| v.into())
     }
 
     /// Get std::time::Instant::now()
