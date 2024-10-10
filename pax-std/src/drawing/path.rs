@@ -67,7 +67,7 @@ impl InstanceNode for PathInstance {
                 args,
                 InstanceFlags {
                     invisible_to_slot: false,
-                    invisible_to_raycasting: true,
+                    invisible_to_raycasting: false,
                     layer: Layer::Canvas,
                     is_component: false,
                     is_slot: false,
