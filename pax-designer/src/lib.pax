@@ -4,6 +4,7 @@ if !$mobile {
 }
 
 if self.glass_active {
+    <DesignerContextMenu/>
     <Stacker sizes=[None, Some(300px)]>
         <Frame>
             <MessageLogDisplay/>
@@ -18,7 +19,6 @@ if self.glass_active {
                 //    <Rectangle fill=WHITE/>
                 //}
                 //Optionally turned on on right click
-                <DesignerContextMenu/>
                 <Glass/>
                 <Group transform={self.transform2d}>
                     // Stage has a fixed size, regardless of window size
