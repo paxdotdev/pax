@@ -74,6 +74,7 @@ impl TreeObj {
             cn.push_back(super::TreeMsg::ObjMouseDown(
                 self.ind.get().clone().into(),
                 event.mouse.x,
+                event.mouse.button.clone(),
             ));
         });
     }
