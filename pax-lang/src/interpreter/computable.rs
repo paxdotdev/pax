@@ -52,7 +52,8 @@ impl Computable for PaxPrimary {
                         PaxAccessor::Struct(field) => {
                             if let PaxValue::Object(obj) = value {
                                 value = obj
-                                    .get(field)
+                                    .iter()
+                                    .find_map(|(n, v)| (n == field).then_some(v))
                                     .map(|v| v.clone())
                                     .ok_or(format!("Field not found: {}", field))?;
                             } else {
