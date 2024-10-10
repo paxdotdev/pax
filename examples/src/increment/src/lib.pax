@@ -1,14 +1,14 @@
-<Group x=50% y=50% width=120px height=120px @click=self.increment>
-    <Text x=50% y=50% text={num_clicks + " clicks"} id=text/>
-    <Rectangle fill={rgb(ticks, 75, 150)} corner_radii={RectangleCornerRadii::radii(10.00, 10.00, 10.00, 10.00)}/>
+<Group x=50% y=50% width=16.83% height=29.55% @click=self.increment rotate={(current_rotation)deg}>
+    <Text x=50% y=50% selectable=false text={num_clicks + " clicks"} id=text/>
+    <Rectangle fill={rgb(ticks, 75, 255 - ticks)} corner_radii={RectangleCornerRadii::radii(10.00, 10.00, 10.00, 10.00)}/>
 </Group>
 
 @settings {
     @pre_render: handle_pre_render
     #text {
         style: {
-            font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold)
-            font_size: 22px
+            font: Font::Web("Roboto", "", FontStyle::Normal, FontWeight::Light)
+            font_size: 26px
             fill: WHITE
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
