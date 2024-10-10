@@ -15,7 +15,7 @@ env:
 
 jobs:
   build-and-deploy:
-    runs-on: mars
+    runs-on: ubuntu-latest
     permissions: write-all
     steps:
     - uses: actions/checkout@v3
