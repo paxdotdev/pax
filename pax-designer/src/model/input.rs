@@ -8,15 +8,16 @@ use pax_engine::pax_manifest::{UniqueTemplateNodeIdentifier, ValueDefinition};
 use pax_engine::{log, CoercionRules, Property};
 
 use crate::controls::toolbar::FinishCurrentTool;
-use crate::model::action::orm::{RedoRequested, SerializeRequested, UndoRequested};
+use crate::model::action::orm::{copy_paste, RedoRequested, SerializeRequested, UndoRequested};
 use crate::model::SelectionStateSnapshot;
 use crate::{controls::toolbar, glass, llm_interface::SetLLMPromptState};
 
+use super::action::orm::copy_paste::{Copy, Paste};
+use super::action::orm::copy_paste::{CopySelected, CutSelected, PasteClipboard};
 use super::action::orm::group_ungroup::{GroupNodes, GroupSelected, GroupType, UngroupSelected};
 use super::action::orm::other::SwapFillStrokeAction;
-use super::action::orm::space_movement::TranslateFromSnapshot;
+use super::action::orm::space_movement::{Nudge, NudgeDir, TranslateFromSnapshot};
 use super::action::orm::tree_movement::{RelativeMove, RelativeMoveSelected};
-use super::action::orm::{Copy, Paste};
 use super::action::world::SelectAllInOpenContainer;
 use super::read_app_state;
 use super::{
@@ -109,6 +110,10 @@ impl Default for InputMapper {
                 (
                     (RawInput::C, HashSet::from([ModifierKey::Meta])),
                     InputEvent::Copy,
+                ),
+                (
+                    (RawInput::X, HashSet::from([ModifierKey::Meta])),
+                    InputEvent::Cut,
                 ),
                 (
                     (RawInput::V, HashSet::from([ModifierKey::Meta])),
@@ -257,36 +262,9 @@ impl InputMapper {
             InputEvent::Undo => Some(Box::new(UndoRequested)),
             InputEvent::Redo => Some(Box::new(RedoRequested)),
             InputEvent::Serialize => Some(Box::new(SerializeRequested {})),
-            InputEvent::Copy => Some(Box::new({
-                struct CopySelected;
-                impl Action for CopySelected {
-                    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
-                        let ids = ctx.app_state.selected_template_node_ids.get();
-                        let subtrees = Copy { ids: &ids }.perform(ctx)?;
-                        ctx.app_state.clip_board.set(subtrees);
-                        Ok(())
-                    }
-                }
-                CopySelected
-            })),
-            InputEvent::Paste => Some(Box::new({
-                struct PasteClipboard;
-
-                impl Action for PasteClipboard {
-                    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
-                        let t = ctx.transaction("paste");
-                        let subtrees = ctx.app_state.clip_board.get();
-                        t.run(|| {
-                            Paste {
-                                subtrees: &subtrees,
-                            }
-                            .perform(ctx)
-                        })
-                        .map(|_| ())
-                    }
-                }
-                PasteClipboard
-            })),
+            InputEvent::Copy => Some(Box::new(CopySelected)),
+            InputEvent::Cut => Some(Box::new(CutSelected)),
+            InputEvent::Paste => Some(Box::new(PasteClipboard)),
             InputEvent::LayerMove(relative_move) => Some(Box::new(RelativeMoveSelected {
                 relative_move: *relative_move,
             })),
@@ -294,32 +272,7 @@ impl InputMapper {
             InputEvent::Ungroup => Some(Box::new(UngroupSelected {})),
             InputEvent::SelectAllInOpenContainer => Some(Box::new(SelectAllInOpenContainer)),
             InputEvent::FinishCurrentTool => Some(Box::new(FinishCurrentTool)),
-            InputEvent::Nudge(n_dir) => {
-                struct Nudge(NudgeDir);
-
-                impl Action for Nudge {
-                    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
-                        let initial_selection: SelectionStateSnapshot =
-                            (&ctx.derived_state.selection_state.get()).into();
-                        const GLASS_PIXELS: f64 = 3.0;
-
-                        let t = ctx.transaction("nudging selection");
-                        t.run(|| {
-                            TranslateFromSnapshot {
-                                translation: match self.0 {
-                                    NudgeDir::Up => Vector2::new(0.0, -GLASS_PIXELS),
-                                    NudgeDir::Down => Vector2::new(0.0, GLASS_PIXELS),
-                                    NudgeDir::Left => Vector2::new(-GLASS_PIXELS, 0.0),
-                                    NudgeDir::Right => Vector2::new(GLASS_PIXELS, 0.0),
-                                },
-                                initial_selection: &initial_selection,
-                            }
-                            .perform(ctx)
-                        })
-                    }
-                }
-                Some(Box::new(Nudge(n_dir.clone())))
-            }
+            InputEvent::Nudge(n_dir) => Some(Box::new(Nudge(n_dir.clone()))),
         }
     }
 }
@@ -425,6 +378,7 @@ pub enum InputEvent {
     Redo,
     Serialize,
     Copy,
+    Cut,
     Paste,
     Group(GroupType),
     Ungroup,
@@ -433,14 +387,6 @@ pub enum InputEvent {
     SelectAllInOpenContainer,
     FinishCurrentTool,
     Nudge(NudgeDir),
-}
-
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub enum NudgeDir {
-    Up,
-    Down,
-    Left,
-    Right,
 }
 
 impl Interpolatable for ModifierKey {}
