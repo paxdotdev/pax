@@ -7,10 +7,11 @@ use crate::{
     math::{
         boolean_path_operations::{self, CompoundPath, DesignerPathId},
         coordinate_spaces::{Glass, World},
+        IntoDecompositionConfiguration,
     },
     model::{
         action::{
-            orm::{CreateComponent, NodeLayoutSettings},
+            orm::{CreateComponent, NodeLayoutSettings, SetNodeLayout},
             Action, ActionContext, Transaction,
         },
         ToolBehavior,
@@ -20,14 +21,14 @@ use anyhow::{anyhow, Result};
 use bezier_rs::{Bezier, Identifier, Subpath};
 use glam::DVec2;
 use pax_engine::{
-    api::{borrow, borrow_mut, Color, Interpolatable, PathElement},
+    api::{borrow, borrow_mut, Axis, Color, Interpolatable, PathElement},
     log,
-    math::{Point2, Space, Vector2},
+    math::{Point2, Space, Transform2, Vector2},
     pax_manifest::{TreeIndexPosition, UniqueTemplateNodeIdentifier},
     pax_runtime::TransformAndBounds,
     PaxValue, Property, ToPaxValue,
 };
-use pax_std::Size;
+use pax_std::{Path, Size};
 
 pub struct PaintbrushTool {
     path_node_being_created: UniqueTemplateNodeIdentifier,
@@ -184,9 +185,109 @@ impl ToolBehavior for PaintbrushTool {
         ControlFlow::Break(())
     }
 
-    fn finish(&mut self, _ctx: &mut ActionContext) -> anyhow::Result<()> {
-        // TODO
-        Ok(())
+    fn finish(&mut self, ctx: &mut ActionContext) -> Result<()> {
+        // Re-normalize bounding box of path to only fill space that was drawn on
+        let path_node = ctx.get_glass_node_by_global_id(&self.path_node_being_created)?;
+        let to_world = TransformAndBounds {
+            transform: ctx.world_transform(),
+            bounds: (1.0, 1.0),
+        };
+        let world_t_and_b = to_world * path_node.transform_and_bounds.get();
+        let path_elements = path_node
+            .raw_node_interface
+            .with_properties(|path: &mut Path| path.elements.get())
+            .ok_or_else(|| anyhow!("not a path node"))?;
+        let mut points = vec![];
+        for e in &path_elements {
+            match e {
+                &PathElement::Point(x, y) => points.push((x, y)),
+                PathElement::Line => (),
+                &PathElement::Quadratic(x, y) => points.push((x, y)),
+                PathElement::Cubic(sizes) => {
+                    points.push((sizes.0, sizes.1));
+                    points.push((sizes.2, sizes.3));
+                }
+                PathElement::Close => (),
+                PathElement::Empty => (),
+            }
+        }
+        let (w, h) = world_t_and_b.bounds;
+        let mut max_x: f64 = 0.0;
+        let mut max_y: f64 = 0.0;
+        let mut min_x: f64 = w;
+        let mut min_y: f64 = h;
+        for (s_x, s_y) in points {
+            let x = s_x.evaluate(world_t_and_b.bounds, Axis::X);
+            let y = s_y.evaluate(world_t_and_b.bounds, Axis::Y);
+            min_x = min_x.min(x);
+            min_y = min_y.min(y);
+            max_x = max_x.max(x);
+            max_y = max_y.max(y);
+        }
+        let old_origin = world_t_and_b.transform.get_translation();
+        let old_origin = (old_origin.x, old_origin.y);
+        let old_bounds = world_t_and_b.bounds;
+        let new_origin = (min_x, min_y);
+        let new_bounds = (max_x - min_x, max_y - min_y);
+        self.transaction.run(|| {
+            SetNodeLayout {
+                id: &path_node.id,
+                node_layout: &NodeLayoutSettings::KeepScreenBounds {
+                    node_transform_and_bounds: &TransformAndBounds {
+                        transform: Transform2::translate(Vector2::new(new_origin.0, new_origin.1)),
+                        bounds: new_bounds,
+                    },
+                    parent_transform_and_bounds: &(to_world
+                        * path_node.parent_transform_and_bounds.get()),
+                    node_decomposition_config: &path_node
+                        .layout_properties
+                        .into_decomposition_config(),
+                },
+            }
+            .perform(ctx)?;
+
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            let mut node = dt
+                .get_orm_mut()
+                .get_node_builder(path_node.id.clone(), false)
+                .ok_or_else(|| anyhow!("failed to get path node"))?;
+            let conv_x = |x| {
+                convert_size_to_new_range(
+                    x,
+                    old_bounds.0,
+                    old_origin.0 - new_origin.0,
+                    new_bounds.0,
+                )
+            };
+            let conv_y = |y| {
+                convert_size_to_new_range(
+                    y,
+                    old_bounds.1,
+                    old_origin.1 - new_origin.1,
+                    new_bounds.1,
+                )
+            };
+            let new_elements: Vec<_> = path_elements
+                .into_iter()
+                .map(|e| match e {
+                    PathElement::Empty => PathElement::Empty,
+                    PathElement::Point(x, y) => PathElement::Point(conv_x(x), conv_y(y)),
+                    PathElement::Line => PathElement::Line,
+                    PathElement::Quadratic(x, y) => PathElement::Quadratic(conv_x(x), conv_y(y)),
+                    PathElement::Cubic(sizes) => PathElement::Cubic(Box::new((
+                        conv_x(sizes.0),
+                        conv_y(sizes.1),
+                        conv_x(sizes.2),
+                        conv_y(sizes.3),
+                    ))),
+                    PathElement::Close => PathElement::Close,
+                })
+                .collect();
+            node.set_property_from_typed("elements", Some(new_elements))?;
+            node.save()
+                .map_err(|e| anyhow!("failed to save re-normalized path {e}"))?;
+            Ok(())
+        })
     }
 
     fn keyboard(
@@ -204,6 +305,36 @@ impl ToolBehavior for PaintbrushTool {
 
     fn get_visual(&self) -> Property<ToolVisualizationState> {
         Property::new(ToolVisualizationState::default())
+    }
+}
+
+fn convert_size_to_new_range(v: Size, area_px: f64, offset_px: f64, new_area_px: f64) -> Size {
+    let old_width = area_px;
+    let new_width = new_area_px;
+    let offset_px = offset_px;
+
+    match v {
+        Size::Pixels(px) => {
+            let new_px = px.to_float() + offset_px;
+            Size::Pixels(new_px.into())
+        }
+        Size::Percent(perc) => {
+            let px = perc.to_float() * old_width / 100.0;
+            let new_px = px + offset_px;
+            let new_perc = new_px * 100.0 / new_width;
+            Size::Percent(new_perc.into())
+        }
+        Size::Combined(px, perc) => {
+            let old_px_total = px.to_float() + perc.to_float() * old_width / 100.0;
+            let new_px_total = (old_px_total + offset_px) * new_width / old_width;
+
+            // Maintain the same ratio between pixels and percentage
+            let ratio = px.to_float() / (perc.to_float() * old_width / 100.0);
+            let new_px = new_px_total / (1.0 + 1.0 / ratio);
+            let new_perc = (new_px_total - new_px) * 100.0 / new_width;
+
+            Size::Combined(new_px.into(), new_perc.into())
+        }
     }
 }
 
