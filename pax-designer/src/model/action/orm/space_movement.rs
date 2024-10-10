@@ -256,3 +256,35 @@ impl Action for TranslateFromSnapshot<'_> {
         Ok(())
     }
 }
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum NudgeDir {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+pub struct Nudge(pub NudgeDir);
+
+impl Action for Nudge {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+        let initial_selection: SelectionStateSnapshot =
+            (&ctx.derived_state.selection_state.get()).into();
+        const GLASS_PIXELS: f64 = 3.0;
+
+        let t = ctx.transaction("nudging selection");
+        t.run(|| {
+            TranslateFromSnapshot {
+                translation: match self.0 {
+                    NudgeDir::Up => Vector2::new(0.0, -GLASS_PIXELS),
+                    NudgeDir::Down => Vector2::new(0.0, GLASS_PIXELS),
+                    NudgeDir::Left => Vector2::new(-GLASS_PIXELS, 0.0),
+                    NudgeDir::Right => Vector2::new(GLASS_PIXELS, 0.0),
+                },
+                initial_selection: &initial_selection,
+            }
+            .perform(ctx)
+        })
+    }
+}

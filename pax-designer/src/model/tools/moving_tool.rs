@@ -110,7 +110,7 @@ impl ToolBehavior for MovingTool {
             if ctx.app_state.modifiers.get().contains(&ModifierKey::Alt) {
                 //copy paste object and leave newly created object behind
                 let ids = t.run(|| {
-                    let subtrees = orm::Copy {
+                    let subtrees = orm::copy_paste::Copy {
                         ids: &self
                             .initial_selection
                             .items
@@ -119,7 +119,7 @@ impl ToolBehavior for MovingTool {
                             .collect::<Vec<_>>(),
                     }
                     .perform(ctx)?;
-                    let ids = orm::Paste {
+                    let ids = orm::copy_paste::Paste {
                         subtrees: &subtrees,
                     }
                     .perform(ctx);
