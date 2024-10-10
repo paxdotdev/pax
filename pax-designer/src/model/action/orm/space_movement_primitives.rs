@@ -22,8 +22,8 @@ pub enum NodeLayoutSettings<'a, S> {
     Fill,
     KeepScreenBounds {
         node_transform_and_bounds: &'a TransformAndBounds<NodeLocal, S>,
-        node_decomposition_config: &'a DecompositionConfiguration,
         parent_transform_and_bounds: &'a TransformAndBounds<NodeLocal, S>,
+        node_decomposition_config: &'a DecompositionConfiguration,
     },
     WithProperties(LayoutProperties),
 }
