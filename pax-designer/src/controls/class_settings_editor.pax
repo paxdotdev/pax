@@ -9,7 +9,7 @@
                     <PropertyEditor y=40px ind={property.index} name={property.name} write_target={WriteTarget::Class(stid, class_name)} 
                         is_custom_property=true
                     />
-                    <Path class=hr/>
+                    <Path class=hr _raycastable=false/>
                     <Text class=col_1 width=100% text={property.name_friendly} class=h2 y=10px/>
                 </Group>
             }
