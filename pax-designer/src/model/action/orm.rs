@@ -12,21 +12,19 @@ use crate::math::{
     self, AxisAlignedBox, DecompositionConfiguration, GetUnit, IntoDecompositionConfiguration,
     RotationUnit, SizeUnit,
 };
-use crate::model::action::world::{SelectMode, SelectNodes};
 use crate::model::input::{InputEvent, ModifierKey};
 use crate::model::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot};
 use crate::{math::BoxPoint, model, model::AppState};
 use anyhow::{anyhow, Context, Result};
 use pax_designtime::orm::template::node_builder::{self, NodeBuilder};
-use pax_designtime::orm::{MoveToComponentEntry, SubTrees};
+use pax_designtime::orm::MoveToComponentEntry;
 use pax_designtime::{DesigntimeManager, Serializer};
 use pax_engine::api::{borrow, borrow_mut, Rotation};
 use pax_engine::api::{Axis, Percent};
 use pax_engine::math::{Generic, Transform2, TransformParts};
 use pax_engine::node_layout::{LayoutProperties, TransformAndBounds};
 use pax_engine::pax_manifest::{
-    NodeLocation, PaxType, TemplateNodeId, TreeIndexPosition, TreeLocation, TypeId,
-    UniqueTemplateNodeIdentifier,
+    NodeLocation, PaxType, TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier,
 };
 use pax_engine::pax_runtime::RepeatInstance;
 use pax_engine::serde::Serialize;
@@ -37,6 +35,7 @@ use pax_engine::{
 };
 use pax_engine::{log, NodeInterface, NodeLocal, Slot};
 use pax_std::layout::stacker::Stacker;
+pub mod copy_paste;
 pub mod group_ungroup;
 pub mod other;
 pub mod space_movement;
@@ -252,47 +251,5 @@ impl Action for DeleteSelected {
                 .update(|ids| ids.clear());
             Ok(())
         })
-    }
-}
-
-pub struct Copy<'a> {
-    pub ids: &'a [TemplateNodeId],
-}
-
-impl Action<SubTrees> for Copy<'_> {
-    fn perform(&self, ctx: &mut ActionContext) -> Result<SubTrees> {
-        let comp_id = ctx.app_state.selected_component_id.get();
-        let dt = borrow!(ctx.engine_context.designtime);
-        let subtree = dt
-            .get_orm()
-            .copy_subtrees(&comp_id, &self.ids)
-            .ok_or_else(|| anyhow!("couldn't copy"))?;
-        Ok(subtree)
-    }
-}
-
-pub struct Paste<'a> {
-    pub subtrees: &'a SubTrees,
-}
-
-impl Action<Vec<TemplateNodeId>> for Paste<'_> {
-    fn perform(&self, ctx: &mut ActionContext) -> Result<Vec<TemplateNodeId>> {
-        let parent = ctx.derived_state.open_containers.get()[0].clone();
-        let loc = ctx.location(&parent, &TreeIndexPosition::Top);
-        let t = ctx.transaction("pasting object");
-        let mut dt = borrow_mut!(ctx.engine_context.designtime);
-        let ids = t.run(|| {
-            let ids = dt
-                .get_orm_mut()
-                .paste_subtrees(loc, self.subtrees.clone())
-                .map_err(|e| anyhow!("failed to paste: {e}"))?;
-            SelectNodes {
-                ids: &ids,
-                mode: SelectMode::DiscardOthers,
-            }
-            .perform(ctx)?;
-            Ok(ids)
-        });
-        ids
     }
 }
