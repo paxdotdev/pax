@@ -336,7 +336,7 @@ impl <%= engine_import_path %>::api::CoercionRules for <%= pascal_identifier %> 
                         let mut ret = Self::default();
                         <% for spd in static_property_definitions { %>
                             // check if the map contains the field
-                            if let Some(value) = map.get("<%= spd.field_name %>") {
+                            if let Some(value) = map.iter().find_map(|(n, v)| (n == "<%= spd.field_name %>").then_some(v)) {
                                 let value = <<%=spd.root_scoped_resolvable_type%> as <%= engine_import_path %>::api::CoercionRules>::try_coerce(value.clone())?;
                                 // if property wrapped set it to Property::new(value)
                                 <% if spd.is_property_wrapped { %>
@@ -390,7 +390,7 @@ impl <%= engine_import_path %>::api::ToPaxValue for <%= pascal_identifier %> {
                                 ("<%= spd.field_name %>".to_string(), <<%=spd.root_scoped_resolvable_type%> as <%= engine_import_path %>::api::ToPaxValue>::to_pax_value(self.<%= spd.field_name %>)),
                             <% } %>
                         <% } %>
-                    ].into_iter().collect()
+                    ]
                 )
             <% } %>
     }

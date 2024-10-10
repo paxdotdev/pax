@@ -165,7 +165,11 @@ impl CoercionRules for LinearGradient {
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
         Ok(match pax_value.clone() {
             PaxValue::Object(map) => {
-                let start = map.get("start").unwrap().clone();
+                let start = map
+                    .iter()
+                    .find_map(|(n, v)| (n == "start").then_some(v))
+                    .unwrap()
+                    .clone();
                 let (s1, s2) = match start {
                     PaxValue::Vec(vec) => {
                         let s1 = Size::try_coerce(vec[0].clone())?;
@@ -180,7 +184,11 @@ impl CoercionRules for LinearGradient {
                     }
                 };
 
-                let end = map.get("end").unwrap().clone();
+                let end = map
+                    .iter()
+                    .find_map(|(n, v)| (n == "end").then_some(v))
+                    .unwrap()
+                    .clone();
                 let (e1, e2) = match end {
                     PaxValue::Vec(vec) => {
                         let e1 = Size::try_coerce(vec[0].clone())?;
@@ -194,7 +202,12 @@ impl CoercionRules for LinearGradient {
                         ))
                     }
                 };
-                let stops = Vec::<GradientStop>::try_coerce(map.get("stops").unwrap().clone())?;
+                let stops = Vec::<GradientStop>::try_coerce(
+                    map.iter()
+                        .find_map(|(n, v)| (n == "stops").then_some(v))
+                        .unwrap()
+                        .clone(),
+                )?;
                 LinearGradient {
                     start: (s1, s2),
                     end: (e1, e2),
@@ -225,7 +238,11 @@ impl CoercionRules for RadialGradient {
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
         Ok(match pax_value.clone() {
             PaxValue::Object(map) => {
-                let start = map.get("start").unwrap().clone();
+                let start = map
+                    .iter()
+                    .find_map(|(n, v)| (n == "start").then_some(v))
+                    .unwrap()
+                    .clone();
                 let (s1, s2) = match start {
                     PaxValue::Vec(vec) => {
                         let s1 = Size::try_coerce(vec[0].clone())?;
@@ -240,7 +257,11 @@ impl CoercionRules for RadialGradient {
                     }
                 };
 
-                let end = map.get("end").unwrap().clone();
+                let end = map
+                    .iter()
+                    .find_map(|(n, v)| (n == "end").then_some(v))
+                    .unwrap()
+                    .clone();
                 let (e1, e2) = match end {
                     PaxValue::Vec(vec) => {
                         let e1 = Size::try_coerce(vec[0].clone())?;
@@ -254,7 +275,12 @@ impl CoercionRules for RadialGradient {
                         ))
                     }
                 };
-                let radius = match map.get("radius").unwrap().clone() {
+                let radius = match map
+                    .iter()
+                    .find_map(|(n, v)| (n == "radius").then_some(v))
+                    .unwrap()
+                    .clone()
+                {
                     PaxValue::Numeric(n) => n.to_float(),
                     _ => {
                         return Err(format!(
@@ -263,7 +289,12 @@ impl CoercionRules for RadialGradient {
                         ))
                     }
                 };
-                let stops = Vec::<GradientStop>::try_coerce(map.get("stops").unwrap().clone())?;
+                let stops = Vec::<GradientStop>::try_coerce(
+                    map.iter()
+                        .find_map(|(n, v)| (n == "stops").then_some(v))
+                        .unwrap()
+                        .clone(),
+                )?;
                 RadialGradient {
                     start: (s1, s2),
                     end: (e1, e2),
@@ -295,8 +326,18 @@ impl CoercionRules for GradientStop {
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
         Ok(match pax_value {
             PaxValue::Object(map) => {
-                let position = Size::try_coerce(map.get("position").unwrap().clone())?;
-                let color = Color::try_coerce(map.get("color").unwrap().clone())?;
+                let position = Size::try_coerce(
+                    map.iter()
+                        .find_map(|(n, v)| (n == "position").then_some(v))
+                        .unwrap()
+                        .clone(),
+                )?;
+                let color = Color::try_coerce(
+                    map.iter()
+                        .find_map(|(n, v)| (n == "color").then_some(v))
+                        .unwrap()
+                        .clone(),
+                )?;
                 GradientStop { position, color }
             }
             PaxValue::Option(mut o) => {
@@ -325,10 +366,16 @@ impl CoercionRules for Stroke {
             },
             PaxValue::Object(map) => {
                 let color = Property::new(Color::try_coerce(
-                    map.get("color").ok_or("color had wrong type")?.clone(),
+                    map.iter()
+                        .find_map(|(n, v)| (n == "color").then_some(v))
+                        .ok_or("color had wrong type")?
+                        .clone(),
                 )?);
                 let width = Property::new(Size::try_coerce(
-                    map.get("width").ok_or("width had wrong type")?.clone(),
+                    map.iter()
+                        .find_map(|(n, v)| (n == "width").then_some(v))
+                        .ok_or("width had wrong type")?
+                        .clone(),
                 )?);
                 Stroke { color, width }
             }
@@ -577,15 +624,18 @@ impl CoercionRules for Transform2D {
                 }
             }
             PaxValue::Object(map) => {
-                let previous = match map.get("previous") {
+                let previous = match map.iter().find_map(|(n, v)| (n == "previous").then_some(v)) {
                     Some(p) => Option::<Box<Transform2D>>::try_coerce(p.clone())?,
                     None => None,
                 };
-                let rotate = match map.get("rotate") {
+                let rotate = match map.iter().find_map(|(n, v)| (n == "rotate").then_some(v)) {
                     Some(r) => Option::<Rotation>::try_coerce(r.clone())?,
                     None => None,
                 };
-                let translate = match map.get("translate") {
+                let translate = match map
+                    .iter()
+                    .find_map(|(n, v)| (n == "translate").then_some(v))
+                {
                     Some(t) => match t.clone() {
                         PaxValue::Option(mut opt) => {
                             if let Some(t) = opt.take() {
@@ -610,7 +660,7 @@ impl CoercionRules for Transform2D {
                     },
                     None => None,
                 };
-                let anchor = match map.get("anchor") {
+                let anchor = match map.iter().find_map(|(n, v)| (n == "anchor").then_some(v)) {
                     Some(a) => match a.clone() {
                         PaxValue::Option(mut opt) => {
                             if let Some(a) = opt.take() {
@@ -635,7 +685,7 @@ impl CoercionRules for Transform2D {
                     },
                     None => None,
                 };
-                let scale = match map.get("scale") {
+                let scale = match map.iter().find_map(|(n, v)| (n == "scale").then_some(v)) {
                     Some(s) => match s.clone() {
                         PaxValue::Option(mut opt) => {
                             if let Some(s) = opt.take() {
@@ -660,7 +710,7 @@ impl CoercionRules for Transform2D {
                     },
                     None => None,
                 };
-                let skew = match map.get("skew") {
+                let skew = match map.iter().find_map(|(n, v)| (n == "skew").then_some(v)) {
                     Some(s) => match s.clone() {
                         PaxValue::Option(mut opt) => {
                             if let Some(s) = opt.take() {
@@ -710,7 +760,12 @@ impl CoercionRules for Transform2 {
                 }
             }
             PaxValue::Object(map) => {
-                let m = Vec::<f64>::try_coerce(map.get("m").unwrap().clone())?;
+                let m = Vec::<f64>::try_coerce(
+                    map.iter()
+                        .find_map(|(n, v)| (n == "m").then_some(v))
+                        .unwrap()
+                        .clone(),
+                )?;
                 if m.len() != 6 {
                     return Err(format!("expected 6 elements in coeffs, got {:?}", m.len()));
                 }
@@ -732,8 +787,18 @@ impl CoercionRules for Vector2 {
                 }
             }
             PaxValue::Object(map) => {
-                let x = f64::try_coerce(map.get("x").unwrap().clone())?;
-                let y = f64::try_coerce(map.get("y").unwrap().clone())?;
+                let x = f64::try_coerce(
+                    map.iter()
+                        .find_map(|(n, v)| (n == "x").then_some(v))
+                        .unwrap()
+                        .clone(),
+                )?;
+                let y = f64::try_coerce(
+                    map.iter()
+                        .find_map(|(n, v)| (n == "y").then_some(v))
+                        .unwrap()
+                        .clone(),
+                )?;
                 Vector2::new(x, y)
             }
             _ => return Err(format!("{:?} can't be coerced into a Vector2", value)),
