@@ -70,19 +70,22 @@ impl TextStylePropertyEditor {
         let data = self.data.clone();
         let deps = [data.untyped()];
         let data = self.data.clone();
-        let cctx = ctx.clone();
+        let ctxc = ctx.clone();
         let external_change = self.external_change.clone();
         // source of truth, everything else syncs to this
         self.text_style.replace_with(Property::computed(
             move || {
                 external_change.set(true);
-                let pax = &data.get().get_value_as_str(&cctx);
-                let value = pax_engine::pax_lang::from_pax(pax);
-                if let Ok(value) = value {
-                    let style: Result<TextStyle, String> = TextStyle::try_coerce(value);
-                    return style.unwrap_or_default();
-                }
-                TextStyle::default()
+                data.get()
+                    .get_value_typed(&ctxc)
+                    .map_err(|e| {
+                        log::warn!(
+                            "failed to read {} for {} - using default: {e}",
+                            "text style",
+                            "text style editor"
+                        );
+                    })
+                    .unwrap_or_default()
             },
             &deps,
         ));
@@ -220,7 +223,7 @@ impl TextStylePropertyEditor {
                         align_vertical: Property::new(v_align.clone()),
                         align_horizontal: Property::new(h_align.clone()),
                     };
-                    Self::update_textstyle(&data, &text_style, &cctx);
+                    Self::update_textstyle(&data, text_style, &cctx);
                 }
                 external_change.set(false);
                 true
@@ -231,58 +234,10 @@ impl TextStylePropertyEditor {
 
     fn update_textstyle(
         data: &Property<PropertyEditorData>,
-        text_style: &TextStyle,
+        text_style: TextStyle,
         ctx: &NodeContext,
     ) {
-        // TODO use this, and change out color serialization/deserialization
-        // let var_str = pax_designtime::serde_pax::se::to_pax(&style);
-        // let var_str = var_str.unwrap();
-        let var_str = format!(
-            "{{
-        font: {}
-        font_size: {}
-        fill: {}
-        align_vertical: TextAlignVertical::{:?},
-        align_horizontal: TextAlignHorizontal::{:?},
-        align_multiline: TextAlignHorizontal::{:?},
-        underline: false
-        }}",
-            {
-                let font = text_style.font.get();
-                match font {
-                    Font::Web(family, url, style, weight) => {
-                        format!(
-                            "Font::Web({:?}, {:?}, FontStyle::{:?}, FontWeight::{:?})",
-                            family, url, style, weight
-                        )
-                    }
-                }
-            },
-            match text_style.font_size.get() {
-                Size::Pixels(px) => format!("{}px", px),
-                Size::Percent(perc) => format!("{}%", perc),
-                Size::Combined(px, perc) => format!("{}px + {}%", px, perc),
-            },
-            {
-                let rgba = match text_style.fill.get() {
-                    Fill::Solid(color) => color,
-                    Fill::LinearGradient(_) => todo!(),
-                    Fill::RadialGradient(_) => todo!(),
-                }
-                .to_rgba_0_1();
-                format!(
-                    "rgba({}, {}, {}, {})",
-                    (rgba[0] * 255.0) as u8,
-                    (rgba[1] * 255.0) as u8,
-                    (rgba[2] * 255.0) as u8,
-                    (rgba[3] * 255.0) as u8
-                )
-            },
-            text_style.align_vertical.get(),
-            text_style.align_horizontal.get(),
-            text_style.align_horizontal.get(),
-        );
-        if let Err(e) = data.get().set_value(ctx, &var_str) {
+        if let Err(e) = data.get().set_value_typed(ctx, text_style) {
             log::warn!("failed to write textstyle: {e}");
         }
     }

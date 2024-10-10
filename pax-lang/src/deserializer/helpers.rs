@@ -1,7 +1,8 @@
+use pax_runtime_api::constants::INTEGER;
 use pest::iterators::{Pair, Pairs};
 use serde::{
     de::{self, DeserializeSeed, EnumAccess, MapAccess, SeqAccess, VariantAccess, Visitor},
-    forward_to_deserialize_any,
+    forward_to_deserialize_any, Deserializer,
 };
 
 use crate::Rule;
@@ -43,6 +44,91 @@ pub struct PaxEnum<'de> {
     variant: &'de str,
     args: Option<Pair<'de, Rule>>,
     is_pax_value: bool,
+}
+
+#[derive(Clone)]
+pub struct ColorChannelInteger(pub u8);
+
+impl<'de> EnumAccess<'de> for ColorChannelInteger {
+    type Error = Error;
+    type Variant = Self;
+    fn variant_seed<V>(
+        self,
+        seed: V,
+    ) -> std::prelude::v1::Result<(V::Value, Self::Variant), Self::Error>
+    where
+        V: DeserializeSeed<'de>,
+    {
+        let val = seed.deserialize(StringDeserializer::new(INTEGER))?;
+        Ok((val, self))
+    }
+}
+
+impl<'de> de::Deserializer<'de> for ColorChannelInteger {
+    type Error = Error;
+
+    forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 i128 u16 u32 u64 u128 f32 f64 char str string
+        bytes byte_buf option unit unit_struct newtype_struct seq tuple identifier
+        tuple_struct map struct enum ignored_any
+    }
+
+    fn deserialize_any<V>(self, _visitor: V) -> std::prelude::v1::Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        Err(Error::Message("Unsupported numeric type".to_string()))
+    }
+
+    fn deserialize_u8<V>(self, visitor: V) -> std::prelude::v1::Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_u8(self.0)
+    }
+}
+
+impl<'de> VariantAccess<'de> for ColorChannelInteger {
+    type Error = Error;
+
+    fn unit_variant(self) -> std::prelude::v1::Result<(), Self::Error> {
+        Err(Error::Message(
+            "ColorChannelInteger with no arguments not supported".to_string(),
+        ))
+    }
+
+    fn newtype_variant_seed<T>(self, seed: T) -> std::prelude::v1::Result<T::Value, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        seed.deserialize(self)
+    }
+
+    fn tuple_variant<V>(
+        self,
+        _len: usize,
+        _visitor: V,
+    ) -> std::prelude::v1::Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        Err(Error::Message(
+            "ColorChannelInteger with multiple arguments not supported".to_string(),
+        ))
+    }
+
+    fn struct_variant<V>(
+        self,
+        _fields: &'static [&'static str],
+        _visitor: V,
+    ) -> std::prelude::v1::Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        Err(Error::Message(
+            "ColorChannelInteger with struct arguments are not supported".to_string(),
+        ))
+    }
 }
 
 impl<'de> PaxEnum<'de> {

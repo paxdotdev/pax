@@ -1554,6 +1554,24 @@ pub enum ValueDefinition {
     EventBindingTarget(PaxIdentifier),
 }
 
+impl Display for ValueDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ValueDefinition::Undefined => write!(f, "<undefined>"),
+            ValueDefinition::LiteralValue(value) => write!(f, "{}", value),
+            ValueDefinition::Block(block) => write!(f, "{}", block),
+            ValueDefinition::Expression(e) => write!(f, "{}", e),
+            ValueDefinition::Identifier(i) => write!(f, "{}", i),
+            ValueDefinition::DoubleBinding(ident) => {
+                write!(f, "bind:{}", ident)
+            }
+            ValueDefinition::EventBindingTarget(ident) => {
+                write!(f, "@<event-binding>={}", ident)
+            }
+        }
+    }
+}
+
 /// Container for holding metadata about original Location in Pax Template
 /// Used for source-mapping
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Hash, Eq, PartialOrd, Ord)]
@@ -1626,6 +1644,23 @@ impl ExpressionInfo {
 pub struct LiteralBlockDefinition {
     pub explicit_type_pascal_identifier: Option<Token>,
     pub elements: Vec<SettingElement>,
+}
+
+impl Display for LiteralBlockDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let elements = &self.elements;
+        write!(f, "{{")?;
+        for e in elements {
+            match e {
+                SettingElement::Setting(Token { token_value, .. }, value) => {
+                    write!(f, "{}: {} ", token_value, value)?;
+                }
+                SettingElement::Comment(_) => (),
+            }
+        }
+        write!(f, "}}")?;
+        Ok(())
+    }
 }
 
 impl LiteralBlockDefinition {

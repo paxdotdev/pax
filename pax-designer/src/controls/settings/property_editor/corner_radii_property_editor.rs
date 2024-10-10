@@ -36,13 +36,16 @@ impl CornerRadiiPropertyEditor {
         let ctx = ctx.clone();
         self.corner_radii.replace_with(Property::computed(
             move || {
-                let value = pax_engine::pax_lang::from_pax(&data.get().get_value_as_str(&ctx));
-                if let Ok(value) = value {
-                    let rad: RectangleCornerRadii =
-                        RectangleCornerRadii::try_coerce(value).unwrap_or_default();
-                    return rad;
-                }
-                RectangleCornerRadii::default()
+                data.get()
+                    .get_value_typed(&ctx)
+                    .map_err(|e| {
+                        log::warn!(
+                            "failed to read {} for {} - using default: {e}",
+                            "corner radii",
+                            "corner radii editor"
+                        );
+                    })
+                    .unwrap_or_default()
             },
             &deps,
         ));
@@ -72,70 +75,66 @@ impl CornerRadiiPropertyEditor {
 
     pub fn change_0(&mut self, ctx: &NodeContext, event: Event<TextboxChange>) {
         let corner_radii = self.corner_radii.get();
-        let r0: f64 = event.text.parse::<f64>().unwrap_or_else(|_| {
-            log::warn!("can't set corner radii to non-float");
-            0.0
-        });
-        let r1 = corner_radii.top_right.get().to_float();
-        let r2 = corner_radii.bottom_left.get().to_float();
-        let r3 = corner_radii.bottom_right.get().to_float();
-        let cr_str = format!(
-            "{{ top_left: {} top_right: {} bottom_left: {} bottom_right: {}}}",
-            r0, r1, r2, r3,
+        corner_radii.top_left.set(
+            event
+                .text
+                .parse::<f64>()
+                .unwrap_or_else(|_| {
+                    log::warn!("can't set corner radii to non-float");
+                    0.0
+                })
+                .into(),
         );
-        if let Err(e) = self.data.get().set_value(ctx, &cr_str) {
+        if let Err(e) = self.data.get().set_value_typed(ctx, corner_radii) {
             log::warn!("failed to write corner radii: {e}");
         }
     }
 
     pub fn change_1(&mut self, ctx: &NodeContext, event: Event<TextboxChange>) {
         let corner_radii = self.corner_radii.get();
-        let r0 = corner_radii.top_left.get().to_float();
-        let r1: f64 = event.text.parse::<f64>().unwrap_or_else(|_| {
-            log::warn!("can't set corner radii to non-float");
-            0.0
-        });
-        let r2 = corner_radii.bottom_left.get().to_float();
-        let r3 = corner_radii.bottom_right.get().to_float();
-        let cr_str = format!(
-            "{{ top_left: {} top_right: {} bottom_left: {} bottom_right: {}}}",
-            r0, r1, r2, r3,
+        corner_radii.top_right.set(
+            event
+                .text
+                .parse::<f64>()
+                .unwrap_or_else(|_| {
+                    log::warn!("can't set corner radii to non-float");
+                    0.0
+                })
+                .into(),
         );
-        if let Err(e) = self.data.get().set_value(ctx, &cr_str) {
+        if let Err(e) = self.data.get().set_value_typed(ctx, corner_radii) {
             log::warn!("failed to write corner radii: {e}");
         }
     }
     pub fn change_2(&mut self, ctx: &NodeContext, event: Event<TextboxChange>) {
         let corner_radii = self.corner_radii.get();
-        let r0 = corner_radii.top_left.get().to_float();
-        let r1 = corner_radii.top_right.get().to_float();
-        let r2: f64 = event.text.parse::<f64>().unwrap_or_else(|_| {
-            log::warn!("can't set corner radii to non-float");
-            0.0
-        });
-        let r3 = corner_radii.bottom_right.get().to_float();
-        let cr_str = format!(
-            "{{ top_left: {} top_right: {} bottom_left: {} bottom_right: {}}}",
-            r0, r1, r2, r3,
+        corner_radii.bottom_left.set(
+            event
+                .text
+                .parse::<f64>()
+                .unwrap_or_else(|_| {
+                    log::warn!("can't set corner radii to non-float");
+                    0.0
+                })
+                .into(),
         );
-        if let Err(e) = self.data.get().set_value(ctx, &cr_str) {
+        if let Err(e) = self.data.get().set_value_typed(ctx, corner_radii) {
             log::warn!("failed to write corner radii: {e}");
         }
     }
     pub fn change_3(&mut self, ctx: &NodeContext, event: Event<TextboxChange>) {
         let corner_radii = self.corner_radii.get();
-        let r0 = corner_radii.top_left.get().to_float();
-        let r1 = corner_radii.top_right.get().to_float();
-        let r2 = corner_radii.bottom_left.get().to_float();
-        let r3: f64 = event.text.parse::<f64>().unwrap_or_else(|_| {
-            log::warn!("can't set corner radii to non-float");
-            0.0
-        });
-        let cr_str = format!(
-            "{{ top_left: {} top_right: {} bottom_left: {} bottom_right: {}}}",
-            r0, r1, r2, r3,
+        corner_radii.bottom_right.set(
+            event
+                .text
+                .parse::<f64>()
+                .unwrap_or_else(|_| {
+                    log::warn!("can't set corner radii to non-float");
+                    0.0
+                })
+                .into(),
         );
-        if let Err(e) = self.data.get().set_value(ctx, &cr_str) {
+        if let Err(e) = self.data.get().set_value_typed(ctx, corner_radii) {
             log::warn!("failed to write corner radii: {e}");
         }
     }

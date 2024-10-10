@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use pax_engine::api::{pax_value::ToFromPaxAny, *};
+use pax_engine::pax_manifest::ValueDefinition;
 use pax_engine::*;
 
 use crate::controls::settings::property_editor::fill_property_editor::color_to_str;
@@ -46,12 +47,16 @@ impl StrokePropertyEditor {
         self.stroke.replace_with(Property::computed(
             move || {
                 external.set(true);
-                let value = pax_engine::pax_lang::from_pax(&data.get().get_value_as_str(&ctxc));
-                if let Ok(value) = value {
-                    let stroke: Stroke = Stroke::try_coerce(value).unwrap_or_default();
-                    return stroke;
-                }
-                Stroke::default()
+                data.get()
+                    .get_value_typed(&ctxc)
+                    .map_err(|e| {
+                        log::warn!(
+                            "failed to read {} for {} - using default: {e}",
+                            "stroke",
+                            "stroke editor"
+                        );
+                    })
+                    .unwrap_or_default()
             },
             &deps,
         ));
@@ -76,14 +81,15 @@ impl StrokePropertyEditor {
 
         let color = self.color.clone();
         let color_dep = color.untyped();
-        let stroke_width_cloned = self.stroke_width.clone();
-        let external_cloned = self.external.clone();
+        // let stroke_width_cloned = self.stroke_width.clone();
+        // let external_cloned = self.external.clone();
         let color = Property::computed(
             move || {
                 let color = color.get();
-                if stroke_width_cloned.get() == 0.0 && !external_cloned.get() {
-                    stroke_width_cloned.set(1.0);
-                }
+                // TODO this is triggered on initial object selection, fix this
+                // if stroke_width_cloned.get() == 0.0 && !external_cloned.get() {
+                //     stroke_width_cloned.set(1.0);
+                // }
                 color
             },
             &[color_dep],
@@ -99,9 +105,12 @@ impl StrokePropertyEditor {
                 let color = color.get();
                 let stroke_width = stroke_width.get();
                 if !external.get() {
-                    let stroke_str = stroke_as_str(color, stroke_width);
-                    if let Err(e) = data.get().set_value(&ctxc, &stroke_str) {
-                        log::warn!("failed to set fill color: {e}");
+                    let stroke = Stroke {
+                        color: Property::new(color),
+                        width: Property::new(Size::Pixels(stroke_width.into())),
+                    };
+                    if let Err(e) = data.get().set_value_typed(&ctxc, stroke) {
+                        log::warn!("failed to set stroke: {e}");
                     }
                 }
                 external.set(false);
@@ -122,9 +131,4 @@ impl StrokePropertyEditor {
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
         self.property_listener.get();
     }
-}
-
-pub fn stroke_as_str(color: Color, stroke_width: f64) -> String {
-    let col_str = color_to_str(color);
-    format!("{{color: {} width: {:.1}px }}", col_str, stroke_width)
 }

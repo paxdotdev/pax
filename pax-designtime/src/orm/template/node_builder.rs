@@ -298,6 +298,7 @@ impl<'a> NodeBuilder<'a> {
         None
     }
 
+    #[deprecated = "use typed versions instead"]
     pub fn set_property(&mut self, key: &str, value: &str) -> Result<()> {
         self.set_property_from_value_definition(
             key,

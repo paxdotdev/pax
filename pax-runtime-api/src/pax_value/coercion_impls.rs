@@ -324,8 +324,12 @@ impl CoercionRules for Stroke {
                 width: Property::new(Size::Pixels(1.into())),
             },
             PaxValue::Object(map) => {
-                let color = Property::new(Color::try_coerce(map.get("color").unwrap().clone())?);
-                let width = Property::new(Size::try_coerce(map.get("width").unwrap().clone())?);
+                let color = Property::new(Color::try_coerce(
+                    map.get("color").ok_or("color had wrong type")?.clone(),
+                )?);
+                let width = Property::new(Size::try_coerce(
+                    map.get("width").ok_or("width had wrong type")?.clone(),
+                )?);
                 Stroke { color, width }
             }
             PaxValue::Option(mut o) => {
@@ -345,7 +349,7 @@ impl CoercionRules for ColorChannel {
         Ok(match value.clone() {
             PaxValue::Rotation(rot) => ColorChannel::Rotation(rot),
             PaxValue::Percent(perc) => ColorChannel::Percent(perc.0),
-            PaxValue::Numeric(num) => ColorChannel::Integer(num),
+            PaxValue::Numeric(num) => ColorChannel::Integer(num.to_int().clamp(0, 255) as u8),
             PaxValue::Enum(_, variant, args) => match variant.as_str() {
                 "Rotation" => {
                     let rot = Rotation::try_coerce(args[0].clone())?;
@@ -353,7 +357,7 @@ impl CoercionRules for ColorChannel {
                 }
                 "Integer" => {
                     let num = Numeric::try_coerce(args[0].clone())?;
-                    ColorChannel::Integer(num)
+                    ColorChannel::Integer(num.to_int().clamp(0, 255) as u8)
                 }
                 "Percent" => {
                     let num = Numeric::try_coerce(args[0].clone())?;
