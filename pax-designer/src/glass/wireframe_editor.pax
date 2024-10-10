@@ -9,7 +9,7 @@ for (data, i) in self.control_points {
 }
 
 for segment in self.bounding_segments {
-    <Path class=bounding_segment/>
+    <Path class=bounding_segment _raycastable=false/>
 }
 
 
