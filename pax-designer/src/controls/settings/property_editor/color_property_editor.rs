@@ -1,4 +1,5 @@
 use pax_engine::api::{pax_value::ToFromPaxAny, *};
+use pax_engine::pax_manifest::ValueDefinition;
 use pax_engine::*;
 
 use crate::controls::settings::color_picker::ColorPicker;
@@ -37,12 +38,16 @@ impl ColorPropertyEditor {
         self.color.replace_with(Property::computed(
             move || {
                 external.set(true);
-                let value = pax_engine::pax_lang::from_pax(&data.get().get_value_as_str(&ctxc));
-                if let Ok(value) = value {
-                    let color: Color = Color::try_coerce(value).unwrap_or_default();
-                    return color;
-                }
-                Color::default()
+                data.get()
+                    .get_value_typed(&ctxc)
+                    .map_err(|e| {
+                        log::warn!(
+                            "failed to read {} for {} - using default: {e}",
+                            "color",
+                            "color editor"
+                        );
+                    })
+                    .unwrap_or_default()
             },
             &deps,
         ));
@@ -56,15 +61,7 @@ impl ColorPropertyEditor {
             move || {
                 let color = color.get();
                 if !external.get() {
-                    let rgba = color.to_rgba_0_1();
-                    let col_str = format!(
-                        "rgba({}, {}, {}, {})",
-                        (rgba[0] * 255.0) as u8,
-                        (rgba[1] * 255.0) as u8,
-                        (rgba[2] * 255.0) as u8,
-                        (rgba[3] * 255.0) as u8
-                    );
-                    if let Err(e) = data.get().set_value(&ctxc, &col_str) {
+                    if let Err(e) = data.get().set_value_typed(&ctxc, color) {
                         log::warn!("failed to set fill color: {e}");
                     }
                 }

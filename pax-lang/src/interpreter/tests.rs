@@ -365,10 +365,10 @@ fn test_color_expression() {
     let expr = "rgba(10, 20, 30,4)";
     let result = compute_paxel(expr, idr).unwrap();
     let expected = PaxValue::Color(Box::new(Color::rgba(
-        ColorChannel::Integer(Numeric::I64(10)),
-        ColorChannel::Integer(Numeric::I64(20)),
-        ColorChannel::Integer(Numeric::I64(30)),
-        ColorChannel::Integer(Numeric::I64(4)),
+        ColorChannel::Integer(10),
+        ColorChannel::Integer(20),
+        ColorChannel::Integer(30),
+        ColorChannel::Integer(4),
     )));
     assert_eq!(expected, result);
 }

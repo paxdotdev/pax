@@ -78,7 +78,7 @@ fn test_color() {
     let expected = PaxValue::Color(Box::new(Color::rgba(
         ColorChannel::Percent(Numeric::I64(100)),
         ColorChannel::Rotation(Rotation::Degrees(Numeric::I64(180))),
-        ColorChannel::Integer(Numeric::I64(100)),
+        ColorChannel::Integer(100),
         ColorChannel::Percent(Numeric::I64(100)),
     )));
     let v = from_pax(&color_pax).unwrap();

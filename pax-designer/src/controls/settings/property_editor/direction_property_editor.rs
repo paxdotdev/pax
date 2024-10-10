@@ -35,8 +35,16 @@ impl DirectionPropertyEditor {
         let ctx = ctx.clone();
         self.is_vertical.replace_with(Property::computed(
             move || {
-                let s = data.get().get_value_as_str(&ctx);
-                !s.contains("Horizontal")
+                data.get()
+                    .get_value_typed(&ctx)
+                    .map_err(|e| {
+                        log::warn!(
+                            "failed to read {} for {} - using default: {e}",
+                            "stacker direction",
+                            "direction editor"
+                        );
+                    })
+                    .unwrap_or_default()
             },
             &deps,
         ));
@@ -65,8 +73,12 @@ impl DirectionPropertyEditor {
     }
 
     pub fn set_vertical(&mut self, ctx: &NodeContext, _args: Event<Click>) {
-        if let Err(e) = self.data.get().set_value(ctx, "StackerDirection::Vertical") {
-            log::warn!("failed to set vert {e}");
+        if let Err(e) = self
+            .data
+            .get()
+            .set_value_typed(ctx, StackerDirection::Vertical)
+        {
+            log::warn!("failed to set vertical {e}");
         }
     }
 
@@ -74,9 +86,9 @@ impl DirectionPropertyEditor {
         if let Err(e) = self
             .data
             .get()
-            .set_value(ctx, "StackerDirection::Horizontal")
+            .set_value_typed(ctx, StackerDirection::Horizontal)
         {
-            log::warn!("failed to set vert {e}");
+            log::warn!("failed to set horizontal {e}");
         }
     }
 }

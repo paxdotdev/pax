@@ -1,4 +1,5 @@
 use pax_engine::api::{pax_value::ToFromPaxAny, *};
+use pax_engine::pax_manifest::ValueDefinition;
 use pax_engine::*;
 
 use crate::controls::settings::color_picker::ColorPicker;
@@ -37,12 +38,16 @@ impl FillPropertyEditor {
         self.color.replace_with(Property::computed(
             move || {
                 external.set(true);
-                let value = pax_engine::pax_lang::from_pax(&data.get().get_value_as_str(&ctxc));
-                if let Ok(value) = value {
-                    let color: Color = Color::try_coerce(value).unwrap_or_default();
-                    return color;
-                }
-                Color::default()
+                data.get()
+                    .get_value_typed(&ctxc)
+                    .map_err(|e| {
+                        log::warn!(
+                            "failed to read {} for {} - using default: {e}",
+                            "color",
+                            "fill editor"
+                        );
+                    })
+                    .unwrap_or_default()
             },
             &deps,
         ));
@@ -56,8 +61,7 @@ impl FillPropertyEditor {
             move || {
                 let color = color.get();
                 if !external.get() {
-                    let col_str = color_to_str(color);
-                    if let Err(e) = data.get().set_value(&ctxc, &col_str) {
+                    if let Err(e) = data.get().set_value_typed(&ctxc, color) {
                         log::warn!("failed to set fill color: {e}");
                     }
                 }

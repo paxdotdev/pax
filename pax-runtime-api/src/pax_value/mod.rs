@@ -32,7 +32,7 @@ pub enum PaxValue {
     Option(Box<Option<PaxValue>>),
     Vec(Vec<PaxValue>),
     Range(Box<PaxValue>, Box<PaxValue>),
-    Object(HashMap<String, PaxValue>),
+    Object(Vec<(String, PaxValue)>),
     Enum(String, String, Vec<PaxValue>),
 }
 
