@@ -116,14 +116,10 @@ fn test_enum() {
 #[test]
 fn test_object() {
     let object_pax = "{ a: 10, b: 20 }".to_string();
-    let expected = PaxValue::Object(
-        vec![
-            ("a".to_string(), PaxValue::Numeric(Numeric::I64(10))),
-            ("b".to_string(), PaxValue::Numeric(Numeric::I64(20))),
-        ]
-        .into_iter()
-        .collect(),
-    );
+    let expected = PaxValue::Object(vec![
+        ("a".to_string(), PaxValue::Numeric(Numeric::I64(10))),
+        ("b".to_string(), PaxValue::Numeric(Numeric::I64(20))),
+    ]);
     let v = from_pax(&object_pax).unwrap();
     assert_eq!(expected, v);
 }

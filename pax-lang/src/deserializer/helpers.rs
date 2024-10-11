@@ -271,12 +271,7 @@ impl<'de> SeqAccess<'de> for PaxObject<'de> {
         while let Some(pair) = self.elements.next() {
             match pair.as_rule() {
                 Rule::settings_key_value_pair => {
-                    let mut pairs = pair.into_inner();
-                    let key = pairs.next().unwrap().into_inner().next().unwrap();
-                    let value = pairs.next().unwrap();
-                    return Ok(Some(
-                        seed.deserialize(StringDeserializer::new(key.as_str()))?,
-                    ));
+                    return Ok(Some(seed.deserialize(PaxDeserializer::from(pair))?));
                 }
                 Rule::comment => {
                     continue;

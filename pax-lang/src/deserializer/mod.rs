@@ -54,6 +54,11 @@ impl<'de> PaxDeserializer<'de> {
     where
         V: Visitor<'de>,
     {
+        // Flatten settings_value to internal typed rules
+        if let Rule::settings_value = self.ast.as_rule() {
+            self.ast = self.ast.into_inner().next().unwrap();
+        }
+
         // Flatten literal_value to internal typed rules
         if let Rule::literal_value = self.ast.as_rule() {
             self.ast = self.ast.into_inner().next().unwrap();
@@ -99,7 +104,11 @@ impl<'de> PaxDeserializer<'de> {
             Rule::literal_object => {
                 visitor.visit_enum(PaxEnum::new_pax_value(OBJECT, Some(self.ast)))
             }
-            _ => Err(Error::UnsupportedType(self.ast.as_str().to_string())),
+            _ => Err(Error::UnsupportedType(format!(
+                "Rule : {:?}, raw_string: {}",
+                self.ast.as_rule(),
+                self.ast.as_str().to_string()
+            ))),
         }
     }
 
@@ -188,6 +197,7 @@ impl<'de> PaxDeserializer<'de> {
                 visitor.visit_bool(bool_str.parse::<bool>().unwrap())
             }
             Rule::identifier | Rule::pascal_identifier => visitor.visit_str(self.ast.as_str()),
+            Rule::settings_key => visitor.visit_str(self.ast.into_inner().next().unwrap().as_str()),
             _ => Err(Error::UnsupportedType(self.ast.as_str().to_string())),
         }?;
 
@@ -207,7 +217,7 @@ impl<'de> de::Deserializer<'de> for PaxDeserializer<'de> {
 
     forward_to_deserialize_any! {
         bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
-        bytes byte_buf unit unit_struct newtype_struct tuple identifier
+        bytes byte_buf unit unit_struct newtype_struct identifier
         tuple_struct struct ignored_any
     }
 
@@ -260,5 +270,16 @@ impl<'de> de::Deserializer<'de> for PaxDeserializer<'de> {
         V: Visitor<'de>,
     {
         visitor.visit_map(PaxObject::new(self.ast.into_inner()))
+    }
+
+    fn deserialize_tuple<V>(
+        self,
+        len: usize,
+        visitor: V,
+    ) -> std::result::Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_seq(PaxSeq::new(self.ast.into_inner()))
     }
 }
