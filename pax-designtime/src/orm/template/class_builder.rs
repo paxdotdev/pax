@@ -59,11 +59,7 @@ impl<'a> ClassBuilder<'a> {
     pub fn set_property(&mut self, key: &str, value: &str) -> Result<()> {
         self.set_property_from_value_definition(
             key,
-            if value.is_empty() {
-                None
-            } else {
-                Some(pax_manifest::utils::parse_value(value).map_err(|e| anyhow!(e.to_owned()))?)
-            },
+            pax_manifest::utils::parse_value(value).map_err(|e| anyhow!(e.to_owned()))?,
         )
     }
 

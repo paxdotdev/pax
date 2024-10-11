@@ -86,6 +86,7 @@ impl TextStylePropertyEditor {
                         );
                     })
                     .unwrap_or_default()
+                    .unwrap_or_default()
             },
             &deps,
         ));

@@ -61,7 +61,7 @@ impl BorderRadiusPropertyEditor {
                 return;
             }
         };
-        if let Err(_error) = self.data.get().set_value(ctx, Some(value)) {
+        if let Err(_error) = self.data.get().set_value(ctx, value) {
             self.error.set("error".to_owned());
         } else {
             self.error.set("".to_owned());

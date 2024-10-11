@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, Result};
 use pax_designtime::orm::template::node_builder::NodeBuilder;
 use pax_designtime::orm::template::NodeAction;
 use pax_engine::api::*;
@@ -38,7 +38,9 @@ pub struct PropertyArea {
     pub index: usize,
 }
 
+use crate::controls::settings::color_picker::COLOR_PICKER_TRANSACTION;
 use crate::model;
+use crate::model::action::Transaction;
 /// Used by containers of property editors (added to local store)
 /// to let PropertyEditors communicate upwardly what size they want to take up (height)
 pub struct PropertyAreas(pub Property<Vec<f64>>);
@@ -254,20 +256,25 @@ impl PropertyEditorData {
         }
     }
 
-    pub fn get_value_typed<T: CoercionRules>(&self, ctx: &NodeContext) -> anyhow::Result<T> {
+    pub fn get_value_typed<T: CoercionRules>(
+        &self,
+        ctx: &NodeContext,
+    ) -> anyhow::Result<Option<T>> {
         let Some(value_def) = self.get_value(&ctx) else {
-            return Err(anyhow!("value not set/present in template"));
+            return Ok(None);
         };
         let ValueDefinition::LiteralValue(value) = value_def else {
             return Err(anyhow!("value not a literal, was \"{:#?}\"", value_def));
         };
-        T::try_coerce(value).map_err(|e| {
-            anyhow!(
-                "failed to coerce into {}: {}",
-                std::any::type_name::<T>(),
-                e
-            )
-        })
+        T::try_coerce(value)
+            .map_err(|e| {
+                anyhow!(
+                    "failed to coerce into {}: {}",
+                    std::any::type_name::<T>(),
+                    e
+                )
+            })
+            .map(|v| Some(v))
     }
 
     pub fn get_value(&self, ctx: &NodeContext) -> Option<ValueDefinition> {
@@ -295,8 +302,27 @@ impl PropertyEditorData {
     }
 
     pub fn set_value(&self, ctx: &NodeContext, val: Option<ValueDefinition>) -> anyhow::Result<()> {
-        log::warn!(
-            "property editor setting {} property {} to {}",
+        // HACK use the color picker transaction if present, otherwise fall back to
+        // creating a new one on each call, TODO figure out a better structure for this
+        COLOR_PICKER_TRANSACTION.with_borrow_mut(|t| {
+            if let Some(t) = t.as_mut() {
+                self.set_value_with_transaction(ctx, val, t)
+            } else {
+                let mut t =
+                    model::with_action_context(ctx, |ctx| ctx.transaction("property set value"));
+                self.set_value_with_transaction(ctx, val, &mut t)
+            }
+        })
+    }
+
+    fn set_value_with_transaction(
+        &self,
+        ctx: &NodeContext,
+        val: Option<ValueDefinition>,
+        t: &mut Transaction,
+    ) -> Result<()> {
+        log::trace!(
+            "property editor setting {} property for {} to {}",
             self.name,
             match self.write_target {
                 WriteTarget::None => "(none)",
@@ -307,9 +333,7 @@ impl PropertyEditorData {
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "<none>".to_string())
         );
-        // save-point before property edit
-        // TODO remove and make more granular
-        let t = model::with_action_context(ctx, |ctx| ctx.transaction("update value"));
+
         t.run(|| {
             let mut dt = borrow_mut!(ctx.designtime);
             let orm = dt.get_orm_mut();
