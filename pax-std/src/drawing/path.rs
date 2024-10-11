@@ -53,6 +53,8 @@ impl Path {
 
 pub struct PathInstance {
     base: BaseInstance,
+    // This property is used to dirty the canvas when the path changes
+    changed: Property<()>,
 }
 
 impl InstanceNode for PathInstance {
@@ -71,6 +73,7 @@ impl InstanceNode for PathInstance {
                     is_slot: false,
                 },
             ),
+            changed: Property::new(()),
         })
     }
 
@@ -99,6 +102,34 @@ impl InstanceNode for PathInstance {
             *borrow_mut!(expanded_node.expanded_slot_children) = Some(new_children.clone());
             expanded_node.children.set(new_children);
         });
+
+        let tab = expanded_node.transform_and_bounds.clone();
+        let (elements, stroke, fill) =
+            expanded_node.with_properties_unwrapped(|properties: &mut Path| {
+                (
+                    properties.elements.clone(),
+                    properties.stroke.clone(),
+                    properties.fill.clone(),
+                )
+            });
+
+        let deps = &[
+            tab.untyped(),
+            elements.untyped(),
+            stroke.untyped(),
+            fill.untyped(),
+        ];
+        let cloned_expanded_node = expanded_node.clone();
+        let cloned_context = context.clone();
+
+        self.changed.replace_with(Property::computed(
+            move || {
+                cloned_context
+                    .set_canvas_dirty(cloned_expanded_node.occlusion.get().occlusion_layer_id);
+                ()
+            },
+            deps,
+        ));
     }
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
@@ -106,15 +137,20 @@ impl InstanceNode for PathInstance {
         // we know that all of the expanded and flattened children
         // are the same as the once being rendered
         expanded_node.compute_flattened_slot_children();
+        self.changed.get();
     }
 
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _rtc: &Rc<RuntimeContext>,
+        rtc: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
-        let layer_id = format!("{}", expanded_node.occlusion.get().occlusion_layer_id);
+        let layer_id = expanded_node.occlusion.get().occlusion_layer_id;
+
+        if !rtc.is_canvas_dirty(&layer_id) {
+            return;
+        }
 
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
             let bounds = expanded_node.transform_and_bounds.get().bounds;
@@ -197,11 +233,11 @@ impl InstanceNode for PathInstance {
             let duplicate_transformed_bez_path = transformed_bez_path.clone();
             //our "save point" before clipping — restored to in the post_render
 
-            rc.save(&layer_id);
+            rc.save(layer_id);
             match properties.fill.get() {
                 Fill::Solid(color) => {
                     rc.fill(
-                        &layer_id,
+                        layer_id,
                         transformed_bez_path,
                         &color.to_piet_color().into(),
                     );
@@ -212,7 +248,7 @@ impl InstanceNode for PathInstance {
                         Fill::to_unit_point(linear.end, (width, height)),
                         Fill::to_piet_gradient_stops(linear.stops.clone()),
                     );
-                    rc.fill(&layer_id, transformed_bez_path, &linear_gradient.into())
+                    rc.fill(layer_id, transformed_bez_path, &linear_gradient.into())
                 }
                 Fill::RadialGradient(radial) => {
                     let origin = Fill::to_unit_point(radial.start, (width, height));
@@ -221,10 +257,10 @@ impl InstanceNode for PathInstance {
                     let radial_gradient = RadialGradient::new(radial.radius, gradient_stops)
                         .with_center(center)
                         .with_origin(origin);
-                    rc.fill(&layer_id, transformed_bez_path, &radial_gradient.into());
+                    rc.fill(layer_id, transformed_bez_path, &radial_gradient.into());
                 }
             }
-            rc.clip(&layer_id, transformed_clip_path.clone());
+            rc.clip(layer_id, transformed_clip_path.clone());
             if properties
                 .stroke
                 .get()
@@ -235,7 +271,7 @@ impl InstanceNode for PathInstance {
                 > f64::EPSILON
             {
                 rc.stroke(
-                    &layer_id,
+                    layer_id,
                     duplicate_transformed_bez_path,
                     &properties.stroke.get().color.get().to_piet_color().into(),
                     properties
@@ -247,7 +283,7 @@ impl InstanceNode for PathInstance {
                         .to_float(),
                 );
             }
-            rc.restore(&layer_id);
+            rc.restore(layer_id);
         });
     }
 

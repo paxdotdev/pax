@@ -125,7 +125,7 @@ pub extern "C" fn pax_tick(
     let mut render_context = Renderer::new();
 
     (*engine).set_viewport_size((width as f64, height as f64));
-    render_context.add_context("0", CoreGraphicsContext::new_y_up(ctx, height as f64, None));
+    render_context.add_context(0, CoreGraphicsContext::new_y_up(ctx, height as f64, None));
 
     let messages = (*engine).tick();
     engine.render(&mut render_context as &mut dyn RenderContext);

@@ -2,8 +2,9 @@ use crate::api::TextInput;
 use crate::node_interface::NodeLocal;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::{
-    borrow, borrow_mut, use_RefCell, Focus, Interpolatable, Percent, Property, SelectStart,
-    Variable, Viewport,
+    borrow, borrow_mut, use_RefCell, Focus, Interpolatable, Layer, Percent, Property, SelectStart,
+    Variable,
+    Viewport,
 };
 
 use crate::api::math::Point2;
@@ -113,7 +114,7 @@ pub struct ExpandedNode {
     /// Occlusion layer for this node. Used by canvas elements to decide what canvas to draw on, and
     /// by native elements to move to the correct native layer.
     // occlusionID (canvas/native layer) + z-index
-    pub occlusion: Cell<Occlusion>,
+    pub occlusion: Property<Occlusion>,
 
     /// A map of all properties available on this expanded node.
     /// Used by the RuntimePropertiesStackFrame to resolve symbols.
@@ -135,13 +136,15 @@ pub struct ExpandedNode {
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub struct Occlusion {
-    pub occlusion_layer_id: u32,
+    pub occlusion_layer_id: usize,
     pub z_index: i32,
     // this is used to perform last patches logic,
     // and is updated to reflect this nodes parent_frame
     // when occlusion is calculated
     pub parent_frame: Option<u32>,
 }
+
+impl Interpolatable for Occlusion {}
 
 impl ImplToFromPaxAny for ExpandedNode {}
 impl Interpolatable for ExpandedNode {}
@@ -254,7 +257,7 @@ impl ExpandedNode {
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
             flattened_slot_children_count: Property::new(0),
-            occlusion: Default::default(),
+            occlusion: Property::new(Occlusion::default()),
             properties_scope: RefCell::new(property_scope),
             slot_index: Property::default(),
             suspended: Property::new(false),
@@ -549,6 +552,12 @@ impl ExpandedNode {
                     )
                 }
             }
+
+            if self.instance_node.borrow().base().flags().layer == Layer::Canvas {
+                let layer_id = format!("{}", self.occlusion.get().occlusion_layer_id);
+                context.set_canvas_dirty(self.occlusion.get().occlusion_layer_id);
+            }
+
             // Needed because occlusion updates are only sent on diffs so we reset it when unmounting
             self.occlusion.set(Default::default());
         }

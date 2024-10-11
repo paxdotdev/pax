@@ -3,7 +3,9 @@ use pax_runtime::{api::Fill, BaseInstance};
 use pax_runtime_api::use_RefCell;
 use piet::{LinearGradient, RadialGradient};
 
-use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
+use pax_runtime::{
+    occlusion, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
+};
 
 use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::{Layer, RenderContext, Stroke};
@@ -24,6 +26,8 @@ pub struct Rectangle {
 
 pub struct RectangleInstance {
     base: BaseInstance,
+    // This property is used to dirty the canvas when the rectangle changes
+    changed: Property<()>,
 }
 
 impl InstanceNode for RectangleInstance {
@@ -39,19 +43,61 @@ impl InstanceNode for RectangleInstance {
                     is_slot: false,
                 },
             ),
+            changed: Property::new(()),
         })
+    }
+
+    fn handle_mount(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RuntimeContext>,
+    ) {
+        let tab = expanded_node.transform_and_bounds.clone();
+        let (corner_radii, stroke, fill) =
+            expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
+                (
+                    properties.corner_radii.clone(),
+                    properties.stroke.clone(),
+                    properties.fill.clone(),
+                )
+            });
+
+        let deps = &[
+            tab.untyped(),
+            corner_radii.untyped(),
+            stroke.untyped(),
+            fill.untyped(),
+        ];
+        let cloned_expanded_node = expanded_node.clone();
+        let cloned_context = context.clone();
+
+        self.changed.replace_with(Property::computed(
+            move || {
+                cloned_context
+                    .set_canvas_dirty(cloned_expanded_node.occlusion.get().occlusion_layer_id);
+                ()
+            },
+            deps,
+        ));
+    }
+
+    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
+        self.changed.get();
     }
 
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _rtc: &Rc<RuntimeContext>,
+        rtc: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
+        let layer_id = expanded_node.occlusion.get().occlusion_layer_id;
+
+        if !rtc.is_canvas_dirty(&layer_id) {
+            return;
+        }
         let tab = expanded_node.transform_and_bounds.get();
         let (width, height) = tab.bounds;
-
-        let layer_id = format!("{}", expanded_node.occlusion.get().occlusion_layer_id);
 
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
             let rect = RoundedRect::new(0.0, 0.0, width, height, &properties.corner_radii.get());
@@ -63,7 +109,7 @@ impl InstanceNode for RectangleInstance {
             match properties.fill.get() {
                 Fill::Solid(color) => {
                     rc.fill(
-                        &layer_id,
+                        layer_id,
                         transformed_bez_path,
                         &color.to_piet_color().into(),
                     );
@@ -74,7 +120,7 @@ impl InstanceNode for RectangleInstance {
                         Fill::to_unit_point(linear.end, (width, height)),
                         Fill::to_piet_gradient_stops(linear.stops.clone()),
                     );
-                    rc.fill(&layer_id, transformed_bez_path, &linear_gradient.into())
+                    rc.fill(layer_id, transformed_bez_path, &linear_gradient.into())
                 }
                 Fill::RadialGradient(radial) => {
                     let origin = Fill::to_unit_point(radial.start, (width, height));
@@ -83,7 +129,7 @@ impl InstanceNode for RectangleInstance {
                     let radial_gradient = RadialGradient::new(radial.radius, gradient_stops)
                         .with_center(center)
                         .with_origin(origin);
-                    rc.fill(&layer_id, transformed_bez_path, &radial_gradient.into());
+                    rc.fill(layer_id, transformed_bez_path, &radial_gradient.into());
                 }
             }
 
@@ -97,7 +143,7 @@ impl InstanceNode for RectangleInstance {
                 .to_float();
             if width > f64::EPSILON {
                 rc.stroke(
-                    &layer_id,
+                    layer_id,
                     duplicate_transformed_bez_path,
                     &properties.stroke.get().color.get().to_piet_color().into(),
                     width,

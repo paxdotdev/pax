@@ -37,6 +37,8 @@ impl Default for Frame {
 
 pub struct FrameInstance {
     base: BaseInstance,
+    // This property is used to dirty the canvas when the frame changes
+    changed: Property<()>,
 }
 
 impl InstanceNode for FrameInstance {
@@ -55,15 +57,32 @@ impl InstanceNode for FrameInstance {
                     is_slot: false,
                 },
             ),
+            changed: Property::new(()),
         })
+    }
+
+    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
+        self.changed.get();
     }
 
     fn handle_pre_render(
         &self,
         expanded_node: &ExpandedNode,
-        _context: &Rc<RuntimeContext>,
+        rtc: &Rc<RuntimeContext>,
         rcs: &mut dyn RenderContext,
     ) {
+        let current_occlusion_layer = expanded_node.occlusion.get().occlusion_layer_id;
+        let total_layer_count = rtc.layer_count.get();
+
+        let mut run_pre_render = false;
+        for i in current_occlusion_layer..total_layer_count {
+            run_pre_render |= rtc.is_canvas_dirty(&i);
+        }
+
+        if !run_pre_render {
+            return;
+        }
+
         if !expanded_node.with_properties_unwrapped(|frame: &mut Frame| frame._clip_content.get()) {
             return;
         }
@@ -82,29 +101,39 @@ impl InstanceNode for FrameInstance {
         let transformed_bez_path = <Affine>::from(transform) * bez_path;
 
         let layers = rcs.layers();
-        let layers: Vec<String> = layers.iter().map(|s| s.to_string()).collect();
 
-        for layer in layers {
+        for layer in current_occlusion_layer..layers {
             //our "save point" before clipping — restored to in the post_render
-            rcs.save(&layer);
-            rcs.clip(&layer, transformed_bez_path.clone());
+            rcs.save(layer);
+            rcs.clip(layer, transformed_bez_path.clone());
         }
     }
 
     fn handle_post_render(
         &self,
         expanded_node: &ExpandedNode,
-        _context: &Rc<RuntimeContext>,
+        rtc: &Rc<RuntimeContext>,
         rcs: &mut dyn RenderContext,
     ) {
         if !expanded_node.with_properties_unwrapped(|frame: &mut Frame| frame._clip_content.get()) {
             return;
         }
+
+        let current_occlusion_layer = expanded_node.occlusion.get().occlusion_layer_id;
+        let total_layer_count = rtc.layer_count.get();
+
+        let mut post_render = false;
+        for i in (current_occlusion_layer as usize)..total_layer_count {
+            post_render |= rtc.is_canvas_dirty(&i);
+        }
+        if !post_render {
+            return;
+        }
+
         let layers = rcs.layers();
-        let layers: Vec<String> = layers.iter().map(|s| s.to_string()).collect();
-        for layer in layers {
+        for layer in current_occlusion_layer..layers {
             //pop the clipping context from the stack
-            rcs.restore(&layer);
+            rcs.restore(layer);
         }
     }
 
@@ -133,7 +162,7 @@ impl InstanceNode for FrameInstance {
 
         // send update message when relevant properties change
         let weak_self_ref = Rc::downgrade(&expanded_node);
-        let context = Rc::clone(context);
+        let cloned_context = Rc::clone(context);
         let last_patch = Rc::new(RefCell::new(FramePatch {
             id: id.to_u32(),
             ..Default::default()
@@ -179,7 +208,7 @@ impl InstanceNode for FrameInstance {
                         ];
 
                         if updates.into_iter().any(|v| v == true) {
-                            context.enqueue_native_message(
+                            cloned_context.enqueue_native_message(
                                 pax_message::NativeMessage::FrameUpdate(patch),
                             );
                         }
@@ -188,6 +217,23 @@ impl InstanceNode for FrameInstance {
                 },
                 &deps,
             ));
+
+        let tab = expanded_node.transform_and_bounds.clone();
+        let _clip_content = expanded_node
+            .with_properties_unwrapped(|properties: &mut Frame| properties._clip_content.clone());
+
+        let deps = &[tab.untyped(), _clip_content.untyped()];
+        let cloned_expanded_node = expanded_node.clone();
+        let cloned_context = context.clone();
+
+        self.changed.replace_with(Property::computed(
+            move || {
+                cloned_context
+                    .set_canvas_dirty(cloned_expanded_node.occlusion.get().occlusion_layer_id);
+                ()
+            },
+            deps,
+        ));
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {

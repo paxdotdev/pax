@@ -1,4 +1,4 @@
-<Group>
+<Group x=-4.91% y=16.28%>
     if game_state == 0 {
         if debug_markers {
             <Rectangle fill=RED width=2px height=2px x={paddle.x} y={paddle.y}/>

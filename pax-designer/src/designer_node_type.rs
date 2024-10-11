@@ -109,7 +109,7 @@ impl DesignerNodeType {
                     "forms::checkbox::Checkbox" => DesignerNodeType::Checkbox,
                     "core::scroller::Scroller" => DesignerNodeType::Scroller,
                     "forms::button::Button" => DesignerNodeType::Button,
-                    "core::image::Image" => DesignerNodeType::Image,
+                    "drawing::image::Image" => DesignerNodeType::Image,
                     "forms::slider::Slider" => DesignerNodeType::Slider,
                     "forms::dropdown::Dropdown" => DesignerNodeType::Dropdown,
                     "layout::carousel::Carousel" => DesignerNodeType::Carousel,

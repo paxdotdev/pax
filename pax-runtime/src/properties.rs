@@ -13,6 +13,7 @@ use_RefCell!();
 use std::any::{Any, TypeId};
 use std::cell::Cell;
 use std::collections::HashMap;
+use std::hash::Hash;
 use std::rc::{Rc, Weak};
 
 use crate::{ExpandedNode, Globals};
@@ -47,6 +48,7 @@ pub struct RuntimeContext {
     queued_custom_events: RefCell<Vec<(Rc<ExpandedNode>, &'static str)>>,
     queued_renders: RefCell<Vec<Rc<ExpandedNode>>>,
     pub layer_count: Cell<usize>,
+    pub dirty_canvases: RefCell<HashMap<usize, bool>>,
 }
 
 struct NodeCache {
@@ -99,6 +101,7 @@ impl RuntimeContext {
             queued_renders: Default::default(),
             layer_count: Cell::default(),
             last_topmost_element: Default::default(),
+            dirty_canvases: Default::default(),
         }
     }
 
@@ -116,6 +119,7 @@ impl RuntimeContext {
             queued_renders: Default::default(),
             layer_count: Cell::default(),
             last_topmost_element: Default::default(),
+            dirty_canvases: Default::default(),
         }
     }
 
@@ -133,6 +137,47 @@ impl RuntimeContext {
 
     pub fn get_expanded_node_by_eid(&self, id: ExpandedNodeIdentifier) -> Option<Rc<ExpandedNode>> {
         borrow!(self.node_cache).eid_to_node.get(&id).cloned()
+    }
+
+    pub fn add_canvas(&self, id: usize) {
+        borrow_mut!(self.dirty_canvases).insert(id, true);
+    }
+
+    pub fn get_dirty_canvases(&self) -> Vec<usize> {
+        borrow!(self.dirty_canvases)
+            .iter()
+            .filter_map(|(k, v)| if *v { Some(k.clone()) } else { None })
+            .collect()
+    }
+
+    pub fn clear_all_dirty_canvases(&self) {
+        let mut dirty_canvases = borrow_mut!(self.dirty_canvases);
+        for (_, v) in dirty_canvases.iter_mut() {
+            *v = false;
+        }
+    }
+
+    pub fn set_canvas_dirty(&self, id: usize) {
+        let mut dirty_canvases = borrow_mut!(self.dirty_canvases);
+        dirty_canvases.insert(id, true);
+    }
+
+    pub fn is_canvas_dirty(&self, id: &usize) -> bool {
+        borrow!(self.dirty_canvases)
+            .get(id)
+            .copied()
+            .unwrap_or(false)
+    }
+
+    pub fn set_all_canvases_dirty(&self) {
+        let mut dirty_canvases = borrow_mut!(self.dirty_canvases);
+        for (_, v) in dirty_canvases.iter_mut() {
+            *v = true;
+        }
+    }
+
+    pub fn remove_canvas(&self, id: &usize) {
+        borrow_mut!(self.dirty_canvases).remove(id);
     }
 
     /// Finds all ExpandedNodes with the CommonProperty#id matching the provided string

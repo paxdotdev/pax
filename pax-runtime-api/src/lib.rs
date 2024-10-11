@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Display;
+use std::hash::Hasher;
 use std::ops::{Add, Deref, Mul, Neg, Sub};
 use std::time::Instant;
 
@@ -19,6 +20,7 @@ use properties::{PropertyValue, UntypedProperty};
 pub trait Store: 'static {}
 
 use std::cell::Cell;
+use std::hash::Hash;
 use std::rc::{Rc, Weak};
 
 pub mod constants;
@@ -45,16 +47,16 @@ pub struct TransitionQueueEntry<T> {
 }
 
 pub trait RenderContext {
-    fn fill(&mut self, layer: &str, path: BezPath, brush: &PaintBrush);
-    fn stroke(&mut self, layer: &str, path: BezPath, brush: &PaintBrush, width: f64);
-    fn save(&mut self, layer: &str);
-    fn restore(&mut self, layer: &str);
-    fn clip(&mut self, layer: &str, path: BezPath);
+    fn fill(&mut self, layer: usize, path: BezPath, brush: &PaintBrush);
+    fn stroke(&mut self, layer: usize, path: BezPath, brush: &PaintBrush, width: f64);
+    fn save(&mut self, layer: usize);
+    fn restore(&mut self, layer: usize);
+    fn clip(&mut self, layer: usize, path: BezPath);
     fn load_image(&mut self, path: &str, image: &[u8], width: usize, height: usize);
-    fn draw_image(&mut self, layer: &str, image_path: &str, rect: kurbo::Rect);
+    fn draw_image(&mut self, layer: usize, image_path: &str, rect: kurbo::Rect);
     fn get_image_size(&mut self, image_path: &str) -> Option<(usize, usize)>;
-    fn transform(&mut self, layer: &str, affine: kurbo::Affine);
-    fn layers(&self) -> Vec<&str>;
+    fn transform(&mut self, layer: usize, affine: kurbo::Affine);
+    fn layers(&self) -> usize;
 }
 
 #[cfg(debug_assertions)]
@@ -409,7 +411,7 @@ pub struct ContextMenu {
 /// A Size value that can be either a concrete pixel value
 /// or a percent of parent bounds.
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Hash)]
 #[serde(crate = "crate::serde")]
 pub enum Size {
     Pixels(Numeric),
@@ -923,6 +925,8 @@ impl<I: Interpolatable> Interpolatable for Vec<I> {
     }
 }
 
+impl Interpolatable for kurbo::BezPath {}
+
 impl Interpolatable for Instant {}
 
 impl Interpolatable for char {}
@@ -1167,6 +1171,12 @@ pub enum Color {
     WHITE,
     TRANSPARENT,
     NONE,
+}
+
+impl Hash for Color {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+    }
 }
 
 // implement display respecting all color enum variants, printing out their names
@@ -1710,6 +1720,37 @@ pub enum Fill {
     RadialGradient(RadialGradient),
 }
 
+impl Hash for Fill {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Fill::Solid(color) => {
+                state.write_u8(0);
+                color.hash(state);
+            }
+            Fill::LinearGradient(linear) => {
+                state.write_u8(1);
+                linear.start.hash(state);
+                linear.end.hash(state);
+                linear.stops.hash(state);
+            }
+            Fill::RadialGradient(radial) => {
+                state.write_u8(2);
+                radial.start.hash(state);
+                radial.end.hash(state);
+                radial.radius.to_bits().hash(state);
+                radial.stops.hash(state);
+            }
+        }
+    }
+}
+
+impl Hash for Stroke {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.width.get().hash(state);
+        self.color.get().hash(state);
+    }
+}
+
 impl Interpolatable for Fill {
     fn interpolate(&self, _other: &Self, _t: f64) -> Self {
         // TODO interpolation
@@ -1717,7 +1758,7 @@ impl Interpolatable for Fill {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 #[serde(crate = "crate::serde")]
 pub struct LinearGradient {
     pub start: (Size, Size),
@@ -1734,7 +1775,7 @@ pub struct RadialGradient {
     pub stops: Vec<GradientStop>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 #[serde(crate = "crate::serde")]
 pub struct GradientStop {
     pub position: Size,
