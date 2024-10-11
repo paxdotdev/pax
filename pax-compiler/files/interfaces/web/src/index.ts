@@ -15,6 +15,7 @@ import {
     EVENT_BLOCKER_UPDATE_PATCH,
     NAVIGATION_PATCH,
     NATIVE_IMAGE_UPDATE_PATCH,
+    SET_CURSOR_PATCH,
 } from "./pools/supported-objects";
 import {NativeElementPool} from "./classes/native-element-pool";
 import {AnyCreatePatch} from "./classes/messages/any-create-patch";
@@ -41,7 +42,6 @@ let messages : any[];
 let nativePool = new NativeElementPool(objectManager);
 let textDecoder = new TextDecoder();
 let initializedChassis = false;
-export let is_in_dom_manipulation_with_focus_func = false;
 
 export function mount(selector_or_element: string | Element, extensionlessUrl: string) {
 
@@ -297,6 +297,11 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
             patch.fromPatch(msg);
             nativePool.scrollerCreate(patch);
+        } else if (unwrapped_msg["ScrollerUpdate"]){
+            let msg = unwrapped_msg["ScrollerUpdate"]
+            let patch : ScrollerUpdatePatch = objectManager.getFromPool(SCROLLER_UPDATE_PATCH);
+            patch.fromPatch(msg);
+            nativePool.scrollerUpdate(patch);
         } else if (unwrapped_msg["ScrollerDelete"]) {
             let msg = unwrapped_msg["ScrollerDelete"];
             nativePool.scrollerDelete(msg)
@@ -305,19 +310,12 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             let patch : NavigationPatch = objectManager.getFromPool(NAVIGATION_PATCH);
             patch.fromPatch(msg);
             nativePool.navigate(patch)
-        }
-    });
-
-
-    // scroller updates need to happen while everything is vissible, or else the container is
-    // measured as 0 height
-    messages?.forEach((unwrapped_msg) => {
-         if (unwrapped_msg["ScrollerUpdate"]){
-            let msg = unwrapped_msg["ScrollerUpdate"]
-            let patch : ScrollerUpdatePatch = objectManager.getFromPool(SCROLLER_UPDATE_PATCH);
+        } else if (unwrapped_msg["SetCursor"]) {
+            let msg = unwrapped_msg["SetCursor"];
+            let patch : NavigationPatch = objectManager.getFromPool(SET_CURSOR_PATCH);
             patch.fromPatch(msg);
-            nativePool.scrollerUpdate(patch);
-        }    
+            nativePool.setCursor(patch)
+        }
     });
 }
 

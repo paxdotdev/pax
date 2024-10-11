@@ -6,8 +6,8 @@ use crate::{
     TransformAndBounds,
 };
 
-use pax_runtime_api::math::Point2;
 pub use pax_runtime_api::*;
+use pax_runtime_api::{cursor::CursorStyle, math::Point2};
 
 use crate::node_interface::NodeInterface;
 #[cfg(feature = "designtime")]
@@ -105,6 +105,13 @@ impl NodeContext {
             .queue_custom_event(Rc::clone(&component_origin), identifier);
 
         Ok(())
+    }
+
+    pub fn set_cursor(&self, cursor: CursorStyle) {
+        self.runtime_context
+            .enqueue_native_message(NativeMessage::SetCursor(SetCursorPatch {
+                cursor: cursor.to_string(),
+            }));
     }
 }
 

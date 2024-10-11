@@ -1,4 +1,7 @@
-use pax_engine::api::{Clap, Property};
+#![allow(unused)]
+use crate::Rectangle;
+use pax_engine::api::cursor::CursorStyle;
+use pax_engine::api::{Clap, MouseOut, MouseOver, Property};
 use pax_engine::api::{Event, NavigationTarget};
 use pax_engine::*;
 use pax_runtime::api::NodeContext;
@@ -6,11 +9,14 @@ use pax_runtime::api::NodeContext;
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined(
+    <Rectangle fill=TRANSPARENT/>
     for i in 0..self._slot_children {
         slot(i)
     }
 
     @settings {
+        @mouse_over: self.mouse_over
+        @mouse_out: self.mouse_out
         @mount: on_mount
         @clap: on_clap
     }
@@ -48,5 +54,15 @@ impl Link {
     }
     pub fn on_clap(&mut self, ctx: &NodeContext, _event: Event<Clap>) {
         ctx.navigate_to(&self.url.get(), self.target.get().into());
+    }
+
+    pub fn mouse_over(&mut self, ctx: &NodeContext, _event: Event<MouseOver>) {
+        log::debug!("over link");
+        ctx.set_cursor(CursorStyle::Pointer);
+    }
+
+    pub fn mouse_out(&mut self, ctx: &NodeContext, _event: Event<MouseOut>) {
+        log::debug!("out link");
+        ctx.set_cursor(CursorStyle::Auto);
     }
 }

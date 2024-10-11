@@ -19,6 +19,7 @@ import { RadioSetUpdatePatch } from "../classes/messages/radio-set-update-patch"
 import { EventBlockerUpdatePatch } from "../classes/messages/event-blocker-update-patch";
 import { NavigationPatch } from "../classes/messages/navigation-patch";
 import {YoutubeVideoUpdatePatch} from "../classes/messages/youtube-video-update-patch";
+import { SetCursorPatch } from "../classes/messages/set-cursor-patch";
 
 export const OBJECT = "Object";
 export const ARRAY = "Array";
@@ -37,6 +38,7 @@ export const EVENT_BLOCKER_UPDATE_PATCH = "Event Blocker Update Patch";
 export const IMAGE_LOAD_PATCH = "IMAGE LOAD PATCH";
 export const SCROLLER_UPDATE_PATCH = "Scroller Update Patch";
 export const NAVIGATION_PATCH = "Navigation Patch";
+export const SET_CURSOR_PATCH = "Set Cursor Patch";
 export const TEXT_UPDATE_PATCH = "Text Update Patch";
 export const NATIVE_IMAGE_UPDATE_PATCH = "Native Image Update Patch";
 export const YOUTUBE_VIDEO_UPDATE_PATCH = "Youtube Video Update Patch";
@@ -218,6 +220,11 @@ export let SUPPORTED_OBJECTS = [{
         name: NAVIGATION_PATCH,
         factory: () => new NavigationPatch(),
         cleanUp: (patch: NavigationPatch) => {patch.cleanUp()},
+    },
+    {
+        name: SET_CURSOR_PATCH,
+        factory: () => new SetCursorPatch(),
+        cleanUp: (patch: SetCursorPatch) => {patch.cleanUp()},
     },
     {
         name: LAYER,

@@ -53,6 +53,7 @@ pub enum NativeMessage {
     ShrinkLayersTo(u32),
     OcclusionUpdate(OcclusionPatch),
     Navigate(NavigationPatch),
+    SetCursor(SetCursorPatch),
 }
 
 #[derive(Deserialize)]
@@ -565,6 +566,13 @@ pub struct OcclusionPatch {
 pub struct NavigationPatch {
     pub url: String,
     pub target: String,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub struct SetCursorPatch {
+    pub cursor: String,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
