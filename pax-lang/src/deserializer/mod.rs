@@ -99,7 +99,7 @@ impl<'de> PaxDeserializer<'de> {
             Rule::literal_object => {
                 visitor.visit_enum(PaxEnum::new_pax_value(OBJECT, Some(self.ast)))
             }
-            _ => Err(Error::UnsupportedType(self.ast.to_string())),
+            _ => Err(Error::UnsupportedType(self.ast.as_str().to_string())),
         }
     }
 
@@ -188,7 +188,7 @@ impl<'de> PaxDeserializer<'de> {
                 visitor.visit_bool(bool_str.parse::<bool>().unwrap())
             }
             Rule::identifier | Rule::pascal_identifier => visitor.visit_str(self.ast.as_str()),
-            _ => Err(Error::UnsupportedType(self.ast.to_string())),
+            _ => Err(Error::UnsupportedType(self.ast.as_str().to_string())),
         }?;
 
         Ok(ret)
@@ -230,7 +230,12 @@ impl<'de> de::Deserializer<'de> for PaxDeserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_seq(PaxSeq::new(self.ast.into_inner()))
+        let rule = self.ast.as_rule();
+        if rule == Rule::literal_object {
+            visitor.visit_seq(PaxObject::new(self.ast.into_inner()))
+        } else {
+            visitor.visit_seq(PaxSeq::new(self.ast.into_inner()))
+        }
     }
 
     fn deserialize_option<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>

@@ -84,7 +84,7 @@ impl ColorPicker {
         ));
 
         fn get_color_channel(color: &Property<Color>, i: usize) -> String {
-            ((color.get().to_rgba_0_1()[i] * 255.0) as u8).to_string()
+            ((color.get().to_rgba_0_1()[i] * 255.0).round() as u8).to_string()
         }
 
         let color = self.color.clone();
@@ -140,9 +140,9 @@ impl ColorPicker {
                     cycle.set(true);
                     let new_col = Color::hsla(
                         Rotation::Percent(hue.get().into()),
-                        (saturation.get() * 255.0).into(),
-                        (lightness.get() * 255.0).into(),
-                        (alpha.get() * 255.0).into(),
+                        ColorChannel::Integer((saturation.get() * 255.0).round() as u8),
+                        ColorChannel::Integer((lightness.get() * 255.0).round() as u8),
+                        ColorChannel::Integer((alpha.get() * 255.0).round() as u8),
                     );
                     if color.get().to_rgba_0_1() == new_col.to_rgba_0_1() {
                         return true;
