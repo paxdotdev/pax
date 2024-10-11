@@ -368,14 +368,14 @@ impl CoercionRules for Stroke {
                 let color = Property::new(Color::try_coerce(
                     map.iter()
                         .find_map(|(n, v)| (n == "color").then_some(v))
-                        .ok_or("color had wrong type")?
-                        .clone(),
+                        .cloned()
+                        .unwrap_or_default(),
                 )?);
                 let width = Property::new(Size::try_coerce(
                     map.iter()
                         .find_map(|(n, v)| (n == "width").then_some(v))
-                        .ok_or("width had wrong type")?
-                        .clone(),
+                        .cloned()
+                        .unwrap_or(PaxValue::Size(Size::Pixels(1.into()))),
                 )?);
                 Stroke { color, width }
             }

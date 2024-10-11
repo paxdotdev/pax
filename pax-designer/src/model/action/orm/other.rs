@@ -1,4 +1,3 @@
-use crate::controls::settings::property_editor::fill_property_editor::color_to_str;
 use crate::model::action::{Action, ActionContext};
 use crate::model::input::ModifierKey;
 use anyhow::anyhow;

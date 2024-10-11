@@ -4,8 +4,6 @@ use pax_engine::api::{pax_value::ToFromPaxAny, *};
 use pax_engine::pax_manifest::ValueDefinition;
 use pax_engine::*;
 
-use crate::controls::settings::property_editor::fill_property_editor::color_to_str;
-
 use super::{PropertyAreas, PropertyEditorData};
 use crate::controls::settings::color_picker::ColorPicker;
 
@@ -56,6 +54,7 @@ impl StrokePropertyEditor {
                             "stroke editor"
                         );
                     })
+                    .unwrap_or_default()
                     .unwrap_or_default()
             },
             &deps,
