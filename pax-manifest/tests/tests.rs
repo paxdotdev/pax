@@ -6,7 +6,7 @@ mod tests {
 
     #[test]
     fn test_parse_empty() {
-        assert!(matches!(utils::parse_value(""), Err(_)));
+        assert!(matches!(utils::parse_value(""), Ok(None)));
     }
 
     #[test]

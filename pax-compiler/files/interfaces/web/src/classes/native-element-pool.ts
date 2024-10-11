@@ -32,7 +32,7 @@ import { EventBlockerUpdatePatch } from "./messages/event-blocker-update-patch";
 import { NavigationPatch } from "./messages/navigation-patch";
 import { NativeImageUpdatePatch } from "./messages/native-image-update-patch";
 import { YoutubeVideoUpdatePatch } from "./messages/youtube-video-update-patch";
-import { is_in_dom_manipulation_with_focus_func } from "..";
+import { SetCursorPatch } from "./messages/set-cursor-patch";
 
 export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
@@ -309,16 +309,13 @@ export class NativeElementPool {
         });
 
         textbox.addEventListener("change", (_event) => {
-            // if not surpressed, this will trigger when re-selected after dom manipulation
-            if (!is_in_dom_manipulation_with_focus_func) {
-                let message = {
-                    "FormTextboxChange": {
-                        "id": patch.id!,
-                        "text": textbox.value,
-                    }
+            let message = {
+                "FormTextboxChange": {
+                    "id": patch.id!,
+                    "text": textbox.value,
                 }
-                this.chassis!.interrupt(JSON.stringify(message), undefined);
             }
+            this.chassis!.interrupt(JSON.stringify(message), undefined);
         });
         
 
@@ -1125,6 +1122,11 @@ export class NativeElementPool {
                 name = "_self";
         }
         window.open(patch.url, name);
+    }
+
+    setCursor(patch: SetCursorPatch) {
+        console.log("set cursor!", patch.cursor);
+        document.body.style.cursor = patch.cursor;
     }
 }
 
