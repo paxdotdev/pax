@@ -286,18 +286,16 @@ impl RuntimeContext {
             .unwrap_or(borrow!(self.root_expanded_node).upgrade().unwrap());
 
         //send mouse over/out events if the hit element is different than last
-        let topmost = borrow!(self.last_topmost_element).upgrade();
+        let last_topmost = borrow!(self.last_topmost_element).upgrade();
         let new_topmost_comp = new_topmost.containing_component.upgrade();
-        if new_topmost_comp.as_ref().map(|n| n.id) != topmost.as_ref().map(|n| n.id) {
-            if let Some(topmost) = &topmost {
-                topmost.dispatch_mouse_out(Event::new(MouseOut {}), &self.globals(), self);
+        if new_topmost_comp.as_ref().map(|n| n.id) != last_topmost.as_ref().map(|n| n.id) {
+            let (leaving, entering) =
+                find_paths_to_common_ancestor(&last_topmost, &new_topmost_comp);
+            for leave in leaving {
+                leave.dispatch_mouse_out(Event::new(MouseOut {}), &self.globals(), self);
             }
-            if let Some(new_topmost_comp) = &new_topmost_comp {
-                new_topmost_comp.dispatch_mouse_over(
-                    Event::new(MouseOver {}),
-                    &self.globals(),
-                    self,
-                );
+            for enter in entering {
+                enter.dispatch_mouse_over(Event::new(MouseOver {}), &self.globals(), self);
             }
             *borrow_mut!(self.last_topmost_element) = new_topmost_comp
                 .as_ref()
@@ -371,6 +369,53 @@ impl RuntimeContext {
             }
         }
     }
+}
+
+fn find_paths_to_common_ancestor(
+    last_topmost: &Option<Rc<ExpandedNode>>,
+    new_topmost_comp: &Option<Rc<ExpandedNode>>,
+) -> (Vec<Rc<ExpandedNode>>, Vec<Rc<ExpandedNode>>) {
+    let mut last_path = Vec::new();
+    let mut new_path = Vec::new();
+
+    // If either node is None, return empty paths
+    if last_topmost.is_none() || new_topmost_comp.is_none() {
+        return (last_path, new_path);
+    }
+
+    let mut last_node = last_topmost.clone();
+    let mut new_node = new_topmost_comp.clone();
+
+    // Build paths from nodes to root
+    while let Some(node) = last_node.clone() {
+        last_path.push(node.clone());
+        last_node = node.containing_component.upgrade();
+    }
+
+    while let Some(node) = new_node.clone() {
+        new_path.push(node.clone());
+        new_node = node.containing_component.upgrade();
+    }
+
+    // Reverse paths to start from root
+    last_path.reverse();
+    new_path.reverse();
+
+    // Find the last common node
+    let mut common_ancestor_index = 0;
+    for (i, (last, new)) in last_path.iter().zip(new_path.iter()).enumerate() {
+        if last.id == new.id {
+            common_ancestor_index = i;
+        } else {
+            break;
+        }
+    }
+
+    // Remove common ancestors from both paths
+    last_path.drain(0..=common_ancestor_index);
+    new_path.drain(0..=common_ancestor_index);
+
+    (last_path, new_path)
 }
 
 /// Data structure for a single frame of our runtime stack, including
