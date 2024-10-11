@@ -1,5 +1,4 @@
-<Rectangle x=11.49% y=17.38% width=13.04% height=33.42% fill=rgba(100, 116, 139, 255)/>
-<Group width=80% height=80% x=50.00% y=50.00%>
+<Group width=80% height=80% x=50% y=50%>
     <Stacker>
         <Stacker>
             <Text text="Welcome to the Game of Life" class=h1 x=50%/>

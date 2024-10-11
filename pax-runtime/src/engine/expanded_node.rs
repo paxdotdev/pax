@@ -553,7 +553,6 @@ impl ExpandedNode {
             }
 
             if self.instance_node.borrow().base().flags().layer == Layer::Canvas {
-                let layer_id = format!("{}", self.occlusion.get().occlusion_layer_id);
                 context.set_canvas_dirty(self.occlusion.get().occlusion_layer_id);
             }
 
