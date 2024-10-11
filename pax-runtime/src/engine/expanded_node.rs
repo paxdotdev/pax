@@ -283,6 +283,7 @@ impl ExpandedNode {
             Some(Rc::clone(&self)),
         );
         self.bind_to_parent_bounds(context);
+        context.set_canvas_dirty(self.occlusion.get().occlusion_layer_id);
     }
 
     pub fn fully_recreate_with_new_data(
