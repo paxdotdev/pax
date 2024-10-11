@@ -22,43 +22,41 @@ export class MemorySlice {
 export class PaxChassisWeb {
   free(): void;
 /**
-* @returns {PaxChassisWeb}
+* @param {number} id
 */
-  static async new(): PaxChassisWeb;
-/**
-* @param {string} id
-*/
-  add_context(id: string): void;
+  add_context(id: number): void;
 /**
 * @param {number} width
 * @param {number} height
 */
   send_viewport_update(width: number, height: number): void;
 /**
-* @param {string} id
+* @param {number} id
 */
-  remove_context(id: string): void;
+  remove_context(id: number): void;
 /**
-* @param {string} id
+* @returns {[number]}
 */
-clear_context(id: string): void;
+  get_dirty_canvases(): [number];
 /**
-*/
-  clear_all_contexts(): void;
-/**
- * 
 * @param {string} native_interrupt
 * @param {any} additional_payload
+* @returns {InterruptResult}
 */
   interrupt(native_interrupt: string, additional_payload: any): InterruptResult;
-/**
-* @param {string} path
-*/
-  image_loaded(path: string): boolean;
 /**
 * @param {MemorySlice} slice
 */
   deallocate(slice: MemorySlice): void;
+/**
+*/
+  update_userland_component(): void;
+/**
+*/
+  handle_recv_designtime(): void;
+/**
+*/
+  designtime_tick(): void;
 /**
 * @returns {MemorySlice}
 */
@@ -66,7 +64,13 @@ clear_context(id: string): void;
 /**
 */
   render(): void;
+/**
+* @param {string} path
+* @returns {boolean}
+*/
+  image_loaded(path: string): boolean;
 }
+
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -76,24 +80,37 @@ export interface InterruptResult {
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
+  readonly pax_init: () => number;
   readonly wasm_memory: () => number;
-  readonly __wbg_paxchassisweb_free: (a: number) => void;
-  readonly paxchassisweb_new: () => number;
-  readonly paxchassisweb_add_context: (a: number, b: number, c: number) => void;
+  readonly __wbg_paxchassisweb_free: (a: number, b: number) => void;
+  readonly __wbg_interruptresult_free: (a: number, b: number) => void;
+  readonly __wbg_get_interruptresult_prevent_default: (a: number) => number;
+  readonly __wbg_set_interruptresult_prevent_default: (a: number, b: number) => void;
+  readonly paxchassisweb_add_context: (a: number, b: number) => void;
   readonly paxchassisweb_send_viewport_update: (a: number, b: number, c: number) => void;
-  readonly paxchassisweb_remove_context: (a: number, b: number, c: number) => void;
-  readonly paxchassisweb_clear_context: (a: number, b: number, c: number) => void;
-  readonly paxchassisweb_clear_all_contexts: (a: number) => void;
-  readonly paxchassisweb_interrupt: (a: number, b: number, c: number, d: number) => void;
+  readonly paxchassisweb_remove_context: (a: number, b: number) => void;
+  readonly paxchassisweb_get_dirty_canvases: (a: number, b: number) => void;
+  readonly paxchassisweb_interrupt: (a: number, b: number, c: number, d: number) => number;
   readonly paxchassisweb_deallocate: (a: number, b: number) => void;
+  readonly paxchassisweb_update_userland_component: (a: number) => void;
+  readonly paxchassisweb_handle_recv_designtime: (a: number) => void;
+  readonly paxchassisweb_designtime_tick: (a: number) => void;
   readonly paxchassisweb_tick: (a: number) => number;
-  readonly __wbg_memoryslice_free: (a: number) => void;
+  readonly paxchassisweb_render: (a: number) => void;
+  readonly paxchassisweb_image_loaded: (a: number, b: number, c: number) => number;
+  readonly __wbg_memoryslice_free: (a: number, b: number) => void;
   readonly memoryslice_ptr: (a: number) => number;
   readonly memoryslice_len: (a: number) => number;
+  readonly slugify: (a: number, b: number, c: number) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+  readonly __wbindgen_export_2: WebAssembly.Table;
+  readonly _dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__he1f207449096521a: (a: number, b: number, c: number) => void;
+  readonly _dyn_core__ops__function__FnMut__A____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h3b0323705541ab89: (a: number, b: number, c: number) => void;
+  readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_exn_store: (a: number) => void;
+  readonly wasm_bindgen__convert__closures__invoke2_mut__h66b98066a75f2829: (a: number, b: number, c: number, d: number) => void;
 }
 
 export type SyncInitInput = BufferSource | WebAssembly.Module;
