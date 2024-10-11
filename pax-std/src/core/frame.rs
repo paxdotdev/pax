@@ -71,11 +71,10 @@ impl InstanceNode for FrameInstance {
         rtc: &Rc<RuntimeContext>,
         rcs: &mut dyn RenderContext,
     ) {
-        let current_occlusion_layer = expanded_node.occlusion.get().occlusion_layer_id;
         let total_layer_count = rtc.layer_count.get();
 
         let mut run_pre_render = false;
-        for i in current_occlusion_layer..total_layer_count {
+        for i in 0..total_layer_count {
             run_pre_render |= rtc.is_canvas_dirty(&i);
         }
 
@@ -101,8 +100,7 @@ impl InstanceNode for FrameInstance {
         let transformed_bez_path = <Affine>::from(transform) * bez_path;
 
         let layers = rcs.layers();
-
-        for layer in current_occlusion_layer..layers {
+        for layer in 0..layers {
             //our "save point" before clipping — restored to in the post_render
             rcs.save(layer);
             rcs.clip(layer, transformed_bez_path.clone());
@@ -119,11 +117,10 @@ impl InstanceNode for FrameInstance {
             return;
         }
 
-        let current_occlusion_layer = expanded_node.occlusion.get().occlusion_layer_id;
         let total_layer_count = rtc.layer_count.get();
 
         let mut post_render = false;
-        for i in (current_occlusion_layer as usize)..total_layer_count {
+        for i in 0..total_layer_count {
             post_render |= rtc.is_canvas_dirty(&i);
         }
         if !post_render {
@@ -131,7 +128,7 @@ impl InstanceNode for FrameInstance {
         }
 
         let layers = rcs.layers();
-        for layer in current_occlusion_layer..layers {
+        for layer in 0..layers {
             //pop the clipping context from the stack
             rcs.restore(layer);
         }
