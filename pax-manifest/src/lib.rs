@@ -426,21 +426,30 @@ impl CoercionRules for TypeId {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         match value {
             PaxValue::Object(map) => {
-                let pax_type = PaxType::try_coerce(map.get("pax_type").unwrap().clone())?;
+                let pax_type = PaxType::try_coerce(
+                    map.iter()
+                        .find_map(|(n, v)| (n == "pax_type").then_some(v))
+                        .unwrap()
+                        .clone(),
+                )?;
                 let import_path = map
-                    .get("import_path")
+                    .iter()
+                    .find_map(|(n, v)| (n == "import_path").then_some(v))
                     .map(|v| Option::<String>::try_coerce(v.clone()))
                     .unwrap_or(Ok(None))?;
                 let is_intoable_downstream_type = map
-                    .get("is_intoable_downstream_type")
+                    .iter()
+                    .find_map(|(n, v)| (n == "is_intoable_downstream_type").then_some(v))
                     .map(|v| bool::try_coerce(v.clone()))
                     .unwrap_or(Ok(false))?;
                 let _type_id = map
-                    .get("_type_id")
+                    .iter()
+                    .find_map(|(n, v)| (n == "_type_id").then_some(v))
                     .map(|v| String::try_coerce(v.clone()))
                     .unwrap_or(Ok("".to_string()))?;
                 let _type_id_escaped = map
-                    .get("_type_id_escaped")
+                    .iter()
+                    .find_map(|(n, v)| (n == "_type_id_escaped").then_some(v))
                     .map(|v| String::try_coerce(v.clone()))
                     .unwrap_or(Ok("".to_string()))?;
                 Ok(Self {
@@ -458,18 +467,18 @@ impl CoercionRules for TypeId {
 
 impl ToPaxValue for TypeId {
     fn to_pax_value(self) -> PaxValue {
-        let mut map = HashMap::new();
-        map.insert("pax_type".to_string(), self.pax_type.to_pax_value());
-        map.insert("import_path".to_string(), self.import_path.to_pax_value());
-        map.insert(
+        let mut map = vec![];
+        map.push(("pax_type".to_string(), self.pax_type.to_pax_value()));
+        map.push(("import_path".to_string(), self.import_path.to_pax_value()));
+        map.push((
             "is_intoable_downstream_type".to_string(),
             self.is_intoable_downstream_type.to_pax_value(),
-        );
-        map.insert("_type_id".to_string(), self._type_id.to_pax_value());
-        map.insert(
+        ));
+        map.push(("_type_id".to_string(), self._type_id.to_pax_value()));
+        map.push((
             "_type_id_escaped".to_string(),
             self._type_id_escaped.to_pax_value(),
-        );
+        ));
         PaxValue::Object(map)
     }
 }
@@ -1560,7 +1569,7 @@ impl Display for ValueDefinition {
             ValueDefinition::Undefined => write!(f, "<undefined>"),
             ValueDefinition::LiteralValue(value) => write!(f, "{}", value),
             ValueDefinition::Block(block) => write!(f, "{}", block),
-            ValueDefinition::Expression(e) => write!(f, "{}", e),
+            ValueDefinition::Expression(e) => write!(f, "{{{}}}", e.expression),
             ValueDefinition::Identifier(i) => write!(f, "{}", i),
             ValueDefinition::DoubleBinding(ident) => {
                 write!(f, "bind:{}", ident)

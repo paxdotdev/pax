@@ -66,13 +66,11 @@ impl Computable for PaxPrimary {
                 }
                 Ok(value)
             }
-            PaxPrimary::Object(o) => {
-                let mut obj = HashMap::new();
-                for (k, v) in o.iter() {
-                    obj.insert(k.clone(), v.compute(idr.clone())?);
-                }
-                Ok(PaxValue::Object(obj))
-            }
+            PaxPrimary::Object(o) => Ok(PaxValue::Object(
+                o.into_iter()
+                    .map(|(k, v)| Result::<_, String>::Ok((k.clone(), v.compute(idr.clone())?)))
+                    .collect::<Result<_, _>>()?,
+            )),
             PaxPrimary::Range(start, end) => {
                 let start = start.compute(idr.clone())?;
                 let end = end.compute(idr)?;

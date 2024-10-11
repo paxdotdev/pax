@@ -46,7 +46,7 @@ pub enum PaxPrimary {
     Literal(PaxValue),
     Grouped(Box<PaxExpression>, Option<PaxUnit>),
     Identifier(PaxIdentifier, Vec<PaxAccessor>),
-    Object(HashMap<String, PaxExpression>),
+    Object(Vec<(String, PaxExpression)>),
     FunctionOrEnum(String, String, Vec<PaxExpression>),
     Range(PaxExpression, PaxExpression),
     Tuple(Vec<PaxExpression>),
@@ -88,7 +88,7 @@ impl Display for PaxPrimary {
             PaxPrimary::Object(o) => {
                 write!(f, "{{")?;
                 let mut o = o.iter().collect::<Vec<_>>();
-                o.sort_by(|a, b| a.0.cmp(b.0));
+                o.sort_by(|a, b| a.0.cmp(&b.0));
                 for (i, (key, val)) in o.iter().enumerate() {
                     write!(f, "{}: {}", key, val)?;
                     if i != o.len() - 1 {
@@ -338,7 +338,7 @@ fn recurse_pratt_parse(
                 while inner.peek().unwrap().as_rule() == Rule::identifier {
                     inner.next();
                 }
-                let mut obj = HashMap::new();
+                let mut obj = vec![];
                 for pair in inner {
                     let mut pair = pair.into_inner();
                     // settings_key = { identifier ~ (":" | "=") }
@@ -352,7 +352,7 @@ fn recurse_pratt_parse(
                         .to_string();
                     let value = pair.next().unwrap();
                     let value = recurse_pratt_parse(value.into_inner(), pratt_parser)?;
-                    obj.insert(key, value);
+                    obj.push((key, value));
                 }
                 let value = PaxPrimary::Object(obj);
                 let exp = PaxExpression::Primary(Box::new(value));

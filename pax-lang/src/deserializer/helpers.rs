@@ -40,13 +40,6 @@ impl<'de> de::Deserializer<'de> for StringDeserializer<'de> {
 }
 
 #[derive(Clone)]
-pub struct PaxEnum<'de> {
-    variant: &'de str,
-    args: Option<Pair<'de, Rule>>,
-    is_pax_value: bool,
-}
-
-#[derive(Clone)]
 pub struct ColorChannelInteger(pub u8);
 
 impl<'de> EnumAccess<'de> for ColorChannelInteger {
@@ -129,6 +122,13 @@ impl<'de> VariantAccess<'de> for ColorChannelInteger {
             "ColorChannelInteger with struct arguments are not supported".to_string(),
         ))
     }
+}
+
+#[derive(Clone)]
+pub struct PaxEnum<'de> {
+    variant: &'de str,
+    args: Option<Pair<'de, Rule>>,
+    is_pax_value: bool,
 }
 
 impl<'de> PaxEnum<'de> {
@@ -255,6 +255,41 @@ impl<'de> PaxObject<'de> {
             elements,
             current_value: None,
         }
+    }
+}
+
+impl<'de> SeqAccess<'de> for PaxObject<'de> {
+    type Error = Error;
+
+    fn next_element_seed<T>(
+        &mut self,
+        seed: T,
+    ) -> std::prelude::v1::Result<Option<T::Value>, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        while let Some(pair) = self.elements.next() {
+            match pair.as_rule() {
+                Rule::settings_key_value_pair => {
+                    let mut pairs = pair.into_inner();
+                    let key = pairs.next().unwrap().into_inner().next().unwrap();
+                    let value = pairs.next().unwrap();
+                    return Ok(Some(
+                        seed.deserialize(StringDeserializer::new(key.as_str()))?,
+                    ));
+                }
+                Rule::comment => {
+                    continue;
+                }
+                _ => {
+                    return Err(Error::Message(format!(
+                        "Object should not include {:?}",
+                        pair.as_rule()
+                    )));
+                }
+            }
+        }
+        Ok(None)
     }
 }
 

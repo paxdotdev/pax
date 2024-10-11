@@ -207,7 +207,7 @@ fn try_extract_pax_value(expr: PaxExpression) -> anyhow::Result<PaxValue> {
                         };
                         Ok((name, pax_value))
                     })
-                    .collect::<anyhow::Result<HashMap<String, PaxValue>>>()?,
+                    .collect::<anyhow::Result<_>>()?,
             ),
             PaxPrimary::FunctionOrEnum(_, _, _) => bail!("can't toggle function/enum"),
             PaxPrimary::Range(_, _) => bail!("can't toggle range"),
@@ -259,7 +259,7 @@ impl PropertyEditorData {
             return Err(anyhow!("value not set/present in template"));
         };
         let ValueDefinition::LiteralValue(value) = value_def else {
-            return Err(anyhow!("value not a literal, was \"{}\"", value_def));
+            return Err(anyhow!("value not a literal, was \"{:#?}\"", value_def));
         };
         T::try_coerce(value).map_err(|e| {
             anyhow!(

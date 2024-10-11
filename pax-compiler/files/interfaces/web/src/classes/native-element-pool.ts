@@ -389,7 +389,7 @@ export class NativeElementPool {
             if (document.activeElement === textbox) {
                 let new_text = patch.text!;
                 // Get the current selection range
-                const selectionStart = textbox.selectionStart || new_text.length;
+                const selectionStart = textbox.selectionStart || 0;
 
                 // Update the content of the input
                 textbox.value = new_text;
