@@ -52,13 +52,13 @@ pub use selection_state::*;
 
 use self::action::pointer::MouseEntryPointAction;
 use self::action::pointer::Pointer;
+use self::action::Transaction;
 use self::action::UndoRedoStack;
 use self::input::ModifierKey;
 use self::input::{Dir, InputEvent, InputMapper};
 
 /// Represents the global source-of-truth for the designer.
 /// Invalid if any of the bellow :INVALID_IF: statements hold true.
-/// Effort has been put in to expose as few invalid states as possible.
 /// NOTE: Only add a new field to this struct if:
 /// 1. There is no way of computing the sought after value from a combination
 /// of AppState and Manifest information (if this is true, make it part of the
@@ -68,6 +68,9 @@ use self::input::{Dir, InputEvent, InputMapper};
 /// and try to drill down and add state in inner AppState variables if it makes
 /// sense (for example try to slot things like state of the currently used tool
 /// into the tool_state variable, since no two toolstates can exist at the same time)
+/// 3. The field prepresents a state that ideally would be saved between design
+/// sessions. for the same user on save/load. (There are some exceptions atm,
+/// like mouse position - but these should be moved)
 #[derive(Default)]
 #[deny(missing_docs)]
 pub struct AppState {

@@ -12,10 +12,15 @@ use crate::model::action::Transaction;
 
 thread_local! {
     pub static GLOBAL_MOUSEUP_PROP: Property<bool> = Default::default();
+    // HACK: This is used as the transaction for the color picker,
+    // and checked by property editor ORM changes to know if a "set" should
+    // have it's own transaction or not. TODO figure out a nicer way of structuring this
+    pub static COLOR_PICKER_TRANSACTION: RefCell<Option<Transaction>> = Default::default();
 }
 
 pub(crate) fn trigger_mouseup() {
     GLOBAL_MOUSEUP_PROP.with(|p| p.set(false));
+    COLOR_PICKER_TRANSACTION.with_borrow_mut(|t| *t = None);
 }
 
 #[pax]
@@ -187,7 +192,15 @@ impl ColorPicker {
 
     pub fn palette_mouse_down(&mut self, ctx: &NodeContext, event: Event<MouseDown>) {
         self.mouse_is_down_on_palette.set(true);
-        self.palette_set(ctx, &event.mouse)
+        self.palette_set(ctx, &event.mouse);
+        COLOR_PICKER_TRANSACTION.with_borrow_mut(|t| {
+            if t.is_some() {
+                log::warn!("color picker transaction is being over-written");
+            }
+            *t = Some(model::with_action_context(ctx, |ctx| {
+                ctx.transaction("color change")
+            }));
+        })
     }
 
     pub fn palette_mouse_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {

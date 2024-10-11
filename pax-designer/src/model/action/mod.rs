@@ -12,7 +12,7 @@ use crate::{math::AxisAlignedBox, model::AppState, DESIGNER_GLASS_ID};
 use anyhow::{anyhow, Error, Result};
 use pax_designtime::orm::PaxManifestORM;
 use pax_designtime::DesigntimeManager;
-use pax_engine::api::{borrow, borrow_mut, Axis, Size};
+use pax_engine::api::{borrow, borrow_mut, Axis, Interpolatable, Size};
 use pax_engine::math::Vector2;
 use pax_engine::node_layout::TransformAndBounds;
 use pax_engine::pax_manifest::{
@@ -226,12 +226,15 @@ impl<'a> ActionContext<'a> {
     }
 }
 
+impl Interpolatable for Transaction {}
+
+#[derive(Clone)]
 pub struct Transaction {
     before_undo_id: Option<usize>,
     design_time: Rc<RefCell<DesigntimeManager>>,
     component_id: Property<TypeId>,
     undo_stack: Rc<UndoRedoStack>,
-    result: RefCell<Result<()>>,
+    result: Rc<RefCell<Result<()>>>,
     user_action_message: String,
 }
 
@@ -253,7 +256,7 @@ impl Transaction {
             undo_stack: Rc::clone(&ctx.undo_stack),
             before_undo_id,
             design_time,
-            result: RefCell::new(Ok(())),
+            result: Rc::new(RefCell::new(Ok(()))),
             user_action_message: user_action_message.to_owned(),
             component_id,
         }

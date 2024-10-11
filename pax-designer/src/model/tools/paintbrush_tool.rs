@@ -1,7 +1,6 @@
 use std::{collections::HashMap, f64::consts::PI, ops::ControlFlow};
 
 use crate::{
-    controls::settings::property_editor::fill_property_editor::color_to_str,
     designer_node_type::DesignerNodeType,
     glass::ToolVisualizationState,
     math::{
@@ -21,7 +20,7 @@ use anyhow::{anyhow, Result};
 use bezier_rs::{Bezier, Identifier, Subpath};
 use glam::DVec2;
 use pax_engine::{
-    api::{borrow, borrow_mut, Axis, Color, Interpolatable, PathElement},
+    api::{borrow, borrow_mut, Axis, Color, Interpolatable, PathElement, Stroke},
     log,
     math::{Point2, Space, Transform2, Vector2},
     pax_manifest::{TreeIndexPosition, UniqueTemplateNodeIdentifier},
@@ -84,15 +83,14 @@ impl PaintbrushTool {
                 parent_index: TreeIndexPosition::Top,
                 designer_node_type: DesignerNodeType::Path,
                 builder_extra_commands: Some(&|builder| {
-                    builder.set_property(
+                    builder.set_property_from_typed(
                         "stroke",
-                        &format!(
-                            "{{color: {}, width: {}px}}",
-                            color_to_str(settings.stroke_color.clone()),
-                            settings.stroke_width
-                        ),
+                        Some(Stroke {
+                            color: Property::new(settings.stroke_color.clone()),
+                            width: Property::new(Size::Pixels(settings.stroke_width.into())),
+                        }),
                     )?;
-                    builder.set_property("fill", &color_to_str(settings.fill_color.clone()))?;
+                    builder.set_property_from_typed("fill", Some(settings.fill_color.clone()))?;
                     Ok(())
                 }),
                 node_layout: Some(NodeLayoutSettings::Fill),

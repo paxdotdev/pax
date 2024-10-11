@@ -45,6 +45,7 @@ impl DirectionPropertyEditor {
                         );
                     })
                     .unwrap_or_default()
+                    .unwrap_or_default()
             },
             &deps,
         ));

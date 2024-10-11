@@ -166,31 +166,29 @@ impl<'a> NodeBuilder<'a> {
     }
 
     pub fn set_repeat_source(&mut self, value: &str) -> Result<()> {
-        let repeat_source_expression = self
-            .control_flow_updates
-            .repeat_source_expression
-            .get_or_insert_with(|| None);
-        if value.is_empty() {
-            return Ok(());
-        }
+        let repeat_source_expression = &mut self.control_flow_updates.repeat_source_expression;
 
         let value = pax_manifest::utils::parse_value(value).map_err(|e| anyhow!(e.to_owned()))?;
-        let expression = match value {
-            ValueDefinition::LiteralValue(value) => ExpressionInfo {
-                expression: PaxExpression::Primary(Box::new(PaxPrimary::Literal(value))),
-                dependencies: vec![],
-            },
-            ValueDefinition::Expression(expression) => expression,
-            ValueDefinition::Identifier(identifier) => ExpressionInfo {
-                expression: PaxExpression::Primary(Box::new(PaxPrimary::Identifier(
-                    identifier,
-                    vec![],
-                ))),
-                dependencies: vec![],
-            },
-            _ => return Err(anyhow!("a control flow source needs to be an expression")),
-        };
-        *repeat_source_expression = Some(expression);
+        if let Some(value) = value {
+            let expression = match value {
+                ValueDefinition::LiteralValue(value) => ExpressionInfo {
+                    expression: PaxExpression::Primary(Box::new(PaxPrimary::Literal(value))),
+                    dependencies: vec![],
+                },
+                ValueDefinition::Expression(expression) => expression,
+                ValueDefinition::Identifier(identifier) => ExpressionInfo {
+                    expression: PaxExpression::Primary(Box::new(PaxPrimary::Identifier(
+                        identifier,
+                        vec![],
+                    ))),
+                    dependencies: vec![],
+                },
+                _ => return Err(anyhow!("a control flow source needs to be an expression")),
+            };
+            *repeat_source_expression = Some(Some(expression));
+        } else {
+            *repeat_source_expression = Some(None);
+        }
         Ok(())
     }
 
@@ -221,31 +219,28 @@ impl<'a> NodeBuilder<'a> {
     }
 
     pub fn set_conditional_source(&mut self, value: &str) -> Result<()> {
-        let conditional_expression = self
-            .control_flow_updates
-            .conditional_expression
-            .get_or_insert_with(|| None);
-        if value.is_empty() {
-            return Ok(());
-        }
-
+        let conditional_expression = &mut self.control_flow_updates.conditional_expression;
         let value = pax_manifest::utils::parse_value(value).map_err(|e| anyhow!(e.to_owned()))?;
-        let expression = match value {
-            ValueDefinition::LiteralValue(value) => ExpressionInfo {
-                expression: PaxExpression::Primary(Box::new(PaxPrimary::Literal(value))),
-                dependencies: vec![],
-            },
-            ValueDefinition::Expression(expression) => expression,
-            ValueDefinition::Identifier(identifier) => ExpressionInfo {
-                expression: PaxExpression::Primary(Box::new(PaxPrimary::Identifier(
-                    identifier,
-                    vec![],
-                ))),
-                dependencies: vec![],
-            },
-            _ => return Err(anyhow!("a control flow source needs to be an expression")),
-        };
-        *conditional_expression = Some(expression);
+        if let Some(value) = value {
+            let expression = match value {
+                ValueDefinition::LiteralValue(value) => ExpressionInfo {
+                    expression: PaxExpression::Primary(Box::new(PaxPrimary::Literal(value))),
+                    dependencies: vec![],
+                },
+                ValueDefinition::Expression(expression) => expression,
+                ValueDefinition::Identifier(identifier) => ExpressionInfo {
+                    expression: PaxExpression::Primary(Box::new(PaxPrimary::Identifier(
+                        identifier,
+                        vec![],
+                    ))),
+                    dependencies: vec![],
+                },
+                _ => return Err(anyhow!("a control flow source needs to be an expression")),
+            };
+            *conditional_expression = Some(Some(expression));
+        } else {
+            *conditional_expression = Some(None);
+        }
         Ok(())
     }
 
@@ -302,11 +297,7 @@ impl<'a> NodeBuilder<'a> {
     pub fn set_property(&mut self, key: &str, value: &str) -> Result<()> {
         self.set_property_from_value_definition(
             key,
-            if value.is_empty() {
-                None
-            } else {
-                Some(pax_manifest::utils::parse_value(value).map_err(|e| anyhow!(e.to_owned()))?)
-            },
+            pax_manifest::utils::parse_value(value).map_err(|e| anyhow!(e.to_owned()))?,
         )
     }
 
