@@ -1,13 +1,16 @@
+use api::Window;
 use kurbo::Shape;
 use pax_engine::*;
 use pax_runtime::api::{borrow_mut, use_RefCell};
 use pax_runtime::{api::Property, api::RenderContext, ExpandedNodeIdentifier};
+use std::cell::Ref;
 use std::collections::HashSet;
 
 use_RefCell!();
 use pax_message::ImagePatch;
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
+    TransformAndBounds,
 };
 use std::rc::Rc;
 
@@ -17,13 +20,14 @@ use crate::common::patch_if_needed;
 /// by `size`, transformed by `transform`
 #[pax]
 #[engine_import_path("pax_engine")]
-#[primitive("pax_std::core::image::ImageInstance")]
+#[primitive("pax_std::drawing::image::ImageInstance")]
 pub struct Image {
     pub source: Property<ImageSource>,
     pub fit: Property<ImageFit>,
 }
 
 #[pax]
+#[derive(PartialEq)]
 #[engine_import_path("pax_engine")]
 pub enum ImageSource {
     #[default]
@@ -36,6 +40,9 @@ pub enum ImageSource {
 pub struct ImageInstance {
     base: BaseInstance,
     needs_to_load_data: Rc<RefCell<HashSet<ExpandedNodeIdentifier>>>,
+    // This property is used to dirty the canvas when the image changes
+    changed: Property<()>,
+    initial_load: RefCell<HashSet<ExpandedNodeIdentifier>>,
 }
 
 impl InstanceNode for ImageInstance {
@@ -55,6 +62,8 @@ impl InstanceNode for ImageInstance {
                 },
             ),
             needs_to_load_data: Default::default(),
+            changed: Property::new(()),
+            initial_load: Default::default(),
         })
     }
 
@@ -67,14 +76,17 @@ impl InstanceNode for ImageInstance {
 
         // send update message when relevant properties change
         let weak_self_ref = Rc::downgrade(&expanded_node);
-        let context = Rc::clone(context);
+        let cloned_context = Rc::clone(context);
         let last_patch = Rc::new(RefCell::new(ImagePatch {
             id,
             ..Default::default()
         }));
 
-        let deps =
-            [expanded_node.with_properties_unwrapped(|props: &mut Image| props.source.untyped())];
+        let (source, fit) = expanded_node.with_properties_unwrapped(|props: &mut Image| {
+            (props.source.clone(), props.fit.clone())
+        });
+
+        let deps = [source.untyped()];
         let needs_to_load_data = Rc::clone(&self.needs_to_load_data);
         expanded_node
             .native_message_listener
@@ -98,7 +110,7 @@ impl InstanceNode for ImageInstance {
                                     patch_if_needed(&mut old_state.path, &mut patch.path, url);
 
                                 if update {
-                                    context.enqueue_native_message(
+                                    cloned_context.enqueue_native_message(
                                         pax_message::NativeMessage::ImageLoad(patch),
                                     );
                                 }
@@ -113,6 +125,24 @@ impl InstanceNode for ImageInstance {
                 },
                 &deps,
             ));
+
+        let tab = expanded_node.transform_and_bounds.clone();
+        let deps = &[tab.untyped(), source.untyped(), fit.untyped()];
+        let cloned_expanded_node = expanded_node.clone();
+        let cloned_context = context.clone();
+
+        self.changed.replace_with(Property::computed(
+            move || {
+                cloned_context
+                    .set_canvas_dirty(cloned_expanded_node.occlusion.get().occlusion_layer_id);
+                ()
+            },
+            deps,
+        ));
+    }
+
+    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
+        self.changed.get();
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
@@ -126,9 +156,11 @@ impl InstanceNode for ImageInstance {
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _rtc: &Rc<RuntimeContext>,
+        rtc: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
+        let layer_id = expanded_node.occlusion.get().occlusion_layer_id;
+
         let t_and_b = expanded_node.transform_and_bounds.get();
         let (container_width, container_height) = t_and_b.bounds;
 
@@ -160,6 +192,13 @@ impl InstanceNode for ImageInstance {
             let Some((image_width, image_height, path)) = image_size_and_load_path else {
                 return;
             };
+
+            if !rtc.is_canvas_dirty(&layer_id)
+                && self.initial_load.borrow().contains(&expanded_node.id)
+            {
+                return;
+            }
+
             let (image_width, image_height) = (image_width as f64, image_height as f64);
             let stretch_w = container_width / image_width;
             let stretch_h = container_height / image_height;
@@ -178,12 +217,14 @@ impl InstanceNode for ImageInstance {
             let y = (container_height - height) / 2.0;
             let transformed_bounds = kurbo::Rect::new(x, y, x + width, y + height);
             let clip_path = kurbo::Rect::new(0.0, 0.0, container_width, container_height);
-            let layer_id = format!("{}", expanded_node.occlusion.get().occlusion_layer_id);
-            rc.save(&layer_id);
-            rc.transform(&layer_id, t_and_b.transform.into());
-            rc.clip(&layer_id, clip_path.into_path(0.01));
-            rc.draw_image(&layer_id, &path, transformed_bounds);
-            rc.restore(&layer_id);
+            rc.save(layer_id);
+            rc.transform(layer_id, t_and_b.transform.into());
+            rc.clip(layer_id, clip_path.into_path(0.01));
+            rc.draw_image(layer_id, &path, transformed_bounds);
+            rc.restore(layer_id);
+            self.initial_load
+                .borrow_mut()
+                .insert(expanded_node.id.clone());
         });
     }
 
@@ -202,6 +243,7 @@ impl InstanceNode for ImageInstance {
 
 /// Image fit/layout options
 #[pax]
+#[derive(PartialEq)]
 #[engine_import_path("pax_engine")]
 pub enum ImageFit {
     /// Scale the image to perfectly fit within it's bounds, choosing vertical or horizontal

@@ -18,6 +18,8 @@ pub struct Ellipse {
 
 pub struct EllipseInstance {
     base: BaseInstance,
+    // This property is used to dirty the canvas when the ellipse changes
+    changed: Property<()>,
 }
 
 impl InstanceNode for EllipseInstance {
@@ -36,15 +38,50 @@ impl InstanceNode for EllipseInstance {
                     is_slot: false,
                 },
             ),
+            changed: Property::new(()),
         })
+    }
+
+    fn handle_mount(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RuntimeContext>,
+    ) {
+        let tab = expanded_node.transform_and_bounds.clone();
+        let (stroke, fill) = expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
+            (properties.stroke.clone(), properties.fill.clone())
+        });
+
+        let deps = &[tab.untyped(), stroke.untyped(), fill.untyped()];
+        let cloned_expanded_node = expanded_node.clone();
+        let cloned_context = context.clone();
+
+        self.changed.replace_with(Property::computed(
+            move || {
+                cloned_context
+                    .set_canvas_dirty(cloned_expanded_node.occlusion.get().occlusion_layer_id);
+                ()
+            },
+            deps,
+        ));
+    }
+
+    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
+        self.changed.get();
     }
 
     fn render(
         &self,
         expanded_node: &ExpandedNode,
-        _context: &Rc<RuntimeContext>,
+        rtc: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
+        let layer_id = expanded_node.occlusion.get().occlusion_layer_id;
+
+        if !rtc.is_canvas_dirty(&layer_id) {
+            return;
+        }
+
         let tab = expanded_node.transform_and_bounds.get();
         let (width, height) = tab.bounds;
         expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
@@ -62,8 +99,7 @@ impl InstanceNode for EllipseInstance {
                 unimplemented!("gradients not supported on ellipse")
             };
 
-            let layer_id = format!("{}", expanded_node.occlusion.get().occlusion_layer_id);
-            rc.fill(&layer_id, transformed_bez_path, &color.into());
+            rc.fill(layer_id, transformed_bez_path, &color.into());
 
             //hack to address "phantom stroke" bug on Web
             let width: f64 = properties
@@ -76,7 +112,7 @@ impl InstanceNode for EllipseInstance {
 
             if width > f64::EPSILON {
                 rc.stroke(
-                    &layer_id,
+                    layer_id,
                     duplicate_transformed_bez_path,
                     &properties.stroke.get().color.get().to_piet_color().into(),
                     width,

@@ -84,14 +84,13 @@ impl InstanceNode for TextInstance {
         #[cfg(feature = "designtime")]
         if DEBUG_TEXT_GREEN_BACKGROUND {
             let tab = expanded_node.transform_and_bounds.get();
-            let layer_id = format!("{}", expanded_node.occlusion.get().occlusion_layer_id);
             let width: f64 = tab.bounds.0;
             let height: f64 = tab.bounds.1;
             let rect = RoundedRect::new(0.0, 0.0, width, height, 0.0);
             let bez_path = rect.to_path(0.1);
             let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
             rc.fill(
-                &layer_id,
+                expanded_node.occlusion.get().occlusion_layer_id,
                 transformed_bez_path,
                 &piet::PaintBrush::Color(piet::Color::rgba8(0, 255, 0, 100)),
             );

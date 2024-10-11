@@ -108,7 +108,7 @@ fn update_node_occlusion_recursive(
         set.push(occlusion_box);
 
         let new_occlusion = Occlusion {
-            occlusion_layer_id: occlusion_index as u32,
+            occlusion_layer_id: occlusion_index,
             z_index: *z_index,
             parent_frame: node
                 .parent_frame
@@ -130,7 +130,13 @@ fn update_node_occlusion_recursive(
                 occlusion_patch,
             ));
         }
-        node.occlusion.set(new_occlusion);
+        if new_occlusion != node.occlusion.get() {
+            let prev_layer = node.occlusion.get().occlusion_layer_id;
+            ctx.set_canvas_dirty(prev_layer as usize);
+            ctx.set_canvas_dirty(new_occlusion.occlusion_layer_id as usize);
+            node.occlusion.set(new_occlusion);
+        }
+
         *z_index += 1;
     }
 }

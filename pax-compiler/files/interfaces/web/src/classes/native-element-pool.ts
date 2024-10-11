@@ -73,7 +73,30 @@ export class NativeElementPool {
         this.layers.attach(mount, chassis, this.canvases);
     }
 
-    clearCanvases(): void {
+    clearCanvases(dirty_canvases: [number]): void {
+
+        dirty_canvases.forEach((canvas_id) => {
+            let dpr = window.devicePixelRatio;
+            let canvas = this.canvases.get(canvas_id.toString());
+            if (canvas){
+                let context = canvas.getContext('2d');
+                if (context) {
+                    context.clearRect(0, 0, canvas.width, canvas.height);
+                }
+                if(canvas.width != (canvas.clientWidth * dpr) || canvas.height != (canvas.clientHeight * dpr)){
+                    canvas.width = (canvas.clientWidth * dpr);
+                    canvas.height = (canvas.clientHeight * dpr);
+                    if (context) {
+                        context.scale(dpr, dpr);
+                    }
+                }
+            }
+        }
+        );
+
+    }
+
+    clearAllCanvases(): void {
         this.canvases.forEach((canvas, _key) => {
             let dpr = window.devicePixelRatio;
             const context = canvas.getContext('2d');

@@ -150,23 +150,23 @@ struct ImgData<R: piet::RenderContext> {
 }
 
 pub struct Renderer<R: piet::RenderContext> {
-    backends: HashMap<String, R>,
+    backends: Vec<R>,
     image_map: HashMap<String, ImgData<R>>,
 }
 
 impl<R: piet::RenderContext> Renderer<R> {
     pub fn new() -> Self {
         Self {
-            backends: HashMap::new(),
+            backends: Vec::new(),
             image_map: HashMap::new(),
         }
     }
 
-    pub fn add_context(&mut self, id: &str, context: R) {
+    pub fn add_context(&mut self, id: usize, context: R) {
         self.backends.insert(id.to_owned(), context);
     }
 
-    pub fn remove_context(&mut self, id: &str) {
+    pub fn remove_context(&mut self, id: usize) {
         self.backends.remove(id);
     }
 
@@ -176,7 +176,7 @@ impl<R: piet::RenderContext> Renderer<R> {
 }
 
 impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
-    fn fill(&mut self, layer: &str, path: kurbo::BezPath, brush: &piet_common::PaintBrush) {
+    fn fill(&mut self, layer: usize, path: kurbo::BezPath, brush: &piet_common::PaintBrush) {
         if let Some(layer) = self.backends.get_mut(layer) {
             layer.fill(path, brush);
         }
@@ -184,7 +184,7 @@ impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
 
     fn stroke(
         &mut self,
-        layer: &str,
+        layer: usize,
         path: kurbo::BezPath,
         brush: &piet_common::PaintBrush,
         width: f64,
@@ -194,25 +194,25 @@ impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
         }
     }
 
-    fn save(&mut self, layer: &str) {
+    fn save(&mut self, layer: usize) {
         if let Some(layer) = self.backends.get_mut(layer) {
             let _ = layer.save();
         }
     }
 
-    fn transform(&mut self, layer: &str, affine: Affine) {
+    fn transform(&mut self, layer: usize, affine: Affine) {
         if let Some(layer) = self.backends.get_mut(layer) {
             layer.transform(affine);
         }
     }
 
-    fn clip(&mut self, layer: &str, path: kurbo::BezPath) {
+    fn clip(&mut self, layer: usize, path: kurbo::BezPath) {
         if let Some(layer) = self.backends.get_mut(layer) {
             layer.clip(path);
         }
     }
 
-    fn restore(&mut self, layer: &str) {
+    fn restore(&mut self, layer: usize) {
         if let Some(layer) = self.backends.get_mut(layer) {
             let _ = layer.restore();
         }
@@ -220,7 +220,7 @@ impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
 
     fn load_image(&mut self, path: &str, buf: &[u8], width: usize, height: usize) {
         //is this okay!? we know it's the same kind of backend no matter what layer, but it might be storing data?
-        let render_context = self.backends.values_mut().next().unwrap();
+        let render_context = self.backends.first_mut().unwrap();
         let img = render_context
             .make_image(width, height, buf, piet::ImageFormat::RgbaSeparate)
             .expect("image creation successful");
@@ -237,7 +237,7 @@ impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
         self.image_map.get(image_path).map(|img| (img.size))
     }
 
-    fn draw_image(&mut self, layer: &str, image_path: &str, rect: kurbo::Rect) {
+    fn draw_image(&mut self, layer: usize, image_path: &str, rect: kurbo::Rect) {
         let Some(data) = self.image_map.get(image_path) else {
             return;
         };
@@ -246,8 +246,8 @@ impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
         }
     }
 
-    fn layers(&self) -> Vec<&str> {
-        self.backends.keys().map(String::as_str).collect()
+    fn layers(&self) -> usize {
+        self.backends.len()
     }
 }
 

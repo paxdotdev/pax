@@ -159,6 +159,7 @@ impl<F: Space, T: Space> Interpolatable for TransformAndBounds<F, T> {
     }
 }
 
+#[derive(PartialEq)]
 pub struct TransformAndBounds<F, T = F> {
     pub transform: Transform2<F, T>,
     pub bounds: (f64, f64),
@@ -170,6 +171,12 @@ impl<F: Space, T: Space> std::fmt::Debug for TransformAndBounds<F, T> {
             .field("transform", &self.transform)
             .field("bounds", &self.bounds)
             .finish()
+    }
+}
+
+impl PartialEq for TransformAndBounds<NodeLocal, Window> {
+    fn eq(&self, other: &Self) -> bool {
+        self.transform == other.transform && self.bounds == other.bounds
     }
 }
 

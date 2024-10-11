@@ -39,6 +39,14 @@ export class PaxChassisWeb {
 */
   remove_context(id: string): void;
 /**
+* @param {string} id
+*/
+clear_context(id: string): void;
+/**
+*/
+  clear_all_contexts(): void;
+/**
+ * 
 * @param {string} native_interrupt
 * @param {any} additional_payload
 */
@@ -74,6 +82,8 @@ export interface InitOutput {
   readonly paxchassisweb_add_context: (a: number, b: number, c: number) => void;
   readonly paxchassisweb_send_viewport_update: (a: number, b: number, c: number) => void;
   readonly paxchassisweb_remove_context: (a: number, b: number, c: number) => void;
+  readonly paxchassisweb_clear_context: (a: number, b: number, c: number) => void;
+  readonly paxchassisweb_clear_all_contexts: (a: number) => void;
   readonly paxchassisweb_interrupt: (a: number, b: number, c: number, d: number) => void;
   readonly paxchassisweb_deallocate: (a: number, b: number) => void;
   readonly paxchassisweb_tick: (a: number) => number;
