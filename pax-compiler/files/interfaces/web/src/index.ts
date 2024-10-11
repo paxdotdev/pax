@@ -96,7 +96,7 @@ async function startRenderLoop(extensionlessUrl: string, mount: Element) {
 }
 
 function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: ()=>any) {
-    nativePool.clearCanvases();
+    //chassis.clear_all_contexts();
 
     const memorySliceSpec = chassis.tick();
     const latestMemory : WebAssembly.Memory = get_latest_memory();
@@ -120,6 +120,9 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
 
     processMessages(messages, chassis, objectManager);
 
+
+    let dirty_canvases = chassis.get_dirty_canvases();
+    nativePool.clearCanvases(dirty_canvases);
     //draw canvas elements
     chassis.render();
 

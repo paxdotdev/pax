@@ -1,4 +1,4 @@
-<Group x=627.94px y=85.99px width=400px height=700px>
+<Group x=24.79% y=86.01% width=400px height=700px>
     <Stacker direction=StackerDirection::Vertical>
         <Group width=100% height=120px>
             <Text text={display} id=display x=95% y=50%/>

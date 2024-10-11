@@ -1,8 +1,8 @@
 use std::{cmp::Ordering, fmt::Display};
 
-use serde::{Deserialize, Serialize};
-
 use crate::{Interpolatable, Size};
+use serde::{Deserialize, Serialize};
+use std::hash::Hash;
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(crate = "crate::serde")]
 #[derive(Debug, Copy)]
@@ -19,6 +19,25 @@ pub enum Numeric {
     F32(f32),
     ISize(isize),
     USize(usize),
+}
+
+impl Hash for Numeric {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Numeric::I8(v) => v.hash(state),
+            Numeric::I16(v) => v.hash(state),
+            Numeric::I32(v) => v.hash(state),
+            Numeric::I64(v) => v.hash(state),
+            Numeric::U8(v) => v.hash(state),
+            Numeric::U16(v) => v.hash(state),
+            Numeric::U32(v) => v.hash(state),
+            Numeric::U64(v) => v.hash(state),
+            Numeric::F64(v) => v.to_bits().hash(state),
+            Numeric::F32(v) => v.to_bits().hash(state),
+            Numeric::ISize(v) => v.hash(state),
+            Numeric::USize(v) => v.hash(state),
+        }
+    }
 }
 
 impl Display for Numeric {

@@ -149,12 +149,12 @@ impl PaxChassisWeb {
 
 #[wasm_bindgen]
 impl PaxChassisWeb {
-    pub fn add_context(&mut self, id: String) {
+    pub fn add_context(&mut self, id: usize) {
         let window = window().unwrap();
         let dpr = window.device_pixel_ratio();
         let document = window.document().unwrap();
         let canvas = document
-            .get_element_by_id(id.as_str())
+            .get_element_by_id(id.to_string().as_str())
             .unwrap()
             .dyn_into::<HtmlCanvasElement>()
             .unwrap();
@@ -171,16 +171,26 @@ impl PaxChassisWeb {
         canvas.set_width(width as u32);
         canvas.set_height(height as u32);
         let _ = context.scale(dpr, dpr);
-
         let render_context = WebRenderContext::new(context, window.clone());
-        self.drawing_contexts.add_context(&id, render_context);
+        self.drawing_contexts.add_context(id, render_context);
+        self.engine.borrow().runtime_context.add_canvas(id);
     }
 
     pub fn send_viewport_update(&mut self, width: f64, height: f64) {
+        self.engine
+            .borrow()
+            .runtime_context
+            .set_all_canvases_dirty();
         borrow_mut!(self.engine).set_viewport_size((width, height));
     }
-    pub fn remove_context(&mut self, id: String) {
-        self.drawing_contexts.remove_context(&id);
+    pub fn remove_context(&mut self, id: usize) {
+        self.drawing_contexts.remove_context(id);
+        self.engine.borrow().runtime_context.remove_canvas(&id);
+    }
+
+    pub fn get_dirty_canvases(&self) -> Vec<usize> {
+        let ret = self.engine.borrow().runtime_context.get_dirty_canvases();
+        ret
     }
 
     pub fn interrupt(
@@ -711,6 +721,10 @@ impl PaxChassisWeb {
 
     pub fn render(&mut self) {
         borrow_mut!(self.engine).render((&mut self.drawing_contexts) as &mut dyn RenderContext);
+        self.engine
+            .borrow()
+            .runtime_context
+            .clear_all_dirty_canvases();
     }
 
     pub fn image_loaded(&mut self, path: &str) -> bool {

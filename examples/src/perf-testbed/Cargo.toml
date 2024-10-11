@@ -5,7 +5,7 @@ edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-kit = { version = "0.36.9", features = ["designer"], path = "../../../pax-kit" }
+pax-kit = { version = "0.36.9", path = "../../../pax-kit" }
 rand = { version = "0.8.5" }
 getrandom = { version = "0.2.15", features = ["js"] }
 
@@ -22,7 +22,6 @@ name = "run"
 path = "bin/run.rs"
 
 [features]
-designer = ["pax-kit/designer"]
 parser = ["pax-kit/parser"]
 web = ["pax-kit/web"]
 macos = ["pax-kit/macos"]
@@ -37,9 +36,9 @@ inherits = "dev"
 opt-level = 0
 
 [profile.dev]
-opt-level = 0
+opt-level = 3
 debug = false
 
 [profile.dev.package."*"]
-opt-level = 2
+opt-level = 3
 debug = false

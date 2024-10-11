@@ -19,6 +19,7 @@ pax-manifest = {path = "../pax-manifest", version="0.37.1"}
 pax-message = {path = "../pax-message", version="0.37.1"}
 pax-runtime = {path = "../pax-runtime", version="0.37.1"}
 piet = "0.6.0"
+piet-web = "0.6.2"
 serde = { version = "1.0.159", features=["derive"]}
 serde_json = {version="1.0.95", optional = true}
 
