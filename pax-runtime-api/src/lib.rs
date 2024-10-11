@@ -11,6 +11,7 @@ pub use pax_value::numeric::Numeric;
 pub use pax_value::{CoercionRules, ImplToFromPaxAny, PaxValue, ToPaxValue};
 use piet::{PaintBrush, UnitPoint};
 use properties::{PropertyValue, UntypedProperty};
+pub mod cursor;
 
 /// Marker trait that needs to be implemented for a struct for insertion and
 /// deletion in a store
