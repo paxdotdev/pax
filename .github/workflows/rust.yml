@@ -82,7 +82,7 @@ jobs:
 
     - name: Deploy to S3
       run: |
-        BUCKET_NAME="staging.pax.dev/${{ github.event.pull_request.number }}"
+        BUCKET_NAME="staging.pax.dev/build/${{ github.event.pull_request.number }}"
         aws s3 sync /home/runner/work/pax/pax/examples/src/starter-project/.pax/build/release/web s3://$BUCKET_NAME --delete --acl public-read   
 
     - name: Invalidate CloudFront
@@ -95,7 +95,7 @@ jobs:
       with:
         script: |
           const prNumber = context.issue.number;
-          const deploymentUrl = `https://staging.pax.dev/${prNumber}`;
+          const deploymentUrl = `https://staging.pax.dev/build/${prNumber}`;
           github.rest.issues.createComment({
             issue_number: context.issue.number,
             owner: context.repo.owner,
