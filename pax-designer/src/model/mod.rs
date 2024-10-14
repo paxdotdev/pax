@@ -18,6 +18,7 @@ use anyhow::Context;
 use anyhow::Result;
 use pax_designtime::orm::SubTrees;
 use pax_designtime::DesigntimeManager;
+use pax_engine::api::borrow_mut;
 use pax_engine::api::Color;
 use pax_engine::api::Interpolatable;
 use pax_engine::api::MouseButton;
@@ -36,12 +37,14 @@ use pax_engine::pax_manifest::Unit;
 use pax_engine::pax_manifest::ValueDefinition;
 use pax_engine::NodeInterface;
 use pax_engine::NodeLocal;
+use pax_engine::PaxValue;
 use pax_engine::Property;
 use pax_engine::{api::borrow, api::NodeContext, math::Point2};
 use std::any::Any;
 use std::cell::OnceCell;
 use std::cell::RefCell;
 use std::collections::BTreeSet;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ops::ControlFlow;
 use std::rc::Rc;
@@ -147,6 +150,10 @@ pub struct DerivedAppState {
     pub to_glass_transform: Property<Property<Transform2<Window, Glass>>>,
     pub selected_nodes: Property<Vec<(UniqueTemplateNodeIdentifier, NodeInterface)>>,
     pub selection_state: Property<SelectionState>,
+    // if a single node is selected, this contains a map of it's current property values in the ORM that
+    // get individually dirtified
+    pub selected_node_orm_values:
+        Property<Vec<(PropertyDefinition, Property<Option<ValueDefinition>>)>>,
     /// The currently open containers, example: the parent group of the rectangle currently selected, and the scroller this group is inside
     pub open_containers: Property<Vec<UniqueTemplateNodeIdentifier>>,
 }
@@ -205,12 +212,14 @@ impl Model {
         let selection_state =
             Self::derive_selection_state(selected_nodes.clone(), to_glass_transform.clone());
         let open_containers = Self::derive_open_container(ctx, app_state);
+        let selected_node_orm_values = Self::derive_selected_node_orm_values(ctx, app_state);
 
         DerivedAppState {
             to_glass_transform,
             selection_state,
             open_containers,
             selected_nodes,
+            selected_node_orm_values,
         }
     }
 
@@ -341,6 +350,69 @@ impl Model {
             },
             &deps,
         )
+    }
+
+    // Exists to be able to listen to more tactical updates
+    // to the currently selected node in for example the settings view
+    fn derive_selected_node_orm_values(
+        ctx: &NodeContext,
+        app_state: &AppState,
+    ) -> Property<Vec<(PropertyDefinition, Property<Option<ValueDefinition>>)>> {
+        let comp_id = app_state.selected_component_id.clone();
+        let selected = app_state.selected_template_node_ids.clone();
+        let manifest_ver = borrow!(ctx.designtime).get_last_rendered_manifest_version();
+        let deps = [
+            comp_id.untyped(),
+            selected.untyped(),
+            manifest_ver.untyped(),
+        ];
+        // instead of making this a dependent property directly, we do some last
+        // patch logic to only update what is needed
+        let selected_node_orm_values: Property<
+            Vec<(PropertyDefinition, Property<Option<ValueDefinition>>)>,
+        > = Property::default();
+        let selected_node_orm_values_cp = selected_node_orm_values.clone();
+        let last_selected = Rc::new(RefCell::new(None));
+        let ctxp = ctx.clone();
+        ctx.subscribe(&deps, move || {
+            let mut dt = borrow_mut!(ctxp.designtime);
+            let orm = dt.get_orm_mut();
+            let Some(selected) = selected.read(|v| (v.len() == 1).then(|| v[0].clone())) else {
+                return;
+            };
+            let uid = UniqueTemplateNodeIdentifier::build(comp_id.get(), selected);
+            let Some(mut node) = orm.get_node_builder(uid.clone(), false) else {
+                return;
+            };
+            let node_properties = node.get_all_property_definitions();
+            if borrow!(last_selected).as_ref() != Some(&uid) {
+                *borrow_mut!(last_selected) = Some(uid);
+                // TODO maybe even this could just use the logic below to add/remove/update properties?
+                log::debug!("updating all");
+                selected_node_orm_values_cp.set(
+                    node_properties
+                        .into_iter()
+                        .map(|(k, v)| (k, Property::new(v)))
+                        .collect(),
+                );
+                return;
+            }
+            selected_node_orm_values_cp.read(|sl_orm_vals| {
+                for (prop_def, curr_value) in node_properties {
+                    let Some(prop) = sl_orm_vals
+                        .iter()
+                        .find_map(|(def, val)| (def.name == prop_def.name).then_some(val))
+                    else {
+                        continue;
+                    };
+                    if prop.read(|saved_val| saved_val != &curr_value) {
+                        log::debug!("updating {}", prop_def.name);
+                        prop.set(curr_value);
+                    }
+                }
+            });
+        });
+        selected_node_orm_values
     }
 }
 

@@ -7,7 +7,7 @@ use crate::{
 };
 
 pub use pax_runtime_api::*;
-use pax_runtime_api::{cursor::CursorStyle, math::Point2};
+use pax_runtime_api::{cursor::CursorStyle, math::Point2, properties::UntypedProperty};
 
 use crate::node_interface::NodeInterface;
 #[cfg(feature = "designtime")]
@@ -15,6 +15,7 @@ use {pax_designtime::DesigntimeManager, pax_manifest::UniqueTemplateNodeIdentifi
 
 #[derive(Clone)]
 pub struct NodeContext {
+    pub expanded_node: Weak<ExpandedNode>,
     /// slot index of this node in its container
     pub slot_index: Property<Option<usize>>,
     /// Stack frame of this component, used to look up stores
@@ -67,6 +68,22 @@ impl NodeContext {
     /// Get std::time::Instant::now()
     pub fn elapsed_time_millis(&self) -> u128 {
         (self.get_elapsed_millis)()
+    }
+
+    pub fn subscribe(&self, dependencies: &[UntypedProperty], f: impl Fn() + 'static) {
+        match self.expanded_node.upgrade() {
+            Some(expanded_node) => {
+                borrow_mut!(expanded_node.subscriptions).push(Property::computed(f, dependencies))
+            }
+            None => log::warn!("couldn't add subscription: node doesn't exist anymore"),
+        }
+    }
+
+    pub fn clear_subscriptions(&self) {
+        match self.expanded_node.upgrade() {
+            Some(expanded_node) => borrow_mut!(expanded_node.subscriptions).clear(),
+            None => log::warn!("couldn't clear subscriptions: node doesn't exist anymore"),
+        }
     }
 
     pub fn navigate_to(&self, url: &str, target: NavigationTarget) {

@@ -23,9 +23,12 @@ use self::property_editor::{PropertyArea, PropertyAreas, WriteTarget};
 #[engine_import_path("pax_engine")]
 #[file("controls/settings/mod.pax")]
 pub struct Settings {
+    // TODO all of these is_.. could be an enum, maybe combine
+    // with the idea of tool settings editors and have one large enum?
     pub is_component_selected: Property<bool>,
     pub is_control_flow_if_selected: Property<bool>,
     pub is_control_flow_for_selected: Property<bool>,
+
     pub selected_component_name: Property<String>,
     pub custom_properties: Property<Vec<PropertyArea>>,
     pub custom_properties_total_height: Property<f64>,

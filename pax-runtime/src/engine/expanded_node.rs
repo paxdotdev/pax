@@ -3,7 +3,7 @@ use crate::node_interface::NodeLocal;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::{
     borrow, borrow_mut, use_RefCell, Focus, Interpolatable, Layer, Percent, Property, SelectStart,
-    Variable, Viewport,
+    Variable,
 };
 
 use crate::api::math::Point2;
@@ -131,6 +131,9 @@ pub struct ExpandedNode {
 
     /// used to know when a slot child is attached
     pub slot_child_attached_listener: Property<()>,
+
+    /// subscription properties: added to this expanded node by calling ctx.subscribe in a node event handler
+    pub subscriptions: RefCell<Vec<Property<()>>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -262,6 +265,7 @@ impl ExpandedNode {
             suspended: Property::new(false),
             native_message_listener: Property::default(),
             slot_child_attached_listener: Property::default(),
+            subscriptions: Default::default(),
         });
         res
     }
@@ -476,6 +480,10 @@ impl ExpandedNode {
                 }
             }
         }
+        for subscription in &*borrow!(self.subscriptions) {
+            // fire dirty bit if present
+            subscription.get();
+        }
         if borrow!(self.instance_node).base().flags().is_component {
             self.compute_flattened_slot_children();
         }
@@ -682,9 +690,13 @@ impl ExpandedNode {
             },
             &deps,
         );
+        // PREF: possibly change this to just take a reference to expanded node, and
+        // expose methods to retrieve these values from the expanded noe when
+        // needed, instead of re-creating/copying
         NodeContext {
             slot_index: self.slot_index.clone(),
             local_stack_frame: Rc::clone(&self.stack),
+            expanded_node: Rc::downgrade(&self),
             containing_component: Weak::clone(&self.containing_component),
             frames_elapsed: frames_elapsed_frozen_if_suspended,
             bounds_self,

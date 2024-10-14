@@ -69,7 +69,7 @@ impl PartialEq for Numeric {
     fn eq(&self, rhs: &Self) -> bool {
         match (self.is_float(), rhs.is_float()) {
             (false, false) => self.to_int() == rhs.to_int(),
-            _ => (self.to_float() - rhs.to_float()) < 1e-6,
+            _ => (self.to_float() - rhs.to_float()).abs() < 1e-6,
         }
     }
 }
