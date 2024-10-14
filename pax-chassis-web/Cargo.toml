@@ -13,8 +13,9 @@ include = ["/src", "/interface/public"]
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["console_error_panic_hook"]
+default = ["console_error_panic_hook", "gpu"]
 designtime = ["dep:pax-designtime", "pax-runtime/designtime"]
+gpu = []
 
 [dependencies]
 piet = "0.7.0"
@@ -37,17 +38,41 @@ web-time = "1.1.0"
 [dependencies.web-sys]
 version = "0.3.10"
 features = [
-  "Navigator",
-  "console",
-  "CanvasRenderingContext2d",
-  "Window",
-  "Document",
-  "Element",
-  "HtmlCanvasElement",
-  "Event",
-  "HtmlCollection",
-  "Response",
-  "ResponseType",
-  "Location",
+    # Your existing features
+    "Navigator",
+    "console",
+    "CanvasRenderingContext2d",
+    "Window",
+    "Document",
+    "Element",
+    "HtmlCanvasElement", 
+    "Event",
+    "HtmlCollection",
+    "Response",
+    "ResponseType",
+    "Location",
+    
+    # WebGL features
+    "WebGl2RenderingContext",
+    "WebGlRenderingContext",
+    
+    # WebGPU features
+    "Gpu",
+    "GpuAdapter",
+    "GpuDevice",
+    "GpuQueue",
+    "GpuBuffer",
+    "GpuTexture",
+    "GpuSampler",
+    "GpuBindGroup",
+    "GpuBindGroupLayout",
+    "GpuPipelineLayout",
+    "GpuRenderPipeline",
+    "GpuComputePipeline",
+    "GpuCommandEncoder",
+    "GpuRenderPassEncoder",
+    "GpuComputePassEncoder",
+    "GpuCanvasContext",
+    "GpuTextureView",
+    "GpuShaderModule"
 ]
-

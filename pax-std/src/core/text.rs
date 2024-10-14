@@ -92,7 +92,7 @@ impl InstanceNode for TextInstance {
             rc.fill(
                 expanded_node.occlusion.get().occlusion_layer_id,
                 transformed_bez_path,
-                &piet::PaintBrush::Color(piet::Color::rgba8(0, 255, 0, 100)),
+                &Fill::Solid(Color::rgba(0.into(), 255.into(), 0.into(), 100.into())),
             );
         }
     }

@@ -14,7 +14,7 @@ use flexbuffers;
 use flexbuffers::DeserializationError;
 use serde::Serialize;
 
-use pax_runtime::{PaxEngine, Renderer};
+use pax_runtime::{piet_render_context::PietRenderer, PaxEngine};
 
 //Re-export all native message types; used by Swift via FFI.
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`
@@ -122,7 +122,7 @@ pub extern "C" fn pax_tick(
 
     let will_cast_cgContext = cgContext as *mut CGContext;
     let ctx = unsafe { &mut *will_cast_cgContext };
-    let mut render_context = Renderer::new();
+    let mut render_context = PietRenderer::new();
 
     (*engine).set_viewport_size((width as f64, height as f64));
     render_context.add_context(0, CoreGraphicsContext::new_y_up(ctx, height as f64, None));

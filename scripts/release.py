@@ -24,6 +24,7 @@ print('Turbo mode is:', args.turbo)
 
 
 PACKAGES = [
+    "pax-pixels",
     "pax-chassis-common",
     "pax-chassis-ios",
     "pax-chassis-macos",
