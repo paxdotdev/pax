@@ -5,21 +5,19 @@ use_RefCell!();
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use kurbo::Affine;
 use pax_message::NativeMessage;
 use pax_runtime_api::{
     pax_value::PaxAny, use_RefCell, Event, Focus, SelectStart, Variable, Window, OS,
 };
 
 use crate::api::{KeyDown, KeyPress, KeyUp, NodeContext, RenderContext};
-use piet::InterpolationMode;
 
 use crate::{ComponentInstance, RuntimeContext};
 use pax_runtime_api::Platform;
-use std::time::Instant;
 
 pub mod node_interface;
 pub mod occlusion;
+pub mod piet_render_context;
 
 /// The atomic unit of rendering; also the container for each unique tuple of computed properties.
 /// Represents an expanded node, that is "expanded" in the context of computed properties and repeat expansion.
@@ -141,113 +139,6 @@ impl Default for HandlerRegistry {
         HandlerRegistry {
             handlers: HashMap::new(),
         }
-    }
-}
-
-struct ImgData<R: piet::RenderContext> {
-    img: R::Image,
-    size: (usize, usize),
-}
-
-pub struct Renderer<R: piet::RenderContext> {
-    backends: Vec<R>,
-    image_map: HashMap<String, ImgData<R>>,
-}
-
-impl<R: piet::RenderContext> Renderer<R> {
-    pub fn new() -> Self {
-        Self {
-            backends: Vec::new(),
-            image_map: HashMap::new(),
-        }
-    }
-
-    pub fn add_context(&mut self, id: usize, context: R) {
-        self.backends.insert(id.to_owned(), context);
-    }
-
-    pub fn remove_context(&mut self, id: usize) {
-        self.backends.remove(id);
-    }
-
-    pub fn image_loaded(&self, path: &str) -> bool {
-        self.image_map.contains_key(path)
-    }
-}
-
-impl<R: piet::RenderContext> crate::api::RenderContext for Renderer<R> {
-    fn fill(&mut self, layer: usize, path: kurbo::BezPath, brush: &piet_common::PaintBrush) {
-        if let Some(layer) = self.backends.get_mut(layer) {
-            layer.fill(path, brush);
-        }
-    }
-
-    fn stroke(
-        &mut self,
-        layer: usize,
-        path: kurbo::BezPath,
-        brush: &piet_common::PaintBrush,
-        width: f64,
-    ) {
-        if let Some(layer) = self.backends.get_mut(layer) {
-            layer.stroke(path, brush, width);
-        }
-    }
-
-    fn save(&mut self, layer: usize) {
-        if let Some(layer) = self.backends.get_mut(layer) {
-            let _ = layer.save();
-        }
-    }
-
-    fn transform(&mut self, layer: usize, affine: Affine) {
-        if let Some(layer) = self.backends.get_mut(layer) {
-            layer.transform(affine);
-        }
-    }
-
-    fn clip(&mut self, layer: usize, path: kurbo::BezPath) {
-        if let Some(layer) = self.backends.get_mut(layer) {
-            layer.clip(path);
-        }
-    }
-
-    fn restore(&mut self, layer: usize) {
-        if let Some(layer) = self.backends.get_mut(layer) {
-            let _ = layer.restore();
-        }
-    }
-
-    fn load_image(&mut self, path: &str, buf: &[u8], width: usize, height: usize) {
-        //is this okay!? we know it's the same kind of backend no matter what layer, but it might be storing data?
-        let render_context = self.backends.first_mut().unwrap();
-        let img = render_context
-            .make_image(width, height, buf, piet::ImageFormat::RgbaSeparate)
-            .expect("image creation successful");
-        self.image_map.insert(
-            path.to_owned(),
-            ImgData {
-                img,
-                size: (width, height),
-            },
-        );
-    }
-
-    fn get_image_size(&mut self, image_path: &str) -> Option<(usize, usize)> {
-        self.image_map.get(image_path).map(|img| (img.size))
-    }
-
-    fn draw_image(&mut self, layer: usize, image_path: &str, rect: kurbo::Rect) {
-        let Some(data) = self.image_map.get(image_path) else {
-            return;
-        };
-        if let Some(layer) = self.backends.get_mut(layer) {
-            layer.draw_image(&data.img, rect, InterpolationMode::Bilinear);
-        }
-    }
-
-    fn layers(&self) -> usize {
-        self.backends.len()
     }
 }
 

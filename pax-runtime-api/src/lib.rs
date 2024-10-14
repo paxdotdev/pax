@@ -9,7 +9,7 @@ use kurbo::BezPath;
 pub use pax_message::*;
 pub use pax_value::numeric::Numeric;
 pub use pax_value::{CoercionRules, ImplToFromPaxAny, PaxValue, ToPaxValue};
-use piet::{PaintBrush, UnitPoint};
+use piet::UnitPoint;
 use properties::{PropertyValue, UntypedProperty};
 pub mod cursor;
 
@@ -47,16 +47,26 @@ pub struct TransitionQueueEntry<T> {
     pub ending_value: T,
 }
 
+// The Pax render trait that allows for drawing on multiple
+// layers.
+// TODO migrate from using kurbo types to our own?
 pub trait RenderContext {
-    fn fill(&mut self, layer: usize, path: BezPath, brush: &PaintBrush);
-    fn stroke(&mut self, layer: usize, path: BezPath, brush: &PaintBrush, width: f64);
+    //drawing
+    fn fill(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill);
+    fn stroke(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill, width: f64);
+
+    // clip/transform
     fn save(&mut self, layer: usize);
     fn restore(&mut self, layer: usize);
     fn clip(&mut self, layer: usize, path: BezPath);
-    fn load_image(&mut self, path: &str, image: &[u8], width: usize, height: usize);
+    fn transform(&mut self, layer: usize, affine: kurbo::Affine);
+
+    // images
+    fn load_image(&mut self, identifier: &str, image: &[u8], width: usize, height: usize);
     fn draw_image(&mut self, layer: usize, image_path: &str, rect: kurbo::Rect);
     fn get_image_size(&mut self, image_path: &str) -> Option<(usize, usize)>;
-    fn transform(&mut self, layer: usize, affine: kurbo::Affine);
+
+    // other
     fn layers(&self) -> usize;
 }
 

@@ -102,33 +102,7 @@ impl InstanceNode for RectangleInstance {
             let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
             let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
-            match properties.fill.get() {
-                Fill::Solid(color) => {
-                    rc.fill(
-                        layer_id,
-                        transformed_bez_path,
-                        &color.to_piet_color().into(),
-                    );
-                }
-                Fill::LinearGradient(linear) => {
-                    let linear_gradient = LinearGradient::new(
-                        Fill::to_unit_point(linear.start, (width, height)),
-                        Fill::to_unit_point(linear.end, (width, height)),
-                        Fill::to_piet_gradient_stops(linear.stops.clone()),
-                    );
-                    rc.fill(layer_id, transformed_bez_path, &linear_gradient.into())
-                }
-                Fill::RadialGradient(radial) => {
-                    let origin = Fill::to_unit_point(radial.start, (width, height));
-                    let center = Fill::to_unit_point(radial.end, (width, height));
-                    let gradient_stops = Fill::to_piet_gradient_stops(radial.stops.clone());
-                    let radial_gradient = RadialGradient::new(radial.radius, gradient_stops)
-                        .with_center(center)
-                        .with_origin(origin);
-                    rc.fill(layer_id, transformed_bez_path, &radial_gradient.into());
-                }
-            }
-
+            rc.fill(layer_id, transformed_bez_path, &properties.fill.get());
             //hack to address "phantom stroke" bug on Web
             let width: f64 = properties
                 .stroke
@@ -141,7 +115,7 @@ impl InstanceNode for RectangleInstance {
                 rc.stroke(
                     layer_id,
                     duplicate_transformed_bez_path,
-                    &properties.stroke.get().color.get().to_piet_color().into(),
+                    &Fill::Solid(properties.stroke.get().color.get()),
                     width,
                 );
             }

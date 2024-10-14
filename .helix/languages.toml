@@ -1,4 +1,4 @@
 [[language]]
 name = "rust"
 [language-server.rust-analyzer.config.cargo]
-features = [ "designtime" ]
+features = [ "designtime"]

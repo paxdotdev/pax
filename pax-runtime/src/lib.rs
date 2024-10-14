@@ -1,5 +1,3 @@
-pub use piet::{Color, Error, StrokeStyle};
-
 pub mod api;
 pub mod cartridge;
 pub mod component;

@@ -88,14 +88,7 @@ impl InstanceNode for EllipseInstance {
 
             let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
             let duplicate_transformed_bez_path = transformed_bez_path.clone();
-
-            let color = if let Fill::Solid(properties_color) = properties.fill.get() {
-                properties_color.to_piet_color()
-            } else {
-                unimplemented!("gradients not supported on ellipse")
-            };
-
-            rc.fill(layer_id, transformed_bez_path, &color.into());
+            rc.fill(layer_id, transformed_bez_path, &properties.fill.get());
 
             //hack to address "phantom stroke" bug on Web
             let width: f64 = properties
@@ -110,7 +103,7 @@ impl InstanceNode for EllipseInstance {
                 rc.stroke(
                     layer_id,
                     duplicate_transformed_bez_path,
-                    &properties.stroke.get().color.get().to_piet_color().into(),
+                    &Fill::Solid(properties.stroke.get().color.get()),
                     width,
                 );
             }

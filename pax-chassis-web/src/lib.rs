@@ -12,6 +12,7 @@ use pax_runtime::api::Platform;
 use pax_runtime::api::RenderContext;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::OS;
+use pax_runtime::piet_render_context::PietRenderer;
 use pax_runtime::DefinitionToInstanceTraverser;
 use pax_runtime_api::borrow_mut;
 use pax_runtime_api::Event;
@@ -20,6 +21,8 @@ use pax_runtime_api::SelectStart;
 use web_time::Instant;
 use_RefCell!();
 
+pub mod web_render_contexts;
+
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -27,7 +30,7 @@ use web_sys::{window, HtmlCanvasElement};
 
 use piet_web::WebRenderContext;
 
-use pax_runtime::{PaxEngine, Renderer};
+use pax_runtime::PaxEngine;
 
 pub use {console_error_panic_hook, console_log};
 
@@ -53,7 +56,7 @@ pub fn wasm_memory() -> JsValue {
 
 #[wasm_bindgen]
 pub struct PaxChassisWeb {
-    drawing_contexts: Renderer<WebRenderContext<'static>>,
+    drawing_contexts: PietRenderer<WebRenderContext<'static>>,
     engine: Rc<RefCell<PaxEngine>>,
     #[cfg(any(feature = "designtime", feature = "designer"))]
     userland_definition_to_instance_traverser:
@@ -103,7 +106,7 @@ impl PaxChassisWeb {
         let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
         Self {
             engine: engine_container,
-            drawing_contexts: Renderer::new(),
+            drawing_contexts: PietRenderer::new(),
             userland_definition_to_instance_traverser,
             designtime_manager,
         }
@@ -129,7 +132,7 @@ impl PaxChassisWeb {
 
         Self {
             engine: engine_container,
-            drawing_contexts: Renderer::new(),
+            drawing_contexts: PietRenderer::new(),
         }
     }
 
