@@ -74,30 +74,15 @@ pub enum WriteTarget {
 
 impl PropertyEditor {
     pub fn on_mount(&mut self, ctxs: &NodeContext) {
-        log::debug!("editor mounting");
         let ind = self.ind.clone();
         let write_target = self.write_target.clone();
         let name = self.name.clone();
-        log::debug!("name {}", name.get());
-        let orm_values = model::read_app_state_with_derived(|_, derived| {
-            derived.selected_node_orm_values.clone()
-        });
-        // WARNING: value isn't being reactively updated if name/write target changes,
-        // these values are assumed to be static.
-        // TODO handle write target settings view differently
-        let value = orm_values.read(|vals| {
-            vals.iter()
-                .find_map(|(def, val)| (def.name == name.get()).then_some(val.clone()))
-                .unwrap_or_else(|| {
-                    log::warn!("value not connected to property {} correctly", name.get());
-                    Property::new(None)
-                })
-        });
+        let manifest_ver = borrow!(ctxs.designtime).get_last_written_manifest_version();
         let deps = [
             ind.untyped(),
             name.untyped(),
+            manifest_ver.untyped(),
             write_target.untyped(),
-            value.untyped(),
         ];
         self.data.replace_with(Property::computed(
             move || PropertyEditorData {
