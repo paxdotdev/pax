@@ -140,29 +140,6 @@ impl Neg for PaxValue {
     }
 }
 
-impl PartialEq for PaxValue {
-    fn eq(&self, rhs: &Self) -> bool {
-        match (self, rhs) {
-            (PaxValue::Bool(a), PaxValue::Bool(b)) => a == b,
-            (PaxValue::Numeric(a), PaxValue::Numeric(b)) => a == b,
-            (PaxValue::String(a), PaxValue::String(b)) => a == b,
-            (PaxValue::Size(a), PaxValue::Size(b)) => a == b,
-            (PaxValue::Percent(a), PaxValue::Percent(b)) => a == b,
-            (PaxValue::Color(a), PaxValue::Color(b)) => a == b,
-            (PaxValue::Rotation(a), PaxValue::Rotation(b)) => a == b,
-            (PaxValue::Option(a), PaxValue::Option(b)) => a == b,
-            (PaxValue::Vec(a), PaxValue::Vec(b)) => a == b,
-            (PaxValue::Object(a), PaxValue::Object(b)) => a == b,
-            (PaxValue::Enum(a, b, c), PaxValue::Enum(d, e, f)) => a == d && b == e && c == f,
-            (PaxValue::Range(a, b), PaxValue::Range(c, d)) => a == c && b == d,
-            (a, b) => {
-                log::warn!("can't compare {:?} and {:?}", a, b);
-                false
-            }
-        }
-    }
-}
-
 impl PartialOrd for PaxValue {
     fn partial_cmp(&self, rhs: &Self) -> Option<Ordering> {
         match (self, rhs) {

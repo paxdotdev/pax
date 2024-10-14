@@ -1416,6 +1416,8 @@ pub fn get_primitive_type_table() -> TypeTable {
     ret
 }
 
+impl Interpolatable for PropertyDefinition {}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(crate = "pax_message::serde")]
 pub struct PropertyDefinition {
@@ -1545,9 +1547,11 @@ pub struct ExpressionCompilationInfo {
     pub dependencies: Vec<String>,
 }
 
+impl Interpolatable for ValueDefinition {}
+
 /// Container for settings values, storing all possible
 /// variants, populated at parse-time and used at compile-time
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
 #[serde(crate = "pax_message::serde")]
 pub enum ValueDefinition {
     #[default]
@@ -1625,7 +1629,7 @@ pub struct ControlFlowSettingsDefinition {
     pub repeat_source_expression: Option<ExpressionInfo>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 #[serde(crate = "pax_message::serde")]
 pub struct ExpressionInfo {
     pub expression: PaxExpression,
@@ -1648,7 +1652,7 @@ impl ExpressionInfo {
 }
 
 /// Container for a parsed Literal object
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
 #[serde(crate = "pax_message::serde")]
 pub struct LiteralBlockDefinition {
     pub explicit_type_pascal_identifier: Option<Token>,
@@ -1681,7 +1685,7 @@ impl LiteralBlockDefinition {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(crate = "pax_message::serde")]
 pub enum SettingElement {
     Setting(Token, ValueDefinition),
