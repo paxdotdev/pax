@@ -127,7 +127,7 @@ impl InstanceNode for ImageInstance {
             ));
 
         let tab = expanded_node.transform_and_bounds.clone();
-        let deps = &[tab.untyped(), source.untyped(), fit.untyped()];
+        let deps = &[tab.untyped()];
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
 

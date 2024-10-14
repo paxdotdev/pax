@@ -42,6 +42,22 @@ pub struct InstantiationArgs {
         Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, Variable>>>,
 }
 
+pub struct ReusableInstanceNodeArgs {
+    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
+    pub children: InstanceNodePtrList,
+    pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
+}
+
+impl ReusableInstanceNodeArgs {
+    pub fn new(base: &BaseInstance) -> Self {
+        ReusableInstanceNodeArgs {
+            handler_registry: base.handler_registry.clone(),
+            children: base.instance_children.clone(),
+            template_node_identifier: base.template_node_identifier.clone(),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub enum NodeType {
     Component,
