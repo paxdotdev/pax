@@ -1,5 +1,5 @@
 use crate::{Color, Interpolatable, PathElement, Percent, Rotation, Size};
-use std::{any::Any, collections::HashMap, fmt::Display};
+use std::{any::Any, fmt::Display};
 
 use self::numeric::Numeric;
 pub use coercion_impls::CoercionRules;
@@ -18,7 +18,7 @@ mod to_from_impls;
 /// String, Color, etc)
 /// CoercionRules - responsible for coercing a PaxValue to a specific type
 /// (possibly from multiple different variants)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "crate::serde")]
 pub enum PaxValue {
     Bool(bool),

@@ -1664,7 +1664,7 @@ impl Add for Rotation {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(crate = "crate::serde")]
 pub enum PathElement {
     #[default]
