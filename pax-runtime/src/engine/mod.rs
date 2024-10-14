@@ -383,7 +383,7 @@ impl PaxEngine {
             .recurse_update(&mut self.runtime_context);
 
         let ctx = &self.runtime_context;
-        occlusion::update_node_occlusion(&self.root_expanded_node, ctx);
+        //occlusion::update_node_occlusion(&self.root_expanded_node, ctx);
         let time = &ctx.globals().frames_elapsed;
         time.set(time.get() + 1);
 

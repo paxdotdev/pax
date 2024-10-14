@@ -20,7 +20,7 @@
 //!
 //! For usage examples see the tests in `pax-designtime/src/orm/tests.rs`.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use pax_manifest::code_serialization::{diff_html, press_code_serialization_template};
 use pax_manifest::pax_runtime_api::{Interpolatable, Property};
@@ -73,7 +73,7 @@ pub struct PaxManifestORM {
     manifest_version: Property<usize>,
     next_new_component_id: usize,
     new_components: Vec<TypeId>,
-    reload_queue: Vec<ReloadType>,
+    reload_queue: HashSet<ReloadType>,
     pub manifest_loaded_from_server: Property<bool>,
     pub llm_messages: HashMap<u64, Vec<String>>,
     pub new_message: Property<Vec<MessageType>>,
@@ -95,7 +95,7 @@ impl PaxManifestORM {
             manifest_version: Property::new(0),
             next_new_component_id: 1,
             new_components: Vec::new(),
-            reload_queue: Vec::new(),
+            reload_queue: HashSet::new(),
             manifest_loaded_from_server: Property::new(false),
             llm_messages: HashMap::new(),
             new_message: Property::new(vec![]),
@@ -145,22 +145,29 @@ impl PaxManifestORM {
         self.manifest = manifest;
         self.increment_manifest_version();
         self.manifest_loaded_from_server.set(true);
-        self.set_reload(ReloadType::FullEdit);
+        self.insert_reload(ReloadType::Full);
     }
 
     pub fn get_manifest_version(&self) -> Property<usize> {
         self.manifest_version.clone()
     }
 
-    pub fn set_reload(&mut self, reload_type: ReloadType) {
-        self.reload_queue.push(reload_type);
+    pub fn insert_reload(&mut self, reload_type: ReloadType) {
+        if let ReloadType::Full = &reload_type {
+            self.reload_queue.clear();
+            self.reload_queue.insert(ReloadType::Full);
+            return;
+        }
+        if !self.reload_queue.contains(&ReloadType::Full) {
+            self.reload_queue.insert(reload_type);
+        }
     }
 
     pub fn set_userland_root_component_type_id(&mut self, type_id: &TypeId) {
         self.manifest.main_component_type_id = type_id.clone();
     }
 
-    pub fn take_reload_queue(&mut self) -> Vec<ReloadType> {
+    pub fn take_reload_queue(&mut self) -> HashSet<ReloadType> {
         std::mem::take(&mut self.reload_queue)
     }
 
@@ -492,7 +499,7 @@ impl PaxManifestORM {
         response.set_id(command_id);
         self.next_command_id += 1;
         if let Some(reload_type) = response.get_reload_type() {
-            self.set_reload(reload_type);
+            self.insert_reload(reload_type);
             self.manifest_version.update(|v| *v += 1);
         }
 
@@ -504,7 +511,7 @@ impl PaxManifestORM {
             command.undo(&mut self.manifest)?;
             self.redo_stack.push((id, command));
             self.manifest_version.update(|v| *v += 1);
-            self.set_reload(ReloadType::FullEdit);
+            self.insert_reload(ReloadType::Full);
         }
         Ok(())
     }
@@ -514,7 +521,7 @@ impl PaxManifestORM {
             command.redo(&mut self.manifest)?;
             self.undo_stack.push((id, command));
             self.manifest_version.update(|v| *v += 1);
-            self.set_reload(ReloadType::FullEdit);
+            self.insert_reload(ReloadType::Full);
         }
         Ok(())
     }
@@ -641,11 +648,10 @@ pub struct MoveToComponentEntry {
     pub id: UniqueTemplateNodeIdentifier,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Hash, Eq)]
 pub enum ReloadType {
-    FullEdit,
+    Full,
     Partial(UniqueTemplateNodeIdentifier),
-    FullPlay,
 }
 
 impl Interpolatable for SubTrees {}

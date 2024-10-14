@@ -72,7 +72,7 @@ impl Response for AddTemplateNodeResponse {
         self.command_id.unwrap()
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
-        Some(ReloadType::FullEdit)
+        Some(ReloadType::Full)
     }
 }
 
@@ -217,7 +217,7 @@ impl Response for UpdateTemplateNodeResponse {
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
         Some(if self._needs_full_reload {
-            ReloadType::FullEdit
+            ReloadType::Full
         } else {
             ReloadType::Partial(self._affected_unique_node_identifier.clone())
         })
@@ -353,7 +353,7 @@ impl Response for MoveTemplateNodeResponse {
         self.command_id.unwrap()
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
-        Some(ReloadType::FullEdit)
+        Some(ReloadType::Full)
     }
 }
 
@@ -457,7 +457,7 @@ impl Response for PasteSubTreeResponse {
         self.command_id.unwrap()
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
-        Some(ReloadType::FullEdit)
+        Some(ReloadType::Full)
     }
 }
 
@@ -566,7 +566,7 @@ impl Response for RemoveTemplateNodeResponse {
         self.command_id.unwrap()
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
-        Some(ReloadType::FullEdit)
+        Some(ReloadType::Full)
     }
 }
 
@@ -811,7 +811,7 @@ impl Response for ReplaceTemplateResponse {
         self.command_id.unwrap()
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
-        Some(ReloadType::FullEdit)
+        Some(ReloadType::Full)
     }
 }
 
@@ -918,7 +918,7 @@ impl Response for ConvertToComponentResponse {
         self.command_id.unwrap()
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
-        Some(ReloadType::FullEdit)
+        Some(ReloadType::Full)
     }
 }
 
@@ -1178,7 +1178,7 @@ impl Response for SwapMainComponentResponse {
     }
 
     fn get_reload_type(&self) -> Option<ReloadType> {
-        Some(ReloadType::FullEdit)
+        Some(ReloadType::Full)
     }
 }
 

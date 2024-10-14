@@ -1,6 +1,6 @@
 use std::any::Any;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, SocketAddr, ToSocketAddrs};
 use std::rc::Rc;
 
@@ -207,25 +207,19 @@ impl DesigntimeManager {
         self.orm.get_manifest()
     }
 
-    pub fn take_reload_queue(&mut self) -> Vec<ReloadType> {
+    pub fn take_reload_queue(&mut self) -> HashSet<ReloadType> {
         self.orm.take_reload_queue()
     }
 
-    pub fn reload_play(&mut self) {
-        self.orm.set_reload(ReloadType::FullPlay);
-
-        self.orm.increment_manifest_version();
-    }
-
-    pub fn reload_edit(&mut self) {
-        self.orm.set_reload(ReloadType::FullEdit);
+    pub fn reload(&mut self) {
+        self.orm.insert_reload(ReloadType::Full);
         self.orm.increment_manifest_version();
     }
 
     pub fn set_userland_root_component_type_id(&mut self, type_id: &TypeId) {
         self.orm.set_userland_root_component_type_id(type_id);
         self.orm.increment_manifest_version();
-        self.orm.set_reload(ReloadType::FullEdit);
+        self.orm.insert_reload(ReloadType::Full);
     }
 
     pub fn get_last_written_manifest_version(&self) -> Property<usize> {
