@@ -212,14 +212,14 @@ impl DesigntimeManager {
     }
 
     pub fn reload(&mut self) {
-        self.orm.insert_reload(ReloadType::Full);
+        self.orm.insert_reload(ReloadType::Tree);
         self.orm.increment_manifest_version();
     }
 
     pub fn set_userland_root_component_type_id(&mut self, type_id: &TypeId) {
         self.orm.set_userland_root_component_type_id(type_id);
         self.orm.increment_manifest_version();
-        self.orm.insert_reload(ReloadType::Full);
+        self.orm.insert_reload(ReloadType::Tree);
     }
 
     pub fn get_last_written_manifest_version(&self) -> Property<usize> {

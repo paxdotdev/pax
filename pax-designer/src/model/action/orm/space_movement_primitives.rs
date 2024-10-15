@@ -2,11 +2,12 @@ use anyhow::{anyhow, Result};
 use pax_designtime::orm::template::node_builder::NodeBuilder;
 use pax_engine::{
     api::{borrow_mut, Rotation},
+    log,
     math::Space,
-    pax_manifest::{PaxType, UniqueTemplateNodeIdentifier},
+    pax_manifest::{PaxType, UniqueTemplateNodeIdentifier, ValueDefinition},
     pax_runtime::{LayoutProperties, TransformAndBounds},
     serde::Serialize,
-    NodeLocal,
+    NodeLocal, ToPaxValue,
 };
 use pax_std::Size;
 
@@ -121,7 +122,7 @@ impl Action for SetNodeLayoutProperties<'_> {
             anchor_y,
             skew_x,
             skew_y,
-        } = self.properties;
+        } = self.properties.clone();
 
         // compare with the values for the current node in the engine, and
         // only try to write if different (we don't want to try to overwrite a
@@ -135,27 +136,15 @@ impl Action for SetNodeLayoutProperties<'_> {
             .map(|n| n.layout_properties())
             .unwrap_or_default();
 
-        write_to_orm(
-            &mut builder,
-            "x",
-            x.as_ref(),
-            old_props.x.as_ref(),
-            Size::ZERO(),
-        )
-        .map_err(|e| anyhow!("couldn't set x to {x:?}: {e}"))?;
-        write_to_orm(
-            &mut builder,
-            "y",
-            y.as_ref(),
-            old_props.y.as_ref(),
-            Size::ZERO(),
-        )
-        .map_err(|e| anyhow!("couldn't set y to {y:?}: {e}"))?;
+        write_to_orm(&mut builder, "x", x, old_props.x.as_ref(), Size::ZERO())
+            .map_err(|e| anyhow!("couldn't set x to {x:?}: {e}"))?;
+        write_to_orm(&mut builder, "y", y, old_props.y.as_ref(), Size::ZERO())
+            .map_err(|e| anyhow!("couldn't set y to {y:?}: {e}"))?;
 
         write_to_orm(
             &mut builder,
             "width",
-            width.as_ref(),
+            width,
             old_props.width.as_ref(),
             Size::default(),
         )
@@ -164,7 +153,7 @@ impl Action for SetNodeLayoutProperties<'_> {
         write_to_orm(
             &mut builder,
             "height",
-            height.as_ref(),
+            height,
             old_props.height.as_ref(),
             Size::default(),
         )
@@ -173,7 +162,7 @@ impl Action for SetNodeLayoutProperties<'_> {
         write_to_orm(
             &mut builder,
             "scale_x",
-            scale_x.as_ref().map(|v| Size::Percent(v.0)).as_ref(),
+            scale_x.map(|v| Size::Percent(v.0)),
             old_props
                 .scale_x
                 .as_ref()
@@ -181,12 +170,12 @@ impl Action for SetNodeLayoutProperties<'_> {
                 .as_ref(),
             Size::default(),
         )
-        .map_err(|e| anyhow!("couldn't set scale_x to {scale_x:?}: {e}"))?;
+        .map_err(|e| anyhow!("couldn't set scale_x: {e}"))?;
 
         write_to_orm(
             &mut builder,
             "scale_y",
-            scale_y.as_ref().map(|v| Size::Percent(v.0)).as_ref(),
+            scale_y.map(|v| Size::Percent(v.0)),
             old_props
                 .scale_y
                 .as_ref()
@@ -194,21 +183,21 @@ impl Action for SetNodeLayoutProperties<'_> {
                 .as_ref(),
             Size::default(),
         )
-        .map_err(|e| anyhow!("couldn't set scale_y to {scale_y:?}: {e}"))?;
+        .map_err(|e| anyhow!("couldn't set scale_y: {e}"))?;
 
         write_to_orm(
             &mut builder,
             "rotate",
-            rotate.as_ref(),
+            rotate,
             old_props.rotate.as_ref(),
             Rotation::default(),
         )
-        .map_err(|e| anyhow!("couldn't set rotation to {rotate:?}: {e}"))?;
+        .map_err(|e| anyhow!("couldn't set rotation to: {e}"))?;
 
         write_to_orm(
             &mut builder,
             "skew_x",
-            skew_x.as_ref(),
+            skew_x,
             old_props.skew_x.as_ref(),
             Rotation::default(),
         )
@@ -217,20 +206,20 @@ impl Action for SetNodeLayoutProperties<'_> {
         write_to_orm(
             &mut builder,
             "skew_y",
-            skew_y.as_ref(),
+            skew_y,
             old_props.skew_y.as_ref(),
             Rotation::default(),
         )
         .map_err(|e| anyhow!("couldn't set skew_y to {skew_y:?}: {e}"))?;
 
         if self.reset_anchor {
-            builder.set_property("anchor_x", "")?;
-            builder.set_property("anchor_y", "")?;
+            builder.set_property_from_value_definition("anchor_x", None)?;
+            builder.set_property_from_value_definition("anchor_y", None)?;
         } else {
             write_to_orm(
                 &mut builder,
                 "anchor_x",
-                anchor_x.as_ref(),
+                anchor_x,
                 old_props.anchor_x.as_ref(),
                 // never assume default
                 Size::Combined(f64::MAX.into(), f64::MAX.into()),
@@ -239,7 +228,7 @@ impl Action for SetNodeLayoutProperties<'_> {
             write_to_orm(
                 &mut builder,
                 "anchor_y",
-                anchor_y.as_ref(),
+                anchor_y,
                 old_props.anchor_y.as_ref(),
                 // never assume default
                 Size::Combined(f64::MAX.into(), f64::MAX.into()),
@@ -280,23 +269,18 @@ impl<T: Space> Action for SetNodeLayoutPropertiesFromTransform<'_, T> {
     }
 }
 
-fn write_to_orm<T: Serialize + ApproxEq>(
+fn write_to_orm<T: ToPaxValue + ApproxEq>(
     builder: &mut NodeBuilder,
     name: &str,
-    value: Option<&T>,
+    value: Option<T>,
     old_value: Option<&T>,
     default_value: T,
 ) -> Result<()> {
-    if old_value.approx_eq(&value) {
+    if old_value.approx_eq(&value.as_ref())
+        || value.as_ref().is_some_and(|v| v.approx_eq(&default_value))
+    {
         return Ok(());
     }
-    if let Some(val) = value {
-        if !default_value.approx_eq(val) {
-            let val = pax_designtime::to_pax(&val)?;
-            builder.set_property(name, &val)?;
-        } else {
-            builder.set_property(name, "")?;
-        }
-    };
+    builder.set_property_from_typed(name, value)?;
     Ok(())
 }

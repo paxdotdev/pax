@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 use anyhow::anyhow;
+use granular_manifest_change_notification_store::GranularManifestChangeNotificationStore;
 use std::{collections::HashSet, rc::Rc, sync::Mutex};
 
 use model::{
@@ -18,17 +19,18 @@ use pax_std::*;
 
 pub mod console;
 pub mod context_menu;
+pub mod controls;
 pub mod designer_node_type;
 pub mod glass;
-pub mod utils;
-
-pub mod controls;
 pub mod llm_interface;
-pub mod math;
 pub mod message_log_display;
-pub mod model;
 pub mod project_mode_toggle;
 pub mod project_publish_button;
+
+pub mod granular_manifest_change_notification_store;
+pub mod math;
+pub mod model;
+pub mod utils;
 
 use console::Console;
 use context_menu::{ContextMenuMsg, DesignerContextMenu};
@@ -71,6 +73,7 @@ impl PaxDesigner {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         self.show_publish_button.set(PAX_PUBLISH_BUTTON_ENABLED);
         model::Model::init(ctx);
+        self.setup_granular_notification_store(ctx);
         model::read_app_state(|app_state| {
             self.bind_stage_property(&app_state);
             self.bind_transform2d_property(&app_state);
@@ -147,6 +150,20 @@ impl PaxDesigner {
             move || matches!(proj_mode.get(), ProjectMode::Playing),
             &deps,
         ));
+    }
+
+    fn setup_granular_notification_store(&self, ctx: &NodeContext) {
+        let granular_update_store = GranularManifestChangeNotificationStore::default();
+        ctx.push_local_store(granular_update_store.clone());
+        let manifest_ver = borrow!(ctx.designtime).get_last_rendered_manifest_version();
+        let ctxp = ctx.clone();
+        ctx.subscribe(&[manifest_ver.untyped()], move || {
+            let manifest_modification_data = borrow_mut!(ctxp.designtime)
+                .get_orm_mut()
+                .take_manifest_modification_data();
+            granular_update_store
+                .notify_from_manifest_modification_data(manifest_modification_data);
+        });
     }
 
     pub fn focused(&mut self, _ctx: &NodeContext, _args: Event<Focus>) {

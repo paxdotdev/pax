@@ -33,6 +33,7 @@ use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
 
+use self::manifest_modification_data::ManifestModificationData;
 use self::template::class_builder::ClassBuilder;
 use self::template::{
     node_builder::NodeBuilder, ConvertToComponentRequest, RemoveTemplateNodeRequest,
@@ -40,6 +41,7 @@ use self::template::{
 use self::template::{GetChildrenRequest, MoveTemplateNodeRequest, PasteSubTreeRequest};
 
 use anyhow::{anyhow, Result};
+pub mod manifest_modification_data;
 pub mod template;
 #[cfg(test)]
 mod tests;
@@ -71,6 +73,7 @@ pub struct PaxManifestORM {
     next_command_id: usize,
     // This counter increase with each command execution/undo/redo (essentially tracks each unique change to the manifest)
     manifest_version: Property<usize>,
+    manifest_modification_data: ManifestModificationData,
     next_new_component_id: usize,
     new_components: Vec<TypeId>,
     reload_queue: HashSet<ReloadType>,
@@ -93,6 +96,7 @@ impl PaxManifestORM {
             redo_stack: Vec::new(),
             next_command_id: 0,
             manifest_version: Property::new(0),
+            manifest_modification_data: Default::default(),
             next_new_component_id: 1,
             new_components: Vec::new(),
             reload_queue: HashSet::new(),
@@ -125,6 +129,13 @@ impl PaxManifestORM {
         self.llm_messages.remove(&request_id).unwrap_or_default()
     }
 
+    // Method used by the designer to retrieve more granular modification data,
+    // to only dirtify what needs to be. WARNING: should only be used once by the
+    // designer, subsequent reads in the same tick is embty.
+    pub fn take_manifest_modification_data(&mut self) -> ManifestModificationData {
+        std::mem::take(&mut self.manifest_modification_data)
+    }
+
     pub fn get_new_components(&mut self) -> Vec<ComponentDefinition> {
         let mut new_components_to_process = Vec::new();
 
@@ -145,7 +156,7 @@ impl PaxManifestORM {
         self.manifest = manifest;
         self.increment_manifest_version();
         self.manifest_loaded_from_server.set(true);
-        self.insert_reload(ReloadType::Full);
+        self.insert_reload(ReloadType::Tree);
     }
 
     pub fn get_manifest_version(&self) -> Property<usize> {
@@ -153,12 +164,12 @@ impl PaxManifestORM {
     }
 
     pub fn insert_reload(&mut self, reload_type: ReloadType) {
-        if let ReloadType::Full = &reload_type {
+        if let ReloadType::Tree = &reload_type {
             self.reload_queue.clear();
-            self.reload_queue.insert(ReloadType::Full);
+            self.reload_queue.insert(ReloadType::Tree);
             return;
         }
-        if !self.reload_queue.contains(&ReloadType::Full) {
+        if !self.reload_queue.contains(&ReloadType::Tree) {
             self.reload_queue.insert(reload_type);
         }
     }
@@ -499,6 +510,13 @@ impl PaxManifestORM {
         response.set_id(command_id);
         self.next_command_id += 1;
         if let Some(reload_type) = response.get_reload_type() {
+            match &reload_type {
+                ReloadType::Tree => self.manifest_modification_data.tree_modified = true,
+                ReloadType::Node(_, props) => self
+                    .manifest_modification_data
+                    .modified_properties
+                    .extend(props.iter().cloned()),
+            }
             self.insert_reload(reload_type);
             self.manifest_version.update(|v| *v += 1);
         }
@@ -511,7 +529,7 @@ impl PaxManifestORM {
             command.undo(&mut self.manifest)?;
             self.redo_stack.push((id, command));
             self.manifest_version.update(|v| *v += 1);
-            self.insert_reload(ReloadType::Full);
+            self.insert_reload(ReloadType::Tree);
         }
         Ok(())
     }
@@ -521,7 +539,7 @@ impl PaxManifestORM {
             command.redo(&mut self.manifest)?;
             self.undo_stack.push((id, command));
             self.manifest_version.update(|v| *v += 1);
-            self.insert_reload(ReloadType::Full);
+            self.insert_reload(ReloadType::Tree);
         }
         Ok(())
     }
@@ -650,8 +668,9 @@ pub struct MoveToComponentEntry {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Hash, Eq)]
 pub enum ReloadType {
-    Full,
-    Partial(UniqueTemplateNodeIdentifier),
+    Tree,
+    Node(UniqueTemplateNodeIdentifier, Vec<String>),
+    // Class(TypeId, String, Vec<String>),
 }
 
 impl Interpolatable for SubTrees {}

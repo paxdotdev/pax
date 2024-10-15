@@ -72,7 +72,7 @@ impl Response for AddTemplateNodeResponse {
         self.command_id.unwrap()
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
-        Some(ReloadType::Full)
+        Some(ReloadType::Tree)
     }
 }
 
@@ -201,7 +201,7 @@ pub struct UpdateTemplateNodeResponse {
     pub command_id: Option<usize>,
     _affected_component_type_id: TypeId,
     _affected_unique_node_identifier: UniqueTemplateNodeIdentifier,
-    _needs_full_reload: bool,
+    _reload_type: ReloadType,
 }
 
 impl Request for UpdateTemplateNodeRequest {
@@ -216,11 +216,7 @@ impl Response for UpdateTemplateNodeResponse {
         self.command_id.unwrap()
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
-        Some(if self._needs_full_reload {
-            ReloadType::Full
-        } else {
-            ReloadType::Partial(self._affected_unique_node_identifier.clone())
-        })
+        Some(self._reload_type.clone())
     }
 }
 
@@ -287,7 +283,19 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
             _affected_component_type_id: uni.get_containing_component_type_id(),
             _affected_unique_node_identifier: uni,
             // At the moment class changes aren't reloaded by a partial update
-            _needs_full_reload: !self.updated_classes.is_empty(),
+            _reload_type: if !self.updated_classes.is_empty() {
+                ReloadType::Tree
+            } else {
+                ReloadType::Node(self.uni.clone(), {
+                    let mut updated: Vec<_> = self
+                        .updated_properties
+                        .iter()
+                        .map(|(t, _)| t.token_value.clone())
+                        .collect();
+                    updated.sort_unstable();
+                    updated
+                })
+            },
         })
     }
 
@@ -353,7 +361,7 @@ impl Response for MoveTemplateNodeResponse {
         self.command_id.unwrap()
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
-        Some(ReloadType::Full)
+        Some(ReloadType::Tree)
     }
 }
 
@@ -457,7 +465,7 @@ impl Response for PasteSubTreeResponse {
         self.command_id.unwrap()
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
-        Some(ReloadType::Full)
+        Some(ReloadType::Tree)
     }
 }
 
@@ -566,7 +574,7 @@ impl Response for RemoveTemplateNodeResponse {
         self.command_id.unwrap()
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
-        Some(ReloadType::Full)
+        Some(ReloadType::Tree)
     }
 }
 
@@ -811,7 +819,7 @@ impl Response for ReplaceTemplateResponse {
         self.command_id.unwrap()
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
-        Some(ReloadType::Full)
+        Some(ReloadType::Tree)
     }
 }
 
@@ -918,7 +926,7 @@ impl Response for ConvertToComponentResponse {
         self.command_id.unwrap()
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
-        Some(ReloadType::Full)
+        Some(ReloadType::Tree)
     }
 }
 
@@ -1178,7 +1186,7 @@ impl Response for SwapMainComponentResponse {
     }
 
     fn get_reload_type(&self) -> Option<ReloadType> {
-        Some(ReloadType::Full)
+        Some(ReloadType::Tree)
     }
 }
 

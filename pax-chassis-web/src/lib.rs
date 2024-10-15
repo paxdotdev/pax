@@ -620,7 +620,7 @@ impl PaxChassisWeb {
             for reload_type in reload_queue {
                 match reload_type {
                     // This and FullPlay are now the same: TODO join?
-                    ReloadType::Full => {
+                    ReloadType::Tree => {
                         let mut engine = borrow_mut!(self.engine);
                         let root = self
                             .userland_definition_to_instance_traverser
@@ -628,7 +628,7 @@ impl PaxChassisWeb {
                             as Rc<dyn pax_runtime::InstanceNode>;
                         engine.full_reload_userland(root);
                     }
-                    ReloadType::Partial(uni) => {
+                    ReloadType::Node(uni, _) => {
                         let manifest = self
                             .userland_definition_to_instance_traverser
                             .get_manifest();

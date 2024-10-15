@@ -5,8 +5,10 @@ use pax_engine::api::*;
 use pax_engine::*;
 use pax_manifest::*;
 use pax_std::*;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::fmt::Write;
+use std::rc::Rc;
 
 pub mod border_radius_property_editor;
 pub mod color_property_editor;
@@ -39,6 +41,7 @@ pub struct PropertyArea {
 }
 
 use crate::controls::settings::color_picker::COLOR_PICKER_TRANSACTION;
+use crate::granular_manifest_change_notification_store::GranularManifestChangeNotificationStore;
 use crate::model;
 use crate::model::action::Transaction;
 /// Used by containers of property editors (added to local store)
@@ -73,15 +76,25 @@ pub enum WriteTarget {
 }
 
 impl PropertyEditor {
-    pub fn on_mount(&mut self, ctxs: &NodeContext) {
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
         let ind = self.ind.clone();
         let write_target = self.write_target.clone();
         let name = self.name.clone();
-        let manifest_ver = borrow!(ctxs.designtime).get_last_written_manifest_version();
+        // WARNING: property editor does NOT listen to reactive changes to name,
+        // if name changes, memory is leaked in the GranularManifestChangeNotifiationStore
+        // (by not being removed on dissmount)
+        let property_changed_notifier = ctx
+            .peek_local_store(
+                |granular_update_store: &mut GranularManifestChangeNotificationStore| {
+                    let notifier =
+                        granular_update_store.register_property_with_name_notifier(&name.get());
+                    notifier
+                },
+            )
+            .expect("should be inserted at designer root");
         let deps = [
             ind.untyped(),
-            name.untyped(),
-            manifest_ver.untyped(),
+            property_changed_notifier,
             write_target.untyped(),
         ];
         self.data.replace_with(Property::computed(
@@ -94,13 +107,13 @@ impl PropertyEditor {
         ));
 
         let data = self.data.clone();
-        let ctx = ctxs.clone();
+        let ctxs = ctx.clone();
         let deps = [data.untyped()];
         self.prop_type_ident_id.replace_with(Property::computed(
             move || {
                 let data = data.get();
                 let prop_type_ident = data
-                    .get_prop_type_id(&ctx)
+                    .get_prop_type_id(&ctxs)
                     .unwrap_or_default()
                     .get_unique_identifier();
 
@@ -123,7 +136,7 @@ impl PropertyEditor {
         ));
 
         let data = self.data.clone();
-        let ctx = ctxs.clone();
+        let ctx = ctx.clone();
         self.is_literal.replace_with(Property::computed(
             move || {
                 let val = data.get().get_value(&ctx);
