@@ -57,12 +57,10 @@ impl Link {
     }
 
     pub fn mouse_over(&mut self, ctx: &NodeContext, _event: Event<MouseOver>) {
-        log::debug!("over link");
         ctx.set_cursor(CursorStyle::Pointer);
     }
 
     pub fn mouse_out(&mut self, ctx: &NodeContext, _event: Event<MouseOut>) {
-        log::debug!("out link");
         ctx.set_cursor(CursorStyle::Auto);
     }
 }
