@@ -40,7 +40,7 @@ impl ClassSettingsEditor {
         });
     }
 
-    fn bind_class_name(&mut self, app_state: &model::AppState) {
+    fn bind_class_name(&mut self, app_state: &model::app_state::AppState) {
         let class_name = app_state.current_editor_class_name.clone();
         let deps = [class_name.untyped()];
         self.class_name.replace_with(Property::computed(
@@ -49,7 +49,7 @@ impl ClassSettingsEditor {
         ));
     }
 
-    fn bind_stid(&mut self, app_state: &model::AppState) {
+    fn bind_stid(&mut self, app_state: &model::app_state::AppState) {
         let scid = app_state.selected_component_id.clone();
 
         let deps = [scid.untyped()];

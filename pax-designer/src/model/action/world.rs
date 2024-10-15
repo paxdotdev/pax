@@ -5,7 +5,7 @@ use super::{pointer::Pointer, Action, ActionContext};
 use crate::math::coordinate_spaces::{Glass, World};
 use crate::math::AxisAlignedBox;
 use crate::model::input::ModifierKey;
-use crate::model::{input::InputEvent, AppState, ToolBehavior};
+use crate::model::{app_state::AppState, input::InputEvent, ToolBehavior};
 use crate::DESIGNER_GLASS_ID;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;

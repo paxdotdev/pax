@@ -9,12 +9,10 @@ use pax_std::core::text::Text;
 use crate::model::action::tool::SetToolBehaviour;
 use crate::model::action::world::{SelectMode, SelectNodes};
 use crate::model::input::{InputEvent, ModifierKey};
+use crate::model::tools::ToolBehavior;
 use crate::{
     math::coordinate_spaces::Glass,
-    model::{
-        action::{Action, ActionContext, RaycastMode},
-        ToolBehavior,
-    },
+    model::action::{Action, ActionContext, RaycastMode},
 };
 
 pub struct TextEdit {

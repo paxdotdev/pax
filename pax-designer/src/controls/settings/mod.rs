@@ -3,7 +3,10 @@ use pax_engine::*;
 use pax_manifest::*;
 use std::collections::HashMap;
 
-use crate::{designer_node_type::DesignerNodeType, model};
+use crate::{
+    designer_node_type::DesignerNodeType,
+    model::{self, app_state::AppState},
+};
 use pax_std::*;
 
 use convert_case::{Case, Casing};
@@ -51,7 +54,7 @@ impl Settings {
         });
     }
 
-    fn bind_selected(&mut self, app_state: &model::AppState, ctx: &NodeContext) {
+    fn bind_selected(&mut self, app_state: &model::app_state::AppState, ctx: &NodeContext) {
         let stnids = app_state.selected_template_node_ids.clone();
         let comp_type_id = self.stid.clone();
         let deps = [stnids.untyped(), comp_type_id.untyped()];
@@ -114,7 +117,7 @@ impl Settings {
             ));
     }
 
-    fn bind_snid(&mut self, app_state: &model::AppState) {
+    fn bind_snid(&mut self, app_state: &AppState) {
         let stnids = app_state.selected_template_node_ids.clone();
         let deps = [stnids.untyped()];
         self.snid.replace_with(Property::computed(
@@ -123,7 +126,7 @@ impl Settings {
         ));
     }
 
-    fn bind_stid(&mut self, app_state: &model::AppState) {
+    fn bind_stid(&mut self, app_state: &AppState) {
         let scid = app_state.selected_component_id.clone();
 
         let deps = [scid.untyped()];

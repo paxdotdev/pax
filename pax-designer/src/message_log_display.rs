@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::model::{action::world::SelectNodes, ProjectMode};
+use crate::model::{action::world::SelectNodes, app_state::ProjectMode};
 use pax_engine::api::*;
 use pax_engine::*;
 
