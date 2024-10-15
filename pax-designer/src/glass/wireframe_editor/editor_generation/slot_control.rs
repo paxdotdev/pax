@@ -15,6 +15,7 @@ use pax_std::stacker::Stacker;
 use crate::designer_node_type::designer_behavior_extensions::IntentState;
 use crate::designer_node_type::DesignerNodeType;
 use crate::glass::intent::IntentDef;
+use crate::model::tools::ToolBehavior;
 use crate::{
     glass::{
         control_point::{ControlPointStyling, ControlPointToolFactory},
@@ -30,7 +31,7 @@ use crate::{
             Action, ActionContext, RaycastMode,
         },
         input::InputEvent,
-        GlassNode, GlassNodeSnapshot, ToolBehavior,
+        GlassNode, GlassNodeSnapshot,
     },
     utils::filter_with_last::FilterWithLastExt,
 };

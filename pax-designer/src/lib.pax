@@ -3,7 +3,7 @@ if !$mobile {
     <ProjectModeToggle x=100% width=90px height=55px/>
 }
 
-if self.glass_active {
+if !self.is_in_play_mode {
     <DesignerContextMenu/>
     <Stacker sizes=[None, Some(300px)]>
         <Frame>
@@ -20,7 +20,7 @@ if self.glass_active {
                 //}
                 //Optionally turned on on right click
                 <Glass/>
-                <Group transform={self.transform2d}>
+                <Group transform={self.glass_to_world_transform}>
                     // Stage has a fixed size, regardless of window size
                     <Group width={(self.stage.stage_width)px} height={(self.stage.stage_height)px} id=stage>
                         <Rectangle height={self.stage_outline_width} y=0% anchor_y=100% fill=rgba(255,255,255,50%) width={100% + (self.stage_outline_width)px}/>
@@ -43,7 +43,7 @@ if self.glass_active {
     </Stacker>
 
 }
-if self.play_active {
+if self.is_in_play_mode {
     <Group id=project_container _suspended=false>
         <InlineFrame />
     </Group>

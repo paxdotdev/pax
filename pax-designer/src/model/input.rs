@@ -22,7 +22,8 @@ use super::action::world::SelectAllInOpenContainer;
 use super::read_app_state;
 use super::{
     action::{self, orm::DeleteSelected, world, Action, ActionContext},
-    Tool, ToolbarComponent,
+    app_state::Tool,
+    app_state::ToolbarComponent,
 };
 
 impl Interpolatable for InputMapper {}
