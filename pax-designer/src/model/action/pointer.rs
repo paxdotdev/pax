@@ -10,13 +10,13 @@ use crate::glass::TextEdit;
 use crate::math::coordinate_spaces::Glass;
 use crate::math::SizeUnit;
 use crate::model::action::world::Pan;
+use crate::model::app_state::ToolbarComponent;
 use crate::model::input::{InputEvent, ModifierKey};
 use crate::model::tools::{
     CreateComponentTool, MovingTool, MultiSelectTool, PaintbrushTool, ZoomToFitTool,
 };
-use crate::model::ToolbarComponent;
-use crate::model::{action, Tool};
-use crate::model::{AppState, StageInfo};
+use crate::model::{action, app_state::Tool};
+use crate::model::{app_state::AppState, StageInfo};
 use crate::SetStage;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;

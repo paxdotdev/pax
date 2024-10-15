@@ -18,7 +18,7 @@ use crate::model::action::orm::CreateComponent;
 use crate::model::action::tool::SetToolBehaviour;
 use crate::model::action::world::Translate;
 use crate::model::action::world::{SelectMode, SelectNodes};
-use crate::model::{AppState, GlassNode};
+use crate::model::{app_state::AppState, GlassNode};
 use crate::{message_log_display, model, SetStage, StageInfo};
 
 use crate::math::coordinate_spaces::{self, World};

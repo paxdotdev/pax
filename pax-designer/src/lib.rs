@@ -1,23 +1,20 @@
 #![allow(unused_imports)]
-
 use anyhow::anyhow;
+use std::{collections::HashSet, rc::Rc, sync::Mutex};
+
+use model::{
+    action::{init::InitWorldTransform, meta::Schedule, pointer::Pointer, Action, ActionContext},
+    app_state::{ProjectMode, StageInfo},
+    input::Dir,
+};
 use pax_engine::{
     api::*,
     math::{Point2, Transform2, Vector2},
     *,
 };
 use pax_manifest::TypeId;
-use pax_std::*;
-use std::{collections::HashSet, rc::Rc, sync::Mutex};
-
 use pax_std::inline_frame::InlineFrame;
-
-use crate::math::coordinate_spaces::{self, World};
-use model::{
-    action::{meta::Schedule, pointer::Pointer, Action, ActionContext},
-    input::Dir,
-    ProjectMode, StageInfo,
-};
+use pax_std::*;
 
 pub mod console;
 pub mod context_menu;
@@ -46,17 +43,9 @@ use message_log_display::MessageLogDisplay;
 use project_mode_toggle::ProjectModeToggle;
 use project_publish_button::ProjectPublishButton;
 
-use pax_std::*;
-
-// TODO:
-// clean up glass::on_double_click
-// remove with_action_context and make everything actions?
-
-// Things to decide:
-// - Who/what should be allowed to modify model state? (harder to encode when everything is Properties)
+use crate::math::coordinate_spaces::{self, World};
 
 pub const DESIGNER_GLASS_ID: &str = "designer_glass";
-
 //We only want to show the publish button on www.pax.dev for now; as a hack to parameterize this,
 //we are reading this env var at compiletime and exposing it via a const to runtime.
 const PAX_PUBLISH_BUTTON_ENABLED: bool = option_env!("PAX_PUBLISH_BUTTON").is_some();
@@ -66,11 +55,14 @@ const PAX_PUBLISH_BUTTON_ENABLED: bool = option_env!("PAX_PUBLISH_BUTTON").is_so
 #[main]
 #[file("lib.pax")]
 pub struct PaxDesigner {
-    pub transform2d: Property<Transform2D>,
+    // transform of the userland project relative to the glass bounds
+    pub glass_to_world_transform: Property<Transform2D>,
+    // outline width for the lines around the stage area,
+    // needs to be a property since it exists in world space,
+    // but has width depending on the glass_to_world transform
     pub stage_outline_width: Property<f64>,
     pub stage: Property<StageInfo>,
-    pub play_active: Property<bool>,
-    pub glass_active: Property<bool>,
+    pub is_in_play_mode: Property<bool>,
     pub manifest_loaded_from_server: Property<bool>,
     pub show_publish_button: Property<bool>,
 }
@@ -82,42 +74,16 @@ impl PaxDesigner {
         model::read_app_state(|app_state| {
             self.bind_stage_property(&app_state);
             self.bind_transform2d_property(&app_state);
-            self.bind_glass_active_property(&app_state);
-            self.bind_interaction_mode_property();
+            self.bind_is_in_play_mode(&app_state);
             self.bind_stage_outline_width_property(&app_state);
         });
-
-        // used to show "loading screen"
-        let manifest_load_state = borrow!(ctx.designtime).get_manifest_loaded_from_server_prop();
-        let deps = [manifest_load_state.untyped()];
-        self.manifest_loaded_from_server
-            .replace_with(Property::computed(move || manifest_load_state.get(), &deps));
+        self.bind_is_manifest_loaded_from_server(ctx);
     }
 
     pub fn tick(&mut self, ctx: &NodeContext) {
-        if ctx.frames_elapsed.get() == 1 {
-            // when manifests load, set transform of glass to fit scene
-            model::read_app_state(|app_state| {
-                let stage = app_state.stage.get();
-                let Some(glass_node) = ctx.get_nodes_by_id(DESIGNER_GLASS_ID).into_iter().next()
-                else {
-                    log::warn!("couldn't hook up glass to world transform: couldn't find designer glass node");
-                    return;
-                };
-                let (w, h) = glass_node.transform_and_bounds().get().bounds;
-                app_state.glass_to_world_transform.set(
-                    Transform2::<World>::translate(Vector2::new(
-                        stage.stage_width as f64 / 2.0,
-                        stage.stage_height as f64 / 2.0,
-                    )) * Transform2::scale(1.4)
-                        * Transform2::<math::coordinate_spaces::Glass>::translate(-Vector2::new(
-                            w / 2.0,
-                            h / 2.0,
-                        )),
-                );
-            });
-        }
-
+        // Some actions can't be run immediately because of manifest state
+        // hasn't been written to engine yet - this is the place they get
+        // flushed
         model::action::meta::flush_sheduled_actions(ctx);
     }
 
@@ -128,28 +94,36 @@ impl PaxDesigner {
             .replace_with(Property::computed(move || stage.get(), &deps));
     }
 
-    pub fn focused(&mut self, _ctx: &NodeContext, _args: Event<Focus>) {
-        // Reset modifier keys
-        model::read_app_state(|app_state| {
-            app_state.modifiers.set(HashSet::new());
-        });
+    fn bind_is_manifest_loaded_from_server(&mut self, ctx: &NodeContext) {
+        // used to show "loading screen"
+        let manifest_load_state = borrow!(ctx.designtime).get_manifest_loaded_from_server_prop();
+        let deps = [manifest_load_state.untyped()];
+        self.manifest_loaded_from_server
+            .replace_with(Property::computed(move || manifest_load_state.get(), &deps));
+        model::perform_action(
+            &Schedule {
+                action: Rc::new(InitWorldTransform),
+            },
+            ctx,
+        );
     }
 
     fn bind_transform2d_property(&mut self, app_state: &model::AppState) {
         let glass_to_world = app_state.glass_to_world_transform.clone();
         let deps = [glass_to_world.untyped()];
-        self.transform2d.replace_with(Property::computed(
-            move || {
-                let world_to_glass = glass_to_world.get().inverse();
-                let t = world_to_glass.get_translation();
-                let s = world_to_glass.get_scale();
-                Transform2D::scale(
-                    Size::Percent((100.0 * s.x).into()),
-                    Size::Percent((100.0 * s.y).into()),
-                ) * Transform2D::translate(Size::Pixels(t.x.into()), Size::Pixels(t.y.into()))
-            },
-            &deps,
-        ));
+        self.glass_to_world_transform
+            .replace_with(Property::computed(
+                move || {
+                    let world_to_glass = glass_to_world.get().inverse();
+                    let t = world_to_glass.get_translation();
+                    let s = world_to_glass.get_scale();
+                    Transform2D::scale(
+                        Size::Percent((100.0 * s.x).into()),
+                        Size::Percent((100.0 * s.y).into()),
+                    ) * Transform2D::translate(Size::Pixels(t.x.into()), Size::Pixels(t.y.into()))
+                },
+                &deps,
+            ));
     }
 
     fn bind_stage_outline_width_property(&mut self, app_state: &model::AppState) {
@@ -166,20 +140,20 @@ impl PaxDesigner {
         ));
     }
 
-    fn bind_glass_active_property(&mut self, app_state: &model::AppState) {
+    fn bind_is_in_play_mode(&mut self, app_state: &model::AppState) {
         let proj_mode = app_state.project_mode.clone();
         let deps = [proj_mode.untyped()];
-        self.glass_active.replace_with(Property::computed(
-            move || matches!(proj_mode.get(), ProjectMode::Edit),
+        self.is_in_play_mode.replace_with(Property::computed(
+            move || matches!(proj_mode.get(), ProjectMode::Playing),
             &deps,
         ));
     }
 
-    fn bind_interaction_mode_property(&mut self) {
-        let glass_active = self.glass_active.clone();
-        let deps = [glass_active.untyped()];
-        self.play_active
-            .replace_with(Property::computed(move || !glass_active.get(), &deps));
+    pub fn focused(&mut self, _ctx: &NodeContext, _args: Event<Focus>) {
+        // Reset modifier keys
+        model::read_app_state(|app_state| {
+            app_state.modifiers.set(HashSet::new());
+        });
     }
 
     pub fn handle_mouse_move(&mut self, ctx: &NodeContext, args: Event<MouseMove>) {
@@ -194,6 +168,12 @@ impl PaxDesigner {
     }
 
     pub fn handle_mouse_up(&mut self, ctx: &NodeContext, event: Event<MouseUp>) {
+        // TODO: long term some form of pointer capture would be useful to
+        // allow the elements to keep listening to mouse ups outside of the
+        // objects. see:
+        // https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events#capturing_the_pointer
+
+        // Context menu mouse up
         if event.mouse.button != MouseButton::Right {
             model::perform_action(
                 // if triggered directly, doesn't have time to register click on context menu
@@ -204,12 +184,7 @@ impl PaxDesigner {
             );
         }
 
-        // TODO: long term some form of pointer capture would be useful to
-        // allow the elements to keep listening to mouse ups outside of the
-        // objects. see:
-        // https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events#capturing_the_pointer
-
-        // NOTE: this was originally on glass
+        // Glass mouse up
         model::perform_action(
             &crate::model::action::pointer::MouseEntryPointAction {
                 event: Pointer::Up,
@@ -218,8 +193,14 @@ impl PaxDesigner {
             },
             ctx,
         );
+
+        // Color picker mouse up
         color_picker::trigger_mouseup();
+
+        // Tree mouse up
         tree::trigger_global_mouseup();
+
+        // Toolbar mouse up
         if toolbar::dropdown_is_in_open_state() {
             model::perform_action(
                 // if done directly, would not have time to intercept mouse event further down to select a new tool

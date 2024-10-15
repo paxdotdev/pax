@@ -88,12 +88,6 @@ impl ClassSelector {
     }
 }
 
-// TODO next steps:
-// - hook up this to be used in list view
-// - enable removal by clicking x
-// - enable editing by double clicking
-// - make adding a class to a node work (need to be able to write mutliple with same property name without overwriting)
-
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined(

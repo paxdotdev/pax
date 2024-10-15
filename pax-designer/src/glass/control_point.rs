@@ -7,6 +7,7 @@ use super::ToolVisualizationState;
 use crate::glass;
 use crate::math::intent_snapper::{self, IntentSnapper, SnapSet};
 use crate::model::action::tool::SetToolBehaviour;
+use crate::model::tools::ToolBehavior;
 use anyhow::Result;
 use pax_engine::api::Fill;
 use pax_engine::api::*;
@@ -17,8 +18,8 @@ use pax_std::*;
 use serde::Deserialize;
 
 use crate::math::AxisAlignedBox;
+use crate::model::app_state::AppState;
 use crate::model::{self, action};
-use crate::model::{AppState, ToolBehavior};
 
 use crate::math;
 use crate::math::coordinate_spaces::{self, Glass, World};

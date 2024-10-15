@@ -24,8 +24,8 @@ use crate::model::action::Action;
 use crate::model::action::ActionContext;
 use crate::model::input::Dir;
 use crate::model::input::InputEvent;
+use crate::model::tools::ToolBehavior;
 use crate::model::GlassNode;
-use crate::model::ToolBehavior;
 use math::Point2;
 
 use super::SetLibraryState;

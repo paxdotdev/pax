@@ -18,7 +18,7 @@ use crate::{
     },
     model::{
         action::{self, Action, ActionContext},
-        GlassNodeSnapshot, SelectionState, SelectionStateSnapshot, ToolBehavior,
+        GlassNodeSnapshot, SelectionState, SelectionStateSnapshot,
     },
 };
 

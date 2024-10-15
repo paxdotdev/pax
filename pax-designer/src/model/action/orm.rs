@@ -14,7 +14,7 @@ use crate::math::{
 };
 use crate::model::input::{InputEvent, ModifierKey};
 use crate::model::{GlassNode, GlassNodeSnapshot, SelectionStateSnapshot};
-use crate::{math::BoxPoint, model, model::AppState};
+use crate::{math::BoxPoint, model, model::app_state::AppState};
 use anyhow::{anyhow, Context, Result};
 use pax_designtime::orm::template::node_builder::{self, NodeBuilder};
 use pax_designtime::orm::MoveToComponentEntry;

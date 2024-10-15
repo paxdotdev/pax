@@ -18,7 +18,11 @@ use crate::math::SizeUnit;
 use crate::model::action::tool::SetToolBehaviour;
 use crate::model::action::world::SelectNodes;
 use crate::model::action::{Action, ActionContext};
-use crate::model::{self, ProjectMode, Tool, ToolBehavior, ToolbarComponent};
+use crate::model::{
+    self,
+    app_state::{ProjectMode, Tool, ToolbarComponent},
+    tools::ToolBehavior,
+};
 use crate::ProjectMsg;
 use anyhow::Result;
 use toolbar_item::ToolbarItemVisual;

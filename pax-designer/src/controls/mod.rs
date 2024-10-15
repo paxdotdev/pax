@@ -19,7 +19,7 @@ use tool_settings_views::paintbrush_settings_view::PaintbrushSettings;
 use toolbar::Toolbar;
 use tree::Tree;
 
-use crate::model::{self, Tool};
+use crate::model::{self, app_state::Tool};
 
 #[pax]
 #[engine_import_path("pax_engine")]
