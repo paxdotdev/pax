@@ -226,6 +226,7 @@ impl RuntimeContext {
     /// not register a `hit`, nor will elements that suppress input events.
     pub fn get_elements_beneath_ray(
         &self,
+        root: Option<Rc<ExpandedNode>>,
         ray: Point2<Window>,
         limit_one: bool,
         mut accum: Vec<Rc<ExpandedNode>>,
@@ -236,7 +237,7 @@ impl RuntimeContext {
         //Next: check whether ancestral clipping bounds (hit_test) are satisfied
         //Finally: check whether element itself satisfies hit_test(ray)
 
-        let root_node = borrow!(self.root_expanded_node).upgrade().unwrap();
+        let root_node = root.unwrap_or_else(|| borrow!(self.root_expanded_node).upgrade().unwrap());
         let mut to_process = vec![(root_node, false)];
         while let Some((node, clipped)) = to_process.pop() {
             // make sure slot sources are updated for this node
@@ -279,7 +280,7 @@ impl RuntimeContext {
         self: &Rc<Self>,
         ray: Point2<Window>,
     ) -> Rc<ExpandedNode> {
-        let res = self.get_elements_beneath_ray(ray, true, vec![], false);
+        let res = self.get_elements_beneath_ray(None, ray, true, vec![], false);
         let new_topmost = res
             .into_iter()
             .next()

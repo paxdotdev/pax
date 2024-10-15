@@ -81,7 +81,7 @@ impl PropertyEditor {
         let deps = [
             ind.untyped(),
             name.untyped(),
-            //   manifest_ver.untyped(),
+            manifest_ver.untyped(),
             write_target.untyped(),
         ];
         self.data.replace_with(Property::computed(
