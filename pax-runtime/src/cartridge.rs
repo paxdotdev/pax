@@ -2,7 +2,7 @@ use_RefCell!();
 use crate::api::NodeContext;
 use crate::{
     ConditionalProperties, ExpandedNode, HandlerRegistry, InstanceNode, InstantiationArgs,
-    RuntimePropertiesStackFrame,
+    ReusableInstanceNodeArgs, RuntimePropertiesStackFrame,
 };
 use pax_lang::Computable;
 use pax_manifest::{TypeId, ValueDefinition};
@@ -91,11 +91,11 @@ pub trait DefinitionToInstanceTraverser {
                     pax_manifest::PaxType::If
                     | pax_manifest::PaxType::Slot
                     | pax_manifest::PaxType::Repeat => {
-                        instances.push(self.build_control_flow(type_id, &node_id));
+                        instances.push(self.build_control_flow(type_id, &node_id, None));
                     }
                     pax_manifest::PaxType::Comment => continue,
                     _ => {
-                        instances.push(self.build_template_node(type_id, &node_id));
+                        instances.push(self.build_template_node(type_id, &node_id, None));
                     }
                 }
             }
@@ -117,6 +117,7 @@ pub trait DefinitionToInstanceTraverser {
         &self,
         containing_component_type_id: &pax_manifest::TypeId,
         node_id: &pax_manifest::TemplateNodeId,
+        prior_node: Option<ReusableInstanceNodeArgs>,
     ) -> std::rc::Rc<dyn crate::rendering::InstanceNode> {
         let manifest = self.get_manifest();
         let prototypical_common_properties_factory =
@@ -133,8 +134,11 @@ pub trait DefinitionToInstanceTraverser {
             node_id.clone(),
         );
 
-        let children: Vec<Rc<dyn InstanceNode>> =
-            self.build_children(containing_component_type_id, &node_id);
+        let children: RefCell<Vec<Rc<dyn InstanceNode>>> = if let Some(prior_node) = prior_node {
+            prior_node.children
+        } else {
+            RefCell::new(self.build_children(containing_component_type_id, &node_id))
+        };
         match tnd.type_id.get_pax_type() {
             pax_manifest::PaxType::If => {
                 let expr_info = tnd
@@ -217,7 +221,7 @@ pub trait DefinitionToInstanceTraverser {
                     prototypical_properties_factory,
                     handler_registry: None,
                     component_template: None,
-                    children: Some(RefCell::new(children)),
+                    children: Some(children),
                     template_node_identifier: Some(unique_identifier),
                     properties_scope_factory: None,
                 })
@@ -319,7 +323,7 @@ pub trait DefinitionToInstanceTraverser {
                     prototypical_properties_factory,
                     handler_registry: None,
                     component_template: None,
-                    children: Some(RefCell::new(children)),
+                    children: Some(children),
                     template_node_identifier: Some(unique_identifier),
                     properties_scope_factory: None,
                 })
@@ -423,7 +427,7 @@ pub trait DefinitionToInstanceTraverser {
                     prototypical_properties_factory,
                     handler_registry: None,
                     component_template: None,
-                    children: Some(RefCell::new(children)),
+                    children: Some(children),
                     template_node_identifier: Some(unique_identifier),
                     properties_scope_factory: None,
                 })
@@ -454,13 +458,19 @@ pub trait DefinitionToInstanceTraverser {
                 pax_manifest::PaxType::If
                 | pax_manifest::PaxType::Slot
                 | pax_manifest::PaxType::Repeat => {
-                    children_instances
-                        .push(self.build_control_flow(containing_component_type_id, &child_id));
+                    children_instances.push(self.build_control_flow(
+                        containing_component_type_id,
+                        &child_id,
+                        None,
+                    ));
                 }
                 pax_manifest::PaxType::Comment => continue,
                 _ => {
-                    children_instances
-                        .push(self.build_template_node(containing_component_type_id, child_id));
+                    children_instances.push(self.build_template_node(
+                        containing_component_type_id,
+                        child_id,
+                        None,
+                    ));
                 }
             }
         }
@@ -471,6 +481,7 @@ pub trait DefinitionToInstanceTraverser {
         &self,
         containing_component_type_id: &pax_manifest::TypeId,
         node_id: &pax_manifest::TemplateNodeId,
+        prior_node: Option<ReusableInstanceNodeArgs>,
     ) -> std::rc::Rc<dyn crate::rendering::InstanceNode> {
         let manifest = self.get_manifest();
 
@@ -487,18 +498,35 @@ pub trait DefinitionToInstanceTraverser {
         let mut args = self.build_component_args(&node.type_id);
         let node_component_factory = self.get_component_factory(&node.type_id).unwrap();
 
-        // update handlers from tnd
-        let handlers_from_tnd = manifest.get_inline_event_handlers(node);
-        let updated_registry = if let Some(registry) = args.handler_registry {
-            containing_component_factory.add_inline_handlers(handlers_from_tnd, registry)
+        if let Some(prior_node) = prior_node {
+            args.handler_registry = prior_node.handler_registry;
+            args.children = Some(prior_node.children);
+            args.template_node_identifier = prior_node.template_node_identifier;
         } else {
-            containing_component_factory.add_inline_handlers(
-                handlers_from_tnd,
-                std::rc::Rc::new(RefCell::new(crate::HandlerRegistry::default())),
-            )
-        };
+            let handlers_from_tnd = manifest.get_inline_event_handlers(node);
+            let updated_registry = if let Some(registry) = args.handler_registry {
+                containing_component_factory.add_inline_handlers(handlers_from_tnd, registry)
+            } else {
+                containing_component_factory.add_inline_handlers(
+                    handlers_from_tnd,
+                    std::rc::Rc::new(RefCell::new(crate::HandlerRegistry::default())),
+                )
+            };
+            // update handlers from tnd
+            args.handler_registry = Some(updated_registry);
 
-        args.handler_registry = Some(updated_registry);
+            // update children from tnd
+            args.children = Some(RefCell::new(
+                self.build_children(containing_component_type_id, node_id),
+            ));
+
+            // update id
+            args.template_node_identifier =
+                Some(pax_manifest::UniqueTemplateNodeIdentifier::build(
+                    containing_component_type_id.clone(),
+                    node_id.clone(),
+                ));
+        }
 
         // update properties from tnd
         let inline_properties = manifest.get_inline_properties(containing_component_type_id, node);
@@ -510,14 +538,6 @@ pub trait DefinitionToInstanceTraverser {
         let updated_common_properties =
             node_component_factory.build_inline_common_properties(inline_properties);
         args.prototypical_common_properties_factory = updated_common_properties;
-
-        args.children = Some(RefCell::new(
-            self.build_children(containing_component_type_id, node_id),
-        ));
-        args.template_node_identifier = Some(pax_manifest::UniqueTemplateNodeIdentifier::build(
-            containing_component_type_id.clone(),
-            node_id.clone(),
-        ));
 
         node_component_factory.build_component(args)
     }
@@ -534,7 +554,7 @@ pub trait DefinitionToInstanceTraverser {
             if let Some(found) =
                 self.recurse_get_template_node_by_id(id, &main_component_type_id, node_id)
             {
-                return Some(self.build_template_node(&found.0, &found.1));
+                return Some(self.build_template_node(&found.0, &found.1, None));
             }
         }
         None

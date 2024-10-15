@@ -37,7 +37,7 @@ impl ProjectModeToggle {
             move || {
                 // WARNING: this won't trigger if running mode isn't used in template - hacky
                 let mut dt = borrow_mut!(ctxp.designtime);
-                dt.reload_play();
+                dt.reload();
                 matches!(project_mode_cp.get(), ProjectMode::Playing)
             },
             &deps,
@@ -47,7 +47,7 @@ impl ProjectModeToggle {
             move || {
                 // WARNING: this won't trigger if running mode isn't used in template - hacky
                 let mut dt = borrow_mut!(ctxp.designtime);
-                dt.reload_edit();
+                dt.reload();
                 matches!(project_mode.get(), ProjectMode::Edit)
             },
             &deps,

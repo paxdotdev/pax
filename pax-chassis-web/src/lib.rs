@@ -185,7 +185,6 @@ impl PaxChassisWeb {
     }
     pub fn remove_context(&mut self, id: usize) {
         self.drawing_contexts.remove_context(id);
-        self.engine.borrow().runtime_context.remove_canvas(&id);
     }
 
     pub fn get_dirty_canvases(&self) -> Vec<usize> {
@@ -608,11 +607,8 @@ impl PaxChassisWeb {
     pub fn update_userland_component(&mut self) {
         let current_manifest_version =
             borrow!(self.designtime_manager).get_last_written_manifest_version();
-        let mut reload_queue = borrow_mut!(self.designtime_manager).take_reload_queue();
-        // erase unnecessary reloads
-        if reload_queue.contains(&ReloadType::FullEdit) {
-            reload_queue = vec![ReloadType::FullEdit];
-        };
+        let reload_queue = borrow_mut!(self.designtime_manager).take_reload_queue();
+
         if current_manifest_version.get()
             != self
                 .designtime_manager
@@ -623,20 +619,12 @@ impl PaxChassisWeb {
             for reload_type in reload_queue {
                 match reload_type {
                     // This and FullPlay are now the same: TODO join?
-                    ReloadType::FullEdit => {
+                    ReloadType::Full => {
                         let mut engine = borrow_mut!(self.engine);
                         let root = self
                             .userland_definition_to_instance_traverser
                             .get_main_component(USERLAND_COMPONENT_ROOT)
                             as Rc<dyn pax_runtime::InstanceNode>;
-                        engine.full_reload_userland(root);
-                    }
-                    ReloadType::FullPlay => {
-                        let root = self
-                            .userland_definition_to_instance_traverser
-                            .get_main_component(USERLAND_COMPONENT_ROOT)
-                            as Rc<dyn pax_runtime::InstanceNode>;
-                        let mut engine = borrow_mut!(self.engine);
                         engine.full_reload_userland(root);
                     }
                     ReloadType::Partial(uni) => {
@@ -651,6 +639,19 @@ impl PaxChassisWeb {
                         let tnd = containing_template
                             .get_node(&uni.get_template_node_id())
                             .unwrap();
+
+                        let nodes = self
+                            .engine
+                            .borrow()
+                            .runtime_context
+                            .get_expanded_nodes_by_global_ids(&uni);
+
+                        let prior_instance_node = nodes.get(0).map(|x| {
+                            pax_runtime::ReusableInstanceNodeArgs::new(
+                                x.instance_node.borrow().base(),
+                            )
+                        });
+
                         let pax_type = tnd.type_id.get_pax_type();
                         let instance_node = match pax_type {
                             pax_manifest::PaxType::If
@@ -660,12 +661,14 @@ impl PaxChassisWeb {
                                 .build_control_flow(
                                     &uni.get_containing_component_type_id(),
                                     &uni.get_template_node_id(),
+                                    prior_instance_node,
                                 ),
                             _ => self
                                 .userland_definition_to_instance_traverser
                                 .build_template_node(
                                     &uni.get_containing_component_type_id(),
                                     &uni.get_template_node_id(),
+                                    prior_instance_node,
                                 ),
                         };
                         let mut engine = borrow_mut!(self.engine);
