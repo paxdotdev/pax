@@ -185,7 +185,6 @@ impl PaxChassisWeb {
     }
     pub fn remove_context(&mut self, id: usize) {
         self.drawing_contexts.remove_context(id);
-        self.engine.borrow().runtime_context.remove_canvas(&id);
     }
 
     pub fn get_dirty_canvases(&self) -> Vec<usize> {
