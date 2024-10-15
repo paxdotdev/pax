@@ -50,7 +50,7 @@ impl Response for UpdateClassResponse {
         self.command_id.unwrap()
     }
     fn get_reload_type(&self) -> Option<ReloadType> {
-        Some(ReloadType::Full)
+        Some(ReloadType::Tree)
     }
 }
 

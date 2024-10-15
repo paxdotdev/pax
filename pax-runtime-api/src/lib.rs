@@ -17,7 +17,7 @@ pub mod cursor;
 /// deletion in a store
 /// NOTE: Stored objects need to be UNIQUE for any given stack. Do not insert
 /// values with types that could potentially be used in another use case,
-/// instead create a local type only used for a single purpose
+/// instead create a local new type (newtype pattern) only used for a single purpose
 pub trait Store: 'static {}
 
 use std::cell::Cell;
