@@ -1,5 +1,5 @@
 
-/*
+
 for (data, i) in self.control_points {
     <ControlPoint
 		data=data
@@ -28,4 +28,3 @@ for segment in self.bounding_segments {
         },
     }
 }
-*/
