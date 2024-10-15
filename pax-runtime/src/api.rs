@@ -135,9 +135,13 @@ impl NodeContext {
 #[cfg(feature = "designtime")]
 impl NodeContext {
     pub fn raycast(&self, point: Point2<Window>, hit_invisible: bool) -> Vec<NodeInterface> {
-        let expanded_nodes =
-            self.runtime_context
-                .get_elements_beneath_ray(point, false, vec![], hit_invisible);
+        let expanded_nodes = self.runtime_context.get_elements_beneath_ray(
+            self.runtime_context.get_userland_root_expanded_node(),
+            point,
+            false,
+            vec![],
+            hit_invisible,
+        );
         expanded_nodes
             .into_iter()
             .map(Into::<NodeInterface>::into)
