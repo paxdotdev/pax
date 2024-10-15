@@ -58,6 +58,9 @@ thread_local! {
     pub static TREE_CLICK_PROP: std::cell::RefCell<VecDeque<TreeMsg>> = Default::default();
     pub static GLOBAL_MOUSEUP_PROP: Property<bool> = Default::default();
     pub static TREE_HIDDEN_NODES: Property<HashSet<TemplateNodeId>> = Default::default();
+
+    // PERF: don't write to tree_objects if same as last time
+    pub static TREE_OBJECTS_CACHE: RefCell<Vec<FlattenedTreeEntry>> = Default::default();
 }
 
 pub fn trigger_global_mouseup() {
@@ -102,6 +105,7 @@ impl TreeEntry {
 #[pax]
 #[engine_import_path("pax_engine")]
 #[custom(Imports)]
+#[derive(PartialEq)]
 pub struct FlattenedTreeEntry {
     pub name: String,
     pub node_id: TemplateNodeId,
@@ -119,7 +123,7 @@ impl Tree {
             let type_id = app_state.selected_component_id.clone();
             let manifest_ver = borrow!(ctx.designtime).get_last_rendered_manifest_version();
             let selected = app_state.selected_template_node_ids.clone();
-            let ctx = ctx.clone();
+            let ctxp = ctx.clone();
             let hidden_nodes = TREE_HIDDEN_NODES.with(|p| p.clone());
             let deps = [
                 selected.untyped(),
@@ -128,18 +132,21 @@ impl Tree {
                 hidden_nodes.untyped(),
             ];
 
-            self.tree_objects.replace_with(Property::computed(
-                move || {
-                    let type_id = type_id.get();
-                    let mut tree = get_tree(type_id, &ctx);
-                    let selected = selected.get();
-                    for entry in &mut tree {
-                        entry.is_selected = selected.contains(&entry.node_id);
+            let tree_objects = self.tree_objects.clone();
+            ctx.subscribe(&deps, move || {
+                let type_id = type_id.get();
+                let mut tree = get_tree(type_id, &ctxp);
+                let selected = selected.get();
+                for entry in &mut tree {
+                    entry.is_selected = selected.contains(&entry.node_id);
+                }
+                TREE_OBJECTS_CACHE.with_borrow_mut(|tree_objs| {
+                    if tree_objs != &tree {
+                        *tree_objs = tree.clone();
+                        tree_objects.set(tree);
                     }
-                    tree
-                },
-                &deps,
-            ));
+                });
+            });
         });
     }
 
