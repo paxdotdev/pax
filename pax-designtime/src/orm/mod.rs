@@ -670,6 +670,7 @@ pub struct MoveToComponentEntry {
 pub enum ReloadType {
     Tree,
     Node(UniqueTemplateNodeIdentifier, Vec<String>),
+    // might have both node and class updates in the same transaction, make struct instead?
     // Class(TypeId, String, Vec<String>),
 }
 

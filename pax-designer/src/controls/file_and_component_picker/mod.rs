@@ -4,6 +4,7 @@ use pax_engine::*;
 use pax_manifest::{PaxType, TypeId};
 use std::rc::Rc;
 
+use crate::granular_change_store::GranularManifestChangeStore;
 use crate::model;
 use crate::model::action::{Action, ActionContext};
 
@@ -87,12 +88,17 @@ impl FileAndComponentPicker {
         let library_active = self.library_active.clone();
         let selected_component =
             model::read_app_state(|app_state| app_state.selected_component_id.clone());
-        let manifest_ver = borrow!(ctx.designtime).get_last_rendered_manifest_version();
-
+        let manifest_changed_notifier = ctx
+            .peek_local_store(
+                |change_notification_store: &mut GranularManifestChangeStore| {
+                    change_notification_store.get_manifest_any_change_notifier()
+                },
+            )
+            .expect("should be inserted at designer root");
         let deps = [
             library_active.untyped(),
             selected_component.untyped(),
-            manifest_ver.untyped(),
+            manifest_changed_notifier,
         ];
         self.registered_components.replace_with(Property::computed(
             move || {

@@ -4,7 +4,9 @@ use pax_engine::*;
 use pax_manifest::*;
 use std::collections::HashMap;
 
-use crate::{designer_node_type::DesignerNodeType, model};
+use crate::{
+    designer_node_type::DesignerNodeType, granular_change_store::GranularManifestChangeStore, model,
+};
 use convert_case::{Case, Casing};
 use pax_std::*;
 
@@ -78,10 +80,15 @@ impl ClassSettingsEditor {
     }
 
     fn bind_all_available_properties(&mut self, ctx: &NodeContext) {
-        let dt = borrow!(ctx.designtime);
-        let orm = dt.get_orm();
         let class_props = self.class_properties.clone();
-        let deps = [orm.get_manifest_version().untyped()];
+        let manifest_changed_notifier = ctx
+            .peek_local_store(
+                |change_notification_store: &mut GranularManifestChangeStore| {
+                    change_notification_store.get_manifest_any_change_notifier()
+                },
+            )
+            .expect("should be inserted at designer root");
+        let deps = [manifest_changed_notifier];
         let ctx = ctx.clone();
         self.all_available_properties
             .replace_with(Property::computed(
@@ -126,8 +133,18 @@ impl ClassSettingsEditor {
         stid: Property<TypeId>,
         class_name: Property<String>,
     ) -> Property<Vec<PropertyArea>> {
-        let manifest_ver = borrow!(ctx.designtime).get_last_written_manifest_version();
-        let deps = [stid.untyped(), class_name.untyped(), manifest_ver.untyped()];
+        let manifest_changed_notifier = ctx
+            .peek_local_store(
+                |change_notification_store: &mut GranularManifestChangeStore| {
+                    change_notification_store.get_manifest_any_change_notifier()
+                },
+            )
+            .expect("should be inserted at designer root");
+        let deps = [
+            stid.untyped(),
+            class_name.untyped(),
+            manifest_changed_notifier,
+        ];
         Property::computed(
             move || {
                 let dt = borrow_mut!(ctx.designtime);

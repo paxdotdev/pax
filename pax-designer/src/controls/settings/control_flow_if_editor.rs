@@ -4,6 +4,7 @@ use pax_engine::pax_manifest::{TemplateNodeId, TypeId, UniqueTemplateNodeIdentif
 use pax_engine::*;
 use pax_std::*;
 
+use crate::granular_change_store::GranularManifestChangeStore;
 use crate::model;
 
 #[pax]
@@ -18,9 +19,14 @@ pub struct ControlFlowIfEditor {
 impl ControlFlowIfEditor {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         // TODO hook up if_source to reactively be read on manifest change
-        let dt = borrow!(ctx.designtime);
-        let manifest_ver = dt.get_last_rendered_manifest_version();
-        let deps = [manifest_ver.untyped()];
+        let manifest_changed_notifier = ctx
+            .peek_local_store(
+                |change_notification_store: &mut GranularManifestChangeStore| {
+                    change_notification_store.get_manifest_any_change_notifier()
+                },
+            )
+            .expect("should be inserted at designer root");
+        let deps = [manifest_changed_notifier];
         let ctx = ctx.clone();
         let stid = self.stid.clone();
         let snid = self.snid.clone();
