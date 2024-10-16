@@ -7,6 +7,7 @@ use pax_std::*;
 
 use crate::glass::control_point::ControlPointTool;
 use crate::glass::ToolVisualizationState;
+use crate::granular_change_store::GranularManifestChangeStore;
 use crate::math::intent_snapper::{IntentSnapper, SnapSet};
 use crate::model::input::ModifierKey;
 use crate::{
@@ -158,10 +159,15 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
     };
     let to_glass_transform =
         model::read_app_state_with_derived(|_, derived| derived.to_glass_transform.get());
-    let dt = borrow!(ctx.designtime);
-    let manifest_ver = dt.get_last_written_manifest_version();
+    let manifest_changed_notifier = ctx
+        .peek_local_store(
+            |change_notification_store: &mut GranularManifestChangeStore| {
+                change_notification_store.get_manifest_any_change_notifier()
+            },
+        )
+        .expect("should be inserted at designer root");
     let object_transform = item.transform_and_bounds.clone();
-    let deps = [object_transform.untyped(), manifest_ver.untyped()];
+    let deps = [object_transform.untyped(), manifest_changed_notifier];
     let item_id = item.id;
     let ctx = ctx.clone();
     Property::computed(

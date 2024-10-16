@@ -1,6 +1,7 @@
 use crate::glass;
 use crate::glass::control_point::ControlPointBehavior;
 use crate::glass::ToolVisualizationState;
+use crate::granular_change_store::GranularManifestChangeStore;
 use crate::math::coordinate_spaces::SelectionSpace;
 use crate::math::coordinate_spaces::World;
 use crate::math::SizeUnit;
@@ -134,13 +135,21 @@ impl Model {
     ) -> Property<Vec<(UniqueTemplateNodeIdentifier, NodeInterface)>> {
         let comp_id = app_state.selected_component_id.clone();
         let node_ids = app_state.selected_template_node_ids.clone();
-        let manifest_ver = borrow!(ctx.designtime).get_last_rendered_manifest_version();
+        let manifest_changed_notifier = ctx
+            .peek_local_store(
+                |change_notification_store: &mut GranularManifestChangeStore| {
+                    change_notification_store.get_manifest_any_change_notifier()
+                },
+            )
+            .expect("should be inserted at designer root");
         let ctx_cp = ctx.clone();
 
         let deps = [
             comp_id.untyped(),
             node_ids.untyped(),
-            manifest_ver.untyped(),
+            // Needs to listen to manifest changes to re-get the correct engine
+            // nodes after a reload
+            manifest_changed_notifier,
         ];
 
         Property::computed(

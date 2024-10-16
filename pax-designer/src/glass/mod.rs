@@ -14,6 +14,7 @@ use serde::Deserialize;
 use crate::controls::file_and_component_picker::SetLibraryState;
 use crate::controls::settings::color_picker::close_color_pickers;
 use crate::designer_node_type::DesignerNodeType;
+use crate::granular_change_store::GranularManifestChangeStore;
 use crate::model::action::orm::CreateComponent;
 use crate::model::action::tool::SetToolBehaviour;
 use crate::model::action::world::Translate;
@@ -46,75 +47,59 @@ use wireframe_editor::WireframeEditor;
 #[file("glass/mod.pax")]
 pub struct Glass {
     pub tool_visual: Property<ToolVisualizationState>,
-    pub on_tool_change: Property<bool>,
-    // used to make scroller containers open if manifest version changed
-    pub scroller_manifest_version_listener: Property<bool>,
-    // TODO this needs to track real time, not frame count, eventually
     pub time_last_click: Property<u64>,
 }
 
 impl Glass {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let tool_behavior = model::read_app_state(|app_state| app_state.tool_behavior.clone());
-        let deps = [tool_behavior.untyped()];
         let tool_visual = self.tool_visual.clone();
-        self.on_tool_change.replace_with(Property::computed(
-            move || {
-                tool_visual.replace_with(if let Some(tool_behavior) = tool_behavior.get() {
-                    tool_behavior.borrow().get_visual()
-                } else {
-                    Property::default()
-                });
-                true
-            },
-            &deps,
-        ));
+        ctx.subscribe(&[tool_behavior.untyped()], move || {
+            tool_visual.replace_with(if let Some(tool_behavior) = tool_behavior.get() {
+                tool_behavior.borrow().get_visual()
+            } else {
+                Property::default()
+            });
+        });
 
-        let dt = borrow!(ctx.designtime);
-        let manifest_ver = dt.get_last_rendered_manifest_version();
+        let manifest_changed_notifier = ctx
+            .peek_local_store(
+                |change_notification_store: &mut GranularManifestChangeStore| {
+                    change_notification_store.get_manifest_any_change_notifier()
+                },
+            )
+            .expect("should be inserted at designer root");
         let open_container =
             model::read_app_state_with_derived(|_, derived| derived.open_containers.clone());
-        let deps = [manifest_ver.untyped(), open_container.untyped()];
         // make scroller not clip if a child is selected
         // for now only scroller needs somewhat special behavior
         // might want to create more general double click framework at some point
-        let ctx = ctx.clone();
-        self.scroller_manifest_version_listener
-            .replace_with(Property::computed(
-                move || {
-                    let open = open_container.get();
+        let ctxp = ctx.clone();
+        ctx.subscribe(
+            &[manifest_changed_notifier, open_container.untyped()],
+            move || {
+                let open = open_container.get();
 
-                    for node in open {
-                        if let Some(node_interface) =
-                            ctx.get_nodes_by_global_id(node.clone()).into_iter().next()
-                        {
-                            let open_container = open_container.clone();
-                            let deps = [open_container.untyped()];
-                            // if this is a scroller, make it open if it's id is in the currently open container set
-                            let _ = node_interface.with_properties(|scroller: &mut Scroller| {
-                                scroller._clip_content.replace_with(Property::computed(
-                                    move || !open_container.get().contains(&node),
-                                    &deps,
-                                ));
-                            });
-                        }
+                for node in open {
+                    if let Some(node_interface) =
+                        ctxp.get_nodes_by_global_id(node.clone()).into_iter().next()
+                    {
+                        let open_container = open_container.clone();
+                        let deps = [open_container.untyped()];
+                        // if this is a scroller, make it open if it's id is in the currently open container set
+                        let _ = node_interface.with_properties(|scroller: &mut Scroller| {
+                            scroller._clip_content.replace_with(Property::computed(
+                                move || !open_container.get().contains(&node),
+                                &deps,
+                            ));
+                        });
                     }
-                    false
-                },
-                &deps,
-            ));
+                }
+            },
+        )
     }
 
-    pub fn on_pre_render(&mut self, ctx: &NodeContext) {
-        // update if dirty
-        self.on_tool_change.get();
-
-        // WARNING: this needs to be delayed a few frames,
-        // if not the open container get's called before the userland root exists
-        if ctx.frames_elapsed.get() > 2 {
-            self.scroller_manifest_version_listener.get();
-        };
-    }
+    pub fn on_pre_render(&mut self, _ctx: &NodeContext) {}
 
     pub fn context_menu(&mut self, _ctx: &NodeContext, args: Event<ContextMenu>) {
         args.prevent_default();
@@ -269,9 +254,9 @@ impl Glass {
                     }),
                     designer_node_type: DesignerNodeType::Image,
                     builder_extra_commands: Some(&|builder| {
-                        builder.set_property(
+                        builder.set_property_from_typed(
                             "source",
-                            &format!("ImageSource::Url(\"assets/{}\")", event.args.name),
+                            Some(ImageSource::Url(format!("assets/{}", event.args.name))),
                         )
                     }),
                 }

@@ -8,6 +8,7 @@ use pax_std::*;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::fmt::Write;
+use std::ops::DerefMut;
 use std::rc::Rc;
 
 pub mod border_radius_property_editor;
@@ -41,7 +42,7 @@ pub struct PropertyArea {
 }
 
 use crate::controls::settings::color_picker::COLOR_PICKER_TRANSACTION;
-use crate::granular_manifest_change_notification_store::GranularManifestChangeNotificationStore;
+use crate::granular_change_store::GranularManifestChangeStore;
 use crate::model;
 use crate::model::action::Transaction;
 /// Used by containers of property editors (added to local store)
@@ -80,40 +81,71 @@ impl PropertyEditor {
         let ind = self.ind.clone();
         let write_target = self.write_target.clone();
         let name = self.name.clone();
-        // WARNING: property editor does NOT listen to reactive changes to name,
-        // if name changes, memory is leaked in the GranularManifestChangeNotifiationStore
-        // (by not being removed on dissmount)
-        let property_changed_notifier = ctx
-            .peek_local_store(
-                |granular_update_store: &mut GranularManifestChangeNotificationStore| {
-                    let notifier =
-                        granular_update_store.register_property_with_name_notifier(&name.get());
-                    notifier
-                },
-            )
-            .expect("should be inserted at designer root");
-        let deps = [
-            ind.untyped(),
-            property_changed_notifier,
-            write_target.untyped(),
-        ];
-        self.data.replace_with(Property::computed(
-            move || PropertyEditorData {
-                editor_index: ind.get(),
-                write_target: write_target.get(),
-                name: name.get(),
-            },
-            &deps,
-        ));
-
         let data = self.data.clone();
-        let ctxs = ctx.clone();
+        let prop_type_ident_id = self.prop_type_ident_id.clone();
+        let is_literal = self.is_literal.clone();
+        let fx_text_color = self.fx_text_color.clone();
+        let fx_background_color = self.fx_background_color.clone();
+        let ctxp = ctx.clone();
+
+        // re-connect this property editors properties whenever the name
+        // changes, to look up a new value to listen to in the granular manifest
+        // change store. for this we need to keep track of the value we most recently looked up,
+        // to allow for removal in the register on dissmount.
+        let last_registered_name: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
+
+        ctx.subscribe(&[name.untyped()], move || {
+            let property_changed_notifier = ctxp
+                .peek_local_store(|granular_update_store: &mut GranularManifestChangeStore| {
+                    if let Some(last_name) = &mut *last_registered_name.borrow_mut() {
+                        granular_update_store.remove_property_notifier(last_name);
+                        *last_name = name.get();
+                    }
+                    let notifier = granular_update_store.register_property_notifier(&name.get());
+                    notifier
+                })
+                .expect("should be inserted at designer root");
+            let deps = [
+                ind.untyped(),
+                property_changed_notifier,
+                write_target.untyped(),
+            ];
+            let ind = ind.clone();
+            let write_target = write_target.clone();
+            let name = name.clone();
+            data.replace_with(Property::computed(
+                move || PropertyEditorData {
+                    editor_index: ind.get(),
+                    write_target: write_target.get(),
+                    name: name.get(),
+                },
+                &deps,
+            ));
+
+            Self::bind_prop_type_ident_id(&prop_type_ident_id, &data, &ctxp);
+            Self::bind_is_literal(&is_literal, &data, &ctxp);
+            Self::bind_fx_text_color(&fx_text_color, &is_literal);
+            Self::bind_fx_background_color(&fx_background_color, &is_literal);
+        });
+    }
+
+    pub fn on_unmount(&mut self, ctx: &NodeContext) {
+        //TODO remove entry from granular listener
+    }
+
+    pub fn bind_prop_type_ident_id(
+        prop_type_ident_id: &Property<usize>,
+        data: &Property<PropertyEditorData>,
+        ctx: &NodeContext,
+    ) {
+        let data = data.clone();
         let deps = [data.untyped()];
-        self.prop_type_ident_id.replace_with(Property::computed(
+        let ctx = ctx.clone();
+        prop_type_ident_id.replace_with(Property::computed(
             move || {
                 let data = data.get();
                 let prop_type_ident = data
-                    .get_prop_type_id(&ctxs)
+                    .get_prop_type_id(&ctx)
                     .unwrap_or_default()
                     .get_unique_identifier();
 
@@ -134,28 +166,44 @@ impl PropertyEditor {
             },
             &deps,
         ));
+    }
 
-        let data = self.data.clone();
+    pub fn bind_is_literal(
+        is_literal: &Property<bool>,
+        data: &Property<PropertyEditorData>,
+        ctx: &NodeContext,
+    ) {
+        let data = data.clone();
         let ctx = ctx.clone();
-        self.is_literal.replace_with(Property::computed(
+        let deps = [data.untyped()];
+        is_literal.replace_with(Property::computed(
             move || {
                 let val = data.get().get_value(&ctx);
                 !matches!(val, Some(ValueDefinition::Expression(_)))
             },
             &deps,
         ));
+    }
 
-        let is_literal = self.is_literal.clone();
+    pub fn bind_fx_text_color(fx_text_color: &Property<Color>, is_literal: &Property<bool>) {
+        let is_literal = is_literal.clone();
         let deps = [is_literal.untyped()];
-        self.fx_text_color.replace_with(Property::computed(
+        fx_text_color.replace_with(Property::computed(
             move || match is_literal.get() {
                 true => Color::WHITE,
                 false => Color::rgb(207.into(), 31.into(), 201.into()),
             },
             &deps,
         ));
-        let is_literal = self.is_literal.clone();
-        self.fx_background_color.replace_with(Property::computed(
+    }
+
+    pub fn bind_fx_background_color(
+        fx_background_color: &Property<Color>,
+        is_literal: &Property<bool>,
+    ) {
+        let is_literal = is_literal.clone();
+        let deps = [is_literal.untyped()];
+        fx_background_color.replace_with(Property::computed(
             move || match is_literal.get() {
                 true => Color::rgb(50.into(), 50.into(), 50.into()),
                 false => Color::TEAL,

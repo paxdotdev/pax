@@ -289,8 +289,8 @@ impl Command<UpdateTemplateNodeRequest> for UpdateTemplateNodeRequest {
                 ReloadType::Node(self.uni.clone(), {
                     let mut updated: Vec<_> = self
                         .updated_properties
-                        .iter()
-                        .map(|(t, _)| t.token_value.clone())
+                        .keys()
+                        .map(|t| t.token_value.clone())
                         .collect();
                     updated.sort_unstable();
                     updated
