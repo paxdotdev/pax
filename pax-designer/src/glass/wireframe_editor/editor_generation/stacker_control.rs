@@ -33,7 +33,8 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
 
     impl ControlPointBehavior for StackerDividerControlBehavior {
         fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) -> anyhow::Result<()> {
-            let t = self.stacker_node.transform_and_bounds.as_transform();
+            let t = ctx.world_transform() * self.stacker_node.transform_and_bounds.as_transform();
+            let point = ctx.world_transform() * point;
             let (_, u, v) = t.decompose();
             let (x_l, y_l) = (u.length(), v.length());
             let box_point = t.inverse() * point;
