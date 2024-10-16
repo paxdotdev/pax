@@ -140,7 +140,17 @@ impl RuntimeContext {
     }
 
     pub fn add_canvas(&self, id: usize) {
-        borrow_mut!(self.dirty_canvases).insert(id, true);
+        let mut dirty_canvases = borrow_mut!(self.dirty_canvases);
+        while dirty_canvases.len() <= id {
+            dirty_canvases.push(true);
+        }
+    }
+
+    pub fn remove_canvas(&self, id: usize) {
+        let mut dirty_canvases = borrow_mut!(self.dirty_canvases);
+        while dirty_canvases.len() >= id {
+            dirty_canvases.pop();
+        }
     }
 
     pub fn get_dirty_canvases(&self) -> Vec<usize> {
@@ -160,7 +170,9 @@ impl RuntimeContext {
 
     pub fn set_canvas_dirty(&self, id: usize) {
         let mut dirty_canvases = borrow_mut!(self.dirty_canvases);
-        dirty_canvases.insert(id, true);
+        if let Some(v) = dirty_canvases.get_mut(id) {
+            *v = true;
+        }
     }
 
     pub fn is_canvas_dirty(&self, id: &usize) -> bool {
