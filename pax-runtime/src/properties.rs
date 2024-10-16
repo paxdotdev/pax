@@ -141,14 +141,14 @@ impl RuntimeContext {
 
     pub fn add_canvas(&self, id: usize) {
         let mut dirty_canvases = borrow_mut!(self.dirty_canvases);
-        while dirty_canvases.len() <= id {
+        while dirty_canvases.len() <= id + 1 {
             dirty_canvases.push(true);
         }
     }
 
     pub fn remove_canvas(&self, id: usize) {
         let mut dirty_canvases = borrow_mut!(self.dirty_canvases);
-        while dirty_canvases.len() >= id {
+        while dirty_canvases.len() > id {
             dirty_canvases.pop();
         }
     }
