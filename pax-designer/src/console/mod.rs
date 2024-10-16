@@ -14,6 +14,7 @@ use crate::model;
 #[pax]
 #[engine_import_path("pax_engine")]
 #[file("console/mod.pax")]
+#[has_helpers]
 pub struct Console {
     pub messages: Property<Vec<Message>>,
     pub textbox: Property<String>,
@@ -35,6 +36,13 @@ pub struct Message {
 pub struct EnqueuedScrollSet {
     pub frame: u64,
     pub scroll_y: f64,
+}
+
+#[helpers]
+impl Console {
+    fn len(vec: Vec<Message>) -> usize {
+        vec.len()
+    }
 }
 
 impl Console {
