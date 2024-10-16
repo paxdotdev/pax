@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 use anyhow::anyhow;
-use granular_manifest_change_notification_store::GranularManifestChangeNotificationStore;
+use granular_change_store::GranularManifestChangeStore;
 use std::{collections::HashSet, rc::Rc, sync::Mutex};
 
 use model::{
@@ -27,7 +27,7 @@ pub mod message_log_display;
 pub mod project_mode_toggle;
 pub mod project_publish_button;
 
-pub mod granular_manifest_change_notification_store;
+pub mod granular_change_store;
 pub mod math;
 pub mod model;
 pub mod utils;
@@ -72,11 +72,12 @@ pub struct PaxDesigner {
 impl PaxDesigner {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         self.show_publish_button.set(PAX_PUBLISH_BUTTON_ENABLED);
-        model::Model::init(ctx);
+        // needs to happen before model init
         self.setup_granular_notification_store(ctx);
+        model::Model::init(ctx);
         model::read_app_state(|app_state| {
             self.bind_stage_property(&app_state);
-            self.bind_transform2d_property(&app_state);
+            self.bind_glass_to_world_transform_property(&app_state);
             self.bind_is_in_play_mode(&app_state);
             self.bind_stage_outline_width_property(&app_state);
         });
@@ -111,7 +112,7 @@ impl PaxDesigner {
         );
     }
 
-    fn bind_transform2d_property(&mut self, app_state: &model::AppState) {
+    fn bind_glass_to_world_transform_property(&mut self, app_state: &model::AppState) {
         let glass_to_world = app_state.glass_to_world_transform.clone();
         let deps = [glass_to_world.untyped()];
         self.glass_to_world_transform
@@ -153,7 +154,7 @@ impl PaxDesigner {
     }
 
     fn setup_granular_notification_store(&self, ctx: &NodeContext) {
-        let granular_update_store = GranularManifestChangeNotificationStore::default();
+        let granular_update_store = GranularManifestChangeStore::default();
         ctx.push_local_store(granular_update_store.clone());
         let manifest_ver = borrow!(ctx.designtime).get_last_rendered_manifest_version();
         let ctxp = ctx.clone();

@@ -5,6 +5,7 @@ use pax_engine::pax_manifest::{TemplateNodeId, TypeId, UniqueTemplateNodeIdentif
 use pax_engine::*;
 use pax_std::*;
 
+use crate::granular_change_store::GranularManifestChangeStore;
 use crate::model;
 use crate::model::action::{Action, ActionContext};
 
@@ -28,8 +29,14 @@ impl ClassSelector {
 
     fn bind_available_classes(&self, ctx: &NodeContext) {
         let stid = self.stid.clone();
-        let manifest_ver = borrow!(ctx.designtime).get_last_written_manifest_version();
-        let deps = [stid.untyped(), manifest_ver.untyped()];
+        let tree_changed_notifier = ctx
+            .peek_local_store(
+                |change_notification_store: &mut GranularManifestChangeStore| {
+                    change_notification_store.get_tree_changed_notifier()
+                },
+            )
+            .expect("should be inserted at designer root");
+        let deps = [stid.untyped(), tree_changed_notifier];
         let ctx = ctx.clone();
         self.available_classes.replace_with(Property::computed(
             move || {
@@ -48,8 +55,14 @@ impl ClassSelector {
     fn bind_current_classes(&self, ctx: &NodeContext) {
         let stid = self.stid.clone();
         let snid = self.snid.clone();
-        let manifest_ver = borrow!(ctx.designtime).get_last_written_manifest_version();
-        let deps = [stid.untyped(), manifest_ver.untyped(), snid.untyped()];
+        let manifest_changed_notifier = ctx
+            .peek_local_store(
+                |change_notification_store: &mut GranularManifestChangeStore| {
+                    change_notification_store.get_manifest_any_change_notifier()
+                },
+            )
+            .expect("should be inserted at designer root");
+        let deps = [stid.untyped(), manifest_changed_notifier, snid.untyped()];
         let ctx = ctx.clone();
         self.current_classes.replace_with(Property::computed(
             move || {

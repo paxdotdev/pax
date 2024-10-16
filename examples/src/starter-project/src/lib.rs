@@ -25,7 +25,7 @@ impl Example {
 
     pub fn increment(&mut self, ctx: &NodeContext, _args: Event<Click>) {
         pax_designer::model::perform_action(
-            &pax_designer::ProjectMsg(pax_designer::model::ProjectMode::Edit),
+            &pax_designer::ProjectMsg(pax_designer::model::app_state::ProjectMode::Edit),
             ctx,
         );
         let old_num_clicks = self.num_clicks.get();

@@ -25,7 +25,7 @@ use treeobj::TreeObj;
 use crate::context_menu::ContextMenuMsg;
 use crate::designer_node_type::DesignerNodeType;
 use crate::glass::SetEditingComponent;
-use crate::granular_manifest_change_notification_store::GranularManifestChangeNotificationStore;
+use crate::granular_change_store::GranularManifestChangeStore;
 use crate::math::coordinate_spaces::Glass;
 use crate::math::IntoDecompositionConfiguration;
 use crate::model::action::orm::{tree_movement::MoveNode, NodeLayoutSettings};
@@ -123,7 +123,7 @@ impl Tree {
             let ctxp = ctx.clone();
             let tree_changed_notification = ctx
                 .peek_local_store(
-                    |change_notification_store: &mut GranularManifestChangeNotificationStore| {
+                    |change_notification_store: &mut GranularManifestChangeStore| {
                         change_notification_store.get_tree_changed_notifier()
                     },
                 )
