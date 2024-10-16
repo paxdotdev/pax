@@ -72,7 +72,7 @@ pub struct PaxDesigner {
 }
 
 
-const OPEN_CONSOLE_HEIGHT : f64 = 400.0;
+const OPEN_CONSOLE_HEIGHT : f64 = 425.0;
 const CLOSED_CONSOLE_HEIGHT : f64 = 55.0;
 const CONSOLE_TRANSITION_DURATION : u64 = 40;
 
