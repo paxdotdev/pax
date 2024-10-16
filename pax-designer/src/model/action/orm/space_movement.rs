@@ -8,7 +8,7 @@ use pax_std::Size;
 use crate::{
     math::{
         coordinate_spaces::{Glass, SelectionSpace},
-        BoxPoint, DecompositionConfiguration, GetUnit, IntoDecompositionConfiguration, SizeUnit,
+        DecompositionConfiguration, GetUnit, IntoDecompositionConfiguration, SizeUnit,
     },
     model::{
         action::{Action, ActionContext},
@@ -57,7 +57,7 @@ impl Action for SetAnchor<'_> {
 }
 
 pub struct ResizeFromSnapshot<'a> {
-    pub fixed_point: Point2<BoxPoint>,
+    pub fixed_point: Point2<NodeLocal>,
     pub new_point: Point2<Glass>,
     pub initial_selection: &'a SelectionStateSnapshot,
 }

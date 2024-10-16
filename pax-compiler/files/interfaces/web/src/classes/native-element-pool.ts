@@ -1125,8 +1125,7 @@ export class NativeElementPool {
     }
 
     setCursor(patch: SetCursorPatch) {
-        console.log("set cursor!", patch.cursor);
-        document.body.style.cursor = patch.cursor;
+        document.body.style.cursor = patch.cursor!;
     }
 }
 
