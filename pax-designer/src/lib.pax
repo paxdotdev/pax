@@ -23,10 +23,10 @@ if !self.is_in_play_mode {
             <Group transform={self.glass_to_world_transform}>
                 // Stage has a fixed size, regardless of window size
                 <Group width={(self.stage.stage_width)px} height={(self.stage.stage_height)px} id=stage>
-                    <Rectangle height={self.stage_outline_width} y=0% anchor_y=100% fill=rgba(255,255,255,50%) width={100% + (self.stage_outline_width)px}/>
-                    <Rectangle height={self.stage_outline_width} y=100% anchor_y=0% x={-self.stage_outline_width} fill=rgba(255,255,255,50%) width={100% + (self.stage_outline_width)px}/>
-                    <Rectangle width={self.stage_outline_width} x=0% anchor_x=100% y={-self.stage_outline_width} fill=rgba(255,255,255,50%) height={100% + (self.stage_outline_width)px}/>
-                    <Rectangle width={self.stage_outline_width} x=100% anchor_x=0% fill=rgba(255,255,255,50%) height={100% + (self.stage_outline_width)px}/>
+                    //<Rectangle height={self.stage_outline_width} y=0% anchor_y=100% fill=rgba(255,255,255,50%) width={100% + (self.stage_outline_width)px}/>
+                    //<Rectangle height={self.stage_outline_width} y=100% anchor_y=0% x={-self.stage_outline_width} fill=rgba(255,255,255,50%) width={100% + (self.stage_outline_width)px}/>
+                    //<Rectangle width={self.stage_outline_width} x=0% anchor_x=100% y={-self.stage_outline_width} fill=rgba(255,255,255,50%) height={100% + (self.stage_outline_width)px}/>
+                    //<Rectangle width={self.stage_outline_width} x=100% anchor_x=0% fill=rgba(255,255,255,50%) height={100% + (self.stage_outline_width)px}/>
                     <Group id=project_container _suspended=true>
                         <InlineFrame />
                     </Group>
@@ -92,7 +92,7 @@ if 0 == 1 {
                 FontStyle::Normal,
                 FontWeight::ExtraLight,
             )},
-            font_size: 16px,
+            font_size: 18px,
             align_horizontal: TextAlignHorizontal::Left,
             align_vertical:TextAlignVertical::Center
         }
