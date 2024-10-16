@@ -46,7 +46,9 @@ if !self.is_in_play_mode {
             </Stacker>
             <Rectangle fill=BLACK />
         </Group>
-        <Console y=100% />
+        if !self.cull_console {
+            <Console y=100% />
+        }
     </Group>
 
 

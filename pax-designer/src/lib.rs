@@ -69,6 +69,7 @@ pub struct PaxDesigner {
     pub show_publish_button: Property<bool>,
     pub console_height: Property<f64>,
     pub console_status: Property<bool>,
+    pub cull_console: Property<bool>,
 }
 
 
@@ -111,6 +112,11 @@ impl PaxDesigner {
         // hasn't been written to engine yet - this is the place they get
         // flushed
         model::action::meta::flush_sheduled_actions(ctx);
+
+
+        let should_cull_console =self.console_height.get() >= CLOSED_CONSOLE_HEIGHT - f64::EPSILON && self.console_height.get() <= CLOSED_CONSOLE_HEIGHT + f64::EPSILON;
+        self.cull_console.set(should_cull_console);
+
     }
 
     fn bind_stage_property(&mut self, app_state: &model::AppState) {
