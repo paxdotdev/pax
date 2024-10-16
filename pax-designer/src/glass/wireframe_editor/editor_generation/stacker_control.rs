@@ -2,10 +2,11 @@ use std::{cell::RefCell, rc::Rc};
 
 use anyhow::anyhow;
 use pax_engine::api::{borrow, borrow_mut, Color, Size};
+use pax_engine::math::Vector2;
 use pax_engine::{api::NodeContext, log, math::Point2, Property};
 use pax_std::*;
 
-use crate::glass::control_point::ControlPointTool;
+use crate::glass::control_point::{ControlPointCursorType, ControlPointTool};
 use crate::glass::ToolVisualizationState;
 use crate::granular_change_store::GranularManifestChangeStore;
 use crate::math::intent_snapper::{IntentSnapper, SnapSet};
@@ -157,6 +158,7 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
         stroke_width_pixels: 1.0,
         width: -1.0,
         height: -1.0,
+        pointer_type: ControlPointCursorType::ResizeAxis,
     };
     let to_glass_transform =
         model::read_app_state_with_derived(|_, derived| derived.to_glass_transform.get());
@@ -216,6 +218,7 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
                             item.clone(),
                             dir.clone(),
                         ),
+                        0.0,
                     )
                 })
                 .collect();

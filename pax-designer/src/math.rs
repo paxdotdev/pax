@@ -94,12 +94,6 @@ pub mod coordinate_spaces {
     impl math::Space for SelectionSpace {}
 }
 
-// min (-1.0, -1.0) for top left
-// max (1.0, 1.0) for bottom right
-pub struct BoxPoint;
-
-impl Space for BoxPoint {}
-
 impl Interpolatable for AxisAlignedBox {}
 
 pub struct AxisAlignedBox<W = Glass> {
@@ -210,7 +204,7 @@ impl<W: Space> AxisAlignedBox<W> {
         }
     }
 
-    pub fn from_inner_space(&self, point: Point2<BoxPoint>) -> Point2<W> {
+    pub fn from_inner_space(&self, point: Point2<NodeLocal>) -> Point2<W> {
         let point = point.to_vector();
         debug_assert!(point.x >= -1.0 && point.x <= 1.0);
         debug_assert!(point.y >= -1.0 && point.y <= 1.0);
@@ -220,7 +214,7 @@ impl<W: Space> AxisAlignedBox<W> {
         Point2::new(x_pos, y_pos)
     }
 
-    pub fn to_inner_space(&self, origin: Point2<W>) -> Point2<BoxPoint> {
+    pub fn to_inner_space(&self, origin: Point2<W>) -> Point2<NodeLocal> {
         let p = self.min;
         let v = self.max - self.min;
         // p + t*v = origin =>

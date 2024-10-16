@@ -9,9 +9,10 @@ use crate::math::intent_snapper::{self, IntentSnapper, SnapSet};
 use crate::model::action::tool::SetToolBehaviour;
 use crate::model::tools::ToolBehavior;
 use anyhow::Result;
+use pax_engine::api::cursor::CursorStyle;
 use pax_engine::api::Fill;
 use pax_engine::api::*;
-use pax_engine::math::{Point2, Transform2};
+use pax_engine::math::{Point2, Transform2, Vector2};
 use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_engine::*;
 use pax_std::*;
@@ -191,12 +192,24 @@ impl ControlPoint {
             }
         })
     }
+
+    pub fn mouse_over(&mut self, ctx: &NodeContext, _event: Event<MouseOver>) {
+        ctx.set_cursor(self.data.read(|data| {
+            data.styling
+                .pointer_type
+                .to_cursor_style(data.node_local_rotation_degrees) //todo also use rotation
+        }));
+    }
+    pub fn mouse_out(&mut self, ctx: &NodeContext, _event: Event<MouseOut>) {
+        ctx.set_cursor(CursorStyle::Auto);
+    }
 }
 
 #[pax]
 #[engine_import_path("pax_engine")]
 pub struct ControlPointDef {
     pub point: GlassPoint,
+    pub node_local_rotation_degrees: f64,
     pub styling: ControlPointStyling,
 }
 
@@ -210,4 +223,48 @@ pub struct ControlPointStyling {
     pub stroke_width_pixels: f64,
     pub width: f64,
     pub height: f64,
+    pub pointer_type: ControlPointCursorType,
+}
+
+#[pax]
+#[engine_import_path("pax_engine")]
+pub enum ControlPointCursorType {
+    Rotation,
+    ResizeAxis,
+    ResizeDir,
+    Move,
+    #[default]
+    None,
+}
+
+impl ControlPointCursorType {
+    fn to_cursor_style(&self, rotation: f64) -> CursorStyle {
+        match self {
+            ControlPointCursorType::Rotation => CursorStyle::Alias,
+            ControlPointCursorType::ResizeDir => match rotation.rem_euclid(360.0) {
+                337.5..=360.0 | 0.0..=22.5 => CursorStyle::EResize,
+                22.5..=67.5 => CursorStyle::NeResize,
+                67.5..=112.5 => CursorStyle::NResize,
+                112.5..=157.5 => CursorStyle::NwResize,
+                157.5..=202.5 => CursorStyle::WResize,
+                202.5..=247.5 => CursorStyle::SwResize,
+                247.5..=292.5 => CursorStyle::SResize,
+                292.5..=337.5 => CursorStyle::SeResize,
+                _ => unreachable!("outside rem_euclid range"),
+            },
+            ControlPointCursorType::ResizeAxis => match rotation.rem_euclid(360.0) {
+                337.5..=360.0 | 0.0..=22.5 => CursorStyle::EwResize,
+                22.5..=67.5 => CursorStyle::NeswResize,
+                67.5..=112.5 => CursorStyle::NsResize,
+                112.5..=157.5 => CursorStyle::NwseResize,
+                157.5..=202.5 => CursorStyle::EwResize,
+                202.5..=247.5 => CursorStyle::NeswResize,
+                247.5..=292.5 => CursorStyle::NsResize,
+                292.5..=337.5 => CursorStyle::NwseResize,
+                _ => unreachable!("outside rem_euclid range"),
+            },
+            ControlPointCursorType::Move => CursorStyle::Cell,
+            ControlPointCursorType::None => CursorStyle::Auto,
+        }
+    }
 }

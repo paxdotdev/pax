@@ -130,7 +130,7 @@ impl ToolBehavior for MovingTool {
                 // (want to move these instead of old)
                 if let Ok(ids) = ids {
                     let comp_id = ctx.app_state.selected_component_id.get();
-                    for (i, id) in ids.into_iter().enumerate() {
+                    for (i, id) in ids.into_iter().rev().enumerate() {
                         self.initial_selection.items[i].id =
                             UniqueTemplateNodeIdentifier::build(comp_id.clone(), id);
                     }
