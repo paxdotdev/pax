@@ -67,10 +67,19 @@ pub struct PaxDesigner {
     pub is_in_play_mode: Property<bool>,
     pub manifest_loaded_from_server: Property<bool>,
     pub show_publish_button: Property<bool>,
+    pub console_height: Property<f64>,
+    pub console_status: Property<bool>,
 }
+
+
+const OPEN_CONSOLE_HEIGHT : f64 = 400.0;
+const CLOSED_CONSOLE_HEIGHT : f64 = 55.0;
+const CONSOLE_TRANSITION_DURATION : u64 = 40;
 
 impl PaxDesigner {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
+        self.console_status.set(false);
+        self.console_height.set(CLOSED_CONSOLE_HEIGHT);
         self.show_publish_button.set(PAX_PUBLISH_BUTTON_ENABLED);
         // needs to happen before model init
         self.setup_granular_notification_store(ctx);
@@ -82,6 +91,19 @@ impl PaxDesigner {
             self.bind_stage_outline_width_property(&app_state);
         });
         self.bind_is_manifest_loaded_from_server(ctx);
+    }
+
+
+    pub fn toggle_console(&mut self, ctx: &NodeContext, args: Event<Click>) {
+        let current_console_status = self.console_status.get();
+        let new_console_status = !current_console_status;
+        self.console_status.set(new_console_status);
+
+        if new_console_status {
+            self.console_height.ease_to(OPEN_CONSOLE_HEIGHT, CONSOLE_TRANSITION_DURATION, EasingCurve::OutQuad);
+        } else {
+            self.console_height.ease_to(CLOSED_CONSOLE_HEIGHT, CONSOLE_TRANSITION_DURATION, EasingCurve::OutQuad);
+        }
     }
 
     pub fn tick(&mut self, ctx: &NodeContext) {
