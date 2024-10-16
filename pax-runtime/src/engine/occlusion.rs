@@ -46,7 +46,7 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
     let mut occlusion_stack = vec![];
     let mut z_index = 0;
     update_node_occlusion_recursive(root_node, &mut occlusion_stack, ctx, false, &mut z_index);
-    let max_layer = occlusion_stack.len();
+    let max_layer = occlusion_stack.len() - 1;
     if ctx.layer_count.get() != max_layer {
         ctx.layer_count.set(max_layer);
         ctx.enqueue_native_message(pax_message::NativeMessage::ShrinkLayersTo(max_layer as u32));
