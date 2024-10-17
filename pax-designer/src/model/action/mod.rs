@@ -108,10 +108,6 @@ impl<'a> ActionContext<'a> {
         self.derived_state.to_glass_transform.get()
     }
 
-    pub fn selected_nodes(&self) -> Vec<(UniqueTemplateNodeIdentifier, NodeInterface)> {
-        self.derived_state.selected_nodes.get()
-    }
-
     pub fn raycast_glass(
         &self,
         point: Point2<Glass>,
@@ -124,16 +120,26 @@ impl<'a> ActionContext<'a> {
         let userland = self.engine_context.get_userland_root_expanded_node()?;
         let userland_id = userland.global_id();
 
-        let mut potential_targets = all_elements_beneath_ray
+        let potential_targets: Vec<_> = all_elements_beneath_ray
             .into_iter()
             .filter(|elem| !skip.iter().any(|v| elem == v || elem.is_descendant_of(v)))
-            .filter(|elem| elem.is_descendant_of(&userland));
+            .filter(|elem| elem.is_descendant_of(&userland))
+            .collect();
 
         if let RaycastMode::RawNth(index) = mode {
-            return potential_targets.nth(index);
+            return potential_targets.into_iter().nth(index);
         }
 
-        let mut target = potential_targets.next()?;
+        // if we hit any node that was already selected, then just return this node
+        if let Some(already_selected) = self.derived_state.selected_nodes.read(|selected_nodes| {
+            potential_targets
+                .iter()
+                .find(|n| selected_nodes.iter().map(|(_, s)| s).any(|s| *n == s))
+        }) {
+            return Some(already_selected.clone());
+        }
+
+        let mut target = potential_targets.into_iter().next()?;
 
         // Find the ancestor that is a direct root element inside container
         // or one that's in the current edit root
@@ -141,8 +147,6 @@ impl<'a> ActionContext<'a> {
             let Some(parent) = target.template_parent() else {
                 break;
             };
-
-            // check one step ahead if we are drilling into a group or similar
 
             if parent.global_id() == userland_id {
                 break;
@@ -153,6 +157,8 @@ impl<'a> ActionContext<'a> {
             {
                 break;
             }
+
+            // check one step ahead if we are drilling into a group or similar
             if matches!(mode, RaycastMode::DrillOne) {
                 let Some(next_parent) = parent.template_parent() else {
                     break;
