@@ -8,6 +8,7 @@ use crate::glass;
 use crate::math::intent_snapper::{self, IntentSnapper, SnapSet};
 use crate::model::action::tool::SetToolBehaviour;
 use crate::model::tools::ToolBehavior;
+use crate::utils::designer_cursor::{DesignerCursor, DesignerCursorType};
 use anyhow::Result;
 use pax_engine::api::cursor::CursorStyle;
 use pax_engine::api::Fill;
@@ -24,7 +25,7 @@ use crate::model::{self, action};
 
 use crate::math;
 use crate::math::coordinate_spaces::{self, Glass, World};
-use crate::model::action::pointer::Pointer;
+use crate::model::action::pointer::{Pointer, SetCursor};
 use crate::model::action::{Action, ActionContext, Transaction};
 use crate::model::input::Dir;
 
@@ -36,6 +37,8 @@ pub struct ControlPoint {
     pub ind: Property<Numeric>,
     // the transform of the currently selected object
     pub object_rotation: Property<Rotation>,
+
+    // private
     // the transform to be applied to this control point
     pub applied_rotation: Property<Rotation>,
 }
@@ -51,6 +54,7 @@ pub struct ControlPointTool {
     transaction: Transaction,
     snapper: Option<IntentSnapper>,
     behaviour: Box<dyn ControlPointBehavior>,
+    cursor_override: Property<DesignerCursor>,
 }
 
 pub enum Snap<'a> {
@@ -60,14 +64,18 @@ pub enum Snap<'a> {
 
 impl ControlPointTool {
     pub fn new(
-        transaction: Transaction,
+        ctx: &mut ActionContext,
+        name: &str,
         snapper: Option<IntentSnapper>,
         behaviour: impl ControlPointBehavior + 'static,
     ) -> Self {
+        let transaction = ctx.transaction(name);
+        let cursor_override = Property::new(ctx.app_state.cursor.get());
         Self {
             transaction,
             behaviour: Box::new(behaviour),
             snapper,
+            cursor_override,
         }
     }
 }
@@ -121,19 +129,21 @@ impl ToolBehavior for ControlPointTool {
     }
 
     fn get_visual(&self) -> Property<crate::glass::ToolVisualizationState> {
-        if let Some(intent_snapper) = &self.snapper {
-            let snap_lines = intent_snapper.get_snap_lines_prop();
-            let deps = [snap_lines.untyped()];
-            Property::computed(
-                move || ToolVisualizationState {
-                    snap_lines: snap_lines.get(),
-                    ..Default::default()
-                },
-                &deps,
-            )
-        } else {
-            Property::default()
-        }
+        let snap_lines = self
+            .snapper
+            .as_ref()
+            .map(|snapper| snapper.get_snap_lines_prop())
+            .unwrap_or_default();
+        let cursor_override = self.cursor_override.clone();
+        let deps = [snap_lines.untyped(), cursor_override.untyped()];
+        Property::computed(
+            move || ToolVisualizationState {
+                snap_lines: snap_lines.get(),
+                cursor_override: cursor_override.get(),
+                ..Default::default()
+            },
+            &deps,
+        )
     }
 
     fn finish(&mut self, _ctx: &mut ActionContext) -> Result<()> {
@@ -194,14 +204,18 @@ impl ControlPoint {
     }
 
     pub fn mouse_over(&mut self, ctx: &NodeContext, _event: Event<MouseOver>) {
-        ctx.set_cursor(self.data.read(|data| {
-            data.styling
-                .pointer_type
-                .to_cursor_style(data.node_local_rotation_degrees) //todo also use rotation
-        }));
+        self.data.read(|data| {
+            model::perform_action(
+                &SetCursor(DesignerCursor {
+                    cursor_type: data.styling.cursor_type,
+                    rotation_degrees: data.node_local_rotation_degrees,
+                }),
+                ctx,
+            );
+        })
     }
     pub fn mouse_out(&mut self, ctx: &NodeContext, _event: Event<MouseOut>) {
-        ctx.set_cursor(CursorStyle::Auto);
+        model::perform_action(&SetCursor(DesignerCursor::default()), ctx);
     }
 }
 
@@ -223,48 +237,5 @@ pub struct ControlPointStyling {
     pub stroke_width_pixels: f64,
     pub width: f64,
     pub height: f64,
-    pub pointer_type: ControlPointCursorType,
-}
-
-#[pax]
-#[engine_import_path("pax_engine")]
-pub enum ControlPointCursorType {
-    Rotation,
-    ResizeAxis,
-    ResizeDir,
-    Move,
-    #[default]
-    None,
-}
-
-impl ControlPointCursorType {
-    fn to_cursor_style(&self, rotation: f64) -> CursorStyle {
-        match self {
-            ControlPointCursorType::Rotation => CursorStyle::Alias,
-            ControlPointCursorType::ResizeDir => match rotation.rem_euclid(360.0) {
-                337.5..=360.0 | 0.0..=22.5 => CursorStyle::EResize,
-                22.5..=67.5 => CursorStyle::NeResize,
-                67.5..=112.5 => CursorStyle::NResize,
-                112.5..=157.5 => CursorStyle::NwResize,
-                157.5..=202.5 => CursorStyle::WResize,
-                202.5..=247.5 => CursorStyle::SwResize,
-                247.5..=292.5 => CursorStyle::SResize,
-                292.5..=337.5 => CursorStyle::SeResize,
-                _ => unreachable!("outside rem_euclid range"),
-            },
-            ControlPointCursorType::ResizeAxis => match rotation.rem_euclid(360.0) {
-                337.5..=360.0 | 0.0..=22.5 => CursorStyle::EwResize,
-                22.5..=67.5 => CursorStyle::NeswResize,
-                67.5..=112.5 => CursorStyle::NsResize,
-                112.5..=157.5 => CursorStyle::NwseResize,
-                157.5..=202.5 => CursorStyle::EwResize,
-                202.5..=247.5 => CursorStyle::NeswResize,
-                247.5..=292.5 => CursorStyle::NsResize,
-                292.5..=337.5 => CursorStyle::NwseResize,
-                _ => unreachable!("outside rem_euclid range"),
-            },
-            ControlPointCursorType::Move => CursorStyle::Cell,
-            ControlPointCursorType::None => CursorStyle::Auto,
-        }
-    }
+    pub cursor_type: DesignerCursorType,
 }
