@@ -94,7 +94,7 @@ impl Editor {
 
         impl ControlPointBehavior for RotationBehavior {
             fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) -> anyhow::Result<()> {
-                let rotation_degrees = action::orm::space_movement::RotateFromSnapshot {
+                action::orm::space_movement::RotateFromSnapshot {
                     curr_pos: point,
                     start_pos: self.start_pos,
                     initial_selection: &self.initial_selection,

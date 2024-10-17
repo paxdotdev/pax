@@ -111,7 +111,7 @@ pub struct RelativeMoveSelected {
 
 impl Action for RelativeMoveSelected {
     fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
-        let selected = ctx.selected_nodes();
+        let selected = ctx.derived_state.selected_nodes.get();
         let movements: Vec<_> = {
             let mut dt = borrow_mut!(ctx.engine_context.designtime);
             selected
