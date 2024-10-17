@@ -17,6 +17,7 @@ use crate::model::tools::{
 };
 use crate::model::{action, app_state::Tool};
 use crate::model::{app_state::AppState, StageInfo};
+use crate::utils::designer_cursor::{DesignerCursor, DesignerCursorType};
 use crate::SetStage;
 use anyhow::{anyhow, Result};
 use pax_designtime::DesigntimeManager;
@@ -271,6 +272,15 @@ impl Action for MouseEntryPointAction {
         if reset {
             tool_behavior.set(None);
         }
+        Ok(())
+    }
+}
+
+pub struct SetCursor(pub DesignerCursor);
+
+impl Action<()> for SetCursor {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+        ctx.app_state.cursor.set(self.0);
         Ok(())
     }
 }

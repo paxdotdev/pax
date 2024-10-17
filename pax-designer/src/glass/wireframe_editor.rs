@@ -16,7 +16,7 @@ use serde::Deserialize;
 use super::control_point::{ControlPoint, ControlPointBehavior};
 use crate::glass::control_point::{ControlPointDef, ControlPointStyling, ControlPointToolFactory};
 use crate::math::coordinate_spaces::{Glass, SelectionSpace};
-use crate::math::{AxisAlignedBox, BoxPoint, GetUnit, SizeUnit};
+use crate::math::{AxisAlignedBox, GetUnit, SizeUnit};
 use crate::model::action::ActionContext;
 use crate::model::{self, action, GlassNodeSnapshot, SelectionState, SelectionStateSnapshot};
 use pax_engine::api::Fill;
@@ -97,13 +97,19 @@ impl WireframeEditor {
                     let (control_points_set, behavior_set): (Vec<_>, Vec<_>) = control_set
                         .points
                         .into_iter()
-                        .map(|c_point| (c_point.point, c_point.behavior))
+                        .map(|c_point| {
+                            (
+                                (c_point.point, c_point.node_local_rotation_degrees),
+                                c_point.behavior,
+                            )
+                        })
                         .unzip();
                     let control_points_from_set: Vec<ControlPointDef> = control_points_set
                         .into_iter()
-                        .map(|p| ControlPointDef {
+                        .map(|(p, rot)| ControlPointDef {
                             point: p.into(),
                             styling: control_set.styling.clone(),
+                            node_local_rotation_degrees: rot,
                         })
                         .collect();
                     control_points.extend(control_points_from_set);

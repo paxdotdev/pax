@@ -8,10 +8,12 @@ use crate::glass;
 use crate::math::intent_snapper::{self, IntentSnapper, SnapSet};
 use crate::model::action::tool::SetToolBehaviour;
 use crate::model::tools::ToolBehavior;
+use crate::utils::designer_cursor::{DesignerCursor, DesignerCursorType};
 use anyhow::Result;
+use pax_engine::api::cursor::CursorStyle;
 use pax_engine::api::Fill;
 use pax_engine::api::*;
-use pax_engine::math::{Point2, Transform2};
+use pax_engine::math::{Point2, Transform2, Vector2};
 use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_engine::*;
 use pax_std::*;
@@ -23,7 +25,7 @@ use crate::model::{self, action};
 
 use crate::math;
 use crate::math::coordinate_spaces::{self, Glass, World};
-use crate::model::action::pointer::Pointer;
+use crate::model::action::pointer::{Pointer, SetCursor};
 use crate::model::action::{Action, ActionContext, Transaction};
 use crate::model::input::Dir;
 
@@ -35,6 +37,8 @@ pub struct ControlPoint {
     pub ind: Property<Numeric>,
     // the transform of the currently selected object
     pub object_rotation: Property<Rotation>,
+
+    // private
     // the transform to be applied to this control point
     pub applied_rotation: Property<Rotation>,
 }
@@ -50,6 +54,7 @@ pub struct ControlPointTool {
     transaction: Transaction,
     snapper: Option<IntentSnapper>,
     behaviour: Box<dyn ControlPointBehavior>,
+    cursor_override: Property<DesignerCursor>,
 }
 
 pub enum Snap<'a> {
@@ -59,14 +64,18 @@ pub enum Snap<'a> {
 
 impl ControlPointTool {
     pub fn new(
-        transaction: Transaction,
+        ctx: &mut ActionContext,
+        name: &str,
         snapper: Option<IntentSnapper>,
         behaviour: impl ControlPointBehavior + 'static,
     ) -> Self {
+        let transaction = ctx.transaction(name);
+        let cursor_override = Property::new(ctx.app_state.cursor.get());
         Self {
             transaction,
             behaviour: Box::new(behaviour),
             snapper,
+            cursor_override,
         }
     }
 }
@@ -120,19 +129,21 @@ impl ToolBehavior for ControlPointTool {
     }
 
     fn get_visual(&self) -> Property<crate::glass::ToolVisualizationState> {
-        if let Some(intent_snapper) = &self.snapper {
-            let snap_lines = intent_snapper.get_snap_lines_prop();
-            let deps = [snap_lines.untyped()];
-            Property::computed(
-                move || ToolVisualizationState {
-                    snap_lines: snap_lines.get(),
-                    ..Default::default()
-                },
-                &deps,
-            )
-        } else {
-            Property::default()
-        }
+        let snap_lines = self
+            .snapper
+            .as_ref()
+            .map(|snapper| snapper.get_snap_lines_prop())
+            .unwrap_or_default();
+        let cursor_override = self.cursor_override.clone();
+        let deps = [snap_lines.untyped(), cursor_override.untyped()];
+        Property::computed(
+            move || ToolVisualizationState {
+                snap_lines: snap_lines.get(),
+                cursor_override: cursor_override.get(),
+                ..Default::default()
+            },
+            &deps,
+        )
     }
 
     fn finish(&mut self, _ctx: &mut ActionContext) -> Result<()> {
@@ -191,12 +202,28 @@ impl ControlPoint {
             }
         })
     }
+
+    pub fn mouse_over(&mut self, ctx: &NodeContext, _event: Event<MouseOver>) {
+        self.data.read(|data| {
+            model::perform_action(
+                &SetCursor(DesignerCursor {
+                    cursor_type: data.styling.cursor_type,
+                    rotation_degrees: data.node_local_rotation_degrees,
+                }),
+                ctx,
+            );
+        })
+    }
+    pub fn mouse_out(&mut self, ctx: &NodeContext, _event: Event<MouseOut>) {
+        model::perform_action(&SetCursor(DesignerCursor::default()), ctx);
+    }
 }
 
 #[pax]
 #[engine_import_path("pax_engine")]
 pub struct ControlPointDef {
     pub point: GlassPoint,
+    pub node_local_rotation_degrees: f64,
     pub styling: ControlPointStyling,
 }
 
@@ -210,4 +237,5 @@ pub struct ControlPointStyling {
     pub stroke_width_pixels: f64,
     pub width: f64,
     pub height: f64,
+    pub cursor_type: DesignerCursorType,
 }

@@ -2,7 +2,8 @@ use std::f64::consts::PI;
 use std::{cell::RefCell, rc::Rc};
 
 use pax_engine::api::{borrow, borrow_mut, Color, Interpolatable};
-use pax_engine::math::TransformParts;
+use pax_engine::math::{TransformParts, Vector2};
+use pax_engine::NodeLocal;
 use pax_engine::{
     api::NodeContext, log, math::Point2, node_layout::TransformAndBounds, NodeInterface, Property,
 };
@@ -10,12 +11,10 @@ use pax_engine::{
 use crate::glass::control_point::{ControlPointTool, Snap};
 use crate::glass::ToolVisualizationState;
 use crate::math::intent_snapper::{IntentSnapper, SnapCollection, SnapSet};
+use crate::utils::designer_cursor::{DesignerCursor, DesignerCursorType};
 use crate::{
     glass::control_point::{ControlPointBehavior, ControlPointStyling, ControlPointToolFactory},
-    math::{
-        coordinate_spaces::{Glass, SelectionSpace},
-        BoxPoint,
-    },
+    math::coordinate_spaces::{Glass, SelectionSpace},
     model::{
         action::{self, Action, ActionContext},
         GlassNodeSnapshot, SelectionState, SelectionStateSnapshot,
@@ -95,12 +94,13 @@ impl Editor {
 
         impl ControlPointBehavior for RotationBehavior {
             fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) -> anyhow::Result<()> {
-                action::orm::space_movement::RotateFromSnapshot {
+                let rotation_degrees = action::orm::space_movement::RotateFromSnapshot {
                     curr_pos: point,
                     start_pos: self.start_pos,
                     initial_selection: &self.initial_selection,
                 }
-                .perform(ctx)
+                .perform(ctx)?;
+                Ok(())
             }
         }
 
@@ -109,7 +109,8 @@ impl Editor {
                 tool_factory: Rc::new(|ctx, point| {
                     let initial_selection = (&ctx.derived_state.selection_state.get()).into();
                     Rc::new(RefCell::new(ControlPointTool::new(
-                        ctx.transaction("rotating"),
+                        ctx,
+                        "rotating",
                         None,
                         RotationBehavior {
                             start_pos: point,
@@ -122,19 +123,20 @@ impl Editor {
         }
 
         let rotate_control_points = vec![
-            CPoint::new(p1, rotate_factory()),
-            CPoint::new(p2, rotate_factory()),
-            CPoint::new(p3, rotate_factory()),
-            CPoint::new(p4, rotate_factory()),
+            CPoint::new(p1, rotate_factory(), 225.0),
+            CPoint::new(p2, rotate_factory(), 315.0),
+            CPoint::new(p3, rotate_factory(), 55.0),
+            CPoint::new(p4, rotate_factory(), 145.0),
         ];
         let rotate_control_point_styling = ControlPointStyling {
             round: true,
             stroke_color: Color::TRANSPARENT,
             fill_color: Color::TRANSPARENT,
             stroke_width_pixels: 0.0,
-            width: 38.0,
-            height: 38.0,
+            width: 20.0,
+            height: 20.0,
             affected_by_transform: false,
+            cursor_type: DesignerCursorType::Rotation,
         };
 
         ControlPointSet {
@@ -150,7 +152,7 @@ impl Editor {
         p4: Point2<Glass>,
     ) -> ControlPointSet {
         struct ResizeBehavior {
-            attachment_point: Point2<BoxPoint>,
+            attachment_point: Point2<NodeLocal>,
             initial_selection: SelectionStateSnapshot,
         }
 
@@ -161,11 +163,12 @@ impl Editor {
                     fixed_point: self.attachment_point,
                     new_point: point,
                 }
-                .perform(ctx)
+                .perform(ctx)?;
+                Ok(())
             }
         }
 
-        fn resize_factory(anchor: Point2<BoxPoint>) -> ControlPointToolFactory {
+        fn resize_factory(anchor: Point2<NodeLocal>) -> ControlPointToolFactory {
             ControlPointToolFactory {
                 tool_factory: Rc::new(move |ac, _p| {
                     let initial_selection: SelectionStateSnapshot =
@@ -180,7 +183,8 @@ impl Editor {
                         || (anchor.x != 0.5 && anchor.y != 0.5);
 
                     Rc::new(RefCell::new(ControlPointTool::new(
-                        ac.transaction("resize"),
+                        ac,
+                        "resize",
                         should_snap.then_some(IntentSnapper::new_from_scene(
                             ac,
                             &initial_selection
@@ -201,37 +205,29 @@ impl Editor {
 
         // resize points
         let resize_control_points = vec![
-            CPoint::new(
-                p1, //
-                resize_factory(Point2::new(1.0, 1.0)),
-            ),
+            CPoint::new(p1, resize_factory(Point2::new(1.0, 1.0)), 225.0),
             CPoint::new(
                 p1.midpoint_towards(p2),
                 resize_factory(Point2::new(0.5, 1.0)),
+                270.0,
             ),
-            CPoint::new(
-                p2, //
-                resize_factory(Point2::new(0.0, 1.0)),
-            ),
+            CPoint::new(p2, resize_factory(Point2::new(0.0, 1.0)), 315.0),
             CPoint::new(
                 p2.midpoint_towards(p3),
                 resize_factory(Point2::new(0.0, 0.5)),
+                0.0,
             ),
-            CPoint::new(
-                p3, //
-                resize_factory(Point2::new(0.0, 0.0)),
-            ),
+            CPoint::new(p3, resize_factory(Point2::new(0.0, 0.0)), 45.0),
             CPoint::new(
                 p3.midpoint_towards(p4),
                 resize_factory(Point2::new(0.5, 0.0)),
+                90.0,
             ),
-            CPoint::new(
-                p4, //
-                resize_factory(Point2::new(1.0, 0.0)),
-            ),
+            CPoint::new(p4, resize_factory(Point2::new(1.0, 0.0)), 135.0),
             CPoint::new(
                 p4.midpoint_towards(p1),
                 resize_factory(Point2::new(1.0, 0.5)),
+                180.0,
             ),
         ];
 
@@ -243,6 +239,7 @@ impl Editor {
             width: 8.0,
             height: 8.0,
             affected_by_transform: false,
+            cursor_type: DesignerCursorType::Resize,
         };
 
         ControlPointSet {
@@ -265,10 +262,9 @@ impl Editor {
                         object: &initial_object,
                         point: point_in_space,
                     }
-                    .perform(ctx)
-                } else {
-                    Ok(())
+                    .perform(ctx)?;
                 }
+                Ok(())
             }
         }
 
@@ -280,7 +276,8 @@ impl Editor {
                         .first()
                         .map(Into::into);
                     Rc::new(RefCell::new(ControlPointTool::new(
-                        ac.transaction("moving anchor point"),
+                        ac,
+                        "moving anchor point",
                         Some(IntentSnapper::new(
                             ac,
                             SnapCollection {
@@ -304,7 +301,7 @@ impl Editor {
             }
         }
 
-        let anchor_control_point = vec![CPoint::new(anchor, anchor_factory())];
+        let anchor_control_point = vec![CPoint::new(anchor, anchor_factory(), 0.0)];
 
         let anchor_control_point_styling = ControlPointStyling {
             round: true,
@@ -314,6 +311,7 @@ impl Editor {
             width: 10.0,
             height: 10.0,
             affected_by_transform: false,
+            cursor_type: DesignerCursorType::Move,
         };
 
         ControlPointSet {
@@ -356,12 +354,21 @@ impl Interpolatable for CPoint {}
 pub struct CPoint {
     // make this point a prop?
     pub point: Point2<Glass>,
+    pub node_local_rotation_degrees: f64,
     pub behavior: ControlPointToolFactory,
 }
 
 impl CPoint {
-    fn new(point: Point2<Glass>, behavior: ControlPointToolFactory) -> Self {
-        Self { point, behavior }
+    fn new(
+        point: Point2<Glass>,
+        behavior: ControlPointToolFactory,
+        node_local_rotation_degrees: f64,
+    ) -> Self {
+        Self {
+            point,
+            behavior,
+            node_local_rotation_degrees,
+        }
     }
 }
 

@@ -2,6 +2,7 @@ use std::{any::Any, cell::RefCell, ops::ControlFlow, rc::Rc};
 
 use model::tools::tool_plugins::drop_intent_handler::DropIntentHandler;
 use pax_engine::api::{borrow, borrow_mut, Color};
+use pax_engine::math::Vector2;
 use pax_engine::pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_engine::{
     api::NodeContext,
@@ -16,6 +17,7 @@ use crate::designer_node_type::designer_behavior_extensions::IntentState;
 use crate::designer_node_type::DesignerNodeType;
 use crate::glass::intent::IntentDef;
 use crate::model::tools::ToolBehavior;
+use crate::utils::designer_cursor::DesignerCursorType;
 use crate::{
     glass::{
         control_point::{ControlPointStyling, ControlPointToolFactory},
@@ -183,6 +185,7 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
         affected_by_transform: false,
         width: 14.0,
         height: 14.0,
+        cursor_type: DesignerCursorType::Move,
     };
 
     let t_and_b = slot_parent_node.transform_and_bounds();
@@ -207,7 +210,7 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                     let slot_child = s.children().into_iter().next().unwrap();
                     let slot_child = GlassNode::new(&slot_child, &to_glass);
                     let t_and_b = slot_child.transform_and_bounds.get();
-                    CPoint::new(t_and_b.center(), slot_dot_control_factory(slot_child))
+                    CPoint::new(t_and_b.center(), slot_dot_control_factory(slot_child), 0.0)
                 })
                 .collect();
             ControlPointSet {

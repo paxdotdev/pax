@@ -5,6 +5,8 @@ use super::ToolBehavior;
 use crate::math::coordinate_spaces::Glass;
 use crate::math::coordinate_spaces::World;
 use crate::math::SizeUnit;
+use crate::utils::designer_cursor::DesignerCursor;
+use crate::utils::designer_cursor::DesignerCursorType;
 use pax_designtime::orm::SubTrees;
 use pax_engine::api::Color;
 use pax_engine::api::Interpolatable;
@@ -76,6 +78,9 @@ pub struct AppState {
     /// from keystrokes.
     /// INVALID_IF: doesn't represent current mouse pos
     pub mouse_position: Property<Point2<Glass>>,
+    /// Cursor set for events like hovering over a control point,
+    /// NOTE: can be overriden by tool behavior, as set up in glass
+    pub cursor: Property<DesignerCursor>,
     /// Current tool state while in use (ie in the process of drawing a rect,
     /// moving an object, moving a control point, drawing a line)
     /// OBS: needs to be wrapped in Rc<RefCell since tool_behavior itself needs

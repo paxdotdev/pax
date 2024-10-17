@@ -130,7 +130,10 @@ impl PropertyEditor {
     }
 
     pub fn on_unmount(&mut self, ctx: &NodeContext) {
-        //TODO remove entry from granular listener
+        ctx.peek_local_store(|granular_update_store: &mut GranularManifestChangeStore| {
+            granular_update_store.remove_property_notifier(&self.name.get());
+        })
+        .expect("should be inserted at designer root");
     }
 
     pub fn bind_prop_type_ident_id(

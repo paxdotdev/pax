@@ -2,6 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use anyhow::anyhow;
 use pax_engine::api::{borrow, borrow_mut, Color, Size};
+use pax_engine::math::Vector2;
 use pax_engine::{api::NodeContext, log, math::Point2, Property};
 use pax_std::*;
 
@@ -10,6 +11,7 @@ use crate::glass::ToolVisualizationState;
 use crate::granular_change_store::GranularManifestChangeStore;
 use crate::math::intent_snapper::{IntentSnapper, SnapSet};
 use crate::model::input::ModifierKey;
+use crate::utils::designer_cursor::{DesignerCursor, DesignerCursorType};
 use crate::{
     glass::control_point::{ControlPointBehavior, ControlPointStyling, ControlPointToolFactory},
     math::{coordinate_spaces::Glass, GetUnit},
@@ -33,7 +35,8 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
 
     impl ControlPointBehavior for StackerDividerControlBehavior {
         fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) -> anyhow::Result<()> {
-            let t = self.stacker_node.transform_and_bounds.as_transform();
+            let t = ctx.world_transform() * self.stacker_node.transform_and_bounds.as_transform();
+            let point = ctx.world_transform() * point;
             let (_, u, v) = t.decompose();
             let (x_l, y_l) = (u.length(), v.length());
             let box_point = t.inverse() * point;
@@ -81,8 +84,8 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
 
             builder
                 .save()
-                .map_err(|e| anyhow!("could not save: {}", e))
-                .map(|_| ())
+                .map_err(|e| anyhow!("could not save: {}", e))?;
+            Ok(())
         }
     }
 
@@ -98,7 +101,8 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
         ControlPointToolFactory {
             tool_factory: Rc::new(move |ac, _p| {
                 Rc::new(RefCell::new(ControlPointTool::new(
-                    ac.transaction("resizing stacker cells"),
+                    ac,
+                    "resizing stacker cells",
                     Some(IntentSnapper::new_from_scene(ac, &[stacker_id.clone()])),
                     StackerDividerControlBehavior {
                         stacker_node: (&item).into(),
@@ -156,6 +160,7 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
         stroke_width_pixels: 1.0,
         width: -1.0,
         height: -1.0,
+        cursor_type: DesignerCursorType::Resize,
     };
     let to_glass_transform =
         model::read_app_state_with_derived(|_, derived| derived.to_glass_transform.get());
@@ -189,6 +194,13 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
                     )
                 })
                 .unwrap();
+            let cursor = DesignerCursor {
+                rotation_degrees: match dir {
+                    StackerDirection::Vertical => 90.0,
+                    StackerDirection::Horizontal => 0.0,
+                },
+                cursor_type: DesignerCursorType::Resize,
+            };
             let (o, u, v) = item.transform_and_bounds.get().as_transform().decompose();
             let (w, h) = item.transform_and_bounds.get().bounds;
             let boundaries: Vec<_> = cells
@@ -215,6 +227,7 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
                             item.clone(),
                             dir.clone(),
                         ),
+                        cursor.rotation_degrees,
                     )
                 })
                 .collect();

@@ -8,17 +8,20 @@
     if self.data.styling.round {
         <Ellipse class=control_point/>
     }
+    <Rectangle fill=TRANSPARENT/>
 </Group>
 
 @settings {
     @mount: self.on_mount
+    @mouse_over: self.mouse_over
+    @mouse_out: self.mouse_out
     #invisible_hit_box {
         anchor_x: 50%,
         anchor_y: 50%,
         x: {(self.data.point.x)px},
         y: {(self.data.point.y)px},
-        width: {(self.data.styling.width)px}
-        height: {(self.data.styling.height)px}
+        width: {(self.data.styling.width + 10.0)px}
+        height: {(self.data.styling.height + 10.0)px}
         rotate: {self.applied_rotation}
     }
     .control_point {
