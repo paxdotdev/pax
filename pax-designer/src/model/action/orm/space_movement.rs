@@ -168,18 +168,18 @@ pub struct RotateFromSnapshot<'a> {
     pub initial_selection: &'a SelectionStateSnapshot,
 }
 
-impl Action for RotateFromSnapshot<'_> {
-    fn perform(&self, ctx: &mut ActionContext) -> Result<()> {
+impl Action<f64> for RotateFromSnapshot<'_> {
+    fn perform(&self, ctx: &mut ActionContext) -> Result<f64> {
         let anchor_point = self.initial_selection.total_origin;
         let start = self.start_pos - anchor_point;
         let curr = self.curr_pos - anchor_point;
         let mut rotation = start.angle_to(curr).get_as_degrees();
 
+        let original_rotation =
+            Into::<TransformParts>::into(self.initial_selection.total_bounds.transform)
+                .rotation
+                .to_degrees();
         if ctx.app_state.modifiers.get().contains(&ModifierKey::Shift) {
-            let original_rotation =
-                Into::<TransformParts>::into(self.initial_selection.total_bounds.transform)
-                    .rotation
-                    .to_degrees();
             let total_rotation = (rotation + original_rotation).rem_euclid(360.0 - f64::EPSILON);
             let mut snapped_rotation = (total_rotation / ANGLE_SNAP_DEG).round() * ANGLE_SNAP_DEG;
             if snapped_rotation >= 360.0 - f64::EPSILON {
@@ -215,7 +215,7 @@ impl Action for RotateFromSnapshot<'_> {
             .perform(ctx)?;
         }
 
-        Ok(())
+        Ok(rotation + original_rotation)
     }
 }
 

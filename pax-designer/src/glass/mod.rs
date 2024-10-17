@@ -1,10 +1,12 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
 
 use anyhow::anyhow;
+use pax_engine::api::cursor::CursorStyle;
 use pax_engine::api::Fill;
 use pax_engine::api::*;
-use pax_engine::math::{Point2, Transform2, Vector2};
+use pax_engine::math::{Point2, Transform2, TransformParts, Vector2};
 use pax_engine::node_layout::TransformAndBounds;
 use pax_engine::*;
 use pax_manifest::{PaxType, TemplateNodeId, TypeId, UniqueTemplateNodeIdentifier};
@@ -19,7 +21,10 @@ use crate::model::action::orm::CreateComponent;
 use crate::model::action::tool::SetToolBehaviour;
 use crate::model::action::world::Translate;
 use crate::model::action::world::{SelectMode, SelectNodes};
+use crate::model::tools::ToolBehavior;
+use crate::model::SelectionState;
 use crate::model::{app_state::AppState, GlassNode};
+use crate::utils::designer_cursor::{DesignerCursor, DesignerCursorType};
 use crate::{message_log_display, model, SetStage, StageInfo};
 
 use crate::math::coordinate_spaces::{self, World};
@@ -48,11 +53,30 @@ use wireframe_editor::WireframeEditor;
 pub struct Glass {
     pub tool_visual: Property<ToolVisualizationState>,
     pub time_last_click: Property<u64>,
+
+    // NOTE: This can't be replaced with subscribe until/when we support
+    // subscribes inside subscribes
+    pub _cursor_changed_listener: Property<bool>,
 }
 
 impl Glass {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let tool_behavior = model::read_app_state(|app_state| app_state.tool_behavior.clone());
+        model::read_app_state_with_derived(|app_state, derived| {
+            self.bind_tool_visual(ctx, app_state.tool_behavior.clone());
+            self.bind_cursor(
+                ctx,
+                app_state.cursor.clone(),
+                derived.selection_state.clone(),
+            );
+            self.bind_scroller_modification(ctx, derived.open_containers.clone());
+        });
+    }
+
+    pub fn bind_tool_visual(
+        &mut self,
+        ctx: &NodeContext,
+        tool_behavior: Property<Option<Rc<RefCell<dyn ToolBehavior>>>>,
+    ) {
         let tool_visual = self.tool_visual.clone();
         ctx.subscribe(&[tool_behavior.untyped()], move || {
             tool_visual.replace_with(if let Some(tool_behavior) = tool_behavior.get() {
@@ -61,7 +85,69 @@ impl Glass {
                 Property::default()
             });
         });
+    }
 
+    pub fn bind_cursor(
+        &mut self,
+        ctx: &NodeContext,
+        cursor: Property<DesignerCursor>,
+        selection_state: Property<SelectionState>,
+    ) {
+        let tool_visual = self.tool_visual.clone();
+        let ctxp = ctx.clone();
+        let cursor_changed_listener = self._cursor_changed_listener.clone();
+
+        // This is slow. To speed it up, only do the generation + sending of
+        // the cursor if either the type has changed, or rotation has changed by more than 5 degrees.
+        let last_cursor = Rc::new(RefCell::new(DesignerCursor::default()));
+        ctx.subscribe(
+            &[
+                tool_visual.untyped(),
+                cursor.untyped(),
+                selection_state.untyped(),
+            ],
+            move || {
+                let cursor = cursor.get();
+                let cursor_override = tool_visual.read(|tv| tv.cursor_override.clone());
+                let total_selection_bounds = selection_state.read(|ss| ss.total_bounds.clone());
+                let ctxpp = ctxp.clone();
+                let deps = [total_selection_bounds.untyped()];
+
+                let last_cursor = last_cursor.clone();
+                cursor_changed_listener.replace_with(Property::computed(
+                    move || {
+                        let transform_parts: TransformParts =
+                            total_selection_bounds.get().as_transform().into();
+                        let mut cursor = if cursor_override == DesignerCursor::default() {
+                            cursor
+                        } else {
+                            cursor_override
+                        };
+                        cursor.rotation_degrees += transform_parts.rotation.to_degrees();
+                        let mut last_cursor = borrow_mut!(last_cursor);
+                        // this is slow, only do it when significant changes have happened
+                        if last_cursor.cursor_type != cursor.cursor_type
+                            || (last_cursor.rotation_degrees - cursor.rotation_degrees).abs() > 5.0
+                        {
+                            ctxpp.set_cursor(cursor.to_cursor_style());
+                            *last_cursor = cursor;
+                        }
+                        true
+                    },
+                    &deps,
+                ));
+            },
+        );
+    }
+
+    // make scroller not clip if a child is selected
+    // for now only scroller needs somewhat special behavior
+    // might want to create more general double click framework at some point
+    pub fn bind_scroller_modification(
+        &mut self,
+        ctx: &NodeContext,
+        open_containers: Property<Vec<UniqueTemplateNodeIdentifier>>,
+    ) {
         let manifest_changed_notifier = ctx
             .peek_local_store(
                 |change_notification_store: &mut GranularManifestChangeStore| {
@@ -69,22 +155,17 @@ impl Glass {
                 },
             )
             .expect("should be inserted at designer root");
-        let open_container =
-            model::read_app_state_with_derived(|_, derived| derived.open_containers.clone());
-        // make scroller not clip if a child is selected
-        // for now only scroller needs somewhat special behavior
-        // might want to create more general double click framework at some point
         let ctxp = ctx.clone();
         ctx.subscribe(
-            &[manifest_changed_notifier, open_container.untyped()],
+            &[manifest_changed_notifier, open_containers.untyped()],
             move || {
-                let open = open_container.get();
+                let open = open_containers.get();
 
                 for node in open {
                     if let Some(node_interface) =
                         ctxp.get_nodes_by_global_id(node.clone()).into_iter().next()
                     {
-                        let open_container = open_container.clone();
+                        let open_container = open_containers.clone();
                         let deps = [open_container.untyped()];
                         // if this is a scroller, make it open if it's id is in the currently open container set
                         let _ = node_interface.with_properties(|scroller: &mut Scroller| {
@@ -99,7 +180,9 @@ impl Glass {
         )
     }
 
-    pub fn on_pre_render(&mut self, _ctx: &NodeContext) {}
+    pub fn on_pre_render(&mut self, _ctx: &NodeContext) {
+        self._cursor_changed_listener.get();
+    }
 
     pub fn context_menu(&mut self, _ctx: &NodeContext, args: Event<ContextMenu>) {
         args.prevent_default();
@@ -321,6 +404,8 @@ pub struct ToolVisualizationState {
     pub event_blocker_active: bool,
     /// tool intent areas (not raycasted - drop behavior is handled separately by the tool itself)
     pub intent_areas: Vec<IntentDef>,
+    /// the cursor to be shown
+    pub cursor_override: DesignerCursor,
 }
 
 impl Default for ToolVisualizationState {
@@ -330,7 +415,8 @@ impl Default for ToolVisualizationState {
             object_outline: Default::default(),
             snap_lines: Default::default(),
             event_blocker_active: true,
-            intent_areas: Vec::new(),
+            intent_areas: Default::default(),
+            cursor_override: Default::default(),
         }
     }
 }

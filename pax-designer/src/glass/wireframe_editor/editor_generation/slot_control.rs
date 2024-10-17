@@ -15,9 +15,9 @@ use pax_std::stacker::Stacker;
 
 use crate::designer_node_type::designer_behavior_extensions::IntentState;
 use crate::designer_node_type::DesignerNodeType;
-use crate::glass::control_point::ControlPointCursorType;
 use crate::glass::intent::IntentDef;
 use crate::model::tools::ToolBehavior;
+use crate::utils::designer_cursor::DesignerCursorType;
 use crate::{
     glass::{
         control_point::{ControlPointStyling, ControlPointToolFactory},
@@ -185,7 +185,7 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
         affected_by_transform: false,
         width: 14.0,
         height: 14.0,
-        pointer_type: ControlPointCursorType::Move,
+        cursor_type: DesignerCursorType::Move,
     };
 
     let t_and_b = slot_parent_node.transform_and_bounds();
