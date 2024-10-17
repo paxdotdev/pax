@@ -51,7 +51,7 @@ pub enum CursorStyle {
     Grabbing,
 
     // Custom
-    Custom(String),
+    Url(String, i32, i32),
 }
 
 impl std::fmt::Display for CursorStyle {
@@ -94,7 +94,7 @@ impl std::fmt::Display for CursorStyle {
             CursorStyle::ZoomOut => write!(f, "zoom-out"),
             CursorStyle::Grab => write!(f, "grab"),
             CursorStyle::Grabbing => write!(f, "grabbing"),
-            CursorStyle::Custom(url) => write!(f, "{}", url),
+            CursorStyle::Url(url, x, y) => write!(f, "url(\"{}\") {} {}, auto", url, x, y),
         }
     }
 }
