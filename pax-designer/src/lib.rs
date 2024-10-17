@@ -72,10 +72,9 @@ pub struct PaxDesigner {
     pub cull_console: Property<bool>,
 }
 
-
-const OPEN_CONSOLE_HEIGHT : f64 = 425.0;
-const CLOSED_CONSOLE_HEIGHT : f64 = 55.0;
-const CONSOLE_TRANSITION_DURATION : u64 = 40;
+const OPEN_CONSOLE_HEIGHT: f64 = 425.0;
+const CLOSED_CONSOLE_HEIGHT: f64 = 55.0;
+const CONSOLE_TRANSITION_DURATION: u64 = 40;
 
 impl PaxDesigner {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
@@ -94,16 +93,23 @@ impl PaxDesigner {
         self.bind_is_manifest_loaded_from_server(ctx);
     }
 
-
     pub fn toggle_console(&mut self, ctx: &NodeContext, args: Event<Click>) {
         let current_console_status = self.console_status.get();
         let new_console_status = !current_console_status;
         self.console_status.set(new_console_status);
 
         if new_console_status {
-            self.console_height.ease_to(OPEN_CONSOLE_HEIGHT, CONSOLE_TRANSITION_DURATION, EasingCurve::OutQuad);
+            self.console_height.ease_to(
+                OPEN_CONSOLE_HEIGHT,
+                CONSOLE_TRANSITION_DURATION,
+                EasingCurve::OutQuad,
+            );
         } else {
-            self.console_height.ease_to(CLOSED_CONSOLE_HEIGHT, CONSOLE_TRANSITION_DURATION, EasingCurve::OutQuad);
+            self.console_height.ease_to(
+                CLOSED_CONSOLE_HEIGHT,
+                CONSOLE_TRANSITION_DURATION,
+                EasingCurve::OutQuad,
+            );
         }
     }
 
@@ -113,10 +119,9 @@ impl PaxDesigner {
         // flushed
         model::action::meta::flush_sheduled_actions(ctx);
 
-
-        let should_cull_console =self.console_height.get() >= CLOSED_CONSOLE_HEIGHT - f64::EPSILON && self.console_height.get() <= CLOSED_CONSOLE_HEIGHT + f64::EPSILON;
+        let should_cull_console = self.console_height.get() >= CLOSED_CONSOLE_HEIGHT - f64::EPSILON
+            && self.console_height.get() <= CLOSED_CONSOLE_HEIGHT + f64::EPSILON;
         self.cull_console.set(should_cull_console);
-
     }
 
     fn bind_stage_property(&mut self, app_state: &model::AppState) {
