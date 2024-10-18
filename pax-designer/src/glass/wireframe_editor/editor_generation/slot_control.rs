@@ -186,6 +186,7 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
         width: 14.0,
         height: 14.0,
         cursor_type: DesignerCursorType::Move,
+        hit_padding: 10.0,
     };
 
     let t_and_b = slot_parent_node.transform_and_bounds();
@@ -210,7 +211,12 @@ pub fn slot_dot_control_set(ctx: NodeContext, item: GlassNode) -> Property<Contr
                     let slot_child = s.children().into_iter().next().unwrap();
                     let slot_child = GlassNode::new(&slot_child, &to_glass);
                     let t_and_b = slot_child.transform_and_bounds.get();
-                    CPoint::new(t_and_b.center(), slot_dot_control_factory(slot_child), 0.0)
+                    CPoint {
+                        point: t_and_b.center(),
+                        behavior: slot_dot_control_factory(slot_child),
+                        rotation: 0.0,
+                        ..Default::default()
+                    }
                 })
                 .collect();
             ControlPointSet {
