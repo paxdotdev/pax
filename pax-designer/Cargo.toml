@@ -2,7 +2,6 @@
 name = "pax-designer"
 version = "0.38.0"
 edition = "2021"
-default-run = "run"
 authors = ["Zack Brown <zack@pax.dev>","Warfa Jibril <warfa@pax.dev>","Samuel Selleck <samuel@pax.dev>"]
 license = "MIT OR Apache-2.0"
 homepage = "https://pax.dev/"
@@ -29,10 +28,6 @@ crate-type = ["cdylib", "rlib"]
 name = "parser"
 path = "src/lib.rs"
 required-features = ["parser", "designtime"]
-
-[[bin]]
-name = "run"
-path = "bin/run.rs"
 
 [features]
 default = ["designtime"]
