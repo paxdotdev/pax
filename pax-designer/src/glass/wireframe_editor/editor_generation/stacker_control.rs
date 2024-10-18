@@ -161,6 +161,7 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
         width: -1.0,
         height: -1.0,
         cursor_type: DesignerCursorType::Resize,
+        hit_padding: 10.0,
     };
     let to_glass_transform =
         model::read_app_state_with_derived(|_, derived| derived.to_glass_transform.get());
@@ -194,13 +195,6 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
                     )
                 })
                 .unwrap();
-            let cursor = DesignerCursor {
-                rotation_degrees: match dir {
-                    StackerDirection::Vertical => 90.0,
-                    StackerDirection::Horizontal => 0.0,
-                },
-                cursor_type: DesignerCursorType::Resize,
-            };
             let (o, u, v) = item.transform_and_bounds.get().as_transform().decompose();
             let (w, h) = item.transform_and_bounds.get().bounds;
             let boundaries: Vec<_> = cells
@@ -214,21 +208,23 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
             let stacker_divider_control_points = boundaries
                 .iter()
                 .enumerate()
-                .map(|(i, &c)| {
-                    CPoint::new(
-                        o + match dir {
-                            StackerDirection::Vertical => (c.0 + c.1) / h * v + u / 2.0,
-                            StackerDirection::Horizontal => (c.0 + c.1) / w * u + v / 2.0,
-                        },
-                        stacker_divider_control_factory(
-                            i,
-                            boundaries.clone(),
-                            start_sizes.clone(),
-                            item.clone(),
-                            dir.clone(),
-                        ),
-                        cursor.rotation_degrees,
-                    )
+                .map(|(i, &c)| CPoint {
+                    point: o + match dir {
+                        StackerDirection::Vertical => (c.0 + c.1) / h * v + u / 2.0,
+                        StackerDirection::Horizontal => (c.0 + c.1) / w * u + v / 2.0,
+                    },
+                    behavior: stacker_divider_control_factory(
+                        i,
+                        boundaries.clone(),
+                        start_sizes.clone(),
+                        item.clone(),
+                        dir.clone(),
+                    ),
+                    rotation: match dir {
+                        StackerDirection::Vertical => 90.0,
+                        StackerDirection::Horizontal => 0.0,
+                    },
+                    ..Default::default()
                 })
                 .collect();
 
