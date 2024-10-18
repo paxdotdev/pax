@@ -1,6 +1,6 @@
 [package]
 name = "pax-runtime"
-version = "0.38.0"
+version = "0.38.1"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -15,11 +15,11 @@ kurbo = "0.9.0"
 lazy_static = "1.4.0"
 log = "0.4.20"
 mut_static = "5.0.0"
-pax-message = {path = "../pax-message", version="0.38.0"}
-pax-manifest = {version="0.38.0", path = "../pax-manifest"}
-pax-lang = {version="0.38.0", path = "../pax-lang"}
-pax-designtime = {version="0.38.0", path = "../pax-designtime", optional = true}
-pax-runtime-api = {version="0.38.0", path = "../pax-runtime-api"}
+pax-message = {path = "../pax-message", version="0.38.1"}
+pax-manifest = {version="0.38.1", path = "../pax-manifest"}
+pax-lang = {version="0.38.1", path = "../pax-lang"}
+pax-designtime = {version="0.38.1", path = "../pax-designtime", optional = true}
+pax-runtime-api = {version="0.38.1", path = "../pax-runtime-api"}
 piet = "0.6.0"
 piet-common = "0.6.0"
 serde = {version="1.0.196", features=["derive"]}
