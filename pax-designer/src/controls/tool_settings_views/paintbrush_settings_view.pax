@@ -1,11 +1,26 @@
 
-<Text class=col_1 width=100% text="Stroke" class=h2 y=50px/>
-<ColorPicker y=50px anchor_x=0% height=30px x=72% width=25% color=bind:stroke_color/>
-<Path y=50px class=hr _raycastable=false/>
-<ColorPicker width=100px height=100px y=20% color=bind:fill_color/>
-<ColorPicker width=100px height=100px y=40% color=bind:stroke_color/>
-<Textbox y=60% class=input text=bind:self.brush_radius_text/>
-<Textbox y=80% class=input text=bind:self.stroke_width_text/>
+<Group y=400px x=50% width={100% - 10px}>
+    // Stroke
+    <Text class=col_1 width=40% text="Stroke" class=h2/>
+    <Textbox x=45% anchor_x=0% width=20% class=input text=bind:self.stroke_width_text/>
+    <ColorPicker anchor_x=0% height=30px x=72% width=25% color=bind:stroke_color/>
+
+    <Path y=40px class=hr _raycastable=false/>
+
+    // Fill
+    <Text y=50px class=col_1 width=40% text="Fill" class=h2/>
+    <ColorPicker y=50px anchor_x=0% height=30px x=72% width=25% color=bind:fill_color/>
+
+    <Path y=90px class=hr _raycastable=false/>
+
+    // Brush radius
+    <Text y=100px class=col_1 width=40% text="Radius" class=h2/>
+    <Textbox y=100px x=95% anchor_x=100% width=20% class=input text=bind:self.brush_radius_text @textbox_change=self.radius_textbox_change/>
+    <Slider y=140px height=15px width=96.66%
+        background=rgb(8.5%, 8.5%, 8.5%)
+      accent=BLACK value=bind:self.brush_radius 
+        step=1 min=5 max=100/>
+</Group>
 
 @settings {
     @mount: on_mount
@@ -24,6 +39,20 @@
             align_horizontal: TextAlignHorizontal::Left,
             align_multiline: TextAlignHorizontal::Left
         }
+    }
+
+    .hr {
+        height: 1px,
+        elements: {[
+            PathElement::Point(0%, 0%),
+            PathElement::Line,
+            PathElement::Point(100%, 0%),
+        ]},
+        stroke: {
+            color: rgb(48, 56, 62),
+            width: 1px,
+        },
+        fill: NONE
     }
 
     .input {
