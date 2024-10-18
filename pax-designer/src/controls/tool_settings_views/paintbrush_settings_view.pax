@@ -1,3 +1,7 @@
+
+<Text class=col_1 width=100% text="Stroke" class=h2 y=50px/>
+<ColorPicker y=50px anchor_x=0% height=30px x=72% width=25% color=bind:stroke_color/>
+<Path y=50px class=hr _raycastable=false/>
 <ColorPicker width=100px height=100px y=20% color=bind:fill_color/>
 <ColorPicker width=100px height=100px y=40% color=bind:stroke_color/>
 <Textbox y=60% class=input text=bind:self.brush_radius_text/>
@@ -60,6 +64,20 @@
             fill: rgba(255, 255, 255, 67%),
             align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Right,
+        }
+    }
+
+    .h2 {
+        height: 20px,
+        style: {
+            font: {Font::Web(
+                "ff-real-headline-pro",
+                "https://use.typekit.net/ivu7epf.css",
+                FontStyle::Normal,
+                FontWeight::Light
+            )},
+            font_size: 16px,
+            fill: WHITE,
         }
     }
 

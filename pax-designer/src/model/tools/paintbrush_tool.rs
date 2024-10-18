@@ -61,7 +61,7 @@ impl Default for PaintbrushToolSettings {
             brush_radius: 30.0,
             fill_color: Color::BLACK,
             stroke_color: Color::GRAY,
-            stroke_width: 3,
+            stroke_width: 0,
         }
     }
 }
