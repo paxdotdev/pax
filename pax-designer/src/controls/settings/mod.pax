@@ -36,7 +36,7 @@ if self.is_component_selected {
                         <PropertyEditor write_target={WriteTarget::TemplateNode(stid, snid)} name="height" class=col_6 class=span_3 />
                     </Group>
                 </Group>
-                <Path class=hr y=77px class=col_1 class=span_6 _raycastable=false/>
+                <Path class=hr y=105px class=col_1 class=span_6 _raycastable=false/>
                 <Group y=110px height=180px>
                     <Text text="Transform" class=h2 class=col_1 class=span_6 />
                     <Group y=30px height={100% - 30px}>
