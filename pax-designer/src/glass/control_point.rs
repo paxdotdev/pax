@@ -223,6 +223,10 @@ impl ControlPoint {
 #[engine_import_path("pax_engine")]
 pub struct ControlPointDef {
     pub point: GlassPoint,
+    /// 0.0-1.0
+    pub anchor_x: f64,
+    /// 0.0-1.0
+    pub anchor_y: f64,
     pub node_local_rotation_degrees: f64,
     pub styling: ControlPointStyling,
 }
@@ -238,4 +242,5 @@ pub struct ControlPointStyling {
     pub width: f64,
     pub height: f64,
     pub cursor_type: DesignerCursorType,
+    pub hit_padding: f64,
 }

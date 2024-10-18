@@ -99,17 +99,19 @@ impl WireframeEditor {
                         .into_iter()
                         .map(|c_point| {
                             (
-                                (c_point.point, c_point.node_local_rotation_degrees),
+                                (c_point.point, c_point.rotation, c_point.anchor),
                                 c_point.behavior,
                             )
                         })
                         .unzip();
                     let control_points_from_set: Vec<ControlPointDef> = control_points_set
                         .into_iter()
-                        .map(|(p, rot)| ControlPointDef {
+                        .map(|(p, rot, anchor)| ControlPointDef {
                             point: p.into(),
-                            styling: control_set.styling.clone(),
                             node_local_rotation_degrees: rot,
+                            anchor_x: anchor.x,
+                            anchor_y: anchor.y,
+                            styling: control_set.styling.clone(),
                         })
                         .collect();
                     control_points.extend(control_points_from_set);
