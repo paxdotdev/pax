@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
@@ -41,6 +42,7 @@ pub mod wireframe_editor;
 
 use self::intent::IntentDef;
 pub use self::tool_editors::TextEdit;
+use self::tool_editors::TextEditTool;
 use crate::message_log_display::DesignerLogMsg;
 use control_point::ControlPoint;
 use intent::Intent;
@@ -264,8 +266,20 @@ impl Glass {
         }
     }
 
-    pub fn handle_select_start(&mut self, _ctx: &NodeContext, event: Event<SelectStart>) {
-        event.prevent_default();
+    pub fn handle_select_start(&mut self, ctx: &NodeContext, event: Event<SelectStart>) {
+        // TODO change this to only do this if glass is "selected", as a proxy use if tool is in use
+        // or not.
+        if !model::with_action_context(ctx, |ac| {
+            ac.app_state
+                .tool_behavior
+                .get()
+                .is_some_and(|tool_behavior| {
+                    let tool_type = (&*borrow!(tool_behavior)).type_id();
+                    tool_type != std::any::TypeId::of::<TextEditTool>()
+                })
+        }) {
+            event.prevent_default();
+        }
     }
 
     pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: Event<MouseDown>) {

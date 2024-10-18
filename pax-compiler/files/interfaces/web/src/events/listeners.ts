@@ -75,7 +75,14 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         }
     }, true);
     window.addEventListener('selectstart', (evt) => {
-        // this value was previously set on window
+
+        // NOTE: this shouldn't be needed once selectionstart can be
+        // fired only on active/focused element instead of global
+        // Check if the target is an input or textarea
+        if (evt.target instanceof HTMLInputElement || evt.target instanceof HTMLTextAreaElement) {
+            // Allow default behavior for inputs and textareas
+            return;
+        }        
         let event = {
             "SelectStart": {}
         };
