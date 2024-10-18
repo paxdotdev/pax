@@ -235,6 +235,7 @@ pub struct BaseInstance {
     flags: InstanceFlags,
 }
 
+#[derive(Clone)]
 pub struct InstanceFlags {
     /// Used for exotic tree traversals for `Slot`, e.g. for `Stacker` > `Repeat` > `Rectangle`
     /// where the repeated `Rectangle`s need to be be considered direct children of `Stacker`.
