@@ -14,6 +14,7 @@ pub struct PaintbrushSettings {
     pub fill_color: Property<Color>,
     pub stroke_color: Property<Color>,
     pub brush_radius_text: Property<String>,
+    pub brush_radius: Property<f64>,
     pub stroke_width_text: Property<String>,
 }
 
@@ -24,34 +25,32 @@ impl PaintbrushSettings {
 
         self.fill_color.set(curr.fill_color);
         self.stroke_color.set(curr.stroke_color);
-        self.brush_radius_text.set(curr.brush_radius.to_string());
+        self.brush_radius.set(curr.brush_radius);
         self.stroke_width_text.set(curr.stroke_width.to_string());
 
         let fill_color = self.fill_color.clone();
         let stroke_color = self.stroke_color.clone();
-        let brush_radius_text = self.brush_radius_text.clone();
+        let brush_radius = self.brush_radius.clone();
         let stroke_width_text = self.stroke_width_text.clone();
 
-        // keep track of old values and use if new parsed value is bad
-        let old_brush_radius = Rc::new(std::cell::Cell::new(curr.brush_radius));
+        let deps = [brush_radius.untyped()];
+        self.brush_radius_text.replace_with(Property::computed(
+            move || brush_radius.get().to_string(),
+            &deps,
+        ));
+        let brush_radius = self.brush_radius.clone();
+
+        // keep track of old value and use if new parsed value is bad
         let old_stroke_width = Rc::new(std::cell::Cell::new(curr.stroke_width));
 
         let deps = [
             fill_color.untyped(),
             stroke_color.untyped(),
-            brush_radius_text.untyped(),
+            brush_radius.untyped(),
             stroke_width_text.untyped(),
         ];
         paintbrush_settings.replace_with(Property::computed(
             move || {
-                let brush_radius = if let Ok(val) = brush_radius_text.get().parse::<f64>() {
-                    let val = val.clamp(5.0, 100.0);
-                    old_brush_radius.set(val);
-                    val
-                } else {
-                    old_brush_radius.get()
-                };
-
                 let stroke_width = if let Ok(val) = stroke_width_text.get().parse::<u32>() {
                     let val = val.clamp(0, 50);
                     old_stroke_width.set(val);
@@ -62,11 +61,16 @@ impl PaintbrushSettings {
                 PaintbrushToolSettings {
                     fill_color: fill_color.get(),
                     stroke_color: stroke_color.get(),
-                    brush_radius,
+                    brush_radius: brush_radius.get(),
                     stroke_width,
                 }
             },
             &deps,
         ));
+    }
+
+    pub fn radius_textbox_change(&mut self, _ctx: &NodeContext, event: Event<TextboxChange>) {
+        self.brush_radius
+            .set(event.text.parse().unwrap_or(30.0f64).clamp(5.0, 100.0));
     }
 }
