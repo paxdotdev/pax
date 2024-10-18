@@ -1,6 +1,6 @@
 [package]
 name = "pax-cli"
-version = "0.38.0"
+version = "0.38.1"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -18,9 +18,9 @@ color-eyre = "0.6.2"
 colored = "2.0.0"
 ctrlc = { version = "3.4.4", features = ["termination"] }
 nix = "0.20.2"
-pax-compiler = {path = "../pax-compiler", version = "0.38.0"}
-pax-lang = {path = "../pax-lang", version = "0.38.0"}
-pax-language-server = {path = "../pax-language-server", version = "0.38.0"}
+pax-compiler = {path = "../pax-compiler", version = "0.38.1"}
+pax-lang = {path = "../pax-lang", version = "0.38.1"}
+pax-language-server = {path = "../pax-language-server", version = "0.38.1"}
 reqwest = "0.11.18"
 rustc_version = "0.4.0"
 tokio = { version = "1", features = ["full"] }
