@@ -1,11 +1,11 @@
 [package]
 name = "marketing-site"
-version = "0.37.1"
+version = "0.38.0"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-kit = { version = "0.37.1", features = ["designer"], path = "../../../pax-kit" }
+pax-kit = { version = "0.38.0", features = ["designer"], path = "../../../pax-kit" }
 rand = { version = "0.8.5" }
 getrandom = { version = "0.2.15", features = ["js"] }
 
