@@ -4,11 +4,11 @@ use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_runtime_api::Property;
 use pax_runtime_api::{borrow, pax_value::ToFromPaxAny, Interpolatable};
 
-use crate::ExpandedNodeIdentifier;
 use crate::{
     api::{math::Space, Window},
     ExpandedNode, LayoutProperties, TransformAndBounds,
 };
+use crate::{ExpandedNodeIdentifier, InstanceFlags};
 
 impl Interpolatable for NodeInterface {}
 
@@ -82,6 +82,12 @@ impl NodeInterface {
         self.inner
             .try_with_properties_unwrapped::<T, _>(|_| ())
             .is_some()
+    }
+
+    pub fn instance_flags(&self) -> InstanceFlags {
+        let instance_node = borrow!(self.inner.instance_node);
+        let base = instance_node.base();
+        base.flags().clone()
     }
 
     pub fn transform_and_bounds(&self) -> Property<TransformAndBounds<NodeLocal, Window>> {
