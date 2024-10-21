@@ -112,7 +112,10 @@ export let SUPPORTED_OBJECTS = [{
         name: DIV,
         factory: () => document.createElement('div'),
         cleanUp: (div: HTMLDivElement) => {
+            // remove children
+            div.innerHTML = "";
             const attrs = Array.from(div.attributes);
+            // clear attributes
             attrs.forEach(attr => div.removeAttribute(attr.name));
         },
     },
