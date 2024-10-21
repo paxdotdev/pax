@@ -801,6 +801,7 @@ export class NativeElementPool {
             // this elements size from the chassi.
             if (patch.size_x == -1.0) {
                 start_listening = true;
+                leaf!.style.width = "auto";
             } else {
                 leaf!.style.width = patch.size_x + "px";
             }
@@ -808,6 +809,7 @@ export class NativeElementPool {
         if (patch.size_y != null) {
             if (patch.size_y == -1.0) {
                 start_listening = true;
+                leaf!.style.height = "auto";
             } else {
                 leaf!.style.height = patch.size_y + "px";
             }
