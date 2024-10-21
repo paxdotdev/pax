@@ -117,16 +117,14 @@ export class OcclusionLayerManager {
 
         // Update the DOM for each layer
         this.layers!.forEach((layer, layerIndex) => {
-            const currentElements = Array.from(layer.native!.querySelectorAll(`[data-container-id="${id}"]`) as NodeListOf<HTMLElement>);
-            for (let currentElement of currentElements) {
-                if (currentElement) {
-                    const newParentElement = this.getOrCreateContainer(new_parent_id, layerIndex);
-        
-                    // Check if the current parent is different from the new parent
-                    if (currentElement.parentElement !== newParentElement) {
-                        // Add to new parent
-                        newParentElement.appendChild(currentElement);
-                    }
+            const currentElement = layer.native!.querySelector(`[data-container-id="${id}"]`) as HTMLElement;
+            if (currentElement) {
+                const newParentElement = this.getOrCreateContainer(new_parent_id, layerIndex);
+    
+                // Check if the current parent is different from the new parent
+                if (currentElement.parentElement !== newParentElement) {
+                    // Add to new parent
+                    newParentElement.appendChild(currentElement);
                 }
             }
         });
