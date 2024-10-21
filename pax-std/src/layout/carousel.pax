@@ -1,11 +1,11 @@
 <Group>
-    <Group width=40px x=0%>
+    <Group width=40px x=0%  @click=decrement>
         <Path id=left_triangle/>
-        <Rectangle corner_radii={RectangleCornerRadii::radii(15.0, 0.0, 0.0, 15.0)} fill=WHITE @click=decrement/>
+        <Rectangle corner_radii={RectangleCornerRadii::radii(15.0, 0.0, 0.0, 15.0)} fill=WHITE/>
     </Group>
-    <Group width=40px x=100%>
+    <Group width=40px x=100% @click=increment>
         <Path id=right_triangle/>
-        <Rectangle corner_radii={RectangleCornerRadii::radii(0.0, 15.0, 15.0, 0.0)} fill=WHITE @click=increment/>
+        <Rectangle corner_radii={RectangleCornerRadii::radii(0.0, 15.0, 15.0, 0.0)} fill=WHITE/>
     </Group>
     <Frame x=50% y=50% width={100%-80px}>
     for (cell_spec, i) in self.cell_specs {
