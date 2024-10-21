@@ -276,10 +276,10 @@ fn write_to_orm<T: ToPaxValue + ApproxEq>(
     old_value: Option<&T>,
     default_value: T,
 ) -> Result<()> {
-    let value = value.filter(|v| !v.approx_eq(&default_value));
     if old_value.approx_eq(&value.as_ref()) {
         return Ok(());
     }
+    let value = value.filter(|v| !v.approx_eq(&default_value));
     builder.set_property_from_typed(name, value)?;
     Ok(())
 }
