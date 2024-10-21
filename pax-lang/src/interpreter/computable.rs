@@ -35,7 +35,12 @@ impl Computable for PaxPrimary {
                     match accessor {
                         PaxAccessor::Tuple(index) => {
                             if let PaxValue::Vec(v) = value {
-                                value = v[*index].clone();
+                                value = v.into_iter().nth(*index).ok_or_else(|| {
+                                    format!(
+                                        "paxel interpreter: tuple index out of bounds: {:?}",
+                                        index
+                                    )
+                                })?;
                             } else {
                                 return Err("Tuple access must be performed on a tuple".to_string());
                             }
@@ -44,7 +49,12 @@ impl Computable for PaxPrimary {
                             if let PaxValue::Vec(v) = value {
                                 let index = Numeric::try_coerce(index.compute(idr.clone())?)?
                                     .to_int() as usize;
-                                value = v[index].clone();
+                                value = v.into_iter().nth(index).ok_or_else(|| {
+                                    format!(
+                                        "paxel interpreter: list index out of bounds: {:?}",
+                                        index
+                                    )
+                                })?;
                             } else {
                                 return Err("List access must be performed on a list".to_string());
                             }
@@ -52,9 +62,8 @@ impl Computable for PaxPrimary {
                         PaxAccessor::Struct(field) => {
                             if let PaxValue::Object(obj) = value {
                                 value = obj
-                                    .iter()
-                                    .find_map(|(n, v)| (n == field).then_some(v))
-                                    .map(|v| v.clone())
+                                    .into_iter()
+                                    .find_map(|(n, v)| (&n == field).then_some(v))
                                     .ok_or(format!("Field not found: {}", field))?;
                             } else {
                                 return Err(
