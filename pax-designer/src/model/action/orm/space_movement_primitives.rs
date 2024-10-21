@@ -280,6 +280,9 @@ fn write_to_orm<T: ToPaxValue + ApproxEq>(
         return Ok(());
     }
     let value = value.filter(|v| !v.approx_eq(&default_value));
+    if old_value.is_none() && value.is_none() {
+        return Ok(());
+    }
     builder.set_property_from_typed(name, value)?;
     Ok(())
 }
