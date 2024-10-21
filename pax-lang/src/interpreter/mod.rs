@@ -7,7 +7,7 @@ use pest::{
 use property_resolution::IdentifierResolver;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-use std::{collections::HashMap, rc::Rc};
+use std::rc::Rc;
 
 use crate::{deserializer::from_pax_ast, get_pax_pratt_parser, parse_pax_pairs, Rule};
 
