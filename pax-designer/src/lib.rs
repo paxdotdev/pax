@@ -91,9 +91,10 @@ impl PaxDesigner {
             self.bind_stage_outline_width_property(&app_state);
         });
         self.bind_is_manifest_loaded_from_server(ctx);
+        self.bind_cull_console();
     }
 
-    pub fn toggle_console(&mut self, ctx: &NodeContext, args: Event<Click>) {
+    pub fn toggle_console(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
         let current_console_status = self.console_status.get();
         let new_console_status = !current_console_status;
         self.console_status.set(new_console_status);
@@ -118,10 +119,18 @@ impl PaxDesigner {
         // hasn't been written to engine yet - this is the place they get
         // flushed
         model::action::meta::flush_sheduled_actions(ctx);
+    }
 
-        let should_cull_console = self.console_height.get() >= CLOSED_CONSOLE_HEIGHT - f64::EPSILON
-            && self.console_height.get() <= CLOSED_CONSOLE_HEIGHT + f64::EPSILON;
-        self.cull_console.set(should_cull_console);
+    pub fn bind_cull_console(&mut self) {
+        let console_height = self.console_height.clone();
+        let deps = [console_height.untyped()];
+        self.cull_console.replace_with(Property::computed(
+            move || {
+                console_height.get() >= CLOSED_CONSOLE_HEIGHT - f64::EPSILON
+                    && console_height.get() <= CLOSED_CONSOLE_HEIGHT + f64::EPSILON
+            },
+            &deps,
+        ));
     }
 
     fn bind_stage_property(&mut self, app_state: &model::AppState) {

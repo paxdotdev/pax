@@ -1,13 +1,13 @@
 use std::collections::{hash_set, HashMap};
 
-use pax_runtime_api::PaxValue;
+use pax_runtime_api::{PaxValue, Property, Variable};
 
 use super::{PaxExpression, PaxInfix, PaxPostfix, PaxPrefix, PaxPrimary};
 
 /// Trait for resolving identifiers to values
 /// This is implemented by RuntimePropertyStackFrame
 pub trait IdentifierResolver {
-    fn resolve(&self, name: String) -> Result<PaxValue, String>;
+    fn resolve(&self, name: String) -> Result<Variable, String>;
 }
 
 pub trait DependencyCollector {
@@ -72,9 +72,9 @@ impl DependencyCollector for PaxPostfix {
 }
 
 impl IdentifierResolver for HashMap<String, PaxValue> {
-    fn resolve(&self, name: String) -> Result<PaxValue, String> {
+    fn resolve(&self, name: String) -> Result<Variable, String> {
         self.get(&name)
-            .map(|v| v.clone())
+            .map(|v| Variable::new_from_typed_property(Property::new(v.clone())))
             .ok_or(format!("Identifier not found: {}", name))
     }
 }

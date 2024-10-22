@@ -174,6 +174,7 @@ pub trait DefinitionToInstanceTraverser {
                         let rc = Rc::clone(&outer_ref);
                         let mut inner_ref = (*rc).borrow_mut();
                         let cp = ConditionalProperties::mut_from_pax_any(&mut inner_ref).unwrap();
+                        let name = format!("conditional (if) expr ({})", expr_ast);
                         cp.boolean_expression
                             .replace_with(Property::computed_with_name(
                                 move || {
@@ -194,13 +195,14 @@ pub trait DefinitionToInstanceTraverser {
                                     coerced
                                 },
                                 &dependencies,
-                                "conditional (if) expr",
+                                &name,
                             ));
                         return None;
                     }
 
                     Some(std::rc::Rc::new(RefCell::new({
                         let mut properties = crate::ConditionalProperties::default();
+                        let name = format!("conditional (if) expr ({})", expr_ast);
                         properties.boolean_expression = Property::computed_with_name(
                             move || {
                                 let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
@@ -211,7 +213,7 @@ pub trait DefinitionToInstanceTraverser {
                                 coerced
                             },
                             &dependencies,
-                            "conditional (if) expr",
+                            &name,
                         );
                         properties.to_pax_any()
                     })))

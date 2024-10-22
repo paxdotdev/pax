@@ -164,15 +164,19 @@ impl RepeatInstance {
                 let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
                     panic!("ran evaluator after expanded node dropped (repeat elem)")
                 };
-                let source = source_expression.get();
-                let source_len = if let PaxValue::Range(start, end) = source {
-                    (isize::try_coerce(*end).unwrap() - isize::try_coerce(*start).unwrap()) as usize
-                } else if let PaxValue::Vec(v) = source {
-                    v.len()
-                } else {
-                    log::warn!("source is not a vec");
-                    0
-                };
+                let source_len = source_expression.read(|source| {
+                    let source_len = if let PaxValue::Range(start, end) = source {
+                        (isize::try_coerce(*end.clone()).unwrap()
+                            - isize::try_coerce(*start.clone()).unwrap())
+                            as usize
+                    } else if let PaxValue::Vec(v) = source {
+                        v.len()
+                    } else {
+                        log::warn!("source is not a vec");
+                        0
+                    };
+                    source_len
+                });
                 if source_len == *borrow!(last_length)
                     && i_symbol.read(|i| i == &*borrow!(last_i_sym))
                     && elem_symbol.read(|e| e == &*borrow!(last_elem_sym))
@@ -192,17 +196,18 @@ impl RepeatInstance {
                         let cp_source_expression = source_expression.clone();
                         let property_elem = Property::computed_with_name(
                             move || {
-                                let source = cp_source_expression.get();
-                                if let PaxValue::Range(start, _) = source {
-                                    let start = isize::try_coerce(*start).unwrap();
-                                    let elem = (start + i as isize).to_pax_value();
-                                    elem
-                                } else if let PaxValue::Vec(v) = source {
-                                    v[i].clone()
-                                } else {
-                                    log::warn!("source is not a vec");
-                                    Default::default()
-                                }
+                                cp_source_expression.read(|source| {
+                                    if let PaxValue::Range(start, _) = source {
+                                        let start = isize::try_coerce(*start.clone()).unwrap();
+                                        let elem = (start + i as isize).to_pax_value();
+                                        elem
+                                    } else if let PaxValue::Vec(v) = source {
+                                        v[i].clone()
+                                    } else {
+                                        log::warn!("source is not a vec");
+                                        Default::default()
+                                    }
+                                })
                             },
                             &[source_expression.untyped()],
                             "repeat elem",
