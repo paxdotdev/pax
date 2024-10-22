@@ -35,12 +35,15 @@ use crate::model::input::Dir;
 pub struct ControlPoint {
     pub data: Property<ControlPointDef>,
     pub ind: Property<Numeric>,
+    pub styles: Property<Vec<ControlPointStyling>>,
     // the transform of the currently selected object
     pub object_rotation: Property<Rotation>,
 
     // private
     // the transform to be applied to this control point
     pub applied_rotation: Property<Rotation>,
+    // derived from styling lookup ind in controlpointdef on mount.
+    pub style: Property<ControlPointStyling>,
 }
 
 #[derive(Clone)]
@@ -153,13 +156,23 @@ impl ToolBehavior for ControlPointTool {
 
 impl ControlPoint {
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
-        let data = self.data.clone();
+        // NOTE: styling only applied once at mount, not reactive
+        let style = self
+            .styles
+            .read(|styles| styles[self.data.read(|data| data.styling_lookup_ind)].clone());
+        let affected_by_transform = style.affected_by_transform.clone();
+        self.style.replace_with(Property::new(style));
+
         let object_transform = self.object_rotation.clone();
+        let data = self.data.clone();
         let deps = [data.untyped(), object_transform.untyped()];
         self.applied_rotation.replace_with(Property::computed(
             move || {
-                if data.get().styling.affected_by_transform {
-                    object_transform.get()
+                if affected_by_transform {
+                    Rotation::Degrees(
+                        (object_transform.get().get_as_degrees() + data.read(|data| data.rotation))
+                            .into(),
+                    )
                 } else {
                     Default::default()
                 }
@@ -204,14 +217,16 @@ impl ControlPoint {
     }
 
     pub fn mouse_over(&mut self, ctx: &NodeContext, _event: Event<MouseOver>) {
-        self.data.read(|data| {
-            model::perform_action(
-                &SetCursor(DesignerCursor {
-                    cursor_type: data.styling.cursor_type,
-                    rotation_degrees: data.node_local_rotation_degrees,
-                }),
-                ctx,
-            );
+        self.style.read(|style| {
+            self.data.read(|data| {
+                model::perform_action(
+                    &SetCursor(DesignerCursor {
+                        cursor_type: style.cursor_type,
+                        rotation_degrees: data.cursor_rotation,
+                    }),
+                    ctx,
+                );
+            })
         })
     }
     pub fn mouse_out(&mut self, ctx: &NodeContext, _event: Event<MouseOut>) {
@@ -227,8 +242,11 @@ pub struct ControlPointDef {
     pub anchor_x: f64,
     /// 0.0-1.0
     pub anchor_y: f64,
-    pub node_local_rotation_degrees: f64,
-    pub styling: ControlPointStyling,
+    /// Node-local rotation in degrees
+    pub rotation: f64,
+    // Node-local rotation in degrees
+    pub cursor_rotation: f64,
+    pub styling_lookup_ind: usize,
 }
 
 #[pax]

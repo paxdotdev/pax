@@ -57,7 +57,7 @@ impl Action for SetAnchor<'_> {
 }
 
 pub struct ResizeFromSnapshot<'a> {
-    pub fixed_point: Point2<NodeLocal>,
+    pub fixed_point: Point2<SelectionSpace>,
     pub new_point: Point2<Glass>,
     pub initial_selection: &'a SelectionStateSnapshot,
 }
