@@ -1,5 +1,10 @@
 use crate::{Color, Interpolatable, PathElement, Percent, Rotation, Size};
-use std::{any::Any, fmt::Display};
+use std::{
+    any::Any,
+    fmt::Display,
+    rc::Rc,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 use self::numeric::Numeric;
 pub use coercion_impls::CoercionRules;

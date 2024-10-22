@@ -2017,39 +2017,33 @@ impl Transform2D {
 #[derive(Clone)]
 pub struct Variable {
     untyped_property: UntypedProperty,
-    convert_to_pax_value: Rc<dyn Fn(UntypedProperty) -> PaxValue>,
+    converted_to_pax_value: Property<PaxValue>,
 }
 
 impl Variable {
     pub fn new<T: PropertyValue + ToPaxValue>(untyped_property: UntypedProperty) -> Self {
-        let closure = |untyped_property: UntypedProperty| {
-            let property: Property<T> = Property::new_from_untyped(untyped_property.clone());
-            property.get().to_pax_value()
-        };
-
-        Variable {
-            untyped_property,
-            convert_to_pax_value: Rc::new(closure),
-        }
+        Self::new_from_typed_property(Property::<T>::new_from_untyped(untyped_property.clone()))
     }
 
     pub fn new_from_typed_property<T: PropertyValue + ToPaxValue>(property: Property<T>) -> Self {
         let untyped_property = property.untyped();
-        let closure = |untyped_property: UntypedProperty| {
-            let property: Property<T> = Property::new_from_untyped(untyped_property.clone());
-            property.get().to_pax_value()
-        };
-
+        let deps = [untyped_property.clone()];
+        let pax_value_prop = Property::computed(move || property.get().to_pax_value(), &deps);
         Variable {
             untyped_property,
-            convert_to_pax_value: Rc::new(closure),
+            converted_to_pax_value: pax_value_prop,
         }
     }
 
     pub fn get_untyped_property(&self) -> &UntypedProperty {
         &self.untyped_property
     }
+
     pub fn get_as_pax_value(&self) -> PaxValue {
-        (self.convert_to_pax_value)(self.untyped_property.clone())
+        self.converted_to_pax_value.get()
+    }
+
+    pub fn read_pax_value_ref<V>(&self, f: impl FnOnce(&PaxValue) -> V) -> V {
+        self.converted_to_pax_value.read(f)
     }
 }
