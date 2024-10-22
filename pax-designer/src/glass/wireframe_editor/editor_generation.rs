@@ -33,11 +33,11 @@ pub mod stacker_control;
 #[derive(Clone, Default)]
 pub struct Editor {
     pub controls: Vec<ControlPointSet>,
-    pub segments: Vec<(Point2<Glass>, Point2<Glass>)>,
+    pub segments: Property<Vec<(Point2<Glass>, Point2<Glass>)>>,
 }
 
 impl Editor {
-    pub fn new(ctx: NodeContext, selection: SelectionState) -> Property<Self> {
+    pub fn new(ctx: NodeContext, selection: SelectionState) -> Self {
         let total_bounds = selection.total_bounds.clone();
         let deps = [total_bounds.untyped()];
         let total_bounds_cp = total_bounds.clone();
@@ -60,21 +60,16 @@ impl Editor {
             &deps,
         );
 
-        let mut deps: Vec<_> = control_point_sets.iter().map(|p| p.untyped()).collect();
-        deps.push(bounding_segments.untyped());
-        Property::computed(
-            move || Self {
-                controls: control_point_sets.iter().map(|set| set.get()).collect(),
-                segments: bounding_segments.get(),
-            },
-            &deps,
-        )
+        Self {
+            controls: control_point_sets,
+            segments: bounding_segments,
+        }
     }
 
     fn object_specific_control_point_sets(
         ctx: NodeContext,
         selection: SelectionState,
-    ) -> Vec<Property<ControlPointSet>> {
+    ) -> Vec<ControlPointSet> {
         if selection.items.len() != 1 {
             return Vec::default();
         }
@@ -90,9 +85,9 @@ impl Editor {
         match import_path.as_ref().map(|v| v.as_str()) {
             Some("pax_std::layout::stacker::Stacker") => {
                 vec![
+                    stacker_control::stacker_divider_control_set(ctx.clone(), item.clone()),
                     // add slot control generally for all slot components?
                     slot_control::slot_dot_control_set(ctx.clone(), item.clone()),
-                    stacker_control::stacker_divider_control_set(ctx.clone(), item.clone()),
                 ]
             }
             _ => return Vec::default(),
@@ -108,8 +103,10 @@ pub struct CPoint {
     pub point: Point2<Glass>,
     /// Node-local rotation in degrees
     pub rotation: f64,
+    /// Node-local cursor rotation in degrees
+    pub cursor_rotation: f64,
     /// Anchor of control point (x/y 0.0-1.0, 0.5 is center)
-    pub anchor: Point2<Generic>,
+    pub anchor: Point2<NodeLocal>,
     /// behavior on click/double click
     pub behavior: ControlPointToolFactory,
 }
@@ -119,7 +116,10 @@ impl Default for CPoint {
         Self {
             point: Default::default(),
             rotation: 0.0,
+            cursor_rotation: 0.0,
             anchor: Point2::new(0.5, 0.5),
+            // TODO we want this to be required most likely,
+            // make builder instead of derive of Default?
             behavior: ControlPointToolFactory {
                 tool_factory: Rc::new(|_, _| {
                     Rc::new(RefCell::new({
@@ -179,6 +179,6 @@ impl Interpolatable for ControlPointSet {}
 
 #[derive(Clone, Default)]
 pub struct ControlPointSet {
-    pub points: Vec<CPoint>,
+    pub points: Property<Vec<CPoint>>,
     pub styling: ControlPointStyling,
 }

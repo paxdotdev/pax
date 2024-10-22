@@ -1,6 +1,11 @@
 use std::{cell::RefCell, rc::Rc};
 
-use pax_engine::{api::Color, math::Point2, pax_runtime::TransformAndBounds, Property};
+use pax_engine::{
+    api::Color,
+    math::{Point2, Vector2},
+    pax_runtime::TransformAndBounds,
+    Property,
+};
 
 use crate::{
     glass::{
@@ -21,9 +26,9 @@ use super::ControlPointSet;
 
 pub fn rotate_control_points_set(
     total_selection_bounds: Property<TransformAndBounds<SelectionSpace, Glass>>,
-) -> Property<ControlPointSet> {
+) -> ControlPointSet {
     let rotate_control_point_styling = ControlPointStyling {
-        round: true,
+        round: false,
         stroke_color: Color::TRANSPARENT,
         fill_color: Color::TRANSPARENT,
         stroke_width_pixels: 0.0,
@@ -35,101 +40,45 @@ pub fn rotate_control_points_set(
     };
 
     let deps = [total_selection_bounds.untyped()];
-    Property::computed(
+    let rotate_control_points = Property::computed(
         move || {
-            let total_bounds = total_selection_bounds.get();
-            // clockwise from top left:
-            let [p1, p4, p3, p2] = total_bounds.corners();
-            let rotate_control_points = vec![
-                // each section of three sits in one corner, and fills out an
-                // "L" shape that "fits" the selected object. first CPoint in
-                // each section is the one pointing diagonally outwards from
-                // the selection.
-
-                // -------- section 1 --------
-                CPoint {
-                    point: p1,
-                    behavior: rotate_factory(),
-                    rotation: 225.0,
-                    anchor: Point2::new(1.0, 1.0),
-                },
-                CPoint {
-                    point: p1,
-                    behavior: rotate_factory(),
-                    rotation: 225.0,
-                    anchor: Point2::new(0.0, 1.0),
-                },
-                CPoint {
-                    point: p1,
-                    behavior: rotate_factory(),
-                    rotation: 225.0,
-                    anchor: Point2::new(1.0, 0.0),
-                },
-                // -------- section 2 --------
-                CPoint {
-                    point: p2,
-                    behavior: rotate_factory(),
-                    rotation: 315.0,
-                    anchor: Point2::new(0.0, 1.0),
-                },
-                CPoint {
-                    point: p2,
-                    behavior: rotate_factory(),
-                    rotation: 315.0,
-                    anchor: Point2::new(1.0, 1.0),
-                },
-                CPoint {
-                    point: p2,
-                    behavior: rotate_factory(),
-                    rotation: 315.0,
-                    anchor: Point2::new(0.0, 0.0),
-                },
-                // -------- section 3 --------
-                CPoint {
-                    point: p3,
-                    behavior: rotate_factory(),
-                    rotation: 55.0,
-                    anchor: Point2::new(0.0, 0.0),
-                },
-                CPoint {
-                    point: p3,
-                    behavior: rotate_factory(),
-                    rotation: 55.0,
-                    anchor: Point2::new(1.0, 0.0),
-                },
-                CPoint {
-                    point: p3,
-                    behavior: rotate_factory(),
-                    rotation: 55.0,
-                    anchor: Point2::new(0.0, 1.0),
-                },
-                // -------- section 4 --------
-                CPoint {
-                    point: p4,
-                    behavior: rotate_factory(),
-                    rotation: 145.0,
-                    anchor: Point2::new(1.0, 0.0),
-                },
-                CPoint {
-                    point: p4,
-                    behavior: rotate_factory(),
-                    rotation: 145.0,
-                    anchor: Point2::new(0.0, 0.0),
-                },
-                CPoint {
-                    point: p4,
-                    behavior: rotate_factory(),
-                    rotation: 145.0,
-                    anchor: Point2::new(1.0, 1.0),
-                },
-            ];
-            ControlPointSet {
-                points: rotate_control_points,
-                styling: rotate_control_point_styling.clone(),
-            }
+            let total_selection_bounds = total_selection_bounds.get().as_transform();
+            let rotate_factory = rotate_factory();
+            let c_point = |x: f64, y: f64| {
+                let local_point = Point2::new(x, y);
+                let cursor_rotation = Vector2::new(1.0, 0.0)
+                    .angle_to(local_point - Point2::new(0.5, 0.5))
+                    .get_as_degrees();
+                // Create three control points per corner in an "L" shape
+                [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)]
+                    .into_iter()
+                    .map(|(x, y)| Point2::new(x, y))
+                    .filter(|p| p != &local_point)
+                    .map(|anchor| CPoint {
+                        point: total_selection_bounds * local_point,
+                        cursor_rotation,
+                        anchor: anchor.cast_space(),
+                        behavior: rotate_factory.clone(),
+                        ..Default::default()
+                    })
+                    .collect::<Vec<_>>()
+            };
+            [
+                c_point(1.0, 1.0),
+                c_point(0.0, 1.0),
+                c_point(1.0, 0.0),
+                c_point(0.0, 0.0),
+            ]
+            .into_iter()
+            .flatten()
+            .collect()
         },
         &deps,
-    )
+    );
+    ControlPointSet {
+        points: rotate_control_points,
+        styling: rotate_control_point_styling,
+    }
 }
 
 fn rotate_factory() -> ControlPointToolFactory {

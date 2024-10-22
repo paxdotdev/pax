@@ -24,145 +24,8 @@ use crate::{
 
 use super::{CPoint, ControlPointSet};
 
-pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Property<ControlPointSet> {
-    struct StackerDividerControlBehavior {
-        stacker_node: GlassNodeSnapshot,
-        resize_ind: usize,
-        start_sizes: Vec<Option<Size>>,
-        boundaries: Vec<(f64, f64)>,
-        dir: StackerDirection,
-    }
-
-    impl ControlPointBehavior for StackerDividerControlBehavior {
-        fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) -> anyhow::Result<()> {
-            let t = ctx.world_transform() * self.stacker_node.transform_and_bounds.as_transform();
-            let point = ctx.world_transform() * point;
-            let (_, u, v) = t.decompose();
-            let (x_l, y_l) = (u.length(), v.length());
-            let box_point = t.inverse() * point;
-            let (ratio, total) = match self.dir {
-                StackerDirection::Vertical => (box_point.y, y_l),
-                StackerDirection::Horizontal => (box_point.x, x_l),
-            };
-
-            let mut new_sizes = self.start_sizes.clone();
-            while new_sizes.len() < self.boundaries.len() {
-                new_sizes.push(None);
-            }
-            let mut positions: Vec<f64> = self.boundaries.iter().map(|v| v.0).collect();
-            if let Some((p, w)) = self.boundaries.last() {
-                positions.push(p + w);
-            }
-            let above = positions[self.resize_ind] / total;
-            let above_unit = new_sizes[self.resize_ind].unit();
-            let new_val_ratio = (ratio - above).max(0.0);
-
-            new_sizes[self.resize_ind] = Some(match above_unit {
-                crate::math::SizeUnit::Pixels => {
-                    Size::Pixels(round_2_dec(new_val_ratio * total).into())
-                }
-                crate::math::SizeUnit::Percent => {
-                    Size::Percent(round_2_dec(new_val_ratio * 100.0).into())
-                }
-            });
-
-            let sizes_str = sizes_to_string(&new_sizes);
-
-            let mut dt = borrow_mut!(ctx.engine_context.designtime);
-            let mut builder = dt
-                .get_orm_mut()
-                .get_node_builder(
-                    self.stacker_node.id.clone(),
-                    ctx.app_state
-                        .modifiers
-                        .get()
-                        .contains(&ModifierKey::Control),
-                )
-                .unwrap();
-
-            builder.set_property("sizes", &sizes_str)?;
-
-            builder
-                .save()
-                .map_err(|e| anyhow!("could not save: {}", e))?;
-            Ok(())
-        }
-    }
-
-    fn stacker_divider_control_factory(
-        resize_ind: usize,
-        boundaries: Vec<(f64, f64)>,
-        start_sizes: Vec<Option<Size>>,
-        item: GlassNode,
-        dir: StackerDirection,
-    ) -> ControlPointToolFactory {
-        let stacker_id = item.id.clone();
-        let stacker_id_2 = item.id.clone();
-        ControlPointToolFactory {
-            tool_factory: Rc::new(move |ac, _p| {
-                Rc::new(RefCell::new(ControlPointTool::new(
-                    ac,
-                    "resizing stacker cells",
-                    Some(IntentSnapper::new_from_scene(ac, &[stacker_id.clone()])),
-                    StackerDividerControlBehavior {
-                        stacker_node: (&item).into(),
-                        resize_ind,
-                        boundaries: boundaries.clone(),
-                        start_sizes: start_sizes.clone(),
-                        dir: dir.clone(),
-                    },
-                )))
-            }),
-            double_click_behavior: Rc::new(move |ctx| {
-                let stacker_node = ctx
-                    .engine_context
-                    .get_nodes_by_global_id(stacker_id_2.clone())
-                    .into_iter()
-                    .next()
-                    .unwrap();
-                let mut sizes = stacker_node
-                    .with_properties(|stacker: &mut Stacker| stacker.sizes.get())
-                    .unwrap();
-                if let Some(val) = sizes.get_mut(resize_ind) {
-                    *val = None
-                }
-
-                let sizes_str = sizes_to_string(&sizes);
-
-                let mut dt = borrow_mut!(ctx.engine_context.designtime);
-                let mut builder = dt
-                    .get_orm_mut()
-                    .get_node_builder(
-                        stacker_id_2.clone(),
-                        ctx.app_state
-                            .modifiers
-                            .get()
-                            .contains(&ModifierKey::Control),
-                    )
-                    .unwrap();
-
-                builder.set_property("sizes", &sizes_str).unwrap();
-
-                builder
-                    .save()
-                    .map_err(|e| anyhow!("could not save: {}", e))
-                    .unwrap();
-            }),
-        }
-    }
-
+pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> ControlPointSet {
     // slot-divider resizer style
-    let control_point_styling = ControlPointStyling {
-        affected_by_transform: true,
-        round: false,
-        stroke_color: Color::RED,
-        fill_color: Color::rgba(255.into(), 255.into(), 255.into(), 150.into()),
-        stroke_width_pixels: 1.0,
-        width: -1.0,
-        height: -1.0,
-        cursor_type: DesignerCursorType::Resize,
-        hit_padding: 10.0,
-    };
     let to_glass_transform =
         model::read_app_state_with_derived(|_, derived| derived.to_glass_transform.get());
     let manifest_changed_notifier = ctx
@@ -176,7 +39,7 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
     let deps = [object_transform.untyped(), manifest_changed_notifier];
     let item_id = item.id;
     let ctx = ctx.clone();
-    Property::computed(
+    let stacker_divider_control_points = Property::computed(
         move || {
             let item = ctx
                 .clone()
@@ -205,7 +68,11 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
                 })
                 .collect();
 
-            let stacker_divider_control_points = boundaries
+            let rotation = match dir {
+                StackerDirection::Vertical => 90.0,
+                StackerDirection::Horizontal => 0.0,
+            };
+            boundaries
                 .iter()
                 .enumerate()
                 .map(|(i, &c)| CPoint {
@@ -220,39 +87,157 @@ pub fn stacker_divider_control_set(ctx: NodeContext, item: GlassNode) -> Propert
                         item.clone(),
                         dir.clone(),
                     ),
-                    rotation: match dir {
-                        StackerDirection::Vertical => 90.0,
-                        StackerDirection::Horizontal => 0.0,
-                    },
+                    rotation,
+                    cursor_rotation: rotation,
                     ..Default::default()
                 })
-                .collect();
-
-            let mut cp_style = control_point_styling.clone();
-
-            //width / height of slot-divider resizer's major axis
-            const MAJOR: f64 = 24.0;
-
-            //width / height of slot-divider resizer's minor axis
-            const MINOR: f64 = 6.0;
-            match dir {
-                StackerDirection::Vertical => {
-                    cp_style.width = MAJOR;
-                    cp_style.height = MINOR;
-                }
-                StackerDirection::Horizontal => {
-                    cp_style.width = MINOR;
-                    cp_style.height = MAJOR;
-                }
-            }
-
-            ControlPointSet {
-                points: stacker_divider_control_points,
-                styling: cp_style,
-            }
+                .collect()
         },
         &deps,
-    )
+    );
+
+    let control_point_styling = ControlPointStyling {
+        affected_by_transform: true,
+        round: false,
+        stroke_color: Color::RED,
+        fill_color: Color::rgba(255.into(), 255.into(), 255.into(), 150.into()),
+        stroke_width_pixels: 1.0,
+        width: 6.0,
+        height: 24.0,
+        cursor_type: DesignerCursorType::Resize,
+        hit_padding: 10.0,
+    };
+
+    ControlPointSet {
+        points: stacker_divider_control_points,
+        styling: control_point_styling,
+    }
+}
+
+struct StackerDividerControlBehavior {
+    stacker_node: GlassNodeSnapshot,
+    resize_ind: usize,
+    start_sizes: Vec<Option<Size>>,
+    boundaries: Vec<(f64, f64)>,
+    dir: StackerDirection,
+}
+
+impl ControlPointBehavior for StackerDividerControlBehavior {
+    fn step(&self, ctx: &mut ActionContext, point: Point2<Glass>) -> anyhow::Result<()> {
+        let t = ctx.world_transform() * self.stacker_node.transform_and_bounds.as_transform();
+        let point = ctx.world_transform() * point;
+        let (_, u, v) = t.decompose();
+        let (x_l, y_l) = (u.length(), v.length());
+        let box_point = t.inverse() * point;
+        let (ratio, total) = match self.dir {
+            StackerDirection::Vertical => (box_point.y, y_l),
+            StackerDirection::Horizontal => (box_point.x, x_l),
+        };
+
+        let mut new_sizes = self.start_sizes.clone();
+        while new_sizes.len() < self.boundaries.len() {
+            new_sizes.push(None);
+        }
+        let mut positions: Vec<f64> = self.boundaries.iter().map(|v| v.0).collect();
+        if let Some((p, w)) = self.boundaries.last() {
+            positions.push(p + w);
+        }
+        let above = positions[self.resize_ind] / total;
+        let above_unit = new_sizes[self.resize_ind].unit();
+        let new_val_ratio = (ratio - above).max(0.0);
+
+        new_sizes[self.resize_ind] = Some(match above_unit {
+            crate::math::SizeUnit::Pixels => {
+                Size::Pixels(round_2_dec(new_val_ratio * total).into())
+            }
+            crate::math::SizeUnit::Percent => {
+                Size::Percent(round_2_dec(new_val_ratio * 100.0).into())
+            }
+        });
+
+        let sizes_str = sizes_to_string(&new_sizes);
+
+        let mut dt = borrow_mut!(ctx.engine_context.designtime);
+        let mut builder = dt
+            .get_orm_mut()
+            .get_node_builder(
+                self.stacker_node.id.clone(),
+                ctx.app_state
+                    .modifiers
+                    .get()
+                    .contains(&ModifierKey::Control),
+            )
+            .unwrap();
+
+        builder.set_property("sizes", &sizes_str)?;
+
+        builder
+            .save()
+            .map_err(|e| anyhow!("could not save: {}", e))?;
+        Ok(())
+    }
+}
+
+fn stacker_divider_control_factory(
+    resize_ind: usize,
+    boundaries: Vec<(f64, f64)>,
+    start_sizes: Vec<Option<Size>>,
+    item: GlassNode,
+    dir: StackerDirection,
+) -> ControlPointToolFactory {
+    let stacker_id = item.id.clone();
+    let stacker_id_2 = item.id.clone();
+    ControlPointToolFactory {
+        tool_factory: Rc::new(move |ac, _p| {
+            Rc::new(RefCell::new(ControlPointTool::new(
+                ac,
+                "resizing stacker cells",
+                Some(IntentSnapper::new_from_scene(ac, &[stacker_id.clone()])),
+                StackerDividerControlBehavior {
+                    stacker_node: (&item).into(),
+                    resize_ind,
+                    boundaries: boundaries.clone(),
+                    start_sizes: start_sizes.clone(),
+                    dir: dir.clone(),
+                },
+            )))
+        }),
+        double_click_behavior: Rc::new(move |ctx| {
+            let stacker_node = ctx
+                .engine_context
+                .get_nodes_by_global_id(stacker_id_2.clone())
+                .into_iter()
+                .next()
+                .unwrap();
+            let mut sizes = stacker_node
+                .with_properties(|stacker: &mut Stacker| stacker.sizes.get())
+                .unwrap();
+            if let Some(val) = sizes.get_mut(resize_ind) {
+                *val = None
+            }
+
+            let sizes_str = sizes_to_string(&sizes);
+
+            let mut dt = borrow_mut!(ctx.engine_context.designtime);
+            let mut builder = dt
+                .get_orm_mut()
+                .get_node_builder(
+                    stacker_id_2.clone(),
+                    ctx.app_state
+                        .modifiers
+                        .get()
+                        .contains(&ModifierKey::Control),
+                )
+                .unwrap();
+
+            builder.set_property("sizes", &sizes_str).unwrap();
+
+            builder
+                .save()
+                .map_err(|e| anyhow!("could not save: {}", e))
+                .unwrap();
+        }),
+    }
 }
 
 fn round_2_dec(v: f64) -> f64 {

@@ -22,7 +22,7 @@ use crate::{
 
 use super::ControlPointSet;
 
-pub fn anchor_control_point_set(anchor: Property<Point2<Glass>>) -> Property<ControlPointSet> {
+pub fn anchor_control_point_set(anchor: Property<Point2<Glass>>) -> ControlPointSet {
     let anchor_control_point_styling = ControlPointStyling {
         round: true,
         stroke_color: Color::BLUE,
@@ -36,22 +36,22 @@ pub fn anchor_control_point_set(anchor: Property<Point2<Glass>>) -> Property<Con
     };
 
     let deps = [anchor.untyped()];
-    Property::computed(
+    let anchor_control_point = Property::computed(
         move || {
             let anchor = anchor.get();
-            let anchor_control_point = vec![CPoint {
+            vec![CPoint {
                 point: anchor,
                 behavior: anchor_factory(),
                 ..Default::default()
-            }];
-
-            ControlPointSet {
-                points: anchor_control_point,
-                styling: anchor_control_point_styling.clone(),
-            }
+            }]
         },
         &deps,
-    )
+    );
+
+    ControlPointSet {
+        points: anchor_control_point,
+        styling: anchor_control_point_styling.clone(),
+    }
 }
 
 fn anchor_factory() -> ControlPointToolFactory {
