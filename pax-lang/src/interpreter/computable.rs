@@ -133,7 +133,11 @@ impl Computable for PaxPrimary {
                     return call_function(scope.clone(), name_or_variant.clone(), args);
                 }
 
-                Ok(PaxValue::Enum(scope.clone(), name_or_variant.clone(), args))
+                Ok(PaxValue::Enum(Box::new((
+                    scope.clone(),
+                    name_or_variant.clone(),
+                    args,
+                ))))
             }
         }
     }

@@ -91,14 +91,14 @@ impl CoercionRules for Color {
 
 impl CoercionRules for PathElement {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
-        let err = format!("{:?} can't be coerced into a PathElement", value);
         match value {
-            PaxValue::PathElement(path_elem) => Ok(path_elem),
+            PaxValue::PathElement(path_elem) => Ok(*path_elem),
             // Why is this needed? should never deserialize a path into this
-            PaxValue::Enum(enum_name, enum_variant, values) => {
-                if enum_name == "PathElement" {
+            PaxValue::Enum(contents) => {
+                let (name, variant, values) = *contents;
+                if name == "PathElement" {
                     let mut values_itr = values.into_iter();
-                    match enum_variant.as_str() {
+                    match variant.as_str() {
                         "Line" => Ok(PathElement::Line),
                         "Close" => Ok(PathElement::Close),
                         "Empty" => Ok(PathElement::Empty),
@@ -110,19 +110,26 @@ impl CoercionRules for PathElement {
                             Size::try_coerce(values_itr.next().unwrap())?,
                             Size::try_coerce(values_itr.next().unwrap())?,
                         )),
-                        "Cubic" => Ok(PathElement::Cubic(Box::new((
+                        "Cubic" => Ok(PathElement::Cubic(
                             Size::try_coerce(values_itr.next().unwrap())?,
                             Size::try_coerce(values_itr.next().unwrap())?,
                             Size::try_coerce(values_itr.next().unwrap())?,
                             Size::try_coerce(values_itr.next().unwrap())?,
-                        )))),
-                        _ => return Err(err),
+                        )),
+                        _ => {
+                            return Err(format!(
+                                "failed to coerce PathElement: unknown enum variant: {:?}",
+                                variant
+                            ))
+                        }
                     }
                 } else {
-                    return Err(err);
+                    return Err(format!(
+                        "failed to coerce PathElement: enum name doesn't match"
+                    ));
                 }
             }
-            _ => return Err(err),
+            _ => return Err(format!("failed to coerce PathElement: PaxValue not a path")),
         }
     }
 }
@@ -132,28 +139,38 @@ impl CoercionRules for PathElement {
 // an error if it contains any other type)
 impl CoercionRules for Fill {
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
-        Ok(match pax_value.clone() {
+        Ok(match pax_value {
             PaxValue::Color(color) => Fill::Solid(*color),
-            PaxValue::Enum(_, variant, args) => match variant.as_str() {
-                "Solid" => {
-                    let color = Color::try_coerce(args[0].clone())?;
-                    Fill::Solid(color)
+            PaxValue::Enum(contents) => {
+                let (_, variant, args) = *contents;
+                match variant.as_str() {
+                    "Solid" => {
+                        let color = Color::try_coerce(args.into_iter().next().unwrap())?;
+                        Fill::Solid(color)
+                    }
+                    "LinearGradient" => {
+                        let gradient =
+                            LinearGradient::try_coerce(args.into_iter().next().unwrap())?;
+                        Fill::LinearGradient(gradient)
+                    }
+                    "RadialGradient" => {
+                        let gradient =
+                            RadialGradient::try_coerce(args.into_iter().next().unwrap())?;
+                        Fill::RadialGradient(gradient)
+                    }
+                    _ => {
+                        return Err(format!(
+                            "failed to coerce Fill: unknown enum variant {:?}",
+                            variant
+                        ))
+                    }
                 }
-                "LinearGradient" => {
-                    let gradient = LinearGradient::try_coerce(args[0].clone())?;
-                    Fill::LinearGradient(gradient)
-                }
-                "RadialGradient" => {
-                    let gradient = RadialGradient::try_coerce(args[0].clone())?;
-                    Fill::RadialGradient(gradient)
-                }
-                _ => return Err(format!("{:?} can't be coerced into a Fill", pax_value)),
-            },
-            PaxValue::Option(mut o) => {
-                if let Some(o) = o.take() {
+            }
+            PaxValue::Option(o) => {
+                if let Some(o) = *o {
                     Fill::try_coerce(o)?
                 } else {
-                    return Err(format!("{:?} can't be coerced into a Fill", pax_value));
+                    return Err(format!("failed to coerce Fill: can't coerce None"));
                 }
             }
             _ => return Err(format!("{:?} can't be coerced into a Fill", pax_value)),
@@ -163,65 +180,41 @@ impl CoercionRules for Fill {
 
 impl CoercionRules for LinearGradient {
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
-        Ok(match pax_value.clone() {
+        Ok(match pax_value {
             PaxValue::Object(map) => {
-                let start = map
-                    .iter()
-                    .find_map(|(n, v)| (n == "start").then_some(v))
-                    .unwrap()
-                    .clone();
+                let [start, end, stops] = extract_options(["start", "end", "stops"], map)
+                    .map_err(|e| format!("failed to convert to LinearGradient: {e}"))?;
                 let (s1, s2) = match start {
                     PaxValue::Vec(vec) => {
-                        let s1 = Size::try_coerce(vec[0].clone())?;
-                        let s2 = Size::try_coerce(vec[1].clone())?;
+                        let mut itr = vec.into_iter();
+                        let s1 = Size::try_coerce(itr.next().unwrap())?;
+                        let s2 = Size::try_coerce(itr.next().unwrap())?;
                         (s1, s2)
                     }
-                    _ => {
-                        return Err(format!(
-                            "{:?} can't be coerced into a LinearGradient",
-                            pax_value
-                        ))
-                    }
+                    _ => return Err(format!("failed to coerce LinearGradient")),
                 };
 
-                let end = map
-                    .iter()
-                    .find_map(|(n, v)| (n == "end").then_some(v))
-                    .unwrap()
-                    .clone();
                 let (e1, e2) = match end {
                     PaxValue::Vec(vec) => {
-                        let e1 = Size::try_coerce(vec[0].clone())?;
-                        let e2 = Size::try_coerce(vec[1].clone())?;
+                        let mut itr = vec.into_iter();
+                        let e1 = Size::try_coerce(itr.next().unwrap())?;
+                        let e2 = Size::try_coerce(itr.next().unwrap())?;
                         (e1, e2)
                     }
-                    _ => {
-                        return Err(format!(
-                            "{:?} can't be coerced into a LinearGradient",
-                            pax_value
-                        ))
-                    }
+                    _ => return Err(format!("failed to coerce LinearGradient")),
                 };
-                let stops = Vec::<GradientStop>::try_coerce(
-                    map.iter()
-                        .find_map(|(n, v)| (n == "stops").then_some(v))
-                        .unwrap()
-                        .clone(),
-                )?;
+                let stops = Vec::<GradientStop>::try_coerce(stops)?;
                 LinearGradient {
                     start: (s1, s2),
                     end: (e1, e2),
                     stops,
                 }
             }
-            PaxValue::Option(mut o) => {
-                if let Some(o) = o.take() {
+            PaxValue::Option(o) => {
+                if let Some(o) = *o {
                     LinearGradient::try_coerce(o)?
                 } else {
-                    return Err(format!(
-                        "{:?} can't be coerced into a LinearGradient",
-                        pax_value
-                    ));
+                    return Err(format!("failed to coerce LinearGradient"));
                 }
             }
             _ => {
@@ -236,65 +229,41 @@ impl CoercionRules for LinearGradient {
 
 impl CoercionRules for RadialGradient {
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
-        Ok(match pax_value.clone() {
+        Ok(match pax_value {
             PaxValue::Object(map) => {
-                let start = map
-                    .iter()
-                    .find_map(|(n, v)| (n == "start").then_some(v))
-                    .unwrap()
-                    .clone();
+                let [start, end, stops, radius] =
+                    extract_options(["start", "end", "stops", "radius"], map)
+                        .map_err(|e| format!("failed to convert to RadialGradient: {e}"))?;
                 let (s1, s2) = match start {
                     PaxValue::Vec(vec) => {
-                        let s1 = Size::try_coerce(vec[0].clone())?;
-                        let s2 = Size::try_coerce(vec[1].clone())?;
+                        let mut itr = vec.into_iter();
+                        let s1 = Size::try_coerce(itr.next().unwrap())?;
+                        let s2 = Size::try_coerce(itr.next().unwrap())?;
                         (s1, s2)
                     }
                     _ => {
-                        return Err(format!(
-                            "{:?} can't be coerced into a RadialGradient",
-                            pax_value
-                        ))
+                        return Err(format!("failed to coerce RadialGradient"));
                     }
                 };
 
-                let end = map
-                    .iter()
-                    .find_map(|(n, v)| (n == "end").then_some(v))
-                    .unwrap()
-                    .clone();
                 let (e1, e2) = match end {
                     PaxValue::Vec(vec) => {
-                        let e1 = Size::try_coerce(vec[0].clone())?;
-                        let e2 = Size::try_coerce(vec[1].clone())?;
+                        let mut itr = vec.into_iter();
+                        let e1 = Size::try_coerce(itr.next().unwrap())?;
+                        let e2 = Size::try_coerce(itr.next().unwrap())?;
                         (e1, e2)
                     }
                     _ => {
-                        return Err(format!(
-                            "{:?} can't be coerced into a RadialGradient",
-                            pax_value
-                        ))
+                        return Err(format!("failed to coerce RadialGradient"));
                     }
                 };
-                let radius = match map
-                    .iter()
-                    .find_map(|(n, v)| (n == "radius").then_some(v))
-                    .unwrap()
-                    .clone()
-                {
+                let radius = match radius {
                     PaxValue::Numeric(n) => n.to_float(),
                     _ => {
-                        return Err(format!(
-                            "{:?} can't be coerced into a RadialGradient",
-                            pax_value
-                        ))
+                        return Err(format!("failed to coerce RadialGradient"));
                     }
                 };
-                let stops = Vec::<GradientStop>::try_coerce(
-                    map.iter()
-                        .find_map(|(n, v)| (n == "stops").then_some(v))
-                        .unwrap()
-                        .clone(),
-                )?;
+                let stops = Vec::<GradientStop>::try_coerce(stops)?;
                 RadialGradient {
                     start: (s1, s2),
                     end: (e1, e2),
@@ -302,21 +271,15 @@ impl CoercionRules for RadialGradient {
                     stops,
                 }
             }
-            PaxValue::Option(mut o) => {
-                if let Some(o) = o.take() {
+            PaxValue::Option(o) => {
+                if let Some(o) = *o {
                     RadialGradient::try_coerce(o)?
                 } else {
-                    return Err(format!(
-                        "{:?} can't be coerced into a RadialGradient",
-                        pax_value
-                    ));
+                    return Err(format!("failed to coerce RadialGradient"));
                 }
             }
             _ => {
-                return Err(format!(
-                    "{:?} can't be coerced into a RadialGradient",
-                    pax_value
-                ))
+                return Err(format!("failed to coerce RadialGradient"));
             }
         })
     }
@@ -326,32 +289,21 @@ impl CoercionRules for GradientStop {
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
         Ok(match pax_value {
             PaxValue::Object(map) => {
-                let position = Size::try_coerce(
-                    map.iter()
-                        .find_map(|(n, v)| (n == "position").then_some(v))
-                        .unwrap()
-                        .clone(),
-                )?;
-                let color = Color::try_coerce(
-                    map.iter()
-                        .find_map(|(n, v)| (n == "color").then_some(v))
-                        .unwrap()
-                        .clone(),
-                )?;
+                let [position, color] = extract_options(["position", "color"], map)
+                    .map_err(|e| format!("failed to convert to GradientStop: {e}"))?;
+                let position = Size::try_coerce(position)?;
+                let color = Color::try_coerce(color)?;
                 GradientStop { position, color }
             }
-            PaxValue::Option(mut o) => {
-                if let Some(o) = o.take() {
+            PaxValue::Option(o) => {
+                if let Some(o) = *o {
                     GradientStop::try_coerce(o)?
                 } else {
-                    return Err(format!("None can't be coerced into a GradientStop"));
+                    return Err(format!("failed to convert to GradientStop"));
                 }
             }
             _ => {
-                return Err(format!(
-                    "{:?} can't be coerced into a GradientStop",
-                    pax_value
-                ))
+                return Err(format!("failed to convert to GradientStop"));
             }
         })
     }
@@ -365,61 +317,61 @@ impl CoercionRules for Stroke {
                 width: Property::new(Size::Pixels(1.into())),
             },
             PaxValue::Object(map) => {
-                let color = Property::new(Color::try_coerce(
-                    map.iter()
-                        .find_map(|(n, v)| (n == "color").then_some(v))
-                        .cloned()
-                        .unwrap_or_default(),
-                )?);
-                let width = Property::new(Size::try_coerce(
-                    map.iter()
-                        .find_map(|(n, v)| (n == "width").then_some(v))
-                        .cloned()
-                        .unwrap_or(PaxValue::Size(Size::Pixels(1.into()))),
-                )?);
+                let [color, width] = extract_options(["color", "width"], map)
+                    .map_err(|e| format!("failed to convert to Stroke: {e}"))?;
+                let color = Property::new(Color::try_coerce(color)?);
+                let width = Property::new(Size::try_coerce(width)?);
                 Stroke { color, width }
             }
-            PaxValue::Option(mut o) => {
-                if let Some(o) = o.take() {
+            PaxValue::Option(o) => {
+                if let Some(o) = *o {
                     Stroke::try_coerce(o)?
                 } else {
-                    return Err(format!("None can't be coerced into a Stroke"));
+                    return Err(format!("failed to convert to Stroke"));
                 }
             }
-            _ => return Err(format!("{:?} can't be coerced into a Stroke", pax_value)),
+            _ => return Err(format!("failed to convert to Stroke")),
         })
     }
 }
 
 impl CoercionRules for ColorChannel {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
-        Ok(match value.clone() {
+        Ok(match value {
             PaxValue::Rotation(rot) => ColorChannel::Rotation(rot),
             PaxValue::Percent(perc) => ColorChannel::Percent(perc.0),
             PaxValue::Numeric(num) => ColorChannel::Integer(num.to_int().clamp(0, 255) as u8),
-            PaxValue::Enum(_, variant, args) => match variant.as_str() {
-                "Rotation" => {
-                    let rot = Rotation::try_coerce(args[0].clone())?;
-                    ColorChannel::Rotation(rot)
-                }
-                "Integer" => {
-                    let num = Numeric::try_coerce(args[0].clone())?;
-                    ColorChannel::Integer(num.to_int().clamp(0, 255) as u8)
-                }
-                "Percent" => {
-                    let num = Numeric::try_coerce(args[0].clone())?;
-                    ColorChannel::Percent(num)
-                }
-                _ => return Err(format!("{:?} can't be coerced into a ColorChannel", value)),
-            },
-            PaxValue::Option(mut o) => {
-                if let Some(o) = o.take() {
-                    ColorChannel::try_coerce(o)?
-                } else {
-                    return Err(format!("{:?} can't be coerced into a ColorChannel", value));
+            PaxValue::Enum(contents) => {
+                let (_, variant, args) = *contents;
+                match variant.as_str() {
+                    "Rotation" => {
+                        let rot = Rotation::try_coerce(args.into_iter().next().unwrap())?;
+                        ColorChannel::Rotation(rot)
+                    }
+                    "Integer" => {
+                        let num = Numeric::try_coerce(args.into_iter().next().unwrap())?;
+                        ColorChannel::Integer(num.to_int().clamp(0, 255) as u8)
+                    }
+                    "Percent" => {
+                        let num = Numeric::try_coerce(args.into_iter().next().unwrap())?;
+                        ColorChannel::Percent(num)
+                    }
+                    _ => {
+                        return Err(format!(
+                            "failed to convert to ColorChannel: unknown variant {:?}",
+                            variant
+                        ))
+                    }
                 }
             }
-            _ => return Err(format!("{:?} can't be coerced into a ColorChannel", value)),
+            PaxValue::Option(o) => {
+                if let Some(o) = *o {
+                    ColorChannel::try_coerce(o)?
+                } else {
+                    return Err(format!("failed to convert to ColorChannel"));
+                }
+            }
+            _ => return Err(format!("failed to convert to ColorChannel")),
         })
     }
 }
@@ -545,12 +497,13 @@ impl<T1: CoercionRules, T2: CoercionRules> CoercionRules for (T1, T2) {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         match value {
             PaxValue::Vec(vec) => {
-                let res: Result<T1, _> = T1::try_coerce(vec[0].clone());
-                let res2: Result<T2, _> = T2::try_coerce(vec[1].clone());
+                let mut itr = vec.into_iter();
+                let res: Result<T1, _> = T1::try_coerce(itr.next().unwrap());
+                let res2: Result<T2, _> = T2::try_coerce(itr.next().unwrap());
                 res.and_then(|v1| res2.map(|v2| (v1, v2)))
             }
-            PaxValue::Option(mut opt) => {
-                if let Some(p) = opt.take() {
+            PaxValue::Option(opt) => {
+                if let Some(p) = *opt {
                     <(T1, T2)>::try_coerce(p)
                 } else {
                     return Err(format!("None can't be coerced into a Vec"));
@@ -616,124 +569,88 @@ impl<T: CoercionRules> CoercionRules for Box<T> {
 impl CoercionRules for Transform2D {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         Ok(match value {
-            PaxValue::Option(mut opt) => {
-                if let Some(t) = opt.take() {
+            PaxValue::Option(opt) => {
+                if let Some(t) = *opt {
                     Transform2D::try_coerce(t)?
                 } else {
                     return Err(format!("None can't be coerced into a Transform2D"));
                 }
             }
             PaxValue::Object(map) => {
-                let previous = match map.iter().find_map(|(n, v)| (n == "previous").then_some(v)) {
-                    Some(p) => Option::<Box<Transform2D>>::try_coerce(p.clone())?,
-                    None => None,
-                };
-                let rotate = match map.iter().find_map(|(n, v)| (n == "rotate").then_some(v)) {
-                    Some(r) => Option::<Rotation>::try_coerce(r.clone())?,
-                    None => None,
-                };
-                let translate = match map
-                    .iter()
-                    .find_map(|(n, v)| (n == "translate").then_some(v))
-                {
-                    Some(t) => match t.clone() {
-                        PaxValue::Option(mut opt) => {
-                            if let Some(t) = opt.take() {
-                                let t = Vec::<Size>::try_coerce(t.clone())?;
-                                if t.len() != 2 {
-                                    return Err(format!(
-                                        "expected 2 elements in translate, got {:?}",
-                                        t.len()
-                                    ));
-                                }
-                                Some([t[0], t[1]])
-                            } else {
-                                None
+                let [previous, rotate, translate, anchor, scale, skew] = extract_options(
+                    ["previous", "rotate", "translate", "anchor", "scale", "skew"],
+                    map,
+                )
+                .map_err(|e| format!("failed to convert to Transform2D: {e}"))?;
+                let previous = Option::<Box<Transform2D>>::try_coerce(previous)?;
+                let rotate = Option::<Rotation>::try_coerce(rotate)?;
+                let translate = match translate {
+                    PaxValue::Option(opt) => {
+                        if let Some(t) = *opt {
+                            let t = Vec::<Size>::try_coerce(t)?;
+                            if t.len() != 2 {
+                                return Err(format!(
+                                    "expected 2 elements in translate, got {:?}",
+                                    t.len()
+                                ));
                             }
+                            Some([t[0], t[1]])
+                        } else {
+                            None
                         }
-                        _ => {
-                            return Err(format!(
-                                "translate of {:?} can't be coerced into a Transform2D",
-                                t
-                            ))
-                        }
-                    },
-                    None => None,
+                    }
+                    _ => return Err(format!("translate can't be coerced into a Transform2D",)),
                 };
-                let anchor = match map.iter().find_map(|(n, v)| (n == "anchor").then_some(v)) {
-                    Some(a) => match a.clone() {
-                        PaxValue::Option(mut opt) => {
-                            if let Some(a) = opt.take() {
-                                let a = Vec::<Size>::try_coerce(a.clone())?;
-                                if a.len() != 2 {
-                                    return Err(format!(
-                                        "expected 2 elements in anchor, got {:?}",
-                                        a.len()
-                                    ));
-                                }
-                                Some([a[0], a[1]])
-                            } else {
-                                None
+                let anchor = match anchor {
+                    PaxValue::Option(opt) => {
+                        if let Some(a) = *opt {
+                            let a = Vec::<Size>::try_coerce(a)?;
+                            if a.len() != 2 {
+                                return Err(format!(
+                                    "expected 2 elements in anchor, got {:?}",
+                                    a.len()
+                                ));
                             }
+                            Some([a[0], a[1]])
+                        } else {
+                            None
                         }
-                        _ => {
-                            return Err(format!(
-                                "anchor of {:?} can't be coerced into a Transform2D",
-                                a
-                            ))
-                        }
-                    },
-                    None => None,
+                    }
+                    _ => return Err(format!("anchor can't be coerced into a Transform2D",)),
                 };
-                let scale = match map.iter().find_map(|(n, v)| (n == "scale").then_some(v)) {
-                    Some(s) => match s.clone() {
-                        PaxValue::Option(mut opt) => {
-                            if let Some(s) = opt.take() {
-                                let s = Vec::<Size>::try_coerce(s.clone())?;
-                                if s.len() != 2 {
-                                    return Err(format!(
-                                        "expected 2 elements in scale, got {:?}",
-                                        s.len()
-                                    ));
-                                }
-                                Some([s[0], s[1]])
-                            } else {
-                                None
+                let scale = match scale {
+                    PaxValue::Option(opt) => {
+                        if let Some(s) = *opt {
+                            let s = Vec::<Size>::try_coerce(s)?;
+                            if s.len() != 2 {
+                                return Err(format!(
+                                    "expected 2 elements in scale, got {:?}",
+                                    s.len()
+                                ));
                             }
+                            Some([s[0], s[1]])
+                        } else {
+                            None
                         }
-                        _ => {
-                            return Err(format!(
-                                "scale of {:?} can't be coerced into a Transform2D",
-                                s
-                            ))
-                        }
-                    },
-                    None => None,
+                    }
+                    _ => return Err(format!("scale can't be coerced into a Transform2D",)),
                 };
-                let skew = match map.iter().find_map(|(n, v)| (n == "skew").then_some(v)) {
-                    Some(s) => match s.clone() {
-                        PaxValue::Option(mut opt) => {
-                            if let Some(s) = opt.take() {
-                                let s = Vec::<Rotation>::try_coerce(s.clone())?;
-                                if s.len() != 2 {
-                                    return Err(format!(
-                                        "expected 2 elements in skew, got {:?}",
-                                        s.len()
-                                    ));
-                                }
-                                Some([s[0], s[1]])
-                            } else {
-                                None
+                let skew = match skew {
+                    PaxValue::Option(opt) => {
+                        if let Some(s) = *opt {
+                            let s = Vec::<Rotation>::try_coerce(s)?;
+                            if s.len() != 2 {
+                                return Err(format!(
+                                    "expected 2 elements in skew, got {:?}",
+                                    s.len()
+                                ));
                             }
+                            Some([s[0], s[1]])
+                        } else {
+                            None
                         }
-                        _ => {
-                            return Err(format!(
-                                "skew of {:?} can't be coerced into a Transform2D",
-                                s
-                            ))
-                        }
-                    },
-                    None => None,
+                    }
+                    _ => return Err(format!("skew can't be coerced into a Transform2D",)),
                 };
                 Transform2D {
                     previous,
@@ -761,10 +678,9 @@ impl CoercionRules for Transform2 {
             }
             PaxValue::Object(map) => {
                 let m = Vec::<f64>::try_coerce(
-                    map.iter()
+                    map.into_iter()
                         .find_map(|(n, v)| (n == "m").then_some(v))
-                        .unwrap()
-                        .clone(),
+                        .unwrap(),
                 )?;
                 if m.len() != 6 {
                     return Err(format!("expected 6 elements in coeffs, got {:?}", m.len()));
@@ -787,21 +703,39 @@ impl CoercionRules for Vector2 {
                 }
             }
             PaxValue::Object(map) => {
-                let x = f64::try_coerce(
-                    map.iter()
-                        .find_map(|(n, v)| (n == "x").then_some(v))
-                        .unwrap()
-                        .clone(),
-                )?;
-                let y = f64::try_coerce(
-                    map.iter()
-                        .find_map(|(n, v)| (n == "y").then_some(v))
-                        .unwrap()
-                        .clone(),
-                )?;
+                let [x, y] = extract_options(["x", "y"], map)
+                    .map_err(|e| format!("failed to convert to Vector2: {e}"))?;
+                let x = f64::try_coerce(x)?;
+                let y = f64::try_coerce(y)?;
                 Vector2::new(x, y)
             }
             _ => return Err(format!("{:?} can't be coerced into a Vector2", value)),
         })
     }
+}
+
+pub fn extract_options<T, const N: usize>(
+    keys: [&'static str; N],
+    vec: Vec<(String, T)>,
+) -> Result<[T; N], String> {
+    // First create array of Options
+    let mut intermediate: [Option<T>; N] = std::array::from_fn(|_| None);
+
+    // Fill in the values we find
+    for (k, v) in vec {
+        if let Some(pos) = keys.iter().position(|&key| k == key) {
+            intermediate[pos] = Some(v);
+        }
+    }
+
+    // Convert to Result, ensuring all values were found
+    let result: Result<[T; N], String> = intermediate
+        .into_iter()
+        .enumerate()
+        .map(|(i, opt)| opt.ok_or_else(|| format!("missing field: {}", keys[i])))
+        .collect::<Result<Vec<_>, _>>()?
+        .try_into()
+        .map_err(|_| "Internal error converting vec to array".to_string());
+
+    result
 }

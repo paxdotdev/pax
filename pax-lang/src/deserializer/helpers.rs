@@ -173,6 +173,7 @@ impl<'de> VariantAccess<'de> for PaxEnum<'de> {
         T: DeserializeSeed<'de>,
     {
         let ast = self.args.unwrap();
+        eprintln!("AST: {:?}: {:?}", ast.to_string(), ast.as_str());
         seed.deserialize(PaxDeserializer::from(ast))
     }
 

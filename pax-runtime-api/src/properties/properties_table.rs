@@ -1,9 +1,4 @@
-use std::{
-    any::Any,
-    cell::RefCell,
-    rc::Rc,
-    sync::atomic::{AtomicUsize, Ordering},
-};
+use std::{any::Any, cell::RefCell, rc::Rc};
 
 use slotmap::{SlotMap, SparseSecondaryMap};
 

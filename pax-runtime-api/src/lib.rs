@@ -1672,7 +1672,7 @@ pub enum PathElement {
     Point(Size, Size),
     Line,
     Quadratic(Size, Size),
-    Cubic(Box<(Size, Size, Size, Size)>),
+    Cubic(Size, Size, Size, Size),
     Close,
 }
 
