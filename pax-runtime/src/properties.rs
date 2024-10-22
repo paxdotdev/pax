@@ -500,12 +500,11 @@ impl RuntimePropertiesStackFrame {
         }
     }
 
-    pub fn resolve_symbol_as_pax_value(&self, symbol: &str) -> Option<PaxValue> {
-        if let Some(e) = self.symbols_within_frame.get(&clean_symbol(symbol)) {
-            Some(e.get_as_pax_value())
-        } else {
-            self.parent.upgrade()?.resolve_symbol_as_pax_value(symbol)
-        }
+    pub fn resolve_symbol(&self, symbol: &str) -> Option<Variable> {
+        self.symbols_within_frame
+            .get(&clean_symbol(symbol))
+            .cloned()
+            .or_else(|| self.parent.upgrade()?.resolve_symbol(symbol))
     }
 }
 
@@ -514,8 +513,8 @@ fn clean_symbol(symbol: &str) -> String {
 }
 
 impl IdentifierResolver for RuntimePropertiesStackFrame {
-    fn resolve(&self, name: String) -> Result<PaxValue, String> {
-        self.resolve_symbol_as_pax_value(&name)
+    fn resolve(&self, name: String) -> Result<Variable, String> {
+        self.resolve_symbol(&name)
             .ok_or_else(|| format!("Could not resolve symbol {}", name))
     }
 }

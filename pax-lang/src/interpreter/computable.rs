@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::rc::Rc;
 
 use pax_runtime_api::{
     functions::call_function, CoercionRules, Functions, Numeric, PaxValue, Percent, Rotation, Size,
@@ -29,52 +29,58 @@ impl Computable for PaxPrimary {
     fn compute(&self, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String> {
         match self {
             PaxPrimary::Literal(v) => Ok(v.clone()),
-            PaxPrimary::Identifier(i, accessors) => {
-                let mut value = i.compute(idr.clone())?;
-                for accessor in accessors {
-                    match accessor {
-                        PaxAccessor::Tuple(index) => {
-                            if let PaxValue::Vec(v) = value {
-                                value = v.into_iter().nth(*index).ok_or_else(|| {
-                                    format!(
-                                        "paxel interpreter: tuple index out of bounds: {:?}",
-                                        index
-                                    )
-                                })?;
-                            } else {
-                                return Err("Tuple access must be performed on a tuple".to_string());
+            PaxPrimary::Identifier(i, accessors) => idr
+                .resolve(i.name.clone())?
+                .read_pax_value_ref(|mut value| {
+                    for accessor in accessors {
+                        match accessor {
+                            PaxAccessor::Tuple(index) => {
+                                if let PaxValue::Vec(v) = value {
+                                    value = v.into_iter().nth(*index).ok_or_else(|| {
+                                        format!(
+                                            "paxel interpreter: tuple index out of bounds: {:?}",
+                                            index
+                                        )
+                                    })?;
+                                } else {
+                                    return Err(
+                                        "Tuple access must be performed on a tuple".to_string()
+                                    );
+                                }
                             }
-                        }
-                        PaxAccessor::List(index) => {
-                            if let PaxValue::Vec(v) = value {
-                                let index = Numeric::try_coerce(index.compute(idr.clone())?)?
-                                    .to_int() as usize;
-                                value = v.into_iter().nth(index).ok_or_else(|| {
-                                    format!(
-                                        "paxel interpreter: list index out of bounds: {:?}",
-                                        index
-                                    )
-                                })?;
-                            } else {
-                                return Err("List access must be performed on a list".to_string());
+                            PaxAccessor::List(index) => {
+                                if let PaxValue::Vec(v) = value {
+                                    let index = Numeric::try_coerce(index.compute(idr.clone())?)?
+                                        .to_int()
+                                        as usize;
+                                    value = v.into_iter().nth(index).ok_or_else(|| {
+                                        format!(
+                                            "paxel interpreter: list index out of bounds: {:?}",
+                                            index
+                                        )
+                                    })?;
+                                } else {
+                                    return Err(
+                                        "List access must be performed on a list".to_string()
+                                    );
+                                }
                             }
-                        }
-                        PaxAccessor::Struct(field) => {
-                            if let PaxValue::Object(obj) = value {
-                                value = obj
-                                    .into_iter()
-                                    .find_map(|(n, v)| (&n == field).then_some(v))
-                                    .ok_or(format!("Field not found: {}", field))?;
-                            } else {
-                                return Err(
-                                    "Struct access must be performed on an object".to_string()
-                                );
+                            PaxAccessor::Struct(field) => {
+                                if let PaxValue::Object(obj) = value {
+                                    value = obj
+                                        .into_iter()
+                                        .find_map(|(n, v)| (n == field).then_some(v))
+                                        .ok_or(format!("Field not found: {}", field))?;
+                                } else {
+                                    return Err(
+                                        "Struct access must be performed on an object".to_string()
+                                    );
+                                }
                             }
                         }
                     }
-                }
-                Ok(value)
-            }
+                    Ok(value.clone())
+                }),
             PaxPrimary::Object(o) => Ok(PaxValue::Object(
                 o.into_iter()
                     .map(|(k, v)| Result::<_, String>::Ok((k.clone(), v.compute(idr.clone())?)))
@@ -160,6 +166,6 @@ impl Computable for PaxInfix {
 
 impl Computable for PaxIdentifier {
     fn compute(&self, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String> {
-        idr.resolve(self.name.clone())
+        Ok(idr.resolve(self.name.clone())?.get_as_pax_value())
     }
 }
