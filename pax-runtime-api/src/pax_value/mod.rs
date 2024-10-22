@@ -1,10 +1,5 @@
 use crate::{Color, Interpolatable, PathElement, Percent, Rotation, Size};
-use std::{
-    any::Any,
-    fmt::Display,
-    rc::Rc,
-    sync::atomic::{AtomicUsize, Ordering},
-};
+use std::{any::Any, fmt::Display, rc::Rc};
 
 use self::numeric::Numeric;
 pub use coercion_impls::CoercionRules;
@@ -17,13 +12,14 @@ mod macros;
 pub mod numeric;
 mod to_from_impls;
 
+pub type RcPaxValue = Rc<PaxValue>;
 /// Container for all internal pax types
 /// Two important traits are related to this type:
 /// ToFromPaxValue - responsible for converting to and from specific types (u8,
 /// String, Color, etc)
 /// CoercionRules - responsible for coercing a PaxValue to a specific type
 /// (possibly from multiple different variants)
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "crate::serde")]
 pub enum PaxValue {
     Bool(bool),
@@ -33,12 +29,35 @@ pub enum PaxValue {
     Percent(Percent),
     Color(Box<Color>),
     Rotation(Rotation),
-    PathElement(PathElement),
+    PathElement(Box<PathElement>),
     Option(Box<Option<PaxValue>>),
     Vec(Vec<PaxValue>),
     Range(Box<PaxValue>, Box<PaxValue>),
     Object(Vec<(String, PaxValue)>),
-    Enum(String, String, Vec<PaxValue>),
+    Enum(Box<(String, String, Vec<PaxValue>)>),
+}
+
+impl Clone for PaxValue {
+    fn clone(&self) -> Self {
+        match self {
+            PaxValue::Bool(b) => PaxValue::Bool(*b),
+            PaxValue::Numeric(n) => PaxValue::Numeric(n.clone()),
+            PaxValue::String(s) => PaxValue::String(s.clone()),
+            PaxValue::Size(s) => PaxValue::Size(s.clone()),
+            PaxValue::Percent(p) => PaxValue::Percent(p.clone()),
+            PaxValue::Color(c) => PaxValue::Color(c.clone()),
+            PaxValue::Rotation(r) => PaxValue::Rotation(r.clone()),
+            PaxValue::PathElement(pe) => PaxValue::PathElement(pe.clone()),
+            PaxValue::Option(opt) => PaxValue::Option(opt.clone()),
+            PaxValue::Vec(v) => PaxValue::Vec(v.clone()),
+            PaxValue::Range(start, end) => PaxValue::Range(start.clone(), end.clone()),
+            PaxValue::Object(pairs) => PaxValue::Object(pairs.clone()),
+            PaxValue::Enum(contents) => {
+                let (name, variant, values) = contents.as_ref();
+                PaxValue::Enum(Box::new((name.clone(), variant.clone(), values.clone())))
+            }
+        }
+    }
 }
 
 // Make sure Enum looks like an enum and vec looks like a vec
@@ -54,13 +73,13 @@ impl Display for PaxValue {
             PaxValue::Rotation(r) => write!(f, "{}", r),
             PaxValue::PathElement(path_elem) => {
                 write!(f, "PathElement::")?;
-                match path_elem {
+                match path_elem.as_ref() {
                     PathElement::Empty => write!(f, "Empty"),
                     PathElement::Point(s1, s2) => write!(f, "Point({}, {})", s1, s2),
                     PathElement::Line => write!(f, "Line"),
                     PathElement::Quadratic(s1, s2) => write!(f, "Quadratic({}, {})", s1, s2),
-                    PathElement::Cubic(vals) => {
-                        write!(f, "Cubic({}, {}, {}, {})", vals.0, vals.1, vals.2, vals.3)
+                    PathElement::Cubic(v1, v2, v3, v4) => {
+                        write!(f, "Cubic({}, {}, {}, {})", v1, v2, v3, v4)
                     }
                     PathElement::Close => write!(f, "Close"),
                 }?;
@@ -91,7 +110,8 @@ impl Display for PaxValue {
                 }
                 write!(f, "}}")
             }
-            PaxValue::Enum(name, variant, values) => {
+            PaxValue::Enum(contents) => {
+                let (name, variant, values) = contents.as_ref();
                 if name == "Color" {
                     write!(f, "{}", variant)?;
                 } else {

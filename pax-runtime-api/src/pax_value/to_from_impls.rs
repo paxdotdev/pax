@@ -7,7 +7,7 @@ use super::ImplToFromPaxAny;
 use super::Numeric;
 use super::PaxValue;
 use super::ToPaxValue;
-use crate::impl_to_from_pax_value;
+use crate::impl_to_pax_value;
 use crate::math::Space;
 use crate::math::Transform2;
 use crate::math::Vector2;
@@ -27,23 +27,23 @@ use crate::Stroke;
 use crate::Transform2D;
 
 // Primitive types
-impl_to_from_pax_value!(bool, PaxValue::Bool);
+impl_to_pax_value!(bool, PaxValue::Bool);
 
-impl_to_from_pax_value!(u8, PaxValue::Numeric, Numeric::U8);
-impl_to_from_pax_value!(u16, PaxValue::Numeric, Numeric::U16);
-impl_to_from_pax_value!(u32, PaxValue::Numeric, Numeric::U32);
-impl_to_from_pax_value!(u64, PaxValue::Numeric, Numeric::U64);
+impl_to_pax_value!(u8, PaxValue::Numeric, Numeric::U8);
+impl_to_pax_value!(u16, PaxValue::Numeric, Numeric::U16);
+impl_to_pax_value!(u32, PaxValue::Numeric, Numeric::U32);
+impl_to_pax_value!(u64, PaxValue::Numeric, Numeric::U64);
 
-impl_to_from_pax_value!(i8, PaxValue::Numeric, Numeric::I8);
-impl_to_from_pax_value!(i16, PaxValue::Numeric, Numeric::I16);
-impl_to_from_pax_value!(i32, PaxValue::Numeric, Numeric::I32);
-impl_to_from_pax_value!(i64, PaxValue::Numeric, Numeric::I64);
+impl_to_pax_value!(i8, PaxValue::Numeric, Numeric::I8);
+impl_to_pax_value!(i16, PaxValue::Numeric, Numeric::I16);
+impl_to_pax_value!(i32, PaxValue::Numeric, Numeric::I32);
+impl_to_pax_value!(i64, PaxValue::Numeric, Numeric::I64);
 
-impl_to_from_pax_value!(f32, PaxValue::Numeric, Numeric::F32);
-impl_to_from_pax_value!(f64, PaxValue::Numeric, Numeric::F64);
+impl_to_pax_value!(f32, PaxValue::Numeric, Numeric::F32);
+impl_to_pax_value!(f64, PaxValue::Numeric, Numeric::F64);
 
-impl_to_from_pax_value!(isize, PaxValue::Numeric, Numeric::ISize);
-impl_to_from_pax_value!(usize, PaxValue::Numeric, Numeric::USize);
+impl_to_pax_value!(isize, PaxValue::Numeric, Numeric::ISize);
+impl_to_pax_value!(usize, PaxValue::Numeric, Numeric::USize);
 
 // don't allow to be serialized/deserialized successfully, just store it as a dyn Any
 impl ImplToFromPaxAny for () {}
@@ -51,14 +51,19 @@ impl ImplToFromPaxAny for () {}
 // for now. TBD how to handle this when we join Transform2D with Transform2 at some point
 impl<F: Space, T: Space> ImplToFromPaxAny for Transform2<F, T> {}
 
-impl_to_from_pax_value!(String, PaxValue::String);
+impl_to_pax_value!(String, PaxValue::String);
 
 // Pax internal types
-impl_to_from_pax_value!(Numeric, PaxValue::Numeric);
-impl_to_from_pax_value!(Size, PaxValue::Size);
-impl_to_from_pax_value!(Rotation, PaxValue::Rotation);
-impl_to_from_pax_value!(Percent, PaxValue::Percent);
-impl_to_from_pax_value!(PathElement, PaxValue::PathElement);
+impl_to_pax_value!(Numeric, PaxValue::Numeric);
+impl_to_pax_value!(Size, PaxValue::Size);
+impl_to_pax_value!(Rotation, PaxValue::Rotation);
+impl_to_pax_value!(Percent, PaxValue::Percent);
+
+impl ToPaxValue for PathElement {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::PathElement(Box::new(self))
+    }
+}
 
 impl ToPaxValue for Color {
     fn to_pax_value(self) -> PaxValue {
@@ -116,21 +121,21 @@ impl<T: ToPaxValue + PropertyValue> ToPaxValue for Property<T> {
 impl ToPaxValue for Fill {
     fn to_pax_value(self) -> PaxValue {
         match self {
-            Fill::Solid(color) => PaxValue::Enum(
+            Fill::Solid(color) => PaxValue::Enum(Box::new((
                 "Fill".to_string(),
                 "Solid".to_string(),
                 vec![color.to_pax_value()],
-            ),
-            Fill::LinearGradient(gradient) => PaxValue::Enum(
+            ))),
+            Fill::LinearGradient(gradient) => PaxValue::Enum(Box::new((
                 "Fill".to_string(),
                 "LinearGradient".to_string(),
                 vec![gradient.to_pax_value()],
-            ),
-            Fill::RadialGradient(gradient) => PaxValue::Enum(
+            ))),
+            Fill::RadialGradient(gradient) => PaxValue::Enum(Box::new((
                 "Fill".to_string(),
                 "RadialGradient".to_string(),
                 vec![gradient.to_pax_value()],
-            ),
+            ))),
         }
     }
 }
@@ -138,21 +143,21 @@ impl ToPaxValue for Fill {
 impl ToPaxValue for ColorChannel {
     fn to_pax_value(self) -> PaxValue {
         match self {
-            ColorChannel::Rotation(rot) => PaxValue::Enum(
+            ColorChannel::Rotation(rot) => PaxValue::Enum(Box::new((
                 "ColorChannel".to_string(),
                 "Rotation".to_string(),
                 vec![rot.to_pax_value()],
-            ),
-            ColorChannel::Percent(perc) => PaxValue::Enum(
+            ))),
+            ColorChannel::Percent(perc) => PaxValue::Enum(Box::new((
                 "ColorChannel".to_string(),
                 "Percent".to_string(),
                 vec![perc.to_pax_value()],
-            ),
-            ColorChannel::Integer(num) => PaxValue::Enum(
+            ))),
+            ColorChannel::Integer(num) => PaxValue::Enum(Box::new((
                 "ColorChannel".to_string(),
                 "Integer".to_string(),
                 vec![num.to_pax_value()],
-            ),
+            ))),
         }
     }
 }

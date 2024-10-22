@@ -188,22 +188,14 @@ impl InstanceNode for PathInstance {
                                 Point { x, y }.to_kurbo_point(bounds),
                             );
                         }
-                        PathElement::Cubic(vals) => {
+                        &PathElement::Cubic(v1, v2, v3, v4) => {
                             let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
                                 log::warn!("curve expects to be followed by a point");
                                 return;
                             };
                             bez_path.curve_to(
-                                Point {
-                                    x: vals.0,
-                                    y: vals.1,
-                                }
-                                .to_kurbo_point(bounds),
-                                Point {
-                                    x: vals.2,
-                                    y: vals.3,
-                                }
-                                .to_kurbo_point(bounds),
+                                Point { x: v1, y: v2 }.to_kurbo_point(bounds),
+                                Point { x: v3, y: v4 }.to_kurbo_point(bounds),
                                 Point { x, y }.to_kurbo_point(bounds),
                             );
                         }

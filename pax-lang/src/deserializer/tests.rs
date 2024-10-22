@@ -100,7 +100,7 @@ fn test_vec() {
 #[test]
 fn test_enum() {
     let enum_pax = "Test::Enum(10, 20, 30)".to_string();
-    let expected = PaxValue::Enum(
+    let expected = PaxValue::Enum(Box::new((
         "Test".to_string(),
         "Enum".to_string(),
         vec![
@@ -108,7 +108,7 @@ fn test_enum() {
             PaxValue::Numeric(Numeric::I64(20)),
             PaxValue::Numeric(Numeric::I64(30)),
         ],
-    );
+    )));
     let v = from_pax(&enum_pax).unwrap();
     assert_eq!(expected, v);
 }
@@ -148,7 +148,7 @@ fn test_complex_vec() {
 #[test]
 fn test_complex_enum() {
     let enum_pax = "Test::Enum(10, 20, 30, [40, 50], { a: 60 })".to_string();
-    let expected = PaxValue::Enum(
+    let expected = PaxValue::Enum(Box::new((
         "Test".to_string(),
         "Enum".to_string(),
         vec![
@@ -165,7 +165,7 @@ fn test_complex_enum() {
                     .collect(),
             ),
         ],
-    );
+    )));
     let v = from_pax(&enum_pax).unwrap();
     assert_eq!(expected, v);
 }

@@ -201,9 +201,9 @@ impl ToolBehavior for PaintbrushTool {
                 &PathElement::Point(x, y) => points.push((x, y)),
                 PathElement::Line => (),
                 &PathElement::Quadratic(x, y) => points.push((x, y)),
-                PathElement::Cubic(sizes) => {
-                    points.push((sizes.0, sizes.1));
-                    points.push((sizes.2, sizes.3));
+                &PathElement::Cubic(v1, v2, v3, v4) => {
+                    points.push((v1, v2));
+                    points.push((v3, v4));
                 }
                 PathElement::Close => (),
                 PathElement::Empty => (),
@@ -272,12 +272,9 @@ impl ToolBehavior for PaintbrushTool {
                     PathElement::Point(x, y) => PathElement::Point(conv_x(x), conv_y(y)),
                     PathElement::Line => PathElement::Line,
                     PathElement::Quadratic(x, y) => PathElement::Quadratic(conv_x(x), conv_y(y)),
-                    PathElement::Cubic(sizes) => PathElement::Cubic(Box::new((
-                        conv_x(sizes.0),
-                        conv_y(sizes.1),
-                        conv_x(sizes.2),
-                        conv_y(sizes.3),
-                    ))),
+                    PathElement::Cubic(v1, v2, v3, v4) => {
+                        PathElement::Cubic(conv_x(v1), conv_y(v2), conv_x(v3), conv_y(v4))
+                    }
                     PathElement::Close => PathElement::Close,
                 })
                 .collect();
@@ -411,12 +408,12 @@ fn to_pax_path(path: &CompoundPath, bounds: (f64, f64)) -> Vec<PathElement> {
                     handle_start: ctrl1,
                     handle_end: ctrl2,
                 } => {
-                    pax_segs.push(PathElement::Cubic(Box::new((
+                    pax_segs.push(PathElement::Cubic(
                         Size::Percent((100.0 * ctrl1.x / bounds.0).into()),
                         Size::Percent((100.0 * ctrl1.y / bounds.1).into()),
                         Size::Percent((100.0 * ctrl2.x / bounds.0).into()),
                         Size::Percent((100.0 * ctrl2.y / bounds.1).into()),
-                    ))));
+                    ));
                     pax_segs.push(PathElement::Point(
                         Size::Percent((100.0 * seg.end.x / bounds.0).into()),
                         Size::Percent((100.0 * seg.end.y / bounds.1).into()),
