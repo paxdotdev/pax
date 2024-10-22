@@ -50,14 +50,16 @@ fn add(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function add".to_string());
     }
-    Ok(args[0].clone() + args[1].clone())
+    let mut itr = args.into_iter();
+    Ok(itr.next().unwrap() + itr.next().unwrap())
 }
 
 fn sub_or_neg(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() == 1 {
-        Ok(-args[0].clone())
+        Ok(-args.into_iter().next().unwrap())
     } else if args.len() == 2 {
-        Ok(args[0].clone() - args[1].clone())
+        let mut itr = args.into_iter();
+        Ok(itr.next().unwrap() - itr.next().unwrap())
     } else {
         Err("Expected 1 or 2 arguments for function sub_or_neg".to_string())
     }
@@ -67,28 +69,32 @@ fn mul(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function mul".to_string());
     }
-    Ok(args[0].clone() * args[1].clone())
+    let mut itr = args.into_iter();
+    Ok(itr.next().unwrap() * itr.next().unwrap())
 }
 
 fn div(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function div".to_string());
     }
-    Ok(args[0].clone() / args[1].clone())
+    let mut itr = args.into_iter();
+    Ok(itr.next().unwrap() / itr.next().unwrap())
 }
 
 fn exp(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function exp".to_string());
     }
-    Ok(args[0].clone().pow(args[1].clone()))
+    let mut itr = args.into_iter();
+    Ok(itr.next().unwrap().pow(itr.next().unwrap()))
 }
 
 fn mod_(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function mod_".to_string());
     }
-    Ok(args[0].clone() % args[1].clone())
+    let mut itr = args.into_iter();
+    Ok(itr.next().unwrap() % itr.next().unwrap())
 }
 
 fn rel_eq(args: Vec<PaxValue>) -> Result<PaxValue, String> {
@@ -137,35 +143,39 @@ fn bool_and(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function bool_and".to_string());
     }
-    Ok(args[0].clone().op_and(args[1].clone()))
+    let mut itr = args.into_iter();
+    Ok(itr.next().unwrap().op_and(itr.next().unwrap()))
 }
 
 fn bool_or(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function bool_or".to_string());
     }
-    Ok(args[0].clone().op_or(args[1].clone()))
+    let mut itr = args.into_iter();
+    Ok(itr.next().unwrap().op_or(itr.next().unwrap()))
 }
 
 fn bool_not(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 1 {
         return Err("Expected 1 argument for function bool_not".to_string());
     }
-    Ok(args[0].clone().op_not())
+    Ok(args.into_iter().next().unwrap().op_not())
 }
 
 fn min(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function min".to_string());
     }
-    Ok(args[0].clone().min(args[1].clone()))
+    let mut itr = args.into_iter();
+    Ok(itr.next().unwrap().min(itr.next().unwrap()))
 }
 
 fn max(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function max".to_string());
     }
-    Ok(args[0].clone().max(args[1].clone()))
+    let mut itr = args.into_iter();
+    Ok(itr.next().unwrap().max(itr.next().unwrap()))
 }
 
 fn len(args: Vec<PaxValue>) -> Result<PaxValue, String> {
@@ -182,9 +192,10 @@ fn rgb(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 3 {
         return Err("Expected 3 arguments for function rgb".to_string());
     }
-    let r = ColorChannel::try_coerce(args[0].clone())?;
-    let g = ColorChannel::try_coerce(args[1].clone())?;
-    let b = ColorChannel::try_coerce(args[2].clone())?;
+    let mut itr = args.into_iter();
+    let r = ColorChannel::try_coerce(itr.next().unwrap())?;
+    let g = ColorChannel::try_coerce(itr.next().unwrap())?;
+    let b = ColorChannel::try_coerce(itr.next().unwrap())?;
     Ok(Color::rgb(r, g, b).to_pax_value())
 }
 
@@ -192,10 +203,11 @@ fn rgba(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 4 {
         return Err("Expected 4 arguments for function rgba".to_string());
     }
-    let r = ColorChannel::try_coerce(args[0].clone())?;
-    let g = ColorChannel::try_coerce(args[1].clone())?;
-    let b = ColorChannel::try_coerce(args[2].clone())?;
-    let a = ColorChannel::try_coerce(args[3].clone())?;
+    let mut itr = args.into_iter();
+    let r = ColorChannel::try_coerce(itr.next().unwrap())?;
+    let g = ColorChannel::try_coerce(itr.next().unwrap())?;
+    let b = ColorChannel::try_coerce(itr.next().unwrap())?;
+    let a = ColorChannel::try_coerce(itr.next().unwrap())?;
     Ok(Color::rgba(r, g, b, a).to_pax_value())
 }
 
@@ -203,9 +215,10 @@ fn hsl(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 3 {
         return Err("Expected 3 arguments for function hsl".to_string());
     }
-    let h = Rotation::try_coerce(args[0].clone())?;
-    let s = ColorChannel::try_coerce(args[1].clone())?;
-    let l = ColorChannel::try_coerce(args[2].clone())?;
+    let mut itr = args.into_iter();
+    let h = Rotation::try_coerce(itr.next().unwrap())?;
+    let s = ColorChannel::try_coerce(itr.next().unwrap())?;
+    let l = ColorChannel::try_coerce(itr.next().unwrap())?;
     Ok(Color::hsl(h, s, l).to_pax_value())
 }
 
@@ -213,10 +226,11 @@ fn hsla(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 4 {
         return Err("Expected 4 arguments for function hsla".to_string());
     }
-    let h = Rotation::try_coerce(args[0].clone())?;
-    let s = ColorChannel::try_coerce(args[1].clone())?;
-    let l = ColorChannel::try_coerce(args[2].clone())?;
-    let a = ColorChannel::try_coerce(args[3].clone())?;
+    let mut itr = args.into_iter();
+    let h = Rotation::try_coerce(itr.next().unwrap())?;
+    let s = ColorChannel::try_coerce(itr.next().unwrap())?;
+    let l = ColorChannel::try_coerce(itr.next().unwrap())?;
+    let a = ColorChannel::try_coerce(itr.next().unwrap())?;
     Ok(Color::hsla(h, s, l, a).to_pax_value())
 }
 
@@ -224,7 +238,7 @@ fn hex(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 1 {
         return Err("Expected 1 argument for function hex".to_string());
     }
-    let hex = String::try_coerce(args[0].clone())?;
+    let hex = String::try_coerce(args.into_iter().next().unwrap())?;
     Ok(Color::from_hex(&hex).to_pax_value())
 }
 
@@ -324,8 +338,9 @@ impl HelperFunctions for crate::Transform2D {
                 if args.len() != 2 {
                     return Err("Expected 2 arguments for function scale".to_string());
                 }
-                let x = crate::Size::try_coerce(args[0].clone())?;
-                let y = crate::Size::try_coerce(args[1].clone())?;
+                let mut itr = args.into_iter();
+                let x = crate::Size::try_coerce(itr.next().unwrap())?;
+                let y = crate::Size::try_coerce(itr.next().unwrap())?;
                 Ok(crate::Transform2D::scale(x, y).to_pax_value())
             }),
         );
@@ -336,7 +351,7 @@ impl HelperFunctions for crate::Transform2D {
                 if args.len() != 1 {
                     return Err("Expected 1 argument for function rotate".to_string());
                 }
-                let z = crate::Rotation::try_coerce(args[0].clone())?;
+                let z = crate::Rotation::try_coerce(args.into_iter().next().unwrap())?;
                 Ok(crate::Transform2D::rotate(z).to_pax_value())
             }),
         );
@@ -347,8 +362,9 @@ impl HelperFunctions for crate::Transform2D {
                 if args.len() != 2 {
                     return Err("Expected 2 arguments for function translate".to_string());
                 }
-                let x = crate::Size::try_coerce(args[0].clone())?;
-                let y = crate::Size::try_coerce(args[1].clone())?;
+                let mut itr = args.into_iter();
+                let x = crate::Size::try_coerce(itr.next().unwrap())?;
+                let y = crate::Size::try_coerce(itr.next().unwrap())?;
                 Ok(crate::Transform2D::translate(x, y).to_pax_value())
             }),
         );
@@ -359,8 +375,9 @@ impl HelperFunctions for crate::Transform2D {
                 if args.len() != 2 {
                     return Err("Expected 2 arguments for function anchor".to_string());
                 }
-                let x = crate::Size::try_coerce(args[0].clone())?;
-                let y = crate::Size::try_coerce(args[1].clone())?;
+                let mut itr = args.into_iter();
+                let x = crate::Size::try_coerce(itr.next().unwrap())?;
+                let y = crate::Size::try_coerce(itr.next().unwrap())?;
                 Ok(crate::Transform2D::anchor(x, y).to_pax_value())
             }),
         );
@@ -386,7 +403,7 @@ impl HelperFunctions for Transform2 {
                 if args.len() != 1 {
                     return Err("Expected 1 argument for function scale".to_string());
                 }
-                let s = f64::try_coerce(args[0].clone())?;
+                let s = f64::try_coerce(args.into_iter().next().unwrap())?;
                 Ok(Transform2::scale(s).to_pax_value())
             }),
         );
@@ -398,7 +415,7 @@ impl HelperFunctions for Transform2 {
                 if args.len() != 1 {
                     return Err("Expected 1 argument for function scale".to_string());
                 }
-                let s = Vector2::try_coerce(args[0].clone())?;
+                let s = Vector2::try_coerce(args.into_iter().next().unwrap())?;
                 Ok(Transform2::translate(s).to_pax_value())
             }),
         );
@@ -410,7 +427,7 @@ impl HelperFunctions for Transform2 {
                 if args.len() != 1 {
                     return Err("Expected 1 argument for function rotate".to_string());
                 }
-                let s = f64::try_coerce(args[0].clone())?;
+                let s = f64::try_coerce(args.into_iter().next().unwrap())?;
                 Ok(Transform2::rotate(s).to_pax_value())
             }),
         );
@@ -421,7 +438,7 @@ impl HelperFunctions for Transform2 {
                 if args.len() != 1 {
                     return Err("Expected 1 argument for function skew".to_string());
                 }
-                let s = Vector2::try_coerce(args[0].clone())?;
+                let s = Vector2::try_coerce(args.into_iter().next().unwrap())?;
                 Ok(Transform2::skew(s).to_pax_value())
             }),
         );

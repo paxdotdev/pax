@@ -20,7 +20,7 @@ macro_rules! impl_default_coercion_rule {
 
 // This macro implements from and to
 #[macro_export]
-macro_rules! impl_to_from_pax_value {
+macro_rules! impl_to_pax_value {
     // For a single variant path
     ($Type:ty, $Variant:path) => {
         impl ToPaxValue for $Type {

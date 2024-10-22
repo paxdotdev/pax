@@ -35,59 +35,62 @@ impl Interpolatable for ResponseError {}
 impl ToPaxValue for PublishResponse {
     fn to_pax_value(self) -> PaxValue {
         match self {
-            PublishResponse::Success(success) => PaxValue::Enum(
+            PublishResponse::Success(success) => PaxValue::Enum(Box::new((
                 "PublishResponse".to_string(),
                 "Success".to_string(),
                 vec![success.clone().to_pax_value()],
-            ),
-            PublishResponse::Error(error) => PaxValue::Enum(
+            ))),
+            PublishResponse::Error(error) => PaxValue::Enum(Box::new((
                 "PublishResponse".to_string(),
                 "Error".to_string(),
                 vec![error.clone().to_pax_value()],
-            ),
-            PublishResponse::Undefined => PaxValue::Enum(
+            ))),
+            PublishResponse::Undefined => PaxValue::Enum(Box::new((
                 "PublishResponse".to_string(),
                 "Undefined".to_string(),
                 vec![],
-            ),
+            ))),
         }
     }
 }
 
 impl ToPaxValue for PublishResponseSuccess {
     fn to_pax_value(self) -> PaxValue {
-        PaxValue::Enum(
+        PaxValue::Enum(Box::new((
             "".to_string(),
             "PublishResponseSuccess".to_string(),
             vec![self.pull_request_url.clone().to_pax_value()],
-        )
+        )))
     }
 }
 
 impl ToPaxValue for ResponseError {
     fn to_pax_value(self) -> PaxValue {
-        PaxValue::Enum(
+        PaxValue::Enum(Box::new((
             "".to_string(),
             "ResponseError".to_string(),
             vec![self.message.clone().to_pax_value()],
-        )
+        )))
     }
 }
 
 impl CoercionRules for PublishResponse {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         match value {
-            PaxValue::Enum(_, variant, values) => match variant.as_str() {
-                "Success" => {
-                    let success = PublishResponseSuccess::try_coerce(values[0].clone())?;
-                    Ok(PublishResponse::Success(success))
+            PaxValue::Enum(contents) => {
+                let (_, variant, values) = *contents;
+                match variant.as_str() {
+                    "Success" => {
+                        let success = PublishResponseSuccess::try_coerce(values[0].clone())?;
+                        Ok(PublishResponse::Success(success))
+                    }
+                    "Error" => {
+                        let error = ResponseError::try_coerce(values[0].clone())?;
+                        Ok(PublishResponse::Error(error))
+                    }
+                    _ => Err(format!("Invalid variant: {}", variant)),
                 }
-                "Error" => {
-                    let error = ResponseError::try_coerce(values[0].clone())?;
-                    Ok(PublishResponse::Error(error))
-                }
-                _ => Err(format!("Invalid variant: {}", variant)),
-            },
+            }
             _ => Err("Invalid PaxValue".to_string()),
         }
     }
@@ -96,13 +99,16 @@ impl CoercionRules for PublishResponse {
 impl CoercionRules for PublishResponseSuccess {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         match value {
-            PaxValue::Enum(_, variant, values) => match variant.as_str() {
-                "PublishResponseSuccess" => {
-                    let pull_request_url = String::try_coerce(values[0].clone())?;
-                    Ok(PublishResponseSuccess { pull_request_url })
+            PaxValue::Enum(contents) => {
+                let (_, variant, values) = *contents;
+                match variant.as_str() {
+                    "PublishResponseSuccess" => {
+                        let pull_request_url = String::try_coerce(values[0].clone())?;
+                        Ok(PublishResponseSuccess { pull_request_url })
+                    }
+                    _ => Err(format!("Invalid variant: {}", variant)),
                 }
-                _ => Err(format!("Invalid variant: {}", variant)),
-            },
+            }
             _ => Err("Invalid PaxValue".to_string()),
         }
     }
@@ -111,13 +117,16 @@ impl CoercionRules for PublishResponseSuccess {
 impl CoercionRules for ResponseError {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         match value {
-            PaxValue::Enum(_, variant, values) => match variant.as_str() {
-                "ResponseError" => {
-                    let message = String::try_coerce(values[0].clone())?;
-                    Ok(ResponseError { message })
+            PaxValue::Enum(contents) => {
+                let (_, variant, values) = *contents;
+                match variant.as_str() {
+                    "ResponseError" => {
+                        let message = String::try_coerce(values[0].clone())?;
+                        Ok(ResponseError { message })
+                    }
+                    _ => Err(format!("Invalid variant: {}", variant)),
                 }
-                _ => Err(format!("Invalid variant: {}", variant)),
-            },
+            }
             _ => Err("Invalid PaxValue".to_string()),
         }
     }
