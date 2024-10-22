@@ -65,9 +65,11 @@ pub trait RenderContext {
     fn load_image(&mut self, identifier: &str, image: &[u8], width: usize, height: usize);
     fn draw_image(&mut self, layer: usize, image_path: &str, rect: kurbo::Rect);
     fn get_image_size(&mut self, image_path: &str) -> Option<(usize, usize)>;
+    fn image_loaded(&self, image_path: &str) -> bool;
 
     // other
     fn layers(&self) -> usize;
+    fn resize_layers_to(&mut self, layer_count: usize);
 }
 
 #[cfg(debug_assertions)]
