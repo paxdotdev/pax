@@ -15,26 +15,16 @@ struct ImgData<R: piet::RenderContext> {
 pub struct PietRenderer<R: piet::RenderContext> {
     backends: Vec<R>,
     image_map: HashMap<String, ImgData<R>>,
+    layer_factory: Box<dyn Fn(usize) -> R>,
 }
 
 impl<R: piet::RenderContext> PietRenderer<R> {
-    pub fn new() -> Self {
+    pub fn new(layer_factory: impl Fn(usize) -> R + 'static) -> Self {
         Self {
+            layer_factory: Box::new(layer_factory),
             backends: Vec::new(),
             image_map: HashMap::new(),
         }
-    }
-
-    pub fn add_context(&mut self, id: usize, context: R) {
-        self.backends.insert(id.to_owned(), context);
-    }
-
-    pub fn remove_context(&mut self, id: usize) {
-        self.backends.remove(id);
-    }
-
-    pub fn image_loaded(&self, path: &str) -> bool {
-        self.image_map.contains_key(path)
     }
 }
 
@@ -109,6 +99,27 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
 
     fn layers(&self) -> usize {
         self.backends.len()
+    }
+
+    fn resize_layers_to(&mut self, layer_count: usize) {
+        match layer_count.cmp(&self.backends.len()) {
+            std::cmp::Ordering::Less => {
+                for i in self.backends.len()..layer_count {
+                    self.backends.pop();
+                }
+            }
+            std::cmp::Ordering::Equal => return,
+            std::cmp::Ordering::Greater => {
+                for i in self.backends.len()..layer_count {
+                    self.backends.push((self.layer_factory)(i));
+                }
+            }
+        }
+        // self.backends.insert(id.to_owned(), context);
+    }
+
+    fn image_loaded(&self, path: &str) -> bool {
+        self.image_map.contains_key(path)
     }
 }
 
