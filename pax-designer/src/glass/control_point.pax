@@ -2,13 +2,15 @@
     @mouse_down=self.mouse_down 
     @double_click=self.double_click
 >
-    if !self.data.styling.round {
+    if !self.style.round {
         <Rectangle class=control_point/>
     }
-    if self.data.styling.round {
+    if self.style.round {
         <Ellipse class=control_point/>
     }
     <Rectangle fill=TRANSPARENT/>
+    // for debugging:
+    // <Rectangle fill=rgba(255, 0, 0, 30)/>
 </Group>
 
 @settings {
@@ -20,21 +22,20 @@
         anchor_y: {(self.data.anchor_y*100.0)%},
         x: {(self.data.point.x)px},
         y: {(self.data.point.y)px},
-        width: {(self.data.styling.width + self.data.styling.hit_padding)px}
-        height: {(self.data.styling.height + self.data.styling.hit_padding)px}
         rotate: {self.applied_rotation}
+
+        width: {(self.style.width + self.style.hit_padding)px}
+        height: {(self.style.height + self.style.hit_padding)px}
     }
     .control_point {
         stroke: {
-            color: {self.data.styling.stroke_color}
-            width: {(self.data.styling.stroke_width_pixels)px}
+            color: {self.style.stroke_color}
+            width: {(self.style.stroke_width_pixels)px}
         }
         x: 50%,
         y: 50%,
-        fill: { self.data.styling.fill_color }
-        width: {(self.data.styling.width)px}
-        height: {(self.data.styling.height)px}
-        anchor_x: {(100.0 - self.data.anchor_x*100.0)%},
-        anchor_y: {(100.0 - self.data.anchor_y*100.0)%},
+        fill: {self.style.fill_color}
+        width: {(self.style.width)px}
+        height: {(self.style.height)px}
     }
 }

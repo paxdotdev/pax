@@ -2,7 +2,7 @@ use std::{cell::RefCell, f64::consts::PI, rc::Rc};
 
 use pax_engine::{
     api::Color,
-    math::{Point2, TransformParts},
+    math::{Point2, TransformParts, Vector2},
     pax_runtime::TransformAndBounds,
     NodeLocal, Property,
 };
@@ -29,7 +29,38 @@ use super::ControlPointSet;
 
 pub fn resize_control_points_set(
     total_selection_bounds: Property<TransformAndBounds<SelectionSpace, Glass>>,
-) -> Property<ControlPointSet> {
+) -> ControlPointSet {
+    let deps = [total_selection_bounds.untyped()];
+    // resize points
+    let resize_control_points = Property::computed(
+        move || {
+            let total_selection_bounds = total_selection_bounds.get().as_transform();
+            let c_point = |x: f64, y: f64| {
+                let point = Point2::new(x, y);
+                let cursor_rotation = Vector2::new(1.0, 0.0)
+                    .angle_to(point - Point2::new(0.5, 0.5))
+                    .get_as_degrees();
+                CPoint {
+                    point: total_selection_bounds * point,
+                    cursor_rotation,
+                    behavior: resize_factory(point),
+                    ..Default::default()
+                }
+            };
+            vec![
+                c_point(0.0, 0.0),
+                c_point(0.5, 0.0),
+                c_point(1.0, 0.0),
+                c_point(1.0, 0.5),
+                c_point(1.0, 1.0),
+                c_point(0.5, 1.0),
+                c_point(0.0, 1.0),
+                c_point(0.0, 0.5),
+            ]
+        },
+        &deps,
+    );
+
     let resize_control_point_styling = ControlPointStyling {
         round: false,
         stroke_color: Color::BLUE,
@@ -42,75 +73,14 @@ pub fn resize_control_points_set(
         hit_padding: 10.0,
     };
 
-    let deps = [total_selection_bounds.untyped()];
-    Property::computed(
-        move || {
-            let total_bounds = total_selection_bounds.get();
-            // clockwise from top left:
-            let [p1, p4, p3, p2] = total_bounds.corners();
-
-            // resize points
-            let resize_control_points = vec![
-                CPoint {
-                    point: p1,
-                    behavior: resize_factory(Point2::new(1.0, 1.0)),
-                    rotation: 225.0,
-                    ..Default::default()
-                },
-                CPoint {
-                    point: p1.midpoint_towards(p2),
-                    behavior: resize_factory(Point2::new(0.5, 1.0)),
-                    rotation: 270.0,
-                    ..Default::default()
-                },
-                CPoint {
-                    point: p2,
-                    behavior: resize_factory(Point2::new(0.0, 1.0)),
-                    rotation: 315.0,
-                    ..Default::default()
-                },
-                CPoint {
-                    point: p2.midpoint_towards(p3),
-                    behavior: resize_factory(Point2::new(0.0, 0.5)),
-                    rotation: 0.0,
-                    ..Default::default()
-                },
-                CPoint {
-                    point: p3,
-                    behavior: resize_factory(Point2::new(0.0, 0.0)),
-                    rotation: 45.0,
-                    ..Default::default()
-                },
-                CPoint {
-                    point: p3.midpoint_towards(p4),
-                    behavior: resize_factory(Point2::new(0.5, 0.0)),
-                    rotation: 90.0,
-                    ..Default::default()
-                },
-                CPoint {
-                    point: p4,
-                    behavior: resize_factory(Point2::new(1.0, 0.0)),
-                    rotation: 135.0,
-                    ..Default::default()
-                },
-                CPoint {
-                    point: p4.midpoint_towards(p1),
-                    behavior: resize_factory(Point2::new(1.0, 0.5)),
-                    rotation: 180.0,
-                    ..Default::default()
-                },
-            ];
-
-            ControlPointSet {
-                points: resize_control_points,
-                styling: resize_control_point_styling.clone(),
-            }
-        },
-        &deps,
-    )
+    ControlPointSet {
+        points: resize_control_points,
+        styling: resize_control_point_styling,
+    }
 }
 
-fn resize_factory(anchor: Point2<NodeLocal>) -> ControlPointToolFactory {
+fn resize_factory(position: Point2<SelectionSpace>) -> ControlPointToolFactory {
+    let anchor = (Point2::new(1.0, 1.0) - position).to_point();
     ControlPointToolFactory {
         tool_factory: Rc::new(move |ac, _p| {
             let initial_selection: SelectionStateSnapshot =
@@ -145,7 +115,7 @@ fn resize_factory(anchor: Point2<NodeLocal>) -> ControlPointToolFactory {
 }
 
 struct ResizeBehavior {
-    attachment_point: Point2<NodeLocal>,
+    attachment_point: Point2<SelectionSpace>,
     initial_selection: SelectionStateSnapshot,
 }
 

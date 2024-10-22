@@ -144,6 +144,7 @@ export class OcclusionLayerManager {
                 throw new Error(`tried to remove container width id ${id} while children still present`);
             }
             parent!.removeChild(elem);
+            this.objectManager.returnToPool(DIV, elem);
         })
         let var_name = containerCssClipPathVar(id);
         document.documentElement.style.removeProperty(var_name);

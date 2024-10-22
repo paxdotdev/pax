@@ -30,6 +30,7 @@ use self::editor_generation::Editor;
 pub struct WireframeEditor {
     pub control_points: Property<Vec<ControlPointDef>>,
     pub bounding_segments: Property<Vec<BoundingSegment>>,
+    pub styles: Property<Vec<ControlPointStyling>>,
     pub on_selection_changed: Property<bool>,
     pub object_rotation: Property<Rotation>,
 }
@@ -52,6 +53,7 @@ impl WireframeEditor {
 
         let control_points = self.control_points.clone();
         let bounding_segments = self.bounding_segments.clone();
+        let styles = self.styles.clone();
         // This is doing _hierarchical_ binding:
         // whenever the selection ID changes, the transform and bounds of
         // the editor (among other things) are re-bound to the engine node
@@ -64,7 +66,12 @@ impl WireframeEditor {
                 if selected.items.len() > 0 {
                     Self::bind_object_transform(object_rotation.clone(), &selected);
                     let editor = Editor::new(ctx.clone(), selected);
-                    Self::bind_editor(control_points.clone(), bounding_segments.clone(), editor);
+                    Self::bind_editor(
+                        control_points.clone(),
+                        bounding_segments.clone(),
+                        styles.clone(),
+                        editor,
+                    );
                 } else {
                     control_points.replace_with(Property::new(vec![]));
                     bounding_segments.replace_with(Property::new(vec![]));
@@ -84,39 +91,41 @@ impl WireframeEditor {
     fn bind_editor(
         control_points: Property<Vec<ControlPointDef>>,
         bounding_segments: Property<Vec<BoundingSegment>>,
-        editor: Property<Editor>,
+        styles: Property<Vec<ControlPointStyling>>,
+        editor: Editor,
     ) {
-        let editorcp = editor.clone();
-        let deps = [editor.untyped()];
-
+        let deps: Vec<_> = editor
+            .controls
+            .iter()
+            .map(|set| set.points.untyped())
+            .collect();
+        let controls: Vec<_> = editor
+            .controls
+            .iter()
+            .map(|set| set.points.clone())
+            .enumerate()
+            .collect();
+        let new_styles: Vec<_> = editor.controls.into_iter().map(|set| set.styling).collect();
+        styles.set(new_styles);
         control_points.replace_with(Property::computed(
             move || {
-                let mut control_points = vec![];
-                let mut behaviors = vec![];
-                for control_set in editorcp.get().controls {
-                    let (control_points_set, behavior_set): (Vec<_>, Vec<_>) = control_set
-                        .points
-                        .into_iter()
-                        .map(|c_point| {
-                            (
-                                (c_point.point, c_point.rotation, c_point.anchor),
-                                c_point.behavior,
-                            )
-                        })
-                        .unzip();
-                    let control_points_from_set: Vec<ControlPointDef> = control_points_set
-                        .into_iter()
-                        .map(|(p, rot, anchor)| ControlPointDef {
-                            point: p.into(),
-                            node_local_rotation_degrees: rot,
-                            anchor_x: anchor.x,
-                            anchor_y: anchor.y,
-                            styling: control_set.styling.clone(),
-                        })
-                        .collect();
-                    control_points.extend(control_points_from_set);
-                    behaviors.extend(behavior_set);
-                }
+                let (control_points, behaviors) = controls
+                    .iter()
+                    .flat_map(|(style_index, c)| c.get().into_iter().map(|p| (*style_index, p)))
+                    .map(|(style_index, p)| {
+                        (
+                            ControlPointDef {
+                                point: p.point.into(),
+                                anchor_x: p.anchor.x,
+                                anchor_y: p.anchor.y,
+                                rotation: p.rotation,
+                                cursor_rotation: p.cursor_rotation,
+                                styling_lookup_ind: style_index,
+                            },
+                            p.behavior,
+                        )
+                    })
+                    .unzip();
 
                 CONTROL_POINT_FUNCS.with_borrow_mut(|funcs| {
                     *funcs = Some(behaviors);
@@ -126,8 +135,10 @@ impl WireframeEditor {
             &deps,
         ));
 
+        let segments = editor.segments.clone();
+        let deps = [segments.untyped()];
         bounding_segments.replace_with(Property::computed(
-            move || editor.get().segments.into_iter().map(Into::into).collect(),
+            move || segments.get().into_iter().map(Into::into).collect(),
             &deps,
         ));
     }
