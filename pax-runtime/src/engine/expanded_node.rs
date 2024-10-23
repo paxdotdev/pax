@@ -513,7 +513,6 @@ impl ExpandedNode {
                 // this is needed to reslove slot connections in a single tick
                 self.compute_flattened_slot_children();
             }
-
             self.attached.set(self.attached.get() + 1);
             context.add_to_cache(&self);
             if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
