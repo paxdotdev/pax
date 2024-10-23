@@ -155,26 +155,18 @@ impl Model {
         Property::computed(
             move || {
                 let type_id = comp_id.get();
-                let mut nodes = vec![];
                 let mut selected_ids = node_ids.get();
-                let mut discarded = false;
-                selected_ids.retain(|id| {
-                    let unid = UniqueTemplateNodeIdentifier::build(type_id.clone(), id.clone());
-                    let Some(node) = ctx_cp
-                        .get_nodes_by_global_id(unid.clone())
-                        .into_iter()
-                        .max()
-                    else {
-                        discarded = true;
-                        return false;
-                    };
-                    nodes.push((unid, node));
-                    true
-                });
-                if discarded {
-                    node_ids.set(selected_ids);
-                }
-                nodes
+                selected_ids
+                    .into_iter()
+                    .filter_map(|id| {
+                        let unid = UniqueTemplateNodeIdentifier::build(type_id.clone(), id.clone());
+                        ctx_cp
+                            .get_nodes_by_global_id(unid.clone())
+                            .into_iter()
+                            .max()
+                            .map(|n| (unid, n))
+                    })
+                    .collect()
             },
             &deps,
         )
@@ -239,7 +231,8 @@ impl Model {
                     let interface = ctx_cp.get_nodes_by_global_id(uid);
                     if let Some(parent_uid) = interface
                         .first()
-                        .and_then(|v| v.template_parent().unwrap().global_id())
+                        .and_then(|v| v.template_parent())
+                        .and_then(|v| v.global_id())
                     {
                         containers.insert(parent_uid);
                     }

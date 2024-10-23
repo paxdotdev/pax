@@ -63,7 +63,7 @@ impl<'a> NodeBuilder<'a> {
             .ok()?;
         if let Some(node) = resp.node {
             let location = orm.manifest.get_node_location(&uni);
-            Some(NodeBuilder {
+            let res = Some(NodeBuilder {
                 orm,
                 containing_component_type_id: uni.get_containing_component_type_id(),
                 node_type_id: node.type_id,
@@ -73,7 +73,8 @@ impl<'a> NodeBuilder<'a> {
                 control_flow_updates: ControlFlowSettingsDefinitionUpdate::default(),
                 location,
                 overwrite_expressions,
-            })
+            });
+            res
         } else {
             None
         }

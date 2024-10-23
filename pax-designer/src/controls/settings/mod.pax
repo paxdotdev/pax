@@ -70,10 +70,10 @@ if self.is_component_selected {
 }
 
 if self.is_control_flow_if_selected {
-    <ControlFlowIfEditor write_target={WriteTarget::TemplateNode(stid, snid)} />
+    <ControlFlowIfEditor stid=stid snid=snid/>
 }
 if self.is_control_flow_for_selected {
-    <ControlFlowForEditor write_target={WriteTarget::TemplateNode(stid, snid)} />
+    <ControlFlowForEditor stid=stid snid=snid/>
 }
 
 @settings {

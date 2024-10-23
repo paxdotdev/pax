@@ -34,18 +34,21 @@ impl DirectionPropertyEditor {
         let deps = [data.untyped()];
         let ctx = ctx.clone();
         self.is_vertical.replace_with(Property::computed(
-            move || {
-                data.get()
-                    .get_value_typed(&ctx)
-                    .map_err(|e| {
-                        log::warn!(
-                            "failed to read {} for {} - using default: {e}",
-                            "stacker direction",
-                            "direction editor"
-                        );
-                    })
-                    .unwrap_or_default()
-                    .unwrap_or_default()
+            move || match data
+                .get()
+                .get_value_typed::<StackerDirection>(&ctx)
+                .map_err(|e| {
+                    log::warn!(
+                        "failed to read {} for {} - using default: {e}",
+                        "stacker direction",
+                        "direction editor"
+                    );
+                })
+                .unwrap_or_default()
+                .unwrap_or_default()
+            {
+                StackerDirection::Vertical => true,
+                StackerDirection::Horizontal => false,
             },
             &deps,
         ));

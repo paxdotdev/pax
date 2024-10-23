@@ -213,13 +213,14 @@ impl RuntimeContext {
             .map(|eids| {
                 let mut nodes = vec![];
                 for e in eids {
-                    nodes.extend(
-                        node_cache
-                            .eid_to_node
-                            .get(e)
-                            .map(|node| vec![Rc::clone(node)])
-                            .unwrap_or_default(),
-                    )
+                    if let Some(node) = node_cache.eid_to_node.get(e) {
+                        nodes.push(Rc::clone(node));
+                    } else {
+                        log::warn!(
+                            "failed to find node in engine for expanded node identifier: {:?}",
+                            e
+                        );
+                    }
                 }
                 nodes
             })

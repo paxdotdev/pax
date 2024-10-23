@@ -52,7 +52,7 @@ impl ControlFlowForEditor {
                             .map(|v| v.to_string()).unwrap_or_else(|| "<error>".to_string()),
                     )
                 } else {
-                    log::warn!("couldn't fetch if definition");
+                    log::warn!("couldn't fetch for definition");
                     ("<error>".to_string(), "<error>".to_string())
                 }
             },

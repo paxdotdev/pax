@@ -283,13 +283,14 @@ impl Glass {
     }
 
     pub fn handle_mouse_down(&mut self, ctx: &NodeContext, args: Event<MouseDown>) {
-        let last_time = self.time_last_click.get();
-        let curr_time = ctx.elapsed_time_millis() as u64;
-        if (curr_time - last_time) < 500 {
-            self.handle_double_click(ctx, &args);
+        if args.mouse.button == MouseButton::Left {
+            let last_time = self.time_last_click.get();
+            let curr_time = ctx.elapsed_time_millis() as u64;
+            if (curr_time - last_time) < 500 {
+                self.handle_double_click(ctx, &args);
+            }
+            self.time_last_click.set(curr_time);
         }
-        self.time_last_click.set(curr_time);
-
         model::perform_action(
             &crate::model::action::pointer::MouseEntryPointAction {
                 event: Pointer::Down,
@@ -374,6 +375,10 @@ pub struct SetEditingComponent(pub TypeId);
 impl Action for SetEditingComponent {
     fn perform(&self, ctx: &mut ActionContext) -> anyhow::Result<()> {
         let type_id = &self.0;
+
+        if !matches!(type_id.get_pax_type(), PaxType::Singleton { .. }) {
+            return Err(anyhow!("tried to edit a non-component: {:?}", type_id));
+        }
 
         let is_pax_std = type_id
             .import_path()
