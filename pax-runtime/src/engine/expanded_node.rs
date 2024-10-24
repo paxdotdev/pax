@@ -127,7 +127,8 @@ pub struct ExpandedNode {
     pub suspended: Property<bool>,
 
     /// used by native elements to trigger sending of native messages
-    pub native_message_listener: Property<()>,
+    /// used by canvas elements to dirtify their canvas
+    pub changed_listener: Property<()>,
 
     /// used to know when a slot child is attached
     pub slot_child_attached_listener: Property<()>,
@@ -263,7 +264,7 @@ impl ExpandedNode {
             properties_scope: RefCell::new(property_scope),
             slot_index: Property::default(),
             suspended: Property::new(false),
-            native_message_listener: Property::default(),
+            changed_listener: Property::default(),
             slot_child_attached_listener: Property::default(),
             subscriptions: Default::default(),
         });
@@ -463,7 +464,7 @@ impl ExpandedNode {
         }
         Rc::clone(&*borrow!(self.instance_node)).update(&self, context);
         // trigger native message sending
-        self.native_message_listener.get();
+        self.changed_listener.get();
 
         if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
             if !self.suspended.get() {

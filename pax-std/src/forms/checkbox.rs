@@ -90,7 +90,7 @@ impl InstanceNode for CheckboxInstance {
             .chain([expanded_node.transform_and_bounds.untyped()])
             .collect();
         expanded_node
-            .native_message_listener
+            .changed_listener
             .replace_with(Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
@@ -179,7 +179,7 @@ impl InstanceNode for CheckboxInstance {
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
         let id = expanded_node.id.clone();
         expanded_node
-            .native_message_listener
+            .changed_listener
             .replace_with(Property::default());
         context.enqueue_native_message(pax_message::NativeMessage::CheckboxDelete(id.to_u32()));
     }
