@@ -4,6 +4,9 @@
 use js_sys::Uint8Array;
 use pax_message::ImageLoadInterruptArgs;
 use pax_message::ScreenshotData;
+use pax_pixels::render_backend::RenderBackend;
+use pax_pixels::render_backend::RenderConfig;
+use pax_pixels::WgpuRenderer;
 use pax_runtime::api::borrow;
 use pax_runtime::api::math::Point2;
 use pax_runtime::api::use_RefCell;
@@ -12,25 +15,25 @@ use pax_runtime::api::Platform;
 use pax_runtime::api::RenderContext;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::OS;
-use pax_runtime::piet_render_context::PietRenderer;
+use pax_runtime::pax_pixels_render_context::PaxPixelsRenderer;
 use pax_runtime::DefinitionToInstanceTraverser;
 use pax_runtime_api::borrow_mut;
 use pax_runtime_api::Event;
 use pax_runtime_api::Focus;
 use pax_runtime_api::SelectStart;
+use web_sys::CanvasRenderingContext2d;
+use web_sys::WebGl2RenderingContext;
+use web_sys::WebGlRenderingContext;
 use web_time::Instant;
 use_RefCell!();
 
 pub mod web_render_contexts;
 
+use pax_runtime::PaxEngine;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{window, HtmlCanvasElement};
-
-use piet_web::WebRenderContext;
-
-use pax_runtime::PaxEngine;
 
 pub use {console_error_panic_hook, console_log};
 
@@ -56,7 +59,7 @@ pub fn wasm_memory() -> JsValue {
 
 #[wasm_bindgen]
 pub struct PaxChassisWeb {
-    drawing_contexts: PietRenderer<WebRenderContext<'static>>,
+    drawing_contexts: Box<dyn RenderContext>,
     engine: Rc<RefCell<PaxEngine>>,
     #[cfg(any(feature = "designtime", feature = "designer"))]
     userland_definition_to_instance_traverser:
@@ -79,7 +82,7 @@ impl PaxChassisWeb {
         userland_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
         designer_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
-        let (width, height, os_info, get_elapsed_millis, piet_renderer) = Self::init_common();
+        let (width, height, os_info, get_elapsed_millis, renderer) = Self::init_common();
         let query_string = window()
             .unwrap()
             .location()
@@ -106,7 +109,7 @@ impl PaxChassisWeb {
         let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
         Self {
             engine: engine_container,
-            drawing_contexts: piet_renderer,
+            drawing_contexts: renderer,
             userland_definition_to_instance_traverser,
             designtime_manager,
         }
@@ -118,7 +121,7 @@ impl PaxChassisWeb {
     pub async fn new(
         definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
-        let (width, height, os_info, get_time, piet_renderer) = Self::init_common();
+        let (width, height, os_info, get_time, renderer) = Self::init_common();
 
         let main_component_instance =
             definition_to_instance_traverser.get_main_component(USERLAND_COMPONENT_ROOT);
@@ -134,51 +137,100 @@ impl PaxChassisWeb {
 
         Self {
             engine: engine_container,
-            drawing_contexts: piet_renderer,
+            drawing_contexts: renderer,
         }
     }
 
-    fn init_common() -> (
-        f64,
-        f64,
-        OS,
-        Box<dyn Fn() -> u128>,
-        PietRenderer<WebRenderContext<'static>>,
-    ) {
-        let window = window().unwrap();
-        let user_agent_str = window.navigator().user_agent().ok();
+    fn init_common() -> (f64, f64, OS, Box<dyn Fn() -> u128>, Box<dyn RenderContext>) {
+        let win = window().unwrap();
+        let user_agent_str = win.navigator().user_agent().ok();
         let os_info = user_agent_str
             .and_then(|s| parse_user_agent_str(&s))
             .unwrap_or_default();
 
-        let width = window.inner_width().unwrap().as_f64().unwrap();
-        let height = window.inner_height().unwrap().as_f64().unwrap();
+        let width = win.inner_width().unwrap().as_f64().unwrap();
+        let height = win.inner_height().unwrap().as_f64().unwrap();
         let start = Instant::now();
-        let piet_renderer = PietRenderer::new(move |layer| {
-            let dpr = window.device_pixel_ratio();
-            let document = window.document().unwrap();
-            let canvas = document
-                .get_element_by_id(layer.to_string().as_str())
-                .unwrap()
-                .dyn_into::<HtmlCanvasElement>()
-                .unwrap();
-            let context: web_sys::CanvasRenderingContext2d = canvas
-                .get_context("2d")
-                .unwrap()
-                .unwrap()
-                .dyn_into::<web_sys::CanvasRenderingContext2d>()
-                .unwrap();
+        // let renderer = PietRenderer::new(move |layer| {
+        //     let dpr = window.device_pixel_ratio();
+        //     let document = window.document().unwrap();
+        //     let canvas = document
+        //         .get_element_by_id(layer.to_string().as_str())
+        //         .unwrap()
+        //         .dyn_into::<HtmlCanvasElement>()
+        //         .unwrap();
+        //     let context: web_sys::CanvasRenderingContext2d = canvas
+        //         .get_context("2d")
+        //         .unwrap()
+        //         .unwrap()
+        //         .dyn_into::<web_sys::CanvasRenderingContext2d>()
+        //         .unwrap();
 
-            let width = canvas.offset_width() as f64 * dpr;
-            let height = canvas.offset_height() as f64 * dpr;
+        //     let width = canvas.offset_width() as f64 * dpr;
+        //     let height = canvas.offset_height() as f64 * dpr;
 
-            canvas.set_width(width as u32);
-            canvas.set_height(height as u32);
-            let _ = context.scale(dpr, dpr);
-            WebRenderContext::new(context, window.clone())
+        //     canvas.set_width(width as u32);
+        //     canvas.set_height(height as u32);
+        //     let _ = context.scale(dpr, dpr);
+        //     WebRenderContext::new(context, window.clone())
+        // });
+        let renderer = PaxPixelsRenderer::new(move |layer| {
+            // let context: web_sys::CanvasRenderingContext2d = canvas
+            //     .get_context("2d")
+            //     .unwrap()
+            //     .unwrap()
+            //     .dyn_into::<web_sys::CanvasRenderingContext2d>()
+            //     .unwrap();
+            // let _ = context.scale(dpr, dpr);
+
+            Box::pin(async move {
+                let window = window().unwrap();
+                let dpr = window.device_pixel_ratio();
+                let document = window.document().unwrap();
+                let canvas = document
+                    .get_element_by_id(layer.to_string().as_str())
+                    .unwrap()
+                    .dyn_into::<HtmlCanvasElement>()
+                    .unwrap();
+
+                // let width = canvas.offset_width() as f64 * dpr;
+                // let height = canvas.offset_height() as f64 * dpr;
+                // canvas.set_width(width as u32);
+                // canvas.set_height(height as u32);
+
+                // Check for WebGPU support
+                let navigator = window.navigator();
+                if !js_sys::Reflect::has(&navigator, &JsValue::from_str("gpu")).unwrap_or(false) {
+                    panic!("WebGPU is not supported in this browser");
+                }
+
+                // Diagnose canvas state before attempting to use it
+                match diagnose_canvas_context(&canvas) {
+                    Ok(diagnostic) => {
+                        web_sys::console::log_1(
+                            &format!("Canvas diagnostic:\n{}", diagnostic).into(),
+                        );
+                    }
+                    Err(e) => {
+                        web_sys::console::error_1(
+                            &format!("Failed to diagnose canvas: {}", e).into(),
+                        );
+                    }
+                }
+
+                WgpuRenderer::new(
+                    // NOTE: this exists when building for wasm32
+                    RenderBackend::to_canvas(
+                        canvas,
+                        RenderConfig::new(false, width as u32, height as u32, dpr as u32),
+                    )
+                    .await
+                    .unwrap(),
+                )
+            })
         });
         let get_time = Box::new(move || start.elapsed().as_millis());
-        (width, height, os_info, get_time, piet_renderer)
+        (width, height, os_info, get_time, Box::new(renderer))
     }
 
     #[cfg(any(feature = "designtime", feature = "designer"))]
@@ -195,9 +247,63 @@ impl PaxChassisWeb {
     }
 }
 
+fn diagnose_canvas_context(canvas: &HtmlCanvasElement) -> Result<String, String> {
+    // Try to get each type of context WITHOUT creating a new one
+    let contexts_to_check = [
+        ("webgpu", "gpu"),
+        ("webgl2", "webgl2"),
+        ("webgl", "webgl"),
+        ("2d", "2d"),
+    ];
+
+    let mut diagnostic = String::new();
+
+    // First try to get any existing context
+    if let Ok(Some(existing)) = canvas.get_context("") {
+        diagnostic.push_str(&format!("Canvas has an existing context: {:?}\n", existing));
+
+        // Try to determine the type of the existing context
+        if existing.is_instance_of::<WebGl2RenderingContext>() {
+            diagnostic.push_str("Current context is WebGL2\n");
+        } else if existing.is_instance_of::<WebGlRenderingContext>() {
+            diagnostic.push_str("Current context is WebGL1\n");
+        } else if existing.is_instance_of::<CanvasRenderingContext2d>() {
+            diagnostic.push_str("Current context is 2D\n");
+        }
+    }
+
+    // Try to get each type of context and log the result
+    for (name, context_type) in contexts_to_check.iter() {
+        match canvas.get_context(context_type) {
+            Ok(Some(_)) => {
+                diagnostic.push_str(&format!("{} context is available\n", name));
+            }
+            Ok(None) => {
+                diagnostic.push_str(&format!("{} context is not available\n", name));
+            }
+            Err(e) => {
+                diagnostic.push_str(&format!("Error checking {} context: {:?}\n", name, e));
+            }
+        }
+    }
+
+    // Get canvas attributes
+    diagnostic.push_str(&format!(
+        "\nCanvas attributes:\n\
+         - ID: {}\n\
+         - Width: {}\n\
+         - Height: {}\n",
+        canvas.id(),
+        canvas.width(),
+        canvas.height(),
+    ));
+
+    Ok(diagnostic)
+}
 #[wasm_bindgen]
 impl PaxChassisWeb {
     pub fn add_context(&mut self, id: usize) {
+        log::debug!("adding context: {:?}", id);
         self.drawing_contexts.resize_layers_to(id);
         self.engine.borrow().runtime_context.add_canvas(id);
     }
@@ -210,6 +316,7 @@ impl PaxChassisWeb {
         borrow_mut!(self.engine).set_viewport_size((width, height));
     }
     pub fn remove_context(&mut self, id: usize) {
+        log::debug!("removing context: {:?}", id);
         self.drawing_contexts.resize_layers_to(id.saturating_sub(1));
         self.engine.borrow().runtime_context.remove_canvas(id);
     }
@@ -753,7 +860,7 @@ impl PaxChassisWeb {
     }
 
     pub fn render(&mut self) {
-        borrow_mut!(self.engine).render((&mut self.drawing_contexts) as &mut dyn RenderContext);
+        borrow_mut!(self.engine).render(self.drawing_contexts.as_mut());
         self.engine
             .borrow()
             .runtime_context

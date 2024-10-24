@@ -1,4 +1,4 @@
-import {NATIVE_OVERLAY_CLASS} from '../utils/constants';
+import {CANVAS_CLASS, NATIVE_OVERLAY_CLASS} from '../utils/constants';
 import {ObjectManager} from "../pools/object-manager";
 import {CANVAS, DIV} from "../pools/supported-objects";
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
@@ -21,7 +21,9 @@ export class Layer {
         this.occlusionLayerId = occlusionLayerId;
         this.chassis = chassis;
         this.canvasMap = canvasMap;
-        this.canvas = this.objectManager.getFromPool(CANVAS);
+        let canvas = document.createElement('canvas');
+        canvas.className = CANVAS_CLASS;
+        this.canvas = canvas;
         this.native = this.objectManager.getFromPool(DIV);
 
         this.canvas.style.zIndex = String(occlusionLayerId * 2);
