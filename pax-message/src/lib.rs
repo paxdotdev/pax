@@ -54,6 +54,7 @@ pub enum NativeMessage {
     OcclusionUpdate(OcclusionPatch),
     Navigate(NavigationPatch),
     SetCursor(SetCursorPatch),
+    Screenshot(ScreenshotPatch),
 }
 
 #[derive(Deserialize)]
@@ -89,6 +90,7 @@ pub enum NativeInterrupt {
     FormButtonClick(FormButtonClickArgs),
     Scrollbar(ScrollbarInterruptArgs),
     DropFile(DropFileArgs),
+    Screenshot(ImageLoadInterruptArgs)
 }
 
 #[derive(Deserialize)]
@@ -774,4 +776,19 @@ pub enum FontWeightMessage {
 #[repr(C)]
 pub struct LayerAddPatch {
     pub num_layers_to_add: usize,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub struct ScreenshotPatch {
+    pub id: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ScreenshotData {
+    pub id: u32,
+    pub data: Vec<u8>,
+    pub width: usize,
+    pub height: usize,
 }

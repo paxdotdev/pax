@@ -16,6 +16,7 @@ import {
     NAVIGATION_PATCH,
     NATIVE_IMAGE_UPDATE_PATCH,
     SET_CURSOR_PATCH,
+    SCREENSHOT_PATCH,
 } from "./pools/supported-objects";
 import {NativeElementPool} from "./classes/native-element-pool";
 import {AnyCreatePatch} from "./classes/messages/any-create-patch";
@@ -36,6 +37,7 @@ import { SliderUpdatePatch } from "./classes/messages/slider-update-patch";
 import { NavigationPatch } from "./classes/messages/navigation-patch";
 import { NativeImageUpdatePatch } from "./classes/messages/native-image-update-patch";
 import { YoutubeVideoUpdatePatch } from "./classes/messages/youtube-video-update-patch";
+import { ScreenshotPatch } from "./classes/messages/screenshot-patch";
 
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let messages : any[];
@@ -315,6 +317,11 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             let patch : NavigationPatch = objectManager.getFromPool(SET_CURSOR_PATCH);
             patch.fromPatch(msg);
             nativePool.setCursor(patch)
+        } else if (unwrapped_msg["Screenshot"]) {
+            let msg = unwrapped_msg["Screenshot"];
+            let patch: ScreenshotPatch = objectManager.getFromPool(SCREENSHOT_PATCH);
+            patch.fromPatch(msg);
+            nativePool.screenshot(patch, chassis);
         }
     });
 }

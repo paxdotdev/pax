@@ -13,6 +13,7 @@ pub mod serde_pax;
 use messages::LLMRequest;
 use orm::{MessageType, ReloadType};
 use pax_manifest::pax_runtime_api::Property;
+use pax_message::ScreenshotData;
 use privileged_agent::WebSocketConnection;
 use url::Url;
 
@@ -40,6 +41,7 @@ pub struct DesigntimeManager {
     response_queue: Rc<RefCell<Vec<DesigntimeResponseMessage>>>,
     last_rendered_manifest_version: Property<usize>,
     pub publish_state: Property<Option<PublishResponse>>,
+    enqueued_llm_request: Option<LLMRequest>,
 }
 
 pub enum DesigntimeResponseMessage {
@@ -101,6 +103,7 @@ impl DesigntimeManager {
             response_queue: Rc::new(RefCell::new(Vec::new())),
             last_rendered_manifest_version: Property::new(0),
             publish_state: Default::default(),
+            enqueued_llm_request: None,
         }
     }
     pub fn new(manifest: PaxManifest) -> Self {
@@ -143,11 +146,10 @@ impl DesigntimeManager {
             manifest: manifest.clone(),
             prompt: prompt.to_string(),
             request_id,
+            screenshot: None,
         };
 
-        self.pub_pax_connection
-            .borrow_mut()
-            .send_llm_request(llm_request)?;
+        self.enqueued_llm_request = Some(llm_request);
 
         Ok(())
     }
@@ -234,7 +236,24 @@ impl DesigntimeManager {
         &mut self.orm
     }
 
-    pub fn handle_recv(&mut self) -> anyhow::Result<()> {
+    pub fn handle_recv(&mut self, screenshot_map: Rc<RefCell<HashMap<u32, ScreenshotData>>>) -> anyhow::Result<()> {
+        // for each request in enqueued requests, check if there is a screenshot for it, if there is remove it from the map and fire off the llm request like
+        // self.pub_pax_connection.borrow_mut().send_llm_request(llm_request)
+        // if there isn't a screenshot for it, leave the llm request
+        if let Some(mut llm_request) = self.enqueued_llm_request.take() {
+            let mut screenshot_map = screenshot_map.borrow_mut();
+            if let Some(screenshot) = screenshot_map.remove(&(llm_request.request_id as u32)) {
+                log::warn!("firing off llm request, found screenshot");
+                llm_request.screenshot = Some(screenshot);
+                self.pub_pax_connection
+                    .borrow_mut()
+                    .send_llm_request(llm_request)?;
+            } else {
+                self.enqueued_llm_request = Some(llm_request);
+            }
+        }
+
+
         self.priv_agent_connection
             .borrow_mut()
             .handle_recv(&mut self.orm)?;

@@ -9,6 +9,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use ewebsock::{WsEvent, WsMessage};
 use pax_manifest::{ComponentDefinition, PaxManifest};
+use pax_message::ScreenshotData;
 use url::Url;
 
 pub struct WebSocketConnection {
@@ -74,6 +75,7 @@ impl WebSocketConnection {
     }
 
     pub fn send_llm_request(&mut self, llm_request: LLMRequest) -> Result<()> {
+        log::warn!("SendingLLM Request with screenshot");
         if self.alive {
             let msg_bytes = rmp_serde::to_vec(&AgentMessage::LLMRequest(llm_request))?;
             self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));

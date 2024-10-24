@@ -3,6 +3,7 @@ use std::fmt::Formatter;
 use pax_manifest::{
     ComponentDefinition, ComponentTemplate, PaxManifest, SettingsBlockElement, TypeId,
 };
+use pax_message::ScreenshotData;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
@@ -28,6 +29,7 @@ pub struct LLMRequest {
     pub manifest: PaxManifest,
     pub prompt: String,
     pub request_id: u64,
+    pub screenshot: Option<ScreenshotData>,
 }
 
 impl Debug for LLMRequest {
@@ -40,11 +42,12 @@ impl Debug for LLMRequest {
 }
 
 impl LLMRequest {
-    pub fn new(manifest: PaxManifest, prompt: String, request_id: u64) -> Self {
+    pub fn new(manifest: PaxManifest, prompt: String, request_id: u64, screenshot: Option<ScreenshotData>) -> Self {
         Self {
             manifest,
             prompt,
             request_id,
+            screenshot,
         }
     }
 }

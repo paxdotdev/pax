@@ -33,6 +33,10 @@ import { NavigationPatch } from "./messages/navigation-patch";
 import { NativeImageUpdatePatch } from "./messages/native-image-update-patch";
 import { YoutubeVideoUpdatePatch } from "./messages/youtube-video-update-patch";
 import { SetCursorPatch } from "./messages/set-cursor-patch";
+import { ScreenshotPatch } from "./messages/screenshot-patch";
+
+import html2canvas from 'html2canvas';
+
 
 export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
@@ -1079,7 +1083,42 @@ export class NativeElementPool {
         this.nodesLookup.delete(id);
     }
 
+    async screenshot(patch: ScreenshotPatch, chassis: PaxChassisWeb) {
+        const mountElement = document.getElementById('mount');
+        if (!mountElement) {
+            throw new Error('Mount element not found');
+        }
+        
+        const canvas = await html2canvas(mountElement, {
+            useCORS: true,
+            allowTaint: true,
+            foreignObjectRendering: true,
+            logging: false
+        });
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            console.log('couldnt get ctx');
+            return;
+        }
 
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const pixels = new Uint8Array(imageData.data.buffer);
+
+        const message = {
+            "Screenshot": {
+                "Data": {
+                    "id": patch.id!,
+                    "path": "",
+                    "width": canvas.width,
+                    "height": canvas.height,
+                }
+            }
+        };
+
+        console.log("Sending Interrupt for screenshot");
+        chassis.interrupt(JSON.stringify(message), pixels);
+    }
 
     async imageLoad(patch: ImageLoadPatch, chassis: PaxChassisWeb) {
 
