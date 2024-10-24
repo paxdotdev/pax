@@ -13,7 +13,6 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 pax-runtime-api = {path = "../pax-runtime-api", version="0.38.1"}
-wgpu = "22.1.0"
 log = "0.4.20"
 bytemuck = { version = "1.14", features = ["derive"] }
 anyhow = "1.0"
@@ -22,3 +21,12 @@ winit = "0.27.5"
 web-sys = "0.3.64"
 js-sys = "0.3.64"
 wasm-bindgen-futures = "0.4.38"
+
+[
+dependencies.wgpu
+]
+version = "22.1.0"
+features = [
+    "webgpu",     # Required for WebGPU support
+    "webgl",      # Optional: for WebGL fallback
+]

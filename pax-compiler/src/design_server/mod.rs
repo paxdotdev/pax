@@ -25,7 +25,6 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use websocket::PrivilegedAgentWebSocket;
-use websocket::SocketMessageAccumulator;
 
 #[allow(unused)]
 mod llm;

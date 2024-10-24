@@ -14,7 +14,6 @@ pax-designer = { path = "../pax-designer", version = "0.38.3", optional=true }
 pax-std = { path = "../pax-std", version = "0.38.3" }
 
 [features]
-default = ["web"]
 designer = ["dep:pax-designer", "pax-engine/designtime", "pax-designer?/designtime", "pax-std/designtime"]
 parser = ["pax-std/parser", "pax-designer?/parser"]
 web = ["pax-engine/web"]

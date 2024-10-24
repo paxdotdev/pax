@@ -2,7 +2,6 @@ use crate::render_backend::CpuBuffers;
 use crate::Box2D;
 use crate::Image;
 use crate::Point2D;
-use crate::RenderContext;
 use crate::Transform2D;
 use crate::Vector2D;
 use lyon::lyon_tessellation::BuffersBuilder;
@@ -55,15 +54,6 @@ impl<'w> WgpuRenderer<'w> {
         }
     }
 
-    pub fn push_transform(&mut self, transform: Transform2D) {
-        let last = self.current_transform();
-        self.transform_stack.push(transform.then(last));
-    }
-
-    pub fn pop_transform(&mut self) {
-        self.transform_stack.pop();
-    }
-
     fn current_transform(&self) -> &Transform2D {
         self.transform_stack.last().unwrap_or(&IDENTITY)
     }
@@ -88,18 +78,12 @@ impl<'w> WgpuRenderer<'w> {
         });
     }
 
-    pub fn pop_clipping_bounds(&mut self) {
-        self.clipping_stack.pop();
-    }
-}
-
-impl<'w> RenderContext for WgpuRenderer<'w> {
-    fn stroke_path(&mut self, _path: Path, _stroke: Stroke) {
+    pub fn stroke_path(&mut self, _path: Path, _stroke: Fill, width: f32) {
         //TODOrefactor
         //unimplemented!()
     }
 
-    fn fill_path(&mut self, path: Path, fill: Fill) {
+    pub fn fill_path(&mut self, path: Path, fill: Fill) {
         let path = path.transformed(self.current_transform());
         let fill_id;
         let fill_type_flag;
@@ -169,57 +153,41 @@ impl<'w> RenderContext for WgpuRenderer<'w> {
         };
     }
 
-    fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.render_backend.clear();
     }
 
-    fn draw_image(&mut self, image: &Image) {
+    pub fn draw_image(&mut self, image: &Image) {
         self.flush();
         self.render_backend.render_image(image);
     }
 
-    fn flush(&mut self) {
+    pub fn flush(&mut self) {
         if self.buffers.primitives.len() > 0 {
             self.render_backend.render_primitives(&mut self.buffers);
             self.buffers.reset();
         }
     }
 
-    fn push_transform(&mut self, transform: Transform2D) {
+    pub fn push_transform(&mut self, transform: Transform2D) {
         let last = self.current_transform();
         self.transform_stack.push(transform.then(last));
     }
 
-    fn pop_transform(&mut self) {
+    pub fn pop_transform(&mut self) {
         self.transform_stack.pop();
     }
 
-    fn push_clipping_bounds(&mut self, bounds: Box2D) {
-        let point_to_unit_rect = Transform2D::translation(-bounds.min.x, -bounds.min.y)
-            .then_scale(1.0 / bounds.width(), 1.0 / bounds.height());
-        let clipping_bounds = self
-            .current_transform()
-            .inverse()
-            .expect("non-invertible transform was pushed to the stack") //TODO how to handle this better?
-            .then(&point_to_unit_rect);
-        self.clipping_stack.push(self.buffers.stencils.len() as u32);
-        self.buffers.stencils.push(GpuTransform {
-            transform: clipping_bounds.to_arrays(),
-            _pad: 0,
-            _pad2: 0,
-        });
-    }
-
-    fn pop_clipping_bounds(&mut self) {
+    pub fn pop_clipping_bounds(&mut self) {
         self.clipping_stack.pop();
     }
 
-    fn resize(&mut self, width: f32, height: f32, dpr: f32) {
+    pub fn resize(&mut self, width: f32, height: f32, dpr: f32) {
         self.render_backend
             .resize(width as u32, height as u32, dpr as u32);
     }
 
-    fn size(&self) -> (f32, f32) {
+    pub fn size(&self) -> (f32, f32) {
         let res = &self.render_backend.globals.resolution;
         (res[0], res[1])
     }
