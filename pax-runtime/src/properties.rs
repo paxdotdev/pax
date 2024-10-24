@@ -2,7 +2,7 @@ use crate::api::math::Point2;
 use crate::api::Window;
 use pax_lang::interpreter::property_resolution::IdentifierResolver;
 use pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_message::NativeMessage;
+use pax_message::{NativeMessage, ScreenshotData};
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::{
@@ -49,6 +49,7 @@ pub struct RuntimeContext {
     queued_renders: RefCell<Vec<Rc<ExpandedNode>>>,
     pub layer_count: Cell<usize>,
     pub dirty_canvases: RefCell<Vec<bool>>,
+    screenshot_map: Rc<RefCell<HashMap<u32, ScreenshotData>>>,
 }
 
 struct NodeCache {
@@ -102,6 +103,7 @@ impl RuntimeContext {
             layer_count: Cell::default(),
             last_topmost_element: Default::default(),
             dirty_canvases: Default::default(),
+            screenshot_map: Default::default(),
         }
     }
 
@@ -120,6 +122,7 @@ impl RuntimeContext {
             layer_count: Cell::default(),
             last_topmost_element: Default::default(),
             dirty_canvases: Default::default(),
+            screenshot_map: Default::default(),
         }
     }
 
@@ -137,6 +140,15 @@ impl RuntimeContext {
 
     pub fn get_expanded_node_by_eid(&self, id: ExpandedNodeIdentifier) -> Option<Rc<ExpandedNode>> {
         borrow!(self.node_cache).eid_to_node.get(&id).cloned()
+    }
+
+    pub fn load_screenshot(&self, id: u32, data: ScreenshotData)  -> bool {
+        borrow_mut!(self.screenshot_map).insert(id, data);
+        true
+    }
+
+    pub fn get_screenshot_map(&self) -> Rc<RefCell<HashMap<u32, ScreenshotData>>> {
+        Rc::clone(&self.screenshot_map)
     }
 
     pub fn add_canvas(&self, id: usize) {

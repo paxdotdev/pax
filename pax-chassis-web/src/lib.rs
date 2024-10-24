@@ -12,6 +12,7 @@ use pax_runtime::api::RenderContext;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::OS;
 use pax_runtime::DefinitionToInstanceTraverser;
+use pax_message::ScreenshotData;
 use pax_runtime_api::borrow_mut;
 use pax_runtime_api::Event;
 use pax_runtime_api::Focus;
@@ -145,6 +146,21 @@ impl PaxChassisWeb {
         let get_time = Box::new(move || start.elapsed().as_millis());
         (width, height, os_info, get_time)
     }
+
+
+    #[cfg(any(feature = "designtime", feature = "designer"))]
+    pub fn handle_recv_designtime(&mut self) {
+        borrow_mut!(self.designtime_manager)
+            .handle_recv(self.engine.borrow().runtime_context.get_screenshot_map())
+            .expect("couldn't handle recv");
+    }
+
+    #[cfg(any(feature = "designtime", feature = "designer"))]
+    pub fn designtime_tick(&mut self) {
+        self.handle_recv_designtime();
+        self.update_userland_component();
+    }
+
 }
 
 #[wasm_bindgen]
@@ -591,6 +607,21 @@ impl PaxChassisWeb {
                     &globals,
                     &engine.runtime_context,
                 )
+            }, 
+            NativeInterrupt::Screenshot(args) => {
+                log::warn!("receiving screenshot back");
+                let data = Uint8Array::new(additional_payload).to_vec();
+                if let ImageLoadInterruptArgs::Data(args) = args {
+                    let screenshot_data : ScreenshotData = ScreenshotData {
+                        id: args.id,
+                        data,
+                        width: args.width,
+                        height: args.height,
+                    };
+                    engine.runtime_context.load_screenshot(args.id, screenshot_data)
+                } else {
+                    false
+                }
             }
         };
 
@@ -681,19 +712,6 @@ impl PaxChassisWeb {
                 .borrow_mut()
                 .set_last_rendered_manifest_version(current_manifest_version.get());
         }
-    }
-
-    #[cfg(any(feature = "designtime", feature = "designer"))]
-    pub fn handle_recv_designtime(&mut self) {
-        borrow_mut!(self.designtime_manager)
-            .handle_recv()
-            .expect("couldn't handle recv");
-    }
-
-    #[cfg(any(feature = "designtime", feature = "designer"))]
-    pub fn designtime_tick(&mut self) {
-        self.handle_recv_designtime();
-        self.update_userland_component();
     }
 
     pub fn tick(&mut self) -> MemorySlice {

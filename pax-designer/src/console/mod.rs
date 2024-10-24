@@ -132,11 +132,12 @@ impl Console {
         let new_request_id = self.request_id.get() + 1;
         self.request_id.set(new_request_id);
         let mut dt = borrow_mut!(ctx.designtime);
+        self.messages.set(messages);
+        self.textbox.set("".to_string());
+        ctx.screenshot(new_request_id as u32);
         if let Err(e) = dt.llm_request(request, new_request_id) {
             pax_engine::log::warn!("llm request failed: {:?}", e);
         };
-        self.messages.set(messages);
-        self.textbox.set("".to_string());
     }
 
     pub fn update(&mut self, _ctx: &NodeContext) {

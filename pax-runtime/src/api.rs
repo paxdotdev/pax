@@ -1,9 +1,8 @@
-use std::rc::{Rc, Weak};
+use std::{collections::HashMap, rc::{Rc, Weak}};
 
 use_RefCell!();
 use crate::{
-    node_interface::NodeLocal, ExpandedNode, RuntimeContext, RuntimePropertiesStackFrame,
-    TransformAndBounds,
+    node_interface::NodeLocal, ExpandedNode, RuntimeContext, RuntimePropertiesStackFrame, TransformAndBounds
 };
 
 pub use pax_runtime_api::*;
@@ -128,6 +127,18 @@ impl NodeContext {
             .enqueue_native_message(NativeMessage::SetCursor(SetCursorPatch {
                 cursor: cursor.to_string(),
             }));
+    }
+
+    pub fn screenshot(&self, id: u32) {
+        log::warn!("sending screenshot message");
+        self.runtime_context
+            .enqueue_native_message(NativeMessage::Screenshot(ScreenshotPatch {
+                id,
+            }));
+    }
+
+    pub fn get_screenshot_map(&self) -> Rc<RefCell<HashMap<u32, ScreenshotData>>> {
+        self.runtime_context.get_screenshot_map()
     }
 }
 
