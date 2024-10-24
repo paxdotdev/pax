@@ -53,8 +53,6 @@ impl Path {
 
 pub struct PathInstance {
     base: BaseInstance,
-    // This property is used to dirty the canvas when the path changes
-    changed: Property<()>,
 }
 
 impl InstanceNode for PathInstance {
@@ -73,7 +71,6 @@ impl InstanceNode for PathInstance {
                     is_slot: false,
                 },
             ),
-            changed: Property::new(()),
         })
     }
 
@@ -122,14 +119,15 @@ impl InstanceNode for PathInstance {
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
 
-        self.changed.replace_with(Property::computed(
-            move || {
-                cloned_context
-                    .set_canvas_dirty(cloned_expanded_node.occlusion.get().occlusion_layer_id);
-                ()
-            },
-            deps,
-        ));
+        expanded_node
+            .changed_listener
+            .replace_with(Property::computed(
+                move || {
+                    cloned_context
+                        .set_canvas_dirty(cloned_expanded_node.occlusion.get().occlusion_layer_id)
+                },
+                deps,
+            ));
     }
 
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
@@ -137,7 +135,6 @@ impl InstanceNode for PathInstance {
         // we know that all of the expanded and flattened children
         // are the same as the once being rendered
         expanded_node.compute_flattened_slot_children();
-        self.changed.get();
     }
 
     fn render(

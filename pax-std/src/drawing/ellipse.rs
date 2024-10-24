@@ -18,8 +18,6 @@ pub struct Ellipse {
 
 pub struct EllipseInstance {
     base: BaseInstance,
-    // This property is used to dirty the canvas when the ellipse changes
-    changed: Property<()>,
 }
 
 impl InstanceNode for EllipseInstance {
@@ -38,7 +36,6 @@ impl InstanceNode for EllipseInstance {
                     is_slot: false,
                 },
             ),
-            changed: Property::new(()),
         })
     }
 
@@ -56,19 +53,18 @@ impl InstanceNode for EllipseInstance {
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
 
-        self.changed.replace_with(Property::computed(
-            move || {
-                cloned_context
-                    .set_canvas_dirty(cloned_expanded_node.occlusion.get().occlusion_layer_id);
-                ()
-            },
-            deps,
-        ));
+        expanded_node
+            .changed_listener
+            .replace_with(Property::computed(
+                move || {
+                    cloned_context
+                        .set_canvas_dirty(cloned_expanded_node.occlusion.get().occlusion_layer_id)
+                },
+                deps,
+            ));
     }
 
-    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
-        self.changed.get();
-    }
+    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {}
 
     fn render(
         &self,

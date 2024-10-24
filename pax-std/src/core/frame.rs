@@ -37,8 +37,6 @@ impl Default for Frame {
 
 pub struct FrameInstance {
     base: BaseInstance,
-    // This property is used to dirty the canvas when the frame changes
-    changed: Property<()>,
 }
 
 impl InstanceNode for FrameInstance {
@@ -57,13 +55,10 @@ impl InstanceNode for FrameInstance {
                     is_slot: false,
                 },
             ),
-            changed: Property::new(()),
         })
     }
 
-    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
-        self.changed.get();
-    }
+    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {}
 
     fn handle_pre_render(
         &self,
@@ -171,8 +166,9 @@ impl InstanceNode for FrameInstance {
             .map(|v| v.get_untyped_property().clone())
             .chain([expanded_node.transform_and_bounds.untyped()])
             .collect();
+
         expanded_node
-            .native_message_listener
+            .changed_listener
             .replace_with(Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
@@ -210,34 +206,18 @@ impl InstanceNode for FrameInstance {
                             );
                         }
                     });
-                    ()
+                    cloned_context
+                        .set_canvas_dirty(expanded_node.occlusion.get().occlusion_layer_id)
                 },
                 &deps,
             ));
-
-        let tab = expanded_node.transform_and_bounds.clone();
-        let _clip_content = expanded_node
-            .with_properties_unwrapped(|properties: &mut Frame| properties._clip_content.clone());
-
-        let deps = &[tab.untyped(), _clip_content.untyped()];
-        let cloned_expanded_node = expanded_node.clone();
-        let cloned_context = context.clone();
-
-        self.changed.replace_with(Property::computed(
-            move || {
-                cloned_context
-                    .set_canvas_dirty(cloned_expanded_node.occlusion.get().occlusion_layer_id);
-                ()
-            },
-            deps,
-        ));
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
         let id = expanded_node.id.clone();
         // Reset so that native_message sending updates while unmounted
         expanded_node
-            .native_message_listener
+            .changed_listener
             .replace_with(Property::default());
         context.enqueue_native_message(pax_message::NativeMessage::FrameDelete(id.to_u32()));
     }

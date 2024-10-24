@@ -40,8 +40,6 @@ pub enum ImageSource {
 pub struct ImageInstance {
     base: BaseInstance,
     needs_to_load_data: Rc<RefCell<HashSet<ExpandedNodeIdentifier>>>,
-    // This property is used to dirty the canvas when the image changes
-    changed: Property<()>,
     initial_load: RefCell<HashSet<ExpandedNodeIdentifier>>,
 }
 
@@ -62,7 +60,6 @@ impl InstanceNode for ImageInstance {
                 },
             ),
             needs_to_load_data: Default::default(),
-            changed: Property::new(()),
             initial_load: Default::default(),
         })
     }
@@ -89,7 +86,7 @@ impl InstanceNode for ImageInstance {
         let deps = [source.untyped()];
         let needs_to_load_data = Rc::clone(&self.needs_to_load_data);
         expanded_node
-            .native_message_listener
+            .changed_listener
             .replace_with(Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
@@ -121,7 +118,8 @@ impl InstanceNode for ImageInstance {
                             }
                         }
                     });
-                    ()
+                    cloned_context
+                        .set_canvas_dirty(expanded_node.occlusion.get().occlusion_layer_id)
                 },
                 &deps,
             ));
@@ -130,25 +128,14 @@ impl InstanceNode for ImageInstance {
         let deps = &[tab.untyped(), source.untyped(), fit.untyped()];
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
-
-        self.changed.replace_with(Property::computed(
-            move || {
-                cloned_context
-                    .set_canvas_dirty(cloned_expanded_node.occlusion.get().occlusion_layer_id);
-                ()
-            },
-            deps,
-        ));
     }
 
-    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
-        self.changed.get();
-    }
+    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {}
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
         let id = expanded_node.id.clone();
         expanded_node
-            .native_message_listener
+            .changed_listener
             .replace_with(Property::default());
         borrow_mut!(self.needs_to_load_data).remove(&id);
     }
