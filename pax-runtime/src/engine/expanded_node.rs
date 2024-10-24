@@ -448,18 +448,18 @@ impl ExpandedNode {
     /// need to be here since all property dependencies can be set up and removed during mount/unmount
     pub fn recurse_update(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
         if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
-            //if !self.suspended.get() {
-            for handler in borrow!(registry)
-                .handlers
-                .get("tick")
-                .unwrap_or(&Vec::new())
-            {
-                (handler.function)(
-                    Rc::clone(&*borrow!(self.properties)),
-                    &self.get_node_context(context),
-                    None,
-                )
-                // }
+            if !self.suspended.get() {
+                for handler in borrow!(registry)
+                    .handlers
+                    .get("tick")
+                    .unwrap_or(&Vec::new())
+                {
+                    (handler.function)(
+                        Rc::clone(&*borrow!(self.properties)),
+                        &self.get_node_context(context),
+                        None,
+                    )
+                }
             }
         }
         Rc::clone(&*borrow!(self.instance_node)).update(&self, context);
