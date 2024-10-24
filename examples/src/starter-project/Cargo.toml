@@ -1,15 +1,15 @@
 [package]
 name = "starter-project"
-version = "0.38.2"
+version = "0.38.3"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-kit = { version = "0.38.2", path="../../../pax-kit"}
-fireworks = { version = "0.37.1", path="../fireworks" }
-color-picker = { version = "0.37.1", path="../color-picker" }
-breakout = { version = "0.37.1", path="../breakout" }
-space-game = { version = "0.37.1", path="../space-game" }
+pax-kit = { version = "0.38.3", path="../../../pax-kit"}
+fireworks = { version = "0.38.3", path="../fireworks" }
+color-picker = { version = "0.38.3", path="../color-picker" }
+breakout = { version = "0.38.3", path="../breakout" }
+space-game = { version = "0.38.3", path="../space-game" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
