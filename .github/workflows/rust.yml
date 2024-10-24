@@ -40,7 +40,7 @@ jobs:
           ${{ runner.os }}-sccache-cargo-
 
     # Cache wasm-pack
-    - uses: actions/cache@v3
+    - uses: actions/cache@v4
       with:
         path: ~/.cargo/bin/wasm-pack
         key: ${{ runner.os }}-wasm-pack
@@ -58,7 +58,7 @@ jobs:
         fi
 
     # Cache Pax build artifacts
-    - uses: actions/cache@v3
+    - uses: actions/cache@v4
       with:
         path: examples/src/starter-project/.pax/build
         key: ${{ runner.os }}-pax-build-${{ hashFiles('examples/src/starter-project/**') }}
