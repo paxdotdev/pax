@@ -120,12 +120,14 @@ pub extern "C" fn pax_tick(
     // note that f32 is essentially `CFloat`, per: https://doc.rust-lang.org/std/os/raw/type.c_float.html
     let mut engine = unsafe { Box::from_raw((*engine_container)._engine) };
 
-    let will_cast_cgContext = cgContext as *mut CGContext;
-    let ctx = unsafe { &mut *will_cast_cgContext };
-    let mut render_context = PietRenderer::new();
+    let mut render_context = PietRenderer::new(move |_| {
+        let will_cast_cgContext = cgContext as *mut CGContext;
+        let ctx = unsafe { &mut *will_cast_cgContext };
+        CoreGraphicsContext::new_y_up(ctx, height as f64, None)
+    });
 
     (*engine).set_viewport_size((width as f64, height as f64));
-    render_context.add_context(0, CoreGraphicsContext::new_y_up(ctx, height as f64, None));
+    render_context.resize_layers_to(1);
 
     let messages = (*engine).tick();
     engine.render(&mut render_context as &mut dyn RenderContext);

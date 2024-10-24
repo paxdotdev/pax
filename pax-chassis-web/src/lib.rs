@@ -79,7 +79,7 @@ impl PaxChassisWeb {
         userland_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
         designer_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
-        let (width, height, os_info, get_elapsed_millis) = Self::init_common();
+        let (width, height, os_info, get_elapsed_millis, piet_renderer) = Self::init_common();
         let query_string = window()
             .unwrap()
             .location()
@@ -106,17 +106,19 @@ impl PaxChassisWeb {
         let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
         Self {
             engine: engine_container,
-            drawing_contexts: PietRenderer::new(),
+            drawing_contexts: piet_renderer,
             userland_definition_to_instance_traverser,
             designtime_manager,
         }
     }
 
+    pub async fn piet_renderer_new() {}
+
     #[cfg(not(any(feature = "designtime", feature = "designer")))]
     pub async fn new(
         definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
-        let (width, height, os_info, get_time) = Self::init_common();
+        let (width, height, os_info, get_time, piet_renderer) = Self::init_common();
 
         let main_component_instance =
             definition_to_instance_traverser.get_main_component(USERLAND_COMPONENT_ROOT);
@@ -132,11 +134,17 @@ impl PaxChassisWeb {
 
         Self {
             engine: engine_container,
-            drawing_contexts: PietRenderer::new(),
+            drawing_contexts: piet_renderer,
         }
     }
 
-    fn init_common() -> (f64, f64, OS, Box<dyn Fn() -> u128>) {
+    fn init_common() -> (
+        f64,
+        f64,
+        OS,
+        Box<dyn Fn() -> u128>,
+        PietRenderer<WebRenderContext<'static>>,
+    ) {
         let window = window().unwrap();
         let user_agent_str = window.navigator().user_agent().ok();
         let os_info = user_agent_str
@@ -146,8 +154,31 @@ impl PaxChassisWeb {
         let width = window.inner_width().unwrap().as_f64().unwrap();
         let height = window.inner_height().unwrap().as_f64().unwrap();
         let start = Instant::now();
+        let piet_renderer = PietRenderer::new(move |layer| {
+            let dpr = window.device_pixel_ratio();
+            let document = window.document().unwrap();
+            let canvas = document
+                .get_element_by_id(layer.to_string().as_str())
+                .unwrap()
+                .dyn_into::<HtmlCanvasElement>()
+                .unwrap();
+            let context: web_sys::CanvasRenderingContext2d = canvas
+                .get_context("2d")
+                .unwrap()
+                .unwrap()
+                .dyn_into::<web_sys::CanvasRenderingContext2d>()
+                .unwrap();
+
+            let width = canvas.offset_width() as f64 * dpr;
+            let height = canvas.offset_height() as f64 * dpr;
+
+            canvas.set_width(width as u32);
+            canvas.set_height(height as u32);
+            let _ = context.scale(dpr, dpr);
+            WebRenderContext::new(context, window.clone())
+        });
         let get_time = Box::new(move || start.elapsed().as_millis());
-        (width, height, os_info, get_time)
+        (width, height, os_info, get_time, piet_renderer)
     }
 
     #[cfg(any(feature = "designtime", feature = "designer"))]
@@ -167,29 +198,7 @@ impl PaxChassisWeb {
 #[wasm_bindgen]
 impl PaxChassisWeb {
     pub fn add_context(&mut self, id: usize) {
-        let window = window().unwrap();
-        let dpr = window.device_pixel_ratio();
-        let document = window.document().unwrap();
-        let canvas = document
-            .get_element_by_id(id.to_string().as_str())
-            .unwrap()
-            .dyn_into::<HtmlCanvasElement>()
-            .unwrap();
-        let context: web_sys::CanvasRenderingContext2d = canvas
-            .get_context("2d")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::CanvasRenderingContext2d>()
-            .unwrap();
-
-        let width = canvas.offset_width() as f64 * dpr;
-        let height = canvas.offset_height() as f64 * dpr;
-
-        canvas.set_width(width as u32);
-        canvas.set_height(height as u32);
-        let _ = context.scale(dpr, dpr);
-        let render_context = WebRenderContext::new(context, window.clone());
-        self.drawing_contexts.add_context(id, render_context);
+        self.drawing_contexts.resize_layers_to(id);
         self.engine.borrow().runtime_context.add_canvas(id);
     }
 
@@ -201,7 +210,7 @@ impl PaxChassisWeb {
         borrow_mut!(self.engine).set_viewport_size((width, height));
     }
     pub fn remove_context(&mut self, id: usize) {
-        self.drawing_contexts.remove_context(id);
+        self.drawing_contexts.resize_layers_to(id.saturating_sub(1));
         self.engine.borrow().runtime_context.remove_canvas(id);
     }
 

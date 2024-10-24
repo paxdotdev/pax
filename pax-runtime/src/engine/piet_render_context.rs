@@ -104,7 +104,7 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
     fn resize_layers_to(&mut self, layer_count: usize) {
         match layer_count.cmp(&self.backends.len()) {
             std::cmp::Ordering::Less => {
-                for i in self.backends.len()..layer_count {
+                for _ in self.backends.len()..layer_count {
                     self.backends.pop();
                 }
             }
@@ -115,7 +115,6 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
                 }
             }
         }
-        // self.backends.insert(id.to_owned(), context);
     }
 
     fn image_loaded(&self, path: &str) -> bool {
