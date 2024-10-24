@@ -17,8 +17,8 @@ default = ["console_error_panic_hook"]
 designtime = ["dep:pax-designtime", "pax-runtime/designtime"]
 
 [dependencies]
-piet = "0.6.0"
-piet-web = "0.6.0"
+piet = "0.7.0"
+piet-web = "0.7.0"
 pax-runtime = { path = "../pax-runtime", version="0.38.3" }
 pax-message = {path = "../pax-message", version="0.38.3"}
 pax-runtime-api = { path = "../pax-runtime-api", version="0.38.3" }
