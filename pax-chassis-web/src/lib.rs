@@ -609,7 +609,6 @@ impl PaxChassisWeb {
                 )
             }, 
             NativeInterrupt::Screenshot(args) => {
-                log::warn!("receiving screenshot back");
                 let data = Uint8Array::new(additional_payload).to_vec();
                 if let ImageLoadInterruptArgs::Data(args) = args {
                     let screenshot_data : ScreenshotData = ScreenshotData {

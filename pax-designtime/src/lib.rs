@@ -243,7 +243,6 @@ impl DesigntimeManager {
         if let Some(mut llm_request) = self.enqueued_llm_request.take() {
             let mut screenshot_map = screenshot_map.borrow_mut();
             if let Some(screenshot) = screenshot_map.remove(&(llm_request.request_id as u32)) {
-                log::warn!("firing off llm request, found screenshot");
                 llm_request.screenshot = Some(screenshot);
                 self.pub_pax_connection
                     .borrow_mut()
