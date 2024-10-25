@@ -10,6 +10,9 @@ use lyon::lyon_tessellation::FillTessellator;
 use lyon::lyon_tessellation::FillVertex;
 use lyon::lyon_tessellation::VertexBuffers;
 use lyon::path::Path;
+use lyon::tessellation::StrokeOptions;
+use lyon::tessellation::StrokeTessellator;
+use lyon::tessellation::StrokeVertex;
 
 use crate::render_backend::data::GpuColor;
 use crate::render_backend::data::GpuGradient;
@@ -23,7 +26,8 @@ pub struct WgpuRenderer<'w> {
     render_backend: RenderBackend<'w>,
     transform_stack: Vec<Transform2D>,
     clipping_stack: Vec<u32>,
-    fill_tessellator: FillTessellator,
+    // used for save/restore of transform/clipping stack
+    saves: Vec<(usize, usize)>,
     tolerance: f32,
 }
 
@@ -32,7 +36,6 @@ const IDENTITY: Transform2D = Transform2D::new(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
 impl<'w> WgpuRenderer<'w> {
     pub fn new(render_backend: RenderBackend<'w>) -> Self {
         let geometry: VertexBuffers<GpuVertex, u16> = VertexBuffers::new();
-        let fill_tessellator = FillTessellator::new();
         let default_clipp = GpuTransform {
             transform: Transform2D::scale(1000.0, 1000.0).to_arrays(),
             _pad: 0,
@@ -49,8 +52,8 @@ impl<'w> WgpuRenderer<'w> {
                 stencils: vec![default_clipp],
             },
             clipping_stack: vec![0],
-            fill_tessellator,
             tolerance: 0.5, //TODO expose as option
+            saves: vec![],
         }
     }
 
@@ -78,13 +81,41 @@ impl<'w> WgpuRenderer<'w> {
         });
     }
 
-    pub fn stroke_path(&mut self, _path: Path, _stroke: Fill, width: f32) {
-        //TODOrefactor
-        //unimplemented!()
+    pub fn stroke_path(&mut self, path: Path, stroke_fill: Fill, stroke_width: f32) {
+        let path = path.transformed(self.current_transform());
+        let prim_id = self.push_primitive_def(stroke_fill);
+        let options = StrokeOptions::tolerance(self.tolerance).with_line_width(stroke_width);
+        let mut geometry_builder =
+            BuffersBuilder::new(&mut self.buffers.geometry, |vertex: StrokeVertex| {
+                GpuVertex {
+                    position: vertex.position().to_array(),
+                    normal: [0.0; 2],
+                    prim_id,
+                }
+            });
+        match StrokeTessellator::new().tessellate_path(&path, &options, &mut geometry_builder) {
+            Ok(_) => {}
+            Err(e) => log::warn!("{:?}", e),
+        };
     }
 
     pub fn fill_path(&mut self, path: Path, fill: Fill) {
         let path = path.transformed(self.current_transform());
+        let prim_id = self.push_primitive_def(fill);
+        let options = FillOptions::tolerance(self.tolerance);
+        let mut geometry_builder =
+            BuffersBuilder::new(&mut self.buffers.geometry, |vertex: FillVertex| GpuVertex {
+                position: vertex.position().to_array(),
+                normal: [0.0; 2],
+                prim_id,
+            });
+        match FillTessellator::new().tessellate_path(&path, &options, &mut geometry_builder) {
+            Ok(_) => {}
+            Err(e) => log::warn!("{:?}", e),
+        };
+    }
+
+    fn push_primitive_def(&mut self, fill: Fill) -> u32 {
         let fill_id;
         let fill_type_flag;
         match fill {
@@ -137,20 +168,7 @@ impl<'w> WgpuRenderer<'w> {
         };
         let prim_id = self.buffers.primitives.len() as u32;
         self.buffers.primitives.push(primitive);
-        let options = FillOptions::tolerance(self.tolerance);
-        let mut geometry_builder =
-            BuffersBuilder::new(&mut self.buffers.geometry, |vertex: FillVertex| GpuVertex {
-                position: vertex.position().to_array(),
-                normal: [0.0; 2],
-                prim_id,
-            });
-        match self
-            .fill_tessellator
-            .tessellate_path(&path, &options, &mut geometry_builder)
-        {
-            Ok(_) => {}
-            Err(e) => log::warn!("{:?}", e),
-        };
+        prim_id
     }
 
     pub fn clear(&mut self) {
@@ -169,22 +187,26 @@ impl<'w> WgpuRenderer<'w> {
         }
     }
 
+    pub fn save(&mut self) {
+        let transform_len = self.transform_stack.len();
+        let clipping_len = self.clipping_stack.len();
+        self.saves.push((transform_len, clipping_len));
+    }
+
+    pub fn restore(&mut self) {
+        if let Some((t_pen, c_len)) = self.saves.pop() {
+            self.transform_stack.truncate(t_pen);
+            self.clipping_stack.truncate(c_len);
+        }
+    }
+
     pub fn push_transform(&mut self, transform: Transform2D) {
         let last = self.current_transform();
         self.transform_stack.push(transform.then(last));
     }
 
-    pub fn pop_transform(&mut self) {
-        self.transform_stack.pop();
-    }
-
-    pub fn pop_clipping_bounds(&mut self) {
-        self.clipping_stack.pop();
-    }
-
-    pub fn resize(&mut self, width: f32, height: f32, dpr: f32) {
-        self.render_backend
-            .resize(width as u32, height as u32, dpr as u32);
+    pub fn resize(&mut self, width: f32, height: f32) {
+        self.render_backend.resize(width as u32, height as u32);
     }
 
     pub fn size(&self) -> (f32, f32) {

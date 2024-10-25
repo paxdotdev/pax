@@ -72,6 +72,7 @@ pub trait RenderContext {
     fn resize_layers_to(&mut self, layer_count: usize);
     fn clear(&mut self, layer: usize);
     fn flush(&mut self, layer: usize);
+    fn resize(&mut self, width: usize, height: usize);
 }
 
 #[cfg(debug_assertions)]

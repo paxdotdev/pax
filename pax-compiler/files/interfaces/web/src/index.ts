@@ -120,9 +120,6 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
 
     processMessages(messages, chassis, objectManager);
 
-
-    let dirty_canvases = chassis.get_dirty_canvases();
-    // nativePool.clearCanvases(dirty_canvases);
     //draw canvas elements
     chassis.render();
 

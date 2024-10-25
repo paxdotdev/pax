@@ -128,6 +128,10 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
     fn flush(&mut self, layer: usize) {
         todo!()
     }
+
+    fn resize(&mut self, width: usize, height: usize) {
+        todo!()
+    }
 }
 
 fn fill_to_piet_brush(fill: &Fill, rect: kurbo::Rect) -> piet::PaintBrush {

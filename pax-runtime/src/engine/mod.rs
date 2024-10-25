@@ -287,17 +287,28 @@ impl PaxEngine {
     }
 
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
-        for _ in 0..rcs.layers() {
-            // rcs.clear(i);
+        for i in 0..rcs.layers() {
+            if self
+                .runtime_context
+                .dirty_canvases
+                .borrow()
+                .get(i)
+                .cloned()
+                .unwrap_or(true)
+            {
+                rcs.clear(i);
+            }
         }
         // This is pretty useful during debugging - left it here since I use it often. /Sam
         // crate::api::log(&format!("tree: {:#?}", self.root_node));
         self.root_expanded_node
             .recurse_render_queue(&mut self.runtime_context, rcs);
         self.runtime_context.recurse_flush_queued_renders(rcs);
+
         for i in 0..rcs.layers() {
             rcs.flush(i);
         }
+        self.runtime_context.clear_all_dirty_canvases();
     }
 
     pub fn get_expanded_node(&self, id: ExpandedNodeIdentifier) -> Option<Rc<ExpandedNode>> {
