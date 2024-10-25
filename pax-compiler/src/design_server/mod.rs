@@ -127,8 +127,6 @@ pub fn start_server(
                     App::new()
                         .wrap(Logger::new("| %s | %U"))
                         .app_data(state.clone())
-                        .service(ai_page)
-                        .service(ai_submit)
                         .service(web_socket)
                         .service(
                             actix_files::Files::new("/*", fs_path.clone()).index_file("index.html"),
@@ -219,51 +217,6 @@ async fn ai_page() -> Result<HttpResponse> {
     Ok(HttpResponse::Ok()
         .content_type("text/html")
         .body(html_content))
-}
-
-#[post("/ai")]
-async fn ai_submit(message: web::Json<AiMessage>, state: web::Data<AppState>) -> HttpResponse {
-    let userland_project_root = state.userland_project_root.lock().unwrap().clone();
-    let claude_api_key = match env::var("ANTHROPIC_API_KEY") {
-        Ok(key) => key,
-        Err(_) => {
-            return HttpResponse::InternalServerError().json(json!({
-                "status": "error",
-                "message": "ANTHROPIC_API_KEY not set in environment"
-            }))
-        }
-    };
-
-    let pax_app_generator = PaxAppGenerator::new(claude_api_key, AIModel::Claude3);
-    let output = userland_project_root.clone().join("src");
-
-    match pax_app_generator
-        .generate_app(&message.message, Some(&output), true)
-        .await
-    {
-        Ok(_) => {
-            match perform_build_and_update_state(&state, userland_project_root.to_str().unwrap()) {
-                Ok(_) => HttpResponse::Ok().json(json!({
-                    "status": "success",
-                    "response": "App generated and built successfully.",
-                })),
-                Err(e) => {
-                    println!("Error performing build and updating state: {:?}", e);
-                    HttpResponse::InternalServerError().json(json!({
-                        "status": "error",
-                        "message": "Failed to build the generated app"
-                    }))
-                }
-            }
-        }
-        Err(e) => {
-            println!("Error generating app: {:?}", e);
-            HttpResponse::InternalServerError().json(json!({
-                "status": "error",
-                "message": "Failed to generate app"
-            }))
-        }
-    }
 }
 
 #[derive(Deserialize)]
