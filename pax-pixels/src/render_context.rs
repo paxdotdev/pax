@@ -34,7 +34,7 @@ impl<'w> WgpuRenderer<'w> {
         let geometry: VertexBuffers<GpuVertex, u16> = VertexBuffers::new();
         let fill_tessellator = FillTessellator::new();
         let default_clipp = GpuTransform {
-            transform: [[0.0; 2]; 3],
+            transform: Transform2D::scale(1000.0, 1000.0).to_arrays(),
             _pad: 0,
             _pad2: 0,
         };
@@ -164,6 +164,7 @@ impl<'w> WgpuRenderer<'w> {
 
     pub fn flush(&mut self) {
         if self.buffers.primitives.len() > 0 {
+            log::debug!("flushing");
             self.render_backend.render_primitives(&mut self.buffers);
             self.buffers.reset();
         }
@@ -193,16 +194,19 @@ impl<'w> WgpuRenderer<'w> {
     }
 }
 
+#[derive(Debug)]
 pub struct GradientStop {
     pub color: Color,
     pub stop: f32,
 }
 
+#[derive(Debug)]
 pub enum GradientType {
     Linear,
     Radial,
 }
 
+#[derive(Debug)]
 pub struct Color {
     rgba: [f32; 4],
 }
@@ -285,6 +289,7 @@ impl Color {
     }
 }
 
+#[derive(Debug)]
 pub enum Fill {
     Solid(Color),
     Gradient {

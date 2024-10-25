@@ -120,6 +120,14 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
     fn image_loaded(&self, path: &str) -> bool {
         self.image_map.contains_key(path)
     }
+
+    fn clear(&mut self, layer: usize) {
+        todo!()
+    }
+
+    fn flush(&mut self, layer: usize) {
+        todo!()
+    }
 }
 
 fn fill_to_piet_brush(fill: &Fill, rect: kurbo::Rect) -> piet::PaintBrush {

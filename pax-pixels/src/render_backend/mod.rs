@@ -451,13 +451,13 @@ impl<'w> RenderBackend<'w> {
                     view: &screen_texture,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        // load: wgpu::LoadOp::Clear(wgpu::Color {
-                        //     r: 0.0,
-                        //     g: 0.0,
-                        //     b: 0.0,
-                        //     a: 0.0,
-                        // }),
+                        // load: wgpu::LoadOp::Load,
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 1.0,
+                            g: 0.0,
+                            b: 0.0,
+                            a: 0.4,
+                        }),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -466,6 +466,31 @@ impl<'w> RenderBackend<'w> {
                 occlusion_query_set: None,
             });
 
+            log::debug!("primitive drawing: {:#?}", buffers);
+            log::debug!("globals: {:?}", self.globals);
+            buffers.geometry.vertices = vec![
+                GpuVertex {
+                    position: [-0.5, -0.5], // bottom left
+                    normal: [0.0, 0.0],
+                    prim_id: 0,
+                },
+                GpuVertex {
+                    position: [0.5, -0.5], // bottom right
+                    normal: [0.0, 0.0],
+                    prim_id: 0,
+                },
+                GpuVertex {
+                    position: [-0.5, 0.5], // top left
+                    normal: [0.0, 0.0],
+                    prim_id: 0,
+                },
+                GpuVertex {
+                    position: [0.5, 0.5], // top right
+                    normal: [0.0, 0.0],
+                    prim_id: 0,
+                },
+            ];
+            buffers.geometry.indices = vec![0, 1, 2, 1, 3, 2];
             self.write_buffers(buffers);
 
             render_pass.set_pipeline(&self.pipeline);
@@ -511,17 +536,17 @@ impl<'w> RenderBackend<'w> {
             });
 
         {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let _r = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &screen_texture,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.0,
+                            r: 1.0,
                             g: 0.0,
-                            b: 0.0,
-                            a: 0.0,
+                            b: 1.0,
+                            a: 1.0,
                         }),
                         store: wgpu::StoreOp::Store,
                     },
@@ -531,11 +556,13 @@ impl<'w> RenderBackend<'w> {
                 occlusion_query_set: None,
             });
         }
+        log::debug!("clearing screen");
         self.queue.submit(std::iter::once(encoder.finish()));
         screen_surface.present();
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct CpuBuffers {
     pub geometry: VertexBuffers<GpuVertex, u16>,
     pub primitives: Vec<GpuPrimitive>,
@@ -543,6 +570,7 @@ pub(crate) struct CpuBuffers {
     pub colors: Vec<GpuColor>,
     pub gradients: Vec<GpuGradient>,
 }
+
 impl CpuBuffers {
     pub(crate) fn reset(&mut self) {
         self.geometry.vertices.clear();

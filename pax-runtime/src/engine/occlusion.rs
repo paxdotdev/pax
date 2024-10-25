@@ -82,19 +82,19 @@ fn update_node_occlusion_recursive(
             OcclusionBox::new_from_transform_and_bounds(node.transform_and_bounds.get());
         let mut occlusion_index = 0;
 
-        for (index, stack) in occlusion_stack.iter().enumerate().rev() {
-            if stack.0.iter().any(|box_| occlusion_box.intersects(box_)) {
-                occlusion_index = match layer {
-                    Layer::Canvas => index + 1,
-                    _ => index,
-                };
-                break;
-            }
-            if stack.1.iter().any(|box_| occlusion_box.intersects(box_)) {
-                occlusion_index = index;
-                break;
-            }
-        }
+        // for (index, stack) in occlusion_stack.iter().enumerate().rev() {
+        //     if stack.0.iter().any(|box_| occlusion_box.intersects(box_)) {
+        //         occlusion_index = match layer {
+        //             Layer::Canvas => index + 1,
+        //             _ => index,
+        //         };
+        //         break;
+        //     }
+        //     if stack.1.iter().any(|box_| occlusion_box.intersects(box_)) {
+        //         occlusion_index = index;
+        //         break;
+        //     }
+        // }
 
         if occlusion_stack.len() <= occlusion_index {
             occlusion_stack.push(Default::default());

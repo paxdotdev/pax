@@ -1,5 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 
+use crate::Transform2D;
+
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct GpuGlobals {
@@ -42,11 +44,21 @@ pub(crate) struct GpuGradient {
 }
 
 #[repr(C)]
-#[derive(Default, Copy, Clone, Pod, Zeroable)]
+#[derive(Debug, Copy, Clone, Pod, Zeroable)]
 pub(crate) struct GpuTransform {
     pub transform: [[f32; 2]; 3],
     pub _pad: u32,
     pub _pad2: u32,
+}
+
+impl Default for GpuTransform {
+    fn default() -> Self {
+        Self {
+            transform: Transform2D::scale(1000.0, 1000.0).to_arrays(),
+            _pad: 0,
+            _pad2: 0,
+        }
+    }
 }
 
 #[repr(C)]

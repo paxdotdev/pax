@@ -5,6 +5,7 @@ use_RefCell!();
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use kurbo::{BezPath, Rect, RoundedRect, Shape};
 use pax_message::NativeMessage;
 use pax_runtime_api::{
     pax_value::PaxAny, use_RefCell, Event, Focus, SelectStart, Variable, Window, OS,
@@ -13,7 +14,7 @@ use pax_runtime_api::{
 use crate::api::{KeyDown, KeyPress, KeyUp, NodeContext, RenderContext};
 
 use crate::{ComponentInstance, RuntimeContext};
-use pax_runtime_api::Platform;
+use pax_runtime_api::{Color, Fill, Platform};
 
 pub mod node_interface;
 pub mod occlusion;
@@ -286,11 +287,22 @@ impl PaxEngine {
     }
 
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
+        for i in 0..rcs.layers() {
+            // rcs.clear(i);
+        }
         // This is pretty useful during debugging - left it here since I use it often. /Sam
         // crate::api::log(&format!("tree: {:#?}", self.root_node));
-        self.root_expanded_node
-            .recurse_render_queue(&mut self.runtime_context, rcs);
-        self.runtime_context.recurse_flush_queued_renders(rcs);
+        // self.root_expanded_node
+        //     .recurse_render_queue(&mut self.runtime_context, rcs);
+        // self.runtime_context.recurse_flush_queued_renders(rcs);
+        for i in 0..rcs.layers() {
+            let rect = Rect::new(0.0, 0.0, 100000.0, 100000.0);
+            let bez_path = rect.to_path(0.1);
+            rcs.fill(i, bez_path, &Fill::Solid(Color::BLUE));
+        }
+        for i in 0..rcs.layers() {
+            rcs.flush(i);
+        }
     }
 
     pub fn get_expanded_node(&self, id: ExpandedNodeIdentifier) -> Option<Rc<ExpandedNode>> {

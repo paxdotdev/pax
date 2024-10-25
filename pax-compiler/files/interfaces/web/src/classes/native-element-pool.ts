@@ -100,23 +100,6 @@ export class NativeElementPool {
 
     }
 
-    clearAllCanvases(): void {
-        this.canvases.forEach((canvas, _key) => {
-            let dpr = window.devicePixelRatio;
-            const context = canvas.getContext('2d');
-            if (context) {
-                context.clearRect(0, 0, canvas.width, canvas.height);
-            }
-            if(canvas.width != (canvas.clientWidth * dpr) || canvas.height != (canvas.clientHeight * dpr)){
-                canvas.width = (canvas.clientWidth * dpr);
-                canvas.height = (canvas.clientHeight * dpr);
-                if (context) {
-                    context.scale(dpr, dpr);
-                }
-            }
-        });
-    }
-
     occlusionUpdate(patch: OcclusionUpdatePatch) {
         let node: HTMLElement = this.nodesLookup.get(patch.id!)!;
         if (node){

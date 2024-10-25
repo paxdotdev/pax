@@ -22,11 +22,9 @@ web-sys = "0.3.64"
 js-sys = "0.3.64"
 wasm-bindgen-futures = "0.4.38"
 
-[
-dependencies.wgpu
-]
+[dependencies.wgpu]
 version = "22.1.0"
 features = [
     "webgpu",     # Required for WebGPU support
-    "webgl",      # Optional: for WebGL fallback
+    # "webgl",      # Optional: for WebGL fallback
 ]
