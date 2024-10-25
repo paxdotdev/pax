@@ -16,11 +16,13 @@ use pax_runtime::api::RenderContext;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::OS;
 use pax_runtime::pax_pixels_render_context::PaxPixelsRenderer;
+use pax_runtime::piet_render_context::PietRenderer;
 use pax_runtime::DefinitionToInstanceTraverser;
 use pax_runtime_api::borrow_mut;
 use pax_runtime_api::Event;
 use pax_runtime_api::Focus;
 use pax_runtime_api::SelectStart;
+use piet_web::WebRenderContext;
 use web_sys::CanvasRenderingContext2d;
 use web_sys::WebGl2RenderingContext;
 use web_sys::WebGlRenderingContext;
@@ -152,8 +154,8 @@ impl PaxChassisWeb {
         let height = win.inner_height().unwrap().as_f64().unwrap();
         let start = Instant::now();
         // let renderer = PietRenderer::new(move |layer| {
-        //     let dpr = window.device_pixel_ratio();
-        //     let document = window.document().unwrap();
+        //     let dpr = win.device_pixel_ratio();
+        //     let document = win.document().unwrap();
         //     let canvas = document
         //         .get_element_by_id(layer.to_string().as_str())
         //         .unwrap()
@@ -172,8 +174,9 @@ impl PaxChassisWeb {
         //     canvas.set_width(width as u32);
         //     canvas.set_height(height as u32);
         //     let _ = context.scale(dpr, dpr);
-        //     WebRenderContext::new(context, window.clone())
+        //     WebRenderContext::new(context, win.clone())
         // });
+
         let renderer = PaxPixelsRenderer::new(move |layer| {
             // let context: web_sys::CanvasRenderingContext2d = canvas
             //     .get_context("2d")
@@ -213,7 +216,7 @@ impl PaxChassisWeb {
                 canvas.set_width(width as u32);
                 canvas.set_height(height as u32);
 
-                WgpuRenderer::new(
+                let res = WgpuRenderer::new(
                     // NOTE: this exists when building for wasm32
                     RenderBackend::to_canvas(
                         canvas,
@@ -221,7 +224,8 @@ impl PaxChassisWeb {
                     )
                     .await
                     .unwrap(),
-                )
+                );
+                res
             })
         });
         let get_time = Box::new(move || start.elapsed().as_millis());

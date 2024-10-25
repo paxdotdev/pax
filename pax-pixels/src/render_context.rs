@@ -164,7 +164,6 @@ impl<'w> WgpuRenderer<'w> {
 
     pub fn flush(&mut self) {
         if self.buffers.primitives.len() > 0 {
-            log::debug!("flushing");
             self.render_backend.render_primitives(&mut self.buffers);
             self.buffers.reset();
         }
