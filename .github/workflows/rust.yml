@@ -61,15 +61,15 @@ jobs:
     - uses: actions/cache@v4
       if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER') }}
       with:
-        path: examples/src/starter-project/.pax/build
-        key: ${{ runner.os }}-pax-build-${{ hashFiles('examples/src/starter-project/**') }}
+        path: examples/src/increment/.pax/build
+        key: ${{ runner.os }}-pax-build-${{ hashFiles('examples/src/increment/**') }}
 
-    - name: Build Starter Project
+    - name: Build Increment example
       if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER') }}
       env:
         RUSTFLAGS: "-C debuginfo=0"
       run: |
-        pushd examples/src/starter-project
+        pushd examples/src/increment
         sccache --start-server
         ./pax build --release --designer
         sccache --show-stats
@@ -87,7 +87,7 @@ jobs:
       if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER') }}
       run: |
         BUCKET_NAME="staging.pax.dev/build/${{ github.event.pull_request.number }}"
-        aws s3 cp --recursive /home/runner/work/pax/pax/examples/src/starter-project/.pax/build/release/web s3://$BUCKET_NAME --acl public-read   
+        aws s3 cp --recursive /home/runner/work/pax/pax/examples/src/increment/.pax/build/release/web s3://$BUCKET_NAME --acl public-read   
 
     - name: Invalidate CloudFront
       if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER') }}
