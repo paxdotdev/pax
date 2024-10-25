@@ -214,7 +214,7 @@ impl DesignerNodeType {
             DesignerNodeType::Image => (
                 "Image",
                 "image",
-                TypeId::build_singleton("pax_std::core::image::Image", None),
+                TypeId::build_singleton("pax_std::drawing::image::Image", None),
                 false,
             ),
             DesignerNodeType::Slider => (

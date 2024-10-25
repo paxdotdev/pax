@@ -49,6 +49,9 @@ use intent::Intent;
 use outline::PathOutline;
 use wireframe_editor::WireframeEditor;
 
+
+const DOUBLE_CLICK_MAX_MS: u64 = 400;
+
 #[pax]
 #[engine_import_path("pax_engine")]
 #[file("glass/mod.pax")]
@@ -286,7 +289,7 @@ impl Glass {
         if args.mouse.button == MouseButton::Left {
             let last_time = self.time_last_click.get();
             let curr_time = ctx.elapsed_time_millis() as u64;
-            if (curr_time - last_time) < 500 {
+            if (curr_time - last_time) < DOUBLE_CLICK_MAX_MS {
                 self.handle_double_click(ctx, &args);
             }
             self.time_last_click.set(curr_time);
