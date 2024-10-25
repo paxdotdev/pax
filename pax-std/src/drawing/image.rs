@@ -73,7 +73,6 @@ impl InstanceNode for ImageInstance {
 
         // send update message when relevant properties change
         let weak_self_ref = Rc::downgrade(&expanded_node);
-        let cloned_context = Rc::clone(context);
         let last_patch = Rc::new(RefCell::new(ImagePatch {
             id,
             ..Default::default()
@@ -83,51 +82,66 @@ impl InstanceNode for ImageInstance {
             (props.source.clone(), props.fit.clone())
         });
 
+        let tab = expanded_node.transform_and_bounds.clone();
+        let deps = [tab.untyped()];
+        let cloned_context = context.clone();
+        let occlusion = expanded_node.occlusion.clone();
+
+        let tab_changed = Property::computed(
+            move || {
+                cloned_context.set_canvas_dirty(occlusion.get().occlusion_layer_id);
+            },
+            &deps,
+        );
+
+        let cloned_context = context.clone();
         let deps = [source.untyped()];
         let needs_to_load_data = Rc::clone(&self.needs_to_load_data);
+        let source_changed = Property::computed(
+            move || {
+                let Some(expanded_node) = weak_self_ref.upgrade() else {
+                    unreachable!()
+                };
+                let mut old_state = borrow_mut!(last_patch);
+
+                let mut patch = ImagePatch {
+                    id,
+                    ..Default::default()
+                };
+                expanded_node.with_properties_unwrapped(|props: &mut Image| {
+                    let source = props.source.get();
+                    match source {
+                        ImageSource::Empty => (),
+                        ImageSource::Url(url) => {
+                            let update = patch_if_needed(&mut old_state.path, &mut patch.path, url);
+
+                            if update {
+                                cloned_context.enqueue_native_message(
+                                    pax_message::NativeMessage::ImageLoad(patch),
+                                );
+                            }
+                        }
+                        ImageSource::Data(_width, _height, _data) => {
+                            // insert to notify during render it needs to reload
+                            borrow_mut!(needs_to_load_data).insert(expanded_node.id.clone());
+                        }
+                    }
+                });
+                cloned_context.set_canvas_dirty(expanded_node.occlusion.get().occlusion_layer_id)
+            },
+            &deps,
+        );
+
+        let deps = [source_changed.untyped(), tab_changed.untyped()];
         expanded_node
             .changed_listener
             .replace_with(Property::computed(
                 move || {
-                    let Some(expanded_node) = weak_self_ref.upgrade() else {
-                        unreachable!()
-                    };
-                    let mut old_state = borrow_mut!(last_patch);
-
-                    let mut patch = ImagePatch {
-                        id,
-                        ..Default::default()
-                    };
-                    expanded_node.with_properties_unwrapped(|props: &mut Image| {
-                        let source = props.source.get();
-                        match source {
-                            ImageSource::Empty => (),
-                            ImageSource::Url(url) => {
-                                let update =
-                                    patch_if_needed(&mut old_state.path, &mut patch.path, url);
-
-                                if update {
-                                    cloned_context.enqueue_native_message(
-                                        pax_message::NativeMessage::ImageLoad(patch),
-                                    );
-                                }
-                            }
-                            ImageSource::Data(_width, _height, _data) => {
-                                // insert to notify during render it needs to reload
-                                borrow_mut!(needs_to_load_data).insert(expanded_node.id.clone());
-                            }
-                        }
-                    });
-                    cloned_context
-                        .set_canvas_dirty(expanded_node.occlusion.get().occlusion_layer_id)
+                    source_changed.get();
+                    tab_changed.get();
                 },
                 &deps,
-            ));
-
-        let tab = expanded_node.transform_and_bounds.clone();
-        let deps = &[tab.untyped(), source.untyped(), fit.untyped()];
-        let cloned_expanded_node = expanded_node.clone();
-        let cloned_context = context.clone();
+            ))
     }
 
     fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {}
