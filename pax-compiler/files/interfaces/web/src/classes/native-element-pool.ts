@@ -1116,7 +1116,6 @@ export class NativeElementPool {
                 }
             };
     
-            console.log("Sending Interrupt for screenshot");
             chassis.interrupt(JSON.stringify(message), pixels);
         } catch (err) {
             console.error('html2canvas error:', err);

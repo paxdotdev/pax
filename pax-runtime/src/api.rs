@@ -130,7 +130,6 @@ impl NodeContext {
     }
 
     pub fn screenshot(&self, id: u32) {
-        log::warn!("sending screenshot message");
         self.runtime_context
             .enqueue_native_message(NativeMessage::Screenshot(ScreenshotPatch {
                 id,
