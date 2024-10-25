@@ -237,9 +237,6 @@ impl DesigntimeManager {
     }
 
     pub fn handle_recv(&mut self, screenshot_map: Rc<RefCell<HashMap<u32, ScreenshotData>>>) -> anyhow::Result<()> {
-        // for each request in enqueued requests, check if there is a screenshot for it, if there is remove it from the map and fire off the llm request like
-        // self.pub_pax_connection.borrow_mut().send_llm_request(llm_request)
-        // if there isn't a screenshot for it, leave the llm request
         if let Some(mut llm_request) = self.enqueued_llm_request.take() {
             let mut screenshot_map = screenshot_map.borrow_mut();
             if let Some(screenshot) = screenshot_map.remove(&(llm_request.request_id as u32)) {
