@@ -59,13 +59,15 @@ jobs:
 
     # Cache Pax build artifacts
     - uses: actions/cache@v4
-      if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER') }}
+      if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER') }}
+
       with:
         path: examples/src/increment/.pax/build
         key: ${{ runner.os }}-pax-build-${{ hashFiles('examples/src/increment/**') }}
 
     - name: Build Increment example
-      if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER') }}
+      if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER') }}
+
       env:
         RUSTFLAGS: "-C debuginfo=0"
       run: |
@@ -76,7 +78,7 @@ jobs:
         popd
 
     - name: Configure AWS Credentials
-      if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER') }}
+      if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER') }}
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -84,18 +86,18 @@ jobs:
         aws-region: us-east-1
 
     - name: Deploy to S3
-      if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER') }}
+      if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER') }}
       run: |
         BUCKET_NAME="staging.pax.dev/build/${{ github.event.pull_request.number }}"
         aws s3 cp --recursive /home/runner/work/pax/pax/examples/src/increment/.pax/build/release/web s3://$BUCKET_NAME --acl public-read   
 
     - name: Invalidate CloudFront
-      if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER') }}
+      if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER') }}
       run: |
         aws cloudfront create-invalidation --distribution-id E29ZMWF6F0HQ61 --paths "/*"
 
     - name: Post deployment link as PR comment
-      if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER') }}
+      if: ${{ github.event_name == 'pull_request' && (github.event.pull_request.author_association == 'COLLABORATOR' || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER') }}
       uses: actions/github-script@v7
       with:
         script: |
