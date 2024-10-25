@@ -157,9 +157,9 @@ impl<'w> WgpuRenderer<'w> {
         self.render_backend.clear();
     }
 
-    pub fn draw_image(&mut self, image: &Image) {
+    pub fn draw_image(&mut self, image: &Image, rect: Box2D) {
         self.flush();
-        self.render_backend.render_image(image);
+        self.render_backend.render_image(image, rect);
     }
 
     pub fn flush(&mut self) {

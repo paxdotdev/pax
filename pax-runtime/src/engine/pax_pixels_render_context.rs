@@ -1,12 +1,13 @@
-use std::{cell::RefCell, future::Future, pin::Pin, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, future::Future, pin::Pin, rc::Rc};
 
 use kurbo::{BezPath, PathEl};
-use pax_pixels::{point, Path, WgpuRenderer};
+use pax_pixels::{point, Box2D, Image, Path, WgpuRenderer};
 use pax_runtime_api::RenderContext;
 
 pub struct PaxPixelsRenderer {
     backends: Rc<RefCell<Vec<RenderLayerState>>>,
     layer_factory: Rc<dyn Fn(usize) -> Pin<Box<dyn Future<Output = WgpuRenderer<'static>>>>>,
+    image_map: HashMap<String, Image>,
 }
 
 pub enum RenderLayerState {
@@ -21,6 +22,7 @@ impl PaxPixelsRenderer {
         Self {
             backends: Default::default(),
             layer_factory: Rc::new(layer_factory),
+            image_map: Default::default(),
         }
     }
 }
@@ -67,19 +69,43 @@ impl RenderContext for PaxPixelsRenderer {
     fn transform(&mut self, layer: usize, affine: kurbo::Affine) {
         // TODO
     }
+
     fn load_image(&mut self, identifier: &str, image: &[u8], width: usize, height: usize) {
+        self.image_map.insert(
+            identifier.to_string(),
+            Image {
+                rgba: image.into(),
+                pixel_width: width as u32,
+                pixel_height: height as u32,
+            },
+        );
         //TODO
     }
+
     fn draw_image(&mut self, layer: usize, image_path: &str, rect: kurbo::Rect) {
+        let mut backends = self.backends.borrow_mut();
+        let Some(RenderLayerState::Ready(context)) = backends.get_mut(layer) else {
+            return;
+        };
+        if let Some(image) = self.image_map.get(image_path) {
+            context.draw_image(
+                image,
+                Box2D {
+                    min: point(rect.x0 as f32, rect.y0 as f32),
+                    max: point(rect.x1 as f32, rect.y1 as f32),
+                },
+            );
+        }
         //TODO
     }
     fn get_image_size(&mut self, image_path: &str) -> Option<(usize, usize)> {
-        // TODO
-        Some((100, 100))
+        self.image_map
+            .get(image_path)
+            .map(|img| (img.pixel_width as usize, img.pixel_height as usize))
     }
 
     fn image_loaded(&self, image_path: &str) -> bool {
-        // TODO
+        self.image_map.contains_key(image_path);
         true
     }
 
