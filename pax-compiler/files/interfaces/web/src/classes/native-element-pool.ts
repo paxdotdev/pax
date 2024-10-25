@@ -864,7 +864,7 @@ export class NativeElementPool {
                 if (patch.markdown) {
                     textChild.innerHTML = snarkdown(patch.content);
                 } else {
-                    textChild.innerHTML = patch.content;
+                    textChild.innerText = patch.content;
                 }
             }
             // Apply the link styles if they exist
@@ -1084,42 +1084,45 @@ export class NativeElementPool {
     }
 
     async screenshot(patch: ScreenshotPatch, chassis: PaxChassisWeb) {
-        const mountElement = document.getElementById('mount');
-        if (!mountElement) {
-            throw new Error('Mount element not found');
-        }
-        
-        const canvas = await html2canvas(mountElement, {
-            useCORS: true,
-            allowTaint: true,
-            foreignObjectRendering: true,
-            logging: false
-        });
-        
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-            console.log('couldnt get ctx');
-            return;
-        }
-
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const pixels = new Uint8Array(imageData.data.buffer);
-
-        const message = {
-            "Screenshot": {
-                "Data": {
-                    "id": patch.id!,
-                    "path": "",
-                    "width": canvas.width,
-                    "height": canvas.height,
-                }
+        try {
+            const canvas = await html2canvas(document.body, {
+                useCORS: true,
+                allowTaint: false,
+                foreignObjectRendering: true,
+                logging: true,
+                ignoreElements: (element) => {
+                    // Ignore images to prevent
+                    return element.tagName === 'IMG'
+                },
+            });
+    
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                console.log('Could not get canvas context');
+                return;
             }
-        };
-
-        console.log("Sending Interrupt for screenshot");
-        chassis.interrupt(JSON.stringify(message), pixels);
+    
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const pixels = new Uint8Array(imageData.data.buffer);
+    
+            const message = {
+                "Screenshot": {
+                    "Data": {
+                        "id": patch.id!,
+                        "path": "",
+                        "width": canvas.width,
+                        "height": canvas.height,
+                    }
+                }
+            };
+    
+            console.log("Sending Interrupt for screenshot");
+            chassis.interrupt(JSON.stringify(message), pixels);
+        } catch (err) {
+            console.error('html2canvas error:', err);
+        }
     }
-
+    
     async imageLoad(patch: ImageLoadPatch, chassis: PaxChassisWeb) {
 
         if (chassis.image_loaded(patch.path ?? "")) {

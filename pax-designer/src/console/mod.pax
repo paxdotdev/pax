@@ -1,7 +1,7 @@
 <Group height=100% y=100.00% x=0% width=100%>
     <Scroller y=0 height={100%-70px} scroll_height={Console::len(self.messages) * 200px} scroll_pos_y=bind:scroll_y>
         for (message, i) in messages {
-            <Card x=0px y={i*200px} height=200px width=100% is_ai={message.is_ai} text={message.text} />
+            <Card x=0px y={i*200px} height=200px width=100% message_type={message.message_type} text={message.text} />
         }
     </Scroller>
     <Textbox y=100% height=70px stroke={
