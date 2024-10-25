@@ -485,7 +485,7 @@ impl<'w> RenderBackend<'w> {
         (screen_surface, screen_texture)
     }
 
-    pub(crate) fn render_image(&mut self, image: &Image) {
+    pub(crate) fn render_image(&mut self, image: &Image, rect: Box2D) {
         let (screen_surface, screen_texture) = self.get_screen_texture();
         self.texture_renderer.render_image(
             &self.device,
@@ -494,7 +494,7 @@ impl<'w> RenderBackend<'w> {
             &self.globals_buffer,
             &image.rgba,
             image.pixel_width,
-            image.rect,
+            rect,
         );
         screen_surface.present();
     }
@@ -556,7 +556,6 @@ impl CpuBuffers {
 
 #[derive(Clone)]
 pub struct Image {
-    pub rect: Box2D,
     pub rgba: Vec<u8>,
     pub pixel_width: u32,
     pub pixel_height: u32,
