@@ -411,20 +411,8 @@ impl<F: Space, T: Space> TransformAndBounds<F, T> {
 }
 
 fn min_max_projections(projections: &[f64]) -> (f64, f64) {
-    let min_projection = *projections
-        .iter()
-        .min_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap_or_else(|| {
-            log::warn!("failed to find min of projections {:?}", projections);
-            &0.0
-        });
-    let max_projection = *projections
-        .iter()
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
-        .unwrap_or_else(|| {
-            log::warn!("failed to find max of projections {:?}", projections);
-            &0.0
-        });
+    let min_projection = *projections.iter().min_by(|a, b| a.total_cmp(b)).unwrap();
+    let max_projection = *projections.iter().max_by(|a, b| a.total_cmp(b)).unwrap();
     (min_projection, max_projection)
 }
 
