@@ -42,7 +42,7 @@ if !self.is_in_play_mode {
             <Stacker direction=StackerDirection::Horizontal width=200px x=0 sizes=[Some(7px), Some(55px), None] >
                 <Group />
                 <Image y=50% x={100% - 3px} height=36px source=ImageSource::Url("assets/icons/icon-console.png") / >
-                <Text id=console_label height=100% text="Console" />
+                <Text id=console_label height=100% selectable=false text="Console" />
             </Stacker>
             <Rectangle fill=BLACK />
         </Group>
