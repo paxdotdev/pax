@@ -1,12 +1,12 @@
-use std::{cell::RefCell, collections::HashMap, future::Future, pin::Pin, rc::Rc};
-
 use kurbo::{BezPath, PathEl};
-use pax_pixels::{point, Box2D, Image, Path, WgpuRenderer};
+use pax_pixels::{point, Box2D, Image, Path, Transform2D, WgpuRenderer};
 use pax_runtime_api::RenderContext;
+use std::{cell::RefCell, collections::HashMap, future::Future, pin::Pin, rc::Rc};
 
 pub struct PaxPixelsRenderer {
     backends: Rc<RefCell<Vec<RenderLayerState>>>,
-    layer_factory: Rc<dyn Fn(usize) -> Pin<Box<dyn Future<Output = WgpuRenderer<'static>>>>>,
+    layer_factory:
+        Rc<dyn Fn(usize) -> Pin<Box<dyn Future<Output = Option<WgpuRenderer<'static>>>>>>,
     image_map: HashMap<String, Image>,
 }
 
@@ -17,7 +17,8 @@ pub enum RenderLayerState {
 
 impl PaxPixelsRenderer {
     pub fn new(
-        layer_factory: impl Fn(usize) -> Pin<Box<dyn Future<Output = WgpuRenderer<'static>>>> + 'static,
+        layer_factory: impl Fn(usize) -> Pin<Box<dyn Future<Output = Option<WgpuRenderer<'static>>>>>
+            + 'static,
     ) -> Self {
         Self {
             backends: Default::default(),
@@ -57,17 +58,36 @@ impl RenderContext for PaxPixelsRenderer {
     }
 
     fn save(&mut self, layer: usize) {
-        // TODO
+        let mut backends = self.backends.borrow_mut();
+        let Some(RenderLayerState::Ready(context)) = backends.get_mut(layer) else {
+            return;
+        };
+        context.save();
     }
     fn restore(&mut self, layer: usize) {
-        // TODO
+        let mut backends = self.backends.borrow_mut();
+        let Some(RenderLayerState::Ready(context)) = backends.get_mut(layer) else {
+            return;
+        };
+        context.restore();
     }
-    fn clip(&mut self, layer: usize, path: kurbo::BezPath) {
+    fn clip(&mut self, layer: usize, _path: kurbo::BezPath) {
+        let mut backends = self.backends.borrow_mut();
+        let Some(RenderLayerState::Ready(_context)) = backends.get_mut(layer) else {
+            return;
+        };
         // TODO
         // keep supporting paths here, or instead use rect?
+        // context.push_clipping_bounds(..);
     }
     fn transform(&mut self, layer: usize, affine: kurbo::Affine) {
-        // TODO
+        let mut backends = self.backends.borrow_mut();
+        let Some(RenderLayerState::Ready(context)) = backends.get_mut(layer) else {
+            return;
+        };
+        context.push_transform(Transform2D::from_array(
+            affine.as_coeffs().map(|v| v as f32),
+        ))
     }
 
     fn load_image(&mut self, identifier: &str, image: &[u8], width: usize, height: usize) {
@@ -121,18 +141,19 @@ impl RenderContext for PaxPixelsRenderer {
             }
             std::cmp::Ordering::Equal => return,
             std::cmp::Ordering::Greater => {
-                let backends = Rc::clone(&self.backends);
-                let factory = Rc::clone(&self.layer_factory);
-
-                wasm_bindgen_futures::spawn_local(async move {
-                    for i in current_len..layer_count {
-                        backends.borrow_mut().push(RenderLayerState::Pending);
+                for i in current_len..layer_count {
+                    self.backends.borrow_mut().push(RenderLayerState::Pending);
+                    let factory = Rc::clone(&self.layer_factory);
+                    let backends = Rc::clone(&self.backends);
+                    wasm_bindgen_futures::spawn_local(async move {
                         let backend = (factory)(i).await;
-                        if let Some(change) = backends.borrow_mut().get_mut(i) {
+                        if let (Some(change), Some(backend)) =
+                            (backends.borrow_mut().get_mut(i), backend)
+                        {
                             *change = RenderLayerState::Ready(backend);
                         }
-                    }
-                });
+                    });
+                }
             }
         }
     }
@@ -151,6 +172,17 @@ impl RenderContext for PaxPixelsRenderer {
             return;
         };
         context.flush();
+    }
+
+    fn resize(&mut self, width: usize, height: usize) {
+        for backend in &mut *self.backends.borrow_mut() {
+            match backend {
+                RenderLayerState::Pending => {
+                    log::debug!("tried to resize backend that was pending")
+                }
+                RenderLayerState::Ready(renderer) => renderer.resize(width as f32, height as f32),
+            }
+        }
     }
 }
 

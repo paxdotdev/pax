@@ -165,19 +165,11 @@ impl RuntimeContext {
         }
     }
 
-    pub fn get_dirty_canvases(&self) -> Vec<usize> {
-        borrow!(self.dirty_canvases)
-            .iter()
-            .enumerate()
-            .filter_map(|(i, v)| if *v { Some(i) } else { None })
-            .collect()
-    }
-
     pub fn clear_all_dirty_canvases(&self) {
         let mut dirty_canvases = borrow_mut!(self.dirty_canvases);
-        // for v in dirty_canvases.iter_mut() {
-        //     *v = false;
-        // }
+        for v in dirty_canvases.iter_mut() {
+            *v = false;
+        }
     }
 
     pub fn set_canvas_dirty(&self, id: usize) {

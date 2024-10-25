@@ -310,7 +310,8 @@ impl<'w> RenderBackend<'w> {
             globals,
             index_count: 0,
         };
-        backend.resize(initial_width, initial_height, initial_dpr);
+        backend.globals.dpr = initial_dpr;
+        backend.resize(initial_width, initial_height);
         Ok(backend)
     }
 
@@ -369,11 +370,10 @@ impl<'w> RenderBackend<'w> {
         })
     }
 
-    pub fn resize(&mut self, width: u32, height: u32, dpr: u32) {
+    pub fn resize(&mut self, width: u32, height: u32) {
         self.surface_config.width = width;
         self.surface_config.height = height;
         self.globals.resolution = [width as f32, height as f32];
-        self.globals.dpr = dpr;
         self.queue.write_buffer(
             &self.globals_buffer,
             0,

@@ -117,8 +117,6 @@ impl PaxChassisWeb {
         }
     }
 
-    pub async fn piet_renderer_new() {}
-
     #[cfg(not(any(feature = "designtime", feature = "designer")))]
     pub async fn new(
         definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
@@ -178,43 +176,20 @@ impl PaxChassisWeb {
         // });
 
         let renderer = PaxPixelsRenderer::new(move |layer| {
-            // let context: web_sys::CanvasRenderingContext2d = canvas
-            //     .get_context("2d")
-            //     .unwrap()
-            //     .unwrap()
-            //     .dyn_into::<web_sys::CanvasRenderingContext2d>()
-            //     .unwrap();
-            // let _ = context.scale(dpr, dpr);
-
             Box::pin(async move {
                 let window = window().unwrap();
                 let dpr = window.device_pixel_ratio();
                 let document = window.document().unwrap();
                 let canvas = document
-                    .get_element_by_id(layer.to_string().as_str())
-                    .unwrap()
+                    .get_element_by_id(layer.to_string().as_str())?
                     .dyn_into::<HtmlCanvasElement>()
-                    .unwrap();
+                    .ok()?;
 
-                // These work!
-                // let canvas = document
-                //     .create_element("canvas")
-                //     .map_err(|_| "Could not create canvas element")
-                //     .unwrap()
-                //     .dyn_into::<HtmlCanvasElement>()
-                //     .map_err(|_| "Could not convert to canvas element")
-                //     .unwrap();
-                // document
-                //     .body()
-                //     .ok_or("No body found")
-                //     .unwrap()
-                //     .append_child(&canvas)
-                //     .map_err(|_| "Could not append container to body")
-                //     .unwrap();
                 let width = canvas.offset_width() as f64;
                 let height = canvas.offset_height() as f64;
                 canvas.set_width(width as u32);
                 canvas.set_height(height as u32);
+                // let _ = context.scale(dpr, dpr);
 
                 let res = WgpuRenderer::new(
                     // NOTE: this exists when building for wasm32
@@ -223,9 +198,9 @@ impl PaxChassisWeb {
                         RenderConfig::new(false, width as u32, height as u32, 1),
                     )
                     .await
-                    .unwrap(),
+                    .ok()?,
                 );
-                res
+                Some(res)
             })
         });
         let get_time = Box::new(move || start.elapsed().as_millis());
@@ -246,63 +221,11 @@ impl PaxChassisWeb {
     }
 }
 
-fn diagnose_canvas_context(canvas: &HtmlCanvasElement) -> Result<String, String> {
-    // Try to get each type of context WITHOUT creating a new one
-    let contexts_to_check = [
-        ("webgpu", "gpu"),
-        ("webgl2", "webgl2"),
-        ("webgl", "webgl"),
-        ("2d", "2d"),
-    ];
-
-    let mut diagnostic = String::new();
-
-    // First try to get any existing context
-    if let Ok(Some(existing)) = canvas.get_context("") {
-        diagnostic.push_str(&format!("Canvas has an existing context: {:?}\n", existing));
-
-        // Try to determine the type of the existing context
-        if existing.is_instance_of::<WebGl2RenderingContext>() {
-            diagnostic.push_str("Current context is WebGL2\n");
-        } else if existing.is_instance_of::<WebGlRenderingContext>() {
-            diagnostic.push_str("Current context is WebGL1\n");
-        } else if existing.is_instance_of::<CanvasRenderingContext2d>() {
-            diagnostic.push_str("Current context is 2D\n");
-        }
-    }
-
-    // Try to get each type of context and log the result
-    for (name, context_type) in contexts_to_check.iter() {
-        match canvas.get_context(context_type) {
-            Ok(Some(_)) => {
-                diagnostic.push_str(&format!("{} context is available\n", name));
-            }
-            Ok(None) => {
-                diagnostic.push_str(&format!("{} context is not available\n", name));
-            }
-            Err(e) => {
-                diagnostic.push_str(&format!("Error checking {} context: {:?}\n", name, e));
-            }
-        }
-    }
-
-    // Get canvas attributes
-    diagnostic.push_str(&format!(
-        "\nCanvas attributes:\n\
-         - ID: {}\n\
-         - Width: {}\n\
-         - Height: {}\n",
-        canvas.id(),
-        canvas.width(),
-        canvas.height(),
-    ));
-
-    Ok(diagnostic)
-}
 #[wasm_bindgen]
 impl PaxChassisWeb {
     pub fn add_context(&mut self, id: usize) {
-        self.drawing_contexts.resize_layers_to(id);
+        log::debug!("adding layer: {}", id);
+        self.drawing_contexts.resize_layers_to(id + 1);
         self.engine.borrow().runtime_context.add_canvas(id);
     }
 
@@ -311,16 +234,14 @@ impl PaxChassisWeb {
             .borrow()
             .runtime_context
             .set_all_canvases_dirty();
+        self.drawing_contexts
+            .resize(width as usize, height as usize);
         borrow_mut!(self.engine).set_viewport_size((width, height));
     }
     pub fn remove_context(&mut self, id: usize) {
-        self.drawing_contexts.resize_layers_to(id.saturating_sub(1));
+        log::debug!("removing layer: {}", id);
+        self.drawing_contexts.resize_layers_to(id);
         self.engine.borrow().runtime_context.remove_canvas(id);
-    }
-
-    pub fn get_dirty_canvases(&self) -> Vec<usize> {
-        let ret = self.engine.borrow().runtime_context.get_dirty_canvases();
-        ret
     }
 
     pub fn interrupt(
@@ -858,10 +779,6 @@ impl PaxChassisWeb {
 
     pub fn render(&mut self) {
         borrow_mut!(self.engine).render(self.drawing_contexts.as_mut());
-        self.engine
-            .borrow()
-            .runtime_context
-            .clear_all_dirty_canvases();
     }
 
     pub fn image_loaded(&mut self, path: &str) -> bool {

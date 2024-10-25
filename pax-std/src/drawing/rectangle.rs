@@ -68,14 +68,15 @@ impl InstanceNode for RectangleInstance {
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
 
-        cloned_context.set_canvas_dirty(cloned_expanded_node.occlusion.get().occlusion_layer_id)
-        // expanded_node
-        //     .changed_listener
-        //     .replace_with(Property::computed(
-        //         move || {
-        //         },
-        //         deps,
-        //     ));
+        expanded_node
+            .changed_listener
+            .replace_with(Property::computed(
+                move || {
+                    cloned_context
+                        .set_canvas_dirty(cloned_expanded_node.occlusion.get().occlusion_layer_id)
+                },
+                deps,
+            ));
     }
 
     fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {}
