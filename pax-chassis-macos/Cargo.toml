@@ -13,8 +13,8 @@ name = "paxchassismacos"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-piet = "0.6.0"
-piet-coregraphics = "0.6.0"
+piet = "0.7.0"
+piet-coregraphics = "0.7.0"
 pax-chassis-common = { path = "../pax-chassis-common", version="0.38.3" }
 pax-runtime = { path = "../pax-runtime", version="0.38.3" }
 pax-message = {path = "../pax-message", version="0.38.3"}
@@ -22,8 +22,8 @@ lazy_static = "1.4.0"
 mut_static = "5.0.0"
 #be cautious about core-graphics' version number --
 #ideally this would be locked with `piet` (the specified version should exactly match the version used
-#internally by piet-coregraphics, e.g. 0.6.0 => 0.22.3)
-core-graphics = "0.22.3"
+#internally by piet-coregraphics, e.g. 0.7.0 => 0.24.0)
+core-graphics = "0.24.0"
 flexbuffers = "2.0.0"
 
 
