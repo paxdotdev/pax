@@ -65,6 +65,7 @@ if 0 == 1 {
     <Textbox/>
     <Slider/>
     <Button/>
+    <Image/>
     <Dropdown/>
     <RadioSet/>
     <Scroller/>
