@@ -193,36 +193,31 @@ impl PaxChassisWeb {
                     .dyn_into::<HtmlCanvasElement>()
                     .unwrap();
 
-                // let width = canvas.offset_width() as f64 * dpr;
-                // let height = canvas.offset_height() as f64 * dpr;
-                // canvas.set_width(width as u32);
-                // canvas.set_height(height as u32);
-
-                // Check for WebGPU support
-                let navigator = window.navigator();
-                if !js_sys::Reflect::has(&navigator, &JsValue::from_str("gpu")).unwrap_or(false) {
-                    panic!("WebGPU is not supported in this browser");
-                }
-
-                // Diagnose canvas state before attempting to use it
-                match diagnose_canvas_context(&canvas) {
-                    Ok(diagnostic) => {
-                        web_sys::console::log_1(
-                            &format!("Canvas diagnostic:\n{}", diagnostic).into(),
-                        );
-                    }
-                    Err(e) => {
-                        web_sys::console::error_1(
-                            &format!("Failed to diagnose canvas: {}", e).into(),
-                        );
-                    }
-                }
+                // These work!
+                // let canvas = document
+                //     .create_element("canvas")
+                //     .map_err(|_| "Could not create canvas element")
+                //     .unwrap()
+                //     .dyn_into::<HtmlCanvasElement>()
+                //     .map_err(|_| "Could not convert to canvas element")
+                //     .unwrap();
+                // document
+                //     .body()
+                //     .ok_or("No body found")
+                //     .unwrap()
+                //     .append_child(&canvas)
+                //     .map_err(|_| "Could not append container to body")
+                //     .unwrap();
+                let width = canvas.offset_width() as f64;
+                let height = canvas.offset_height() as f64;
+                canvas.set_width(width as u32);
+                canvas.set_height(height as u32);
 
                 WgpuRenderer::new(
                     // NOTE: this exists when building for wasm32
                     RenderBackend::to_canvas(
                         canvas,
-                        RenderConfig::new(false, width as u32, height as u32, dpr as u32),
+                        RenderConfig::new(false, width as u32, height as u32, 1),
                     )
                     .await
                     .unwrap(),
@@ -303,7 +298,6 @@ fn diagnose_canvas_context(canvas: &HtmlCanvasElement) -> Result<String, String>
 #[wasm_bindgen]
 impl PaxChassisWeb {
     pub fn add_context(&mut self, id: usize) {
-        log::debug!("adding context: {:?}", id);
         self.drawing_contexts.resize_layers_to(id);
         self.engine.borrow().runtime_context.add_canvas(id);
     }
@@ -316,7 +310,6 @@ impl PaxChassisWeb {
         borrow_mut!(self.engine).set_viewport_size((width, height));
     }
     pub fn remove_context(&mut self, id: usize) {
-        log::debug!("removing context: {:?}", id);
         self.drawing_contexts.resize_layers_to(id.saturating_sub(1));
         self.engine.borrow().runtime_context.remove_canvas(id);
     }

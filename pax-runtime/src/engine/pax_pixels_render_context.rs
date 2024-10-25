@@ -1,6 +1,6 @@
 use std::{cell::RefCell, future::Future, pin::Pin, rc::Rc};
 
-use kurbo::{BezPath, PathEl};
+use kurbo::{BezPath, PathEl, Shape};
 use pax_pixels::{point, Path, WgpuRenderer};
 use pax_runtime_api::RenderContext;
 
@@ -26,7 +26,10 @@ impl RenderContext for PaxPixelsRenderer {
         let Some(context) = backends.get_mut(layer) else {
             return;
         };
-        context.fill_path(convert_kurbo_to_lyon_path(&path), to_pax_pixels_fill(fill));
+        let path = convert_kurbo_to_lyon_path(&path);
+        let fill = to_pax_pixels_fill(fill);
+        log::debug!("{:?}, {:?}", path, fill);
+        context.fill_path(path, fill);
     }
 
     fn stroke(
@@ -50,28 +53,22 @@ impl RenderContext for PaxPixelsRenderer {
     fn save(&mut self, layer: usize) {
         // TODO
     }
-
     fn restore(&mut self, layer: usize) {
         // TODO
     }
-
     fn clip(&mut self, layer: usize, path: kurbo::BezPath) {
         // TODO
         // keep supporting paths here, or instead use rect?
     }
-
     fn transform(&mut self, layer: usize, affine: kurbo::Affine) {
         // TODO
     }
-
     fn load_image(&mut self, identifier: &str, image: &[u8], width: usize, height: usize) {
         //TODO
     }
-
     fn draw_image(&mut self, layer: usize, image_path: &str, rect: kurbo::Rect) {
         //TODO
     }
-
     fn get_image_size(&mut self, image_path: &str) -> Option<(usize, usize)> {
         // TODO
         Some((100, 100))
@@ -106,6 +103,22 @@ impl RenderContext for PaxPixelsRenderer {
             }
         }
     }
+
+    fn clear(&mut self, layer: usize) {
+        let mut backends = self.backends.borrow_mut();
+        let Some(context) = backends.get_mut(layer) else {
+            return;
+        };
+        context.clear();
+    }
+
+    fn flush(&mut self, layer: usize) {
+        let mut backends = self.backends.borrow_mut();
+        let Some(context) = backends.get_mut(layer) else {
+            return;
+        };
+        context.flush();
+    }
 }
 
 fn to_pax_pixels_fill(fill: &pax_runtime_api::Fill) -> pax_pixels::Fill {
@@ -122,10 +135,11 @@ fn to_pax_pixels_fill(fill: &pax_runtime_api::Fill) -> pax_pixels::Fill {
 
 pub fn convert_kurbo_to_lyon_path(kurbo_path: &BezPath) -> Path {
     let mut builder = Path::builder();
-
+    let mut closed = false;
     for el in kurbo_path.elements() {
         match el {
             PathEl::MoveTo(p) => {
+                closed = false;
                 builder.begin(point(p.x as f32, p.y as f32));
             }
             PathEl::LineTo(p) => {
@@ -145,9 +159,13 @@ pub fn convert_kurbo_to_lyon_path(kurbo_path: &BezPath) -> Path {
                 );
             }
             PathEl::ClosePath => {
-                builder.close();
+                closed = true;
+                builder.end(true);
             }
         }
+    }
+    if !closed {
+        builder.end(false);
     }
 
     builder.build()

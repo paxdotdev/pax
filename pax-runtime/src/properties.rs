@@ -175,9 +175,9 @@ impl RuntimeContext {
 
     pub fn clear_all_dirty_canvases(&self) {
         let mut dirty_canvases = borrow_mut!(self.dirty_canvases);
-        for v in dirty_canvases.iter_mut() {
-            *v = false;
-        }
+        // for v in dirty_canvases.iter_mut() {
+        //     *v = false;
+        // }
     }
 
     pub fn set_canvas_dirty(&self, id: usize) {
