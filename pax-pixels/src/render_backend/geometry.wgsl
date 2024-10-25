@@ -93,13 +93,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let primitive = u_primitives.primitives[in.prim_id];
 
-    let p = in.clip_position.xy;
-    let m = clipping.transforms[primitive.clipping_id];
-    let t_p_x = p.x * m.xx + p.y * m.yx + m.zx;
-    let t_p_y = p.x * m.xy + p.y * m.yy + m.zy;
-    if t_p_x > 1.0 || t_p_x < 0.0 || t_p_y > 1.0 || t_p_y < 0.0 {
-        discard;
-    }
+    // let p = in.clip_position.xy;
+    // let m = clipping.transforms[primitive.clipping_id];
+    // let t_p_x = p.x * m.xx + p.y * m.yx + m.zx;
+    // let t_p_y = p.x * m.xy + p.y * m.yy + m.zy;
+    // if t_p_x > 1.0 || t_p_x < 0.0 || t_p_y > 1.0 || t_p_y < 0.0 {
+    //     discard;
+    // }
 
 
 
