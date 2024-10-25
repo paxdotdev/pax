@@ -24,10 +24,20 @@ pub struct Console {
     pub external_message_listener: Property<bool>,
 }
 
+
+#[pax]
+#[engine_import_path("pax_engine")]
+pub enum MessageType {
+    Diff,
+    LLM,
+    #[default]
+    Human
+}
+
 #[pax]
 #[engine_import_path("pax_engine")]
 pub struct Message {
-    pub is_ai: bool,
+    pub message_type: MessageType,
     pub text: String,
 }
 
@@ -88,7 +98,7 @@ impl Console {
                                 llm_message.reverse();
                                 for message in llm_message {
                                     messages.push(Message {
-                                        is_ai: true,
+                                        message_type: MessageType::LLM,
                                         text: message.clone(),
                                     });
                                 }
@@ -96,7 +106,7 @@ impl Console {
                             }
                             pax_designtime::orm::MessageType::Serialization(msg) => {
                                 messages.push(Message {
-                                    is_ai: true,
+                                    message_type: MessageType::Diff,
                                     text: msg.clone(),
                                 });
                                 messages_cloned.set(messages.clone());
@@ -126,14 +136,14 @@ impl Console {
         let mut messages = self.messages.get();
         let request = &args.text;
         messages.push(Message {
-            is_ai: false,
+            message_type: MessageType::Human,
             text: request.clone(),
         });
+        self.messages.set(messages);
+        self.textbox.set("".to_string());
         let new_request_id = self.request_id.get() + 1;
         self.request_id.set(new_request_id);
         let mut dt = borrow_mut!(ctx.designtime);
-        self.messages.set(messages);
-        self.textbox.set("".to_string());
         ctx.screenshot(new_request_id as u32);
         if let Err(e) = dt.llm_request(request, new_request_id) {
             pax_engine::log::warn!("llm request failed: {:?}", e);
