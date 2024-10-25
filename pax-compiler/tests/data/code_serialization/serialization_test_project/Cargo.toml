@@ -1,11 +1,11 @@
 [package]
 name = "serialization_test_project"
-version = "0.36.3"
+version = "0.38.3"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-kit = { version = "0.37.1", path="../../../../../pax-kit" }
+pax-kit = { version = "0.38.3", path="../../../../../pax-kit" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
