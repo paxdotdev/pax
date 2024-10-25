@@ -287,19 +287,14 @@ impl PaxEngine {
     }
 
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
-        for i in 0..rcs.layers() {
+        for _ in 0..rcs.layers() {
             // rcs.clear(i);
         }
         // This is pretty useful during debugging - left it here since I use it often. /Sam
         // crate::api::log(&format!("tree: {:#?}", self.root_node));
-        // self.root_expanded_node
-        //     .recurse_render_queue(&mut self.runtime_context, rcs);
-        // self.runtime_context.recurse_flush_queued_renders(rcs);
-        for i in 0..rcs.layers() {
-            let rect = Rect::new(0.0, 0.0, 100000.0, 100000.0);
-            let bez_path = rect.to_path(0.1);
-            rcs.fill(i, bez_path, &Fill::Solid(Color::BLUE));
-        }
+        self.root_expanded_node
+            .recurse_render_queue(&mut self.runtime_context, rcs);
+        self.runtime_context.recurse_flush_queued_renders(rcs);
         for i in 0..rcs.layers() {
             rcs.flush(i);
         }

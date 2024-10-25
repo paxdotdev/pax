@@ -287,8 +287,10 @@ impl<'w> RenderBackend<'w> {
             Self::create_pipeline(&device, surface_config.format, primitive_bind_group_layout);
 
         let texture_renderer = TextureRenderer::new(&device);
-
-        Ok(Self {
+        let initial_width = config.initial_width;
+        let initial_height = config.initial_height;
+        let initial_dpr = config.initial_dpr;
+        let mut backend = Self {
             texture_renderer,
             _adapter: adapter,
             surface,
@@ -307,7 +309,9 @@ impl<'w> RenderBackend<'w> {
             gradients_buffer,
             globals,
             index_count: 0,
-        })
+        };
+        backend.resize(initial_width, initial_height, initial_dpr);
+        Ok(backend)
     }
 
     fn create_pipeline(
@@ -451,13 +455,7 @@ impl<'w> RenderBackend<'w> {
                     view: &screen_texture,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        // load: wgpu::LoadOp::Load,
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 1.0,
-                            g: 0.0,
-                            b: 0.0,
-                            a: 0.4,
-                        }),
+                        load: wgpu::LoadOp::Load,
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -465,32 +463,6 @@ impl<'w> RenderBackend<'w> {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-
-            log::debug!("primitive drawing: {:#?}", buffers);
-            log::debug!("globals: {:?}", self.globals);
-            buffers.geometry.vertices = vec![
-                GpuVertex {
-                    position: [-0.5, -0.5], // bottom left
-                    normal: [0.0, 0.0],
-                    prim_id: 0,
-                },
-                GpuVertex {
-                    position: [0.5, -0.5], // bottom right
-                    normal: [0.0, 0.0],
-                    prim_id: 0,
-                },
-                GpuVertex {
-                    position: [-0.5, 0.5], // top left
-                    normal: [0.0, 0.0],
-                    prim_id: 0,
-                },
-                GpuVertex {
-                    position: [0.5, 0.5], // top right
-                    normal: [0.0, 0.0],
-                    prim_id: 0,
-                },
-            ];
-            buffers.geometry.indices = vec![0, 1, 2, 1, 3, 2];
             self.write_buffers(buffers);
 
             render_pass.set_pipeline(&self.pipeline);
@@ -543,10 +515,10 @@ impl<'w> RenderBackend<'w> {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 1.0,
+                            r: 0.0,
                             g: 0.0,
-                            b: 1.0,
-                            a: 1.0,
+                            b: 0.0,
+                            a: 0.0,
                         }),
                         store: wgpu::StoreOp::Store,
                     },
@@ -556,7 +528,6 @@ impl<'w> RenderBackend<'w> {
                 occlusion_query_set: None,
             });
         }
-        log::debug!("clearing screen");
         self.queue.submit(std::iter::once(encoder.finish()));
         screen_surface.present();
     }

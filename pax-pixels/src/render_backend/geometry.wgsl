@@ -77,14 +77,14 @@ fn vs_main(
     model: GpuVertex,
 ) -> VertexOutput {
 	var out: VertexOutput;
- //    var pos = model.position;
- //    pos /= globals.resolution;
- //    pos *= 2.0;
- //    pos -= 1.0;
- //    pos.y *= -1.0;
+    var pos = model.position;
+    pos /= globals.resolution;
+    pos *= 2.0;
+    pos -= 1.0;
+    pos.y *= -1.0;
 
     out.prim_id = model.prim_id;
-    out.clip_position = vec4<f32>(model.position, 0.0, 1.0);
+    out.clip_position = vec4<f32>(pos, 0.0, 1.0);
     return out;
 }
 // Fragment shader
@@ -93,14 +93,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let primitive = u_primitives.primitives[in.prim_id];
 
-    //clipping rectangle
-    // let p = in.clip_position.xy;
-    // let m = clipping.transforms[primitive.clipping_id];
-    // let t_p_x = p.x * m.xx + p.y * m.yx + m.zx;
-    // let t_p_y = p.x * m.xy + p.y * m.yy + m.zy;
-    // if t_p_x > 1.0 || t_p_x < 0.0 || t_p_y > 1.0 || t_p_y < 0.0 {
-    //     discard;
-    // }
+    let p = in.clip_position.xy;
+    let m = clipping.transforms[primitive.clipping_id];
+    let t_p_x = p.x * m.xx + p.y * m.yx + m.zx;
+    let t_p_y = p.x * m.xy + p.y * m.yy + m.zy;
+    if t_p_x > 1.0 || t_p_x < 0.0 || t_p_y > 1.0 || t_p_y < 0.0 {
+        discard;
+    }
 
 
 
