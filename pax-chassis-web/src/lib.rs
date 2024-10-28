@@ -180,10 +180,16 @@ impl PaxChassisWeb {
                 let window = window().unwrap();
                 let dpr = window.device_pixel_ratio();
                 let document = window.document().unwrap();
-                let canvas = document
-                    .get_element_by_id(layer.to_string().as_str())?
-                    .dyn_into::<HtmlCanvasElement>()
-                    .ok()?;
+                let canvas = match document
+                    .get_element_by_id(layer.to_string().as_str())
+                    .and_then(|e| e.dyn_into::<HtmlCanvasElement>().ok())
+                {
+                    Some(canvas) => canvas,
+                    None => {
+                        log::warn!("failed to attach renderer: canvas doesn't exist yet");
+                        return None;
+                    }
+                };
 
                 let width = canvas.offset_width() as f64;
                 let height = canvas.offset_height() as f64;
@@ -223,12 +229,6 @@ impl PaxChassisWeb {
 
 #[wasm_bindgen]
 impl PaxChassisWeb {
-    pub fn add_context(&mut self, id: usize) {
-        log::debug!("adding layer: {}", id);
-        self.drawing_contexts.resize_layers_to(id + 1);
-        self.engine.borrow().runtime_context.add_canvas(id);
-    }
-
     pub fn send_viewport_update(&mut self, width: f64, height: f64) {
         self.engine
             .borrow()
@@ -237,11 +237,6 @@ impl PaxChassisWeb {
         self.drawing_contexts
             .resize(width as usize, height as usize);
         borrow_mut!(self.engine).set_viewport_size((width, height));
-    }
-    pub fn remove_context(&mut self, id: usize) {
-        log::debug!("removing layer: {}", id);
-        self.drawing_contexts.resize_layers_to(id);
-        self.engine.borrow().runtime_context.remove_canvas(id);
     }
 
     pub fn interrupt(

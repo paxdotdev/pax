@@ -24,16 +24,12 @@ export class PaxChassisWeb {
 /**
 * @param {number} id
 */
-  add_context(id: number): void;
+  resize_layers_to(id: number): void;
 /**
 * @param {number} width
 * @param {number} height
 */
   send_viewport_update(width: number, height: number): void;
-/**
-* @param {number} id
-*/
-  remove_context(id: number): void;
 /**
 * @returns {[number]}
 */
@@ -86,9 +82,8 @@ export interface InitOutput {
   readonly __wbg_interruptresult_free: (a: number, b: number) => void;
   readonly __wbg_get_interruptresult_prevent_default: (a: number) => number;
   readonly __wbg_set_interruptresult_prevent_default: (a: number, b: number) => void;
-  readonly paxchassisweb_add_context: (a: number, b: number) => void;
+  readonly paxchassisweb_resize_layers_to: (a: number, b: number) => void;
   readonly paxchassisweb_send_viewport_update: (a: number, b: number, c: number) => void;
-  readonly paxchassisweb_remove_context: (a: number, b: number) => void;
   readonly paxchassisweb_get_dirty_canvases: (a: number, b: number) => void;
   readonly paxchassisweb_interrupt: (a: number, b: number, c: number, d: number) => number;
   readonly paxchassisweb_deallocate: (a: number, b: number) => void;

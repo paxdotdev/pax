@@ -31,7 +31,6 @@ export class Layer {
         parent.appendChild(this.canvas);
 
         canvasMap.set(this.canvas.id, this.canvas);
-        chassis.add_context(occlusionLayerId);
 
         this.native.className = NATIVE_OVERLAY_CLASS;
         this.native.style.zIndex = String(occlusionLayerId * 2 + 1);
@@ -40,7 +39,6 @@ export class Layer {
 
     public cleanUp() {
         if (this.canvas != undefined && this.chassis != undefined && this.occlusionLayerId != undefined) {
-            this.chassis.remove_context(this.occlusionLayerId);
             this.canvasMap?.delete(this.canvas.id);
             let parent = this.canvas.parentElement;
             parent!.removeChild(this.canvas);
