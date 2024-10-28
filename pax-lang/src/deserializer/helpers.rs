@@ -173,7 +173,18 @@ impl<'de> VariantAccess<'de> for PaxEnum<'de> {
         T: DeserializeSeed<'de>,
     {
         let ast = self.args.unwrap();
-        eprintln!("AST: {:?}: {:?}", ast.to_string(), ast.as_str());
+        if self.is_pax_value && self.variant == "Enum" {
+            let mut enum_pairs = ast.into_inner();
+            while enum_pairs.len() > 3 {
+                enum_pairs.next();
+            }
+            if enum_pairs.len() == 2 {
+                let name = enum_pairs.next().unwrap().as_str();
+                let variant = enum_pairs.next().unwrap().as_str();
+                return seed.deserialize(UnitVariant::new(name, variant));
+            }
+            return seed.deserialize(PaxSeq::new(enum_pairs));
+        }
         seed.deserialize(PaxDeserializer::from(ast))
     }
 
@@ -181,19 +192,6 @@ impl<'de> VariantAccess<'de> for PaxEnum<'de> {
     where
         V: Visitor<'de>,
     {
-        if self.is_pax_value && self.variant == "Enum" {
-            let mut enum_pairs = self.args.unwrap().into_inner();
-            while enum_pairs.len() > 3 {
-                enum_pairs.next();
-            }
-            if enum_pairs.len() == 2 {
-                let name = enum_pairs.next().unwrap().as_str();
-                let variant = enum_pairs.next().unwrap().as_str();
-                return visitor.visit_seq(UnitVariant::new(name, variant));
-            }
-            return visitor.visit_seq(PaxSeq::new(enum_pairs));
-        }
-
         if let Some(args) = self.args {
             visitor.visit_seq(PaxSeq::new(args.into_inner()))
         } else {
@@ -214,6 +212,23 @@ impl<'de> VariantAccess<'de> for PaxEnum<'de> {
 pub struct PaxSeq<'de> {
     elements: Pairs<'de, Rule>,
     index: usize,
+}
+
+impl<'de> Deserializer<'de> for PaxSeq<'de> {
+    type Error = Error;
+
+    fn deserialize_any<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_seq(self)
+    }
+
+    forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+        bytes byte_buf option unit unit_struct newtype_struct seq tuple identifier
+        tuple_struct map struct enum ignored_any
+    }
 }
 
 impl<'de> PaxSeq<'de> {
@@ -444,6 +459,23 @@ impl<'de> UnitVariant<'de> {
             variant,
             arg_read_count: 0,
         }
+    }
+}
+
+impl<'de> Deserializer<'de> for UnitVariant<'de> {
+    type Error = Error;
+
+    forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+        bytes byte_buf option unit unit_struct newtype_struct seq tuple identifier
+        tuple_struct map struct enum ignored_any
+    }
+
+    fn deserialize_any<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        visitor.visit_seq(self)
     }
 }
 
