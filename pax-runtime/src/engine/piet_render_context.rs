@@ -3,7 +3,7 @@ use piet::{
     kurbo::{self, Affine, Shape},
     InterpolationMode, LinearGradient, RadialGradient,
 };
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::api;
 
@@ -101,7 +101,7 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
         self.backends.len()
     }
 
-    fn resize_layers_to(&mut self, layer_count: usize) {
+    fn resize_layers_to(&mut self, layer_count: usize, _dirty_canvases: Rc<RefCell<Vec<bool>>>) {
         match layer_count.cmp(&self.backends.len()) {
             std::cmp::Ordering::Less => {
                 for _ in self.backends.len()..layer_count {

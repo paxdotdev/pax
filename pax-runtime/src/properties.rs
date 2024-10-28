@@ -48,7 +48,7 @@ pub struct RuntimeContext {
     queued_custom_events: RefCell<Vec<(Rc<ExpandedNode>, &'static str)>>,
     queued_renders: RefCell<Vec<Rc<ExpandedNode>>>,
     pub layer_count: Cell<usize>,
-    pub dirty_canvases: RefCell<Vec<bool>>,
+    pub dirty_canvases: Rc<RefCell<Vec<bool>>>,
     screenshot_map: Rc<RefCell<HashMap<u32, ScreenshotData>>>,
 }
 
