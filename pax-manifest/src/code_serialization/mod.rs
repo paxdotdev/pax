@@ -1,5 +1,6 @@
 use colored::Colorize;
 use core::panic;
+use html_escape::encode_text;
 use serde_derive::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -152,19 +153,22 @@ pub fn diff_html(old_content: &str, new_content: &str) -> Option<String> {
     let mut all_diffs = vec![];
 
     for change in diff.iter_all_changes() {
-        //handle edge-cases where the change is empty
-        if change.to_string().trim() == "" {
+        // Handle edge-cases where the change is empty
+        if change.to_string().trim().is_empty() {
             continue;
         }
+
+        // Encode the text and replace underscores with the HTML entity
+        let encoded_text = encode_text(&change.to_string()).replace("_", "&#95;");
 
         let output = match change.tag() {
             ChangeTag::Delete => Some(format!(
                 "<br/><span style=\"color: red;\">---<code>{}</code></span>",
-                html_escape::encode_text(&change.to_string())
+                encoded_text
             )),
             ChangeTag::Insert => Some(format!(
                 "<span style=\"color: green;\">+++<code>{}</code></span>",
-                html_escape::encode_text(&change.to_string())
+                encoded_text
             )),
             ChangeTag::Equal => None,
         };
