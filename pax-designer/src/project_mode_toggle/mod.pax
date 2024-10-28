@@ -1,7 +1,7 @@
 <Group x=50% y=50% width={100% - 20px} height={100% - 20px}>
     if self.edit_mode {
         <Text text="Play" id=text fill=WHITE />
-        <Path class=play_triangle _raycastable=false/>
+        <Path id=play_symbol class=play_triangle _raycastable=false/>
     }
     if self.running_mode {
         <Text text="Stop" id=text fill=WHITE />

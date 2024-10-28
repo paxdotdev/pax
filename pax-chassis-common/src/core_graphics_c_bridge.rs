@@ -2,9 +2,11 @@
 
 extern crate core;
 
+use std::cell::RefCell;
 use std::ffi::c_void;
 
 use std::mem::{transmute, ManuallyDrop};
+use std::rc::Rc;
 
 use core_graphics::context::CGContext;
 use pax_runtime::api::math::Point2;
@@ -123,11 +125,14 @@ pub extern "C" fn pax_tick(
     let mut render_context = PietRenderer::new(move |_| {
         let will_cast_cgContext = cgContext as *mut CGContext;
         let ctx = unsafe { &mut *will_cast_cgContext };
-        CoreGraphicsContext::new_y_up(ctx, height as f64, None)
+        (
+            CoreGraphicsContext::new_y_up(ctx, height as f64, None),
+            Box::new(|| (/* clear screen here */)),
+        )
     });
 
     (*engine).set_viewport_size((width as f64, height as f64));
-    render_context.resize_layers_to(1);
+    render_context.resize_layers_to(1, Rc::new(RefCell::new(vec![false])));
 
     let messages = (*engine).tick();
     engine.render(&mut render_context as &mut dyn RenderContext);

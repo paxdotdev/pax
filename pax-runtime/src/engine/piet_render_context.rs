@@ -12,14 +12,16 @@ struct ImgData<R: piet::RenderContext> {
     size: (usize, usize),
 }
 
+type ClearFn = Box<dyn Fn()>;
+
 pub struct PietRenderer<R: piet::RenderContext> {
-    backends: Vec<R>,
+    backends: Vec<(R, ClearFn)>,
     image_map: HashMap<String, ImgData<R>>,
-    layer_factory: Box<dyn Fn(usize) -> R>,
+    layer_factory: Box<dyn Fn(usize) -> (R, Box<dyn Fn()>)>,
 }
 
 impl<R: piet::RenderContext> PietRenderer<R> {
-    pub fn new(layer_factory: impl Fn(usize) -> R + 'static) -> Self {
+    pub fn new(layer_factory: impl Fn(usize) -> (R, ClearFn) + 'static) -> Self {
         Self {
             layer_factory: Box::new(layer_factory),
             backends: Vec::new(),
@@ -32,7 +34,7 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
     fn fill(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill) {
         let rect = path.bounding_box();
         let brush = fill_to_piet_brush(fill, rect);
-        if let Some(layer) = self.backends.get_mut(layer) {
+        if let Some((layer, _)) = self.backends.get_mut(layer) {
             layer.fill(path, &brush);
         }
     }
@@ -40,38 +42,38 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
     fn stroke(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill, width: f64) {
         let rect = path.bounding_box();
         let brush = fill_to_piet_brush(fill, rect);
-        if let Some(layer) = self.backends.get_mut(layer) {
+        if let Some((layer, _)) = self.backends.get_mut(layer) {
             layer.stroke(path, &brush, width);
         }
     }
 
     fn save(&mut self, layer: usize) {
-        if let Some(layer) = self.backends.get_mut(layer) {
+        if let Some((layer, _)) = self.backends.get_mut(layer) {
             let _ = layer.save();
         }
     }
 
     fn transform(&mut self, layer: usize, affine: Affine) {
-        if let Some(layer) = self.backends.get_mut(layer) {
+        if let Some((layer, _)) = self.backends.get_mut(layer) {
             layer.transform(affine);
         }
     }
 
     fn clip(&mut self, layer: usize, path: kurbo::BezPath) {
-        if let Some(layer) = self.backends.get_mut(layer) {
+        if let Some((layer, _)) = self.backends.get_mut(layer) {
             layer.clip(path);
         }
     }
 
     fn restore(&mut self, layer: usize) {
-        if let Some(layer) = self.backends.get_mut(layer) {
+        if let Some((layer, _)) = self.backends.get_mut(layer) {
             let _ = layer.restore();
         }
     }
 
     fn load_image(&mut self, path: &str, buf: &[u8], width: usize, height: usize) {
         //is this okay!? we know it's the same kind of backend no matter what layer, but it might be storing data?
-        let render_context = self.backends.first_mut().unwrap();
+        let (render_context, _) = self.backends.first_mut().unwrap();
         let img = render_context
             .make_image(width, height, buf, piet::ImageFormat::RgbaSeparate)
             .expect("image creation successful");
@@ -92,7 +94,7 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
         let Some(data) = self.image_map.get(image_path) else {
             return;
         };
-        if let Some(layer) = self.backends.get_mut(layer) {
+        if let Some((layer, _)) = self.backends.get_mut(layer) {
             layer.draw_image(&data.img, rect, InterpolationMode::Bilinear);
         }
     }
@@ -101,17 +103,19 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
         self.backends.len()
     }
 
-    fn resize_layers_to(&mut self, layer_count: usize, _dirty_canvases: Rc<RefCell<Vec<bool>>>) {
-        match layer_count.cmp(&self.backends.len()) {
+    fn resize_layers_to(&mut self, layer_count: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>) {
+        let current_len = self.backends.len();
+        match layer_count.cmp(&current_len) {
             std::cmp::Ordering::Less => {
-                for _ in self.backends.len()..layer_count {
-                    self.backends.pop();
-                }
+                self.backends.truncate(layer_count);
             }
             std::cmp::Ordering::Equal => return,
             std::cmp::Ordering::Greater => {
-                for i in self.backends.len()..layer_count {
+                for i in current_len..layer_count {
                     self.backends.push((self.layer_factory)(i));
+                    if let Some(dirty_bit) = dirty_canvases.borrow_mut().get_mut(i) {
+                        *dirty_bit = true;
+                    }
                 }
             }
         }
@@ -122,15 +126,19 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
     }
 
     fn clear(&mut self, layer: usize) {
-        todo!()
+        if let Some((_, clear_fn)) = self.backends.get_mut(layer) {
+            (clear_fn)();
+        }
     }
 
-    fn flush(&mut self, layer: usize) {
-        todo!()
+    fn flush(&mut self, _layer: usize) {
+        // NOTE: used for GPU rendering to flush changes to the screen, not needed
+        // during CPU rendering
     }
 
-    fn resize(&mut self, width: usize, height: usize) {
-        todo!()
+    fn resize(&mut self, _width: usize, _height: usize) {
+        // NOTE: resizing of the backing canvas/window is done in chassi,
+        // no special logic needed here for CPU rendering
     }
 }
 

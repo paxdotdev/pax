@@ -34,11 +34,17 @@ impl PaxPixelsRenderer {
         match backends.get_mut(layer) {
             Some(layer_state) => match layer_state {
                 RenderLayerState::Pending => {
-                    log::warn!("tried to retrieve layer context that wasn't ready")
+                    log::warn!(
+                        "tried to retrieve layer {} context that wasn't ready",
+                        layer
+                    );
                 }
                 RenderLayerState::Ready(renderer) => f(renderer),
             },
-            None => log::warn!("tried to retrieve layer context for non-existent layer"),
+            None => log::warn!(
+                "tried to retrieve layer {} context for non-existent layer",
+                layer
+            ),
         }
     }
 }

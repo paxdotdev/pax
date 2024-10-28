@@ -158,6 +158,7 @@ impl RuntimeContext {
 
     pub fn clear_all_dirty_canvases(&self) {
         let mut dirty_canvases = borrow_mut!(self.dirty_canvases);
+        log::debug!("dirty canvases: {:#?}", dirty_canvases);
         for v in dirty_canvases.iter_mut() {
             *v = false;
         }
