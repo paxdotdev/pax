@@ -28,9 +28,9 @@ export class OcclusionLayerManager {
     }
 
     growTo(newOcclusionLayerId: number) {
-        let occlusionLayerId = newOcclusionLayerId + 1;
-        if(this.layers!.length <= occlusionLayerId){
-            for(let i = this.layers!.length; i <= occlusionLayerId; i++) {
+        let occlusionLayerCount = newOcclusionLayerId + 1;
+        if(this.layers!.length < occlusionLayerCount) {
+            for(let i = this.layers!.length; i < occlusionLayerCount; i++) {
                 let newLayer: Layer = this.objectManager.getFromPool(LAYER, this.objectManager);
                 newLayer.build(this.parent!, i, this.chassis!, this.canvasMap!);
                 this.layers!.push(newLayer);
@@ -43,7 +43,7 @@ export class OcclusionLayerManager {
             return
         }
         if(this.layers.length >= occlusionLayerId) {
-            for(let i = this.layers!.length - 1; i > occlusionLayerId; i--){
+            for(let i = this.layers!.length - 1; i >= occlusionLayerId; i--){
                 this.objectManager.returnToPool(LAYER, this.layers[i]);
                 this.layers.pop();
             }

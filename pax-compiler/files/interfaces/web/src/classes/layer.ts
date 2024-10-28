@@ -21,9 +21,7 @@ export class Layer {
         this.occlusionLayerId = occlusionLayerId;
         this.chassis = chassis;
         this.canvasMap = canvasMap;
-        let canvas = document.createElement('canvas');
-        canvas.className = CANVAS_CLASS;
-        this.canvas = canvas;
+        this.canvas = this.objectManager.getFromPool(CANVAS);
         this.native = this.objectManager.getFromPool(DIV);
 
         this.canvas.style.zIndex = String(occlusionLayerId * 2);

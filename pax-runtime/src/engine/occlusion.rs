@@ -46,10 +46,12 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
     let mut occlusion_stack = vec![];
     let mut z_index = 0;
     update_node_occlusion_recursive(root_node, &mut occlusion_stack, ctx, false, &mut z_index);
-    let max_layer = occlusion_stack.len() - 1;
-    if ctx.layer_count.get() != max_layer {
-        ctx.layer_count.set(max_layer);
-        ctx.enqueue_native_message(pax_message::NativeMessage::ShrinkLayersTo(max_layer as u32));
+    let new_layer_count = occlusion_stack.len();
+    if ctx.layer_count.get() != new_layer_count {
+        ctx.layer_count.set(new_layer_count);
+        ctx.enqueue_native_message(pax_message::NativeMessage::ShrinkLayersTo(
+            new_layer_count as u32,
+        ));
     }
 }
 
@@ -116,6 +118,15 @@ fn update_node_occlusion_recursive(
                 .filter(|_| clipping)
                 .map(|v| v.to_u32()),
         };
+
+        let cp = borrow!(node.common_properties);
+        let cp = borrow!(cp);
+        if cp
+            .id
+            .read(|i| i.as_ref().is_some_and(|i| i == "play_symbol"))
+        {
+            log::debug!("new occl: {:#?}", new_occlusion);
+        }
 
         if (layer == Layer::Native || borrow!(node.instance_node).clips_content(&node))
             && node.occlusion.get() != new_occlusion

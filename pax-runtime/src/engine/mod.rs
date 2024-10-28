@@ -270,6 +270,7 @@ impl PaxEngine {
     ///     a. find lowest node (last child of last node)
     ///     b. start rendering, from lowest node on-up, throughout tree
     pub fn tick(&mut self) -> Vec<NativeMessage> {
+        // self.runtime_context.set_all_canvases_dirty();
         //
         // 1. UPDATE NODES (properties, etc.). This part we should be able to
         // completely remove once reactive properties dirty-dag is a thing.
@@ -290,13 +291,14 @@ impl PaxEngine {
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
         static LAST_LAYER_COUNT: AtomicUsize = AtomicUsize::new(0); // last-patch layer_count
         let curr_layer_count = self.runtime_context.layer_count.get();
-        if LAST_LAYER_COUNT.load(Ordering::Relaxed) != curr_layer_count {
+        let old_layer_count = LAST_LAYER_COUNT.load(Ordering::Relaxed);
+        if old_layer_count != curr_layer_count {
             rcs.resize_layers_to(
-                curr_layer_count + 1,
+                curr_layer_count,
                 Rc::clone(&self.runtime_context.dirty_canvases),
             );
             self.runtime_context
-                .resize_canvas_layers_to(curr_layer_count + 1);
+                .resize_canvas_layers_to(curr_layer_count);
             LAST_LAYER_COUNT.store(curr_layer_count, Ordering::Relaxed)
         }
 
@@ -322,6 +324,11 @@ impl PaxEngine {
             rcs.flush(i);
         }
         self.runtime_context.clear_all_dirty_canvases();
+
+        //dirtify the canvases that where created this frame (why is this needed?)
+        for i in old_layer_count..curr_layer_count {
+            self.runtime_context.set_canvas_dirty(i);
+        }
     }
 
     pub fn get_expanded_node(&self, id: ExpandedNodeIdentifier) -> Option<Rc<ExpandedNode>> {

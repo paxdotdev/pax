@@ -61,7 +61,7 @@ pub fn wasm_memory() -> JsValue {
 
 #[wasm_bindgen]
 pub struct PaxChassisWeb {
-    drawing_contexts: Box<dyn RenderContext>,
+    render_context: Box<dyn RenderContext>,
     engine: Rc<RefCell<PaxEngine>>,
     #[cfg(any(feature = "designtime", feature = "designer"))]
     userland_definition_to_instance_traverser:
@@ -111,7 +111,7 @@ impl PaxChassisWeb {
         let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
         Self {
             engine: engine_container,
-            drawing_contexts: renderer,
+            render_context: renderer,
             userland_definition_to_instance_traverser,
             designtime_manager,
         }
@@ -137,7 +137,7 @@ impl PaxChassisWeb {
 
         Self {
             engine: engine_container,
-            drawing_contexts: renderer,
+            render_context: renderer,
         }
     }
 
@@ -172,7 +172,14 @@ impl PaxChassisWeb {
         //     canvas.set_width(width as u32);
         //     canvas.set_height(height as u32);
         //     let _ = context.scale(dpr, dpr);
-        //     WebRenderContext::new(context, win.clone())
+        //     (
+        //         WebRenderContext::new(context.clone(), win.clone()),
+        //         Box::new(move || {
+        //             let w = canvas.width();
+        //             let h = canvas.height();
+        //             context.clear_rect(0.0, 0.0, w as f64, h as f64);
+        //         }),
+        //     )
         // });
 
         let renderer = PaxPixelsRenderer::new(move |layer| {
@@ -234,8 +241,7 @@ impl PaxChassisWeb {
             .borrow()
             .runtime_context
             .set_all_canvases_dirty();
-        self.drawing_contexts
-            .resize(width as usize, height as usize);
+        self.render_context.resize(width as usize, height as usize);
         borrow_mut!(self.engine).set_viewport_size((width, height));
     }
 
@@ -300,7 +306,7 @@ impl PaxChassisWeb {
                 ImageLoadInterruptArgs::Reference(_ref_args) => false,
                 ImageLoadInterruptArgs::Data(data_args) => {
                     let data = Uint8Array::new(additional_payload).to_vec();
-                    self.drawing_contexts.load_image(
+                    self.render_context.load_image(
                         &data_args.path,
                         &data,
                         data_args.width,
@@ -773,11 +779,11 @@ impl PaxChassisWeb {
     }
 
     pub fn render(&mut self) {
-        borrow_mut!(self.engine).render(self.drawing_contexts.as_mut());
+        borrow_mut!(self.engine).render(self.render_context.as_mut());
     }
 
     pub fn image_loaded(&mut self, path: &str) -> bool {
-        self.drawing_contexts.image_loaded(path)
+        self.render_context.image_loaded(path)
     }
 }
 
