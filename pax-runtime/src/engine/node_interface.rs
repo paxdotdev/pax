@@ -90,6 +90,12 @@ impl NodeInterface {
         base.flags().clone()
     }
 
+    pub fn has_id(&self, id: &str) -> bool {
+        let cp = borrow!(self.inner.common_properties);
+        let cp = borrow!(&*cp);
+        cp.id.read(|i| i.as_ref().is_some_and(|i| i == id))
+    }
+
     pub fn transform_and_bounds(&self) -> Property<TransformAndBounds<NodeLocal, Window>> {
         self.inner.transform_and_bounds.clone()
     }

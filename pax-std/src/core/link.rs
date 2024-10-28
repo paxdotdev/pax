@@ -9,7 +9,7 @@ use pax_runtime::api::NodeContext;
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined(
-    <Rectangle fill=TRANSPARENT/>
+    <Rectangle id=_designer_raycast_ignore fill=TRANSPARENT/>
     for i in 0..self._slot_children {
         slot(i)
     }

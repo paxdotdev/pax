@@ -124,6 +124,7 @@ impl<'a> ActionContext<'a> {
             .into_iter()
             .filter(|elem| !skip.iter().any(|v| elem == v || elem.is_descendant_of(v)))
             .filter(|elem| elem.is_descendant_of(&userland))
+            .filter(|elem| !elem.has_id("_designer_raycast_ignore"))
             .collect();
 
         if let RaycastMode::RawNth(index) = mode {
