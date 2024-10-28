@@ -20,7 +20,7 @@ pub mod cursor;
 /// instead create a local new type (newtype pattern) only used for a single purpose
 pub trait Store: 'static {}
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::hash::Hash;
 use std::rc::{Rc, Weak};
 
@@ -47,13 +47,12 @@ pub struct TransitionQueueEntry<T> {
     pub ending_value: T,
 }
 
-pub struct RenderContext {}
 // The Pax render trait that allows for drawing on multiple
 // layers.
 // TODO migrate from using kurbo types to our own?
-impl RenderContext {
+pub trait RenderContext {
     //drawing
-    fn fill(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill, id: usize);
+    fn fill(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill);
     fn stroke(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill, width: f64);
 
     // clip/transform
@@ -70,7 +69,7 @@ impl RenderContext {
 
     // other
     fn layers(&self) -> usize;
-    fn resize_layers_to(&mut self, layer_count: usize);
+    fn resize_layers_to(&mut self, layer_count: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>);
     fn clear(&mut self, layer: usize);
     fn flush(&mut self, layer: usize);
     fn resize(&mut self, width: usize, height: usize);

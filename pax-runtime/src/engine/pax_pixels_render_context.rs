@@ -1,9 +1,7 @@
 use kurbo::{BezPath, PathEl};
 use pax_pixels::{point, Box2D, Image, Path, Transform2D, WgpuRenderer};
 use pax_runtime_api::RenderContext;
-use std::{
-    cell::RefCell, collections::HashMap, future::Future, pin::Pin, rc::Rc,
-};
+use std::{cell::RefCell, collections::HashMap, future::Future, pin::Pin, rc::Rc};
 
 pub struct PaxPixelsRenderer {
     backends: Rc<RefCell<Vec<RenderLayerState>>>,
@@ -31,26 +29,27 @@ impl PaxPixelsRenderer {
 }
 
 impl PaxPixelsRenderer {
-    fn get_context(&mut self, layer: usize, f: impl FnOnce(&mut WgpuRenderer)) {
+    fn with_layer_context(&self, layer: usize, f: impl FnOnce(&mut WgpuRenderer)) {
         let mut backends = self.backends.borrow_mut();
-        match backends.get_mut(layer) {}
-        let Some(RenderLayerState::Ready(context)) = backends.get_mut(layer) else {
-            log::warn!("tried to draw to layer that wasn't ready");
-            return;
-        };
-        f(context)
+        match backends.get_mut(layer) {
+            Some(layer_state) => match layer_state {
+                RenderLayerState::Pending => {
+                    log::warn!("tried to retrieve layer context that wasn't ready")
+                }
+                RenderLayerState::Ready(renderer) => f(renderer),
+            },
+            None => log::warn!("tried to retrieve layer context for non-existent layer"),
+        }
     }
 }
 
 impl RenderContext for PaxPixelsRenderer {
     fn fill(&mut self, layer: usize, path: kurbo::BezPath, fill: &pax_runtime_api::Fill) {
-        let mut backends = self.backends.borrow_mut();
-        let Some(RenderLayerState::Ready(context)) = backends.get_mut(layer) else {
-            return;
-        };
-        let path = convert_kurbo_to_lyon_path(&path);
-        let fill = to_pax_pixels_fill(fill);
-        context.fill_path(path, fill);
+        self.with_layer_context(layer, |context| {
+            let path = convert_kurbo_to_lyon_path(&path);
+            let fill = to_pax_pixels_fill(fill);
+            context.fill_path(path, fill);
+        });
     }
 
     fn stroke(
@@ -60,48 +59,38 @@ impl RenderContext for PaxPixelsRenderer {
         fill: &pax_runtime_api::Fill,
         width: f64,
     ) {
-        let mut backends = self.backends.borrow_mut();
-        let Some(RenderLayerState::Ready(context)) = backends.get_mut(layer) else {
-            return;
-        };
-        context.stroke_path(
-            convert_kurbo_to_lyon_path(&path),
-            to_pax_pixels_fill(fill),
-            width as f32,
-        );
+        self.with_layer_context(layer, |context| {
+            context.stroke_path(
+                convert_kurbo_to_lyon_path(&path),
+                to_pax_pixels_fill(fill),
+                width as f32,
+            );
+        });
     }
 
     fn save(&mut self, layer: usize) {
-        let mut backends = self.backends.borrow_mut();
-        let Some(RenderLayerState::Ready(context)) = backends.get_mut(layer) else {
-            return;
-        };
-        context.save();
+        self.with_layer_context(layer, |context| {
+            context.save();
+        });
     }
     fn restore(&mut self, layer: usize) {
-        let mut backends = self.backends.borrow_mut();
-        let Some(RenderLayerState::Ready(context)) = backends.get_mut(layer) else {
-            return;
-        };
-        context.restore();
+        self.with_layer_context(layer, |context| {
+            context.restore();
+        });
     }
     fn clip(&mut self, layer: usize, _path: kurbo::BezPath) {
-        let mut backends = self.backends.borrow_mut();
-        let Some(RenderLayerState::Ready(_context)) = backends.get_mut(layer) else {
-            return;
-        };
-        // TODO
-        // keep supporting paths here, or instead use rect?
-        // context.push_clipping_bounds(..);
+        self.with_layer_context(layer, |_context| {
+            // TODO
+            // keep supporting paths here, or instead use rect?
+            // context.push_clipping_bounds(..);
+        });
     }
     fn transform(&mut self, layer: usize, affine: kurbo::Affine) {
-        let mut backends = self.backends.borrow_mut();
-        let Some(RenderLayerState::Ready(context)) = backends.get_mut(layer) else {
-            return;
-        };
-        context.push_transform(Transform2D::from_array(
-            affine.as_coeffs().map(|v| v as f32),
-        ))
+        self.with_layer_context(layer, |context| {
+            context.push_transform(Transform2D::from_array(
+                affine.as_coeffs().map(|v| v as f32),
+            ))
+        });
     }
 
     fn load_image(&mut self, identifier: &str, image: &[u8], width: usize, height: usize) {
@@ -113,24 +102,20 @@ impl RenderContext for PaxPixelsRenderer {
                 pixel_height: height as u32,
             },
         );
-        //TODO
     }
 
     fn draw_image(&mut self, layer: usize, image_path: &str, rect: kurbo::Rect) {
-        let mut backends = self.backends.borrow_mut();
-        let Some(RenderLayerState::Ready(context)) = backends.get_mut(layer) else {
-            return;
-        };
-        if let Some(image) = self.image_map.get(image_path) {
-            context.draw_image(
-                image,
-                Box2D {
-                    min: point(rect.x0 as f32, rect.y0 as f32),
-                    max: point(rect.x1 as f32, rect.y1 as f32),
-                },
-            );
-        }
-        //TODO
+        self.with_layer_context(layer, |context| {
+            if let Some(image) = self.image_map.get(image_path) {
+                context.draw_image(
+                    image,
+                    Box2D {
+                        min: point(rect.x0 as f32, rect.y0 as f32),
+                        max: point(rect.x1 as f32, rect.y1 as f32),
+                    },
+                );
+            }
+        });
     }
     fn get_image_size(&mut self, image_path: &str) -> Option<(usize, usize)> {
         self.image_map
@@ -163,10 +148,12 @@ impl RenderContext for PaxPixelsRenderer {
                     wasm_bindgen_futures::spawn_local(async move {
                         let backend = (factory)(i).await;
                         if let (Some(change), Some(backend)) =
-                            backends.borrow_mut().get_mut(i), backend)
+                            (backends.borrow_mut().get_mut(i), backend)
                         {
                             *change = RenderLayerState::Ready(backend);
-                            *dirty_canvases.borrow_mut()[i] = true;
+                            if let Some(dirty_bit) = dirty_canvases.borrow_mut().get_mut(i) {
+                                *dirty_bit = true;
+                            }
                         }
                     });
                 }
@@ -175,19 +162,15 @@ impl RenderContext for PaxPixelsRenderer {
     }
 
     fn clear(&mut self, layer: usize) {
-        let mut backends = self.backends.borrow_mut();
-        let Some(RenderLayerState::Ready(context)) = backends.get_mut(layer) else {
-            return;
-        };
-        context.clear();
+        self.with_layer_context(layer, |context| {
+            context.clear();
+        });
     }
 
     fn flush(&mut self, layer: usize) {
-        let mut backends = self.backends.borrow_mut();
-        let Some(RenderLayerState::Ready(context)) = backends.get_mut(layer) else {
-            return;
-        };
-        context.flush();
+        self.with_layer_context(layer, |context| {
+            context.flush();
+        });
     }
 
     fn resize(&mut self, width: usize, height: usize) {

@@ -291,11 +291,15 @@ impl PaxEngine {
         static LAST_LAYER_COUNT: AtomicUsize = AtomicUsize::new(0); // last-patch layer_count
         let curr_layer_count = self.runtime_context.layer_count.get();
         if LAST_LAYER_COUNT.load(Ordering::Relaxed) != curr_layer_count {
-            rcs.resize_layers_to(curr_layer_count + 1);
+            rcs.resize_layers_to(
+                curr_layer_count + 1,
+                Rc::clone(&self.runtime_context.dirty_canvases),
+            );
             self.runtime_context
                 .resize_canvas_layers_to(curr_layer_count + 1);
             LAST_LAYER_COUNT.store(curr_layer_count, Ordering::Relaxed)
         }
+
         for i in 0..rcs.layers() {
             if self
                 .runtime_context
