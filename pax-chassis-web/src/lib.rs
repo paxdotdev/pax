@@ -3,6 +3,7 @@
 
 use js_sys::Uint8Array;
 use pax_message::ImageLoadInterruptArgs;
+use pax_message::ScreenshotData;
 use pax_runtime::api::borrow;
 use pax_runtime::api::math::Point2;
 use pax_runtime::api::use_RefCell;
@@ -12,7 +13,6 @@ use pax_runtime::api::RenderContext;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::OS;
 use pax_runtime::DefinitionToInstanceTraverser;
-use pax_message::ScreenshotData;
 use pax_runtime_api::borrow_mut;
 use pax_runtime_api::Event;
 use pax_runtime_api::Focus;
@@ -147,7 +147,6 @@ impl PaxChassisWeb {
         (width, height, os_info, get_time)
     }
 
-
     #[cfg(any(feature = "designtime", feature = "designer"))]
     pub fn handle_recv_designtime(&mut self) {
         borrow_mut!(self.designtime_manager)
@@ -160,7 +159,6 @@ impl PaxChassisWeb {
         self.handle_recv_designtime();
         self.update_userland_component();
     }
-
 }
 
 #[wasm_bindgen]
@@ -607,17 +605,19 @@ impl PaxChassisWeb {
                     &globals,
                     &engine.runtime_context,
                 )
-            }, 
+            }
             NativeInterrupt::Screenshot(args) => {
                 let data = Uint8Array::new(additional_payload).to_vec();
                 if let ImageLoadInterruptArgs::Data(args) = args {
-                    let screenshot_data : ScreenshotData = ScreenshotData {
+                    let screenshot_data: ScreenshotData = ScreenshotData {
                         id: args.id,
                         data,
                         width: args.width,
                         height: args.height,
                     };
-                    engine.runtime_context.load_screenshot(args.id, screenshot_data)
+                    engine
+                        .runtime_context
+                        .load_screenshot(args.id, screenshot_data)
                 } else {
                     false
                 }

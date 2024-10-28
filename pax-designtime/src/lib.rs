@@ -236,7 +236,10 @@ impl DesigntimeManager {
         &mut self.orm
     }
 
-    pub fn handle_recv(&mut self, screenshot_map: Rc<RefCell<HashMap<u32, ScreenshotData>>>) -> anyhow::Result<()> {
+    pub fn handle_recv(
+        &mut self,
+        screenshot_map: Rc<RefCell<HashMap<u32, ScreenshotData>>>,
+    ) -> anyhow::Result<()> {
         if let Some(mut llm_request) = self.enqueued_llm_request.take() {
             let mut screenshot_map = screenshot_map.borrow_mut();
             if let Some(screenshot) = screenshot_map.remove(&(llm_request.request_id as u32)) {
@@ -248,7 +251,6 @@ impl DesigntimeManager {
                 self.enqueued_llm_request = Some(llm_request);
             }
         }
-
 
         self.priv_agent_connection
             .borrow_mut()

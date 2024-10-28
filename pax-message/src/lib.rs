@@ -90,7 +90,7 @@ pub enum NativeInterrupt {
     FormButtonClick(FormButtonClickArgs),
     Scrollbar(ScrollbarInterruptArgs),
     DropFile(DropFileArgs),
-    Screenshot(ImageLoadInterruptArgs)
+    Screenshot(ImageLoadInterruptArgs),
 }
 
 #[derive(Deserialize)]

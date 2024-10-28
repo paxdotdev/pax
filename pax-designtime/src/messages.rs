@@ -42,7 +42,12 @@ impl Debug for LLMRequest {
 }
 
 impl LLMRequest {
-    pub fn new(manifest: PaxManifest, prompt: String, request_id: u64, screenshot: Option<ScreenshotData>) -> Self {
+    pub fn new(
+        manifest: PaxManifest,
+        prompt: String,
+        request_id: u64,
+        screenshot: Option<ScreenshotData>,
+    ) -> Self {
         Self {
             manifest,
             prompt,
