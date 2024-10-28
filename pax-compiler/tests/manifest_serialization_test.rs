@@ -82,6 +82,7 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
         main_component_type_id: component_type_id,
         type_table: HashMap::new(),
         assets_dirs: vec![],
+        project_files: vec![],
         engine_import_path: "".to_string(),
     }
 }
