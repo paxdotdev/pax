@@ -24,14 +24,13 @@ pub struct Console {
     pub external_message_listener: Property<bool>,
 }
 
-
 #[pax]
 #[engine_import_path("pax_engine")]
 pub enum MessageType {
     Diff,
     LLM,
     #[default]
-    Human
+    Human,
 }
 
 #[pax]

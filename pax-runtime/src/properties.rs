@@ -142,7 +142,7 @@ impl RuntimeContext {
         borrow!(self.node_cache).eid_to_node.get(&id).cloned()
     }
 
-    pub fn load_screenshot(&self, id: u32, data: ScreenshotData)  -> bool {
+    pub fn load_screenshot(&self, id: u32, data: ScreenshotData) -> bool {
         borrow_mut!(self.screenshot_map).insert(id, data);
         true
     }
