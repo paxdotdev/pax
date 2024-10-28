@@ -135,7 +135,7 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
         return;
     }
     messages?.forEach((unwrapped_msg) => {
-        if(unwrapped_msg["ShrinkLayersTo"]) {
+        if(unwrapped_msg["ShrinkLayersTo"] !== undefined) {
             let layers_needed = unwrapped_msg["ShrinkLayersTo"];
             nativePool.layers.shrinkTo(layers_needed);
         } else if(unwrapped_msg["OcclusionUpdate"]) {

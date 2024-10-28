@@ -39,7 +39,7 @@ export class OcclusionLayerManager {
     }
 
     shrinkTo(occlusionLayerId: number){
-        if(this.layers == undefined){
+        if(this.layers === undefined){
             return
         }
         if(this.layers.length >= occlusionLayerId) {

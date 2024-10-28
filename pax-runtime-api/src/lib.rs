@@ -47,12 +47,13 @@ pub struct TransitionQueueEntry<T> {
     pub ending_value: T,
 }
 
+pub struct RenderContext {}
 // The Pax render trait that allows for drawing on multiple
 // layers.
 // TODO migrate from using kurbo types to our own?
-pub trait RenderContext {
+impl RenderContext {
     //drawing
-    fn fill(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill);
+    fn fill(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill, id: usize);
     fn stroke(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill, width: f64);
 
     // clip/transform

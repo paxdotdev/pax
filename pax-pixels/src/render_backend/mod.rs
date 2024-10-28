@@ -283,6 +283,7 @@ impl<'w> RenderBackend<'w> {
             ],
             label: Some("bind_group"),
         });
+
         let pipeline =
             Self::create_pipeline(&device, surface_config.format, primitive_bind_group_layout);
 

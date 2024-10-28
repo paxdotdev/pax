@@ -1,7 +1,9 @@
 use kurbo::{BezPath, PathEl};
 use pax_pixels::{point, Box2D, Image, Path, Transform2D, WgpuRenderer};
 use pax_runtime_api::RenderContext;
-use std::{cell::RefCell, collections::HashMap, future::Future, pin::Pin, rc::Rc};
+use std::{
+    cell::RefCell, collections::HashMap, future::Future, pin::Pin, rc::Rc,
+};
 
 pub struct PaxPixelsRenderer {
     backends: Rc<RefCell<Vec<RenderLayerState>>>,
@@ -25,6 +27,18 @@ impl PaxPixelsRenderer {
             layer_factory: Rc::new(layer_factory),
             image_map: Default::default(),
         }
+    }
+}
+
+impl PaxPixelsRenderer {
+    fn get_context(&mut self, layer: usize, f: impl FnOnce(&mut WgpuRenderer)) {
+        let mut backends = self.backends.borrow_mut();
+        match backends.get_mut(layer) {}
+        let Some(RenderLayerState::Ready(context)) = backends.get_mut(layer) else {
+            log::warn!("tried to draw to layer that wasn't ready");
+            return;
+        };
+        f(context)
     }
 }
 
@@ -133,7 +147,7 @@ impl RenderContext for PaxPixelsRenderer {
         self.backends.borrow().len()
     }
 
-    fn resize_layers_to(&mut self, layer_count: usize) {
+    fn resize_layers_to(&mut self, layer_count: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>) {
         let current_len = self.backends.borrow().len();
         match layer_count.cmp(&current_len) {
             std::cmp::Ordering::Less => {
@@ -145,12 +159,14 @@ impl RenderContext for PaxPixelsRenderer {
                     self.backends.borrow_mut().push(RenderLayerState::Pending);
                     let factory = Rc::clone(&self.layer_factory);
                     let backends = Rc::clone(&self.backends);
+                    let dirty_canvases = Rc::clone(&dirty_canvases);
                     wasm_bindgen_futures::spawn_local(async move {
                         let backend = (factory)(i).await;
                         if let (Some(change), Some(backend)) =
-                            (backends.borrow_mut().get_mut(i), backend)
+                            backends.borrow_mut().get_mut(i), backend)
                         {
                             *change = RenderLayerState::Ready(backend);
+                            *dirty_canvases.borrow_mut()[i] = true;
                         }
                     });
                 }
@@ -178,7 +194,7 @@ impl RenderContext for PaxPixelsRenderer {
         for backend in &mut *self.backends.borrow_mut() {
             match backend {
                 RenderLayerState::Pending => {
-                    log::debug!("tried to resize backend that was pending")
+                    log::warn!("tried to resize backend that was pending")
                 }
                 RenderLayerState::Ready(renderer) => renderer.resize(width as f32, height as f32),
             }

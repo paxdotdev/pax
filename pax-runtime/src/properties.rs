@@ -151,18 +151,9 @@ impl RuntimeContext {
         Rc::clone(&self.screenshot_map)
     }
 
-    pub fn add_canvas(&self, id: usize) {
+    pub fn resize_canvas_layers_to(&self, id: usize) {
         let mut dirty_canvases = borrow_mut!(self.dirty_canvases);
-        while dirty_canvases.len() <= id + 1 {
-            dirty_canvases.push(true);
-        }
-    }
-
-    pub fn remove_canvas(&self, id: usize) {
-        let mut dirty_canvases = borrow_mut!(self.dirty_canvases);
-        while dirty_canvases.len() > id {
-            dirty_canvases.pop();
-        }
+        dirty_canvases.resize(id, false);
     }
 
     pub fn clear_all_dirty_canvases(&self) {
