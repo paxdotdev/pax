@@ -271,7 +271,6 @@ impl PaxEngine {
     ///     a. find lowest node (last child of last node)
     ///     b. start rendering, from lowest node on-up, throughout tree
     pub fn tick(&mut self) -> Vec<NativeMessage> {
-        // self.runtime_context.set_all_canvases_dirty();
         //
         // 1. UPDATE NODES (properties, etc.). This part we should be able to
         // completely remove once reactive properties dirty-dag is a thing.
@@ -299,7 +298,7 @@ impl PaxEngine {
                 .borrow()
                 .get(i)
                 .cloned()
-                .unwrap_or(true)
+                .unwrap_or(false)
             {
                 rcs.clear(i);
             }
@@ -310,10 +309,11 @@ impl PaxEngine {
             .recurse_render_queue(&mut self.runtime_context, rcs);
         self.runtime_context.recurse_flush_queued_renders(rcs);
 
-        for i in 0..rcs.layers() {
-            rcs.flush(i);
-        }
         self.runtime_context.clear_all_dirty_canvases();
+
+        for i in 0..rcs.layers() {
+            rcs.flush(i, Rc::clone(&self.runtime_context.dirty_canvases));
+        }
 
         //dirtify the canvases that where created this frame
         for i in new_range {
