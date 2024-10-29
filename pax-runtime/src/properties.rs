@@ -153,7 +153,7 @@ impl RuntimeContext {
 
     pub fn resize_canvas_layers_to(&self, id: usize) {
         let mut dirty_canvases = borrow_mut!(self.dirty_canvases);
-        dirty_canvases.resize(id, false);
+        dirty_canvases.resize(id, true);
     }
 
     pub fn clear_all_dirty_canvases(&self) {
@@ -171,7 +171,7 @@ impl RuntimeContext {
     }
 
     pub fn is_canvas_dirty(&self, id: &usize) -> bool {
-        *borrow!(self.dirty_canvases).get(*id).unwrap_or(&false)
+        *borrow!(self.dirty_canvases).get(*id).unwrap_or(&true)
     }
 
     pub fn set_all_canvases_dirty(&self) {

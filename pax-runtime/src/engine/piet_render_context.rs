@@ -131,7 +131,7 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
         }
     }
 
-    fn flush(&mut self, _layer: usize) {
+    fn flush(&mut self, _layer: usize, _dirty_canvases: Rc<RefCell<Vec<bool>>>) {
         // NOTE: used for GPU rendering to flush changes to the screen, not needed
         // during CPU rendering
     }

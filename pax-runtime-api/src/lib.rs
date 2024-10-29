@@ -71,7 +71,7 @@ pub trait RenderContext {
     fn layers(&self) -> usize;
     fn resize_layers_to(&mut self, layer_count: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>);
     fn clear(&mut self, layer: usize);
-    fn flush(&mut self, layer: usize);
+    fn flush(&mut self, layer: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>);
     fn resize(&mut self, width: usize, height: usize);
 }
 
