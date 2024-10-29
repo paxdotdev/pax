@@ -34,6 +34,7 @@ mod tests {
             assets_dirs: vec![],
             engine_import_path: "".to_string(),
             project_files: vec![],
+            cargo_manifest_dir: None,
         }
     }
 

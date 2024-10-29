@@ -84,6 +84,7 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
         assets_dirs: vec![],
         project_files: vec![],
         engine_import_path: "".to_string(),
+        cargo_manifest_dir: None,
     }
 }
 

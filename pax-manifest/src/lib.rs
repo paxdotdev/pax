@@ -37,6 +37,8 @@ pub struct PaxManifest {
     pub engine_import_path: String,
     /// Project files that are not part of the manifest, but are required for the project to build
     pub project_files: Vec<(String, Vec<String>)>,
+    /// Cargo manifest directory
+    pub cargo_manifest_dir: Option<String>,
 }
 
 impl PaxManifest {
