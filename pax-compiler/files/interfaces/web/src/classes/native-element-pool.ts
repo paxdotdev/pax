@@ -72,6 +72,16 @@ export class NativeElementPool {
         });
     }
 
+    resizeAllCanvases(): void {
+        let dpr = window.devicePixelRatio;
+        this.canvases.forEach((canvas, _key) => {
+            if (canvas.width != (canvas.clientWidth * dpr) || canvas.height != (canvas.clientHeight * dpr)) {
+                canvas.width = (canvas.clientWidth * dpr);
+                canvas.height = (canvas.clientHeight * dpr);
+            }
+        });
+    }
+
     attach(chassis: PaxChassisWeb, mount: Element){
         this.chassis = chassis;
         this.layers.attach(mount, chassis, this.canvases);
