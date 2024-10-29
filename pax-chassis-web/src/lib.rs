@@ -142,80 +142,16 @@ impl PaxChassisWeb {
     }
 
     fn init_common() -> (f64, f64, OS, Box<dyn Fn() -> u128>, Box<dyn RenderContext>) {
-        let win = window().unwrap();
-        let user_agent_str = win.navigator().user_agent().ok();
+        let window = window().unwrap();
+        let user_agent_str = window.navigator().user_agent().ok();
         let os_info = user_agent_str
             .and_then(|s| parse_user_agent_str(&s))
             .unwrap_or_default();
 
-        let width = win.inner_width().unwrap().as_f64().unwrap();
-        let height = win.inner_height().unwrap().as_f64().unwrap();
+        let width = window.inner_width().unwrap().as_f64().unwrap();
+        let height = window.inner_height().unwrap().as_f64().unwrap();
         let start = Instant::now();
-        // let renderer = PietRenderer::new(move |layer| {
-        //     let dpr = win.device_pixel_ratio();
-        //     let document = win.document().unwrap();
-        //     let canvas = document
-        //         .get_element_by_id(layer.to_string().as_str())
-        //         .unwrap()
-        //         .dyn_into::<HtmlCanvasElement>()
-        //         .unwrap();
-        //     let context: web_sys::CanvasRenderingContext2d = canvas
-        //         .get_context("2d")
-        //         .unwrap()
-        //         .unwrap()
-        //         .dyn_into::<web_sys::CanvasRenderingContext2d>()
-        //         .unwrap();
-
-        //     let width = canvas.offset_width() as f64 * dpr;
-        //     let height = canvas.offset_height() as f64 * dpr;
-
-        //     canvas.set_width(width as u32);
-        //     canvas.set_height(height as u32);
-        //     let _ = context.scale(dpr, dpr);
-        //     (
-        //         WebRenderContext::new(context.clone(), win.clone()),
-        //         Box::new(move || {
-        //             let w = canvas.width();
-        //             let h = canvas.height();
-        //             context.clear_rect(0.0, 0.0, w as f64, h as f64);
-        //         }),
-        //     )
-        // });
-
-        let renderer = PaxPixelsRenderer::new(move |layer| {
-            Box::pin(async move {
-                let window = window().unwrap();
-                let dpr = window.device_pixel_ratio();
-                let document = window.document().unwrap();
-                let canvas = match document
-                    .get_element_by_id(layer.to_string().as_str())
-                    .and_then(|e| e.dyn_into::<HtmlCanvasElement>().ok())
-                {
-                    Some(canvas) => canvas,
-                    None => {
-                        log::warn!("failed to attach renderer: canvas doesn't exist yet");
-                        return None;
-                    }
-                };
-
-                let width = canvas.offset_width() as f64;
-                let height = canvas.offset_height() as f64;
-                canvas.set_width(width as u32);
-                canvas.set_height(height as u32);
-                // let _ = context.scale(dpr, dpr);
-
-                let res = WgpuRenderer::new(
-                    // NOTE: this exists when building for wasm32
-                    RenderBackend::to_canvas(
-                        canvas,
-                        RenderConfig::new(false, width as u32, height as u32, 1),
-                    )
-                    .await
-                    .ok()?,
-                );
-                Some(res)
-            })
-        });
+        let renderer = web_render_contexts::get_render_context(window);
         let get_time = Box::new(move || start.elapsed().as_millis());
         (width, height, os_info, get_time, Box::new(renderer))
     }
