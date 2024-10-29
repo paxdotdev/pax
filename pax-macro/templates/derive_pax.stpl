@@ -19,6 +19,7 @@
             assets_dirs: ctx.assets_dirs,
             engine_import_path: "<%= engine_import_path %>".to_string(),
             project_files: vec![],
+            cargo_manifest_dir: Some("<%= cargo_dir %>".to_string()),
         };
 
         <% if is_root_crate { %>
@@ -35,6 +36,7 @@
                     assets_dirs: ctx.assets_dirs,
                     engine_import_path: "<%= engine_import_path %>".to_string(),
                     project_files: vec![],
+                    cargo_manifest_dir: Some("<%= cargo_dir %>".to_string()),
                 };
 
                 //Send data back to parent process by printing to stdout
