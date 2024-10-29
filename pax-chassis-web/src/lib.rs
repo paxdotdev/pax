@@ -4,28 +4,19 @@
 use js_sys::Uint8Array;
 use pax_message::ImageLoadInterruptArgs;
 use pax_message::ScreenshotData;
-use pax_pixels::render_backend::RenderBackend;
-use pax_pixels::render_backend::RenderConfig;
-use pax_pixels::WgpuRenderer;
 use pax_runtime::api::borrow;
+use pax_runtime::api::borrow_mut;
 use pax_runtime::api::math::Point2;
 use pax_runtime::api::use_RefCell;
 use pax_runtime::api::ButtonClick;
+use pax_runtime::api::Event;
+use pax_runtime::api::Focus;
 use pax_runtime::api::Platform;
 use pax_runtime::api::RenderContext;
+use pax_runtime::api::SelectStart;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::OS;
-use pax_runtime::pax_pixels_render_context::PaxPixelsRenderer;
-use pax_runtime::piet_render_context::PietRenderer;
 use pax_runtime::DefinitionToInstanceTraverser;
-use pax_runtime_api::borrow_mut;
-use pax_runtime_api::Event;
-use pax_runtime_api::Focus;
-use pax_runtime_api::SelectStart;
-use piet_web::WebRenderContext;
-use web_sys::CanvasRenderingContext2d;
-use web_sys::WebGl2RenderingContext;
-use web_sys::WebGlRenderingContext;
 use web_time::Instant;
 use_RefCell!();
 
@@ -34,8 +25,7 @@ pub mod web_render_contexts;
 use pax_runtime::PaxEngine;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
-use web_sys::{window, HtmlCanvasElement};
+use web_sys::window;
 
 pub use {console_error_panic_hook, console_log};
 

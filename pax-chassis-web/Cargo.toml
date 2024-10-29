@@ -13,16 +13,16 @@ include = ["/src", "/interface/public"]
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["console_error_panic_hook", "gpu"]
+default = ["console_error_panic_hook"]
 designtime = ["dep:pax-designtime", "pax-runtime/designtime"]
 gpu = []
 
 [dependencies]
 piet = "0.7.0"
 piet-web = "0.7.0"
-pax-runtime = { path = "../pax-runtime", version="0.38.3" }
+pax-pixels = {path = "../pax-pixels", version = "0.38.3"}
+pax-runtime = { path = "../pax-runtime", version="0.38.3"}
 pax-message = {path = "../pax-message", version="0.38.3"}
-pax-runtime-api = { path = "../pax-runtime-api", version="0.38.3" }
 pax-manifest = {path="../pax-manifest", version="0.38.3"}
 pax-designtime = {path="../pax-designtime", version="0.38.3", optional=true}
 serde-wasm-bindgen = "0.6"

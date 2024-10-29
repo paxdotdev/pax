@@ -1,4 +1,4 @@
-use pax_runtime_api::RenderContext;
+use pax_runtime::api::RenderContext;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlCanvasElement, Window};
 
