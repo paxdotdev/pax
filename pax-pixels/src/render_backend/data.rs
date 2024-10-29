@@ -16,8 +16,8 @@ pub(crate) struct GpuPrimitive {
     pub fill_id: u16,
     pub fill_type_flag: u16,
     pub z_index: i32,
-    pub clipping_id: u32,
-    pub transform_id: u32, //not used atm
+    pub clipping_id: u32, //not used atm
+    pub transform_id: u32,
 }
 
 #[repr(C)]
@@ -54,7 +54,7 @@ pub(crate) struct GpuTransform {
 impl Default for GpuTransform {
     fn default() -> Self {
         Self {
-            transform: Transform2D::scale(1000.0, 1000.0).to_arrays(),
+            transform: Transform2D::identity().to_arrays(),
             _pad: 0,
             _pad2: 0,
         }

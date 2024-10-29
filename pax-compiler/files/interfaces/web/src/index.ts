@@ -291,7 +291,9 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             let msg = unwrapped_msg["ImageLoad"];
             let patch: ImageLoadPatch = objectManager.getFromPool(IMAGE_LOAD_PATCH);
             patch.fromPatch(msg);
-            nativePool.imageLoad(patch, chassis)
+            queueMicrotask(async () => {
+                await nativePool.imageLoad(patch, chassis);
+            });
         }else if(unwrapped_msg["ScrollerCreate"]) {
             let msg = unwrapped_msg["ScrollerCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);

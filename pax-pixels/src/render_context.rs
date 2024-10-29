@@ -24,65 +24,41 @@ use crate::render_backend::RenderBackend;
 pub struct WgpuRenderer<'w> {
     buffers: CpuBuffers,
     render_backend: RenderBackend<'w>,
-    transform_stack: Vec<Transform2D>,
-    clipping_stack: Vec<u32>,
-    // used for save/restore of transform/clipping stack
-    saves: Vec<(usize, usize)>,
+    // these reference indicies in the CpuBuffer "transforms"
+    transform_index_stack: Vec<usize>,
+    saves: Vec<usize>,
     tolerance: f32,
 }
-
-const IDENTITY: Transform2D = Transform2D::new(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
 
 impl<'w> WgpuRenderer<'w> {
     pub fn new(render_backend: RenderBackend<'w>) -> Self {
         let geometry: VertexBuffers<GpuVertex, u16> = VertexBuffers::new();
-        let default_clipp = GpuTransform {
-            transform: Transform2D::scale(1000.0, 1000.0).to_arrays(),
-            _pad: 0,
-            _pad2: 0,
-        };
         Self {
             render_backend,
-            transform_stack: Vec::new(),
             buffers: CpuBuffers {
                 geometry,
                 primitives: Vec::new(),
                 colors: Vec::new(),
                 gradients: Vec::new(),
-                stencils: vec![default_clipp],
+                transforms: vec![GpuTransform::default()],
             },
-            clipping_stack: vec![0],
             tolerance: 0.5, //TODO expose as option
+            transform_index_stack: vec![],
             saves: vec![],
         }
     }
 
-    fn current_transform(&self) -> &Transform2D {
-        self.transform_stack.last().unwrap_or(&IDENTITY)
-    }
-
-    fn current_clipping_id(&self) -> u32 {
-        *self.clipping_stack.last().expect("clipper stack empty???")
-    }
-
-    pub fn push_clipping_bounds(&mut self, bounds: Box2D) {
-        let point_to_unit_rect = Transform2D::translation(-bounds.min.x, -bounds.min.y)
-            .then_scale(1.0 / bounds.width(), 1.0 / bounds.height());
-        let clipping_bounds = self
-            .current_transform()
-            .inverse()
-            .expect("non-invertible transform was pushed to the stack") //TODO how to handle this better?
-            .then(&point_to_unit_rect);
-        self.clipping_stack.push(self.buffers.stencils.len() as u32);
-        self.buffers.stencils.push(GpuTransform {
-            transform: clipping_bounds.to_arrays(),
-            _pad: 0,
-            _pad2: 0,
-        });
+    fn current_transform(&self) -> Transform2D {
+        Transform2D::from_arrays(
+            self.buffers
+                .transforms
+                .get(self.transform_index_stack.last().cloned().unwrap_or(0))
+                .expect("at least one identity transform should exist on the transform stack")
+                .transform,
+        )
     }
 
     pub fn stroke_path(&mut self, path: Path, stroke_fill: Fill, stroke_width: f32) {
-        let path = path.transformed(self.current_transform());
         let prim_id = self.push_primitive_def(stroke_fill);
         let options = StrokeOptions::tolerance(self.tolerance).with_line_width(stroke_width);
         let mut geometry_builder =
@@ -100,7 +76,6 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     pub fn fill_path(&mut self, path: Path, fill: Fill) {
-        let path = path.transformed(self.current_transform());
         let prim_id = self.push_primitive_def(fill);
         let options = FillOptions::tolerance(self.tolerance);
         let mut geometry_builder =
@@ -162,8 +137,8 @@ impl<'w> WgpuRenderer<'w> {
         let primitive = GpuPrimitive {
             fill_id,
             fill_type_flag,
-            clipping_id: self.current_clipping_id(),
-            transform_id: 0,
+            clipping_id: 0,
+            transform_id: self.transform_index_stack.last().cloned().unwrap_or(0) as u32,
             z_index: 0,
         };
         let prim_id = self.buffers.primitives.len() as u32;
@@ -176,33 +151,52 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     pub fn draw_image(&mut self, image: &Image, rect: Box2D) {
-        self.flush();
-        self.render_backend.render_image(image, rect);
+        let transform = self.current_transform();
+        if self.buffers.primitives.len() > 0 {
+            self.render_backend.render_primitives(&mut self.buffers);
+            let CpuBuffers {
+                geometry,
+                primitives,
+                transforms: _,
+                colors,
+                gradients,
+            } = &mut self.buffers;
+            geometry.vertices.clear();
+            geometry.indices.clear();
+            primitives.clear();
+            colors.clear();
+            gradients.clear();
+        }
+        self.render_backend.render_image(image, transform, rect);
     }
 
     pub fn flush(&mut self) {
         if self.buffers.primitives.len() > 0 {
             self.render_backend.render_primitives(&mut self.buffers);
-            self.buffers.reset();
         }
+        self.buffers.reset();
+        self.transform_index_stack.clear();
     }
 
     pub fn save(&mut self) {
-        let transform_len = self.transform_stack.len();
-        let clipping_len = self.clipping_stack.len();
-        self.saves.push((transform_len, clipping_len));
+        let transform_len = self.transform_index_stack.len();
+        self.saves.push(transform_len);
     }
 
     pub fn restore(&mut self) {
-        if let Some((t_pen, c_len)) = self.saves.pop() {
-            self.transform_stack.truncate(t_pen);
-            self.clipping_stack.truncate(c_len);
+        if let Some(t_pen) = self.saves.pop() {
+            self.transform_index_stack.truncate(t_pen);
         }
     }
 
     pub fn push_transform(&mut self, transform: Transform2D) {
-        let last = self.current_transform();
-        self.transform_stack.push(transform.then(last));
+        let new_ind = self.buffers.transforms.len();
+        self.buffers.transforms.push(GpuTransform {
+            transform: transform.then(&self.current_transform()).to_arrays(),
+            _pad: 0,
+            _pad2: 0,
+        });
+        self.transform_index_stack.push(new_ind);
     }
 
     pub fn resize(&mut self, width: f32, height: f32) {

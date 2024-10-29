@@ -1092,7 +1092,6 @@ export class NativeElementPool {
     }
     
     async imageLoad(patch: ImageLoadPatch, chassis: PaxChassisWeb) {
-
         if (chassis.image_loaded(patch.path ?? "")) {
             return
         }

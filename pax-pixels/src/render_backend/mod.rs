@@ -13,7 +13,7 @@ mod gpu_resources;
 mod texture;
 use data::{GpuGlobals, GpuPrimitive, GpuVertex};
 
-use crate::{render_backend::texture::TextureRenderer, Box2D};
+use crate::{render_backend::texture::TextureRenderer, Box2D, Transform2D};
 
 use self::data::{GpuColor, GpuGradient, GpuTransform};
 
@@ -24,15 +24,14 @@ pub struct RenderConfig {
     primitive_buffer_size: u64,
     colors_buffer_size: u64,
     gradients_buffer_size: u64,
-    clipping_buffer_size: u64,
-    transform_buffer_size: u64,
+    transforms_buffer_size: u64,
     pub initial_width: u32,
     pub initial_height: u32,
     pub initial_dpr: u32,
 }
 
 impl RenderConfig {
-    pub fn new(debug: bool, width: u32, height: u32, dpr: u32) -> Self {
+    pub fn new(_debug: bool, width: u32, height: u32, dpr: u32) -> Self {
         Self {
             debug: false,
             index_buffer_size: 2 << 12,
@@ -40,8 +39,7 @@ impl RenderConfig {
             primitive_buffer_size: 512,
             colors_buffer_size: 512,
             gradients_buffer_size: 64,
-            clipping_buffer_size: 64,
-            transform_buffer_size: 64,
+            transforms_buffer_size: 64,
             initial_width: width,
             initial_height: height,
             initial_dpr: dpr,
@@ -68,7 +66,7 @@ pub struct RenderBackend<'w> {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     primitive_buffer: wgpu::Buffer,
-    clipping_buffer: wgpu::Buffer,
+    transforms_buffer: wgpu::Buffer,
     colors_buffer: wgpu::Buffer,
     gradients_buffer: wgpu::Buffer,
 
@@ -182,21 +180,21 @@ impl<'w> RenderBackend<'w> {
             config.primitive_buffer_size,
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         );
-        let (_, clipping_buffer) = create_buffer::<GpuTransform>(
+        let (_, transforms_buffer) = create_buffer::<GpuTransform>(
             &device,
-            "Clipping Buffer",
-            config.clipping_buffer_size,
+            "Transform Buffer",
+            config.transforms_buffer_size,
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         );
         let (_, colors_buffer) = create_buffer::<GpuTransform>(
             &device,
-            "Clipping Buffer",
+            "Colors Buffer",
             config.colors_buffer_size,
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         );
         let (_, gradients_buffer) = create_buffer::<GpuGradient>(
             &device,
-            "Clipping Buffer",
+            "Gradients Buffer",
             config.gradients_buffer_size,
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         );
@@ -216,7 +214,7 @@ impl<'w> RenderBackend<'w> {
                     },
                     wgpu::BindGroupLayoutEntry {
                         binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
@@ -226,7 +224,7 @@ impl<'w> RenderBackend<'w> {
                     },
                     wgpu::BindGroupLayoutEntry {
                         binding: 2,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Uniform,
                             has_dynamic_offset: false,
@@ -270,7 +268,7 @@ impl<'w> RenderBackend<'w> {
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: clipping_buffer.as_entire_binding(),
+                    resource: transforms_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
@@ -304,7 +302,7 @@ impl<'w> RenderBackend<'w> {
             vertex_buffer,
             index_buffer,
             primitive_buffer,
-            clipping_buffer,
+            transforms_buffer,
             globals_buffer,
             colors_buffer,
             gradients_buffer,
@@ -387,9 +385,9 @@ impl<'w> RenderBackend<'w> {
         let CpuBuffers {
             geometry: ref mut geom,
             ref mut primitives,
-            ref mut stencils,
             ref mut colors,
             ref mut gradients,
+            ref mut transforms,
         } = buffers;
         //Add ghost triangles to follow COPY_BUFFER_ALIGNMENT requirement
         const ALIGNMENT: usize = 16;
@@ -404,8 +402,8 @@ impl<'w> RenderBackend<'w> {
         while primitives.len() * std::mem::size_of::<GpuPrimitive>() % ALIGNMENT != 0 {
             primitives.push(GpuPrimitive::default());
         }
-        while stencils.len() * std::mem::size_of::<GpuTransform>() % ALIGNMENT != 0 {
-            stencils.push(GpuTransform::default());
+        while transforms.len() * std::mem::size_of::<GpuTransform>() % ALIGNMENT != 0 {
+            transforms.push(GpuTransform::default());
         }
         while colors.len() * std::mem::size_of::<GpuColor>() % ALIGNMENT != 0 {
             colors.push(GpuColor::default());
@@ -417,7 +415,7 @@ impl<'w> RenderBackend<'w> {
         if geom.indices.len() >= self.config.index_buffer_size as usize
             || geom.vertices.len() >= self.config.vertex_buffer_size as usize
             || primitives.len() >= self.config.primitive_buffer_size as usize
-            || stencils.len() >= self.config.clipping_buffer_size as usize
+            || transforms.len() >= self.config.transforms_buffer_size as usize
             || colors.len() >= self.config.colors_buffer_size as usize
             || gradients.len() >= self.config.gradients_buffer_size as usize
         {
@@ -436,7 +434,7 @@ impl<'w> RenderBackend<'w> {
         self.queue
             .write_buffer(&self.gradients_buffer, 0, bytemuck::cast_slice(gradients));
         self.queue
-            .write_buffer(&self.clipping_buffer, 0, bytemuck::cast_slice(stencils));
+            .write_buffer(&self.transforms_buffer, 0, bytemuck::cast_slice(transforms));
 
         self.index_count = geom.indices.len() as u64;
     }
@@ -486,7 +484,7 @@ impl<'w> RenderBackend<'w> {
         (screen_surface, screen_texture)
     }
 
-    pub(crate) fn render_image(&mut self, image: &Image, rect: Box2D) {
+    pub(crate) fn render_image(&mut self, image: &Image, transform: Transform2D, rect: Box2D) {
         let (screen_surface, screen_texture) = self.get_screen_texture();
         self.texture_renderer.render_image(
             &self.device,
@@ -495,6 +493,7 @@ impl<'w> RenderBackend<'w> {
             &self.globals_buffer,
             &image.rgba,
             image.pixel_width,
+            transform,
             rect,
         );
         screen_surface.present();
@@ -538,20 +537,27 @@ impl<'w> RenderBackend<'w> {
 pub(crate) struct CpuBuffers {
     pub geometry: VertexBuffers<GpuVertex, u16>,
     pub primitives: Vec<GpuPrimitive>,
-    pub stencils: Vec<GpuTransform>,
+    pub transforms: Vec<GpuTransform>,
     pub colors: Vec<GpuColor>,
     pub gradients: Vec<GpuGradient>,
 }
 
 impl CpuBuffers {
     pub(crate) fn reset(&mut self) {
-        self.geometry.vertices.clear();
-        self.geometry.indices.clear();
-        self.primitives.clear();
-        self.stencils.clear();
-        self.stencils.push(GpuTransform::default());
-        self.colors.clear();
-        self.gradients.clear();
+        let CpuBuffers {
+            geometry,
+            primitives,
+            transforms,
+            colors,
+            gradients,
+        } = self;
+        geometry.vertices.clear();
+        geometry.indices.clear();
+        primitives.clear();
+        colors.clear();
+        gradients.clear();
+        // leave the identity transform at the start
+        transforms.truncate(1);
     }
 }
 
