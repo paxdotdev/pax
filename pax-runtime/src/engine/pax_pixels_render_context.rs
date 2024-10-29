@@ -123,6 +123,7 @@ impl RenderContext for PaxPixelsRenderer {
             }
         });
     }
+
     fn get_image_size(&mut self, image_path: &str) -> Option<(usize, usize)> {
         self.image_map
             .get(image_path)
@@ -130,8 +131,7 @@ impl RenderContext for PaxPixelsRenderer {
     }
 
     fn image_loaded(&self, image_path: &str) -> bool {
-        self.image_map.contains_key(image_path);
-        true
+        self.image_map.contains_key(image_path)
     }
 
     fn layers(&self) -> usize {

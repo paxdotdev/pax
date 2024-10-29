@@ -37,5 +37,5 @@ fn vs_main(
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let t = textureSample(texture, texture_sampler, in.texture_coord);
-    return vec4<f32>(t.x + in.texture_coord.x/1000.0, t.y + in.texture_coord.y/1000.0, t.z, 1.0);
+    return vec4<f32>(t.x + in.texture_coord.x/1000.0, t.y + in.texture_coord.y/1000.0, t.z, t.w);
 }

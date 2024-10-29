@@ -1,14 +1,13 @@
 use bytemuck::Pod;
 use bytemuck::Zeroable;
+use lyon::geom::Point;
 use wgpu::BufferUsages;
 use wgpu::IndexFormat;
-use wgpu::{util::RenderEncoder, BindGroupLayout, RenderPass};
 
 use crate::Box2D;
+use crate::Transform2D;
 use wgpu::util::DeviceExt;
 use wgpu::TextureFormat;
-
-use super::data::GpuGlobals;
 
 pub struct TextureRenderer {
     vertices_buffer: wgpu::Buffer,
@@ -142,27 +141,29 @@ impl TextureRenderer {
         globals: &wgpu::Buffer,
         rgba: &[u8],
         rgba_width: u32,
+        transform: Transform2D,
         location: Box2D,
     ) {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Texture Encoder"),
         });
+        let points = get_transformed_corners(&location, &transform);
         let height = rgba.len() as u32 / (rgba_width * 4);
         let verts = [
             TextureVertex {
-                position: [location.min.x, location.min.y],
+                position: points[0].to_array(),
                 texture_coord: [0.0, 0.0],
             },
             TextureVertex {
-                position: [location.max.x, location.min.y],
+                position: points[1].to_array(),
                 texture_coord: [1.0, 0.0],
             },
             TextureVertex {
-                position: [location.min.x, location.max.y],
+                position: points[2].to_array(),
                 texture_coord: [0.0, 1.0],
             },
             TextureVertex {
-                position: [location.max.x, location.max.y],
+                position: points[3].to_array(),
                 texture_coord: [1.0, 1.0],
             },
         ];
@@ -264,4 +265,25 @@ impl TextureVertex {
             attributes: &ATTRIBS,
         }
     }
+}
+
+fn get_transformed_corners(box2d: &Box2D, transform: &Transform2D) -> [Point<f32>; 4] {
+    let min = box2d.min;
+    let max = box2d.max;
+
+    // Get all 4 corners
+    let corners = [
+        Point::new(min.x, min.y), // Top-left
+        Point::new(max.x, min.y), // Top-right
+        Point::new(min.x, max.y), // Bottom-left
+        Point::new(max.x, max.y), // Bottom-right
+    ];
+
+    // Transform each corner
+    [
+        transform.transform_point(corners[0]),
+        transform.transform_point(corners[1]),
+        transform.transform_point(corners[2]),
+        transform.transform_point(corners[3]),
+    ]
 }

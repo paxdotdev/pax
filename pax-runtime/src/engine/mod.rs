@@ -271,6 +271,7 @@ impl PaxEngine {
     ///     a. find lowest node (last child of last node)
     ///     b. start rendering, from lowest node on-up, throughout tree
     pub fn tick(&mut self) -> Vec<NativeMessage> {
+        // self.runtime_context.set_all_canvases_dirty();
         //
         // 1. UPDATE NODES (properties, etc.). This part we should be able to
         // completely remove once reactive properties dirty-dag is a thing.
