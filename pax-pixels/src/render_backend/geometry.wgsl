@@ -120,85 +120,49 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 }
 
 
-
 fn gradient(fill_id: u32, coord: vec2<f32>) -> vec4<f32> {
-
     let gradient = gradients.gradients[fill_id];
-
-    //color space for linear gradient:
-    let g_p = gradient.position*f32(globals.dpr);
-    let g_a = gradient.main_axis*f32(globals.dpr);
+    
+    // Calculate color space position
+    let g_p = gradient.position * f32(globals.dpr);
+    let g_a = gradient.main_axis * f32(globals.dpr);
     let p_t = coord - g_p;
     let m_a_l = length(g_a);
-    let n = g_a/m_a_l;
-    let t_m = dot(p_t, n); //this is the ammount that p_t points in the direction of n
-    let color_space = t_m/m_a_l; //This is 0.0..=1.0 and can be mapped to color space with coords
+    let n = g_a / m_a_l;
+    let color_space = dot(p_t, n);
 
-    //figure out surrounding stops in color space:
     let s1 = gradient.stops_set1;
     let s2 = gradient.stops_set2;
     let stops = array<f32, 8>(s1[0], s1[1], s1[2], s1[3], s2[0], s2[1], s2[2], s2[3]);
-    let colors = gradient.colors;
-
-    //assumed to be 2 or larger
-    let len = gradient.stop_count;
-    var color: vec4<f32>;
-
-
-    // This is horrible, but can't use dynamic indicies in loops in wgsl. One
-    // possible path forward would be to create 1d textures to sample from
-    // instead.
-    var left_stop: f32;
-    var right_stop: f32;
-    var left_col: vec4<f32>;
-    var right_col: vec4<f32>;
-    if stops[0] > color_space { 
-        left_stop = stops[0] - 1.0;
-        right_stop = stops[0];
-        left_col = colors[0];
-        right_col = colors[0];
-    } else if stops[1] > color_space || len <= 1u {
-        left_stop = stops[0];
-        right_stop = stops[1];
-        left_col = colors[0];
-        right_col = colors[1];
-    } else if stops[2] > color_space || len <= 2u {
-        left_stop = stops[1];
-        right_stop = stops[2];
-        left_col = colors[1];
-        right_col = colors[2];
-    } else if stops[3] > color_space || len <= 3u {
-        left_stop = stops[2];
-        right_stop = stops[3];
-        left_col = colors[2];
-        right_col = colors[3];
-    } else if stops[4] > color_space || len <= 4u {
-        left_stop = stops[3];
-        right_stop = stops[4];
-        left_col = colors[3];
-        right_col = colors[4];
-    } else if stops[5] > color_space || len <= 5u {
-        left_stop = stops[4];
-        right_stop = stops[5];
-        left_col = colors[4];
-        right_col = colors[5];
-    } else if stops[6] > color_space || len <= 6u {
-        left_stop = stops[5];
-        right_stop = stops[6];
-        left_col = colors[5];
-        right_col = colors[6];
-    } else if stops[7] > color_space || len <= 7u {
-        left_stop = stops[6];
-        right_stop = stops[7];
-        left_col = colors[6];
-        right_col = colors[7];
-    } else {
-        left_stop = stops[7] - 1.0;
-        right_stop = stops[7];
-        left_col = colors[7];
-        right_col = colors[7];
+    
+    // Find the appropriate stop segment
+    var left_idx = 0u;
+    var right_idx = 1u;
+    
+    // Handle edge cases first
+    if color_space <= stops[0] {
+        return gradient.colors[0];
     }
-    let space = (color_space - left_stop)/(right_stop - left_stop);
-    color = left_col*(1.0 - space) + right_col*space;
-    return color;
+    if color_space >= stops[gradient.stop_count - 1u] {
+        return gradient.colors[gradient.stop_count - 1u];
+    }
+
+    // Find the segment using a fixed loop
+    for (var i = 0u; i < 7u; i++) {
+        if i >= gradient.stop_count - 1u { break; }
+        if stops[i + 1u] > color_space {
+            left_idx = i;
+            right_idx = i + 1u;
+            break;
+        }
+    }
+
+    let left_stop = stops[left_idx];
+    let right_stop = stops[right_idx];
+    let left_col = gradient.colors[left_idx];
+    let right_col = gradient.colors[right_idx];
+    
+    let t = (color_space - left_stop) / (right_stop - left_stop);
+    return mix(left_col, right_col, t);
 }
+

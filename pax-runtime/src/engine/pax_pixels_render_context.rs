@@ -1,6 +1,6 @@
-use kurbo::{BezPath, PathEl};
+use kurbo::{BezPath, PathEl, Shape};
 use pax_pixels::{point, Box2D, Image, Path, Transform2D, WgpuRenderer};
-use pax_runtime_api::RenderContext;
+use pax_runtime_api::{Axis, RenderContext};
 use std::{cell::RefCell, collections::HashMap, future::Future, pin::Pin, rc::Rc};
 
 pub struct PaxPixelsRenderer {
@@ -52,8 +52,9 @@ impl PaxPixelsRenderer {
 impl RenderContext for PaxPixelsRenderer {
     fn fill(&mut self, layer: usize, path: kurbo::BezPath, fill: &pax_runtime_api::Fill) {
         self.with_layer_context(layer, |context| {
+            let bounds = path.bounding_box();
             let path = convert_kurbo_to_lyon_path(&path);
-            let fill = to_pax_pixels_fill(fill);
+            let fill = to_pax_pixels_fill(fill, bounds);
             context.fill_path(path, fill);
         });
     }
@@ -66,9 +67,10 @@ impl RenderContext for PaxPixelsRenderer {
         width: f64,
     ) {
         self.with_layer_context(layer, |context| {
+            let bounds = path.bounding_box();
             context.stroke_path(
                 convert_kurbo_to_lyon_path(&path),
-                to_pax_pixels_fill(fill),
+                to_pax_pixels_fill(fill, bounds),
                 width as f32,
             );
         });
@@ -191,16 +193,73 @@ impl RenderContext for PaxPixelsRenderer {
     }
 }
 
-fn to_pax_pixels_fill(fill: &pax_runtime_api::Fill) -> pax_pixels::Fill {
+fn to_pax_pixels_fill(fill: &pax_runtime_api::Fill, rect: kurbo::Rect) -> pax_pixels::Fill {
+    let bounds = (rect.width(), rect.height());
+    let orig = rect.origin();
     match fill {
-        pax_runtime_api::Fill::Solid(color) => pax_pixels::Fill::Solid({
-            let [r, g, b, a] = color.to_rgba_0_1();
-            pax_pixels::Color::rgba(r as f32, g as f32, b as f32, a as f32)
-        }),
+        pax_runtime_api::Fill::Solid(color) => pax_pixels::Fill::Solid(to_pax_pixels_color(color)),
         // TODO fill in impls
-        pax_runtime_api::Fill::LinearGradient(_gradient) => todo!(),
-        pax_runtime_api::Fill::RadialGradient(_graident) => todo!(),
+        pax_runtime_api::Fill::LinearGradient(gradient) => {
+            let start_x = gradient.start.0.evaluate(bounds, Axis::X);
+            let start_y = gradient.start.1.evaluate(bounds, Axis::Y);
+            let end_x = gradient.end.0.evaluate(bounds, Axis::X);
+            let end_y = gradient.end.1.evaluate(bounds, Axis::Y);
+            let main_axis =
+                pax_pixels::Vector2D::new((end_x - start_x) as f32, (end_y - start_y) as f32);
+            pax_pixels::Fill::Gradient {
+                stops: gradient
+                    .stops
+                    .iter()
+                    .map(|g| pax_pixels::GradientStop {
+                        color: to_pax_pixels_color(&g.color),
+                        stop: g
+                            .position
+                            .evaluate((main_axis.length() as f64, 0.0), Axis::X)
+                            as f32,
+                    })
+                    .collect(),
+                gradient_type: pax_pixels::GradientType::Linear,
+                pos: pax_pixels::Point2D::new((orig.x + start_x) as f32, (orig.y + start_y) as f32),
+                main_axis,
+                off_axis: pax_pixels::Vector2D::zero(), //not used for linear
+            }
+        }
+        pax_runtime_api::Fill::RadialGradient(gradient) => {
+            let start_x = gradient.start.0.evaluate(bounds, Axis::X);
+            let start_y = gradient.start.1.evaluate(bounds, Axis::Y);
+            let end_x = gradient.end.0.evaluate(bounds, Axis::X);
+            let end_y = gradient.end.1.evaluate(bounds, Axis::Y);
+            let r = gradient.radius as f32;
+            let main_axis = pax_pixels::Vector2D::new(
+                r * (end_x - start_x) as f32,
+                r * (end_y - start_y) as f32,
+            );
+            // rotate 90 deg
+            let off_axis = pax_pixels::Vector2D::new(-main_axis.y, main_axis.x);
+            pax_pixels::Fill::Gradient {
+                gradient_type: pax_pixels::GradientType::Radial,
+                pos: pax_pixels::Point2D::new((orig.x + start_x) as f32, (orig.y + start_y) as f32),
+                main_axis,
+                off_axis,
+                stops: gradient
+                    .stops
+                    .iter()
+                    .map(|g| pax_pixels::GradientStop {
+                        color: to_pax_pixels_color(&g.color),
+                        stop: g
+                            .position
+                            .evaluate((main_axis.length() as f64, 0.0), Axis::X)
+                            as f32,
+                    })
+                    .collect(),
+            }
+        }
     }
+}
+
+pub fn to_pax_pixels_color(color: &pax_runtime_api::Color) -> pax_pixels::Color {
+    let [r, g, b, a] = color.to_rgba_0_1();
+    pax_pixels::Color::rgba(r as f32, g as f32, b as f32, a as f32)
 }
 
 pub fn convert_kurbo_to_lyon_path(kurbo_path: &BezPath) -> Path {
