@@ -119,15 +119,6 @@ fn update_node_occlusion_recursive(
                 .map(|v| v.to_u32()),
         };
 
-        let cp = borrow!(node.common_properties);
-        let cp = borrow!(cp);
-        if cp
-            .id
-            .read(|i| i.as_ref().is_some_and(|i| i == "play_symbol"))
-        {
-            log::debug!("new occl: {:#?}", new_occlusion);
-        }
-
         if (layer == Layer::Native || borrow!(node.instance_node).clips_content(&node))
             && node.occlusion.get() != new_occlusion
         {

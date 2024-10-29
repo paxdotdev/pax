@@ -1,6 +1,6 @@
 [package]
 name = "pax-pixels"
-version = "0.10.7"
+version = "0.38.3"
 edition = "2021"
 authors = ["Samuel Selleck <sellecksamuel@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -8,11 +8,8 @@ homepage = "https://pax.dev/"
 repository = "https://www.github.com/pax-lang/pax"
 description = "WGPU rendering library for the pax framework"
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-
 [dependencies]
-pax-runtime-api = {path = "../pax-runtime-api", version="0.38.1"}
+pax-runtime-api = {path = "../pax-runtime-api", version="0.38.3"}
 log = "0.4.20"
 bytemuck = { version = "1.14", features = ["derive"] }
 anyhow = "1.0"

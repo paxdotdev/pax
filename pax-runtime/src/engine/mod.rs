@@ -3,6 +3,7 @@ use crate::{
 };
 use_RefCell!();
 use std::collections::HashMap;
+use std::ops::Range;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -270,7 +271,6 @@ impl PaxEngine {
     ///     a. find lowest node (last child of last node)
     ///     b. start rendering, from lowest node on-up, throughout tree
     pub fn tick(&mut self) -> Vec<NativeMessage> {
-        // self.runtime_context.set_all_canvases_dirty();
         //
         // 1. UPDATE NODES (properties, etc.). This part we should be able to
         // completely remove once reactive properties dirty-dag is a thing.
@@ -289,18 +289,7 @@ impl PaxEngine {
     }
 
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
-        static LAST_LAYER_COUNT: AtomicUsize = AtomicUsize::new(0); // last-patch layer_count
-        let curr_layer_count = self.runtime_context.layer_count.get();
-        let old_layer_count = LAST_LAYER_COUNT.load(Ordering::Relaxed);
-        if old_layer_count != curr_layer_count {
-            rcs.resize_layers_to(
-                curr_layer_count,
-                Rc::clone(&self.runtime_context.dirty_canvases),
-            );
-            self.runtime_context
-                .resize_canvas_layers_to(curr_layer_count);
-            LAST_LAYER_COUNT.store(curr_layer_count, Ordering::Relaxed)
-        }
+        let new_range = self.update_layer_count(rcs);
 
         for i in 0..rcs.layers() {
             if self
@@ -325,8 +314,8 @@ impl PaxEngine {
         }
         self.runtime_context.clear_all_dirty_canvases();
 
-        //dirtify the canvases that where created this frame (why is this needed?)
-        for i in old_layer_count..curr_layer_count {
+        //dirtify the canvases that where created this frame
+        for i in new_range {
             self.runtime_context.set_canvas_dirty(i);
         }
     }
@@ -343,6 +332,22 @@ impl PaxEngine {
                 .viewport
                 .update(|t_and_b| t_and_b.bounds = new_viewport_size);
         });
+    }
+
+    pub fn update_layer_count(&self, rcs: &mut dyn RenderContext) -> Range<usize> {
+        static LAST_LAYER_COUNT: AtomicUsize = AtomicUsize::new(0); // last-patch layer_count
+        let curr_layer_count = self.runtime_context.layer_count.get();
+        let old_layer_count = LAST_LAYER_COUNT.load(Ordering::Relaxed);
+        if old_layer_count != curr_layer_count {
+            rcs.resize_layers_to(
+                curr_layer_count,
+                Rc::clone(&self.runtime_context.dirty_canvases),
+            );
+            self.runtime_context
+                .resize_canvas_layers_to(curr_layer_count);
+            LAST_LAYER_COUNT.store(curr_layer_count, Ordering::Relaxed)
+        }
+        old_layer_count..curr_layer_count
     }
 
     pub fn global_dispatch_focus(&self, args: Focus) -> bool {
