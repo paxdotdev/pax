@@ -4,18 +4,23 @@ use bytemuck::Pod;
 use lyon::lyon_tessellation::VertexBuffers;
 use wgpu::{
     util::DeviceExt, BindGroup, BindGroupLayout, BufferUsages, CompositeAlphaMode, Device,
-    IndexFormat, InstanceFlags, PresentMode, RenderPipeline, SurfaceConfiguration, SurfaceTarget,
-    SurfaceTexture, TextureFormat, TextureUsages, TextureView,
+    IndexFormat, PresentMode, RenderPipeline, SurfaceConfiguration, SurfaceTexture, TextureFormat,
+    TextureUsages, TextureView,
 };
 
 pub mod data;
 mod gpu_resources;
+mod stencil;
 mod texture;
+
 use data::{GpuGlobals, GpuPrimitive, GpuVertex};
 
 use crate::{render_backend::texture::TextureRenderer, Box2D, Transform2D};
 
-use self::data::{GpuColor, GpuGradient, GpuTransform};
+use self::{
+    data::{GpuColor, GpuGradient, GpuTransform},
+    stencil::StencilRenderer,
+};
 
 pub struct RenderConfig {
     pub debug: bool,
@@ -72,7 +77,9 @@ pub struct RenderBackend<'w> {
 
     index_count: u64,
 
+    // plugins / extensions
     texture_renderer: TextureRenderer,
+    stencil_renderer: StencilRenderer,
 }
 
 impl<'w> RenderBackend<'w> {
@@ -84,14 +91,14 @@ impl<'w> RenderBackend<'w> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             flags: if config.debug {
-                InstanceFlags::DEBUG
+                wgpu::InstanceFlags::DEBUG
             } else {
-                InstanceFlags::default()
+                wgpu::InstanceFlags::default()
             },
             dx12_shader_compiler: wgpu::Dx12Compiler::Fxc,
             gles_minor_version: wgpu::Gles3MinorVersion::Automatic,
         });
-        let surface_target = SurfaceTarget::Canvas(canvas);
+        let surface_target = wgpu::SurfaceTarget::Canvas(canvas);
         let surface = instance.create_surface(surface_target)?;
         Self::new(surface, instance, config).await
     }
@@ -286,11 +293,15 @@ impl<'w> RenderBackend<'w> {
             Self::create_pipeline(&device, surface_config.format, primitive_bind_group_layout);
 
         let texture_renderer = TextureRenderer::new(&device);
+        let stencil_renderer =
+            StencilRenderer::new(&device, config.initial_width, config.initial_height);
+
         let initial_width = config.initial_width;
         let initial_height = config.initial_height;
         let initial_dpr = config.initial_dpr;
         let mut backend = Self {
             texture_renderer,
+            stencil_renderer,
             _adapter: adapter,
             surface,
             device,
@@ -358,7 +369,23 @@ impl<'w> RenderBackend<'w> {
                 unclipped_depth: false,
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Stencil8,
+                depth_write_enabled: false,
+                depth_compare: wgpu::CompareFunction::Always,
+                stencil: wgpu::StencilState {
+                    front: wgpu::StencilFaceState {
+                        compare: wgpu::CompareFunction::Equal,
+                        fail_op: wgpu::StencilOperation::Keep,
+                        depth_fail_op: wgpu::StencilOperation::Keep,
+                        pass_op: wgpu::StencilOperation::Keep,
+                    },
+                    back: wgpu::StencilFaceState::IGNORE,
+                    read_mask: !0,
+                    write_mask: !0,
+                },
+                bias: Default::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,
@@ -367,6 +394,16 @@ impl<'w> RenderBackend<'w> {
             multiview: None,
             cache: None,
         })
+    }
+
+    pub fn push_stencil(&mut self, transform: Transform2D) {
+        // self.stencil_renderer.clear(&self.device, &self.queue);
+        self.stencil_renderer
+            .push_stencil(&self.device, &self.queue, transform);
+    }
+
+    pub fn pop_stencil(&mut self) {
+        self.stencil_renderer.pop_stencil(&self.device, &self.queue);
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -378,6 +415,7 @@ impl<'w> RenderBackend<'w> {
             0,
             bytemuck::cast_slice(&[self.globals]),
         );
+        self.stencil_renderer.resize(&self.device, width, height);
         self.surface.configure(&self.device, &self.surface_config);
     }
 
@@ -448,6 +486,7 @@ impl<'w> RenderBackend<'w> {
             });
 
         {
+            let (stencil_texture, stencil_index) = self.stencil_renderer.get_stencil();
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -458,7 +497,14 @@ impl<'w> RenderBackend<'w> {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: stencil_texture,
+                    depth_ops: None,
+                    stencil_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
@@ -467,6 +513,7 @@ impl<'w> RenderBackend<'w> {
             render_pass.set_pipeline(&self.pipeline);
             render_pass.set_bind_group(0, &self.bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_stencil_reference(stencil_index); //this needs to be dynamic?
             render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
             render_pass.draw_indexed(0..self.index_count as u32, 0, 0..1);
         }
@@ -500,6 +547,7 @@ impl<'w> RenderBackend<'w> {
     }
 
     pub(crate) fn clear(&mut self) {
+        self.stencil_renderer.clear(&self.device, &self.queue);
         let (screen_surface, screen_texture) = self.get_screen_texture();
         let mut encoder = self
             .device
