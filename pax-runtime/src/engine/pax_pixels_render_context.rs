@@ -96,10 +96,8 @@ impl RenderContext for PaxPixelsRenderer {
         });
     }
     fn clip(&mut self, layer: usize, _path: kurbo::BezPath) {
-        self.with_layer_context(layer, |_context| {
-            // TODO
-            // keep supporting paths here, or instead use rect?
-            // context.push_clipping_bounds(..);
+        self.with_layer_context(layer, |context| {
+            context.set_clip_rect_test(Transform2D::scale(0.5, 0.5));
         });
     }
     fn transform(&mut self, layer: usize, affine: kurbo::Affine) {

@@ -199,6 +199,10 @@ impl<'w> WgpuRenderer<'w> {
         self.transform_index_stack.push(new_ind);
     }
 
+    pub fn set_clip_rect_test(&mut self, transform: Transform2D) {
+        self.render_backend.push_stencil(transform);
+    }
+
     pub fn resize(&mut self, width: f32, height: f32) {
         self.render_backend.resize(width as u32, height as u32);
     }
