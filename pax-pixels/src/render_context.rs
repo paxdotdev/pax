@@ -1,5 +1,3 @@
-use crate::render_backend::stencil;
-use crate::render_backend::CpuBuffers;
 use crate::Box2D;
 use crate::Image;
 use crate::Point2D;
@@ -11,236 +9,222 @@ use lyon::lyon_tessellation::FillTessellator;
 use lyon::lyon_tessellation::FillVertex;
 use lyon::lyon_tessellation::VertexBuffers;
 use lyon::path::Path;
-use lyon::tessellation::StrokeOptions;
-use lyon::tessellation::StrokeTessellator;
-use lyon::tessellation::StrokeVertex;
 
-use crate::render_backend::data::GpuColor;
-use crate::render_backend::data::GpuGradient;
-use crate::render_backend::data::GpuPrimitive;
-use crate::render_backend::data::GpuTransform;
+mod mesh_renderer;
+mod stencil_renderer;
+mod texture_renderer;
 use crate::render_backend::data::GpuVertex;
 use crate::render_backend::RenderBackend;
 
+use mesh_renderer::MeshRenderer;
+use stencil_renderer::StencilRenderer;
+use texture_renderer::TextureRenderer;
+
 pub struct WgpuRenderer<'w> {
-    buffers: CpuBuffers,
-    render_backend: RenderBackend<'w>,
-    // these reference indicies in the CpuBuffer "transforms"
-    transform_index_stack: Vec<usize>,
-    // tuble of transform stack index to go to, and clip depth to go to
-    saves: Vec<(usize, usize)>,
+    backend: RenderBackend<'w>,
+    pub texture_renderer: TextureRenderer,
+    pub stencil_renderer: StencilRenderer,
+    pub mesh_renderer: MeshRenderer,
+    encoder: wgpu::CommandEncoder,
     tolerance: f32,
 }
 
 impl<'w> WgpuRenderer<'w> {
-    pub fn new(render_backend: RenderBackend<'w>) -> Self {
-        let geometry: VertexBuffers<GpuVertex, u16> = VertexBuffers::new();
+    pub fn new(backend: RenderBackend<'w>) -> Self {
+        let texture_renderer = TextureRenderer::new(&backend);
+        let stencil_renderer = StencilRenderer::new(&backend);
+        let mesh_renderer = MeshRenderer::new(&backend);
+        let encoder = backend
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
         Self {
-            render_backend,
-            buffers: CpuBuffers {
-                geometry,
-                primitives: Vec::new(),
-                colors: Vec::new(),
-                gradients: Vec::new(),
-                transforms: vec![GpuTransform::default()],
-            },
-            tolerance: 0.5, //TODO expose as option
-            transform_index_stack: vec![],
-            saves: vec![],
+            backend,
+            texture_renderer,
+            stencil_renderer,
+            mesh_renderer,
+            encoder,
+            //TODO expose as option
+            tolerance: 0.5,
         }
     }
 
-    fn current_transform(&self) -> Transform2D {
-        Transform2D::from_arrays(
-            self.buffers
-                .transforms
-                .get(self.transform_index_stack.last().cloned().unwrap_or(0))
-                .expect("at least one identity transform should exist on the transform stack")
-                .transform,
-        )
-    }
+    // fn current_transform(&self) -> Transform2D {
+    //     Transform2D::from_arrays(
+    //         self.buffers
+    //             .transforms
+    //             .get(self.transform_index_stack.last().cloned().unwrap_or(0))
+    //             .expect("at least one identity transform should exist on the transform stack")
+    //             .transform,
+    //     )
+    // }
 
     pub fn stroke_path(&mut self, path: Path, stroke_fill: Fill, stroke_width: f32) {
-        let prim_id = self.push_primitive_def(stroke_fill);
-        let options = StrokeOptions::tolerance(self.tolerance).with_line_width(stroke_width);
-        let mut geometry_builder =
-            BuffersBuilder::new(&mut self.buffers.geometry, |vertex: StrokeVertex| {
-                GpuVertex {
-                    position: vertex.position().to_array(),
-                    normal: [0.0; 2],
-                    prim_id,
-                }
-            });
-        match StrokeTessellator::new().tessellate_path(&path, &options, &mut geometry_builder) {
-            Ok(_) => {}
-            Err(e) => log::warn!("{:?}", e),
-        };
+        // let prim_id = self.push_primitive_def(stroke_fill);
+        // let options = StrokeOptions::tolerance(self.tolerance).with_line_width(stroke_width);
+        // let mut geometry_builder =
+        //     BuffersBuilder::new(&mut self.buffers.geometry, |vertex: StrokeVertex| {
+        //         GpuVertex {
+        //             position: vertex.position().to_array(),
+        //             normal: [0.0; 2],
+        //             prim_id,
+        //         }
+        //     });
+        // match StrokeTessellator::new().tessellate_path(&path, &options, &mut geometry_builder) {
+        //     Ok(_) => {}
+        //     Err(e) => log::warn!("{:?}", e),
+        // };
     }
 
     pub fn fill_path(&mut self, path: Path, fill: Fill) {
-        let prim_id = self.push_primitive_def(fill);
         let options = FillOptions::tolerance(self.tolerance);
+        let mut geometry = VertexBuffers::new();
         let mut geometry_builder =
-            BuffersBuilder::new(&mut self.buffers.geometry, |vertex: FillVertex| GpuVertex {
+            BuffersBuilder::new(&mut geometry, |vertex: FillVertex| GpuVertex {
                 position: vertex.position().to_array(),
                 normal: [0.0; 2],
-                prim_id,
+                prim_id: 0,
             });
         match FillTessellator::new().tessellate_path(&path, &options, &mut geometry_builder) {
             Ok(_) => {}
             Err(e) => log::warn!("{:?}", e),
         };
-    }
 
-    fn push_primitive_def(&mut self, fill: Fill) -> u32 {
-        let fill_id;
-        let fill_type_flag;
-        match fill {
-            Fill::Solid(color) => {
-                fill_id = self.buffers.colors.len() as u16;
-                fill_type_flag = 0;
-                self.buffers.colors.push(GpuColor { color: color.rgba });
-            }
-            Fill::Gradient {
-                gradient_type,
-                pos,
-                main_axis,
-                off_axis,
-                stops,
-            } => {
-                fill_id = self.buffers.gradients.len() as u16;
-                fill_type_flag = 1;
-                if stops.len() > 8 {
-                    log::warn!("can't draw graidents with more than 8 stops. truncating.");
-                }
-                let len = stops.len().min(8);
-                let mut colors_buff = [[0.0; 4]; 8];
-                let mut stops_buff = [0.0; 8];
-                for i in 0..len {
-                    colors_buff[i] = stops[i].color.rgba;
-                    stops_buff[i] = stops[i].stop;
-                }
-                //this should be filled in with custom gradient stuff later:
-                self.buffers.gradients.push(GpuGradient {
-                    type_id: match gradient_type {
-                        GradientType::Linear => 0,
-                        GradientType::Radial => 1,
-                    },
-                    position: pos.to_array(),
-                    main_axis: main_axis.to_array(),
-                    off_axis: off_axis.to_array(),
-                    stop_count: len as u32,
-                    colors: colors_buff,
-                    stops: stops_buff,
-                    _padding: [0; 16],
-                });
-            }
-        }
-        let primitive = GpuPrimitive {
-            fill_id,
-            fill_type_flag,
-            clipping_id: 0,
-            transform_id: self.transform_index_stack.last().cloned().unwrap_or(0) as u32,
-            z_index: 0,
-        };
-        let prim_id = self.buffers.primitives.len() as u32;
-        self.buffers.primitives.push(primitive);
-        prim_id
+        // TODO don't recreate encoder/render pass each frame
+        let mesh = self
+            .mesh_renderer
+            .make_mesh(&self.backend.device, &geometry, fill);
+        let mut render_pass =
+            Self::main_draw_render_pass(&self.backend, &self.stencil_renderer, &mut self.encoder);
+        self.mesh_renderer.render_meshes(&mut render_pass, &[mesh]);
     }
 
     pub fn clear(&mut self) {
-        self.render_backend.clear();
+        self.backend.clear();
+        // need to clear the stencil texture
+        self.stencil_renderer
+            .clear(&self.backend.device, &self.backend.queue);
     }
 
     pub fn draw_image(&mut self, image: &Image, rect: Box2D) {
-        let transform = self.current_transform();
-        if self.buffers.primitives.len() > 0 {
-            self.render_backend.render_primitives(&mut self.buffers);
-            let CpuBuffers {
-                geometry,
-                primitives,
-                transforms: _,
-                colors,
-                gradients,
-            } = &mut self.buffers;
-            geometry.vertices.clear();
-            geometry.indices.clear();
-            primitives.clear();
-            colors.clear();
-            gradients.clear();
-        }
-        self.render_backend.render_image(image, transform, rect);
+        // let transform = self.current_transform();
+        // self.render_backend.render_image(image, transform, rect);
+    }
+
+    // used for image and mesh drawing
+    pub fn main_draw_render_pass<'encoder>(
+        backend: &RenderBackend,
+        stencil_renderer: &StencilRenderer,
+        encoder: &'encoder mut wgpu::CommandEncoder,
+    ) -> wgpu::RenderPass<'encoder> {
+        let (_screen_surface, screen_texture) = backend.get_screen_texture();
+        let (stencil_texture, stencil_index) = stencil_renderer.get_stencil();
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Main draw render pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &screen_texture,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: stencil_texture,
+                depth_ops: None,
+                stencil_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+        render_pass.set_stencil_reference(stencil_index);
+        render_pass
     }
 
     pub fn flush(&mut self) {
-        if self.buffers.primitives.len() > 0 {
-            self.render_backend.render_primitives(&mut self.buffers);
-        }
-        self.buffers.reset();
-        self.transform_index_stack.clear();
+        let encoder = std::mem::replace(
+            &mut self.encoder,
+            self.backend
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Render Encoder"),
+                }),
+        );
+        self.backend.queue.submit(std::iter::once(encoder.finish()));
+        let (screen_surface, _screen_texture) = self.backend.get_screen_texture();
+        //render primitives
+        screen_surface.present();
+        // TODO finish and recreate encoder here
+        // if self.buffers.primitives.len() > 0 {
+        //     self.render_backend.render_primitives(&mut self.buffers);
+        // }
+        // self.buffers.reset();
+        // self.transform_index_stack.clear();
     }
 
     pub fn save(&mut self) {
-        let transform_len = self.transform_index_stack.len();
-        self.saves
-            .push((transform_len, self.render_backend.get_clip_depth() as usize));
+        // let transform_len = self.transform_index_stack.len();
+        // self.saves
+        //     .push((transform_len, self.render_backend.get_clip_depth() as usize));
     }
 
     pub fn restore(&mut self) {
-        if let Some((t_pen, clip_depth)) = self.saves.pop() {
-            self.transform_index_stack.truncate(t_pen);
-            self.render_backend
-                .reset_stencil_depth_to(clip_depth as u32);
-        }
+        // if let Some((t_pen, clip_depth)) = self.saves.pop() {
+        //     self.transform_index_stack.truncate(t_pen);
+        //     self.render_backend
+        //         .reset_stencil_depth_to(clip_depth as u32);
+        // }
     }
 
     pub fn transform(&mut self, transform: Transform2D) {
-        let new_ind = self.buffers.transforms.len();
-        self.buffers.transforms.push(GpuTransform {
-            transform: transform.then(&self.current_transform()).to_arrays(),
-            _pad: 0,
-            _pad2: 0,
-        });
-        self.transform_index_stack.push(new_ind);
+        self.backend.set_transform(transform);
     }
 
     pub fn clip(&mut self, path: Path) {
         // fine to transform on CPU - shouldn't be large meshes
-        let path = path.transformed(&self.current_transform());
-        if self.buffers.primitives.len() > 0 {
-            self.render_backend.render_primitives(&mut self.buffers);
-            let CpuBuffers {
-                geometry,
-                primitives,
-                transforms: _,
-                colors,
-                gradients,
-            } = &mut self.buffers;
-            geometry.vertices.clear();
-            geometry.indices.clear();
-            primitives.clear();
-            colors.clear();
-            gradients.clear();
-        }
-        let options = FillOptions::tolerance(self.tolerance);
-        let mut geometry = VertexBuffers::new();
-        let mut geometry_builder =
-            BuffersBuilder::new(&mut geometry, |vertex: FillVertex| stencil::Vertex {
-                position: vertex.position().to_array(),
-            });
-        match FillTessellator::new().tessellate_path(&path, &options, &mut geometry_builder) {
-            Ok(_) => {}
-            Err(e) => log::warn!("{:?}", e),
-        };
-        self.render_backend.push_stencil(geometry);
+        // let path = path.transformed(&self.current_transform());
+        // if self.buffers.primitives.len() > 0 {
+        //     self.render_backend.render_primitives(&mut self.buffers);
+        //     let CpuBuffers {
+        //         geometry,
+        //         primitives,
+        //         transforms: _,
+        //         colors,
+        //         gradients,
+        //     } = &mut self.buffers;
+        //     geometry.vertices.clear();
+        //     geometry.indices.clear();
+        //     primitives.clear();
+        //     colors.clear();
+        //     gradients.clear();
+        // }
+        // let options = FillOptions::tolerance(self.tolerance);
+        // let mut geometry = VertexBuffers::new();
+        // let mut geometry_builder = BuffersBuilder::new(&mut geometry, |vertex: FillVertex| {
+        //     stencil_renderer::Vertex {
+        //         position: vertex.position().to_array(),
+        //     }
+        // });
+        // match FillTessellator::new().tessellate_path(&path, &options, &mut geometry_builder) {
+        //     Ok(_) => {}
+        //     Err(e) => log::warn!("{:?}", e),
+        // };
+        // self.render_backend.push_stencil(geometry);
     }
 
     pub fn resize(&mut self, width: f32, height: f32) {
-        self.render_backend.resize(width as u32, height as u32);
+        self.backend.resize(width as u32, height as u32);
+        // needs to resize stencil texture
+        self.stencil_renderer
+            .resize(&self.backend.device, width as u32, height as u32);
     }
 
     pub fn size(&self) -> (f32, f32) {
-        let res = &self.render_backend.globals.resolution;
+        let res = &self.backend.globals.resolution;
         (res[0], res[1])
     }
 }
@@ -259,7 +243,7 @@ pub enum GradientType {
 
 #[derive(Debug)]
 pub struct Color {
-    rgba: [f32; 4],
+    pub rgba: [f32; 4],
 }
 
 impl Color {
