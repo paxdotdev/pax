@@ -80,10 +80,6 @@ impl Console {
                                         let mut dt = borrow_mut!(ctx.engine_context.designtime);
                                         let orm = dt.get_orm_mut();
                                         for component in components {
-                                            log::warn!(
-                                                "replacing templates: {:?}",
-                                                component.type_id
-                                            );
                                             orm.replace_template(
                                                 component.type_id,
                                                 component.template.unwrap_or_default(),
@@ -100,7 +96,6 @@ impl Console {
                             pax_designtime::orm::MessageType::LLMPartial => {
                                 let mut design_time = dt.borrow_mut();
                                 let mut llm_message = design_time.get_llm_messages(current_id);
-                                //llm_message.reverse();
                                 for message in llm_message {
                                     messages.push(Message {
                                         message_type: MessageType::LLM,

@@ -11,5 +11,5 @@ set -e
 current_dir=$(pwd)
 pushd ../../../pax-cli
 cargo build
-PUB_PAX_SERVER=http://localhost:8090 PAX_WORKSPACE_ROOT=.. ../target/debug/pax-cli "$@" --path="$current_dir" --libdev --verbose
+PAX_WORKSPACE_ROOT=.. ../target/debug/pax-cli "$@" --path="$current_dir" --libdev --verbose
 popd
