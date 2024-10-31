@@ -11,6 +11,7 @@ use std::fmt::Debug;
 pub enum AgentMessage {
     ProjectFileChangedNotification(FileChangedNotification),
     ManifestSerializationRequest(ManifestSerializationRequest),
+    WriteNewFilesRequest(Vec<(String, String)>),
     // Request to retrieve the manifest from the design server
     // sent from designtime to design-server
     LoadManifestRequest,
@@ -73,10 +74,16 @@ impl LLMPartialResponse {
 }
 
 #[derive(Deserialize, Serialize)]
+pub enum ChangeType {
+    PaxOnly(Vec<ComponentDefinition>),
+    FullReload(Vec<(String, String)>),
+}
+
+#[derive(Deserialize, Serialize)]
 pub struct LLMFinalResponse {
     pub request_id: u64,
     pub message: String,
-    pub component_definition: ComponentDefinition,
+    pub changes: ChangeType,
 }
 
 impl Debug for LLMFinalResponse {
@@ -89,15 +96,11 @@ impl Debug for LLMFinalResponse {
 }
 
 impl LLMFinalResponse {
-    pub fn new(
-        request_id: u64,
-        message: String,
-        component_definition: ComponentDefinition,
-    ) -> Self {
+    pub fn new(request_id: u64, message: String, changes: ChangeType) -> Self {
         Self {
             request_id,
             message,
-            component_definition,
+            changes,
         }
     }
 }

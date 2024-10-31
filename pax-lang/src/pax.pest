@@ -1,7 +1,7 @@
 
 WHITESPACE = _{ " " | "\t" | "\r" | NEWLINE }
 // Comment rule is explicit so parser doesn't accept them anywhere vs. built-ins are accepted anywhere
-comment = @{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NEWLINE) |  ("<!--" ~ (!"-->" ~ ANY)* ~ "-->") }
+comment = @{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NEWLINE?) |  ("<!--" ~ (!"-->" ~ ANY)* ~ "-->") }
 
 ////// ////// //////
 /// BEGIN TEMPLATE
@@ -12,7 +12,7 @@ comment = @{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NE
 
 //A component definition requires at least one element in its template; a `@settings` block may also be included, and any future relevant blocks like `@defaults`
 //The parser will willingly _parse_ multiple @settings/@template blocks per component definition, but the compiler won't presently support them
-pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration )* ~ EOI }
+pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration| WHITESPACE | comment )* ~ EOI }
 root_tag_pair = { any_tag_pair }
 any_tag_pair = _{statement_control_flow | matched_tag | self_closing_tag | comment }
 

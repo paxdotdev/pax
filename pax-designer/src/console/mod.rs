@@ -73,18 +73,24 @@ impl Console {
                     });
                     while let Some(message_type) = new_messages.pop() {
                         match message_type {
-                            pax_designtime::orm::MessageType::LLMSuccess(component) => {
+                            pax_designtime::orm::MessageType::LLMSuccess(components) => {
                                 model::with_action_context(&ctx_p, |ctx| {
                                     let t = ctx.transaction("llm update");
                                     if let Err(e) = t.run(|| {
                                         let mut dt = borrow_mut!(ctx.engine_context.designtime);
                                         let orm = dt.get_orm_mut();
-                                        orm.replace_template(
-                                            component.type_id,
-                                            component.template.unwrap_or_default(),
-                                            component.settings.unwrap_or_default(),
-                                        )
-                                        .map_err(|e| anyhow!(e))?;
+                                        for component in components {
+                                            log::warn!(
+                                                "replacing templates: {:?}",
+                                                component.type_id
+                                            );
+                                            orm.replace_template(
+                                                component.type_id,
+                                                component.template.unwrap_or_default(),
+                                                component.settings.unwrap_or_default(),
+                                            )
+                                            .map_err(|e| anyhow!(e))?;
+                                        }
                                         Ok(())
                                     }) {
                                         log::warn!("failed llm message component update {:?}", e);
@@ -94,7 +100,7 @@ impl Console {
                             pax_designtime::orm::MessageType::LLMPartial => {
                                 let mut design_time = dt.borrow_mut();
                                 let mut llm_message = design_time.get_llm_messages(current_id);
-                                llm_message.reverse();
+                                //llm_message.reverse();
                                 for message in llm_message {
                                     messages.push(Message {
                                         message_type: MessageType::LLM,

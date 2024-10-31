@@ -1,6 +1,7 @@
 use crate::{
     messages::{
-        AgentMessage, ComponentSerializationRequest, LLMRequest, LoadFileToStaticDirRequest,
+        AgentMessage, ChangeType, ComponentSerializationRequest, LLMRequest,
+        LoadFileToStaticDirRequest,
     },
     orm::PaxManifestORM,
 };
@@ -71,6 +72,18 @@ impl WebSocketConnection {
         }
     }
 
+    pub fn send_updated_files(&mut self, files: Vec<(String, String)>) -> Result<()> {
+        if self.alive {
+            let msg_bytes = rmp_serde::to_vec(&AgentMessage::WriteNewFilesRequest(files))?;
+            self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "couldn't send updated files: connection to design-server was lost"
+            ))
+        }
+    }
+
     pub fn send_llm_request(&mut self, llm_request: LLMRequest) -> Result<()> {
         if self.alive {
             let msg_bytes = rmp_serde::to_vec(&AgentMessage::LLMRequest(llm_request))?;
@@ -124,14 +137,31 @@ impl WebSocketConnection {
                                     .map_err(|e| anyhow!(e))?;
                             }
                             AgentMessage::LLMPartialResponse(partial) => {
-                                manager.add_new_message(partial.request_id, partial.message, None);
+                                manager.add_new_message(
+                                    partial.request_id,
+                                    partial.message,
+                                    vec![],
+                                );
                             }
                             AgentMessage::LLMFinalResponse(final_response) => {
-                                manager.add_new_message(
-                                    final_response.request_id,
-                                    final_response.message,
-                                    Some(final_response.component_definition),
-                                );
+                                if let ChangeType::PaxOnly(components) = final_response.changes {
+                                    log::warn!("got pax-only changes:");
+                                    log::warn!("length: {}", components.len());
+                                    manager.add_new_message(
+                                        final_response.request_id,
+                                        final_response.message,
+                                        components,
+                                    );
+                                } else if let ChangeType::FullReload(project_files) =
+                                    final_response.changes
+                                {
+                                    let updated_files: Vec<(String, String)> = project_files
+                                        .iter()
+                                        .filter(|(f, _)| f.ends_with(".rs") | f.ends_with(".pax"))
+                                        .cloned()
+                                        .collect();
+                                    manager.set_updated_project_files(updated_files);
+                                }
                             }
                             _ => {}
                         }
