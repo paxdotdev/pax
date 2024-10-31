@@ -1,3 +1,4 @@
+use crate::render_backend::stencil;
 use crate::render_backend::CpuBuffers;
 use crate::Box2D;
 use crate::Image;
@@ -26,7 +27,8 @@ pub struct WgpuRenderer<'w> {
     render_backend: RenderBackend<'w>,
     // these reference indicies in the CpuBuffer "transforms"
     transform_index_stack: Vec<usize>,
-    saves: Vec<usize>,
+    // tuble of transform stack index to go to, and clip depth to go to
+    saves: Vec<(usize, usize)>,
     tolerance: f32,
 }
 
@@ -180,12 +182,15 @@ impl<'w> WgpuRenderer<'w> {
 
     pub fn save(&mut self) {
         let transform_len = self.transform_index_stack.len();
-        self.saves.push(transform_len);
+        self.saves
+            .push((transform_len, self.render_backend.get_clip_depth() as usize));
     }
 
     pub fn restore(&mut self) {
-        if let Some(t_pen) = self.saves.pop() {
+        if let Some((t_pen, clip_depth)) = self.saves.pop() {
             self.transform_index_stack.truncate(t_pen);
+            self.render_backend
+                .reset_stencil_depth_to(clip_depth as u32);
         }
     }
 
@@ -199,8 +204,18 @@ impl<'w> WgpuRenderer<'w> {
         self.transform_index_stack.push(new_ind);
     }
 
-    pub fn set_clip_rect_test(&mut self, transform: Transform2D) {
-        self.render_backend.push_stencil(transform);
+    pub fn push_clipping(&mut self, path: Path) {
+        let options = FillOptions::tolerance(self.tolerance);
+        let mut geometry = VertexBuffers::new();
+        let mut geometry_builder =
+            BuffersBuilder::new(&mut geometry, |vertex: FillVertex| stencil::Vertex {
+                position: vertex.position().to_array(),
+            });
+        match FillTessellator::new().tessellate_path(&path, &options, &mut geometry_builder) {
+            Ok(_) => {}
+            Err(e) => log::warn!("{:?}", e),
+        };
+        self.render_backend.push_stencil(geometry);
     }
 
     pub fn resize(&mut self, width: f32, height: f32) {

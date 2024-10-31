@@ -301,7 +301,7 @@ impl PaxEngine {
                 .unwrap_or(false)
             {
                 rcs.clear(i);
-                rcs.clip(i, BezPath::new()) // only for testing, REMOVE
+                rcs.clip(i, Rect::new(0.0, 0.0, 0.5, 0.5).into_path(0.01)) // only for testing, REMOVE
             }
         }
         // This is pretty useful during debugging - left it here since I use it often. /Sam
