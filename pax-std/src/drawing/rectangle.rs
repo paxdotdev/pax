@@ -2,9 +2,7 @@ use kurbo::{RoundedRect, RoundedRectRadii, Shape};
 use pax_runtime::{api::Fill, BaseInstance};
 use pax_runtime_api::use_RefCell;
 
-use pax_runtime::{
-    ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
-};
+use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
 use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::{Layer, RenderContext, Stroke};

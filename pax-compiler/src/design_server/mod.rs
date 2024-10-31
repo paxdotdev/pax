@@ -6,8 +6,8 @@ use actix_web::{get, web, App, HttpRequest, HttpServer, Responder};
 use actix_web::{HttpResponse, Result};
 use actix_web_actors::ws;
 use colored::Colorize;
-use std::net::TcpListener;
 use std::fs;
+use std::net::TcpListener;
 
 use env_logger;
 use std::io::Write;
