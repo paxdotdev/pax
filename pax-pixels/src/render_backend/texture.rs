@@ -9,6 +9,8 @@ use crate::Transform2D;
 use wgpu::util::DeviceExt;
 use wgpu::TextureFormat;
 
+use super::stencil::StencilRenderer;
+
 pub struct TextureRenderer {
     vertices_buffer: wgpu::Buffer,
     indices_buffer: wgpu::Buffer,
@@ -93,7 +95,23 @@ impl TextureRenderer {
                 unclipped_depth: false,
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Stencil8,
+                depth_write_enabled: false,
+                depth_compare: wgpu::CompareFunction::Always,
+                stencil: wgpu::StencilState {
+                    front: wgpu::StencilFaceState {
+                        compare: wgpu::CompareFunction::Equal,
+                        fail_op: wgpu::StencilOperation::Keep,
+                        depth_fail_op: wgpu::StencilOperation::Keep,
+                        pass_op: wgpu::StencilOperation::Keep,
+                    },
+                    back: wgpu::StencilFaceState::IGNORE,
+                    read_mask: !0,
+                    write_mask: !0,
+                },
+                bias: Default::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,
@@ -109,7 +127,7 @@ impl TextureRenderer {
             contents: bytemuck::cast_slice(&vertices),
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         });
-        let indices: &[u16] = &[0, 1, 2, 1, 2, 3];
+        let indices: &[u16] = &[1, 0, 2, 1, 2, 3];
         let indices_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Index Buffer"),
             contents: bytemuck::cast_slice(&indices),
@@ -139,6 +157,7 @@ impl TextureRenderer {
         queue: &wgpu::Queue,
         target: &wgpu::TextureView,
         globals: &wgpu::Buffer,
+        stencil_renderer: &StencilRenderer,
         rgba: &[u8],
         rgba_width: u32,
         transform: Transform2D,
@@ -223,6 +242,7 @@ impl TextureRenderer {
         });
 
         {
+            let (stencil_texture, stencil_index) = stencil_renderer.get_stencil();
             //write image in render pass
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Texture Pass"),
@@ -234,12 +254,20 @@ impl TextureRenderer {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: stencil_texture,
+                    depth_ops: None,
+                    stencil_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
             render_pass.set_pipeline(&self.texture_pipeline);
             render_pass.set_bind_group(0, &bind_group, &[]);
+            render_pass.set_stencil_reference(stencil_index);
             render_pass.set_vertex_buffer(0, self.vertices_buffer.slice(..));
             render_pass.set_index_buffer(self.indices_buffer.slice(..), IndexFormat::Uint16);
             render_pass.draw_indexed(0..6, 0, 0..1);

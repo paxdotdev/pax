@@ -1,21 +1,17 @@
-use std::path::Path;
-
 use bytemuck::{Pod, Zeroable};
 use lyon::tessellation::VertexBuffers;
 use wgpu::util::DeviceExt;
 use wgpu::{BufferUsages, Device, Queue, RenderPipeline};
-
-use crate::Transform2D;
 
 pub struct StencilRenderer {
     stencil_pipeline: RenderPipeline,
     decrement_pipeline: RenderPipeline,
     vertices_buffer: wgpu::Buffer,
     indices_buffer: wgpu::Buffer,
-    fullscreen_vertices_buffer: wgpu::Buffer,
     stencil_texture: wgpu::Texture,
     stencil_view: wgpu::TextureView,
     stencil_layer: u32,
+    stencil_geometry_stack: Vec<VertexBuffers<Vertex, u16>>,
     width: u32,
     height: u32,
     stencil_bind_group: wgpu::BindGroup,
@@ -183,25 +179,6 @@ impl StencilRenderer {
             usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
         });
 
-        // Create fullscreen quad vertices for decrement operation
-        let fullscreen_vertices = [
-            Vertex {
-                position: [-1.0, -1.0],
-            },
-            Vertex {
-                position: [3.0, -1.0],
-            },
-            Vertex {
-                position: [-1.0, 3.0],
-            },
-        ];
-        let fullscreen_vertices_buffer =
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Fullscreen Vertices"),
-                contents: bytemuck::cast_slice(&fullscreen_vertices),
-                usage: BufferUsages::VERTEX,
-            });
-
         let (stencil_texture, stencil_view) = Self::create_stencil_texture(device, width, height);
 
         Self {
@@ -209,12 +186,12 @@ impl StencilRenderer {
             decrement_pipeline,
             vertices_buffer,
             indices_buffer,
-            fullscreen_vertices_buffer,
             stencil_texture,
             stencil_view,
             width,
             height,
             stencil_layer: 0,
+            stencil_geometry_stack: vec![],
             stencil_bind_group,
             _stencil_bind_group_layout: stencil_bind_group_layout,
         }
@@ -300,11 +277,27 @@ impl StencilRenderer {
         }
 
         queue.submit(std::iter::once(encoder.finish()));
+        self.stencil_geometry_stack.push(geometry);
         self.stencil_layer += 1;
     }
 
     pub fn reset_stencil_depth_to(&mut self, device: &Device, queue: &Queue, depth: u32) {
         while self.stencil_layer > depth {
+            let Some(geometry) = self.stencil_geometry_stack.pop() else {
+                log::error!("geometry stack shouldn't be embty when stencil layer > 0");
+                break;
+            };
+            queue.write_buffer(
+                &self.vertices_buffer,
+                0,
+                bytemuck::cast_slice(&geometry.vertices),
+            );
+            queue.write_buffer(
+                &self.indices_buffer,
+                0,
+                bytemuck::cast_slice(&geometry.indices),
+            );
+
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Stencil Pop Encoder"),
             });
@@ -325,11 +318,13 @@ impl StencilRenderer {
                     occlusion_query_set: None,
                 });
 
-                // Use the decrement pipeline and fullscreen quad to decrease all stencil values
                 render_pass.set_pipeline(&self.decrement_pipeline);
                 render_pass.set_bind_group(0, &self.stencil_bind_group, &[]);
-                render_pass.set_vertex_buffer(0, self.fullscreen_vertices_buffer.slice(..));
-                render_pass.draw(0..3, 0..1);
+                render_pass.set_vertex_buffer(0, self.vertices_buffer.slice(..));
+                render_pass.set_bind_group(0, &self.stencil_bind_group, &[]);
+                render_pass
+                    .set_index_buffer(self.indices_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                render_pass.draw_indexed(0..(geometry.indices.len() as u32), 0, 0..1);
             }
 
             queue.submit(std::iter::once(encoder.finish()));
@@ -367,5 +362,6 @@ impl StencilRenderer {
 
         queue.submit(std::iter::once(encoder.finish()));
         self.stencil_layer = 0;
+        self.stencil_geometry_stack.clear();
     }
 }
