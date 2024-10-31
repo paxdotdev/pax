@@ -3,23 +3,23 @@ use pax_pixels::{point, Box2D, Image, Path, Transform2D, WgpuRenderer};
 use pax_runtime_api::{Axis, RenderContext};
 use std::{cell::RefCell, collections::HashMap, future::Future, pin::Pin, rc::Rc};
 
+type LayerDef = (WgpuRenderer<'static>, Pin<Box<dyn Fn()>>);
+
 pub struct PaxPixelsRenderer {
     backends: Rc<RefCell<Vec<RenderLayerState>>>,
-    layer_factory:
-        Rc<dyn Fn(usize) -> Pin<Box<dyn Future<Output = Option<WgpuRenderer<'static>>>>>>,
+    layer_factory: Rc<dyn Fn(usize) -> Pin<Box<dyn Future<Output = Option<LayerDef>>>>>,
     image_map: HashMap<String, Image>,
     failed_context_gets: RefCell<Vec<bool>>,
 }
 
 pub enum RenderLayerState {
     Pending,
-    Ready(WgpuRenderer<'static>),
+    Ready(LayerDef),
 }
 
 impl PaxPixelsRenderer {
     pub fn new(
-        layer_factory: impl Fn(usize) -> Pin<Box<dyn Future<Output = Option<WgpuRenderer<'static>>>>>
-            + 'static,
+        layer_factory: impl Fn(usize) -> Pin<Box<dyn Future<Output = Option<LayerDef>>>> + 'static,
     ) -> Self {
         Self {
             backends: Default::default(),
@@ -48,7 +48,7 @@ impl PaxPixelsRenderer {
                     //     layer
                     // );
                 }
-                RenderLayerState::Ready(renderer) => f(renderer),
+                RenderLayerState::Ready((renderer, _)) => f(renderer),
             },
             None => log::warn!(
                 "tried to retrieve layer {} context for non-existent layer",
@@ -97,7 +97,6 @@ impl RenderContext for PaxPixelsRenderer {
     }
     fn clip(&mut self, layer: usize, path: kurbo::BezPath) {
         self.with_layer_context(layer, |context| {
-            log::debug!("pax_pixels_render_context path {:?}", path);
             let path = convert_kurbo_to_lyon_path(&path);
             context.clip(path);
         });
@@ -165,8 +164,8 @@ impl RenderContext for PaxPixelsRenderer {
                     wasm_bindgen_futures::spawn_local(async move {
                         let backend = (factory)(i).await;
                         match (backends.borrow_mut().get_mut(i), backend) {
-                            (Some(change), Some(backend)) => {
-                                *change = RenderLayerState::Ready(backend);
+                            (Some(change), Some(layer_def)) => {
+                                *change = RenderLayerState::Ready(layer_def);
                                 if let Some(dirty_bit) = dirty_canvases.borrow_mut().get_mut(i) {
                                     *dirty_bit = true;
                                 }
@@ -221,7 +220,10 @@ impl RenderContext for PaxPixelsRenderer {
                 RenderLayerState::Pending => {
                     log::warn!("tried to resize backend that was pending")
                 }
-                RenderLayerState::Ready(renderer) => renderer.resize(width as f32, height as f32),
+                RenderLayerState::Ready((renderer, canvas_resizer)) => {
+                    (canvas_resizer)();
+                    renderer.resize(width as f32, height as f32)
+                }
             }
         }
     }

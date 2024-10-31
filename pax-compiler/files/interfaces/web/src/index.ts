@@ -119,8 +119,6 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
     }
 
     processMessages(messages, chassis, objectManager);
-
-    nativePool.resizeAllCanvases();
     //draw canvas elements
     chassis.render();
 

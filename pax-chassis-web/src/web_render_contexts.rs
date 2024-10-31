@@ -1,3 +1,5 @@
+use std::pin::Pin;
+
 use pax_runtime::api::RenderContext;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlCanvasElement, Window};
@@ -27,12 +29,28 @@ pub fn get_render_context(window: Window) -> impl RenderContext {
         canvas.set_width(width as u32);
         canvas.set_height(height as u32);
         let _ = context.scale(dpr, dpr);
+
         (
             WebRenderContext::new(context.clone(), window.clone()),
-            Box::new(move || {
-                let w = canvas.width();
-                let h = canvas.height();
-                context.clear_rect(0.0, 0.0, w as f64, h as f64);
+            // clear fn
+            Box::new({
+                let context = context.clone();
+                let canvas = canvas.clone();
+                move || {
+                    let w = canvas.width();
+                    let h = canvas.height();
+                    context.clear_rect(0.0, 0.0, w as f64, h as f64);
+                }
+            }),
+            // resize fn
+            Box::new({
+                let window = window.clone();
+                move || {
+                    let dpr = window.device_pixel_ratio();
+                    canvas.set_width((canvas.client_width() as f64 * dpr) as u32);
+                    canvas.set_height((canvas.client_height() as f64 * dpr) as u32);
+                    let _ = context.scale(dpr, dpr);
+                }
             }),
         )
     })
@@ -68,13 +86,24 @@ pub fn get_render_context(window: Window) -> impl RenderContext {
             let res = WgpuRenderer::new(
                 // NOTE: this exists when building for wasm32
                 RenderBackend::to_canvas(
-                    canvas,
+                    canvas.clone(),
                     RenderConfig::new(false, width as u32, height as u32, 1),
                 )
                 .await
                 .ok()?,
             );
-            Some(res)
+            Some((
+                res,
+                // resize fn
+                Box::pin({
+                    let window = window.clone();
+                    move || {
+                        let dpr = window.device_pixel_ratio();
+                        canvas.set_width((canvas.client_width() as f64 * dpr) as u32);
+                        canvas.set_height((canvas.client_height() as f64 * dpr) as u32);
+                    }
+                }) as Pin<Box<dyn Fn()>>,
+            ))
         })
     })
 }
