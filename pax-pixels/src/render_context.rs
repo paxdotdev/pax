@@ -206,7 +206,7 @@ impl<'w> WgpuRenderer<'w> {
 
     pub fn clip(&mut self, path: Path) {
         // fine to transform on CPU - shouldn't be large meshes
-        // let path = path.transformed(&self.current_transform());
+        let path = path.transformed(&self.current_transform());
         if self.buffers.primitives.len() > 0 {
             self.render_backend.render_primitives(&mut self.buffers);
             let CpuBuffers {

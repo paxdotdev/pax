@@ -548,6 +548,7 @@ impl<'w> RenderBackend<'w> {
             &self.queue,
             &screen_texture,
             &self.globals_buffer,
+            &self.stencil_renderer,
             &image.rgba,
             image.pixel_width,
             transform,

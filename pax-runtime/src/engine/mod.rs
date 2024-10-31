@@ -7,7 +7,7 @@ use std::ops::Range;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use kurbo::{BezPath, Rect, RoundedRect, Shape};
+use kurbo::{BezPath, Circle, Rect, RoundedRect, Shape};
 use pax_message::NativeMessage;
 use pax_runtime_api::{
     pax_value::PaxAny, use_RefCell, Event, Focus, SelectStart, Variable, Window, OS,
