@@ -81,6 +81,7 @@ pub struct PaxManifestORM {
     pub llm_messages: HashMap<u64, Vec<String>>,
     pub new_message: Property<Vec<MessageType>>,
     pub last_serialized_version: HashMap<TypeId, ComponentDefinition>,
+    pub updated_project_files: Option<Vec<(String, String)>>,
 }
 
 impl PaxManifestORM {
@@ -104,23 +105,32 @@ impl PaxManifestORM {
             llm_messages: HashMap::new(),
             new_message: Property::new(vec![]),
             last_serialized_version,
+            updated_project_files: None,
         }
+    }
+
+    pub fn set_updated_project_files(&mut self, files: Vec<(String, String)>) {
+        self.updated_project_files = Some(files);
+    }
+
+    pub fn get_updated_project_files(&mut self) -> Option<Vec<(String, String)>> {
+        self.updated_project_files.take()
     }
 
     pub fn add_new_message(
         &mut self,
         request_id: u64,
         message: String,
-        component: Option<ComponentDefinition>,
+        components: Vec<ComponentDefinition>,
     ) {
         self.llm_messages
             .entry(request_id)
             .or_insert(Vec::new())
             .push(message);
         self.new_message.update(|msgs| {
-            msgs.push(match component {
-                Some(component) => MessageType::LLMSuccess(component),
-                None => MessageType::LLMPartial,
+            msgs.push(match components.is_empty() {
+                true => MessageType::LLMPartial,
+                false => MessageType::LLMSuccess(components),
             })
         });
     }
@@ -687,7 +697,7 @@ pub struct SubTrees {
 pub enum MessageType {
     Serialization(String),
     LLMPartial,
-    LLMSuccess(ComponentDefinition),
+    LLMSuccess(Vec<ComponentDefinition>),
 }
 
 impl Interpolatable for MessageType {}

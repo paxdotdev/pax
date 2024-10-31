@@ -237,6 +237,12 @@ impl DesigntimeManager {
         &mut self,
         screenshot_map: Rc<RefCell<HashMap<u32, ScreenshotData>>>,
     ) -> anyhow::Result<()> {
+        if let Some(files) = self.orm.get_updated_project_files() {
+            self.priv_agent_connection
+                .borrow_mut()
+                .send_updated_files(files)?;
+        }
+
         if let Some(mut llm_request) = self.enqueued_llm_request.take() {
             let mut screenshot_map = screenshot_map.borrow_mut();
             if let Some(screenshot) = screenshot_map.remove(&(llm_request.request_id as u32)) {

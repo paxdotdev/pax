@@ -13,7 +13,7 @@ use pax_designtime::messages::{
     UpdateTemplateRequest,
 };
 use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 
 pub mod socket_message_accumulator;
 
@@ -157,6 +157,15 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                         ctx,
                     );
                     self.state.update_last_written_timestamp();
+                }
+                Ok(AgentMessage::WriteNewFilesRequest(files)) => {
+                    for (filename, contents) in files {
+                        let root = self.state.userland_project_root.lock().unwrap();
+                        let path = root.join(&filename);
+                        std::fs::write(&path, contents)
+                            .unwrap_or_else(|e| eprintln!("Failed to write file: {}", e));
+                    }
+                    println!("Files written to disk. Time to recompile!");
                 }
                 Ok(AgentMessage::LoadFileToStaticDirRequest(load_info)) => {
                     let LoadFileToStaticDirRequest { name, data } = load_info;

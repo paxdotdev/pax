@@ -130,31 +130,26 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     let mut manifests: Vec<PaxManifest> =
         serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
 
-
     // Simple starting convention: first manifest is userland, second manifest is designer; other schemas are undefined
     let mut userland_manifest = manifests.remove(0);
-    
 
+    // Populate project files
     let mut project_files: Vec<(String, String)> = vec![];
+    if let Some(cargo_manifest_dir) = userland_manifest.cargo_manifest_dir.clone() {
+        let cargo_toml = fs::read_to_string(cargo_manifest_dir.clone() + "/Cargo.toml").unwrap();
+        project_files.push(("Cargo.toml".to_string(), cargo_toml));
+        let src_dir = cargo_manifest_dir.clone() + "/src";
+        let src_files = fs::read_dir(src_dir.clone()).unwrap();
+        for file in src_files {
+            let file = file.unwrap();
+            let file_name = file.file_name().into_string().unwrap();
+            let file_path = file.path();
+            let file_contents = fs::read_to_string(file_path).unwrap();
+            project_files.push(("src/".to_string() + &file_name, file_contents));
+        }
 
-    // i want to read add the cargo.toml from the cargo manifest dir as well as everything in the src/ directory to the project files
-    let cargo_manifest_dir = userland_manifest.cargo_manifest_dir.clone().unwrap();
-    let prefix =  cargo_manifest_dir.rsplit_once("/").unwrap().1.to_string();
-
-    let cargo_toml = fs::read_to_string(cargo_manifest_dir.clone() + "/Cargo.toml").unwrap();
-    project_files.push((prefix.clone() + "/Cargo.toml", cargo_toml));
-
-    let src_dir = cargo_manifest_dir.clone() + "/src";
-    let src_files = fs::read_dir(src_dir.clone()).unwrap();
-    for file in src_files {
-        let file = file.unwrap();
-        let file_name = file.file_name().into_string().unwrap();
-        let file_path = file.path();
-        let file_contents = fs::read_to_string(file_path).unwrap();
-        project_files.push((prefix.clone() + "/src/" + &file_name, file_contents));
+        userland_manifest.project_files = project_files;
     }
-
-    panic!("current running path: {:?}",  project_files);
 
     let mut merged_manifest = userland_manifest.clone();
 

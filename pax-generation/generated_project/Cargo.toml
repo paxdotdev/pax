@@ -1,13 +1,11 @@
 [package]
 name = "generated_project"
-version = "0.13.19"
+version = "0.38.3"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-kit = { version = "0.35.0", path="../../pax-kit", features = ["designer"] }
-rand = { version = "0.8.5" }
-getrandom = { version = "0.2.15", features = ["js"] }
+pax-kit = { version = "0.38.3", path="../../pax-kit" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

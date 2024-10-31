@@ -5,6 +5,7 @@ use regex::Regex;
 use reqwest;
 use serde::Serialize;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::env;
 use std::error::Error;
 use std::fs;
@@ -205,61 +206,71 @@ impl PaxAppGenerator {
             }
         }
     }
-
     pub async fn update_pax_file(
         &self,
-        pax_content: &str,
         prompt: &str,
         request_id: u64,
         tx: mpsc::UnboundedSender<(u64, String)>,
-        screenshot: Option<ScreenshotData>
-    ) -> Result<(String, String), Box<dyn Error>> {
-        // Create the initial text content
+        screenshot: Option<ScreenshotData>,
+        project_files: Vec<(String, String)>,
+    ) -> Result<(Vec<(String, String)>,Vec<(String, String)>, String), Box<dyn Error>> {
+        let project_files = project_files.iter().filter(|(f, _)| f.ends_with(".rs") || f.ends_with(".pax")).cloned().collect::<Vec<_>>();
+        // Write the current project files to the generated_project directory
+        self.write_files_to_directory(&output_dir(), &project_files)?;
+
+        // Create the initial text content by including all project files
+        let mut files_text = String::new();
+        for (filename, content) in &project_files {
+            let code_block = match filename.split('.').last() {
+                Some("pax") => format!("```pax\n{}\n```", content),
+                Some("rs") => format!("```rust\n{}\n```", content),
+                _ => format!("```text\n{}\n```", content),
+            };
+            files_text.push_str(&format!("Filename: {}\n\n{}\n\n", filename, code_block));
+        }
+
         let text_content = ContentItem::Text {
             content_type: "text".to_string(),
             text: format!(
-                "Here's the current PAX file content:\n\n```pax\n{}\n```\n\nPlease update this PAX file based on the following request:\n{}",
-                pax_content, prompt
+                "Here are the current project files:\n\n{}\nPlease update the project files based on the following request:\n{}",
+                files_text, prompt
             ),
         };
-
         // Create the initial message content vector with the text
         let mut message_content = vec![text_content];
 
-    // Add screenshot if available
-    if let Some(screenshot) = screenshot {
-        // Create image buffer
-        let img = image::ImageBuffer::<image::Rgba<u8>, Vec<u8>>::from_raw(
-            screenshot.width as u32,
-            screenshot.height as u32,
-            screenshot.data
-        ).expect("Failed to create image buffer");
-        
-        // Create a cursor-based buffer
-        let mut buffer = std::io::Cursor::new(Vec::new());
-        img.write_to(&mut buffer, image::ImageFormat::Jpeg)?;
-        
-        // write the image to a file
-        img.save("screenshot.jpeg")?;
+        // Add screenshot if available
+        if let Some(screenshot) = screenshot {
+            // Create image buffer
+            let img = image::ImageBuffer::<image::Rgba<u8>, Vec<u8>>::from_raw(
+                screenshot.width as u32,
+                screenshot.height as u32,
+                screenshot.data,
+            )
+            .expect("Failed to create image buffer");
 
+            // Create a cursor-based buffer
+            let mut buffer = std::io::Cursor::new(Vec::new());
+            img.write_to(&mut buffer, image::ImageFormat::Jpeg)?;
 
+            // write the image to a file
+            img.save("screenshot.jpeg")?;
 
-        // Get the bytes from the cursor
-        let bytes = buffer.into_inner();
-        
-        // Convert to base64 but utf8
-        let base64_image = base64::encode(&bytes);
-        let url = format!("data:image/jpeg;base64,{}", base64_image);
-        // Add image content
-        message_content.push(ContentItem::Image {
-            content_type: "image_url".to_string(),
-            image_url: ImageUrl {
-                url,
-                detail: "high".to_string(),
-            },
-        });
-    }
+            // Get the bytes from the cursor
+            let bytes = buffer.into_inner();
 
+            // Convert to base64
+            let base64_image = base64::encode(&bytes);
+            let url = format!("data:image/jpeg;base64,{}", base64_image);
+            // Add image content
+            message_content.push(ContentItem::Image {
+                content_type: "image_url".to_string(),
+                image_url: ImageUrl {
+                    url,
+                    detail: "high".to_string(),
+                },
+            });
+        }
 
         let mut messages = vec![
             Message {
@@ -278,10 +289,13 @@ impl PaxAppGenerator {
         let mut retry_count = 0;
         const MAX_RETRIES: usize = 5;
 
+        let mut total_files: HashMap<String, String> = project_files.clone().into_iter().collect();
+
+
         while retry_count < MAX_RETRIES {
             tx.unbounded_send((request_id, "--- Sent request to OpenAI ---".to_string()))?;
             let response = self.send_prompt(&messages).await?;
-            tx.unbounded_send((request_id, "Received response from OpenAI.".to_string()))?;
+            tx.unbounded_send((request_id, "Validating Response from OpenAI.".to_string()))?;
 
             // Add assistant's response as text-only content
             messages.push(Message {
@@ -294,16 +308,65 @@ impl PaxAppGenerator {
 
             match self.parse_response(&response) {
                 Ok(resp) => {
-                    let (_, pax_files, resp) = resp;
+                    let (rust_files, pax_files, resp) = resp;
+
+                    for (filename, content) in rust_files.iter().chain(pax_files.iter()) {
+                        total_files.insert(filename.clone(), content.clone());
+                    }
+
                     let parse_errors = self.pre_parse_pax_files(&pax_files);
                     if parse_errors.is_empty() {
-                        return Ok((pax_files[0].1.clone(), resp));
+
+                        let files : Vec<(String, String)> = total_files.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+                        // Write the updated files to the generated_project directory
+                        self.write_files_to_directory(&output_dir(),&files)?;
+
+                        // Only proceed if there are Rust files
+                        if !rust_files.is_empty() {
+                            // Try compiling the project
+                            tx.unbounded_send((request_id, "Attempting to compile the project.".to_string()))?;
+                            match self.compile_and_run_project() {
+                                Ok(_) => {
+                                    // Compilation succeeded
+                                    tx.unbounded_send((request_id, "Compilation succeeded.".to_string()))?;
+
+                                    let rust_files = total_files.iter().filter(|(f, _)| f.ends_with(".rs")).map(|(f, c)| (f.clone(), c.clone())).collect();
+                                    let pax_files = total_files.iter().filter(|(f, _)| f.ends_with(".pax")).map(|(f, c)| (f.clone(), c.clone())).collect();
+
+                                    return Ok((rust_files, pax_files, resp));
+                                }
+                                Err(compile_errors) => {
+                                    // Compilation failed, use the error message directly
+                                    let error_message = format!(
+                                        "The updated project failed to compile. Error: {}. Please fix the compilation errors and provide the corrected code.",
+                                        compile_errors
+                                    );
+                                    messages.push(Message {
+                                        role: "user".to_string(),
+                                        content: vec![ContentItem::Text {
+                                            content_type: "text".to_string(),
+                                            text: error_message,
+                                        }],
+                                    });
+                                    tx.unbounded_send((request_id, "Sending compilation errors to AI for correction.".to_string()))?;
+                                    retry_count += 1;
+                                    continue;
+                                }
+                            }
+                        } else {
+                            tx.unbounded_send((request_id, "Parse succeeded.".to_string()))?;
+                            let pax_files = total_files.iter().filter(|(f, _)| f.ends_with(".pax")).map(|(f, c)| (f.clone(), c.clone())).collect();
+
+                            // No Rust files, return the updated files
+                            return Ok((rust_files, pax_files, resp));
+                        }
                     } else {
-                        tx.unbounded_send((request_id,"PAX parsing errors detected:".to_string()))?;
+                        tx.unbounded_send((request_id, "PAX parsing errors detected:".to_string()))?;
                         let error_message = format!(
                             "The updated PAX file failed to parse. Error: {}. Please fix the PAX syntax errors and provide the corrected code.",
                             parse_errors[0].1
                         );
+                        println!("Error message: {}", error_message);
                         messages.push(Message {
                             role: "user".to_string(),
                             content: vec![ContentItem::Text {
@@ -311,13 +374,13 @@ impl PaxAppGenerator {
                                 text: error_message,
                             }],
                         });
-                        tx.unbounded_send((request_id,"Sending error message to AI for correction.".to_string()))?;
+                        tx.unbounded_send((request_id,"Sending PAX parsing errors to AI for correction.".to_string()))?;
                         retry_count += 1;
                     }
                 }
                 Err(e) => {
                     let error_message = format!(
-                        "The previous response could not be parsed correctly. Error: {}. Please provide the updated PAX file again, ensuring that it's properly formatted within a PAX code block.",
+                        "The previous response could not be parsed correctly. Error: {}. Please provide the updated project files again, ensuring that they're properly formatted within code blocks with correct syntax highlighting and optional filenames.",
                         e
                     );
                     messages.push(Message {
@@ -333,205 +396,74 @@ impl PaxAppGenerator {
         }
 
         Err(format!(
-            "Maximum retries ({}) reached while updating PAX file.",
+            "Maximum retries ({}) reached while updating project files.",
             MAX_RETRIES
         )
         .into())
     }
 
+
     pub fn new(api_key: String, model: AIModel) -> Self {
         PaxAppGenerator { api_key, model }
     }
-
-    // New method to copy all contents from one directory to another
-    fn copy_directory_contents(&self, from: &Path, to: &Path) -> io::Result<()> {
-        // Convert both paths to absolute paths
-        let abs_from = fs::canonicalize(from)?;
-        let abs_to = fs::canonicalize(to)?;
-
-        if abs_from == abs_to {
-            println!("Source and destination are the same. Nothing to copy.");
-            return Ok(());
-        }
-
-        fs::create_dir_all(&abs_to)?;
-        for entry in fs::read_dir(&abs_from)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.is_file() {
-                let dest_path = abs_to.join(path.file_name().unwrap());
-                fs::copy(&path, &dest_path)?;
-                println!("Copied: {}", dest_path.display());
-            }
-        }
-        Ok(())
-    }
-
-    // New method to read all files in a directory as a Vec<(String, String)>
-    fn read_directory_files_as_vec(&self, dir: &Path) -> io::Result<Vec<(String, String)>> {
-        let mut files = Vec::new();
-        for entry in fs::read_dir(dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.is_file() {
-                let filename = path.file_name().unwrap().to_str().unwrap().to_string();
-                let content = fs::read_to_string(&path)?;
-                files.push((filename, content));
-            }
-        }
-        Ok(files)
-    }
-
-    fn replace_main_struct_name_in_file(&self, content: &str) -> String {
-        let main_struct_re =
-            Regex::new(r"(?m)^#\[main\]\s*(?:#\[(?:pax|file\([^\)]+\))\]\s*)*pub struct (\w+)")
-                .unwrap();
-
-        if let Some(captures) = main_struct_re.captures(content) {
-            if let Some(struct_name) = captures.get(1) {
-                let struct_name = struct_name.as_str();
-                let struct_name_re =
-                    Regex::new(&format!(r"\b{}\b", regex::escape(struct_name))).unwrap();
-                return struct_name_re.replace_all(content, "Example").to_string();
-            }
-        }
-
-        content.to_string()
-    }
-
-    // async fn send_prompt(&self, messages: &[Message]) -> Result<String, Box<dyn Error>> {
-    //     let client = reqwest::Client::new();
-
-    //     let auth_header = format!("Bearer {}", self.api_key);
-
-    //     let (url, headers, body) = match self.model {
-    //         AIModel::Claude3 => {
-    //             let (system_message, user_messages): (Option<&Message>, Vec<&Message>) =
-    //                 if !messages.is_empty() && messages[0].role == "system" {
-    //                     (Some(&messages[0]), messages[1..].iter().collect())
-    //                 } else {
-    //                     (None, messages.iter().collect())
-    //                 };
-
-    //             let api_messages: Vec<Value> = user_messages
-    //                 .iter()
-    //                 .map(|m| json!({ "role": &m.role, "content": &m.content }))
-    //                 .collect();
-
-    //             let mut body = json!({
-    //                 "model": self.model.as_str(),
-    //                 "max_tokens": 8192,
-    //                 "messages": api_messages,
-    //                 "temperature": 0.5,
-    //             });
-
-    //             if let Some(sys_msg) = system_message {
-    //                 body["system"] = json!(&sys_msg.content);
-    //             }
-
-    //             (
-    //                 CLAUDE_API_URL,
-    //                 vec![
-    //                     ("content-type", "application/json"),
-    //                     ("x-api-key", &self.api_key),
-    //                     ("anthropic-version", "2023-06-01"),
-    //                 ],
-    //                 body,
-    //             )
-    //         }
-    //         AIModel::GPT4o | AIModel::GPT4oMini | AIModel::O1 | AIModel::O1Mini => {
-    //             let api_messages: Vec<Value> = messages
-    //                 .iter()
-    //                 .map(|m| json!({ "role": &m.role, "content": &m.content }))
-    //                 .collect();
-
-    //             let body = json!({
-    //                 "model": self.model.as_str(),
-    //                 "messages": api_messages,
-    //                 "max_tokens": 8192,
-    //                 "temperature": 0.1,
-    //             });
-
-    //             (
-    //                 OPENAI_API_URL,
-    //                 vec![
-    //                     ("content-type", "application/json"),
-    //                     ("Authorization", &auth_header),
-    //                 ],
-    //                 body,
-    //             )
-    //         }
-    //     };
-
-    //     let mut request = client.post(url);
-    //     for (key, value) in headers {
-    //         request = request.header(key, value);
-    //     }
-
-    //     let response = request.json(&body).send().await?.json::<Value>().await?;
-
-    //     match self.model {
-    //         AIModel::Claude3 => {
-    //             if let Some(error) = response.get("error") {
-    //                 Err(format!("API Error: {:?}", error).into())
-    //             } else {
-    //                 response["content"]
-    //                     .as_array()
-    //                     .and_then(|arr| arr.first())
-    //                     .and_then(|obj| obj["text"].as_str())
-    //                     .ok_or_else(|| "Unexpected response format for Claude".into())
-    //                     .map(String::from)
-    //             }
-    //         }
-    //         AIModel::GPT4o | AIModel::O1 | AIModel::O1Mini | AIModel::GPT4oMini => {
-    //             if let Some(error) = response.get("error") {
-    //                 Err(format!("API Error: {:?}", error).into())
-    //             } else {
-    //                 response["choices"]
-    //                     .as_array()
-    //                     .and_then(|arr| arr.first())
-    //                     .and_then(|obj| obj["message"]["content"].as_str())
-    //                     .ok_or_else(|| {
-    //                         let error_msg = format!(
-    //                             "Unexpected response format for GPT-4o. Response: {:?}",
-    //                             response
-    //                         );
-    //                         error_msg.into()
-    //                     })
-    //                     .map(String::from)
-    //             }
-    //         }
-    //     }
-    // }
 
     fn parse_response(
         &self,
         response: &str,
     ) -> Result<(Vec<(String, String)>, Vec<(String, String)>, String), Box<dyn Error>> {
         let rust_regex = Regex::new(r"(?s)```rust(?: filename=(.*?\.rs))?\n(.*?)```")?;
+        let toml_regex = Regex::new(r"(?s)```toml(?: filename=(.*?\.toml))?\n(.*?)```")?;
         let pax_regex = Regex::new(r"(?s)```pax(?: filename=(.*?\.pax))?\n(.*?)```")?;
 
         let mut rust_files = Vec::new();
+
+        let mut error_message = String::new();
+
         for cap in rust_regex.captures_iter(response) {
-            let filename = cap.get(1).map_or("default.rs", |m| m.as_str()).to_string();
-            let content = cap[2].trim().to_string();
-            rust_files.push((filename, content));
+            let filename = cap.get(1);
+            if let Some(filename) = filename {
+                let filename = filename.as_str().to_string();
+                let content = cap[2].trim().to_string();
+                rust_files.push((filename, content));
+            } else {
+                error_message += "\nRust file missing filename, regex to match: ```rust(?: filename=(.*?\\.rs))?\\n(.*?)```";    
+            }
+        }
+
+        for cap in toml_regex.captures_iter(response) {
+            let filename = cap.get(1);
+            if let Some(filename) = filename {
+                let filename = filename.as_str().to_string();
+                let content = cap[2].trim().to_string();
+                rust_files.push((filename, content));
+            } else {
+                error_message += "\nTOML file missing filename, regex to match: ```toml(?: filename=(.*?\\.toml))?\\n(.*?)```";
+            }
         }
 
         let mut pax_files = Vec::new();
         for cap in pax_regex.captures_iter(response) {
-            let filename = cap.get(1).map_or("default.pax", |m| m.as_str()).to_string();
-            let content = cap[2].trim().to_string();
-            pax_files.push((filename, content));
+            let filename = cap.get(1);
+            if let Some(filename) = filename {
+                let filename = filename.as_str().to_string();
+                let content = cap[2].trim().to_string();
+                pax_files.push((filename, content));
+            } else {
+                error_message += "\nPAX file missing filename regex to match: ```pax(?: filename=(.*?\\.pax))?\\n(.*?)```";
+            }
+        }
+
+        if !error_message.is_empty() {
+            error_message = format!("Error parsing response: Please REDO WITH CORRECT FILENAMES\n {}", error_message);
+            return Err(error_message.into());
         }
 
         if rust_files.is_empty() && pax_files.is_empty() {
             return Err("No Rust or PAX files found in response".into());
         }
-
-        // Return the parsed files along with the original LLM response text
         Ok((rust_files, pax_files, response.to_string()))
     }
+
 
     fn pre_parse_pax_files(&self, pax_files: &[(String, String)]) -> Vec<(String, String)> {
         let mut parse_errors = Vec::new();
@@ -566,7 +498,7 @@ impl PaxAppGenerator {
         Ok(())
     }
 
-    fn compile_and_run_project(&self) -> Result<bool, Box<dyn Error>> {
+    fn compile_and_run_project(&self) -> Result<(), Box<dyn Error>> {
         let output = Command::new("./pax")
             .current_dir(output_dir())
             .arg("build")
@@ -574,13 +506,13 @@ impl PaxAppGenerator {
 
         if output.status.success() {
             println!("Project built successfully");
-            Ok(true)
+            Ok(())
         } else {
             println!(
                 "Build failed. Error: {}",
                 String::from_utf8_lossy(&output.stderr)
             );
-            Ok(false)
+            Err(String::from_utf8_lossy(&output.stderr).into())
         }
     }
 
@@ -597,97 +529,5 @@ impl PaxAppGenerator {
         }
         Ok(files_content)
     }
-
-
-
-
-   
-// pub async fn update_pax_file(
-//     &self,
-//     pax_content: &str,
-//     prompt: &str,
-//     request_id: u64,
-//     tx: mpsc::UnboundedSender<(u64, String)>,
-//     screenshot: Option<ScreenshotData>
-// ) -> Result<(String, String), Box<dyn Error>> {
-
-// if let Some(screenshot) = screenshot {
-//     let screenshot_path = project_root!().join("screenshot.png");
-//     let img = image::ImageBuffer::<image::Rgba<u8>, Vec<u8>>::from_raw(
-//         screenshot.width as u32,
-//         screenshot.height as u32,
-//         screenshot.data
-//     ).expect("Failed to create image buffer");
-    
-//     img.save(&screenshot_path)?;
-// }
-
-
-//     let mut messages = vec![
-//         Message {
-//             role: "system".to_string(),
-//             content: SYSTEM_PROMPT.to_string(),
-//         },
-//         Message {
-//             role: "user".to_string(),
-//             content: format!(
-//                 "Here's the current PAX file content:\n\n```pax\n{}\n```\n\nPlease update this PAX file based on the following request:\n{}",
-//                 pax_content, prompt
-//             ),
-//         },
-//     ];
-
-//     let mut retry_count = 0;
-//     const MAX_RETRIES: usize = 5;
-
-//     while retry_count < MAX_RETRIES {
-//         tx.unbounded_send((request_id, "--- Sent request to OpenAI ---".to_string()))?;
-//         let response = self.send_prompt(&messages).await?;
-//         tx.unbounded_send((request_id, "Received response from OpenAI.".to_string()))?;
-
-//         messages.push(Message {
-//             role: "assistant".to_string(),
-//             content: response.clone(),
-//         });
-//         match self.parse_response(&response) {
-//             Ok(resp) => {
-//                 let (_, pax_files, resp) = resp;
-//                 let parse_errors = self.pre_parse_pax_files(&pax_files);
-//                 if parse_errors.is_empty() {
-//                     return Ok((pax_files[0].1.clone(), resp));
-//                 } else {
-//                     tx.unbounded_send((request_id,"PAX parsing errors detected:".to_string()))?;
-//                     let error_message = format!(
-//                         "The updated PAX file failed to parse. Error: {}. Please fix the PAX syntax errors and provide the corrected code.",
-//                         parse_errors[0].1
-//                     );
-//                     messages.push(Message {
-//                         role: "user".to_string(),
-//                         content: error_message,
-//                     });
-//                     tx.unbounded_send((request_id,"Sending error message to AI for correction.".to_string()))?;
-//                     retry_count += 1;
-//                 }
-//             }
-//             Err(e) => {
-//                 let error_message = format!(
-//                     "The previous response could not be parsed correctly. Error: {}. Please provide the updated PAX file again, ensuring that it's properly formatted within a PAX code block.",
-//                     e
-//                 );
-//                 messages.push(Message {
-//                     role: "user".to_string(),
-//                     content: error_message,
-//                 });
-//                 retry_count += 1;
-//             }
-//         }
-//     }
-
-//     Err(format!(
-//         "Maximum retries ({}) reached while updating PAX file.",
-//         MAX_RETRIES
-//     )
-//     .into())
-// }
 
 }

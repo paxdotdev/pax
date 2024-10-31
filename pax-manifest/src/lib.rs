@@ -36,7 +36,7 @@ pub struct PaxManifest {
     /// but parameterizable for integrating with pax_engine directly, e.g. pax_std and pax_designer
     pub engine_import_path: String,
     /// Project files that are not part of the manifest, but are required for the project to build
-    pub project_files: Vec<(String, Vec<String>)>,
+    pub project_files: Vec<(String, String)>,
     /// Cargo manifest directory
     pub cargo_manifest_dir: Option<String>,
 }
