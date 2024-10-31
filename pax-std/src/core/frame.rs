@@ -98,7 +98,7 @@ impl InstanceNode for FrameInstance {
         for layer in 0..layers {
             //our "save point" before clipping — restored to in the post_render
             rcs.save(layer);
-            // rcs.clip(layer, transformed_bez_path.clone());
+            rcs.clip(layer, transformed_bez_path.clone());
         }
     }
 

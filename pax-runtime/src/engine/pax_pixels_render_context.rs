@@ -99,12 +99,12 @@ impl RenderContext for PaxPixelsRenderer {
         self.with_layer_context(layer, |context| {
             log::debug!("pax_pixels_render_context path {:?}", path);
             let path = convert_kurbo_to_lyon_path(&path);
-            context.push_clipping(path);
+            context.clip(path);
         });
     }
     fn transform(&mut self, layer: usize, affine: kurbo::Affine) {
         self.with_layer_context(layer, |context| {
-            context.push_transform(Transform2D::from_array(
+            context.transform(Transform2D::from_array(
                 affine.as_coeffs().map(|v| v as f32),
             ))
         });

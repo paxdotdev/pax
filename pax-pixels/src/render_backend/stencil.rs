@@ -18,6 +18,8 @@ pub struct StencilRenderer {
     stencil_layer: u32,
     width: u32,
     height: u32,
+    stencil_bind_group: wgpu::BindGroup,
+    _stencil_bind_group_layout: wgpu::BindGroupLayout,
 }
 
 #[repr(C)]
@@ -27,15 +29,39 @@ pub struct Vertex {
 }
 
 impl StencilRenderer {
-    pub fn new(device: &Device, width: u32, height: u32, _globals: &wgpu::Buffer) -> Self {
+    pub fn new(device: &Device, width: u32, height: u32, globals: &wgpu::Buffer) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Stencil Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("stencil.wgsl").into()),
         });
 
+        let stencil_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("stencil_bind_group_layout"),
+            });
+
+        let stencil_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &stencil_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: globals.as_entire_binding(),
+            }],
+            label: Some("stencil_bind_group"),
+        });
+
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Stencil Pipeline Layout"),
-            bind_group_layouts: &[],
+            bind_group_layouts: &[&stencil_bind_group_layout],
             push_constant_ranges: &[],
         });
 
@@ -62,7 +88,7 @@ impl StencilRenderer {
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
-                front_face: wgpu::FrontFace::Cw,
+                front_face: wgpu::FrontFace::Ccw,
                 cull_mode: None,
                 polygon_mode: wgpu::PolygonMode::Fill,
                 unclipped_depth: false,
@@ -150,7 +176,7 @@ impl StencilRenderer {
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         });
 
-        let mut indices: [u16; 1024] = [0; 1024];
+        let indices: [u16; 1024] = [0; 1024];
         let indices_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Stencil Indices"),
             contents: bytemuck::cast_slice(&indices),
@@ -189,6 +215,8 @@ impl StencilRenderer {
             width,
             height,
             stencil_layer: 0,
+            stencil_bind_group,
+            _stencil_bind_group_layout: stencil_bind_group_layout,
         }
     }
 
@@ -266,6 +294,7 @@ impl StencilRenderer {
 
             render_pass.set_pipeline(&self.stencil_pipeline);
             render_pass.set_vertex_buffer(0, self.vertices_buffer.slice(..));
+            render_pass.set_bind_group(0, &self.stencil_bind_group, &[]);
             render_pass.set_index_buffer(self.indices_buffer.slice(..), wgpu::IndexFormat::Uint16);
             render_pass.draw_indexed(0..(geometry.indices.len() as u32), 0, 0..1);
         }
@@ -298,6 +327,7 @@ impl StencilRenderer {
 
                 // Use the decrement pipeline and fullscreen quad to decrease all stencil values
                 render_pass.set_pipeline(&self.decrement_pipeline);
+                render_pass.set_bind_group(0, &self.stencil_bind_group, &[]);
                 render_pass.set_vertex_buffer(0, self.fullscreen_vertices_buffer.slice(..));
                 render_pass.draw(0..3, 0..1);
             }

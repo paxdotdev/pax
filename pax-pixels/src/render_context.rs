@@ -194,7 +194,7 @@ impl<'w> WgpuRenderer<'w> {
         }
     }
 
-    pub fn push_transform(&mut self, transform: Transform2D) {
+    pub fn transform(&mut self, transform: Transform2D) {
         let new_ind = self.buffers.transforms.len();
         self.buffers.transforms.push(GpuTransform {
             transform: transform.then(&self.current_transform()).to_arrays(),
@@ -204,7 +204,24 @@ impl<'w> WgpuRenderer<'w> {
         self.transform_index_stack.push(new_ind);
     }
 
-    pub fn push_clipping(&mut self, path: Path) {
+    pub fn clip(&mut self, path: Path) {
+        // fine to transform on CPU - shouldn't be large meshes
+        // let path = path.transformed(&self.current_transform());
+        if self.buffers.primitives.len() > 0 {
+            self.render_backend.render_primitives(&mut self.buffers);
+            let CpuBuffers {
+                geometry,
+                primitives,
+                transforms: _,
+                colors,
+                gradients,
+            } = &mut self.buffers;
+            geometry.vertices.clear();
+            geometry.indices.clear();
+            primitives.clear();
+            colors.clear();
+            gradients.clear();
+        }
         let options = FillOptions::tolerance(self.tolerance);
         let mut geometry = VertexBuffers::new();
         let mut geometry_builder =
