@@ -12,7 +12,6 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::thread::sleep;
 use futures::channel::mpsc;
 
 const CLAUDE_API_URL: &str = "https://api.anthropic.com/v1/messages";

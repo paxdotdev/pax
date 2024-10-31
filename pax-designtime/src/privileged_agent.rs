@@ -145,8 +145,6 @@ impl WebSocketConnection {
                             }
                             AgentMessage::LLMFinalResponse(final_response) => {
                                 if let ChangeType::PaxOnly(components) = final_response.changes {
-                                    log::warn!("got pax-only changes:");
-                                    log::warn!("length: {}", components.len());
                                     manager.add_new_message(
                                         final_response.request_id,
                                         final_response.message,

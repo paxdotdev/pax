@@ -19,6 +19,6 @@ impl Fireworks {
 
     pub fn handle_tick(&mut self, _ctx: &NodeContext) {
         let old_ticks = self.ticks.get();
-        self.ticks.set(old_ticks + 20); // Increment by 20 to make it 10x as fast
+        self.ticks.set(old_ticks + 1);
     }
 }

@@ -1,6 +1,4 @@
-<Rectangle width=22.20% height=14.21% x=24.31% y=37.05%/>
-<Ellipse width=17.64% height=55.47% x=73.65% y=17.71% fill=rgba(0, 0, 255, 128) rotate={(ticks)deg}/>
-<Group @wheel=self.handle_wheel y=30.80% x=41.04% height=43.00% width=53.91%>
+<Group @wheel=self.handle_wheel>
     <Text x=0% y=0% text="SCROLL" height=100% width=100% style={
         font: Font::Web(
             "Roboto",
@@ -14,12 +12,10 @@
         align_multiline: TextAlignHorizontal::Center
         underline: false
     }/>
-    <Ellipse width=100px height=100px x=50% y=50% fill=rgba(255, 0, 0, 128)/>
-    for i in 1..200 {
+    for i in 1..60 {
         <Rectangle class=rect width=300px height=300px/>
     }
 </Group>
-<Ellipse width=50px height=50px x={bouncing_x} y=80% fill=rgba(0, 255, 0, 128)/>
 
 @settings {
     @tick: handle_tick
@@ -30,11 +26,5 @@
         scale_y: {(50 * (0.75 + (i * i * 0.08 * rotation)) * (1 - ((rotation / 3) + i / 100.00)))%}
         x: 50%
         y: 50%
-    }
-    .particle {
-        fill: {hsl((j * 10.00 + ticks)deg, 85%, 55%)}
-        x: {(j * 2.00 + ticks) %% 100}
-        y: {(j * 3.00 + ticks) %% 100}
-        rotate: {(ticks * 2.00)deg}
     }
 }
