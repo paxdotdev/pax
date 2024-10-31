@@ -10,7 +10,7 @@ use wgpu::{
 
 pub mod data;
 mod gpu_resources;
-mod stencil;
+pub mod stencil;
 mod texture;
 
 use data::{GpuGlobals, GpuPrimitive, GpuVertex};
@@ -293,8 +293,12 @@ impl<'w> RenderBackend<'w> {
             Self::create_pipeline(&device, surface_config.format, primitive_bind_group_layout);
 
         let texture_renderer = TextureRenderer::new(&device);
-        let stencil_renderer =
-            StencilRenderer::new(&device, config.initial_width, config.initial_height);
+        let stencil_renderer = StencilRenderer::new(
+            &device,
+            config.initial_width,
+            config.initial_height,
+            &globals_buffer,
+        );
 
         let initial_width = config.initial_width;
         let initial_height = config.initial_height;
@@ -396,14 +400,20 @@ impl<'w> RenderBackend<'w> {
         })
     }
 
-    pub fn push_stencil(&mut self, transform: Transform2D) {
+    pub fn push_stencil(&mut self, geometry: VertexBuffers<stencil::Vertex, u16>) {
         // self.stencil_renderer.clear(&self.device, &self.queue);
         self.stencil_renderer
-            .push_stencil(&self.device, &self.queue, transform);
+            .push_stencil(&self.device, &self.queue, geometry);
     }
 
-    pub fn pop_stencil(&mut self) {
-        self.stencil_renderer.pop_stencil(&self.device, &self.queue);
+    pub fn reset_stencil_depth_to(&mut self, depth: u32) {
+        self.stencil_renderer
+            .reset_stencil_depth_to(&self.device, &self.queue, depth);
+    }
+
+    pub fn get_clip_depth(&mut self) -> u32 {
+        let (_, depth) = self.stencil_renderer.get_stencil();
+        depth
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {

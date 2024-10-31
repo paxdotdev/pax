@@ -95,9 +95,11 @@ impl RenderContext for PaxPixelsRenderer {
             context.restore();
         });
     }
-    fn clip(&mut self, layer: usize, _path: kurbo::BezPath) {
+    fn clip(&mut self, layer: usize, path: kurbo::BezPath) {
         self.with_layer_context(layer, |context| {
-            context.set_clip_rect_test(Transform2D::scale(0.5, 0.5));
+            log::debug!("pax_pixels_render_context path {:?}", path);
+            let path = convert_kurbo_to_lyon_path(&path);
+            context.push_clipping(path);
         });
     }
     fn transform(&mut self, layer: usize, affine: kurbo::Affine) {

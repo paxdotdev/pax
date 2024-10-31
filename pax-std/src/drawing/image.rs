@@ -220,7 +220,7 @@ impl InstanceNode for ImageInstance {
             let clip_path = kurbo::Rect::new(0.0, 0.0, container_width, container_height);
             rc.save(layer_id);
             rc.transform(layer_id, t_and_b.transform.into());
-            rc.clip(layer_id, clip_path.into_path(0.01));
+            // rc.clip(layer_id, clip_path.into_path(0.01));
             rc.draw_image(layer_id, &path, transformed_bounds);
             rc.restore(layer_id);
             self.initial_load

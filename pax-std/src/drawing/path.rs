@@ -223,7 +223,7 @@ impl InstanceNode for PathInstance {
             //our "save point" before clipping — restored to in the post_render
 
             rc.save(layer_id);
-            rc.clip(layer_id, transformed_clip_path.clone());
+            // rc.clip(layer_id, transformed_clip_path.clone());
             rc.fill(layer_id, transformed_bez_path, &properties.fill.get());
             if properties
                 .stroke
