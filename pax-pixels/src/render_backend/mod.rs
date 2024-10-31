@@ -2,11 +2,7 @@ use anyhow::anyhow;
 use bytemuck::Pod;
 
 use lyon::lyon_tessellation::VertexBuffers;
-use wgpu::{
-    util::DeviceExt, BindGroup, BindGroupLayout, BufferUsages, CompositeAlphaMode, Device,
-    IndexFormat, PresentMode, RenderPipeline, SurfaceConfiguration, SurfaceTexture, TextureFormat,
-    TextureUsages, TextureView,
-};
+use wgpu::{util::DeviceExt, BindGroup, BindGroupLayout, BufferUsages, CompositeAlphaMode, Device, IndexFormat, PresentMode, RenderPipeline, SurfaceConfiguration, SurfaceTexture, TextureFormat, TextureUsages, TextureView, StoreOp, TextureDescriptor};
 
 pub mod data;
 mod gpu_resources;
@@ -391,7 +387,7 @@ impl<'w> RenderBackend<'w> {
                 bias: Default::default(),
             }),
             multisample: wgpu::MultisampleState {
-                count: 1,
+                count: 4,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
@@ -489,6 +485,27 @@ impl<'w> RenderBackend<'w> {
 
     pub(crate) fn render_primitives(&mut self, buffers: &mut CpuBuffers) {
         let (screen_surface, screen_texture) = self.get_screen_texture();
+
+        // Create a multisampled texture for 4x MSAA
+        let multisampled_texture_desc = wgpu::TextureDescriptor {
+            label: Some("Multisampled Texture"),
+            size: wgpu::Extent3d {
+                width: self.globals.resolution[0] as u32,
+                height: self.globals.resolution[1] as u32,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 4,
+            dimension: wgpu::TextureDimension::D2,
+            format: TextureFormat::Rgba16Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        };
+
+        let multisampled_texture = self.device.create_texture(&multisampled_texture_desc);
+        let multisampled_texture_view = multisampled_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        // Create command encoder
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -500,11 +517,11 @@ impl<'w> RenderBackend<'w> {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &screen_texture,
-                    resolve_target: None,
+                    view: &multisampled_texture_view, // Use the multisampled texture view
+                    resolve_target: Some(&screen_texture), // Resolve to the screen texture
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), // Clear for multisampling
+                        store: StoreOp::Discard,
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
@@ -518,17 +535,18 @@ impl<'w> RenderBackend<'w> {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            self.write_buffers(buffers);
 
+            // Write buffers and set pipeline as before
+            self.write_buffers(buffers);
             render_pass.set_pipeline(&self.pipeline);
             render_pass.set_bind_group(0, &self.bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_stencil_reference(stencil_index); //this needs to be dynamic?
-            render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
+            render_pass.set_stencil_reference(stencil_index); // Set dynamic stencil reference if needed
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             render_pass.draw_indexed(0..self.index_count as u32, 0, 0..1);
         }
 
-        //render primitives
+        // Submit the command buffer to the queue
         self.queue.submit(std::iter::once(encoder.finish()));
         screen_surface.present();
     }
