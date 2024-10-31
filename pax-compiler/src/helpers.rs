@@ -8,9 +8,6 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use syn::spanned::Spanned;
-use syn::visit::Visit;
-use syn::{parse_file, ItemStruct};
 use toml_edit;
 use toml_edit::Document;
 

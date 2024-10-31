@@ -10,7 +10,6 @@ use pax_runtime::api::*;
 use std::rc::Rc;
 
 use crate::common::patch_if_needed;
-use crate::ImageFit;
 
 /// A platform-native image
 #[pax]

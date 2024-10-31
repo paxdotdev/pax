@@ -1,16 +1,13 @@
-use api::Window;
 use kurbo::Shape;
 use pax_engine::*;
 use pax_runtime::api::{borrow_mut, use_RefCell};
 use pax_runtime::{api::Property, api::RenderContext, ExpandedNodeIdentifier};
-use std::cell::Ref;
 use std::collections::HashSet;
 
 use_RefCell!();
 use pax_message::ImagePatch;
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
-    TransformAndBounds,
 };
 use std::rc::Rc;
 

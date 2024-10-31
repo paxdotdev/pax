@@ -1,4 +1,3 @@
-use std::net::SocketAddr;
 
 use crate::{
     messages::{
@@ -9,7 +8,6 @@ use crate::{
 use anyhow::{anyhow, Result};
 use ewebsock::{WsEvent, WsMessage};
 use pax_manifest::{ComponentDefinition, PaxManifest};
-use pax_message::ScreenshotData;
 use url::Url;
 
 pub struct WebSocketConnection {

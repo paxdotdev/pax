@@ -5,7 +5,6 @@ use std::{
 };
 
 use actix_web::{web::Data, App};
-use color_eyre::owo_colors::OwoColorize;
 use pax_compiler::design_server::{web_socket, AppState};
 use pax_manifest::{
     ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, PaxManifest,

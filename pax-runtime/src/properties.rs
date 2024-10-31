@@ -3,10 +3,9 @@ use crate::api::Window;
 use pax_lang::interpreter::property_resolution::IdentifierResolver;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, ScreenshotData};
-use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::properties::UntypedProperty;
 use pax_runtime_api::{
-    borrow, borrow_mut, use_RefCell, Event, Interpolatable, MouseOut, MouseOver, PaxValue,
+    borrow, borrow_mut, use_RefCell, Event, Interpolatable, MouseOut, MouseOver,
     RenderContext, Store, Variable,
 };
 use_RefCell!();

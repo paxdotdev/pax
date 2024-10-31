@@ -1,10 +1,9 @@
 use kurbo::{RoundedRect, RoundedRectRadii, Shape};
 use pax_runtime::{api::Fill, BaseInstance};
 use pax_runtime_api::use_RefCell;
-use piet::{LinearGradient, RadialGradient};
 
 use pax_runtime::{
-    occlusion, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
+    ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 
 use pax_runtime::api as pax_runtime_api;

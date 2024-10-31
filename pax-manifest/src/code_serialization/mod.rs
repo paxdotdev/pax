@@ -17,7 +17,7 @@ use include_dir::{include_dir, Dir};
 
 use crate::{pax_runtime_api::PaxValue, ComponentDefinition, ExpressionInfo, PaxManifest, PaxType};
 use pax_lang::{
-    formatting::{format_file, format_pax_template},
+    formatting::format_pax_template,
     helpers::{replace_by_line_column, InlinedTemplateFinder},
 };
 

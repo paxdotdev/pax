@@ -2,11 +2,10 @@ use kurbo::BezPath;
 
 use pax_engine::api::{Fill, PathElement};
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
-use pax_runtime::api::{Color, Layer, RenderContext, Stroke};
+use pax_runtime::api::{Layer, RenderContext, Stroke};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
-use piet::{LinearGradient, RadialGradient};
 
 use crate::common::Point;
 use pax_engine::*;

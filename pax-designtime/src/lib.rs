@@ -1,7 +1,6 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::net::{Ipv4Addr, SocketAddr, ToSocketAddrs};
 use std::rc::Rc;
 
 pub mod orm;
@@ -15,7 +14,6 @@ use orm::{MessageType, ReloadType};
 use pax_manifest::pax_runtime_api::Property;
 use pax_message::ScreenshotData;
 use privileged_agent::WebSocketConnection;
-use url::Url;
 
 use core::fmt::Debug;
 
@@ -23,7 +21,6 @@ pub use pax_manifest;
 use pax_manifest::{
     server::*, ComponentDefinition, PaxManifest, TypeId, UniqueTemplateNodeIdentifier,
 };
-use reqwasm::http::Response;
 pub use serde_pax::error::{Error, Result};
 pub use serde_pax::se::{to_pax, Serializer};
 

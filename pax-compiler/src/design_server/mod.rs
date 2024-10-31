@@ -3,13 +3,11 @@ use actix_web::middleware::Logger;
 
 use actix_web::web::Data;
 use actix_web::{get, web, App, HttpRequest, HttpServer, Responder};
-use actix_web::{post, HttpResponse, Result};
+use actix_web::{HttpResponse, Result};
 use actix_web_actors::ws;
 use colored::Colorize;
-use pax_generation::{AIModel, PaxAppGenerator};
-use serde_json::json;
 use std::net::TcpListener;
-use std::{env, fs};
+use std::fs;
 
 use env_logger;
 use std::io::Write;

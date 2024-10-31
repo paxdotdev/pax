@@ -14,7 +14,7 @@ use self::helpers::{ColorChannelInteger, PaxEnum, PaxObject, PaxSeq};
 pub use error::{Error, Result};
 
 use pax_runtime_api::constants::{
-    COLOR, DEGREES, INTEGER, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE,
+    COLOR, DEGREES, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE,
 };
 
 const STRING: &str = "String";

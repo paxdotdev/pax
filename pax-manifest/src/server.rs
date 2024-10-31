@@ -2,7 +2,6 @@ use crate::parsing::Reflectable;
 use crate::{PaxManifest, TypeId};
 use pax_runtime_api::{CoercionRules, HelperFunctions, Interpolatable, PaxValue, ToPaxValue};
 use serde::{Deserialize, Serialize};
-use std::cell::Ref;
 
 #[derive(Serialize, Deserialize)]
 pub struct PublishRequest {
