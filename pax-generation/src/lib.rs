@@ -58,6 +58,17 @@ struct ImageUrl {
 }
 
 #[derive(Clone, Debug, Serialize)]
+struct ClaudeImageUrl {
+    #[serde(rename = "type")]
+    content_type: String,
+    media_type: String,
+    data: String,
+}
+
+
+
+
+#[derive(Clone, Debug, Serialize)]
 #[serde(untagged)]
 enum ContentItem {
     Text {
@@ -69,6 +80,11 @@ enum ContentItem {
         #[serde(rename = "type")]
         content_type: String,
         image_url: ImageUrl,
+    },
+    ClaudeImage {
+        #[serde(rename = "type")]
+        content_type: String,
+        source: ClaudeImageUrl,
     },
 }
 
@@ -104,7 +120,8 @@ impl PaxAppGenerator {
                             .iter()
                             .map(|c| match c {
                                 ContentItem::Text { text, .. } => text.clone(),
-                                ContentItem::Image { .. } => String::new(), // Claude doesn't support images
+                                ContentItem::Image { .. } => String::new(),
+                                ContentItem::ClaudeImage { .. } => json!(c).to_string(),
                             })
                             .collect::<Vec<String>>()
                             .join("\n");
@@ -126,6 +143,7 @@ impl PaxAppGenerator {
                         .map(|c| match c {
                             ContentItem::Text { text, .. } => text.clone(),
                             ContentItem::Image { .. } => String::new(),
+                            ContentItem::ClaudeImage { .. } => json!(c).to_string(),
                         })
                         .collect::<Vec<String>>()
                         .join("\n");
@@ -212,7 +230,8 @@ impl PaxAppGenerator {
         prompt: &str,
         request_id: u64,
         tx: mpsc::UnboundedSender<(u64, String)>,
-        screenshot: Option<ScreenshotData>
+        screenshot: Option<ScreenshotData>,
+        model: &AIModel,
     ) -> Result<(String, String), Box<dyn Error>> {
         // Create the initial text content
         let text_content = ContentItem::Text {
@@ -234,30 +253,69 @@ impl PaxAppGenerator {
             screenshot.height as u32,
             screenshot.data
         ).expect("Failed to create image buffer");
-        
+
+        // Calculate new dimensions maintaining aspect ratio
+        let max_dimension = 1440;
+        let (width, height) = (img.width(), img.height());
+        let ratio = width as f32 / height as f32;
+        let (new_width, new_height) = if width > height {
+            if width > max_dimension {
+                (max_dimension, (max_dimension as f32 / ratio) as u32)
+            } else {
+                (width, height)
+            }
+        } else {
+            if height > max_dimension {
+                ((max_dimension as f32 * ratio) as u32, max_dimension)
+            } else {
+                (width, height)
+            }
+        };
+
+        // Resize the image
+        let resized = image::imageops::resize(
+            &img,
+            new_width,
+            new_height,
+            image::imageops::FilterType::Lanczos3
+        );
+
         // Create a cursor-based buffer
         let mut buffer = std::io::Cursor::new(Vec::new());
-        img.write_to(&mut buffer, image::ImageFormat::Jpeg)?;
-        
+        resized.write_to(&mut buffer, image::ImageFormat::Jpeg)?;
+
         // write the image to a file
-        img.save("screenshot.jpeg")?;
-
-
+        resized.save("screenshot.jpeg")?;
 
         // Get the bytes from the cursor
         let bytes = buffer.into_inner();
         
         // Convert to base64 but utf8
         let base64_image = base64::encode(&bytes);
-        let url = format!("data:image/jpeg;base64,{}", base64_image);
+        let url = format!("data:image/jpeg;base64,{}", base64_image.clone());
         // Add image content
-        message_content.push(ContentItem::Image {
-            content_type: "image_url".to_string(),
-            image_url: ImageUrl {
-                url,
-                detail: "high".to_string(),
+
+        match model {
+            AIModel::Claude3 => {
+                message_content.push(ContentItem::ClaudeImage {
+                    content_type: "image".to_string(),
+                    source: ClaudeImageUrl {
+                        content_type: "base64".to_string(),
+                        media_type: "image/jpeg".to_string(),
+                        data: base64_image,
+                    }
+                });
             },
-        });
+            _ => {
+                message_content.push(ContentItem::Image {
+                    content_type: "image_url".to_string(),
+                    image_url: ImageUrl {
+                        url,
+                        detail: "high".to_string(),
+                    },
+                });
+            }
+        }
     }
 
 
@@ -279,9 +337,9 @@ impl PaxAppGenerator {
         const MAX_RETRIES: usize = 5;
 
         while retry_count < MAX_RETRIES {
-            tx.unbounded_send((request_id, "--- Sent request to OpenAI ---".to_string()))?;
+            tx.unbounded_send((request_id, format!("--- Sent request to {} ---", self.model.as_str())))?;
             let response = self.send_prompt(&messages).await?;
-            tx.unbounded_send((request_id, "Received response from OpenAI.".to_string()))?;
+            tx.unbounded_send((request_id, "Received response.".to_string()))?;
 
             // Add assistant's response as text-only content
             messages.push(Message {
