@@ -301,39 +301,13 @@ impl PaxEngine {
                 .unwrap_or(false)
             {
                 rcs.clear(i);
-                let circle = Circle::new((300.0, 300.0), 400.0);
-                rcs.fill(i, circle.into_path(0.1), &Fill::Solid(Color::BLUE));
-                let circle = Circle::new((600.0, 500.0), 300.0);
-                rcs.transform(i, Affine::translate((200.0, 200.0)));
-                rcs.fill(
-                    i,
-                    circle.into_path(0.1),
-                    &Fill::LinearGradient(LinearGradient {
-                        start: (Size::Percent(0.into()), Size::Percent(0.into())),
-                        end: (Size::Percent(100.0.into()), Size::Percent(100.0.into())),
-                        stops: vec![
-                            GradientStop {
-                                position: Size::Percent(0.0.into()),
-                                color: Color::RED,
-                            },
-                            GradientStop {
-                                position: Size::Percent(50.0.into()),
-                                color: Color::BLUE,
-                            },
-                            GradientStop {
-                                position: Size::Percent(100.0.into()),
-                                color: Color::GREEN,
-                            },
-                        ],
-                    }),
-                );
             }
         }
         // This is pretty useful during debugging - left it here since I use it often. /Sam
         // crate::api::log(&format!("tree: {:#?}", self.root_node));
-        // self.root_expanded_node
-        //     .recurse_render_queue(&mut self.runtime_context, rcs);
-        // self.runtime_context.recurse_flush_queued_renders(rcs);
+        self.root_expanded_node
+            .recurse_render_queue(&mut self.runtime_context, rcs);
+        self.runtime_context.recurse_flush_queued_renders(rcs);
 
         self.runtime_context.clear_all_dirty_canvases();
 

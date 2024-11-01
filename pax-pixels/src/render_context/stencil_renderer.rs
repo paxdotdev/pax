@@ -12,7 +12,7 @@ pub struct StencilRenderer {
     indices_buffer: wgpu::Buffer,
     stencil_texture: wgpu::Texture,
     stencil_view: wgpu::TextureView,
-    stencil_layer: u32,
+    pub stencil_layer: u32,
     stencil_geometry_stack: Vec<VertexBuffers<Vertex, u16>>,
     width: u32,
     height: u32,

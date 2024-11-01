@@ -103,7 +103,7 @@ impl RenderContext for PaxPixelsRenderer {
     }
     fn transform(&mut self, layer: usize, affine: kurbo::Affine) {
         self.with_layer_context(layer, |context| {
-            context.transform(Transform2D::from_array(
+            context.transform(&Transform2D::from_array(
                 affine.as_coeffs().map(|v| v as f32),
             ))
         });
@@ -295,7 +295,9 @@ fn to_pax_pixels_fill(fill: &pax_runtime_api::Fill, rect: kurbo::Rect) -> pax_pi
 
 pub fn to_pax_pixels_color(color: &pax_runtime_api::Color) -> pax_pixels::Color {
     let [r, g, b, a] = color.to_rgba_0_1();
-    pax_pixels::Color::rgba(r as f32, g as f32, b as f32, a as f32)
+    pax_pixels::Color {
+        rgba: [r as f32, g as f32, b as f32, a as f32],
+    }
 }
 
 pub fn convert_kurbo_to_lyon_path(kurbo_path: &BezPath) -> Path {

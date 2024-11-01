@@ -9,6 +9,9 @@ use lyon::lyon_tessellation::FillTessellator;
 use lyon::lyon_tessellation::FillVertex;
 use lyon::lyon_tessellation::VertexBuffers;
 use lyon::path::Path;
+use lyon::tessellation::StrokeOptions;
+use lyon::tessellation::StrokeTessellator;
+use lyon::tessellation::StrokeVertex;
 
 mod mesh_renderer;
 mod stencil_renderer;
@@ -21,12 +24,20 @@ use stencil_renderer::StencilRenderer;
 use texture_renderer::TextureRenderer;
 
 pub struct WgpuRenderer<'w> {
+    // rendering
     backend: RenderBackend<'w>,
     pub texture_renderer: TextureRenderer,
     pub stencil_renderer: StencilRenderer,
     pub mesh_renderer: MeshRenderer,
     encoder: wgpu::CommandEncoder,
+
+    // config
     tolerance: f32,
+
+    //state
+    transform_stack: Vec<Transform2D>,
+    // points to restore to, transform_stack/clipping_stack respectively
+    save_points: Vec<(usize, usize)>,
 }
 
 impl<'w> WgpuRenderer<'w> {
@@ -47,34 +58,38 @@ impl<'w> WgpuRenderer<'w> {
             encoder,
             //TODO expose as option
             tolerance: 0.5,
+            transform_stack: vec![],
+            save_points: vec![],
         }
     }
 
-    // fn current_transform(&self) -> Transform2D {
-    //     Transform2D::from_arrays(
-    //         self.buffers
-    //             .transforms
-    //             .get(self.transform_index_stack.last().cloned().unwrap_or(0))
-    //             .expect("at least one identity transform should exist on the transform stack")
-    //             .transform,
-    //     )
-    // }
-
     pub fn stroke_path(&mut self, path: Path, stroke_fill: Fill, stroke_width: f32) {
-        // let prim_id = self.push_primitive_def(stroke_fill);
-        // let options = StrokeOptions::tolerance(self.tolerance).with_line_width(stroke_width);
-        // let mut geometry_builder =
-        //     BuffersBuilder::new(&mut self.buffers.geometry, |vertex: StrokeVertex| {
-        //         GpuVertex {
-        //             position: vertex.position().to_array(),
-        //             normal: [0.0; 2],
-        //             prim_id,
-        //         }
-        //     });
-        // match StrokeTessellator::new().tessellate_path(&path, &options, &mut geometry_builder) {
-        //     Ok(_) => {}
-        //     Err(e) => log::warn!("{:?}", e),
-        // };
+        let options = StrokeOptions::tolerance(self.tolerance).with_line_width(stroke_width);
+        let mut geometry = VertexBuffers::new();
+        let mut geometry_builder =
+            BuffersBuilder::new(&mut geometry, |vertex: StrokeVertex| GpuVertex {
+                position: vertex.position().to_array(),
+                normal: [0.0; 2],
+                prim_id: 0,
+            });
+        match StrokeTessellator::new().tessellate_path(&path, &options, &mut geometry_builder) {
+            Ok(_) => {}
+            Err(e) => log::warn!("{:?}", e),
+        };
+
+        // TODO ------- everything bellow looks the same for fill --------
+
+        // TODO don't recreate this mesh each frame, instead return this mesh from a create_fill_path_resource method
+        let mesh = self
+            .mesh_renderer
+            .make_mesh(&self.backend.device, &geometry, stroke_fill);
+
+        // TODO this code becomes the new "fill_path" method, everything above the "create"
+        // TODO another big optimization: if transform/clip doesn't change, we can use the same render pass
+        // for drawing all meshes and images.
+        let mut render_pass =
+            Self::main_draw_render_pass(&self.backend, &self.stencil_renderer, &mut self.encoder);
+        self.mesh_renderer.render_meshes(&mut render_pass, &[mesh]);
     }
 
     pub fn fill_path(&mut self, path: Path, fill: Fill) {
@@ -91,10 +106,14 @@ impl<'w> WgpuRenderer<'w> {
             Err(e) => log::warn!("{:?}", e),
         };
 
-        // TODO don't recreate encoder/render pass each frame
+        // TODO ------- everything bellow looks the same for stroke --------
+
+        // TODO don't recreate this mesh each frame, instead return this mesh from a create_fill_path_resource method
         let mesh = self
             .mesh_renderer
             .make_mesh(&self.backend.device, &geometry, fill);
+
+        // TODO this code becomes the new "fill_path" method, everything above the "create"
         let mut render_pass =
             Self::main_draw_render_pass(&self.backend, &self.stencil_renderer, &mut self.encoder);
         self.mesh_renderer.render_meshes(&mut render_pass, &[mesh]);
@@ -108,8 +127,21 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     pub fn draw_image(&mut self, image: &Image, rect: Box2D) {
-        // let transform = self.current_transform();
-        // self.render_backend.render_image(image, transform, rect);
+        let transform = self.transform_stack.last().cloned().unwrap_or_default();
+
+        // TODO don't create this every time an image is drawn, instead split into two parts: "load_image" that gives back
+        // a resource, and "draw_image" that takes that resource and draws it using the below logic
+        let image_resource = self.texture_renderer.make_image(
+            &self.backend,
+            &transform,
+            &rect,
+            &image.rgba,
+            image.pixel_width,
+        );
+        let mut render_pass =
+            Self::main_draw_render_pass(&self.backend, &self.stencil_renderer, &mut self.encoder);
+        self.texture_renderer
+            .render_image(&mut render_pass, &image_resource)
     }
 
     // used for image and mesh drawing
@@ -146,6 +178,7 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     pub fn flush(&mut self) {
+        // draw everything scheduled with the previous encoder, and create a new one for the next frame
         let encoder = std::mem::replace(
             &mut self.encoder,
             self.backend
@@ -158,62 +191,59 @@ impl<'w> WgpuRenderer<'w> {
         let (screen_surface, _screen_texture) = self.backend.get_screen_texture();
         //render primitives
         screen_surface.present();
-        // TODO finish and recreate encoder here
-        // if self.buffers.primitives.len() > 0 {
-        //     self.render_backend.render_primitives(&mut self.buffers);
-        // }
-        // self.buffers.reset();
-        // self.transform_index_stack.clear();
     }
 
     pub fn save(&mut self) {
-        // let transform_len = self.transform_index_stack.len();
-        // self.saves
-        //     .push((transform_len, self.render_backend.get_clip_depth() as usize));
+        let transform_len = self.transform_stack.len();
+        self.save_points
+            .push((transform_len, self.stencil_renderer.stencil_layer as usize));
     }
 
     pub fn restore(&mut self) {
-        // if let Some((t_pen, clip_depth)) = self.saves.pop() {
-        //     self.transform_index_stack.truncate(t_pen);
-        //     self.render_backend
-        //         .reset_stencil_depth_to(clip_depth as u32);
-        // }
+        if let Some((t_pen, clip_depth)) = self.save_points.pop() {
+            self.transform_stack.truncate(t_pen);
+            // make sure everything queued get's drawn with the current transform/stencil
+            // before we modify it
+            self.flush();
+            self.backend
+                .set_transform(self.transform_stack.last().cloned().unwrap_or_default());
+            self.stencil_renderer.reset_stencil_depth_to(
+                &self.backend.device,
+                &self.backend.queue,
+                clip_depth as u32,
+            );
+        }
     }
 
-    pub fn transform(&mut self, transform: Transform2D) {
-        self.backend.set_transform(transform);
+    pub fn transform(&mut self, transform: &Transform2D) {
+        let prev_transform = self.transform_stack.last().cloned().unwrap_or_default();
+        let new_transform = prev_transform.then(&transform);
+        self.transform_stack.push(new_transform);
+        // make sure everything queued get's drawn with the current transform
+        // before we modify it
+        self.flush();
+        self.backend.set_transform(new_transform);
     }
 
     pub fn clip(&mut self, path: Path) {
+        // make sure everything queued get's drawn with the current stencil
+        // before we modify it
+        self.flush();
         // fine to transform on CPU - shouldn't be large meshes
-        // let path = path.transformed(&self.current_transform());
-        // if self.buffers.primitives.len() > 0 {
-        //     self.render_backend.render_primitives(&mut self.buffers);
-        //     let CpuBuffers {
-        //         geometry,
-        //         primitives,
-        //         transforms: _,
-        //         colors,
-        //         gradients,
-        //     } = &mut self.buffers;
-        //     geometry.vertices.clear();
-        //     geometry.indices.clear();
-        //     primitives.clear();
-        //     colors.clear();
-        //     gradients.clear();
-        // }
-        // let options = FillOptions::tolerance(self.tolerance);
-        // let mut geometry = VertexBuffers::new();
-        // let mut geometry_builder = BuffersBuilder::new(&mut geometry, |vertex: FillVertex| {
-        //     stencil_renderer::Vertex {
-        //         position: vertex.position().to_array(),
-        //     }
-        // });
-        // match FillTessellator::new().tessellate_path(&path, &options, &mut geometry_builder) {
-        //     Ok(_) => {}
-        //     Err(e) => log::warn!("{:?}", e),
-        // };
-        // self.render_backend.push_stencil(geometry);
+        let path = path.transformed(&self.transform_stack.last().cloned().unwrap_or_default());
+        let options = FillOptions::tolerance(self.tolerance);
+        let mut geometry = VertexBuffers::new();
+        let mut geometry_builder = BuffersBuilder::new(&mut geometry, |vertex: FillVertex| {
+            stencil_renderer::Vertex {
+                position: vertex.position().to_array(),
+            }
+        });
+        match FillTessellator::new().tessellate_path(&path, &options, &mut geometry_builder) {
+            Ok(_) => {}
+            Err(e) => log::warn!("{:?}", e),
+        };
+        self.stencil_renderer
+            .push_stencil(&self.backend.device, &self.backend.queue, geometry);
     }
 
     pub fn resize(&mut self, width: f32, height: f32) {
@@ -244,84 +274,6 @@ pub enum GradientType {
 #[derive(Debug)]
 pub struct Color {
     pub rgba: [f32; 4],
-}
-
-impl Color {
-    pub fn rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
-        Self { rgba: [r, g, b, a] }
-    }
-
-    //credit: ChatGPT
-    pub fn hsva(h: f32, s: f32, v: f32, a: f32) -> Self {
-        let i = (h * 6.0).floor() as i32;
-        let f = h * 6.0 - i as f32;
-        let p = v * (1.0 - s);
-        let q = v * (1.0 - f * s);
-        let t = v * (1.0 - (1.0 - f) * s);
-
-        let (r, g, b) = match i % 6 {
-            0 => (v, t, p),
-            1 => (q, v, p),
-            2 => (p, v, t),
-            3 => (p, q, v),
-            4 => (t, p, v),
-            _ => (v, p, q),
-        };
-        Self { rgba: [r, g, b, a] }
-    }
-
-    //Credit piet library: https://docs.rs/piet/latest/src/piet/color.rs.html#130-173
-    pub fn hlca(h: f32, l: f32, c: f32, a: f32) -> Self {
-        // The reverse transformation from Lab to XYZ, see
-        // https://en.wikipedia.org/wiki/CIELAB_color_space
-        fn f_inv(t: f32) -> f32 {
-            let d = 6. / 29.;
-            if t > d {
-                t.powi(3)
-            } else {
-                3. * d * d * (t - 4. / 29.)
-            }
-        }
-        let th = h * (std::f32::consts::PI / 180.);
-        let a_2 = c * th.cos();
-        let b = c * th.sin();
-        let ll = (l + 16.) * (1. / 116.);
-        // Produce raw XYZ values
-        let x = f_inv(ll + a_2 * (1. / 500.));
-        let y = f_inv(ll);
-        let z = f_inv(ll - b * (1. / 200.));
-        // This matrix is the concatenation of three sources.
-        // First, the white point is taken to be ICC standard D50, so
-        // the diagonal matrix of [0.9642, 1, 0.8249]. Note that there
-        // is some controversy around this value. However, it matches
-        // the other matrices, thus minimizing chroma error.
-        //
-        // Second, an adaption matrix from D50 to D65. This is the
-        // inverse of the recommended D50 to D65 adaptation matrix
-        // from the W3C sRGB spec:
-        // https://www.w3.org/Graphics/Color/srgb
-        //
-        // Finally, the conversion from XYZ to linear sRGB values,
-        // also taken from the W3C sRGB spec.
-        let r_lin = 3.02172918 * x - 1.61692294 * y - 0.40480625 * z;
-        let g_lin = -0.94339358 * x + 1.91584267 * y + 0.02755094 * z;
-        let b_lin = 0.06945666 * x - 0.22903204 * y + 1.15957526 * z;
-        fn gamma(u: f32) -> f32 {
-            if u <= 0.0031308 {
-                12.92 * u
-            } else {
-                1.055 * u.powf(1. / 2.4) - 0.055
-            }
-        }
-        Self {
-            rgba: [
-                gamma(r_lin).clamp(0.0, 1.0),
-                gamma(g_lin).clamp(0.0, 1.0),
-                gamma(b_lin).clamp(0.0, 1.0),
-                a,
-            ],
-        }
-    }
 }
 
 #[derive(Debug)]
