@@ -32,7 +32,7 @@ const MAX_GRADIENT_STOPS: usize = 8;
 
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
-pub(crate) struct GpuGradient {
+pub(crate) struct GpuMeshMetadata {
     pub colors: [[f32; 4]; MAX_GRADIENT_STOPS],
     pub stops: [f32; MAX_GRADIENT_STOPS],
     pub position: [f32; 2],

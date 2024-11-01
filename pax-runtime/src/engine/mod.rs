@@ -7,6 +7,7 @@ use std::ops::Range;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use kurbo::{Affine, Circle, Shape};
 use pax_message::NativeMessage;
 use pax_runtime_api::{
     pax_value::PaxAny, use_RefCell, Event, Focus, SelectStart, Variable, Window, OS,
@@ -15,7 +16,7 @@ use pax_runtime_api::{
 use crate::api::{KeyDown, KeyPress, KeyUp, NodeContext, RenderContext};
 
 use crate::{ComponentInstance, RuntimeContext};
-use pax_runtime_api::Platform;
+use pax_runtime_api::{Color, Fill, GradientStop, LinearGradient, Platform, Size};
 
 pub mod node_interface;
 pub mod occlusion;

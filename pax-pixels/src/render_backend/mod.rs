@@ -1,37 +1,24 @@
 use anyhow::anyhow;
-use bytemuck::Pod;
 
 use lyon::lyon_tessellation::VertexBuffers;
 use wgpu::{
-    util::DeviceExt, BindGroup, BindGroupLayout, BufferUsages, CompositeAlphaMode, Device,
-    IndexFormat, PresentMode, RenderPipeline, SurfaceConfiguration, SurfaceTexture, TextureFormat,
-    TextureUsages, TextureView,
+    util::DeviceExt, BufferUsages, CompositeAlphaMode, PresentMode, SurfaceConfiguration,
+    SurfaceTexture, TextureFormat, TextureUsages, TextureView,
 };
 
 pub mod data;
 mod gpu_resources;
-pub mod stencil;
-mod texture;
 
-use data::{GpuGlobals, GpuPrimitive, GpuVertex};
+use data::{GpuGlobals, GpuVertex};
 
-use crate::{render_backend::texture::TextureRenderer, Box2D, Transform2D};
+use crate::{Fill, Transform2D};
 
-use self::{
-    data::{GpuColor, GpuGradient, GpuTransform},
-    stencil::StencilRenderer,
-};
+use self::data::GpuTransform;
 
 pub struct RenderConfig {
     pub debug: bool,
-    index_buffer_size: u64,
-    vertex_buffer_size: u64,
-    primitive_buffer_size: u64,
-    colors_buffer_size: u64,
-    gradients_buffer_size: u64,
-    transforms_buffer_size: u64,
-    pub initial_width: u32,
-    pub initial_height: u32,
+    pub width: u32,
+    pub height: u32,
     pub initial_dpr: u32,
 }
 
@@ -39,14 +26,8 @@ impl RenderConfig {
     pub fn new(_debug: bool, width: u32, height: u32, dpr: u32) -> Self {
         Self {
             debug: false,
-            index_buffer_size: 2 << 12,
-            vertex_buffer_size: 2 << 12,
-            primitive_buffer_size: 512,
-            colors_buffer_size: 512,
-            gradients_buffer_size: 64,
-            transforms_buffer_size: 64,
-            initial_width: width,
-            initial_height: height,
+            width,
+            height,
             initial_dpr: dpr,
         }
     }
@@ -54,32 +35,19 @@ impl RenderConfig {
 
 pub struct RenderBackend<'w> {
     //configuration
-    config: RenderConfig,
-    pub(crate) globals: GpuGlobals,
+    pub config: RenderConfig,
 
     //gpu pipeline references
     _adapter: wgpu::Adapter,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
     surface: wgpu::Surface<'w>,
-    surface_config: SurfaceConfiguration,
-    pipeline: RenderPipeline,
-    bind_group: BindGroup,
+    pub surface_config: SurfaceConfiguration,
 
-    //buffers
-    globals_buffer: wgpu::Buffer,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    primitive_buffer: wgpu::Buffer,
-    transforms_buffer: wgpu::Buffer,
-    colors_buffer: wgpu::Buffer,
-    gradients_buffer: wgpu::Buffer,
-
-    index_count: u64,
-
-    // plugins / extensions
-    texture_renderer: TextureRenderer,
-    stencil_renderer: StencilRenderer,
+    // general buffers
+    pub(crate) globals: GpuGlobals,
+    pub globals_buffer: wgpu::Buffer,
+    pub transform_buffer: wgpu::Buffer,
 }
 
 impl<'w> RenderBackend<'w> {
@@ -133,8 +101,8 @@ impl<'w> RenderBackend<'w> {
         let surface_config = SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
             format: TEXTURE_FORMAT,
-            width: config.initial_width,
-            height: config.initial_height,
+            width: config.width,
+            height: config.height,
             present_mode: PresentMode::Fifo,
             alpha_mode: CompositeAlphaMode::PreMultiplied,
             view_formats: vec![TEXTURE_FORMAT],
@@ -142,278 +110,56 @@ impl<'w> RenderBackend<'w> {
         };
         surface.configure(&device, &surface_config);
 
-        fn create_buffer<T: Default + Clone + Pod>(
-            device: &Device,
-            name: &str,
-            size: u64,
-            usage_flags: BufferUsages,
-        ) -> (Vec<T>, wgpu::Buffer) {
-            let data: Vec<T> = vec![T::default(); size as usize];
-            let buffer_ref = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some(name),
-                contents: bytemuck::cast_slice(&data),
-                usage: usage_flags,
-            });
-            (data, buffer_ref)
-        }
-
         let globals = GpuGlobals {
-            resolution: [config.initial_width as f32, config.initial_height as f32],
+            resolution: [config.width as f32, config.height as f32],
             dpr: config.initial_dpr,
             _pad2: 0,
         };
-        let (_, globals_buffer) = create_buffer::<GpuGlobals>(
-            &device,
-            "Primitive Buffer",
-            1,
-            BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        );
-
-        let (_, vertex_buffer) = create_buffer::<GpuVertex>(
-            &device,
-            "Vertex Buffer",
-            config.vertex_buffer_size,
-            BufferUsages::VERTEX | BufferUsages::COPY_DST,
-        );
-        let (_, index_buffer) = create_buffer::<u16>(
-            &device,
-            "Index Buffer",
-            config.index_buffer_size,
-            BufferUsages::INDEX | BufferUsages::COPY_DST,
-        );
-        let (_, primitive_buffer) = create_buffer::<GpuPrimitive>(
-            &device,
-            "Primitive Buffer",
-            config.primitive_buffer_size,
-            BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        );
-        let (_, transforms_buffer) = create_buffer::<GpuTransform>(
-            &device,
-            "Transform Buffer",
-            config.transforms_buffer_size,
-            BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        );
-        let (_, colors_buffer) = create_buffer::<GpuTransform>(
-            &device,
-            "Colors Buffer",
-            config.colors_buffer_size,
-            BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        );
-        let (_, gradients_buffer) = create_buffer::<GpuGradient>(
-            &device,
-            "Gradients Buffer",
-            config.gradients_buffer_size,
-            BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        );
-
-        let primitive_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 3,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 4,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                ],
-                label: Some("bind_group_layout"),
-            });
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &primitive_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: globals_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: primitive_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: transforms_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: colors_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: gradients_buffer.as_entire_binding(),
-                },
-            ],
-            label: Some("bind_group"),
+        let globals_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Gpu Globals"),
+            contents: bytemuck::cast_slice(&[globals]),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
 
-        let pipeline =
-            Self::create_pipeline(&device, surface_config.format, primitive_bind_group_layout);
+        // global transform - can be set between render calls
+        let transform = GpuTransform::default();
+        let transform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Gpu transform"),
+            contents: bytemuck::cast_slice(&[transform]),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        });
 
-        let texture_renderer = TextureRenderer::new(&device);
-        let stencil_renderer = StencilRenderer::new(
-            &device,
-            config.initial_width,
-            config.initial_height,
-            &globals_buffer,
-        );
-
-        let initial_width = config.initial_width;
-        let initial_height = config.initial_height;
+        let initial_width = config.width;
+        let initial_height = config.height;
         let initial_dpr = config.initial_dpr;
+
         let mut backend = Self {
-            texture_renderer,
-            stencil_renderer,
+            // globally used GPU state
             _adapter: adapter,
             surface,
             device,
             queue,
             config,
             surface_config,
-            bind_group,
-            pipeline,
-            vertex_buffer,
-            index_buffer,
-            primitive_buffer,
-            transforms_buffer,
             globals_buffer,
-            colors_buffer,
-            gradients_buffer,
             globals,
-            index_count: 0,
+            transform_buffer,
         };
         backend.globals.dpr = initial_dpr;
         backend.resize(initial_width, initial_height);
         Ok(backend)
     }
 
-    fn create_pipeline(
-        device: &Device,
-        format: TextureFormat,
-        primitive_bind_group_layout: BindGroupLayout,
-    ) -> RenderPipeline {
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("geometry.wgsl").into()),
-        });
-        let render_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&primitive_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[GpuVertex::desc()],
-                compilation_options: Default::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: Default::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: None,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Stencil8,
-                depth_write_enabled: false,
-                depth_compare: wgpu::CompareFunction::Always,
-                stencil: wgpu::StencilState {
-                    front: wgpu::StencilFaceState {
-                        compare: wgpu::CompareFunction::Equal,
-                        fail_op: wgpu::StencilOperation::Keep,
-                        depth_fail_op: wgpu::StencilOperation::Keep,
-                        pass_op: wgpu::StencilOperation::Keep,
-                    },
-                    back: wgpu::StencilFaceState::IGNORE,
-                    read_mask: !0,
-                    write_mask: !0,
-                },
-                bias: Default::default(),
-            }),
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-            cache: None,
-        })
-    }
-
-    pub fn push_stencil(&mut self, geometry: VertexBuffers<stencil::Vertex, u16>) {
-        // self.stencil_renderer.clear(&self.device, &self.queue);
-        self.stencil_renderer
-            .push_stencil(&self.device, &self.queue, geometry);
-    }
-
-    pub fn reset_stencil_depth_to(&mut self, depth: u32) {
-        self.stencil_renderer
-            .reset_stencil_depth_to(&self.device, &self.queue, depth);
-    }
-
-    pub fn get_clip_depth(&mut self) -> u32 {
-        let (_, depth) = self.stencil_renderer.get_stencil();
-        depth
+    pub fn set_transform(&mut self, transform: Transform2D) {
+        self.queue.write_buffer(
+            &self.transform_buffer,
+            0,
+            bytemuck::cast_slice(&[GpuTransform {
+                transform: transform.to_arrays(),
+                _pad: 0,
+                _pad2: 0,
+            }]),
+        );
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -425,115 +171,10 @@ impl<'w> RenderBackend<'w> {
             0,
             bytemuck::cast_slice(&[self.globals]),
         );
-        self.stencil_renderer.resize(&self.device, width, height);
         self.surface.configure(&self.device, &self.surface_config);
     }
 
-    fn write_buffers(&mut self, buffers: &mut CpuBuffers) {
-        let CpuBuffers {
-            geometry: ref mut geom,
-            ref mut primitives,
-            ref mut colors,
-            ref mut gradients,
-            ref mut transforms,
-        } = buffers;
-        //Add ghost triangles to follow COPY_BUFFER_ALIGNMENT requirement
-        const ALIGNMENT: usize = 16;
-        while geom.indices.len() * std::mem::size_of::<u16>() % ALIGNMENT != 0 {
-            geom.indices.push(0);
-            geom.indices.push(0);
-            geom.indices.push(0);
-        }
-        while geom.vertices.len() * std::mem::size_of::<GpuVertex>() % ALIGNMENT != 0 {
-            geom.vertices.push(GpuVertex::default());
-        }
-        while primitives.len() * std::mem::size_of::<GpuPrimitive>() % ALIGNMENT != 0 {
-            primitives.push(GpuPrimitive::default());
-        }
-        while transforms.len() * std::mem::size_of::<GpuTransform>() % ALIGNMENT != 0 {
-            transforms.push(GpuTransform::default());
-        }
-        while colors.len() * std::mem::size_of::<GpuColor>() % ALIGNMENT != 0 {
-            colors.push(GpuColor::default());
-        }
-        while gradients.len() * std::mem::size_of::<GpuGradient>() % ALIGNMENT != 0 {
-            gradients.push(GpuGradient::default());
-        }
-
-        if geom.indices.len() >= self.config.index_buffer_size as usize
-            || geom.vertices.len() >= self.config.vertex_buffer_size as usize
-            || primitives.len() >= self.config.primitive_buffer_size as usize
-            || transforms.len() >= self.config.transforms_buffer_size as usize
-            || colors.len() >= self.config.colors_buffer_size as usize
-            || gradients.len() >= self.config.gradients_buffer_size as usize
-        {
-            //TODO do resize here instead
-            log::warn!("render backend: buffer to large, skipping render");
-        }
-
-        self.queue
-            .write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&geom.indices));
-        self.queue
-            .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&geom.vertices));
-        self.queue
-            .write_buffer(&self.primitive_buffer, 0, bytemuck::cast_slice(primitives));
-        self.queue
-            .write_buffer(&self.colors_buffer, 0, bytemuck::cast_slice(colors));
-        self.queue
-            .write_buffer(&self.gradients_buffer, 0, bytemuck::cast_slice(gradients));
-        self.queue
-            .write_buffer(&self.transforms_buffer, 0, bytemuck::cast_slice(transforms));
-
-        self.index_count = geom.indices.len() as u64;
-    }
-
-    pub(crate) fn render_primitives(&mut self, buffers: &mut CpuBuffers) {
-        let (screen_surface, screen_texture) = self.get_screen_texture();
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
-
-        {
-            let (stencil_texture, stencil_index) = self.stencil_renderer.get_stencil();
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &screen_texture,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: stencil_texture,
-                    depth_ops: None,
-                    stencil_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    }),
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-            self.write_buffers(buffers);
-
-            render_pass.set_pipeline(&self.pipeline);
-            render_pass.set_bind_group(0, &self.bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_stencil_reference(stencil_index); //this needs to be dynamic?
-            render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
-            render_pass.draw_indexed(0..self.index_count as u32, 0, 0..1);
-        }
-
-        //render primitives
-        self.queue.submit(std::iter::once(encoder.finish()));
-        screen_surface.present();
-    }
-
-    fn get_screen_texture(&self) -> (SurfaceTexture, TextureView) {
+    pub fn get_screen_texture(&self) -> (SurfaceTexture, TextureView) {
         let screen_surface = self.surface.get_current_texture().unwrap();
         let screen_texture = screen_surface
             .texture
@@ -541,24 +182,24 @@ impl<'w> RenderBackend<'w> {
         (screen_surface, screen_texture)
     }
 
-    pub(crate) fn render_image(&mut self, image: &Image, transform: Transform2D, rect: Box2D) {
-        let (screen_surface, screen_texture) = self.get_screen_texture();
-        self.texture_renderer.render_image(
-            &self.device,
-            &self.queue,
-            &screen_texture,
-            &self.globals_buffer,
-            &self.stencil_renderer,
-            &image.rgba,
-            image.pixel_width,
-            transform,
-            rect,
-        );
-        screen_surface.present();
-    }
+    // pub(crate) fn render_image(&mut self, image: &Image, transform: Transform2D, rect: Box2D) {
+    //     let (screen_surface, screen_texture) = self.get_screen_texture();
+    //     self.texture_renderer.render_image(
+    //         &self.device,
+    //         &self.queue,
+    //         &screen_texture,
+    //         &self.globals_buffer,
+    //         &self.stencil_renderer,
+    //         &image.rgba,
+    //         image.pixel_width,
+    //         transform,
+    //         rect,
+    //     );
+    //     screen_surface.present();
+    // }
 
     pub(crate) fn clear(&mut self) {
-        self.stencil_renderer.clear(&self.device, &self.queue);
+        self.set_transform(Transform2D::identity());
         let (screen_surface, screen_texture) = self.get_screen_texture();
         let mut encoder = self
             .device
@@ -589,34 +230,6 @@ impl<'w> RenderBackend<'w> {
         }
         self.queue.submit(std::iter::once(encoder.finish()));
         screen_surface.present();
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct CpuBuffers {
-    pub geometry: VertexBuffers<GpuVertex, u16>,
-    pub primitives: Vec<GpuPrimitive>,
-    pub transforms: Vec<GpuTransform>,
-    pub colors: Vec<GpuColor>,
-    pub gradients: Vec<GpuGradient>,
-}
-
-impl CpuBuffers {
-    pub(crate) fn reset(&mut self) {
-        let CpuBuffers {
-            geometry,
-            primitives,
-            transforms,
-            colors,
-            gradients,
-        } = self;
-        geometry.vertices.clear();
-        geometry.indices.clear();
-        primitives.clear();
-        colors.clear();
-        gradients.clear();
-        // leave the identity transform at the start
-        transforms.truncate(1);
     }
 }
 
