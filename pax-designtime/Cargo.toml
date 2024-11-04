@@ -29,7 +29,7 @@ toml_edit = "0.21.0"
 wasm-bindgen = {version = "0.2.92"}
 wasm-bindgen-futures = "0.4.42"
 reqwasm = "0.2"
-url = "2.5.2"
+url = "^2"
 
 [dependencies.web-sys]
 version = "0.3.4"

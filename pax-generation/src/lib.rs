@@ -121,7 +121,7 @@ impl PaxAppGenerator {
                             .map(|c| match c {
                                 ContentItem::Text { text, .. } => text.clone(),
                                 ContentItem::Image { .. } => String::new(),
-                                ContentItem::ClaudeImage { .. } => json!(c).to_string(),
+                                ContentItem::ClaudeImage { .. } => String::new(),//json!(c).to_string(),
                             })
                             .collect::<Vec<String>>()
                             .join("\n");
@@ -143,7 +143,7 @@ impl PaxAppGenerator {
                         .map(|c| match c {
                             ContentItem::Text { text, .. } => text.clone(),
                             ContentItem::Image { .. } => String::new(),
-                            ContentItem::ClaudeImage { .. } => json!(c).to_string(),
+                            ContentItem::ClaudeImage { .. } => String::new(),//json!(c).to_string(),
                         })
                         .collect::<Vec<String>>()
                         .join("\n");
