@@ -19,6 +19,7 @@ Follow the [Get Started](https://docs.pax.dev/get-started/) instructions in the 
 * **Integrated visual builder (Pax Designer)** — a vector design tool and reads & writes code with every visual operation
 * **Cross-platform native** — Build WASM apps or native macOS / iOS apps (macOS and iOS targets are in Alpha; Web target is in Beta; Windows, Linux, and Android are planned.)
 * **Hot module reloading** — Changes to .pax files are hot-reloaded when running Pax Designer locally — [try it out](https://docs.pax.dev/get-started/)
+* **GPU rendering** — Render vector graphics on the GPU (currently behind the `gpu` feature flag)
 * **Responsive layout engine** — including % and px as first-class citizens
 * **Standard library of reusable components** — like form controls, layouts, and drawing primitives; customizable and extensible
 * **Robust text rendering** — including accessibility / screen-reader support and SEO support for web builds
