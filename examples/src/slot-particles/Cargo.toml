@@ -12,6 +12,7 @@ fireworks = {version = "0.36.3", path="../fireworks" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+name = "paxcartridge"
 
 [[bin]]
 name = "parser"

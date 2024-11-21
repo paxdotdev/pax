@@ -11,6 +11,7 @@ pax-kit = { version = "0.38.3", path="../../../pax-kit" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+name = "paxcartridge"
 
 [[bin]]
 name = "parser"

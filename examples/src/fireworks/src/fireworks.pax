@@ -1,4 +1,4 @@
-<Group @wheel=self.handle_wheel>
+<Group @wheel=self.handle_wheel y=50.00% x=50.00% width=7.98% height=13.92%>
     <Text x=0% y=0% text="SCROLL" height=100% width=100% style={
         font: Font::Web(
             "Roboto",

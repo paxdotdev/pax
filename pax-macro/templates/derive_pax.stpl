@@ -100,9 +100,9 @@
         <%= engine_import_path %>::pax_chassis_common::env_logger::init();
 
         let manifest = init_manifest();
-        let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest);
+        let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest.clone());
 
-        let main_component_instance = definition_to_instance_traverser.get_main_component();
+        let main_component_instance = definition_to_instance_traverser.get_main_component(&manifest.main_component_type_id.to_string());
 
         //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
         //engine can be passed back to Swift via the C (FFI) bridge
@@ -115,6 +115,7 @@
             OS::Mac,
             #[cfg(feature="ios")]
             OS::IPhone,
+            Box::new(||{ /* return elapsed millis here */ 0 })
         )));
 
         let container = std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {

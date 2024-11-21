@@ -128,6 +128,7 @@ pub extern "C" fn pax_tick(
         (
             CoreGraphicsContext::new_y_up(ctx, height as f64, None),
             Box::new(|| (/* clear screen here */)),
+            Box::new(|| (/* handle resize here */)),
         )
     });
 

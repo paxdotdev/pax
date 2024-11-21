@@ -13,6 +13,7 @@ space-game = { version = "0.38.3", path="../space-game" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+name = "paxcartridge"
 
 [[bin]]
 name = "parser"
