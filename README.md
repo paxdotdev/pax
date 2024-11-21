@@ -17,15 +17,14 @@ Follow the [Get Started](https://docs.pax.dev/get-started/) instructions in the 
 ## Features
 
 * **Integrated visual builder (Pax Designer)** — a vector design tool and reads & writes code with every visual operation
-* **Cross-platform native** Build WASM apps or native macOS / iOS apps (macOS and iOS targets are in Alpha; Web target is in Beta; Windows, Linux, and Android are planned.)
-* **Hot module reloading** Changes to .pax files are hot-reloaded when running Pax Designer locally — [try it out](https://docs.pax.dev/get-started/)
-* **Responsive layout engine** (top-down,) including % and px as first-class citizens
-* **Standard library of reusable components** like form controls, layouts, and drawing primitives
-* **Robust text rendering**, including accessibility / screen-reader support and SEO support for web builds
-* **Animation engine**: every property of every element is animatable at up to 240FPS, giving an extremely high ceiling for creative expression — intended for microinteractions, data visualization, interactive cartoons, games, simulations, or whatever else you can imagine that calls for motion.
-* **Expression language**: every property can be bound to spreadsheet-inspired expressions; this makes dynamic logic accessible to low-coders, offers a highly expressive & succinct substrate for LLM generation, and is a key piece of Pax's solution to [designability](https://docs.pax.dev/reference/designability/)   
-* **Lightweight footprint**, targeting 100KB baseline WASM network footprint (current status: 2-3x above target, with room to improve)
-
+* **Cross-platform native** — Build WASM apps or native macOS / iOS apps (macOS and iOS targets are in Alpha; Web target is in Beta; Windows, Linux, and Android are planned.)
+* **Hot module reloading** — Changes to .pax files are hot-reloaded when running Pax Designer locally — [try it out](https://docs.pax.dev/get-started/)
+* **Responsive layout engine** — including % and px as first-class citizens
+* **Standard library of reusable components** — like form controls, layouts, and drawing primitives; customizable and extensible
+* **Robust text rendering** — including accessibility / screen-reader support and SEO support for web builds
+* **Animation engine** — every property of every element is animatable at up to 240FPS, giving an extremely high ceiling for creative expression — intended for microinteractions, data visualization, interactive cartoons, games, simulations, or whatever else you can imagine that calls for motion.
+* **Expression language** — every property can be bound to spreadsheet-inspired expressions; this makes dynamic logic accessible to low-coders, offers a highly expressive & succinct substrate for LLM generation, and is a key piece of Pax's solution to [designability](https://docs.pax.dev/reference/designability/)   
+* **Lightweight footprint** — targeting 100KB baseline WASM network footprint (current status: 2-3x above target, with room to improve)
 
 ## Examples
 
@@ -55,22 +54,11 @@ You can build a real-world app with Pax today — see [pax-designer](https://git
 4. Web target is leading edge — macos and ios build targets are maintained for architectural soundness, but are several features behind the web target, e.g. occlusion and clipping.  We expect to continue prioritizing Web target development for the near term.  For mobile / desktop targets at this milestone, we recommend wrapping Pax Web with a webview e.g. Tauri.
 
 
-## Current priorities
-
- - **Hosted version of Pax Designer** — so anyone can use Pax Designer in the browser without any terminals or code.  This will also be the chassis for Pax Pro, our commercial collaboration service that makes it easy for non-developers to contribute visual changes to GitHub.
-
- - **Pax JavaScript** — bindings to JavaScript so you can write Pax with JavaScript instead of Rust
-
- - **Responses to feedback** & general functional & ergonomic improvements
-
-Our task tracker is private (Linear) but we are open to ideas for alternate solutions that can solve both productivity and visibility.
-
-We collaborate publicly on the [#contribution](https://discord.com/invite/Eq8KWAUc6b) channel of our community Discord — feel free to [drop in and chat.](https://discord.com/invite/Eq8KWAUc6b)
-
-
 ## Contribution
 
 Pax is open source and we welcome contributions.  See [CONTRIBUTING.md](CONTRIBUTING.md)
+
+We collaborate publicly on the [#contribution](https://discord.com/invite/Eq8KWAUc6b) channel of our community Discord — feel free to [drop in and chat.](https://discord.com/invite/Eq8KWAUc6b)
 
 
 ## Why?
