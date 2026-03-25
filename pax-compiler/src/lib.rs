@@ -16,6 +16,7 @@ extern crate core;
 mod building;
 mod cartridge_generation;
 pub mod helpers;
+pub mod static_analysis;
 
 pub mod design_server;
 
@@ -105,30 +106,27 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     // Copy interface files for relevant path
     copy_interface_files_for_target(ctx, &pax_dir);
 
-    println!("{} 🛠️  Building parser binary with `cargo`...", *PAX_BADGE);
-
-    // Run parser bin from host project with `--features parser`
-    let output = run_parser_binary(
-        &ctx.project_path,
-        Arc::clone(&ctx.process_child_ids),
-        ctx.should_run_designer,
-    );
-
-    // Forward stderr only
-    std::io::stderr()
-        .write_all(output.stderr.as_slice())
-        .unwrap();
-
-    if !output.status.success() {
-        return Err(eyre!(
-            "Parsing failed — there is likely a syntax error in the provided pax"
-        ));
-    }
-
-    let out = String::from_utf8(output.stdout).unwrap();
-
-    let mut manifests: Vec<PaxManifest> =
-        serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
+    let mut manifests: Vec<PaxManifest> = if ctx.should_run_designer {
+        println!(
+            "{} 🔎 Static analysis disabled for designer builds; falling back to parser binary",
+            *PAX_BADGE
+        );
+        run_and_parse_parser_binary(ctx)?
+    } else {
+        match static_analysis::build_manifest(&ctx.project_path) {
+            Ok(manifest) => {
+                println!("{} 🔎 Built manifest via static analysis", *PAX_BADGE);
+                vec![manifest]
+            }
+            Err(err) => {
+                println!(
+                    "{} 🔎 Static analysis fell back to parser binary: {}",
+                    *PAX_BADGE, err
+                );
+                run_and_parse_parser_binary(ctx)?
+            }
+        }
+    };
 
     // Simple starting convention: first manifest is userland, second manifest is designer; other schemas are undefined
     let mut userland_manifest = manifests.remove(0);
@@ -191,6 +189,31 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     )?;
 
     Ok((userland_manifest, build_dir))
+}
+
+fn run_and_parse_parser_binary(ctx: &RunContext) -> eyre::Result<Vec<PaxManifest>, Report> {
+    println!("{} 🛠️  Building parser binary with `cargo`...", *PAX_BADGE);
+
+    let output = run_parser_binary(
+        &ctx.project_path,
+        Arc::clone(&ctx.process_child_ids),
+        ctx.should_run_designer,
+    );
+
+    std::io::stderr()
+        .write_all(output.stderr.as_slice())
+        .unwrap();
+
+    if !output.status.success() {
+        return Err(eyre!(
+            "Parsing failed — there is likely a syntax error in the provided pax"
+        ));
+    }
+
+    let out = String::from_utf8(output.stdout).unwrap();
+    let manifests: Vec<PaxManifest> =
+        serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
+    Ok(manifests)
 }
 
 fn copy_interface_files_for_target(ctx: &RunContext, pax_dir: &PathBuf) {
