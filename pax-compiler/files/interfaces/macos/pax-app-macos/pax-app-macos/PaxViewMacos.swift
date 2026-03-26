@@ -177,31 +177,45 @@ struct PaxViewMacos: View {
         var currentTickWorkItem : DispatchWorkItem? = nil
 
         func handleTextCreate(patch: AnyCreatePatch) {
-            textElements.add(element: TextElement.makeDefault(id_chain: patch.id_chain, clipping_ids: patch.clipping_ids))
+            textElements.add(element: TextElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+            textElements.objectWillChange.send()
         }
 
         func handleTextUpdate(patch: TextUpdatePatch) {
-            textElements.elements[patch.id_chain]?.applyPatch(patch: patch)
+            textElements.elements[patch.id]?.applyPatch(patch: patch)
             textElements.objectWillChange.send()
         }
 
         func handleTextDelete(patch: AnyDeletePatch) {
-//            self.requestAnimationFrame { [weak self] in
-            self.textElements.remove(id: patch.id_chain)
-//            }
+            self.textElements.remove(id: patch.id)
+            textElements.objectWillChange.send()
         }
 
         func handleFrameCreate(patch: AnyCreatePatch) {
-            frameElements.add(element: FrameElement.makeDefault(id_chain: patch.id_chain))
+            frameElements.add(element: FrameElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame))
+            frameElements.objectWillChange.send()
         }
 
         func handleFrameUpdate(patch: FrameUpdatePatch) {
-            frameElements.elements[patch.id_chain]?.applyPatch(patch: patch)
+            frameElements.elements[patch.id]?.applyPatch(patch: patch)
             frameElements.objectWillChange.send()
         }
 
         func handleFrameDelete(patch: AnyDeletePatch) {
-            frameElements.remove(id: patch.id_chain)
+            frameElements.remove(id: patch.id)
+            frameElements.objectWillChange.send()
+        }
+
+        func handleOcclusionUpdate(patch: OcclusionUpdatePatch) {
+            if let textElement = textElements.elements[patch.id] {
+                textElement.applyOcclusionPatch(patch)
+                textElements.objectWillChange.send()
+                return
+            }
+            if let frameElement = frameElements.elements[patch.id] {
+                frameElement.applyOcclusionPatch(patch)
+                frameElements.objectWillChange.send()
+            }
         }
 
 //        let buffer = try! FlexBufferBuilder.encodeMap { builder in
@@ -228,78 +242,74 @@ struct PaxViewMacos: View {
 
 
         func handleImageLoad(patch: ImageLoadPatch) {
-            Task {
-                do {
-                    let fullPatchPath = patch.path!
-                    let url = URL(fileURLWithPath: fullPatchPath)
-                    let fileNameWithExtension = url.lastPathComponent
-                    let fileExtension = url.pathExtension
-                    let fileName = String(fileNameWithExtension.prefix(fileNameWithExtension.count - fileExtension.count - 1))
+            do {
+                let fullPatchPath = patch.path!
+                let url = URL(fileURLWithPath: fullPatchPath)
+                let fileNameWithExtension = url.lastPathComponent
+                let fileExtension = url.pathExtension
+                let fileName = String(fileNameWithExtension.prefix(fileNameWithExtension.count - fileExtension.count - 1))
 
-                    guard let nestedBundleURL = Bundle.main.url(forResource: "PaxSwiftCartridge_PaxCartridgeAssets", withExtension: "bundle") else {
-                        throw NSError(domain: "", code: 99, userInfo: [NSLocalizedDescriptionKey : "PaxCartridgeAssets bundle not found in main bundle.  Make sure you have imported PaxCartridgeAssets in Swift."])
-                    }
-
-                    let assetsBundle = Bundle(url: nestedBundleURL)
-                    
-                    guard let imageURL = assetsBundle?.url(forResource: fileName, withExtension: fileExtension) else {
-                        throw NSError(domain: "", code: 100, userInfo: [NSLocalizedDescriptionKey : "Image file not found in nested bundle"])
-                    }
-
-                    guard let image = NSImage(contentsOf: imageURL) else {
-                        throw NSError(domain: "", code: 101, userInfo: [NSLocalizedDescriptionKey : "Could not create NSImage from data"])
-                    }
-
-                    guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-                        throw NSError(domain: "", code: 102, userInfo: [NSLocalizedDescriptionKey : "Could not create CGImage from NSImage"])
-                    }
-
-                    let width = cgImage.width
-                    let height = cgImage.height
-                    let bitsPerComponent = cgImage.bitsPerComponent
-                    let bytesPerRow = cgImage.bytesPerRow
-                    let totalBytes = height * bytesPerRow
-
-                    let colorSpace = CGColorSpaceCreateDeviceRGB()
-                    let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
-
-                    guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: bitsPerComponent, bytesPerRow: bytesPerRow, space: colorSpace, bitmapInfo: bitmapInfo) else {
-                        throw NSError(domain: "", code: 103, userInfo: [NSLocalizedDescriptionKey : "Could not create CGContext"])
-                    }
-
-                    context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
-
-                    guard let data = context.data else {
-                        throw NSError(domain: "", code: 104, userInfo: [NSLocalizedDescriptionKey : "Could not retrieve pixel data from context"])
-                    }
-
-                    let byteBuffer = data.assumingMemoryBound(to: UInt8.self)
-
-                    let id_chain : FlxbValueVector = FlxbValueVector.init(values: patch.id_chain.map { (number) -> FlxbValue in
-                        return number as FlxbValue
-                    })
-                    let raw_pointer_uint = UInt(bitPattern: byteBuffer)
-
-                    let buffer = try! FlexBufferBuilder.encode(
-                        [ "Image": [ "Reference": [
-                            "id_chain": id_chain,
-                            "image_data": raw_pointer_uint,
-                            "image_data_length": totalBytes,
-                            "width": width,
-                            "height": height,
-                        ] as FlxbValueMap] as FlxbValueMap ] as FlxbValueMap)
-
-                        buffer.data.withUnsafeBytes { ptr in
-                            var ffi_container = InterruptBuffer(data_ptr: ptr.baseAddress!, length: UInt64(ptr.count))
-                            withUnsafePointer(to: &ffi_container) { ffi_container_ptr in
-                                pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
-                            }
-                        }
-                } catch {
-                    print("Failed to load image data: \(error)")
+                guard let nestedBundleURL = Bundle.main.url(forResource: "PaxSwiftCartridge_PaxCartridgeAssets", withExtension: "bundle") else {
+                    throw NSError(domain: "", code: 99, userInfo: [NSLocalizedDescriptionKey : "PaxCartridgeAssets bundle not found in main bundle.  Make sure you have imported PaxCartridgeAssets in Swift."])
                 }
-            }
 
+                let assetsBundle = Bundle(url: nestedBundleURL)
+                
+                guard let imageURL = assetsBundle?.url(forResource: fileName, withExtension: fileExtension) else {
+                    throw NSError(domain: "", code: 100, userInfo: [NSLocalizedDescriptionKey : "Image file not found in nested bundle"])
+                }
+
+                guard let image = NSImage(contentsOf: imageURL) else {
+                    throw NSError(domain: "", code: 101, userInfo: [NSLocalizedDescriptionKey : "Could not create NSImage from data"])
+                }
+
+                guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+                    throw NSError(domain: "", code: 102, userInfo: [NSLocalizedDescriptionKey : "Could not create CGImage from NSImage"])
+                }
+
+                let width = cgImage.width
+                let height = cgImage.height
+                let bitsPerComponent = cgImage.bitsPerComponent
+                let bytesPerRow = cgImage.bytesPerRow
+                let totalBytes = height * bytesPerRow
+
+                let colorSpace = CGColorSpaceCreateDeviceRGB()
+                let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+
+                guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: bitsPerComponent, bytesPerRow: bytesPerRow, space: colorSpace, bitmapInfo: bitmapInfo) else {
+                    throw NSError(domain: "", code: 103, userInfo: [NSLocalizedDescriptionKey : "Could not create CGContext"])
+                }
+
+                context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+                guard let data = context.data else {
+                    throw NSError(domain: "", code: 104, userInfo: [NSLocalizedDescriptionKey : "Could not retrieve pixel data from context"])
+                }
+
+                let byteBuffer = data.assumingMemoryBound(to: UInt8.self)
+                let raw_pointer_uint = UInt(bitPattern: byteBuffer)
+
+                let buffer = try! FlexBufferBuilder.encodeMap { builder in
+                    builder.addMapWithStringKey("Image") { imageBuilder in
+                        imageBuilder.addMapWithStringKey("Reference") { referenceBuilder in
+                            referenceBuilder.addWithStringKey("id", UInt(patch.id))
+                            referenceBuilder.addWithStringKey("image_data", raw_pointer_uint)
+                            referenceBuilder.addWithStringKey("image_data_length", UInt(totalBytes))
+                            referenceBuilder.addWithStringKey("width", UInt(width))
+                            referenceBuilder.addWithStringKey("height", UInt(height))
+                        }
+                    }
+                }
+
+                buffer.data.withUnsafeBytes { ptr in
+                    var ffi_container = InterruptBuffer(data_ptr: ptr.baseAddress!, length: UInt64(ptr.count))
+                    withUnsafePointer(to: &ffi_container) { ffi_container_ptr in
+                        pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
+                    }
+                }
+            } catch {
+                print("Failed to load image data: \(error)")
+            }
         }
 
 
@@ -339,6 +349,11 @@ struct PaxViewMacos: View {
                 let frameDeleteMessage = message["FrameDelete"]
                 if frameDeleteMessage != nil {
                     handleFrameDelete(patch: AnyDeletePatch(fb: frameDeleteMessage!))
+                }
+
+                let occlusionUpdateMessage = message["OcclusionUpdate"]
+                if occlusionUpdateMessage != nil {
+                    handleOcclusionUpdate(patch: OcclusionUpdatePatch(fb: occlusionUpdateMessage!))
                 }
 
                 let imageLoadMessage = message["ImageLoad"]

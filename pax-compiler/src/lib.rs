@@ -290,6 +290,8 @@ fn copy_default_interface_files(interface_path: &Path, ctx: &RunContext) {
 }
 
 fn copy_common_swift_files(ctx: &RunContext, common_dest: &Path) {
+    let _ = std::fs::remove_dir_all(common_dest);
+    std::fs::create_dir_all(common_dest).expect("Failed to create swift common destination");
     if ctx.is_libdev_mode {
         let pax_compiler_root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let common_swift_cartridge_src = pax_compiler_root
@@ -312,11 +314,17 @@ fn copy_common_swift_files(ctx: &RunContext, common_dest: &Path) {
         copy_dir_recursively(&common_swift_common_src, &common_swift_common_dest, &[])
             .expect("Failed to copy swift common files");
     } else {
+        let common_swift_common_dest = common_dest.join("pax-swift-common");
+        let common_swift_cartridge_dest = common_dest.join("pax-swift-cartridge");
+        std::fs::create_dir_all(&common_swift_common_dest)
+            .expect("Failed to create swift common template destination");
+        std::fs::create_dir_all(&common_swift_cartridge_dest)
+            .expect("Failed to create swift cartridge template destination");
         PAX_SWIFT_COMMON_TEMPLATE
-            .extract(common_dest)
+            .extract(&common_swift_common_dest)
             .expect("Failed to extract swift common template files");
         PAX_SWIFT_CARTRIDGE_TEMPLATE
-            .extract(common_dest)
+            .extract(&common_swift_cartridge_dest)
             .expect("Failed to extract swift cartridge template files");
     }
 }

@@ -8,15 +8,24 @@ public struct NativeRenderingLayer: View {
     @ObservedObject var textElements : TextElements = TextElements.singleton
     @ObservedObject var frameElements : FrameElements = FrameElements.singleton
 
-    public func getClippingMask(clippingIds: [[UInt64]]) -> some View {
+    private func getClippingFrames(startingAt parentFrame: PaxNodeId?) -> [FrameElement] {
+        var elements: [FrameElement] = []
+        var currentFrame = parentFrame
 
-        var elements : [FrameElement] = []
+        while let frameId = currentFrame, let frame = self.frameElements.elements[frameId] {
+            if frame.clipContent {
+                elements.insert(frame, at: 0)
+            }
+            currentFrame = frame.parentFrame
+        }
 
-        clippingIds.makeIterator().forEach( { id_chain in
-            elements.insert(self.frameElements.elements[id_chain]!, at: 0)
-        })
+        return elements
+    }
 
-        return ZStack { ForEach(elements, id: \.id_chain) { frameElement in
+    public func getClippingMask(parentFrame: PaxNodeId?) -> some View {
+        let elements = getClippingFrames(startingAt: parentFrame)
+
+        return ZStack { ForEach(elements, id: \.id) { frameElement in
             Rectangle()
                     .frame(width: CGFloat(frameElement.size_x), height: CGFloat(frameElement.size_y))
                     .position(x: CGFloat(frameElement.size_x / 2.0), y: CGFloat(frameElement.size_y / 2.0))
@@ -31,8 +40,7 @@ public struct NativeRenderingLayer: View {
         } }
     }
 
-    @ViewBuilder
-    public func getPositionedTextGroup(textElement: TextElement) -> some View {
+    public func getPositionedTextGroup(textElement: TextElement) -> AnyView {
         let transform = CGAffineTransform.init(
                 a: CGFloat(textElement.transform[0]),
                 b: CGFloat(textElement.transform[1]),
@@ -42,7 +50,12 @@ public struct NativeRenderingLayer: View {
                 ty: CGFloat(textElement.transform[5])
         )
         var text: AttributedString {
-            var attributedString: AttributedString = try! AttributedString(markdown: textElement.content, options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace))
+            var attributedString: AttributedString
+            if textElement.markdown {
+                attributedString = try! AttributedString(markdown: textElement.content, options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace))
+            } else {
+                attributedString = AttributedString(textElement.content)
+            }
 
             for run in attributedString.runs {
                 if run.link != nil {
@@ -60,28 +73,47 @@ public struct NativeRenderingLayer: View {
             return attributedString
 
         }
-        let textView : some View =
+        let clippingFrames = getClippingFrames(startingAt: textElement.parentFrame)
+
+        let selectedTextView: AnyView
+        if textElement.selectable {
+            selectedTextView = AnyView(
                 Text(text)
-                        .foregroundColor(textElement.textStyle.fill)
-                        .font(textElement.textStyle.font.getFont(size: textElement.textStyle.font_size))
-                        .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: textElement.textStyle.alignment)
-                        .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
-                        .transformEffect(transform)
-                        .textSelection(.enabled)
+                    .foregroundColor(textElement.textStyle.fill)
+                    .font(textElement.textStyle.font.getFont(size: textElement.textStyle.font_size))
+                    .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: textElement.textStyle.alignment)
+                    .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
+                    .transformEffect(transform)
+                    .textSelection(.enabled)
+                    .zIndex(Double(textElement.zIndex))
+            )
+        } else {
+            selectedTextView = AnyView(
+                Text(text)
+                    .foregroundColor(textElement.textStyle.fill)
+                    .font(textElement.textStyle.font.getFont(size: textElement.textStyle.font_size))
+                    .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: textElement.textStyle.alignment)
+                    .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
+                    .transformEffect(transform)
+                    .textSelection(.disabled)
+                    .zIndex(Double(textElement.zIndex))
+            )
+        }
 
-//
-//            if !textElement.clipping_ids.isEmpty {
-//                textView.mask(getClippingMask(clippingIds: textElement.clipping_ids))
-//            } else {
-//                textView
-//            }
-
-        textView
+        if clippingFrames.isEmpty {
+            return selectedTextView
+        }
+        return AnyView(selectedTextView.mask(getClippingMask(parentFrame: textElement.parentFrame)))
     }
 
     public var body: some View {
         ZStack{
-            ForEach(Array(self.textElements.elements.values), id: \.id_chain) { textElement in
+            ForEach(Array(self.textElements.elements.values).sorted(by: { lhs, rhs in
+                if lhs.zIndex == rhs.zIndex {
+                    return lhs.id < rhs.id
+                }
+                return lhs.zIndex < rhs.zIndex
+            }), id: \.id) { textElement in
                 getPositionedTextGroup(textElement: textElement)
             }
         }
@@ -91,12 +123,12 @@ public struct NativeRenderingLayer: View {
 public class TextElements: ObservableObject {
     public static let singleton : TextElements = TextElements()
 
-    @Published public var elements : [[UInt64]: TextElement] = [:]
+    @Published public var elements : [PaxNodeId: TextElement] = [:]
 
     public func add(element: TextElement) {
-        self.elements[element.id_chain] = element
+        self.elements[element.id] = element
     }
-    public func remove(id: [UInt64]) {
+    public func remove(id: PaxNodeId) {
         self.elements.removeValue(forKey: id)
     }
 }
@@ -104,15 +136,15 @@ public class TextElements: ObservableObject {
 public class FrameElements: ObservableObject {
     public static let singleton : FrameElements = FrameElements()
 
-    @Published public var elements : [[UInt64]: FrameElement] = [:]
+    @Published public var elements : [PaxNodeId: FrameElement] = [:]
 
     public func add(element: FrameElement) {
-        self.elements[element.id_chain] = element
+        self.elements[element.id] = element
     }
-    public func remove(id: [UInt64]) {
+    public func remove(id: PaxNodeId) {
         self.elements.removeValue(forKey: id)
     }
-    public func get(id: [UInt64]) -> FrameElement? {
+    public func get(id: PaxNodeId) -> FrameElement? {
         return self.elements[id]
     }
 }

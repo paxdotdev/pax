@@ -9,35 +9,55 @@ import Foundation
 import SwiftUI
 import FlexBuffers
 
+public typealias PaxNodeId = UInt32
 
-/// Agnostic of the type of element, this patch contains only an `id_chain` field, suitable for looking up a NativeElement (e.g. for deletion)
+private func readNodeId(_ fb: FlxbReference?) -> PaxNodeId? {
+    guard let fb, !fb.isNull else {
+        return nil
+    }
+    if let value = fb.asUInt64 {
+        return PaxNodeId(truncatingIfNeeded: value)
+    }
+    if let value = fb.asUInt {
+        return PaxNodeId(truncatingIfNeeded: value)
+    }
+    return nil
+}
+
+private func readFloatArray(_ fb: FlxbReference?) -> [Float]? {
+    guard let vector = fb?.asVector else {
+        return nil
+    }
+    return vector.makeIterator().map { item in
+        if let value = item.asFloat {
+            return value
+        }
+        if let value = item.asDouble {
+            return Float(value)
+        }
+        return 0.0
+    }
+}
+
+/// Agnostic of the type of element, this patch contains only create-time metadata.
 public class AnyCreatePatch {
-    public var id_chain: [UInt64]
-    /// Used for clipping -- each `[UInt64]` is an `id_chain` for an associated clipping mask (`Frame`)
-    public var clipping_ids: [[UInt64]]
+    public var id: PaxNodeId
+    public var parentFrame: PaxNodeId?
+    public var occlusionLayerId: UInt32
     
     public init(fb:FlxbReference) {
-        self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
-            fb.asUInt64!
-        })
-        
-        self.clipping_ids = fb["clipping_ids"]!.asVector!.makeIterator().map({ fb in
-            fb.asVector!.makeIterator().map({ fb in
-                fb.asUInt64!
-            })
-        })
+        self.id = readNodeId(fb["id"]) ?? 0
+        self.parentFrame = readNodeId(fb["parent_frame"])
+        self.occlusionLayerId = UInt32(truncatingIfNeeded: fb["occlusion_layer_id"]?.asUInt64 ?? 0)
     }
 }
 
 
 public class AnyDeletePatch {
-    public var id_chain: [UInt64]
+    public var id: PaxNodeId
     
     public init(fb:FlxbReference) {
-        self.id_chain = fb.asVector!.makeIterator().map({ fb in
-            fb.asUInt64!
-        })
-        
+        self.id = readNodeId(fb) ?? 0
     }
 }
 
@@ -86,31 +106,37 @@ public class TextStyle {
 }
 
 public class TextElement {
-    public var id_chain: [UInt64]
-    public var clipping_ids: [[UInt64]]
+    public var id: PaxNodeId
+    public var parentFrame: PaxNodeId?
+    public var occlusionLayerId: UInt32
+    public var zIndex: Int
     public var content: String
     public var transform: [Float]
     public var size_x: Float
     public var size_y: Float
     public var textStyle: TextStyle
-    public var depth: UInt?
+    public var selectable: Bool
+    public var markdown: Bool
     public var style_link: TextStyle?
     
-    public init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float, textStyle: TextStyle, depth: UInt?, style_link: TextStyle?) {
-        self.id_chain = id_chain
-        self.clipping_ids = clipping_ids
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, content: String, transform: [Float], size_x: Float, size_y: Float, textStyle: TextStyle, selectable: Bool, markdown: Bool, style_link: TextStyle?) {
+        self.id = id
+        self.parentFrame = parentFrame
+        self.occlusionLayerId = occlusionLayerId
+        self.zIndex = zIndex
         self.content = content
         self.transform = transform
         self.size_x = size_x
         self.size_y = size_y
         self.textStyle = textStyle
-        self.depth = depth
+        self.selectable = selectable
+        self.markdown = markdown
         self.style_link = style_link
     }
     
-    public static func makeDefault(id_chain: [UInt64], clipping_ids: [[UInt64]]) -> TextElement {
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> TextElement {
         let defaultTextStyle = TextStyle(font: PaxFont.makeDefault(), fill: Color(.black), alignmentMultiline: .leading, alignment: .topLeading, font_size: 5.0, underline: false)
-        return TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, textStyle: defaultTextStyle, depth: nil, style_link: nil)
+        return TextElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, textStyle: defaultTextStyle, selectable: false, markdown: false, style_link: nil)
     }
     
     public func applyPatch(patch: TextUpdatePatch) {
@@ -128,8 +154,11 @@ public class TextElement {
         if let size_y = patch.size_y {
             self.size_y = size_y
         }
-        if let depth = patch.depth {
-            self.depth = depth
+        if let selectable = patch.selectable {
+            self.selectable = selectable
+        }
+        if let markdown = patch.markdown {
+            self.markdown = markdown
         }
         
         // Apply new TextStyle
@@ -139,8 +168,24 @@ public class TextElement {
         
         // Apply style_link
         if let styleLinkBuffer = patch.style_link {
+            if self.style_link == nil {
+                self.style_link = TextStyle(
+                    font: PaxFont.makeDefault(),
+                    fill: self.textStyle.fill,
+                    alignmentMultiline: self.textStyle.alignmentMultiline,
+                    alignment: self.textStyle.alignment,
+                    font_size: self.textStyle.font_size,
+                    underline: self.textStyle.underline
+                )
+            }
             self.style_link?.applyPatch(from: styleLinkBuffer)
         }
+    }
+
+    public func applyOcclusionPatch(_ patch: OcclusionUpdatePatch) {
+        self.parentFrame = patch.parentFrame
+        self.occlusionLayerId = patch.occlusionLayerId
+        self.zIndex = patch.zIndex
     }
 }
 
@@ -197,13 +242,11 @@ public func toAlignment(horizontalAlignment: TextAlignHorizontal, verticalAlignm
 
 /// A patch representing an image load request from a given id_chain
 public class ImageLoadPatch {
-    public var id_chain: [UInt64]
+    public var id: PaxNodeId
     public var path: String?
     
     public init(fb:FlxbReference) {
-        self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
-            fb.asUInt64!
-        })
+        self.id = readNodeId(fb["id"]) ?? 0
         self.path = fb["path"]?.asString
     }
 }
@@ -271,26 +314,26 @@ public class TextStyleMessage {
 
 
 public class TextUpdatePatch {
-    public var id_chain: [UInt64]
+    public var id: PaxNodeId
     public var content: String?
     public var transform: [Float]?
     public var size_x: Float?
     public var size_y: Float?
-    public var depth: UInt?
+    public var editable: Bool?
+    public var selectable: Bool?
+    public var markdown: Bool?
     public var style: TextStyleMessage?
     public var style_link: TextStyleMessage?
 
     public init(fb: FlxbReference) {
-        self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
-            fb.asUInt64!
-        })
+        self.id = readNodeId(fb["id"]) ?? 0
         self.content = fb["content"]?.asString
-        self.transform = fb["transform"]?.asVector?.makeIterator().map({ fb in
-            fb.asFloat!
-        })
+        self.transform = readFloatArray(fb["transform"])
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
-        self.depth = fb["depth"]?.asUInt
+        self.editable = fb["editable"]?.asBool
+        self.selectable = fb["selectable"]?.asBool
+        self.markdown = fb["markdown"]?.asBool
         
         if let styleBuffer = fb["style"], !styleBuffer.isNull {
             self.style = TextStyleMessage(styleBuffer)
@@ -391,6 +434,14 @@ public func extractColorFromBuffer(_ fillBuffer: FlxbReference) -> Color {
             green: Double(stub[1]!.asFloat!),
             blue: Double(stub[2]!.asFloat!),
             opacity: Double(stub[3]!.asFloat!)
+        )
+    } else if let rgb = fillBuffer["Rgb"], !rgb.isNull {
+        let stub = fillBuffer["Rgb"]!
+        return Color(
+            red: Double(stub[0]!.asFloat!),
+            green: Double(stub[1]!.asFloat!),
+            blue: Double(stub[2]!.asFloat!),
+            opacity: 1.0
         )
     } else {
         return Color.black
@@ -642,20 +693,26 @@ public class PaxFont {
 
 
 public class FrameElement {
-    public var id_chain: [UInt64]
+    public var id: PaxNodeId
+    public var parentFrame: PaxNodeId?
+    public var clipContent: Bool
+    public var zIndex: Int
     public var transform: [Float]
     public var size_x: Float
     public var size_y: Float
     
-    public init(id_chain: [UInt64], transform: [Float], size_x: Float, size_y: Float) {
-        self.id_chain = id_chain
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, clipContent: Bool, zIndex: Int, transform: [Float], size_x: Float, size_y: Float) {
+        self.id = id
+        self.parentFrame = parentFrame
+        self.clipContent = clipContent
+        self.zIndex = zIndex
         self.transform = transform
         self.size_x = size_x
         self.size_y = size_y
     }
     
-    public static func makeDefault(id_chain: [UInt64]) -> FrameElement {
-        FrameElement(id_chain: id_chain, transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0)
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?) -> FrameElement {
+        FrameElement(id: id, parentFrame: parentFrame, clipContent: false, zIndex: 0, transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0)
     }
     
     public func applyPatch(patch: FrameUpdatePatch) {
@@ -670,6 +727,14 @@ public class FrameElement {
         if patch.size_y != nil {
             self.size_y = patch.size_y!
         }
+        if let clipContent = patch.clipContent {
+            self.clipContent = clipContent
+        }
+    }
+
+    public func applyOcclusionPatch(_ patch: OcclusionUpdatePatch) {
+        self.parentFrame = patch.parentFrame
+        self.zIndex = patch.zIndex
     }
 }
 
@@ -677,20 +742,31 @@ public class FrameElement {
 
 /// A patch containing optional fields, representing an update action for the NativeElement of the given id_chain
 public class FrameUpdatePatch {
-    public var id_chain: [UInt64]
+    public var id: PaxNodeId
     public var transform: [Float]?
     public var size_x: Float?
     public var size_y: Float?
+    public var clipContent: Bool?
     
     public init(fb: FlxbReference) {
-        self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
-            fb.asUInt64!
-        })
-        self.transform = fb["transform"]?.asVector?.makeIterator().map({ fb in
-            fb.asFloat!
-        })
+        self.id = readNodeId(fb["id"]) ?? 0
+        self.transform = readFloatArray(fb["transform"])
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
+        self.clipContent = fb["clip_content"]?.asBool
     }
 }
 
+public class OcclusionUpdatePatch {
+    public var id: PaxNodeId
+    public var occlusionLayerId: UInt32
+    public var zIndex: Int
+    public var parentFrame: PaxNodeId?
+
+    public init(fb: FlxbReference) {
+        self.id = readNodeId(fb["id"]) ?? 0
+        self.occlusionLayerId = UInt32(truncatingIfNeeded: fb["occlusion_layer_id"]?.asUInt64 ?? 0)
+        self.zIndex = Int(fb["z_index"]?.asInt ?? 0)
+        self.parentFrame = readNodeId(fb["parent_frame"])
+    }
+}

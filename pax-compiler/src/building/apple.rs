@@ -1,3 +1,4 @@
+use cargo_metadata::MetadataCommand;
 use colored::Colorize;
 use serde_json::Value;
 
@@ -18,8 +19,6 @@ use std::thread;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
 
-const RUST_IOS_DYLIB_FILE_NAME: &str = "libpaxcartridge.dylib";
-const RUST_MACOS_DYLIB_FILE_NAME: &str = "libpaxcartridge.dylib";
 const PORTABLE_DYLIB_INSTALL_NAME: &str = "@rpath/PaxCartridge.framework/PaxCartridge";
 
 const XCODE_MACOS_TARGET_DEBUG: &str = "Pax macOS (Development)";
@@ -78,11 +77,7 @@ pub fn build_apple_project_with_cartridge(
         ]
     };
 
-    let dylib_file_name = if let RunTarget::macOS = target {
-        RUST_MACOS_DYLIB_FILE_NAME
-    } else {
-        RUST_IOS_DYLIB_FILE_NAME
-    };
+    let dylib_file_name = resolve_dylib_file_name(&project_path)?;
 
     let mut handles = Vec::new();
 
@@ -108,6 +103,7 @@ pub fn build_apple_project_with_cartridge(
     for target_mapping in target_mappings {
         let project_path = project_path.clone();
         let pax_dir = pax_dir.clone();
+        let dylib_file_name = dylib_file_name.clone();
 
         let process_child_ids_threadsafe = process_child_ids.clone();
         let build_results_threadsafe = build_results.clone();
@@ -381,6 +377,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
             pax_dir
                 .join(INTERFACE_DIR_NAME)
                 .join("macos")
+                .join("pax-app-macos")
                 .join("pax-app-macos.xcodeproj"),
             if is_release {
                 XCODE_MACOS_TARGET_RELEASE
@@ -393,6 +390,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
             pax_dir
                 .join(INTERFACE_DIR_NAME)
                 .join("ios")
+                .join("pax-app-ios")
                 .join("pax-app-ios.xcodeproj"),
             if is_release {
                 XCODE_IOS_TARGET_RELEASE
@@ -410,7 +408,11 @@ Note that the temporary directories mentioned above are subject to overwriting.\
         .join(target_str_lower);
     let executable_output_dir_path = build_dest_base.join("app");
     let executable_dot_app_path = executable_output_dir_path.join(&format!("{}.app", &scheme));
+    let derived_data_path = build_dest_base.join("derived-data");
+    let source_packages_path = build_dest_base.join("source-packages");
     let _ = fs::create_dir_all(&executable_output_dir_path);
+    let _ = fs::create_dir_all(&derived_data_path);
+    let _ = fs::create_dir_all(&source_packages_path);
 
     let sdk = if let RunTarget::iOS = target {
         if is_release {
@@ -432,6 +434,10 @@ Note that the temporary directories mentioned above are subject to overwriting.\
         .arg(scheme)
         .arg("-sdk")
         .arg(sdk)
+        .arg("-derivedDataPath")
+        .arg(&derived_data_path)
+        .arg("-clonedSourcePackagesDirPath")
+        .arg(&source_packages_path)
         .arg(&format!(
             "CONFIGURATION_BUILD_DIR={}",
             executable_output_dir_path.to_str().unwrap()
@@ -748,6 +754,41 @@ Note that the temporary directories mentioned above are subject to overwriting.\
         );
     }
     Ok(())
+}
+
+fn resolve_dylib_file_name(project_path: &PathBuf) -> Result<String, eyre::Report> {
+    let manifest_path = project_path.join("Cargo.toml");
+    let metadata = MetadataCommand::new()
+        .manifest_path(&manifest_path)
+        .no_deps()
+        .exec()
+        .map_err(|err| eyre!("Failed to read cargo metadata for {:?}: {}", manifest_path, err))?;
+
+    let root_package = metadata.root_package().ok_or_else(|| {
+        eyre!(
+            "Failed to determine root package for Apple build at {:?}",
+            manifest_path
+        )
+    })?;
+
+    let dylib_target = root_package
+        .targets
+        .iter()
+        .find(|target| {
+            target.kind.iter().any(|kind| kind == "cdylib")
+                || target.crate_types.iter().any(|kind| kind == "cdylib")
+        })
+        .ok_or_else(|| {
+            eyre!(
+                "No cdylib target found for Apple build in {:?}",
+                manifest_path
+            )
+        })?;
+
+    Ok(format!(
+        "lib{}.dylib",
+        dylib_target.name.replace('-', "_")
+    ))
 }
 
 // This function checks if the simulator with the given UDID is booted
