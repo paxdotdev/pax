@@ -818,16 +818,34 @@ impl<T: Interpolatable> TransitionManager<T> {
     pub fn compute_eased_value(&mut self, frames_elapsed: u64) -> Option<T> {
         let global_fe = frames_elapsed;
         let origin_fe = &mut self.origin_frames_elapsed;
+        let mut completed_transition = false;
 
-        // Fast-forward transitions that have already passed
-        while global_fe - *origin_fe > self.queue.front()?.duration_frames {
+        // Fast-forward transitions that have already completed, including
+        // zero-duration transitions that should take effect immediately.
+        while let Some(current_transition) = self.queue.front() {
+            let local_fe = global_fe.saturating_sub(*origin_fe);
+            if local_fe < current_transition.duration_frames {
+                break;
+            }
             let curr = self.queue.pop_front()?;
             *origin_fe += curr.duration_frames;
             self.transition_checkpoint_value = curr.ending_value;
+            completed_transition = true;
         }
-        let current_transition = self.queue.front()?;
-        let local_fe = global_fe - *origin_fe;
-        let progress = local_fe as f64 / current_transition.duration_frames as f64;
+
+        let current_transition = match self.queue.front() {
+            Some(current_transition) => current_transition,
+            None => {
+                return if completed_transition {
+                    Some(self.transition_checkpoint_value.clone())
+                } else {
+                    None
+                };
+            }
+        };
+
+        let local_fe = global_fe.saturating_sub(*origin_fe);
+        let progress = (local_fe as f64 / current_transition.duration_frames as f64).clamp(0.0, 1.0);
         let interpolated_val = current_transition.curve.interpolate(
             &self.transition_checkpoint_value,
             &current_transition.ending_value,
@@ -962,6 +980,57 @@ impl Interpolatable for char {}
 impl Interpolatable for f64 {
     fn interpolate(&self, other: &f64, t: f64) -> f64 {
         self + (*other - self) * t
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{EasingCurve, TransitionManager, TransitionQueueEntry};
+
+    #[test]
+    fn zero_duration_transition_applies_immediately() {
+        let mut tm = TransitionManager::new(0.0, 0);
+        tm.push_transition(TransitionQueueEntry {
+            duration_frames: 0,
+            curve: EasingCurve::Linear,
+            ending_value: 10.0,
+        });
+
+        assert_eq!(tm.compute_eased_value(0), Some(10.0));
+        assert_eq!(tm.compute_eased_value(1), None);
+    }
+
+    #[test]
+    fn completed_transition_returns_final_value_when_polled_late() {
+        let mut tm = TransitionManager::new(0.0, 0);
+        tm.push_transition(TransitionQueueEntry {
+            duration_frames: 10,
+            curve: EasingCurve::Linear,
+            ending_value: 10.0,
+        });
+
+        assert_eq!(tm.compute_eased_value(11), Some(10.0));
+        assert_eq!(tm.compute_eased_value(12), None);
+    }
+
+    #[test]
+    fn zero_duration_transition_chains_into_next_transition() {
+        let mut tm = TransitionManager::new(0.0, 0);
+        tm.push_transition(TransitionQueueEntry {
+            duration_frames: 0,
+            curve: EasingCurve::Linear,
+            ending_value: 10.0,
+        });
+        tm.push_transition(TransitionQueueEntry {
+            duration_frames: 10,
+            curve: EasingCurve::Linear,
+            ending_value: 20.0,
+        });
+
+        assert_eq!(tm.compute_eased_value(0), Some(10.0));
+        assert_eq!(tm.compute_eased_value(5), Some(15.0));
+        assert_eq!(tm.compute_eased_value(10), Some(20.0));
+        assert_eq!(tm.compute_eased_value(11), None);
     }
 }
 

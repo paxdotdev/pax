@@ -21,7 +21,7 @@ impl Example {
         let bounds_parent = ctx.bounds_parent.get();
         self.particles.set(
             (0..PARTICLE_COUNT)
-                .map(|i| Particle {
+                .map(|_| Particle {
                     x: random::<f64>() * bounds_parent.0,
                     y: random::<f64>() * bounds_parent.1,
                     magnitude: random::<f64>(),
