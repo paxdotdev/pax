@@ -220,8 +220,12 @@ struct PaxViewIos: View {
                 return
             }
 
+            let width = Float(bounds.width)
+            let height = Float(bounds.height)
+            let scale = Float(currentScale())
+
             if PaxEngineContainer.paxEngineContainer == nil {
-                PaxEngineContainer.paxEngineContainer = pax_init()
+                PaxEngineContainer.paxEngineContainer = pax_init(width, height)
             }
 
             guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
@@ -231,9 +235,9 @@ struct PaxViewIos: View {
             let nativeMessageQueue = pax_tick(
                 engineContainer,
                 Unmanaged.passUnretained(metalLayer).toOpaque(),
-                Float(bounds.width),
-                Float(bounds.height),
-                Float(currentScale())
+                width,
+                height,
+                scale
             )
             processNativeMessageQueue(queue: nativeMessageQueue.unsafelyUnwrapped.pointee)
             pax_dealloc_message_queue(nativeMessageQueue)

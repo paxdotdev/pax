@@ -4,7 +4,7 @@ use pax_runtime::api::RenderContext;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlCanvasElement, Window};
 
-#[cfg(not(feature = "gpu"))]
+#[cfg(feature = "piet")]
 pub fn get_render_context(window: Window) -> impl RenderContext {
     use pax_runtime::piet_render_context::PietRenderer;
     use piet_web::WebRenderContext;
@@ -56,13 +56,13 @@ pub fn get_render_context(window: Window) -> impl RenderContext {
     })
 }
 
-#[cfg(feature = "gpu")]
+#[cfg(not(feature = "piet"))]
 pub fn get_render_context(window: Window) -> impl RenderContext {
     use pax_pixels::{
         render_backend::{RenderBackend, RenderConfig},
         WgpuRenderer,
     };
-    use pax_runtime::pax_pixels_render_context::PaxPixelsRenderer;
+    use pax_runtime::pax_pixels_render_context::{LayerSurfaceSize, PaxPixelsRenderer};
     PaxPixelsRenderer::new(move |layer| {
         let window = window.clone();
         Box::pin(async move {
@@ -78,31 +78,44 @@ pub fn get_render_context(window: Window) -> impl RenderContext {
                 }
             };
 
+            let dpr = window.device_pixel_ratio().round().max(1.0) as u32;
             let width = canvas.offset_width() as f64;
             let height = canvas.offset_height() as f64;
-            canvas.set_width(width as u32);
-            canvas.set_height(height as u32);
+            let surface_width = ((width * dpr as f64).round() as u32).max(1);
+            let surface_height = ((height * dpr as f64).round() as u32).max(1);
+            canvas.set_width(surface_width);
+            canvas.set_height(surface_height);
 
-            let res = WgpuRenderer::new(
+            let mut res = WgpuRenderer::new(
                 // NOTE: this exists when building for wasm32
                 RenderBackend::to_canvas(
                     canvas.clone(),
-                    RenderConfig::new(false, width as u32, height as u32, 1),
+                    RenderConfig::new(false, surface_width, surface_height, dpr),
                 )
                 .await
                 .ok()?,
             );
+            res.set_viewport(width as f32, height as f32, dpr as f32);
             Some((
                 res,
                 // resize fn
                 Box::pin({
                     let window = window.clone();
                     move || {
-                        let dpr = window.device_pixel_ratio();
-                        canvas.set_width((canvas.client_width() as f64 * dpr) as u32);
-                        canvas.set_height((canvas.client_height() as f64 * dpr) as u32);
+                        let dpr = window.device_pixel_ratio().round().max(1.0) as u32;
+                        let surface_width =
+                            ((canvas.client_width() as f64 * dpr as f64).round() as u32).max(1);
+                        let surface_height =
+                            ((canvas.client_height() as f64 * dpr as f64).round() as u32).max(1);
+                        canvas.set_width(surface_width);
+                        canvas.set_height(surface_height);
+                        LayerSurfaceSize {
+                            surface_width,
+                            surface_height,
+                            dpr,
+                        }
                     }
-                }) as Pin<Box<dyn Fn()>>,
+                }) as Pin<Box<dyn Fn() -> LayerSurfaceSize>>,
             ))
         })
     })

@@ -15,12 +15,12 @@ bytemuck = { version = "1.14", features = ["derive"] }
 anyhow = "1.0"
 lyon = "1.0.1"
 winit = "0.27.5"
-web-sys = "0.3.64"
+web-sys = { version = "0.3.64", features = ["HtmlCanvasElement"] }
 js-sys = "0.3.64"
 wasm-bindgen-futures = "0.4.38"
 
 [dependencies.wgpu]
-version = "22.1.0"
+version = "28.0.0"
 features = [
     "webgpu",     # Required for WebGPU support
     # "webgl",      # Optional: for WebGL fallback

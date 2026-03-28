@@ -15,6 +15,7 @@ pax-std = { path = "../pax-std", version = "0.38.3" }
 
 [features]
 gpu = ["pax-engine/gpu"]
+piet = ["pax-engine/piet"]
 designer = ["dep:pax-designer", "pax-engine/designtime", "pax-designer?/designtime", "pax-std/designtime"]
 parser = ["pax-std/parser", "pax-designer?/parser"]
 web = ["pax-engine/web"]

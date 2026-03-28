@@ -62,6 +62,10 @@ impl RenderConfig {
     }
 }
 
+fn next_capacity(required: usize) -> u64 {
+    required.max(1).next_power_of_two() as u64
+}
+
 pub struct RenderBackend<'w> {
     //configuration
     config: RenderConfig,
@@ -112,10 +116,24 @@ pub(crate) struct RetainedVectorResource {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     index_count: u32,
+    vertex_capacity: usize,
+    index_capacity: usize,
+    primitive_capacity: usize,
+    transform_capacity: usize,
+    color_capacity: usize,
+    gradient_capacity: usize,
     _primitive_buffer: wgpu::Buffer,
     _transforms_buffer: wgpu::Buffer,
     _colors_buffer: wgpu::Buffer,
     _gradients_buffer: wgpu::Buffer,
+}
+
+pub(crate) enum RetainedDraw<'a> {
+    Vector(&'a RetainedVectorResource),
+    Image {
+        texture: &'a CachedTextureResource,
+        draw: &'a RetainedImageDraw,
+    },
 }
 
 pub(crate) struct RetainedImageDraw {
@@ -123,24 +141,145 @@ pub(crate) struct RetainedImageDraw {
 }
 
 impl<'w> RenderBackend<'w> {
+    fn rebuild_main_bind_group(&mut self) {
+        self.bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &self.primitive_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.globals_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: self.primitive_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: self.transforms_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: self.colors_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: self.gradients_buffer.as_entire_binding(),
+                },
+            ],
+            label: Some("bind_group"),
+        });
+    }
+
+    fn resize_shared_buffers_if_needed(
+        &mut self,
+        required_indices: usize,
+        required_vertices: usize,
+        required_primitives: usize,
+        required_transforms: usize,
+        required_colors: usize,
+        required_gradients: usize,
+    ) {
+        let mut rebind_main_group = false;
+
+        if required_indices > self.config.index_buffer_size as usize {
+            self.config.index_buffer_size = next_capacity(required_indices);
+            self.index_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Index Buffer"),
+                size: self.config.index_buffer_size * std::mem::size_of::<u16>() as u64,
+                usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+
+        if required_vertices > self.config.vertex_buffer_size as usize {
+            self.config.vertex_buffer_size = next_capacity(required_vertices);
+            self.vertex_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Vertex Buffer"),
+                size: self.config.vertex_buffer_size
+                    * std::mem::size_of::<GpuVertex>() as u64,
+                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+
+        if required_primitives > self.config.primitive_buffer_size as usize {
+            self.config.primitive_buffer_size = next_capacity(required_primitives);
+            self.primitive_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Primitive Buffer"),
+                size: self.config.primitive_buffer_size
+                    * std::mem::size_of::<GpuPrimitive>() as u64,
+                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            rebind_main_group = true;
+        }
+
+        if required_transforms > self.config.transforms_buffer_size as usize {
+            self.config.transforms_buffer_size = next_capacity(required_transforms);
+            self.transforms_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Transforms Buffer"),
+                size: self.config.transforms_buffer_size
+                    * std::mem::size_of::<GpuTransform>() as u64,
+                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            rebind_main_group = true;
+        }
+
+        if required_colors > self.config.colors_buffer_size as usize {
+            self.config.colors_buffer_size = next_capacity(required_colors);
+            self.colors_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Colors Buffer"),
+                size: self.config.colors_buffer_size * std::mem::size_of::<GpuColor>() as u64,
+                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            rebind_main_group = true;
+        }
+
+        if required_gradients > self.config.gradients_buffer_size as usize {
+            self.config.gradients_buffer_size = next_capacity(required_gradients);
+            self.gradients_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Gradients Buffer"),
+                size: self.config.gradients_buffer_size
+                    * std::mem::size_of::<GpuGradient>() as u64,
+                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            rebind_main_group = true;
+        }
+
+        if rebind_main_group {
+            self.rebuild_main_bind_group();
+        }
+    }
+
     #[cfg(target_arch = "wasm32")]
     pub async fn to_canvas(
         canvas: web_sys::HtmlCanvasElement,
         config: RenderConfig,
     ) -> Result<Self, anyhow::Error> {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             flags: if config.debug {
                 wgpu::InstanceFlags::DEBUG
             } else {
                 wgpu::InstanceFlags::default()
             },
-            dx12_shader_compiler: wgpu::Dx12Compiler::Fxc,
-            gles_minor_version: wgpu::Gles3MinorVersion::Automatic,
+            memory_budget_thresholds: Default::default(),
+            backend_options: Default::default(),
         });
         let surface_target = wgpu::SurfaceTarget::Canvas(canvas);
         let surface = instance.create_surface(surface_target)?;
         Self::new(surface, instance, config).await
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async fn to_canvas(
+        _canvas: web_sys::HtmlCanvasElement,
+        _config: RenderConfig,
+    ) -> Result<Self, anyhow::Error> {
+        Err(anyhow!("canvas surfaces are only supported on wasm32 targets"))
     }
 
     #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -148,15 +287,15 @@ impl<'w> RenderBackend<'w> {
         layer: *mut c_void,
         config: RenderConfig,
     ) -> Result<RenderBackend<'static>, anyhow::Error> {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             flags: if config.debug {
                 wgpu::InstanceFlags::DEBUG
             } else {
                 wgpu::InstanceFlags::default()
             },
-            dx12_shader_compiler: wgpu::Dx12Compiler::Fxc,
-            gles_minor_version: wgpu::Gles3MinorVersion::Automatic,
+            memory_budget_thresholds: Default::default(),
+            backend_options: Default::default(),
         });
         let surface =
             unsafe { instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::CoreAnimationLayer(layer))? };
@@ -175,7 +314,7 @@ impl<'w> RenderBackend<'w> {
                 force_fallback_adapter: false,
             })
             .await
-            .ok_or(anyhow!("couldn't find  adapter"))?;
+            .map_err(|_| anyhow!("couldn't find adapter"))?;
         #[cfg(target_arch = "wasm32")]
         let required_limits = wgpu::Limits::downlevel_webgl2_defaults();
         #[cfg(not(target_arch = "wasm32"))]
@@ -186,9 +325,10 @@ impl<'w> RenderBackend<'w> {
                     label: None,
                     required_features: wgpu::Features::default(),
                     required_limits,
+                    experimental_features: wgpu::ExperimentalFeatures::disabled(),
                     memory_hints: wgpu::MemoryHints::Performance,
+                    trace: wgpu::Trace::Off,
                 },
-                None,
             )
             .await
             .expect("couldn't find device");
@@ -278,7 +418,7 @@ impl<'w> RenderBackend<'w> {
             config.transforms_buffer_size,
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         );
-        let (_, colors_buffer) = create_buffer::<GpuTransform>(
+        let (_, colors_buffer) = create_buffer::<GpuColor>(
             &device,
             "Colors Buffer",
             config.colors_buffer_size,
@@ -438,7 +578,7 @@ impl<'w> RenderBackend<'w> {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[primitive_bind_group_layout],
-                push_constant_ranges: &[],
+                immediate_size: 0,
             });
 
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -446,13 +586,13 @@ impl<'w> RenderBackend<'w> {
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: "vs_main",
+                entry_point: Some("vs_main"),
                 buffers: &[GpuVertex::desc()],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
@@ -491,7 +631,7 @@ impl<'w> RenderBackend<'w> {
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         })
     }
@@ -555,6 +695,12 @@ impl<'w> RenderBackend<'w> {
     ) -> RetainedVectorResource {
         let (vertices, indices, mut primitives, mut transforms, mut colors, mut gradients) =
             aligned_cpu_buffers(buffers);
+        let vertex_capacity = vertices.len();
+        let index_capacity = indices.len();
+        let primitive_capacity = primitives.len();
+        let transform_capacity = transforms.len();
+        let color_capacity = colors.len();
+        let gradient_capacity = gradients.len();
         primitives.resize(self.config.primitive_buffer_size as usize, GpuPrimitive::default());
         transforms.resize(self.config.transforms_buffer_size as usize, GpuTransform::default());
         colors.resize(self.config.colors_buffer_size as usize, GpuColor::default());
@@ -633,11 +779,59 @@ impl<'w> RenderBackend<'w> {
             vertex_buffer,
             index_buffer,
             index_count: buffers.geometry.indices.len() as u32,
+            vertex_capacity,
+            index_capacity,
+            primitive_capacity,
+            transform_capacity,
+            color_capacity,
+            gradient_capacity,
             _primitive_buffer: primitive_buffer,
             _transforms_buffer: transforms_buffer,
             _colors_buffer: colors_buffer,
             _gradients_buffer: gradients_buffer,
         }
+    }
+
+    pub(crate) fn update_vector_resource(
+        &self,
+        resource: &mut RetainedVectorResource,
+        buffers: &mut CpuBuffers,
+    ) -> bool {
+        let (vertices, indices, primitives, transforms, colors, gradients) =
+            aligned_cpu_buffers(buffers);
+        if vertices.len() > resource.vertex_capacity
+            || indices.len() > resource.index_capacity
+            || primitives.len() > resource.primitive_capacity
+            || transforms.len() > resource.transform_capacity
+            || colors.len() > resource.color_capacity
+            || gradients.len() > resource.gradient_capacity
+        {
+            return false;
+        }
+
+        self.queue
+            .write_buffer(&resource.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+        self.queue
+            .write_buffer(&resource.index_buffer, 0, bytemuck::cast_slice(&indices));
+        self.queue.write_buffer(
+            &resource._primitive_buffer,
+            0,
+            bytemuck::cast_slice(&primitives),
+        );
+        self.queue.write_buffer(
+            &resource._transforms_buffer,
+            0,
+            bytemuck::cast_slice(&transforms),
+        );
+        self.queue
+            .write_buffer(&resource._colors_buffer, 0, bytemuck::cast_slice(&colors));
+        self.queue.write_buffer(
+            &resource._gradients_buffer,
+            0,
+            bytemuck::cast_slice(&gradients),
+        );
+        resource.index_count = buffers.geometry.indices.len() as u32;
+        true
     }
 
     pub(crate) fn draw_vector_resource(&mut self, resource: &RetainedVectorResource) {
@@ -656,6 +850,7 @@ impl<'w> RenderBackend<'w> {
                 label: Some("Retained Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: screen_texture,
+                    depth_slice: None,
                     resolve_target,
                     ops: wgpu::Operations {
                         load: load_op,
@@ -672,6 +867,7 @@ impl<'w> RenderBackend<'w> {
                 }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
             render_pass.set_pipeline(&self.pipeline);
             render_pass.set_bind_group(0, &resource.bind_group, &[]);
@@ -679,6 +875,74 @@ impl<'w> RenderBackend<'w> {
             render_pass.set_stencil_reference(stencil_index);
             render_pass.set_index_buffer(resource.index_buffer.slice(..), IndexFormat::Uint16);
             render_pass.draw_indexed(0..resource.index_count, 0, 0..1);
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+    }
+
+    pub(crate) fn draw_retained_batch(
+        &mut self,
+        stencil_index: u32,
+        draws: &[RetainedDraw<'_>],
+    ) {
+        if draws.is_empty() {
+            return;
+        }
+
+        let load_op = self.take_color_load_op();
+        self.ensure_active_frame();
+        let (screen_texture, resolve_target) = self.current_color_attachment_views();
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Retained Batch Encoder"),
+            });
+
+        {
+            let (stencil_texture, _) = self.stencil_renderer.get_stencil();
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Retained Batch Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: screen_texture,
+                    depth_slice: None,
+                    resolve_target,
+                    ops: wgpu::Operations {
+                        load: load_op,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: stencil_texture,
+                    depth_ops: None,
+                    stencil_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            render_pass.set_stencil_reference(stencil_index);
+            for draw in draws {
+                match draw {
+                    RetainedDraw::Vector(resource) => {
+                        render_pass.set_pipeline(&self.pipeline);
+                        render_pass.set_bind_group(0, &resource.bind_group, &[]);
+                        render_pass.set_vertex_buffer(0, resource.vertex_buffer.slice(..));
+                        render_pass
+                            .set_index_buffer(resource.index_buffer.slice(..), IndexFormat::Uint16);
+                        render_pass.draw_indexed(0..resource.index_count, 0, 0..1);
+                    }
+                    RetainedDraw::Image { texture, draw } => {
+                        self.texture_renderer.draw_retained_image_in_pass(
+                            &mut render_pass,
+                            texture,
+                            &draw.resource,
+                        );
+                    }
+                }
+            }
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -785,16 +1049,14 @@ impl<'w> RenderBackend<'w> {
             gradients.push(GpuGradient::default());
         }
 
-        if geom.indices.len() >= self.config.index_buffer_size as usize
-            || geom.vertices.len() >= self.config.vertex_buffer_size as usize
-            || primitives.len() >= self.config.primitive_buffer_size as usize
-            || transforms.len() >= self.config.transforms_buffer_size as usize
-            || colors.len() >= self.config.colors_buffer_size as usize
-            || gradients.len() >= self.config.gradients_buffer_size as usize
-        {
-            //TODO do resize here instead
-            log::warn!("render backend: buffer to large, skipping render");
-        }
+        self.resize_shared_buffers_if_needed(
+            geom.indices.len(),
+            geom.vertices.len(),
+            primitives.len(),
+            transforms.len(),
+            colors.len(),
+            gradients.len(),
+        );
 
         self.queue
             .write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&geom.indices));
@@ -829,6 +1091,7 @@ impl<'w> RenderBackend<'w> {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: screen_texture,
+                    depth_slice: None,
                     resolve_target,
                     ops: wgpu::Operations {
                         load: load_op,
@@ -845,6 +1108,7 @@ impl<'w> RenderBackend<'w> {
                 }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
             render_pass.set_pipeline(&self.pipeline);
             render_pass.set_bind_group(0, &self.bind_group, &[]);
@@ -921,6 +1185,7 @@ impl<'w> RenderBackend<'w> {
                     label: Some("Render Pass"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                         view: screen_texture,
+                        depth_slice: None,
                         resolve_target,
                         ops: wgpu::Operations {
                             load: load_op,
@@ -930,6 +1195,7 @@ impl<'w> RenderBackend<'w> {
                     depth_stencil_attachment: None,
                     timestamp_writes: None,
                     occlusion_query_set: None,
+                    multiview_mask: None,
                 });
             }
             self.queue.submit(std::iter::once(encoder.finish()));

@@ -75,7 +75,7 @@ impl TextureRenderer {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Texture Pipeline Layout"),
                 bind_group_layouts: &[&texture_bind_group_layout],
-                push_constant_ranges: &[],
+                immediate_size: 0,
             });
 
         let texture_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -83,13 +83,13 @@ impl TextureRenderer {
             layout: Some(&texture_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &texture_shader,
-                entry_point: "vs_main",
+                entry_point: Some("vs_main"),
                 buffers: &[TextureVertex::desc()],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &texture_shader,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: target_format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
@@ -128,7 +128,7 @@ impl TextureRenderer {
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
 
@@ -150,7 +150,7 @@ impl TextureRenderer {
             address_mode_w: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             ..Default::default()
         });
         Self {
@@ -218,14 +218,14 @@ impl TextureRenderer {
         });
 
         queue.write_texture(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 aspect: wgpu::TextureAspect::All,
                 texture: &texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
             &rgba,
-            wgpu::ImageDataLayout {
+            wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * rgba_width),
                 rows_per_image: Some(height),
@@ -261,6 +261,7 @@ impl TextureRenderer {
                 label: Some("Texture Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: target,
+                    depth_slice: None,
                     resolve_target,
                     ops: wgpu::Operations {
                         load: if clear_target {
@@ -286,6 +287,7 @@ impl TextureRenderer {
                 }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
             render_pass.set_pipeline(&self.texture_pipeline);
             render_pass.set_bind_group(0, &bind_group, &[]);
@@ -323,14 +325,14 @@ impl TextureRenderer {
         });
 
         queue.write_texture(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 aspect: wgpu::TextureAspect::All,
                 texture: &texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
             rgba,
-            wgpu::ImageDataLayout {
+            wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * rgba_width),
                 rows_per_image: Some(rgba_height),
@@ -413,6 +415,7 @@ impl TextureRenderer {
                 label: Some("Retained Texture Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: target,
+                    depth_slice: None,
                     resolve_target,
                     ops: wgpu::Operations {
                         load: if clear_target {
@@ -438,6 +441,7 @@ impl TextureRenderer {
                 }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
             render_pass.set_pipeline(&self.texture_pipeline);
             render_pass.set_bind_group(0, &texture.bind_group, &[]);
@@ -447,6 +451,19 @@ impl TextureRenderer {
             render_pass.draw_indexed(0..6, 0, 0..1);
         }
         queue.submit(std::iter::once(encoder.finish()));
+    }
+
+    pub fn draw_retained_image_in_pass<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        texture: &'a CachedTextureResource,
+        resource: &'a RetainedImageResource,
+    ) {
+        render_pass.set_pipeline(&self.texture_pipeline);
+        render_pass.set_bind_group(0, &texture.bind_group, &[]);
+        render_pass.set_vertex_buffer(0, resource.vertices_buffer.slice(..));
+        render_pass.set_index_buffer(self.indices_buffer.slice(..), IndexFormat::Uint16);
+        render_pass.draw_indexed(0..6, 0, 0..1);
     }
 }
 

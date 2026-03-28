@@ -150,22 +150,25 @@ struct PaxViewMacos: View {
             super.draw(dirtyRect)
             guard let context = NSGraphicsContext.current else { return }
             var cgContext = context.cgContext
+            let scale = self.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1.0
+            let width = CFloat(bounds.width)
+            let height = CFloat(bounds.height)
 
             if PaxEngineContainer.paxEngineContainer == nil {
-                PaxEngineContainer.paxEngineContainer = pax_init()
-            } else {
-
-                let scale = self.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1.0
-                let nativeMessageQueue = pax_tick(
-                    PaxEngineContainer.paxEngineContainer!,
-                    &cgContext,
-                    CFloat(dirtyRect.width),
-                    CFloat(dirtyRect.height),
-                    CFloat(scale)
-                )
-                processNativeMessageQueue(queue: nativeMessageQueue.unsafelyUnwrapped.pointee)
-                pax_dealloc_message_queue(nativeMessageQueue)
+                PaxEngineContainer.paxEngineContainer = pax_init(width, height)
             }
+
+            guard let engineContainer = PaxEngineContainer.paxEngineContainer else { return }
+
+            let nativeMessageQueue = pax_tick(
+                engineContainer,
+                &cgContext,
+                width,
+                height,
+                CFloat(scale)
+            )
+            processNativeMessageQueue(queue: nativeMessageQueue.unsafelyUnwrapped.pointee)
+            pax_dealloc_message_queue(nativeMessageQueue)
 
             //This DispatchWorkItem `cancel()` is required because sometimes `draw` will be triggered externally from this loop, which
             //would otherwise create new families of continuously reproducing DispatchWorkItems, each ticking up a frenzy, well past the bounds of our target FPS.

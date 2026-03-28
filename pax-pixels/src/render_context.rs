@@ -1,5 +1,6 @@
 use crate::render_backend::stencil;
 use crate::render_backend::CpuBuffers;
+use crate::render_backend::RetainedDraw;
 use crate::render_backend::RetainedImageDraw;
 use crate::render_backend::RetainedVectorResource;
 use crate::Box2D;
@@ -175,28 +176,62 @@ impl<'w> WgpuRenderer<'w> {
             self.sorted_nodes.sort_unstable();
             self.order_dirty = false;
         }
+        if self.should_use_vector_scene_batch() {
+            self.flush_vector_scene_batch();
+            self.scene_dirty = false;
+            self.transform_stack.truncate(1);
+            self.clip_stack.clear();
+            self.saves.clear();
+            self.current_node = None;
+            return;
+        }
         let mut current_clip_stack: Vec<u64> = Vec::new();
+        let mut current_batch: Vec<RetainedDraw<'_>> = Vec::new();
+        let mut current_batch_clip_stack: Option<Vec<ClipGeometry>> = None;
         for (_, node_id) in &self.sorted_nodes {
             let Some(node) = self.scene.get(node_id) else {
                 continue;
             };
-            sync_clip_stack(
-                &mut self.render_backend,
-                &mut current_clip_stack,
-                node.clip_stack(),
-            );
+            if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
+                if !clip_stacks_match(batch_clip_stack, node.clip_stack()) {
+                    sync_clip_stack(
+                        &mut self.render_backend,
+                        &mut current_clip_stack,
+                        batch_clip_stack,
+                    );
+                    let stencil_index = self.render_backend.get_clip_depth();
+                    self.render_backend
+                        .draw_retained_batch(stencil_index, &current_batch);
+                    current_batch.clear();
+                    current_batch_clip_stack = Some(node.clip_stack().to_vec());
+                }
+            } else {
+                current_batch_clip_stack = Some(node.clip_stack().to_vec());
+            }
             match node {
                 RetainedNode::Vector(node) => {
-                    self.render_backend.draw_vector_resource(&node.resource);
+                    current_batch.push(RetainedDraw::Vector(&node.resource));
                 }
                 RetainedNode::Image(node) => {
                     let Some(texture) = self.cached_images.get(&node.draw.resource.image_key) else {
                         continue;
                     };
-                    self.render_backend
-                        .draw_image_resource(&texture.texture, &node.draw);
+                    current_batch.push(RetainedDraw::Image {
+                        texture: &texture.texture,
+                        draw: &node.draw,
+                    });
                 }
             }
+        }
+        if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
+            sync_clip_stack(
+                &mut self.render_backend,
+                &mut current_clip_stack,
+                batch_clip_stack,
+            );
+            let stencil_index = self.render_backend.get_clip_depth();
+            self.render_backend
+                .draw_retained_batch(stencil_index, &current_batch);
         }
         self.cached_images.retain(|image_key, _| {
             self.scene.values().any(|node| {
@@ -293,11 +328,31 @@ impl<'w> WgpuRenderer<'w> {
 
         let updated = match pending_node.kind {
             PendingNodeKind::Empty => None,
-            PendingNodeKind::Vector(mut buffers) => Some(RetainedNode::Vector(RetainedVectorNode {
-                resource: self.render_backend.create_vector_resource(&mut buffers.buffers),
-                clip_stack: buffers.clip_stack,
-                z_index: pending_node.z_index,
-            })),
+            PendingNodeKind::Vector(mut buffers) => {
+                if let Some(RetainedNode::Vector(existing)) = self.scene.get_mut(&node_id) {
+                    let prev_z = existing.z_index;
+                    if self
+                        .render_backend
+                        .update_vector_resource(&mut existing.resource, &mut buffers.buffers)
+                    {
+                        existing.buffers = buffers.buffers;
+                        existing.clip_stack = buffers.clip_stack;
+                        existing.z_index = pending_node.z_index;
+                        if prev_z != pending_node.z_index {
+                            self.order_dirty = true;
+                        }
+                        self.scene_dirty = true;
+                        return true;
+                    }
+                }
+
+                Some(RetainedNode::Vector(RetainedVectorNode {
+                    resource: self.render_backend.create_vector_resource(&mut buffers.buffers),
+                    buffers: buffers.buffers,
+                    clip_stack: buffers.clip_stack,
+                    z_index: pending_node.z_index,
+                }))
+            }
             PendingNodeKind::Image(image_node) => Some(RetainedNode::Image(RetainedImageNode {
                 draw: image_node.draw,
                 clip_stack: image_node.clip_stack,
@@ -341,6 +396,60 @@ impl<'w> WgpuRenderer<'w> {
             });
         }
         Some(current_node)
+    }
+
+    fn should_use_vector_scene_batch(&self) -> bool {
+        self.scene.len() >= 64
+            && self
+                .scene
+                .values()
+                .all(|node| matches!(node, RetainedNode::Vector(_)))
+    }
+
+    fn flush_vector_scene_batch(&mut self) {
+        let mut current_clip_stack: Vec<u64> = Vec::new();
+        let mut current_batch_clip_stack: Option<Vec<ClipGeometry>> = None;
+        let mut current_buffers = new_cpu_buffers();
+        let mut has_geometry = false;
+
+        for (_, node_id) in &self.sorted_nodes {
+            let Some(RetainedNode::Vector(node)) = self.scene.get(node_id) else {
+                continue;
+            };
+
+            if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
+                if !clip_stacks_match(batch_clip_stack, &node.clip_stack) {
+                    if has_geometry {
+                        sync_clip_stack(
+                            &mut self.render_backend,
+                            &mut current_clip_stack,
+                            batch_clip_stack,
+                        );
+                        self.render_backend.render_primitives(&mut current_buffers);
+                        current_buffers = new_cpu_buffers();
+                    }
+                    current_batch_clip_stack = Some(node.clip_stack.clone());
+                }
+            } else {
+                current_batch_clip_stack = Some(node.clip_stack.clone());
+            }
+
+            append_cpu_buffers(&mut current_buffers, &node.buffers);
+            has_geometry = true;
+        }
+
+        if has_geometry {
+            if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
+                sync_clip_stack(
+                    &mut self.render_backend,
+                    &mut current_clip_stack,
+                    batch_clip_stack,
+                );
+            }
+            self.render_backend.render_primitives(&mut current_buffers);
+        }
+
+        self.render_backend.present();
     }
 }
 
@@ -400,6 +509,7 @@ impl RetainedNode {
 
 struct RetainedVectorNode {
     resource: RetainedVectorResource,
+    buffers: CpuBuffers,
     clip_stack: Vec<ClipGeometry>,
     z_index: i32,
 }
@@ -418,6 +528,47 @@ fn new_cpu_buffers() -> CpuBuffers {
         gradients: Vec::new(),
         transforms: vec![GpuTransform::default()],
     }
+}
+
+fn append_cpu_buffers(dst: &mut CpuBuffers, src: &CpuBuffers) {
+    let vertex_offset = dst.geometry.vertices.len() as u16;
+    let primitive_offset = dst.primitives.len() as u32;
+    let src_uses_only_identity_transform =
+        src.transforms.len() == 1 && src.transforms[0].transform == GpuTransform::default().transform;
+    let transform_offset = if src_uses_only_identity_transform {
+        0
+    } else {
+        dst.transforms.len() as u32
+    };
+    let color_offset = dst.colors.len() as u16;
+    let gradient_offset = dst.gradients.len() as u16;
+
+    dst.geometry.vertices.extend(src.geometry.vertices.iter().map(|vertex| {
+        let mut vertex = *vertex;
+        vertex.prim_id += primitive_offset;
+        vertex
+    }));
+    dst.geometry.indices.extend(
+        src.geometry
+            .indices
+            .iter()
+            .map(|index| index.saturating_add(vertex_offset)),
+    );
+    dst.primitives.extend(src.primitives.iter().map(|primitive| {
+        let mut primitive = *primitive;
+        primitive.transform_id += transform_offset;
+        if primitive.fill_type_flag == 0 {
+            primitive.fill_id = primitive.fill_id.saturating_add(color_offset);
+        } else {
+            primitive.fill_id = primitive.fill_id.saturating_add(gradient_offset);
+        }
+        primitive
+    }));
+    if !src_uses_only_identity_transform {
+        dst.transforms.extend(src.transforms.iter().copied());
+    }
+    dst.colors.extend(src.colors.iter().copied());
+    dst.gradients.extend(src.gradients.iter().copied());
 }
 
 fn push_primitive_def(buffers: &mut CpuBuffers, fill: Fill, transform_id: u32) -> u32 {
@@ -502,6 +653,14 @@ fn sync_clip_stack<'w>(
         render_backend.push_stencil_geometry(clip.geometry.clone());
         current_clip_stack.push(clip.signature);
     }
+}
+
+fn clip_stacks_match(left: &[ClipGeometry], right: &[ClipGeometry]) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right.iter())
+            .all(|(left, right)| left.signature == right.signature)
 }
 
 #[derive(Debug)]

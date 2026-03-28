@@ -13,9 +13,10 @@ include = ["/src", "/interface/public"]
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["console_error_panic_hook"]
+default = ["console_error_panic_hook", "gpu"]
 designtime = ["dep:pax-designtime", "pax-runtime/designtime"]
 gpu = []
+piet = []
 
 [dependencies]
 piet = "0.7.0"

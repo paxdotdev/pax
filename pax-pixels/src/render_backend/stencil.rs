@@ -65,7 +65,7 @@ impl StencilRenderer {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Stencil Pipeline Layout"),
             bind_group_layouts: &[&stencil_bind_group_layout],
-            push_constant_ranges: &[],
+            immediate_size: 0,
         });
 
         // Main stencil pipeline for incrementing
@@ -74,7 +74,7 @@ impl StencilRenderer {
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: "vs_main",
+                entry_point: Some("vs_main"),
                 buffers: &[wgpu::VertexBufferLayout {
                     array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
                     step_mode: wgpu::VertexStepMode::Vertex,
@@ -84,7 +84,7 @@ impl StencilRenderer {
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
                 targets: &[None],
                 compilation_options: Default::default(),
             }),
@@ -118,7 +118,7 @@ impl StencilRenderer {
                 count: sample_count,
                 ..Default::default()
             },
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
 
@@ -128,7 +128,7 @@ impl StencilRenderer {
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: "vs_main",
+                entry_point: Some("vs_main"),
                 buffers: &[wgpu::VertexBufferLayout {
                     array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
                     step_mode: wgpu::VertexStepMode::Vertex,
@@ -138,7 +138,7 @@ impl StencilRenderer {
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
                 targets: &[None],
                 compilation_options: Default::default(),
             }),
@@ -172,7 +172,7 @@ impl StencilRenderer {
                 count: sample_count,
                 ..Default::default()
             },
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
 
@@ -283,6 +283,7 @@ impl StencilRenderer {
                 }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             render_pass.set_pipeline(&self.stencil_pipeline);
@@ -332,6 +333,7 @@ impl StencilRenderer {
                     }),
                     timestamp_writes: None,
                     occlusion_query_set: None,
+                    multiview_mask: None,
                 });
 
                 render_pass.set_pipeline(&self.decrement_pipeline);
@@ -371,6 +373,7 @@ impl StencilRenderer {
                 }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             render_pass.set_pipeline(&self.stencil_pipeline);

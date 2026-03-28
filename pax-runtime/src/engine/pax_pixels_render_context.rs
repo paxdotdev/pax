@@ -3,7 +3,13 @@ use pax_pixels::{point, Box2D, Image, Path, Transform2D, WgpuRenderer};
 use pax_runtime_api::{Axis, RenderContext};
 use std::{cell::RefCell, collections::HashMap, future::Future, pin::Pin, rc::Rc};
 
-type LayerDef = (WgpuRenderer<'static>, Pin<Box<dyn Fn()>>);
+type LayerDef = (WgpuRenderer<'static>, Pin<Box<dyn Fn() -> LayerSurfaceSize>>);
+
+pub struct LayerSurfaceSize {
+    pub surface_width: u32,
+    pub surface_height: u32,
+    pub dpr: u32,
+}
 
 pub struct PaxPixelsRenderer {
     backends: Rc<RefCell<Vec<RenderLayerState>>>,
@@ -227,8 +233,12 @@ impl RenderContext for PaxPixelsRenderer {
                     log::warn!("tried to resize backend that was pending")
                 }
                 RenderLayerState::Ready((renderer, canvas_resizer)) => {
-                    (canvas_resizer)();
-                    renderer.resize(width as f32, height as f32)
+                    let surface = (canvas_resizer)();
+                    renderer.resize_surface(
+                        surface.surface_width as f32,
+                        surface.surface_height as f32,
+                    );
+                    renderer.set_viewport(width as f32, height as f32, surface.dpr as f32);
                 }
             }
         }

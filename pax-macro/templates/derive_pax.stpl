@@ -96,7 +96,7 @@
 
     #[cfg(any(feature = "macos", feature="ios"))]
     #[no_mangle]
-    pub extern "C" fn pax_init() -> *mut <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
+    pub extern "C" fn pax_init(initial_width: f32, initial_height: f32) -> *mut <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
         <%= engine_import_path %>::pax_chassis_common::env_logger::init();
 
         let manifest = init_manifest();
@@ -110,7 +110,10 @@
         //This could presumably be cleaned up -- see `pax_dealloc_engine`
         let engine: std::mem::ManuallyDrop<Box<<%= engine_import_path %>::pax_runtime::engine::PaxEngine>> = std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_runtime::engine::PaxEngine::new(
             main_component_instance,
-            (1.0, 1.0),
+            (
+                initial_width.max(1.0) as f64,
+                initial_height.max(1.0) as f64,
+            ),
             Platform::Native,
             #[cfg(feature="macos")]
             OS::Mac,
