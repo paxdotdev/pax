@@ -207,6 +207,8 @@ impl InstanceNode for FrameInstance {
                         }
                     });
                     cloned_context
+                        .mark_canvas_nodes_on_layer_dirty(expanded_node.occlusion.get().occlusion_layer_id);
+                    cloned_context
                         .set_canvas_dirty(expanded_node.occlusion.get().occlusion_layer_id)
                 },
                 &deps,

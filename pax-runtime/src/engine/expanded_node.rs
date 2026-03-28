@@ -562,6 +562,10 @@ impl ExpandedNode {
             }
 
             if self.instance_node.borrow().base().flags().layer == Layer::Canvas {
+                context.enqueue_canvas_node_removal(
+                    self.occlusion.get().occlusion_layer_id,
+                    self.id.to_u32(),
+                );
                 context.set_canvas_dirty(self.occlusion.get().occlusion_layer_id);
             }
 

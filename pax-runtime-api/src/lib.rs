@@ -73,6 +73,18 @@ pub trait RenderContext {
     fn clear(&mut self, layer: usize);
     fn flush(&mut self, layer: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>);
     fn resize(&mut self, width: usize, height: usize);
+
+    fn begin_node(&mut self, _layer: usize, _node_id: u32, _z_index: i32) -> bool {
+        true
+    }
+
+    fn end_node(&mut self, _layer: usize, _node_id: u32) -> bool {
+        true
+    }
+
+    fn remove_node(&mut self, _layer: usize, _node_id: u32) -> bool {
+        true
+    }
 }
 
 #[cfg(debug_assertions)]

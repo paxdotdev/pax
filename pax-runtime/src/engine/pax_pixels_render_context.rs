@@ -9,6 +9,7 @@ pub struct PaxPixelsRenderer {
     backends: Rc<RefCell<Vec<RenderLayerState>>>,
     layer_factory: Rc<dyn Fn(usize) -> Pin<Box<dyn Future<Output = Option<LayerDef>>>>>,
     image_map: HashMap<String, Image>,
+    image_versions: HashMap<String, u64>,
     failed_context_gets: RefCell<Vec<bool>>,
 }
 
@@ -25,6 +26,7 @@ impl PaxPixelsRenderer {
             backends: Default::default(),
             layer_factory: Rc::new(layer_factory),
             image_map: Default::default(),
+            image_versions: Default::default(),
             failed_context_gets: RefCell::new(vec![]),
         }
     }
@@ -118,12 +120,16 @@ impl RenderContext for PaxPixelsRenderer {
                 pixel_height: height as u32,
             },
         );
+        *self.image_versions.entry(identifier.to_string()).or_insert(0) += 1;
     }
 
     fn draw_image(&mut self, layer: usize, image_path: &str, rect: kurbo::Rect) {
         self.with_layer_context(layer, |context| {
             if let Some(image) = self.image_map.get(image_path) {
+                let version = *self.image_versions.get(image_path).unwrap_or(&0);
                 context.draw_image(
+                    image_path,
+                    version,
                     image,
                     Box2D {
                         min: point(rect.x0 as f32, rect.y0 as f32),
@@ -226,6 +232,30 @@ impl RenderContext for PaxPixelsRenderer {
                 }
             }
         }
+    }
+
+    fn begin_node(&mut self, layer: usize, node_id: u32, z_index: i32) -> bool {
+        let mut began = false;
+        self.with_layer_context(layer, |context| {
+            began = context.begin_node(node_id, z_index);
+        });
+        began
+    }
+
+    fn end_node(&mut self, layer: usize, node_id: u32) -> bool {
+        let mut ended = false;
+        self.with_layer_context(layer, |context| {
+            ended = context.end_node(node_id);
+        });
+        ended
+    }
+
+    fn remove_node(&mut self, layer: usize, node_id: u32) -> bool {
+        let mut removed = false;
+        self.with_layer_context(layer, |context| {
+            removed = context.remove_node(node_id);
+        });
+        removed
     }
 }
 

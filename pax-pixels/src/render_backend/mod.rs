@@ -15,9 +15,16 @@ mod gpu_resources;
 pub mod stencil;
 mod texture;
 
+pub(crate) use texture::CachedTextureResource;
+
 use data::{GpuGlobals, GpuPrimitive, GpuVertex};
 
-use crate::{render_backend::texture::TextureRenderer, Box2D, Transform2D};
+use crate::{
+    render_backend::texture::{
+        corners_to_texture_vertices, RetainedImageResource, TextureRenderer,
+    },
+    Box2D, Transform2D,
+};
 
 use self::{
     gpu_resources::create_multisampled_framebuffer,
@@ -68,6 +75,7 @@ pub struct RenderBackend<'w> {
     surface_config: SurfaceConfiguration,
     pipeline: RenderPipeline,
     bind_group: BindGroup,
+    primitive_bind_group_layout: BindGroupLayout,
 
     //buffers
     globals_buffer: wgpu::Buffer,
@@ -97,6 +105,21 @@ struct ActiveFrame {
 struct MultisampledTarget {
     _texture: Texture,
     view: TextureView,
+}
+
+pub(crate) struct RetainedVectorResource {
+    bind_group: BindGroup,
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    index_count: u32,
+    _primitive_buffer: wgpu::Buffer,
+    _transforms_buffer: wgpu::Buffer,
+    _colors_buffer: wgpu::Buffer,
+    _gradients_buffer: wgpu::Buffer,
+}
+
+pub(crate) struct RetainedImageDraw {
+    pub resource: RetainedImageResource,
 }
 
 impl<'w> RenderBackend<'w> {
@@ -355,7 +378,7 @@ impl<'w> RenderBackend<'w> {
             &device,
             surface_config.format,
             sample_count,
-            primitive_bind_group_layout,
+            &primitive_bind_group_layout,
         );
 
         let texture_renderer = TextureRenderer::new(&device, surface_config.format, sample_count);
@@ -380,6 +403,7 @@ impl<'w> RenderBackend<'w> {
             config,
             surface_config,
             bind_group,
+            primitive_bind_group_layout,
             pipeline,
             vertex_buffer,
             index_buffer,
@@ -404,7 +428,7 @@ impl<'w> RenderBackend<'w> {
         device: &Device,
         format: TextureFormat,
         sample_count: u32,
-        primitive_bind_group_layout: BindGroupLayout,
+        primitive_bind_group_layout: &BindGroupLayout,
     ) -> RenderPipeline {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
@@ -413,7 +437,7 @@ impl<'w> RenderBackend<'w> {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&primitive_bind_group_layout],
+                bind_group_layouts: &[primitive_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -522,6 +546,211 @@ impl<'w> RenderBackend<'w> {
             &self.globals_buffer,
             0,
             bytemuck::cast_slice(&[self.globals]),
+        );
+    }
+
+    pub(crate) fn create_vector_resource(
+        &self,
+        buffers: &mut CpuBuffers,
+    ) -> RetainedVectorResource {
+        let (vertices, indices, mut primitives, mut transforms, mut colors, mut gradients) =
+            aligned_cpu_buffers(buffers);
+        primitives.resize(self.config.primitive_buffer_size as usize, GpuPrimitive::default());
+        transforms.resize(self.config.transforms_buffer_size as usize, GpuTransform::default());
+        colors.resize(self.config.colors_buffer_size as usize, GpuColor::default());
+        gradients.resize(self.config.gradients_buffer_size as usize, GpuGradient::default());
+        let vertex_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Retained Vertex Buffer"),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            });
+        let index_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Retained Index Buffer"),
+                contents: bytemuck::cast_slice(&indices),
+                usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
+            });
+        let primitive_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Retained Primitive Buffer"),
+                contents: bytemuck::cast_slice(&primitives),
+                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            });
+        let transforms_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Retained Transform Buffer"),
+                contents: bytemuck::cast_slice(&transforms),
+                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            });
+        let colors_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Retained Color Buffer"),
+                contents: bytemuck::cast_slice(&colors),
+                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            });
+        let gradients_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Retained Gradient Buffer"),
+                contents: bytemuck::cast_slice(&gradients),
+                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            });
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &self.primitive_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.globals_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: primitive_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: transforms_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: colors_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: gradients_buffer.as_entire_binding(),
+                },
+            ],
+            label: Some("retained_bind_group"),
+        });
+
+        RetainedVectorResource {
+            bind_group,
+            vertex_buffer,
+            index_buffer,
+            index_count: buffers.geometry.indices.len() as u32,
+            _primitive_buffer: primitive_buffer,
+            _transforms_buffer: transforms_buffer,
+            _colors_buffer: colors_buffer,
+            _gradients_buffer: gradients_buffer,
+        }
+    }
+
+    pub(crate) fn draw_vector_resource(&mut self, resource: &RetainedVectorResource) {
+        let load_op = self.take_color_load_op();
+        self.ensure_active_frame();
+        let (screen_texture, resolve_target) = self.current_color_attachment_views();
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Retained Render Encoder"),
+            });
+
+        {
+            let (stencil_texture, stencil_index) = self.stencil_renderer.get_stencil();
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Retained Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: screen_texture,
+                    resolve_target,
+                    ops: wgpu::Operations {
+                        load: load_op,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: stencil_texture,
+                    depth_ops: None,
+                    stencil_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            render_pass.set_pipeline(&self.pipeline);
+            render_pass.set_bind_group(0, &resource.bind_group, &[]);
+            render_pass.set_vertex_buffer(0, resource.vertex_buffer.slice(..));
+            render_pass.set_stencil_reference(stencil_index);
+            render_pass.set_index_buffer(resource.index_buffer.slice(..), IndexFormat::Uint16);
+            render_pass.draw_indexed(0..resource.index_count, 0, 0..1);
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+    }
+
+    pub(crate) fn push_stencil_geometry(
+        &mut self,
+        geometry: VertexBuffers<stencil::Vertex, u16>,
+    ) {
+        self.stencil_renderer
+            .push_stencil(&self.device, &self.queue, geometry);
+    }
+
+    pub(crate) fn create_cached_texture(
+        &self,
+        rgba: &[u8],
+        rgba_width: u32,
+        rgba_height: u32,
+    ) -> CachedTextureResource {
+        self.texture_renderer.create_cached_texture(
+            &self.device,
+            &self.queue,
+            &self.globals_buffer,
+            rgba,
+            rgba_width,
+            rgba_height,
+        )
+    }
+
+    pub(crate) fn create_image_draw(
+        &self,
+        image_key: String,
+        transform: Transform2D,
+        rect: Box2D,
+    ) -> RetainedImageDraw {
+        let corners = transformed_corners(&rect, &transform);
+        let verts = corners_to_texture_vertices(corners);
+        let resource =
+            self.texture_renderer
+                .create_retained_image_resource(&self.device, image_key, verts);
+        RetainedImageDraw { resource }
+    }
+
+    pub(crate) fn update_image_draw(
+        &self,
+        draw: &RetainedImageDraw,
+        transform: Transform2D,
+        rect: Box2D,
+    ) {
+        let corners = transformed_corners(&rect, &transform);
+        let verts = corners_to_texture_vertices(corners);
+        self.texture_renderer
+            .update_retained_image_resource(&self.queue, &draw.resource, verts);
+    }
+
+    pub(crate) fn draw_image_resource(
+        &mut self,
+        texture: &CachedTextureResource,
+        draw: &RetainedImageDraw,
+    ) {
+        let clear_target = std::mem::take(&mut self.pending_clear);
+        self.ensure_active_frame();
+        let (screen_texture, resolve_target) = self.current_color_attachment_views();
+        self.texture_renderer.draw_retained_image(
+            &self.device,
+            &self.queue,
+            screen_texture,
+            resolve_target,
+            &self.stencil_renderer,
+            clear_target,
+            texture,
+            &draw.resource,
         );
     }
 
@@ -737,6 +966,84 @@ fn select_sample_count(
                 && stencil_format_features.sample_count_supported(*count)
         })
         .unwrap_or(1)
+}
+
+fn aligned_cpu_buffers(
+    buffers: &mut CpuBuffers,
+) -> (
+    Vec<GpuVertex>,
+    Vec<u16>,
+    Vec<GpuPrimitive>,
+    Vec<GpuTransform>,
+    Vec<GpuColor>,
+    Vec<GpuGradient>,
+) {
+    let CpuBuffers {
+        geometry,
+        primitives,
+        transforms,
+        colors,
+        gradients,
+    } = buffers;
+    let mut indices = geometry.indices.clone();
+    let mut vertices = geometry.vertices.clone();
+    let mut primitives = primitives.clone();
+    let mut transforms = transforms.clone();
+    let mut colors = colors.clone();
+    let mut gradients = gradients.clone();
+
+    const ALIGNMENT: usize = 16;
+    if primitives.is_empty() {
+        primitives.push(GpuPrimitive::default());
+    }
+    if transforms.is_empty() {
+        transforms.push(GpuTransform::default());
+    }
+    if colors.is_empty() {
+        colors.push(GpuColor::default());
+    }
+    if gradients.is_empty() {
+        gradients.push(GpuGradient::default());
+    }
+    while indices.len() * std::mem::size_of::<u16>() % ALIGNMENT != 0 {
+        indices.push(0);
+        indices.push(0);
+        indices.push(0);
+    }
+    while vertices.len() * std::mem::size_of::<GpuVertex>() % ALIGNMENT != 0 {
+        vertices.push(GpuVertex::default());
+    }
+    while primitives.len() * std::mem::size_of::<GpuPrimitive>() % ALIGNMENT != 0 {
+        primitives.push(GpuPrimitive::default());
+    }
+    while transforms.len() * std::mem::size_of::<GpuTransform>() % ALIGNMENT != 0 {
+        transforms.push(GpuTransform::default());
+    }
+    while colors.len() * std::mem::size_of::<GpuColor>() % ALIGNMENT != 0 {
+        colors.push(GpuColor::default());
+    }
+    while gradients.len() * std::mem::size_of::<GpuGradient>() % ALIGNMENT != 0 {
+        gradients.push(GpuGradient::default());
+    }
+
+    (vertices, indices, primitives, transforms, colors, gradients)
+}
+
+fn transformed_corners(rect: &Box2D, transform: &Transform2D) -> [[f32; 2]; 4] {
+    let min = rect.min;
+    let max = rect.max;
+    let corners = [
+        crate::Point2D::new(min.x, min.y),
+        crate::Point2D::new(max.x, min.y),
+        crate::Point2D::new(min.x, max.y),
+        crate::Point2D::new(max.x, max.y),
+    ];
+    [
+        transform.transform_point(corners[0]).to_array(),
+        transform.transform_point(corners[1]).to_array(),
+        transform.transform_point(corners[2]).to_array(),
+        transform.transform_point(corners[3]).to_array(),
+    ]
 }
 
 #[derive(Debug)]

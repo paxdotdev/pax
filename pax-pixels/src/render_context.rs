@@ -1,5 +1,7 @@
 use crate::render_backend::stencil;
 use crate::render_backend::CpuBuffers;
+use crate::render_backend::RetainedImageDraw;
+use crate::render_backend::RetainedVectorResource;
 use crate::Box2D;
 use crate::Image;
 use crate::Point2D;
@@ -20,56 +22,73 @@ use crate::render_backend::data::GpuGradient;
 use crate::render_backend::data::GpuPrimitive;
 use crate::render_backend::data::GpuTransform;
 use crate::render_backend::data::GpuVertex;
+use crate::render_backend::CachedTextureResource;
 use crate::render_backend::RenderBackend;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 
 pub struct WgpuRenderer<'w> {
-    buffers: CpuBuffers,
     render_backend: RenderBackend<'w>,
-    // these reference indicies in the CpuBuffer "transforms"
-    transform_index_stack: Vec<usize>,
-    // tuble of transform stack index to go to, and clip depth to go to
-    saves: Vec<(usize, usize)>,
+    scene: HashMap<u32, RetainedNode>,
+    sorted_nodes: Vec<(i32, u32)>,
+    order_dirty: bool,
+    scene_dirty: bool,
+    cached_images: HashMap<String, CachedImageEntry>,
+    transform_stack: Vec<Transform2D>,
+    clip_stack: Vec<ClipGeometry>,
+    saves: Vec<SceneStateSave>,
+    current_node: Option<PendingNode>,
     tolerance: f32,
+}
+
+struct CachedImageEntry {
+    texture: CachedTextureResource,
+    version: u64,
 }
 
 impl<'w> WgpuRenderer<'w> {
     pub fn new(render_backend: RenderBackend<'w>) -> Self {
-        let geometry: VertexBuffers<GpuVertex, u16> = VertexBuffers::new();
         Self {
             render_backend,
-            buffers: CpuBuffers {
-                geometry,
-                primitives: Vec::new(),
-                colors: Vec::new(),
-                gradients: Vec::new(),
-                transforms: vec![GpuTransform::default()],
-            },
             tolerance: 0.5, //TODO expose as option
-            transform_index_stack: vec![],
+            scene: HashMap::new(),
+            sorted_nodes: Vec::new(),
+            order_dirty: false,
+            scene_dirty: false,
+            cached_images: HashMap::new(),
+            transform_stack: vec![Transform2D::identity()],
+            clip_stack: Vec::new(),
             saves: vec![],
+            current_node: None,
         }
     }
 
     fn current_transform(&self) -> Transform2D {
-        Transform2D::from_arrays(
-            self.buffers
-                .transforms
-                .get(self.transform_index_stack.last().cloned().unwrap_or(0))
-                .expect("at least one identity transform should exist on the transform stack")
-                .transform,
-        )
+        self.transform_stack
+            .last()
+            .copied()
+            .unwrap_or_else(Transform2D::identity)
     }
 
     pub fn stroke_path(&mut self, path: Path, stroke_fill: Fill, stroke_width: f32) {
-        let prim_id = self.push_primitive_def(stroke_fill);
-        let options = StrokeOptions::tolerance(self.tolerance).with_line_width(stroke_width);
+        let path = path.transformed(&self.current_transform());
+        let tolerance = self.tolerance;
+        let Some(PendingNode {
+            kind: PendingNodeKind::Vector(buffers),
+            ..
+        }) = self.ensure_vector_node()
+        else {
+            return;
+        };
+        let prim_id = push_primitive_def(&mut buffers.buffers, stroke_fill, 0);
+        let options = StrokeOptions::tolerance(tolerance).with_line_width(stroke_width);
         let mut geometry_builder =
-            BuffersBuilder::new(&mut self.buffers.geometry, |vertex: StrokeVertex| {
-                GpuVertex {
-                    position: vertex.position().to_array(),
-                    normal: [0.0; 2],
-                    prim_id,
-                }
+            BuffersBuilder::new(&mut buffers.buffers.geometry, |vertex: StrokeVertex| {
+            GpuVertex {
+                position: vertex.position().to_array(),
+                normal: [0.0; 2],
+                prim_id,
+            }
             });
         match StrokeTessellator::new().tessellate_path(&path, &options, &mut geometry_builder) {
             Ok(_) => {}
@@ -78,10 +97,19 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     pub fn fill_path(&mut self, path: Path, fill: Fill) {
-        let prim_id = self.push_primitive_def(fill);
-        let options = FillOptions::tolerance(self.tolerance);
+        let path = path.transformed(&self.current_transform());
+        let tolerance = self.tolerance;
+        let Some(PendingNode {
+            kind: PendingNodeKind::Vector(buffers),
+            ..
+        }) = self.ensure_vector_node()
+        else {
+            return;
+        };
+        let prim_id = push_primitive_def(&mut buffers.buffers, fill, 0);
+        let options = FillOptions::tolerance(tolerance);
         let mut geometry_builder =
-            BuffersBuilder::new(&mut self.buffers.geometry, |vertex: FillVertex| GpuVertex {
+            BuffersBuilder::new(&mut buffers.buffers.geometry, |vertex: FillVertex| GpuVertex {
                 position: vertex.position().to_array(),
                 normal: [0.0; 2],
                 prim_id,
@@ -92,137 +120,122 @@ impl<'w> WgpuRenderer<'w> {
         };
     }
 
-    fn push_primitive_def(&mut self, fill: Fill) -> u32 {
-        let fill_id;
-        let fill_type_flag;
-        match fill {
-            Fill::Solid(color) => {
-                fill_id = self.buffers.colors.len() as u16;
-                fill_type_flag = 0;
-                self.buffers.colors.push(GpuColor { color: color.rgba });
-            }
-            Fill::Gradient {
-                gradient_type,
-                pos,
-                main_axis,
-                off_axis,
-                stops,
-            } => {
-                fill_id = self.buffers.gradients.len() as u16;
-                fill_type_flag = 1;
-                if stops.len() > 8 {
-                    log::warn!("can't draw graidents with more than 8 stops. truncating.");
-                }
-                let len = stops.len().min(8);
-                let mut colors_buff = [[0.0; 4]; 8];
-                let mut stops_buff = [0.0; 8];
-                for i in 0..len {
-                    colors_buff[i] = stops[i].color.rgba;
-                    stops_buff[i] = stops[i].stop;
-                }
-                //this should be filled in with custom gradient stuff later:
-                self.buffers.gradients.push(GpuGradient {
-                    type_id: match gradient_type {
-                        GradientType::Linear => 0,
-                        GradientType::Radial => 1,
-                    },
-                    position: pos.to_array(),
-                    main_axis: main_axis.to_array(),
-                    off_axis: off_axis.to_array(),
-                    stop_count: len as u32,
-                    colors: colors_buff,
-                    stops: stops_buff,
-                    _padding: [0; 16],
-                });
-            }
-        }
-        let primitive = GpuPrimitive {
-            fill_id,
-            fill_type_flag,
-            clipping_id: 0,
-            transform_id: self.transform_index_stack.last().cloned().unwrap_or(0) as u32,
-            z_index: 0,
-        };
-        let prim_id = self.buffers.primitives.len() as u32;
-        self.buffers.primitives.push(primitive);
-        prim_id
-    }
-
     pub fn clear(&mut self) {
+        self.scene_dirty = true;
         self.render_backend.clear();
     }
 
-    pub fn draw_image(&mut self, image: &Image, rect: Box2D) {
-        let transform = self.current_transform();
-        if self.buffers.primitives.len() > 0 {
-            self.render_backend.render_primitives(&mut self.buffers);
-            let CpuBuffers {
-                geometry,
-                primitives,
-                transforms: _,
-                colors,
-                gradients,
-            } = &mut self.buffers;
-            geometry.vertices.clear();
-            geometry.indices.clear();
-            primitives.clear();
-            colors.clear();
-            gradients.clear();
+    pub fn draw_image(&mut self, image_key: &str, image_version: u64, image: &Image, rect: Box2D) {
+        let needs_upload = self
+            .cached_images
+            .get(image_key)
+            .map(|entry| entry.version != image_version)
+            .unwrap_or(true);
+        if needs_upload {
+            self.cached_images.insert(
+                image_key.to_owned(),
+                CachedImageEntry {
+                    texture: self.render_backend.create_cached_texture(
+                        &image.rgba,
+                        image.pixel_width,
+                        image.pixel_height,
+                    ),
+                    version: image_version,
+                },
+            );
         }
-        self.render_backend.render_image(image, transform, rect);
+        let transform = self.current_transform();
+        let clip_stack = self.clip_stack.clone();
+        let draw = self
+            .render_backend
+            .create_image_draw(image_key.to_owned(), transform, rect);
+        let Some(current_node) = self.current_node.as_mut() else {
+            return;
+        };
+        current_node.kind = PendingNodeKind::Image(PendingImageNode {
+            draw,
+            clip_stack,
+        });
     }
 
     pub fn flush(&mut self) {
-        if self.buffers.primitives.len() > 0 {
-            self.render_backend.render_primitives(&mut self.buffers);
+        if !self.scene_dirty {
+            self.transform_stack.truncate(1);
+            self.clip_stack.clear();
+            self.saves.clear();
+            self.current_node = None;
+            return;
         }
+        if self.order_dirty {
+            self.sorted_nodes = self
+                .scene
+                .iter()
+                .map(|(node_id, node)| (node.z_index(), *node_id))
+                .collect();
+            self.sorted_nodes.sort_unstable();
+            self.order_dirty = false;
+        }
+        let mut current_clip_stack: Vec<u64> = Vec::new();
+        for (_, node_id) in &self.sorted_nodes {
+            let Some(node) = self.scene.get(node_id) else {
+                continue;
+            };
+            sync_clip_stack(
+                &mut self.render_backend,
+                &mut current_clip_stack,
+                node.clip_stack(),
+            );
+            match node {
+                RetainedNode::Vector(node) => {
+                    self.render_backend.draw_vector_resource(&node.resource);
+                }
+                RetainedNode::Image(node) => {
+                    let Some(texture) = self.cached_images.get(&node.draw.resource.image_key) else {
+                        continue;
+                    };
+                    self.render_backend
+                        .draw_image_resource(&texture.texture, &node.draw);
+                }
+            }
+        }
+        self.cached_images.retain(|image_key, _| {
+            self.scene.values().any(|node| {
+                matches!(
+                    node,
+                    RetainedNode::Image(image_node)
+                        if image_node.draw.resource.image_key == *image_key
+                )
+            })
+        });
         self.render_backend.present();
-        self.buffers.reset();
-        self.transform_index_stack.clear();
+        self.scene_dirty = false;
+        self.transform_stack.truncate(1);
+        self.clip_stack.clear();
+        self.saves.clear();
+        self.current_node = None;
     }
 
     pub fn save(&mut self) {
-        let transform_len = self.transform_index_stack.len();
-        self.saves
-            .push((transform_len, self.render_backend.get_clip_depth() as usize));
+        self.saves.push(SceneStateSave {
+            transform_depth: self.transform_stack.len(),
+            clip_depth: self.clip_stack.len(),
+        });
     }
 
     pub fn restore(&mut self) {
-        if let Some((t_pen, clip_depth)) = self.saves.pop() {
-            self.transform_index_stack.truncate(t_pen);
-            self.render_backend
-                .reset_stencil_depth_to(clip_depth as u32);
+        if let Some(save) = self.saves.pop() {
+            self.transform_stack.truncate(save.transform_depth);
+            self.clip_stack.truncate(save.clip_depth);
         }
     }
 
     pub fn transform(&mut self, transform: Transform2D) {
-        let new_ind = self.buffers.transforms.len();
-        self.buffers.transforms.push(GpuTransform {
-            transform: transform.then(&self.current_transform()).to_arrays(),
-            _pad: 0,
-            _pad2: 0,
-        });
-        self.transform_index_stack.push(new_ind);
+        self.transform_stack
+            .push(transform.then(&self.current_transform()));
     }
 
     pub fn clip(&mut self, path: Path) {
-        // fine to transform on CPU - shouldn't be large meshes
         let path = path.transformed(&self.current_transform());
-        if self.buffers.primitives.len() > 0 {
-            self.render_backend.render_primitives(&mut self.buffers);
-            let CpuBuffers {
-                geometry,
-                primitives,
-                transforms: _,
-                colors,
-                gradients,
-            } = &mut self.buffers;
-            geometry.vertices.clear();
-            geometry.indices.clear();
-            primitives.clear();
-            colors.clear();
-            gradients.clear();
-        }
         let options = FillOptions::tolerance(self.tolerance);
         let mut geometry = VertexBuffers::new();
         let mut geometry_builder =
@@ -233,19 +246,25 @@ impl<'w> WgpuRenderer<'w> {
             Ok(_) => {}
             Err(e) => log::warn!("{:?}", e),
         };
-        self.render_backend.push_stencil(geometry);
+        self.clip_stack.push(ClipGeometry {
+            signature: hash_clip_geometry(&geometry),
+            geometry,
+        });
     }
 
     pub fn resize(&mut self, width: f32, height: f32) {
+        self.scene_dirty = true;
         self.render_backend.resize(width as u32, height as u32);
     }
 
     pub fn resize_surface(&mut self, width: f32, height: f32) {
+        self.scene_dirty = true;
         self.render_backend
             .resize_surface(width.round() as u32, height.round() as u32);
     }
 
     pub fn set_viewport(&mut self, width: f32, height: f32, dpr: f32) {
+        self.scene_dirty = true;
         self.render_backend
             .set_viewport(width, height, dpr.round().max(1.0) as u32);
     }
@@ -253,6 +272,235 @@ impl<'w> WgpuRenderer<'w> {
     pub fn size(&self) -> (f32, f32) {
         let res = &self.render_backend.globals.resolution;
         (res[0], res[1])
+    }
+
+    pub fn begin_node(&mut self, node_id: u32, z_index: i32) -> bool {
+        self.current_node = Some(PendingNode {
+            id: node_id,
+            z_index,
+            kind: PendingNodeKind::Empty,
+        });
+        true
+    }
+
+    pub fn end_node(&mut self, node_id: u32) -> bool {
+        let Some(pending_node) = self.current_node.take() else {
+            return true;
+        };
+        if pending_node.id != node_id {
+            return false;
+        }
+
+        let updated = match pending_node.kind {
+            PendingNodeKind::Empty => None,
+            PendingNodeKind::Vector(mut buffers) => Some(RetainedNode::Vector(RetainedVectorNode {
+                resource: self.render_backend.create_vector_resource(&mut buffers.buffers),
+                clip_stack: buffers.clip_stack,
+                z_index: pending_node.z_index,
+            })),
+            PendingNodeKind::Image(image_node) => Some(RetainedNode::Image(RetainedImageNode {
+                draw: image_node.draw,
+                clip_stack: image_node.clip_stack,
+                z_index: pending_node.z_index,
+            })),
+        };
+
+        match updated {
+            Some(node) => {
+                let prev_z = self.scene.get(&node_id).map(|node| node.z_index());
+                self.scene.insert(node_id, node);
+                if prev_z != Some(pending_node.z_index) {
+                    self.order_dirty = true;
+                }
+                self.scene_dirty = true;
+            }
+            None => {
+                if self.scene.remove(&node_id).is_some() {
+                    self.order_dirty = true;
+                    self.scene_dirty = true;
+                }
+            }
+        }
+        true
+    }
+
+    pub fn remove_node(&mut self, node_id: u32) -> bool {
+        if self.scene.remove(&node_id).is_some() {
+            self.order_dirty = true;
+            self.scene_dirty = true;
+        }
+        true
+    }
+
+    fn ensure_vector_node(&mut self) -> Option<&mut PendingNode> {
+        let current_node = self.current_node.as_mut()?;
+        if matches!(current_node.kind, PendingNodeKind::Empty) {
+            current_node.kind = PendingNodeKind::Vector(PendingVectorNode {
+                buffers: new_cpu_buffers(),
+                clip_stack: self.clip_stack.clone(),
+            });
+        }
+        Some(current_node)
+    }
+}
+
+struct SceneStateSave {
+    transform_depth: usize,
+    clip_depth: usize,
+}
+
+#[derive(Clone)]
+struct ClipGeometry {
+    signature: u64,
+    geometry: VertexBuffers<stencil::Vertex, u16>,
+}
+
+struct PendingNode {
+    id: u32,
+    z_index: i32,
+    kind: PendingNodeKind,
+}
+
+enum PendingNodeKind {
+    Empty,
+    Vector(PendingVectorNode),
+    Image(PendingImageNode),
+}
+
+struct PendingVectorNode {
+    buffers: CpuBuffers,
+    clip_stack: Vec<ClipGeometry>,
+}
+
+struct PendingImageNode {
+    draw: RetainedImageDraw,
+    clip_stack: Vec<ClipGeometry>,
+}
+
+enum RetainedNode {
+    Vector(RetainedVectorNode),
+    Image(RetainedImageNode),
+}
+
+impl RetainedNode {
+    fn z_index(&self) -> i32 {
+        match self {
+            RetainedNode::Vector(node) => node.z_index,
+            RetainedNode::Image(node) => node.z_index,
+        }
+    }
+
+    fn clip_stack(&self) -> &[ClipGeometry] {
+        match self {
+            RetainedNode::Vector(node) => &node.clip_stack,
+            RetainedNode::Image(node) => &node.clip_stack,
+        }
+    }
+}
+
+struct RetainedVectorNode {
+    resource: RetainedVectorResource,
+    clip_stack: Vec<ClipGeometry>,
+    z_index: i32,
+}
+
+struct RetainedImageNode {
+    draw: RetainedImageDraw,
+    clip_stack: Vec<ClipGeometry>,
+    z_index: i32,
+}
+
+fn new_cpu_buffers() -> CpuBuffers {
+    CpuBuffers {
+        geometry: VertexBuffers::new(),
+        primitives: Vec::new(),
+        colors: Vec::new(),
+        gradients: Vec::new(),
+        transforms: vec![GpuTransform::default()],
+    }
+}
+
+fn push_primitive_def(buffers: &mut CpuBuffers, fill: Fill, transform_id: u32) -> u32 {
+    let fill_id;
+    let fill_type_flag;
+    match fill {
+        Fill::Solid(color) => {
+            fill_id = buffers.colors.len() as u16;
+            fill_type_flag = 0;
+            buffers.colors.push(GpuColor { color: color.rgba });
+        }
+        Fill::Gradient {
+            gradient_type,
+            pos,
+            main_axis,
+            off_axis,
+            stops,
+        } => {
+            fill_id = buffers.gradients.len() as u16;
+            fill_type_flag = 1;
+            if stops.len() > 8 {
+                log::warn!("can't draw graidents with more than 8 stops. truncating.");
+            }
+            let len = stops.len().min(8);
+            let mut colors_buff = [[0.0; 4]; 8];
+            let mut stops_buff = [0.0; 8];
+            for i in 0..len {
+                colors_buff[i] = stops[i].color.rgba;
+                stops_buff[i] = stops[i].stop;
+            }
+            buffers.gradients.push(GpuGradient {
+                type_id: match gradient_type {
+                    GradientType::Linear => 0,
+                    GradientType::Radial => 1,
+                },
+                position: pos.to_array(),
+                main_axis: main_axis.to_array(),
+                off_axis: off_axis.to_array(),
+                stop_count: len as u32,
+                colors: colors_buff,
+                stops: stops_buff,
+                _padding: [0; 16],
+            });
+        }
+    }
+    let primitive = GpuPrimitive {
+        fill_id,
+        fill_type_flag,
+        clipping_id: 0,
+        transform_id,
+        z_index: 0,
+    };
+    let prim_id = buffers.primitives.len() as u32;
+    buffers.primitives.push(primitive);
+    prim_id
+}
+
+fn hash_clip_geometry(geometry: &VertexBuffers<stencil::Vertex, u16>) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    geometry.indices.hash(&mut hasher);
+    for vertex in &geometry.vertices {
+        vertex.position[0].to_bits().hash(&mut hasher);
+        vertex.position[1].to_bits().hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+fn sync_clip_stack<'w>(
+    render_backend: &mut RenderBackend<'w>,
+    current_clip_stack: &mut Vec<u64>,
+    desired_clip_stack: &[ClipGeometry],
+) {
+    let desired_signatures: Vec<u64> = desired_clip_stack.iter().map(|clip| clip.signature).collect();
+    let shared_prefix = current_clip_stack
+        .iter()
+        .zip(desired_signatures.iter())
+        .take_while(|(left, right)| left == right)
+        .count();
+    render_backend.reset_stencil_depth_to(shared_prefix as u32);
+    current_clip_stack.truncate(shared_prefix);
+    for clip in desired_clip_stack.iter().skip(shared_prefix) {
+        render_backend.push_stencil_geometry(clip.geometry.clone());
+        current_clip_stack.push(clip.signature);
     }
 }
 

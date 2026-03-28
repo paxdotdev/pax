@@ -83,9 +83,11 @@ impl InstanceNode for ImageInstance {
         let deps = [tab.untyped()];
         let cloned_context = context.clone();
         let occlusion = expanded_node.occlusion.clone();
+        let expanded_node_id = expanded_node.id;
 
         let tab_changed = Property::computed(
             move || {
+                cloned_context.mark_canvas_node_dirty(expanded_node_id);
                 cloned_context.set_canvas_dirty(occlusion.get().occlusion_layer_id);
             },
             &deps,
@@ -124,6 +126,7 @@ impl InstanceNode for ImageInstance {
                         }
                     }
                 });
+                cloned_context.mark_canvas_node_dirty(expanded_node.id);
                 cloned_context.set_canvas_dirty(expanded_node.occlusion.get().occlusion_layer_id)
             },
             &deps,
@@ -158,9 +161,21 @@ impl InstanceNode for ImageInstance {
         rc: &mut dyn RenderContext,
     ) {
         let layer_id = expanded_node.occlusion.get().occlusion_layer_id;
+        let node_dirty = rtc.is_canvas_node_dirty(&expanded_node.id);
+        let initial_load_complete = self.initial_load.borrow().contains(&expanded_node.id);
+
+        if !node_dirty && initial_load_complete {
+            return;
+        }
+
+        if !rc.begin_node(layer_id, expanded_node.id.to_u32(), expanded_node.occlusion.get().z_index)
+        {
+            return;
+        }
 
         let t_and_b = expanded_node.transform_and_bounds.get();
         let (container_width, container_height) = t_and_b.bounds;
+        let mut did_draw = false;
 
         expanded_node.with_properties_unwrapped(|props: &mut Image| {
             let image_size_and_load_path = props.source.read(|source| {
@@ -191,12 +206,6 @@ impl InstanceNode for ImageInstance {
                 return;
             };
 
-            if !rtc.is_canvas_dirty(&layer_id)
-                && self.initial_load.borrow().contains(&expanded_node.id)
-            {
-                return;
-            }
-
             let (image_width, image_height) = (image_width as f64, image_height as f64);
             let stretch_w = container_width / image_width;
             let stretch_h = container_height / image_height;
@@ -220,10 +229,16 @@ impl InstanceNode for ImageInstance {
             rc.clip(layer_id, clip_path.into_path(0.01));
             rc.draw_image(layer_id, &path, transformed_bounds);
             rc.restore(layer_id);
+            did_draw = true;
             self.initial_load
                 .borrow_mut()
                 .insert(expanded_node.id.clone());
         });
+        if did_draw && rc.end_node(layer_id, expanded_node.id.to_u32()) {
+            rtc.clear_canvas_node_dirty(&expanded_node.id);
+        } else {
+            let _ = rc.end_node(layer_id, expanded_node.id.to_u32());
+        }
     }
 
     fn base(&self) -> &BaseInstance {

@@ -122,6 +122,7 @@ impl InstanceNode for PathInstance {
             .changed_listener
             .replace_with(Property::computed(
                 move || {
+                    cloned_context.mark_canvas_node_dirty(cloned_expanded_node.id);
                     cloned_context
                         .set_canvas_dirty(cloned_expanded_node.occlusion.get().occlusion_layer_id)
                 },
@@ -144,7 +145,12 @@ impl InstanceNode for PathInstance {
     ) {
         let layer_id = expanded_node.occlusion.get().occlusion_layer_id;
 
-        if !rtc.is_canvas_dirty(&layer_id) {
+        if !rtc.is_canvas_node_dirty(&expanded_node.id) {
+            return;
+        }
+
+        if !rc.begin_node(layer_id, expanded_node.id.to_u32(), expanded_node.occlusion.get().z_index)
+        {
             return;
         }
 
@@ -248,6 +254,9 @@ impl InstanceNode for PathInstance {
             }
             rc.restore(layer_id);
         });
+        if rc.end_node(layer_id, expanded_node.id.to_u32()) {
+            rtc.clear_canvas_node_dirty(&expanded_node.id);
+        }
     }
 
     fn base(&self) -> &BaseInstance {

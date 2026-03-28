@@ -11,7 +11,7 @@ use pax_runtime_api::{
 use_RefCell!();
 use std::any::{Any, TypeId};
 use std::cell::Cell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::rc::{Rc, Weak};
 
@@ -48,6 +48,8 @@ pub struct RuntimeContext {
     queued_renders: RefCell<Vec<Rc<ExpandedNode>>>,
     pub layer_count: Cell<usize>,
     pub dirty_canvases: Rc<RefCell<Vec<bool>>>,
+    dirty_canvas_nodes: RefCell<HashSet<ExpandedNodeIdentifier>>,
+    removed_canvas_nodes: RefCell<Vec<(usize, u32)>>,
     screenshot_map: Rc<RefCell<HashMap<u32, ScreenshotData>>>,
 }
 
@@ -102,6 +104,8 @@ impl RuntimeContext {
             layer_count: Cell::default(),
             last_topmost_element: Default::default(),
             dirty_canvases: Default::default(),
+            dirty_canvas_nodes: Default::default(),
+            removed_canvas_nodes: Default::default(),
             screenshot_map: Default::default(),
         }
     }
@@ -121,6 +125,8 @@ impl RuntimeContext {
             layer_count: Cell::default(),
             last_topmost_element: Default::default(),
             dirty_canvases: Default::default(),
+            dirty_canvas_nodes: Default::default(),
+            removed_canvas_nodes: Default::default(),
             screenshot_map: Default::default(),
         }
     }
@@ -178,6 +184,39 @@ impl RuntimeContext {
         for v in dirty_canvases.iter_mut() {
             *v = true;
         }
+    }
+
+    pub fn mark_canvas_node_dirty(&self, id: ExpandedNodeIdentifier) {
+        borrow_mut!(self.dirty_canvas_nodes).insert(id);
+    }
+
+    pub fn clear_canvas_node_dirty(&self, id: &ExpandedNodeIdentifier) {
+        borrow_mut!(self.dirty_canvas_nodes).remove(id);
+    }
+
+    pub fn is_canvas_node_dirty(&self, id: &ExpandedNodeIdentifier) -> bool {
+        borrow!(self.dirty_canvas_nodes).contains(id)
+    }
+
+    pub fn mark_canvas_nodes_on_layer_dirty(&self, layer: usize) {
+        let node_cache = borrow!(self.node_cache);
+        let dirty_nodes = &mut *borrow_mut!(self.dirty_canvas_nodes);
+        for node in node_cache.eid_to_node.values() {
+            if node.occlusion.get().occlusion_layer_id == layer
+                && borrow!(node.instance_node).base().flags().layer == crate::api::Layer::Canvas
+            {
+                dirty_nodes.insert(node.id);
+            }
+        }
+    }
+
+    pub fn enqueue_canvas_node_removal(&self, layer: usize, node_id: u32) {
+        borrow_mut!(self.removed_canvas_nodes).push((layer, node_id));
+    }
+
+    pub fn take_canvas_node_removals(&self) -> Vec<(usize, u32)> {
+        let mut removals = borrow_mut!(self.removed_canvas_nodes);
+        std::mem::take(&mut *removals)
     }
 
     /// Finds all ExpandedNodes with the CommonProperty#id matching the provided string

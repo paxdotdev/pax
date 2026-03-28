@@ -170,6 +170,7 @@ fn fill_to_piet_brush(fill: &pax_runtime::api::Fill, rect: kurbo::Rect) -> piet:
 pub struct AppleRenderContext {
     backend: WgpuRenderer<'static>,
     image_map: HashMap<String, PaxPixelsImage>,
+    image_versions: HashMap<String, u64>,
     logical_size: (usize, usize),
     dpr: u32,
 }
@@ -189,6 +190,7 @@ impl AppleRenderContext {
         Ok(Self {
             backend,
             image_map: HashMap::new(),
+            image_versions: HashMap::new(),
             logical_size: (width, height),
             dpr,
         })
@@ -260,13 +262,17 @@ impl RenderContext for AppleRenderContext {
                 pixel_height: height as u32,
             },
         );
+        *self.image_versions.entry(path.to_string()).or_insert(0) += 1;
     }
 
     fn draw_image(&mut self, _layer: usize, image_path: &str, rect: kurbo::Rect) {
         let Some(image) = self.image_map.get(image_path) else {
             return;
         };
+        let version = *self.image_versions.get(image_path).unwrap_or(&0);
         self.backend.draw_image(
+            image_path,
+            version,
             image,
             Box2D {
                 min: point(rect.x0 as f32, rect.y0 as f32),
@@ -301,6 +307,18 @@ impl RenderContext for AppleRenderContext {
 
     fn resize(&mut self, width: usize, height: usize) {
         self.backend.resize(width as f32, height as f32);
+    }
+
+    fn begin_node(&mut self, _layer: usize, node_id: u32, z_index: i32) -> bool {
+        self.backend.begin_node(node_id, z_index)
+    }
+
+    fn end_node(&mut self, _layer: usize, node_id: u32) -> bool {
+        self.backend.end_node(node_id)
+    }
+
+    fn remove_node(&mut self, _layer: usize, node_id: u32) -> bool {
+        self.backend.remove_node(node_id)
     }
 }
 

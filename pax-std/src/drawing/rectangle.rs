@@ -69,6 +69,7 @@ impl InstanceNode for RectangleInstance {
             .changed_listener
             .replace_with(Property::computed(
                 move || {
+                    cloned_context.mark_canvas_node_dirty(cloned_expanded_node.id);
                     cloned_context
                         .set_canvas_dirty(cloned_expanded_node.occlusion.get().occlusion_layer_id)
                 },
@@ -86,7 +87,12 @@ impl InstanceNode for RectangleInstance {
     ) {
         let layer_id = expanded_node.occlusion.get().occlusion_layer_id;
 
-        if !rtc.is_canvas_dirty(&layer_id) {
+        if !rtc.is_canvas_node_dirty(&expanded_node.id) {
+            return;
+        }
+
+        if !rc.begin_node(layer_id, expanded_node.id.to_u32(), expanded_node.occlusion.get().z_index)
+        {
             return;
         }
         let tab = expanded_node.transform_and_bounds.get();
@@ -114,9 +120,12 @@ impl InstanceNode for RectangleInstance {
                     duplicate_transformed_bez_path,
                     &Fill::Solid(properties.stroke.get().color.get()),
                     width,
-                );
-            }
+                    );
+                }
         });
+        if rc.end_node(layer_id, expanded_node.id.to_u32()) {
+            rtc.clear_canvas_node_dirty(&expanded_node.id);
+        }
     }
 
     fn resolve_debug(

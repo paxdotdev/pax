@@ -20,6 +20,18 @@ pub struct TextureRenderer {
     texture_bind_group_layout: wgpu::BindGroupLayout,
 }
 
+pub(crate) struct CachedTextureResource {
+    pub bind_group: wgpu::BindGroup,
+    pub width: u32,
+    pub height: u32,
+    _texture: wgpu::Texture,
+}
+
+pub(crate) struct RetainedImageResource {
+    pub image_key: String,
+    pub vertices_buffer: wgpu::Buffer,
+}
+
 impl TextureRenderer {
     pub fn new(device: &wgpu::Device, target_format: TextureFormat, sample_count: u32) -> Self {
         let texture_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -284,6 +296,158 @@ impl TextureRenderer {
         }
         queue.submit(std::iter::once(encoder.finish()));
     }
+
+    pub fn create_cached_texture(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        globals: &wgpu::Buffer,
+        rgba: &[u8],
+        rgba_width: u32,
+        rgba_height: u32,
+    ) -> CachedTextureResource {
+        let size = wgpu::Extent3d {
+            width: rgba_width,
+            height: rgba_height,
+            depth_or_array_layers: 1,
+        };
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Retained Texture Creation"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        queue.write_texture(
+            wgpu::ImageCopyTexture {
+                aspect: wgpu::TextureAspect::All,
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            rgba,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * rgba_width),
+                rows_per_image: Some(rgba_height),
+            },
+            size,
+        );
+
+        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &self.texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: globals.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&texture_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(&self.texture_sampler),
+                },
+            ],
+            label: Some("retained_texture_bind_group"),
+        });
+
+        CachedTextureResource {
+            bind_group,
+            width: rgba_width,
+            height: rgba_height,
+            _texture: texture,
+        }
+    }
+
+    pub fn create_retained_image_resource(
+        &self,
+        device: &wgpu::Device,
+        image_key: String,
+        verts: [TextureVertex; 4],
+    ) -> RetainedImageResource {
+        let vertices_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Retained Image Vertex Buffer"),
+            contents: bytemuck::cast_slice(&verts),
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+        });
+        RetainedImageResource {
+            image_key,
+            vertices_buffer,
+        }
+    }
+
+    pub fn update_retained_image_resource(
+        &self,
+        queue: &wgpu::Queue,
+        resource: &RetainedImageResource,
+        verts: [TextureVertex; 4],
+    ) {
+        queue.write_buffer(&resource.vertices_buffer, 0, bytemuck::cast_slice(&verts));
+    }
+
+    pub fn draw_retained_image(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        target: &wgpu::TextureView,
+        resolve_target: Option<&wgpu::TextureView>,
+        stencil_renderer: &StencilRenderer,
+        clear_target: bool,
+        texture: &CachedTextureResource,
+        resource: &RetainedImageResource,
+    ) {
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Retained Texture Encoder"),
+        });
+
+        {
+            let (stencil_texture, stencil_index) = stencil_renderer.get_stencil();
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Retained Texture Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: target,
+                    resolve_target,
+                    ops: wgpu::Operations {
+                        load: if clear_target {
+                            wgpu::LoadOp::Clear(wgpu::Color {
+                                r: 0.0,
+                                g: 0.0,
+                                b: 0.0,
+                                a: 0.0,
+                            })
+                        } else {
+                            wgpu::LoadOp::Load
+                        },
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: stencil_texture,
+                    depth_ops: None,
+                    stencil_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            render_pass.set_pipeline(&self.texture_pipeline);
+            render_pass.set_bind_group(0, &texture.bind_group, &[]);
+            render_pass.set_stencil_reference(stencil_index);
+            render_pass.set_vertex_buffer(0, resource.vertices_buffer.slice(..));
+            render_pass.set_index_buffer(self.indices_buffer.slice(..), IndexFormat::Uint16);
+            render_pass.draw_indexed(0..6, 0, 0..1);
+        }
+        queue.submit(std::iter::once(encoder.finish()));
+    }
 }
 
 #[repr(C)]
@@ -303,6 +467,29 @@ impl TextureVertex {
             attributes: &ATTRIBS,
         }
     }
+}
+
+pub(crate) fn corners_to_texture_vertices(
+    points: [[f32; 2]; 4],
+) -> [TextureVertex; 4] {
+    [
+        TextureVertex {
+            position: points[0],
+            texture_coord: [0.0, 0.0],
+        },
+        TextureVertex {
+            position: points[1],
+            texture_coord: [1.0, 0.0],
+        },
+        TextureVertex {
+            position: points[2],
+            texture_coord: [0.0, 1.0],
+        },
+        TextureVertex {
+            position: points[3],
+            texture_coord: [1.0, 1.0],
+        },
+    ]
 }
 
 fn get_transformed_corners(box2d: &Box2D, transform: &Transform2D) -> [Point<f32>; 4] {
