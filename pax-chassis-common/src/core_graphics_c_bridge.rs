@@ -2,27 +2,109 @@
 
 extern crate core;
 
-use std::cell::RefCell;
 use std::ffi::c_void;
+use std::collections::HashMap;
 
 use std::mem::{transmute, ManuallyDrop};
-use std::rc::Rc;
 
 use core_graphics::context::CGContext;
 use pax_runtime::api::math::Point2;
 use piet_coregraphics::CoreGraphicsContext;
+use piet::{InterpolationMode, RenderContext as PietRenderContext};
+use piet::kurbo;
 
 use flexbuffers;
 use flexbuffers::DeserializationError;
 use serde::Serialize;
 
-use pax_runtime::{piet_render_context::PietRenderer, PaxEngine};
+use pax_runtime::PaxEngine;
 
 //Re-export all native message types; used by Swift via FFI.
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`
 //in order to be visible to Swift
 pub use pax_message::*;
 use pax_runtime::api::{Click, Event, ModifierKey, MouseButton, MouseEventArgs, RenderContext};
+
+struct ImgData<'a> {
+    img: <CoreGraphicsContext<'a> as PietRenderContext>::Image,
+    size: (usize, usize),
+}
+
+struct AppleRenderContext<'a> {
+    backend: CoreGraphicsContext<'a>,
+    image_map: HashMap<String, ImgData<'a>>,
+}
+
+impl<'a> AppleRenderContext<'a> {
+    fn new(backend: CoreGraphicsContext<'a>) -> Self {
+        Self {
+            backend,
+            image_map: HashMap::new(),
+        }
+    }
+}
+
+impl<'a> RenderContext for AppleRenderContext<'a> {
+    fn fill(&mut self, _layer: usize, path: kurbo::BezPath, brush: &piet::PaintBrush) {
+        self.backend.fill(path, brush);
+    }
+
+    fn stroke(
+        &mut self,
+        _layer: usize,
+        path: kurbo::BezPath,
+        brush: &piet::PaintBrush,
+        width: f64,
+    ) {
+        self.backend.stroke(path, brush, width);
+    }
+
+    fn save(&mut self, _layer: usize) {
+        let _ = self.backend.save();
+    }
+
+    fn restore(&mut self, _layer: usize) {
+        let _ = self.backend.restore();
+    }
+
+    fn clip(&mut self, _layer: usize, path: kurbo::BezPath) {
+        self.backend.clip(path);
+    }
+
+    fn load_image(&mut self, path: &str, buf: &[u8], width: usize, height: usize) {
+        let img = self
+            .backend
+            .make_image(width, height, buf, piet::ImageFormat::RgbaSeparate)
+            .expect("image creation successful");
+        self.image_map.insert(
+            path.to_owned(),
+            ImgData {
+                img,
+                size: (width, height),
+            },
+        );
+    }
+
+    fn draw_image(&mut self, _layer: usize, image_path: &str, rect: kurbo::Rect) {
+        let Some(data) = self.image_map.get(image_path) else {
+            return;
+        };
+        self.backend
+            .draw_image(&data.img, rect, InterpolationMode::Bilinear);
+    }
+
+    fn get_image_size(&mut self, image_path: &str) -> Option<(usize, usize)> {
+        self.image_map.get(image_path).map(|img| img.size)
+    }
+
+    fn transform(&mut self, _layer: usize, affine: kurbo::Affine) {
+        self.backend.transform(affine);
+    }
+
+    fn layers(&self) -> usize {
+        1
+    }
+}
 
 /// Container data structure for PaxEngine, aggregated to support passing across C bridge
 #[repr(C)] //Exposed to Swift via PaxCartridge.h
@@ -66,6 +148,14 @@ pub extern "C" fn pax_interrupt(
         flexbuffers::from_slice(slice);
     let interrupt = interrupt_wrapped.unwrap();
     match interrupt {
+        NativeInterrupt::ChassisResizeRequestCollection(collection) => {
+            for args in collection {
+                let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
+                if let Some(node) = node {
+                    node.chassis_resize_request(args.width, args.height);
+                }
+            }
+        }
         NativeInterrupt::Click(args) => {
             let topmost_node = engine
                 .runtime_context
@@ -122,21 +212,22 @@ pub extern "C" fn pax_tick(
     // note that f32 is essentially `CFloat`, per: https://doc.rust-lang.org/std/os/raw/type.c_float.html
     let mut engine = unsafe { Box::from_raw((*engine_container)._engine) };
 
-    let mut render_context = PietRenderer::new(move |_| {
-        let will_cast_cgContext = cgContext as *mut CGContext;
-        let ctx = unsafe { &mut *will_cast_cgContext };
-        (
-            CoreGraphicsContext::new_y_up(ctx, height as f64, None),
-            Box::new(|| (/* clear screen here */)),
-            Box::new(|| (/* handle resize here */)),
-        )
-    });
+    let will_cast_cgContext = cgContext as *mut CGContext;
+    let ctx = unsafe { &mut *will_cast_cgContext };
 
     (*engine).set_viewport_size((width as f64, height as f64));
-    render_context.resize_layers_to(1, Rc::new(RefCell::new(vec![false])));
-
     let messages = (*engine).tick();
+
+    // Native Apple chassis currently composites all vector layers into a single CoreGraphics
+    // surface. Mirror the runtime's canvas bookkeeping so vector primitives render at all, even
+    // though true multi-surface compositing is still future work.
+    let max_native_layer = engine.runtime_context.layer_count.get();
+    engine.runtime_context.add_canvas(max_native_layer);
+
+    let mut render_context =
+        AppleRenderContext::new(CoreGraphicsContext::new_y_up(ctx, height as f64, None));
     engine.render(&mut render_context as &mut dyn RenderContext);
+    engine.runtime_context.clear_all_dirty_canvases();
 
     let wrapped_queue = MessageQueue { messages };
     let mut serializer = flexbuffers::FlexbufferSerializer::new();

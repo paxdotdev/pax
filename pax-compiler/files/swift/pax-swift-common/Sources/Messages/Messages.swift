@@ -8,6 +8,11 @@
 import Foundation
 import SwiftUI
 import FlexBuffers
+#if os(iOS) || os(tvOS) || os(watchOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 public typealias PaxNodeId = UInt32
 
@@ -118,8 +123,9 @@ public class TextElement {
     public var selectable: Bool
     public var markdown: Bool
     public var style_link: TextStyle?
+    public var lastMeasuredSize: CGSize?
     
-    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, content: String, transform: [Float], size_x: Float, size_y: Float, textStyle: TextStyle, selectable: Bool, markdown: Bool, style_link: TextStyle?) {
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, content: String, transform: [Float], size_x: Float, size_y: Float, textStyle: TextStyle, selectable: Bool, markdown: Bool, style_link: TextStyle?, lastMeasuredSize: CGSize? = nil) {
         self.id = id
         self.parentFrame = parentFrame
         self.occlusionLayerId = occlusionLayerId
@@ -132,6 +138,7 @@ public class TextElement {
         self.selectable = selectable
         self.markdown = markdown
         self.style_link = style_link
+        self.lastMeasuredSize = lastMeasuredSize
     }
     
     public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> TextElement {
@@ -474,6 +481,40 @@ extension FontWeight {
     }
 }
 
+#if os(iOS) || os(tvOS) || os(watchOS)
+extension FontWeight {
+    public func uiFontWeight() -> UIFont.Weight {
+        switch self {
+        case .thin: return .thin
+        case .extraLight: return .ultraLight
+        case .light: return .light
+        case .normal: return .regular
+        case .medium: return .medium
+        case .semiBold: return .semibold
+        case .bold: return .bold
+        case .extraBold: return .heavy
+        case .black: return .black
+        }
+    }
+}
+#elseif os(macOS)
+extension FontWeight {
+    public func nsFontWeight() -> NSFont.Weight {
+        switch self {
+        case .thin: return .thin
+        case .extraLight: return .ultraLight
+        case .light: return .light
+        case .normal: return .regular
+        case .medium: return .medium
+        case .semiBold: return .semibold
+        case .bold: return .bold
+        case .extraBold: return .heavy
+        case .black: return .black
+        }
+    }
+}
+#endif
+
 public enum FontWeight: String {
     case thin = "Thin"
     case extraLight = "ExtraLight"
@@ -575,6 +616,86 @@ public class PaxFont {
 
         return finalFont
     }
+
+    #if os(iOS) || os(tvOS) || os(watchOS)
+    public func getUIFont(size: CGFloat) -> UIFont {
+        var fontFamily: String?
+        var fontStyle: FontStyle?
+        var fontWeight: FontWeight?
+
+        switch type {
+        case .system(let systemFont):
+            fontFamily = systemFont.family
+            fontStyle = systemFont.style
+            fontWeight = systemFont.weight
+        case .web(let webFont):
+            fontFamily = webFont.family
+            fontStyle = webFont.style
+            fontWeight = webFont.weight
+        case .local(let localFont):
+            fontFamily = localFont.family
+            fontStyle = localFont.style
+            fontWeight = localFont.weight
+        }
+
+        let baseFont: UIFont
+        if let fontFamily, PaxFont.isFontRegistered(fontFamily: fontFamily) {
+            baseFont = UIFont(name: fontFamily, size: size) ?? UIFont.systemFont(ofSize: size, weight: fontWeight?.uiFontWeight() ?? .regular)
+        } else {
+            baseFont = UIFont.systemFont(ofSize: size, weight: fontWeight?.uiFontWeight() ?? .regular)
+        }
+
+        switch fontStyle ?? .normal {
+        case .normal:
+            return baseFont
+        case .italic:
+            if let descriptor = baseFont.fontDescriptor.withSymbolicTraits(.traitItalic) {
+                return UIFont(descriptor: descriptor, size: size)
+            }
+            return UIFont.italicSystemFont(ofSize: size)
+        case .oblique:
+            return baseFont
+        }
+    }
+    #elseif os(macOS)
+    public func getNSFont(size: CGFloat) -> NSFont {
+        var fontFamily: String?
+        var fontStyle: FontStyle?
+        var fontWeight: FontWeight?
+
+        switch type {
+        case .system(let systemFont):
+            fontFamily = systemFont.family
+            fontStyle = systemFont.style
+            fontWeight = systemFont.weight
+        case .web(let webFont):
+            fontFamily = webFont.family
+            fontStyle = webFont.style
+            fontWeight = webFont.weight
+        case .local(let localFont):
+            fontFamily = localFont.family
+            fontStyle = localFont.style
+            fontWeight = localFont.weight
+        }
+
+        let baseFont: NSFont
+        if let fontFamily, PaxFont.isFontRegistered(fontFamily: fontFamily) {
+            baseFont = NSFont(name: fontFamily, size: size) ?? NSFont.systemFont(ofSize: size, weight: fontWeight?.nsFontWeight() ?? .regular)
+        } else {
+            baseFont = NSFont.systemFont(ofSize: size, weight: fontWeight?.nsFontWeight() ?? .regular)
+        }
+
+        switch fontStyle ?? .normal {
+        case .normal:
+            return baseFont
+        case .italic:
+            let descriptor = baseFont.fontDescriptor.withSymbolicTraits(.italic)
+            return NSFont(descriptor: descriptor, size: size) ?? NSFontManager.shared.convert(baseFont, toHaveTrait: .italicFontMask)
+        case .oblique:
+            return baseFont
+        }
+    }
+    #endif
 
 
 

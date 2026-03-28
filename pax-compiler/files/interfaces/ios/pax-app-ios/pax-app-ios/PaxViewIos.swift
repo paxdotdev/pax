@@ -199,13 +199,76 @@ struct PaxViewIos: View {
         
         var currentTickWorkItem : DispatchWorkItem? = nil
 
+        private func sendChassisResizeRequest(id: PaxNodeId, size: CGSize) {
+            let buffer = try! FlexBufferBuilder.encodeMap { builder in
+                builder.addVectorWithStringKey("ChassisResizeRequestCollection") { vectorBuilder in
+                    vectorBuilder.addMap { requestBuilder in
+                        requestBuilder.addWithStringKey("id", UInt(id))
+                        requestBuilder.addWithStringKey("width", Double(size.width))
+                        requestBuilder.addWithStringKey("height", Double(size.height))
+                    }
+                }
+            }
+
+            buffer.data.withUnsafeBytes { ptr in
+                var ffi_container = InterruptBuffer(data_ptr: ptr.baseAddress!, length: UInt64(ptr.count))
+                withUnsafePointer(to: &ffi_container) { ffi_container_ptr in
+                    pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
+                }
+            }
+        }
+
+        private func measureTextElement(_ textElement: TextElement) -> CGSize {
+            let label = UILabel()
+            label.numberOfLines = 0
+            label.text = textElement.content
+            label.font = textElement.textStyle.font.getUIFont(size: textElement.textStyle.font_size)
+
+            switch textElement.textStyle.alignmentMultiline {
+            case .center:
+                label.textAlignment = .center
+            case .leading:
+                label.textAlignment = .left
+            case .trailing:
+                label.textAlignment = .right
+            @unknown default:
+                label.textAlignment = .left
+            }
+
+            let constraint = CGSize(
+                width: textElement.size_x >= 0 ? CGFloat(textElement.size_x) : CGFloat.greatestFiniteMagnitude,
+                height: textElement.size_y >= 0 ? CGFloat(textElement.size_y) : CGFloat.greatestFiniteMagnitude
+            )
+            let measured = label.sizeThatFits(constraint)
+            return CGSize(width: ceil(measured.width), height: ceil(measured.height))
+        }
+
+        private func requestTextResizeIfNeeded(_ textElement: TextElement) {
+            guard textElement.size_x < 0 || textElement.size_y < 0 else {
+                return
+            }
+
+            let measuredSize = measureTextElement(textElement)
+            if let priorSize = textElement.lastMeasuredSize,
+               abs(priorSize.width - measuredSize.width) < 0.5,
+               abs(priorSize.height - measuredSize.height) < 0.5 {
+                return
+            }
+
+            textElement.lastMeasuredSize = measuredSize
+            sendChassisResizeRequest(id: textElement.id, size: measuredSize)
+        }
+
         func handleTextCreate(patch: AnyCreatePatch) {
             textElements.add(element: TextElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
             textElements.objectWillChange.send()
         }
 
         func handleTextUpdate(patch: TextUpdatePatch) {
-            textElements.elements[patch.id]?.applyPatch(patch: patch)
+            if let textElement = textElements.elements[patch.id] {
+                textElement.applyPatch(patch: patch)
+                requestTextResizeIfNeeded(textElement)
+            }
             textElements.objectWillChange.send()
         }
 

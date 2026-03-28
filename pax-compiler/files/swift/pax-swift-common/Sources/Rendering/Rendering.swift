@@ -49,6 +49,10 @@ public struct NativeRenderingLayer: View {
                 tx: CGFloat(textElement.transform[4]),
                 ty: CGFloat(textElement.transform[5])
         )
+        let measuredWidth = textElement.size_x >= 0 ? CGFloat(textElement.size_x) : textElement.lastMeasuredSize?.width
+        let measuredHeight = textElement.size_y >= 0 ? CGFloat(textElement.size_y) : textElement.lastMeasuredSize?.height
+        let positionWidth = measuredWidth ?? 0
+        let positionHeight = measuredHeight ?? 0
         var text: AttributedString {
             var attributedString: AttributedString
             if textElement.markdown {
@@ -81,10 +85,11 @@ public struct NativeRenderingLayer: View {
                 Text(text)
                     .foregroundColor(textElement.textStyle.fill)
                     .font(textElement.textStyle.font.getFont(size: textElement.textStyle.font_size))
-                    .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: textElement.textStyle.alignment)
-                    .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
+                    .frame(width: measuredWidth, height: measuredHeight, alignment: textElement.textStyle.alignment)
+                    .position(x: positionWidth / 2.0, y: positionHeight / 2.0)
                     .transformEffect(transform)
                     .textSelection(.enabled)
+                    .allowsHitTesting(true)
                     .zIndex(Double(textElement.zIndex))
             )
         } else {
@@ -92,10 +97,11 @@ public struct NativeRenderingLayer: View {
                 Text(text)
                     .foregroundColor(textElement.textStyle.fill)
                     .font(textElement.textStyle.font.getFont(size: textElement.textStyle.font_size))
-                    .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: textElement.textStyle.alignment)
-                    .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
+                    .frame(width: measuredWidth, height: measuredHeight, alignment: textElement.textStyle.alignment)
+                    .position(x: positionWidth / 2.0, y: positionHeight / 2.0)
                     .transformEffect(transform)
                     .textSelection(.disabled)
+                    .allowsHitTesting(false)
                     .zIndex(Double(textElement.zIndex))
             )
         }
