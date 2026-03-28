@@ -155,7 +155,14 @@ struct PaxViewMacos: View {
                 PaxEngineContainer.paxEngineContainer = pax_init()
             } else {
 
-                let nativeMessageQueue = pax_tick(PaxEngineContainer.paxEngineContainer!, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
+                let scale = self.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1.0
+                let nativeMessageQueue = pax_tick(
+                    PaxEngineContainer.paxEngineContainer!,
+                    &cgContext,
+                    CFloat(dirtyRect.width),
+                    CFloat(dirtyRect.height),
+                    CFloat(scale)
+                )
                 processNativeMessageQueue(queue: nativeMessageQueue.unsafelyUnwrapped.pointee)
                 pax_dealloc_message_queue(nativeMessageQueue)
             }

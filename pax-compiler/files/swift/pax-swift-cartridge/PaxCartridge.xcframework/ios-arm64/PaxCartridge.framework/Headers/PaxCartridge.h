@@ -29,6 +29,7 @@ void pax_interrupt(struct PaxEngineContainer *engine_container, const void * int
 struct NativeMessageQueue *pax_tick(struct PaxEngineContainer *engine_container,
                                     void *cgContext,
                                     float width,
-                                    float height);
+                                    float height,
+                                    float dpr);
 
 void pax_dealloc_message_queue(struct NativeMessageQueue *queue);

@@ -176,10 +176,15 @@ struct PaxViewIos: View {
             requestAnimationFrameQueue.append(closure)
         }
 
+        private func currentScale() -> CGFloat {
+            window?.screen.scale ?? UIScreen.main.scale
+        }
+
         private func configureMetalLayer() {
             isOpaque = false
-            contentScaleFactor = 1.0
-            metalLayer.contentsScale = 1.0
+            let scale = currentScale()
+            contentScaleFactor = scale
+            metalLayer.contentsScale = scale
             metalLayer.framebufferOnly = false
             metalLayer.isOpaque = false
             metalLayer.presentsWithTransaction = false
@@ -188,7 +193,10 @@ struct PaxViewIos: View {
         override func layoutSubviews() {
             super.layoutSubviews()
             metalLayer.frame = bounds
-            metalLayer.drawableSize = bounds.size
+            let scale = currentScale()
+            contentScaleFactor = scale
+            metalLayer.contentsScale = scale
+            metalLayer.drawableSize = CGSize(width: bounds.width * scale, height: bounds.height * scale)
         }
 
         private func createDisplayLink() {
@@ -224,7 +232,8 @@ struct PaxViewIos: View {
                 engineContainer,
                 Unmanaged.passUnretained(metalLayer).toOpaque(),
                 Float(bounds.width),
-                Float(bounds.height)
+                Float(bounds.height),
+                Float(currentScale())
             )
             processNativeMessageQueue(queue: nativeMessageQueue.unsafelyUnwrapped.pointee)
             pax_dealloc_message_queue(nativeMessageQueue)

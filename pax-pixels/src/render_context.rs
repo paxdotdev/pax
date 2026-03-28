@@ -240,6 +240,16 @@ impl<'w> WgpuRenderer<'w> {
         self.render_backend.resize(width as u32, height as u32);
     }
 
+    pub fn resize_surface(&mut self, width: f32, height: f32) {
+        self.render_backend
+            .resize_surface(width.round() as u32, height.round() as u32);
+    }
+
+    pub fn set_viewport(&mut self, width: f32, height: f32, dpr: f32) {
+        self.render_backend
+            .set_viewport(width, height, dpr.round().max(1.0) as u32);
+    }
+
     pub fn size(&self) -> (f32, f32) {
         let res = &self.render_backend.globals.resolution;
         (res[0], res[1])

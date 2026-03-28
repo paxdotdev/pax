@@ -170,28 +170,40 @@ fn fill_to_piet_brush(fill: &pax_runtime::api::Fill, rect: kurbo::Rect) -> piet:
 pub struct AppleRenderContext {
     backend: WgpuRenderer<'static>,
     image_map: HashMap<String, PaxPixelsImage>,
+    logical_size: (usize, usize),
+    dpr: u32,
 }
 
 #[cfg(target_os = "ios")]
 impl AppleRenderContext {
-    fn new(layer: *mut c_void, width: usize, height: usize) -> Result<Self, String> {
-        let config = RenderConfig::new(false, width as u32, height as u32, 1);
+    fn new(layer: *mut c_void, width: usize, height: usize, dpr: f32) -> Result<Self, String> {
+        let dpr = dpr.round().max(1.0) as u32;
+        let config = RenderConfig::new(false, width as u32, height as u32, dpr);
         let backend = unsafe {
             pollster::block_on(RenderBackend::to_core_animation_layer(layer, config))
         }
         .map_err(|err| err.to_string())?;
+        let mut backend = WgpuRenderer::new(backend);
+        backend.resize_surface((width as f32 * dpr as f32).max(1.0), (height as f32 * dpr as f32).max(1.0));
+        backend.set_viewport(width as f32, height as f32, dpr as f32);
         Ok(Self {
-            backend: WgpuRenderer::new(backend),
+            backend,
             image_map: HashMap::new(),
+            logical_size: (width, height),
+            dpr,
         })
     }
 
-    fn resize_if_needed(&mut self, width: usize, height: usize) -> bool {
-        let (curr_width, curr_height) = self.backend.size();
-        if curr_width.round() as usize == width && curr_height.round() as usize == height {
+    fn resize_if_needed(&mut self, width: usize, height: usize, dpr: f32) -> bool {
+        let dpr = dpr.round().max(1.0) as u32;
+        if self.logical_size == (width, height) && self.dpr == dpr {
             return false;
         }
-        self.backend.resize(width as f32, height as f32);
+        self.backend
+            .resize_surface((width as f32 * dpr as f32).max(1.0), (height as f32 * dpr as f32).max(1.0));
+        self.backend.set_viewport(width as f32, height as f32, dpr as f32);
+        self.logical_size = (width, height);
+        self.dpr = dpr;
         true
     }
 }
@@ -577,6 +589,7 @@ pub extern "C" fn pax_tick(
     render_target: *mut c_void,
     width: f32,
     height: f32,
+    _dpr: f32,
 ) -> *mut NativeMessageQueue {
     let mut engine = unsafe { Box::from_raw((*engine_container)._engine) };
 
@@ -595,7 +608,7 @@ pub extern "C" fn pax_tick(
                     unsafe { drop(Box::from_raw(container._render_context)) };
                     container._render_context = std::ptr::null_mut();
                 }
-                match AppleRenderContext::new(render_target, width as usize, height as usize) {
+                match AppleRenderContext::new(render_target, width as usize, height as usize, _dpr) {
                     Ok(render_context) => {
                         container._render_context = Box::into_raw(Box::new(render_context));
                         container._render_target = render_target;
@@ -606,7 +619,7 @@ pub extern "C" fn pax_tick(
                     }
                 }
             } else if let Some(render_context) = unsafe { container._render_context.as_mut() } {
-                if render_context.resize_if_needed(width as usize, height as usize) {
+                if render_context.resize_if_needed(width as usize, height as usize, _dpr) {
                     engine.runtime_context.set_all_canvases_dirty();
                 }
             }

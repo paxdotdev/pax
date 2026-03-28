@@ -153,12 +153,16 @@ impl<'w> RenderBackend<'w> {
             })
             .await
             .ok_or(anyhow!("couldn't find  adapter"))?;
+        #[cfg(target_arch = "wasm32")]
+        let required_limits = wgpu::Limits::downlevel_webgl2_defaults();
+        #[cfg(not(target_arch = "wasm32"))]
+        let required_limits = adapter.limits();
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
                     required_features: wgpu::Features::default(),
-                    required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
+                    required_limits,
                     memory_hints: wgpu::MemoryHints::Performance,
                 },
                 None,
@@ -485,16 +489,15 @@ impl<'w> RenderBackend<'w> {
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
+        self.resize_surface(width, height);
+        self.set_viewport(width as f32, height as f32, self.globals.dpr);
+    }
+
+    pub fn resize_surface(&mut self, width: u32, height: u32) {
         self.active_frame = None;
         self.pending_clear = false;
         self.surface_config.width = width;
         self.surface_config.height = height;
-        self.globals.resolution = [width as f32, height as f32];
-        self.queue.write_buffer(
-            &self.globals_buffer,
-            0,
-            bytemuck::cast_slice(&[self.globals]),
-        );
         self.stencil_renderer.resize(&self.device, width, height);
         self.surface.configure(&self.device, &self.surface_config);
         self.multisampled_target = if self.sample_count > 1 {
@@ -510,6 +513,16 @@ impl<'w> RenderBackend<'w> {
         } else {
             None
         };
+    }
+
+    pub fn set_viewport(&mut self, width: f32, height: f32, dpr: u32) {
+        self.globals.resolution = [width, height];
+        self.globals.dpr = dpr;
+        self.queue.write_buffer(
+            &self.globals_buffer,
+            0,
+            bytemuck::cast_slice(&[self.globals]),
+        );
     }
 
     fn write_buffers(&mut self, buffers: &mut CpuBuffers) {
