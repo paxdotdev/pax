@@ -16,6 +16,106 @@ import AppKit
 
 public typealias PaxNodeId = UInt32
 
+public final class NativeInterruptDispatcher {
+    public static let shared = NativeInterruptDispatcher()
+
+    public var sendData: ((Data) -> Void)?
+
+    private init() {}
+
+    public func send(_ data: Data) {
+        sendData?(data)
+    }
+}
+
+private func dispatchNativeInterrupt(_ build: (FlexBufferMapBuilder) throws -> Void) {
+    let buffer = try! FlexBufferBuilder.encodeMap(build)
+    NativeInterruptDispatcher.shared.send(buffer.data)
+}
+
+public func dispatchChassisResizeRequest(id: PaxNodeId, width: Double, height: Double) {
+    dispatchNativeInterrupt { builder in
+        builder.addVectorWithStringKey("ChassisResizeRequestCollection") { vectorBuilder in
+            vectorBuilder.addMap { requestBuilder in
+                requestBuilder.addWithStringKey("id", UInt(id))
+                requestBuilder.addWithStringKey("width", width)
+                requestBuilder.addWithStringKey("height", height)
+            }
+        }
+    }
+}
+
+public func dispatchFormButtonClick(id: PaxNodeId) {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey("FormButtonClick") { messageBuilder in
+            messageBuilder.addWithStringKey("id", UInt(id))
+        }
+    }
+}
+
+public func dispatchFormCheckboxToggle(id: PaxNodeId, state: Bool) {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey("FormCheckboxToggle") { messageBuilder in
+            messageBuilder.addWithStringKey("id", UInt(id))
+            messageBuilder.addWithStringKey("state", state)
+        }
+    }
+}
+
+public func dispatchFormDropdownChange(id: PaxNodeId, selectedId: UInt32) {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey("FormDropdownChange") { messageBuilder in
+            messageBuilder.addWithStringKey("id", UInt(id))
+            messageBuilder.addWithStringKey("selected_id", UInt(selectedId))
+        }
+    }
+}
+
+public func dispatchFormRadioSetChange(id: PaxNodeId, selectedId: UInt32) {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey("FormRadioSetChange") { messageBuilder in
+            messageBuilder.addWithStringKey("id", UInt(id))
+            messageBuilder.addWithStringKey("selected_id", UInt(selectedId))
+        }
+    }
+}
+
+public func dispatchFormSliderChange(id: PaxNodeId, value: Double) {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey("FormSliderChange") { messageBuilder in
+            messageBuilder.addWithStringKey("id", UInt(id))
+            messageBuilder.addWithStringKey("value", value)
+        }
+    }
+}
+
+public func dispatchFormTextboxInput(id: PaxNodeId, text: String) {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey("FormTextboxInput") { messageBuilder in
+            messageBuilder.addWithStringKey("id", UInt(id))
+            messageBuilder.addStringWithStringKey("text", text)
+        }
+    }
+}
+
+public func dispatchFormTextboxChange(id: PaxNodeId, text: String) {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey("FormTextboxChange") { messageBuilder in
+            messageBuilder.addWithStringKey("id", UInt(id))
+            messageBuilder.addStringWithStringKey("text", text)
+        }
+    }
+}
+
+public func dispatchTextInput(id: PaxNodeId, text: String) {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey("TextInput") { messageBuilder in
+            messageBuilder.addWithStringKey("id", UInt(id))
+            messageBuilder.addStringWithStringKey("text", text)
+        }
+    }
+}
+
 private func readNodeId(_ fb: FlxbReference?) -> PaxNodeId? {
     guard let fb, !fb.isNull else {
         return nil
@@ -42,6 +142,23 @@ private func readFloatArray(_ fb: FlxbReference?) -> [Float]? {
         }
         return 0.0
     }
+}
+
+private func readStringArray(_ fb: FlxbReference?) -> [String]? {
+    guard let vector = fb?.asVector else {
+        return nil
+    }
+    return vector.makeIterator().compactMap { $0.asString }
+}
+
+private func readDouble(_ fb: FlxbReference?) -> Double? {
+    if let value = fb?.asDouble {
+        return value
+    }
+    if let value = fb?.asFloat {
+        return Double(value)
+    }
+    return nil
 }
 
 /// Agnostic of the type of element, this patch contains only create-time metadata.
@@ -116,6 +233,7 @@ public class TextElement {
     public var occlusionLayerId: UInt32
     public var zIndex: Int
     public var content: String
+    public var editable: Bool
     public var transform: [Float]
     public var size_x: Float
     public var size_y: Float
@@ -125,12 +243,13 @@ public class TextElement {
     public var style_link: TextStyle?
     public var lastMeasuredSize: CGSize?
     
-    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, content: String, transform: [Float], size_x: Float, size_y: Float, textStyle: TextStyle, selectable: Bool, markdown: Bool, style_link: TextStyle?, lastMeasuredSize: CGSize? = nil) {
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, content: String, editable: Bool, transform: [Float], size_x: Float, size_y: Float, textStyle: TextStyle, selectable: Bool, markdown: Bool, style_link: TextStyle?, lastMeasuredSize: CGSize? = nil) {
         self.id = id
         self.parentFrame = parentFrame
         self.occlusionLayerId = occlusionLayerId
         self.zIndex = zIndex
         self.content = content
+        self.editable = editable
         self.transform = transform
         self.size_x = size_x
         self.size_y = size_y
@@ -143,7 +262,7 @@ public class TextElement {
     
     public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> TextElement {
         let defaultTextStyle = TextStyle(font: PaxFont.makeDefault(), fill: Color(.black), alignmentMultiline: .leading, alignment: .topLeading, font_size: 5.0, underline: false)
-        return TextElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, textStyle: defaultTextStyle, selectable: false, markdown: false, style_link: nil)
+        return TextElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, content: "", editable: false, transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, textStyle: defaultTextStyle, selectable: false, markdown: false, style_link: nil)
     }
     
     public func applyPatch(patch: TextUpdatePatch) {
@@ -151,6 +270,9 @@ public class TextElement {
         
         if let content = patch.content {
             self.content = content
+        }
+        if let editable = patch.editable {
+            self.editable = editable
         }
         if let transform = patch.transform {
             self.transform = transform
@@ -437,17 +559,17 @@ public func extractColorFromBuffer(_ fillBuffer: FlxbReference) -> Color {
     if let rgba = fillBuffer["Rgba"], !rgba.isNull {
         let stub = fillBuffer["Rgba"]!
         return Color(
-            red: Double(stub[0]!.asFloat!),
-            green: Double(stub[1]!.asFloat!),
-            blue: Double(stub[2]!.asFloat!),
-            opacity: Double(stub[3]!.asFloat!)
+            red: readDouble(stub[0]) ?? 0.0,
+            green: readDouble(stub[1]) ?? 0.0,
+            blue: readDouble(stub[2]) ?? 0.0,
+            opacity: readDouble(stub[3]) ?? 1.0
         )
     } else if let rgb = fillBuffer["Rgb"], !rgb.isNull {
         let stub = fillBuffer["Rgb"]!
         return Color(
-            red: Double(stub[0]!.asFloat!),
-            green: Double(stub[1]!.asFloat!),
-            blue: Double(stub[2]!.asFloat!),
+            red: readDouble(stub[0]) ?? 0.0,
+            green: readDouble(stub[1]) ?? 0.0,
+            blue: readDouble(stub[2]) ?? 0.0,
             opacity: 1.0
         )
     } else {
@@ -889,5 +1011,751 @@ public class OcclusionUpdatePatch {
         self.occlusionLayerId = UInt32(truncatingIfNeeded: fb["occlusion_layer_id"]?.asUInt64 ?? 0)
         self.zIndex = Int(fb["z_index"]?.asInt ?? 0)
         self.parentFrame = readNodeId(fb["parent_frame"])
+    }
+}
+
+public func defaultPaxTextStyle() -> TextStyle {
+    TextStyle(
+        font: PaxFont.makeDefault(),
+        fill: Color(.black),
+        alignmentMultiline: .leading,
+        alignment: .topLeading,
+        font_size: 14.0,
+        underline: false
+    )
+}
+
+public protocol NativePositionElement: AnyObject {
+    var id: PaxNodeId { get }
+    var parentFrame: PaxNodeId? { get set }
+    var occlusionLayerId: UInt32 { get set }
+    var zIndex: Int { get set }
+    var transform: [Float] { get set }
+    var size_x: Float { get set }
+    var size_y: Float { get set }
+}
+
+public extension NativePositionElement {
+    func applyOcclusionPatch(_ patch: OcclusionUpdatePatch) {
+        self.parentFrame = patch.parentFrame
+        self.occlusionLayerId = patch.occlusionLayerId
+        self.zIndex = patch.zIndex
+    }
+}
+
+public class EventBlockerPatchMessage {
+    public var id: PaxNodeId
+    public var transform: [Float]?
+    public var size_x: Float?
+    public var size_y: Float?
+
+    public init(fb: FlxbReference) {
+        self.id = readNodeId(fb["id"]) ?? 0
+        self.transform = readFloatArray(fb["transform"])
+        self.size_x = fb["size_x"]?.asFloat
+        self.size_y = fb["size_y"]?.asFloat
+    }
+}
+
+public class EventBlockerElement: NativePositionElement {
+    public var id: PaxNodeId
+    public var parentFrame: PaxNodeId?
+    public var occlusionLayerId: UInt32
+    public var zIndex: Int
+    public var transform: [Float]
+    public var size_x: Float
+    public var size_y: Float
+
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float) {
+        self.id = id
+        self.parentFrame = parentFrame
+        self.occlusionLayerId = occlusionLayerId
+        self.zIndex = zIndex
+        self.transform = transform
+        self.size_x = size_x
+        self.size_y = size_y
+    }
+
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> EventBlockerElement {
+        EventBlockerElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0)
+    }
+
+    public func applyPatch(_ patch: EventBlockerPatchMessage) {
+        if let transform = patch.transform { self.transform = transform }
+        if let size_x = patch.size_x { self.size_x = size_x }
+        if let size_y = patch.size_y { self.size_y = size_y }
+    }
+}
+
+public class ButtonUpdatePatch {
+    public var id: PaxNodeId
+    public var hoverColor: Color?
+    public var outlineStrokeColor: Color?
+    public var outlineStrokeWidth: Double?
+    public var borderRadius: Double?
+    public var transform: [Float]?
+    public var size_x: Float?
+    public var size_y: Float?
+    public var content: String?
+    public var color: Color?
+    public var style: TextStyleMessage?
+
+    public init(fb: FlxbReference) {
+        self.id = readNodeId(fb["id"]) ?? 0
+        self.outlineStrokeWidth = readDouble(fb["outline_stroke_width"])
+        self.borderRadius = readDouble(fb["border_radius"])
+        self.transform = readFloatArray(fb["transform"])
+        self.size_x = fb["size_x"]?.asFloat
+        self.size_y = fb["size_y"]?.asFloat
+        self.content = fb["content"]?.asString
+        if let hoverColor = fb["hover_color"], !hoverColor.isNull {
+            self.hoverColor = extractColorFromBuffer(hoverColor)
+        }
+        if let outlineStrokeColor = fb["outline_stroke_color"], !outlineStrokeColor.isNull {
+            self.outlineStrokeColor = extractColorFromBuffer(outlineStrokeColor)
+        }
+        if let color = fb["color"], !color.isNull {
+            self.color = extractColorFromBuffer(color)
+        }
+        if let style = fb["style"], !style.isNull {
+            self.style = TextStyleMessage(style)
+        }
+    }
+}
+
+public class ButtonElement: NativePositionElement {
+    public var id: PaxNodeId
+    public var parentFrame: PaxNodeId?
+    public var occlusionLayerId: UInt32
+    public var zIndex: Int
+    public var transform: [Float]
+    public var size_x: Float
+    public var size_y: Float
+    public var hoverColor: Color
+    public var outlineStrokeColor: Color
+    public var outlineStrokeWidth: Double
+    public var borderRadius: Double
+    public var content: String
+    public var color: Color
+    public var style: TextStyle
+
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, hoverColor: Color, outlineStrokeColor: Color, outlineStrokeWidth: Double, borderRadius: Double, content: String, color: Color, style: TextStyle) {
+        self.id = id
+        self.parentFrame = parentFrame
+        self.occlusionLayerId = occlusionLayerId
+        self.zIndex = zIndex
+        self.transform = transform
+        self.size_x = size_x
+        self.size_y = size_y
+        self.hoverColor = hoverColor
+        self.outlineStrokeColor = outlineStrokeColor
+        self.outlineStrokeWidth = outlineStrokeWidth
+        self.borderRadius = borderRadius
+        self.content = content
+        self.color = color
+        self.style = style
+    }
+
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> ButtonElement {
+        ButtonElement(
+            id: id,
+            parentFrame: parentFrame,
+            occlusionLayerId: occlusionLayerId,
+            zIndex: 0,
+            transform: [1, 0, 0, 1, 0, 0],
+            size_x: 0,
+            size_y: 0,
+            hoverColor: Color(.gray),
+            outlineStrokeColor: Color(.clear),
+            outlineStrokeWidth: 0,
+            borderRadius: 8,
+            content: "",
+            color: Color(.gray),
+            style: defaultPaxTextStyle()
+        )
+    }
+
+    public func applyPatch(_ patch: ButtonUpdatePatch) {
+        if let transform = patch.transform { self.transform = transform }
+        if let size_x = patch.size_x { self.size_x = size_x }
+        if let size_y = patch.size_y { self.size_y = size_y }
+        if let hoverColor = patch.hoverColor { self.hoverColor = hoverColor }
+        if let outlineStrokeColor = patch.outlineStrokeColor { self.outlineStrokeColor = outlineStrokeColor }
+        if let outlineStrokeWidth = patch.outlineStrokeWidth { self.outlineStrokeWidth = outlineStrokeWidth }
+        if let borderRadius = patch.borderRadius { self.borderRadius = borderRadius }
+        if let content = patch.content { self.content = content }
+        if let color = patch.color { self.color = color }
+        if let style = patch.style { self.style.applyPatch(from: style) }
+    }
+}
+
+public class CheckboxUpdatePatch {
+    public var id: PaxNodeId
+    public var background: Color?
+    public var backgroundChecked: Color?
+    public var outlineColor: Color?
+    public var outlineWidth: Double?
+    public var borderRadius: Double?
+    public var transform: [Float]?
+    public var size_x: Float?
+    public var size_y: Float?
+    public var checked: Bool?
+
+    public init(fb: FlxbReference) {
+        self.id = readNodeId(fb["id"]) ?? 0
+        self.outlineWidth = readDouble(fb["outline_width"])
+        self.borderRadius = readDouble(fb["border_radius"])
+        self.transform = readFloatArray(fb["transform"])
+        self.size_x = fb["size_x"]?.asFloat
+        self.size_y = fb["size_y"]?.asFloat
+        self.checked = fb["checked"]?.asBool
+        if let background = fb["background"], !background.isNull {
+            self.background = extractColorFromBuffer(background)
+        }
+        if let backgroundChecked = fb["background_checked"], !backgroundChecked.isNull {
+            self.backgroundChecked = extractColorFromBuffer(backgroundChecked)
+        }
+        if let outlineColor = fb["outline_color"], !outlineColor.isNull {
+            self.outlineColor = extractColorFromBuffer(outlineColor)
+        }
+    }
+}
+
+public class CheckboxElement: NativePositionElement {
+    public var id: PaxNodeId
+    public var parentFrame: PaxNodeId?
+    public var occlusionLayerId: UInt32
+    public var zIndex: Int
+    public var transform: [Float]
+    public var size_x: Float
+    public var size_y: Float
+    public var background: Color
+    public var backgroundChecked: Color
+    public var outlineColor: Color
+    public var outlineWidth: Double
+    public var borderRadius: Double
+    public var checked: Bool
+
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, background: Color, backgroundChecked: Color, outlineColor: Color, outlineWidth: Double, borderRadius: Double, checked: Bool) {
+        self.id = id
+        self.parentFrame = parentFrame
+        self.occlusionLayerId = occlusionLayerId
+        self.zIndex = zIndex
+        self.transform = transform
+        self.size_x = size_x
+        self.size_y = size_y
+        self.background = background
+        self.backgroundChecked = backgroundChecked
+        self.outlineColor = outlineColor
+        self.outlineWidth = outlineWidth
+        self.borderRadius = borderRadius
+        self.checked = checked
+    }
+
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> CheckboxElement {
+        CheckboxElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, background: Color(.white), backgroundChecked: Color(.blue), outlineColor: Color(.gray), outlineWidth: 1, borderRadius: 5, checked: false)
+    }
+
+    public func applyPatch(_ patch: CheckboxUpdatePatch) {
+        if let transform = patch.transform { self.transform = transform }
+        if let size_x = patch.size_x { self.size_x = size_x }
+        if let size_y = patch.size_y { self.size_y = size_y }
+        if let background = patch.background { self.background = background }
+        if let backgroundChecked = patch.backgroundChecked { self.backgroundChecked = backgroundChecked }
+        if let outlineColor = patch.outlineColor { self.outlineColor = outlineColor }
+        if let outlineWidth = patch.outlineWidth { self.outlineWidth = outlineWidth }
+        if let borderRadius = patch.borderRadius { self.borderRadius = borderRadius }
+        if let checked = patch.checked { self.checked = checked }
+    }
+}
+
+public class NativeImageUpdatePatch {
+    public var id: PaxNodeId
+    public var transform: [Float]?
+    public var size_x: Float?
+    public var size_y: Float?
+    public var url: String?
+    public var fit: String?
+
+    public init(fb: FlxbReference) {
+        self.id = readNodeId(fb["id"]) ?? 0
+        self.transform = readFloatArray(fb["transform"])
+        self.size_x = fb["size_x"]?.asFloat
+        self.size_y = fb["size_y"]?.asFloat
+        self.url = fb["url"]?.asString
+        self.fit = fb["fit"]?.asString
+    }
+}
+
+public class NativeImageElement: NativePositionElement {
+    public var id: PaxNodeId
+    public var parentFrame: PaxNodeId?
+    public var occlusionLayerId: UInt32
+    public var zIndex: Int
+    public var transform: [Float]
+    public var size_x: Float
+    public var size_y: Float
+    public var url: String
+    public var fit: String
+
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, url: String, fit: String) {
+        self.id = id
+        self.parentFrame = parentFrame
+        self.occlusionLayerId = occlusionLayerId
+        self.zIndex = zIndex
+        self.transform = transform
+        self.size_x = size_x
+        self.size_y = size_y
+        self.url = url
+        self.fit = fit
+    }
+
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> NativeImageElement {
+        NativeImageElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, url: "", fit: "contain")
+    }
+
+    public func applyPatch(_ patch: NativeImageUpdatePatch) {
+        if let transform = patch.transform { self.transform = transform }
+        if let size_x = patch.size_x { self.size_x = size_x }
+        if let size_y = patch.size_y { self.size_y = size_y }
+        if let url = patch.url { self.url = url }
+        if let fit = patch.fit { self.fit = fit }
+    }
+}
+
+public class YoutubeVideoUpdatePatch {
+    public var id: PaxNodeId
+    public var transform: [Float]?
+    public var size_x: Float?
+    public var size_y: Float?
+    public var url: String?
+
+    public init(fb: FlxbReference) {
+        self.id = readNodeId(fb["id"]) ?? 0
+        self.transform = readFloatArray(fb["transform"])
+        self.size_x = fb["size_x"]?.asFloat
+        self.size_y = fb["size_y"]?.asFloat
+        self.url = fb["url"]?.asString
+    }
+}
+
+public class YoutubeVideoElement: NativePositionElement {
+    public var id: PaxNodeId
+    public var parentFrame: PaxNodeId?
+    public var occlusionLayerId: UInt32
+    public var zIndex: Int
+    public var transform: [Float]
+    public var size_x: Float
+    public var size_y: Float
+    public var url: String
+
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, url: String) {
+        self.id = id
+        self.parentFrame = parentFrame
+        self.occlusionLayerId = occlusionLayerId
+        self.zIndex = zIndex
+        self.transform = transform
+        self.size_x = size_x
+        self.size_y = size_y
+        self.url = url
+    }
+
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> YoutubeVideoElement {
+        YoutubeVideoElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, url: "")
+    }
+
+    public func applyPatch(_ patch: YoutubeVideoUpdatePatch) {
+        if let transform = patch.transform { self.transform = transform }
+        if let size_x = patch.size_x { self.size_x = size_x }
+        if let size_y = patch.size_y { self.size_y = size_y }
+        if let url = patch.url { self.url = url }
+    }
+}
+
+public class DropdownUpdatePatch {
+    public var id: PaxNodeId
+    public var selectedId: UInt32?
+    public var options: [String]?
+    public var transform: [Float]?
+    public var size_x: Float?
+    public var size_y: Float?
+    public var background: Color?
+    public var strokeColor: Color?
+    public var strokeWidth: Double?
+    public var borderRadius: Double?
+    public var style: TextStyleMessage?
+
+    public init(fb: FlxbReference) {
+        self.id = readNodeId(fb["id"]) ?? 0
+        self.selectedId = readNodeId(fb["selected_id"])
+        self.options = readStringArray(fb["options"])
+        self.transform = readFloatArray(fb["transform"])
+        self.size_x = fb["size_x"]?.asFloat
+        self.size_y = fb["size_y"]?.asFloat
+        self.strokeWidth = readDouble(fb["stroke_width"])
+        self.borderRadius = readDouble(fb["border_radius"])
+        if let background = fb["background"], !background.isNull {
+            self.background = extractColorFromBuffer(background)
+        }
+        if let strokeColor = fb["stroke_color"], !strokeColor.isNull {
+            self.strokeColor = extractColorFromBuffer(strokeColor)
+        }
+        if let style = fb["style"], !style.isNull {
+            self.style = TextStyleMessage(style)
+        }
+    }
+}
+
+public class DropdownElement: NativePositionElement {
+    public var id: PaxNodeId
+    public var parentFrame: PaxNodeId?
+    public var occlusionLayerId: UInt32
+    public var zIndex: Int
+    public var transform: [Float]
+    public var size_x: Float
+    public var size_y: Float
+    public var selectedId: UInt32
+    public var options: [String]
+    public var background: Color
+    public var strokeColor: Color
+    public var strokeWidth: Double
+    public var borderRadius: Double
+    public var style: TextStyle
+
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, selectedId: UInt32, options: [String], background: Color, strokeColor: Color, strokeWidth: Double, borderRadius: Double, style: TextStyle) {
+        self.id = id
+        self.parentFrame = parentFrame
+        self.occlusionLayerId = occlusionLayerId
+        self.zIndex = zIndex
+        self.transform = transform
+        self.size_x = size_x
+        self.size_y = size_y
+        self.selectedId = selectedId
+        self.options = options
+        self.background = background
+        self.strokeColor = strokeColor
+        self.strokeWidth = strokeWidth
+        self.borderRadius = borderRadius
+        self.style = style
+    }
+
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> DropdownElement {
+        DropdownElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, selectedId: 0, options: [], background: Color(.white), strokeColor: Color(.gray), strokeWidth: 1, borderRadius: 8, style: defaultPaxTextStyle())
+    }
+
+    public func applyPatch(_ patch: DropdownUpdatePatch) {
+        if let transform = patch.transform { self.transform = transform }
+        if let size_x = patch.size_x { self.size_x = size_x }
+        if let size_y = patch.size_y { self.size_y = size_y }
+        if let selectedId = patch.selectedId { self.selectedId = selectedId }
+        if let options = patch.options { self.options = options }
+        if let background = patch.background { self.background = background }
+        if let strokeColor = patch.strokeColor { self.strokeColor = strokeColor }
+        if let strokeWidth = patch.strokeWidth { self.strokeWidth = strokeWidth }
+        if let borderRadius = patch.borderRadius { self.borderRadius = borderRadius }
+        if let style = patch.style { self.style.applyPatch(from: style) }
+    }
+}
+
+public class RadioSetUpdatePatch {
+    public var id: PaxNodeId
+    public var selectedId: UInt32?
+    public var options: [String]?
+    public var style: TextStyleMessage?
+    public var backgroundChecked: Color?
+    public var outlineColor: Color?
+    public var outlineWidth: Double?
+    public var background: Color?
+    public var transform: [Float]?
+    public var size_x: Float?
+    public var size_y: Float?
+
+    public init(fb: FlxbReference) {
+        self.id = readNodeId(fb["id"]) ?? 0
+        self.selectedId = readNodeId(fb["selected_id"])
+        self.options = readStringArray(fb["options"])
+        self.transform = readFloatArray(fb["transform"])
+        self.size_x = fb["size_x"]?.asFloat
+        self.size_y = fb["size_y"]?.asFloat
+        self.outlineWidth = readDouble(fb["outline_width"])
+        if let style = fb["style"], !style.isNull {
+            self.style = TextStyleMessage(style)
+        }
+        if let backgroundChecked = fb["background_checked"], !backgroundChecked.isNull {
+            self.backgroundChecked = extractColorFromBuffer(backgroundChecked)
+        }
+        if let outlineColor = fb["outline_color"], !outlineColor.isNull {
+            self.outlineColor = extractColorFromBuffer(outlineColor)
+        }
+        if let background = fb["background"], !background.isNull {
+            self.background = extractColorFromBuffer(background)
+        }
+    }
+}
+
+public class RadioSetElement: NativePositionElement {
+    public var id: PaxNodeId
+    public var parentFrame: PaxNodeId?
+    public var occlusionLayerId: UInt32
+    public var zIndex: Int
+    public var transform: [Float]
+    public var size_x: Float
+    public var size_y: Float
+    public var selectedId: UInt32
+    public var options: [String]
+    public var style: TextStyle
+    public var backgroundChecked: Color
+    public var outlineColor: Color
+    public var outlineWidth: Double
+    public var background: Color
+
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, selectedId: UInt32, options: [String], style: TextStyle, backgroundChecked: Color, outlineColor: Color, outlineWidth: Double, background: Color) {
+        self.id = id
+        self.parentFrame = parentFrame
+        self.occlusionLayerId = occlusionLayerId
+        self.zIndex = zIndex
+        self.transform = transform
+        self.size_x = size_x
+        self.size_y = size_y
+        self.selectedId = selectedId
+        self.options = options
+        self.style = style
+        self.backgroundChecked = backgroundChecked
+        self.outlineColor = outlineColor
+        self.outlineWidth = outlineWidth
+        self.background = background
+    }
+
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> RadioSetElement {
+        RadioSetElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, selectedId: 0, options: [], style: defaultPaxTextStyle(), backgroundChecked: Color(.blue), outlineColor: Color(.gray), outlineWidth: 1, background: Color(.white))
+    }
+
+    public func applyPatch(_ patch: RadioSetUpdatePatch) {
+        if let transform = patch.transform { self.transform = transform }
+        if let size_x = patch.size_x { self.size_x = size_x }
+        if let size_y = patch.size_y { self.size_y = size_y }
+        if let selectedId = patch.selectedId { self.selectedId = selectedId }
+        if let options = patch.options { self.options = options }
+        if let backgroundChecked = patch.backgroundChecked { self.backgroundChecked = backgroundChecked }
+        if let outlineColor = patch.outlineColor { self.outlineColor = outlineColor }
+        if let outlineWidth = patch.outlineWidth { self.outlineWidth = outlineWidth }
+        if let background = patch.background { self.background = background }
+        if let style = patch.style { self.style.applyPatch(from: style) }
+    }
+}
+
+public class SliderUpdatePatch {
+    public var id: PaxNodeId
+    public var value: Double?
+    public var step: Double?
+    public var min: Double?
+    public var max: Double?
+    public var transform: [Float]?
+    public var size_x: Float?
+    public var size_y: Float?
+    public var accent: Color?
+    public var background: Color?
+    public var borderRadius: Double?
+
+    public init(fb: FlxbReference) {
+        self.id = readNodeId(fb["id"]) ?? 0
+        self.value = readDouble(fb["value"])
+        self.step = readDouble(fb["step"])
+        self.min = readDouble(fb["min"])
+        self.max = readDouble(fb["max"])
+        self.transform = readFloatArray(fb["transform"])
+        self.size_x = fb["size_x"]?.asFloat
+        self.size_y = fb["size_y"]?.asFloat
+        self.borderRadius = readDouble(fb["border_radius"])
+        if let accent = fb["accent"], !accent.isNull {
+            self.accent = extractColorFromBuffer(accent)
+        }
+        if let background = fb["background"], !background.isNull {
+            self.background = extractColorFromBuffer(background)
+        }
+    }
+}
+
+public class SliderElement: NativePositionElement {
+    public var id: PaxNodeId
+    public var parentFrame: PaxNodeId?
+    public var occlusionLayerId: UInt32
+    public var zIndex: Int
+    public var transform: [Float]
+    public var size_x: Float
+    public var size_y: Float
+    public var value: Double
+    public var step: Double
+    public var min: Double
+    public var max: Double
+    public var accent: Color
+    public var background: Color
+    public var borderRadius: Double
+
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, value: Double, step: Double, min: Double, max: Double, accent: Color, background: Color, borderRadius: Double) {
+        self.id = id
+        self.parentFrame = parentFrame
+        self.occlusionLayerId = occlusionLayerId
+        self.zIndex = zIndex
+        self.transform = transform
+        self.size_x = size_x
+        self.size_y = size_y
+        self.value = value
+        self.step = step
+        self.min = min
+        self.max = max
+        self.accent = accent
+        self.background = background
+        self.borderRadius = borderRadius
+    }
+
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> SliderElement {
+        SliderElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, value: 0, step: 1, min: 0, max: 100, accent: Color(.blue), background: Color(.gray), borderRadius: 5)
+    }
+
+    public func applyPatch(_ patch: SliderUpdatePatch) {
+        if let transform = patch.transform { self.transform = transform }
+        if let size_x = patch.size_x { self.size_x = size_x }
+        if let size_y = patch.size_y { self.size_y = size_y }
+        if let value = patch.value { self.value = value }
+        if let step = patch.step { self.step = step }
+        if let min = patch.min { self.min = min }
+        if let max = patch.max { self.max = max }
+        if let accent = patch.accent { self.accent = accent }
+        if let background = patch.background { self.background = background }
+        if let borderRadius = patch.borderRadius { self.borderRadius = borderRadius }
+    }
+}
+
+public class TextboxUpdatePatch {
+    public var id: PaxNodeId
+    public var transform: [Float]?
+    public var size_x: Float?
+    public var size_y: Float?
+    public var text: String?
+    public var background: Color?
+    public var strokeColor: Color?
+    public var strokeWidth: Double?
+    public var borderRadius: Double?
+    public var style: TextStyleMessage?
+    public var focusOnMount: Bool?
+    public var placeholder: String?
+    public var outlineColor: Color?
+    public var outlineWidth: Double?
+    public var isTextArea: Bool?
+
+    public init(fb: FlxbReference) {
+        self.id = readNodeId(fb["id"]) ?? 0
+        self.transform = readFloatArray(fb["transform"])
+        self.size_x = fb["size_x"]?.asFloat
+        self.size_y = fb["size_y"]?.asFloat
+        self.text = fb["text"]?.asString
+        self.strokeWidth = readDouble(fb["stroke_width"])
+        self.borderRadius = readDouble(fb["border_radius"])
+        self.focusOnMount = fb["focus_on_mount"]?.asBool
+        self.placeholder = fb["placeholder"]?.asString
+        self.outlineWidth = readDouble(fb["outline_width"])
+        self.isTextArea = fb["is_text_area"]?.asBool
+        if let background = fb["background"], !background.isNull {
+            self.background = extractColorFromBuffer(background)
+        }
+        if let strokeColor = fb["stroke_color"], !strokeColor.isNull {
+            self.strokeColor = extractColorFromBuffer(strokeColor)
+        }
+        if let outlineColor = fb["outline_color"], !outlineColor.isNull {
+            self.outlineColor = extractColorFromBuffer(outlineColor)
+        }
+        if let style = fb["style"], !style.isNull {
+            self.style = TextStyleMessage(style)
+        }
+    }
+}
+
+public class TextboxElement: NativePositionElement {
+    public var id: PaxNodeId
+    public var parentFrame: PaxNodeId?
+    public var occlusionLayerId: UInt32
+    public var zIndex: Int
+    public var transform: [Float]
+    public var size_x: Float
+    public var size_y: Float
+    public var text: String
+    public var background: Color
+    public var strokeColor: Color
+    public var strokeWidth: Double
+    public var borderRadius: Double
+    public var style: TextStyle
+    public var focusOnMount: Bool
+    public var placeholder: String
+    public var outlineColor: Color
+    public var outlineWidth: Double
+    public var isTextArea: Bool
+
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, text: String, background: Color, strokeColor: Color, strokeWidth: Double, borderRadius: Double, style: TextStyle, focusOnMount: Bool, placeholder: String, outlineColor: Color, outlineWidth: Double, isTextArea: Bool) {
+        self.id = id
+        self.parentFrame = parentFrame
+        self.occlusionLayerId = occlusionLayerId
+        self.zIndex = zIndex
+        self.transform = transform
+        self.size_x = size_x
+        self.size_y = size_y
+        self.text = text
+        self.background = background
+        self.strokeColor = strokeColor
+        self.strokeWidth = strokeWidth
+        self.borderRadius = borderRadius
+        self.style = style
+        self.focusOnMount = focusOnMount
+        self.placeholder = placeholder
+        self.outlineColor = outlineColor
+        self.outlineWidth = outlineWidth
+        self.isTextArea = isTextArea
+    }
+
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> TextboxElement {
+        TextboxElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, text: "", background: Color(.white), strokeColor: Color(.gray), strokeWidth: 1, borderRadius: 8, style: defaultPaxTextStyle(), focusOnMount: false, placeholder: "", outlineColor: Color(.clear), outlineWidth: 0, isTextArea: false)
+    }
+
+    public func applyPatch(_ patch: TextboxUpdatePatch) {
+        if let transform = patch.transform { self.transform = transform }
+        if let size_x = patch.size_x { self.size_x = size_x }
+        if let size_y = patch.size_y { self.size_y = size_y }
+        if let text = patch.text { self.text = text }
+        if let background = patch.background { self.background = background }
+        if let strokeColor = patch.strokeColor { self.strokeColor = strokeColor }
+        if let strokeWidth = patch.strokeWidth { self.strokeWidth = strokeWidth }
+        if let borderRadius = patch.borderRadius { self.borderRadius = borderRadius }
+        if let style = patch.style { self.style.applyPatch(from: style) }
+        if let focusOnMount = patch.focusOnMount { self.focusOnMount = focusOnMount }
+        if let placeholder = patch.placeholder { self.placeholder = placeholder }
+        if let outlineColor = patch.outlineColor { self.outlineColor = outlineColor }
+        if let outlineWidth = patch.outlineWidth { self.outlineWidth = outlineWidth }
+        if let isTextArea = patch.isTextArea { self.isTextArea = isTextArea }
+    }
+}
+
+public class NavigationPatchMessage {
+    public var url: String
+    public var target: String
+
+    public init(fb: FlxbReference) {
+        self.url = fb["url"]?.asString ?? ""
+        self.target = fb["target"]?.asString ?? "current"
+    }
+}
+
+public class SetCursorPatchMessage {
+    public var cursor: String
+
+    public init(fb: FlxbReference) {
+        self.cursor = fb["cursor"]?.asString ?? "default"
+    }
+}
+
+public class LayerAddPatchMessage {
+    public var numLayersToAdd: UInt32
+
+    public init(fb: FlxbReference) {
+        self.numLayersToAdd = UInt32(truncatingIfNeeded: fb["num_layers_to_add"]?.asUInt64 ?? 0)
     }
 }

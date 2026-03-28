@@ -23,7 +23,11 @@ use pax_runtime::PaxEngine;
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`
 //in order to be visible to Swift
 pub use pax_message::*;
-use pax_runtime::api::{Click, Event, ModifierKey, MouseButton, MouseEventArgs, RenderContext};
+use pax_runtime::api::borrow;
+use pax_runtime::api::{
+    ButtonClick, Click, Event, Focus, ModifierKey, MouseButton, MouseEventArgs, RenderContext,
+    SelectStart, TextboxChange,
+};
 
 struct ImgData<'a> {
     img: <CoreGraphicsContext<'a> as PietRenderContext>::Image,
@@ -144,10 +148,17 @@ pub extern "C" fn pax_interrupt(
         }
     };
 
-    let interrupt_wrapped: Result<NativeInterrupt, DeserializationError> =
-        flexbuffers::from_slice(slice);
+    let interrupt_wrapped: Result<NativeInterrupt, DeserializationError> = flexbuffers::from_slice(slice);
     let interrupt = interrupt_wrapped.unwrap();
-    match interrupt {
+    let globals = engine.runtime_context.globals();
+
+    match &interrupt {
+        NativeInterrupt::Focus(_args) => {
+            engine.global_dispatch_focus(Focus {});
+        }
+        NativeInterrupt::SelectStart(_args) => {
+            engine.global_dispatch_select_start(SelectStart {});
+        }
         NativeInterrupt::ChassisResizeRequestCollection(collection) => {
             for args in collection {
                 let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
@@ -169,30 +180,76 @@ pub extern "C" fn pax_interrupt(
                 mouse: MouseEventArgs {
                     x: args.x,
                     y: args.y,
-                    button: MouseButton::from(args.button),
+                    button: MouseButton::from(args.button.clone()),
                     modifiers,
                 },
             };
             topmost_node.dispatch_click(
                 Event::new(args_click),
-                &engine.runtime_context.globals(),
+                &globals,
                 &engine.runtime_context,
             );
+        }
+        NativeInterrupt::FormRadioSetChange(args) => {
+            let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
+            if let Some(node) = node {
+                borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
+            }
+        }
+        NativeInterrupt::FormSliderChange(args) => {
+            let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
+            if let Some(node) = node {
+                borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
+            }
+        }
+        NativeInterrupt::FormDropdownChange(args) => {
+            let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
+            if let Some(node) = node {
+                borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
+            }
+        }
+        NativeInterrupt::FormButtonClick(args) => {
+            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id)) {
+                node.dispatch_button_click(
+                    Event::new(ButtonClick {}),
+                    &globals,
+                    &engine.runtime_context,
+                );
+            }
+        }
+        NativeInterrupt::FormTextboxInput(args) => {
+            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id)) {
+                borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
+            }
+        }
+        NativeInterrupt::TextInput(args) => {
+            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id)) {
+                borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
+            }
+        }
+        NativeInterrupt::FormTextboxChange(args) => {
+            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id)) {
+                node.dispatch_textbox_change(
+                    Event::new(TextboxChange {
+                        text: args.text.clone(),
+                    }),
+                    &globals,
+                    &engine.runtime_context,
+                );
+            }
+        }
+        NativeInterrupt::FormCheckboxToggle(args) => {
+            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id)) {
+                borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
+            }
         }
         NativeInterrupt::Scrollbar(_args) => {}
         NativeInterrupt::Scroll(_args) => {}
         NativeInterrupt::Image(args) => match args {
-            ImageLoadInterruptArgs::Reference(_ref_args) => {
-                // TODO this needs to be redone since image_map now lives in the
-                // Renderer. Move renderer into the engine???
-                // let ptr = ref_args.image_data as *const u8;
-                // let slice = unsafe { std::slice::from_raw_parts(ptr, ref_args.image_data_length) };
-                // let owned_data: Vec<u8> = slice.to_vec();
-                // (&ref_args.path, owned_data, ref_args.width, ref_args.height);
-                todo!();
-            }
+            ImageLoadInterruptArgs::Reference(_ref_args) => {}
             ImageLoadInterruptArgs::Data(_) => {}
         },
+        NativeInterrupt::AddedLayer(_args) => {}
         _ => {}
     }
 
