@@ -1,11 +1,13 @@
 use anyhow::anyhow;
 use bytemuck::Pod;
+#[cfg(any(target_os = "ios", target_os = "macos"))]
+use std::ffi::c_void;
 
 use lyon::lyon_tessellation::VertexBuffers;
 use wgpu::{
     util::DeviceExt, BindGroup, BindGroupLayout, BufferUsages, CompositeAlphaMode, Device,
-    IndexFormat, PresentMode, RenderPipeline, SurfaceConfiguration, SurfaceTexture, TextureFormat,
-    TextureUsages, TextureView,
+    IndexFormat, PresentMode, RenderPipeline, SurfaceConfiguration, SurfaceTexture, Texture,
+    TextureFormat, TextureFormatFeatureFlags, TextureUsages, TextureView,
 };
 
 pub mod data;
@@ -18,6 +20,7 @@ use data::{GpuGlobals, GpuPrimitive, GpuVertex};
 use crate::{render_backend::texture::TextureRenderer, Box2D, Transform2D};
 
 use self::{
+    gpu_resources::create_multisampled_framebuffer,
     data::{GpuColor, GpuGradient, GpuTransform},
     stencil::StencilRenderer,
 };
@@ -80,6 +83,20 @@ pub struct RenderBackend<'w> {
     // plugins / extensions
     texture_renderer: TextureRenderer,
     stencil_renderer: StencilRenderer,
+    multisampled_target: Option<MultisampledTarget>,
+    sample_count: u32,
+    active_frame: Option<ActiveFrame>,
+    pending_clear: bool,
+}
+
+struct ActiveFrame {
+    view: TextureView,
+    surface: SurfaceTexture,
+}
+
+struct MultisampledTarget {
+    _texture: Texture,
+    view: TextureView,
 }
 
 impl<'w> RenderBackend<'w> {
@@ -101,6 +118,26 @@ impl<'w> RenderBackend<'w> {
         let surface_target = wgpu::SurfaceTarget::Canvas(canvas);
         let surface = instance.create_surface(surface_target)?;
         Self::new(surface, instance, config).await
+    }
+
+    #[cfg(any(target_os = "ios", target_os = "macos"))]
+    pub async unsafe fn to_core_animation_layer(
+        layer: *mut c_void,
+        config: RenderConfig,
+    ) -> Result<RenderBackend<'static>, anyhow::Error> {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::all(),
+            flags: if config.debug {
+                wgpu::InstanceFlags::DEBUG
+            } else {
+                wgpu::InstanceFlags::default()
+            },
+            dx12_shader_compiler: wgpu::Dx12Compiler::Fxc,
+            gles_minor_version: wgpu::Gles3MinorVersion::Automatic,
+        });
+        let surface =
+            unsafe { instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::CoreAnimationLayer(layer))? };
+        RenderBackend::<'static>::new(surface, instance, config).await
     }
 
     pub async fn new(
@@ -129,15 +166,36 @@ impl<'w> RenderBackend<'w> {
             .await
             .expect("couldn't find device");
 
-        const TEXTURE_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
+        let surface_caps = surface.get_capabilities(&adapter);
+        let surface_format = surface_caps
+            .formats
+            .iter()
+            .copied()
+            .find(|format| *format == TextureFormat::Rgba16Float)
+            .or_else(|| surface_caps.formats.first().copied())
+            .ok_or_else(|| anyhow!("surface reported no compatible texture formats"))?;
+        let alpha_mode = [
+            CompositeAlphaMode::PreMultiplied,
+            CompositeAlphaMode::PostMultiplied,
+            CompositeAlphaMode::Opaque,
+        ]
+        .into_iter()
+        .find(|mode| surface_caps.alpha_modes.contains(mode))
+        .or_else(|| surface_caps.alpha_modes.first().copied())
+        .ok_or_else(|| anyhow!("surface reported no compatible alpha modes"))?;
+        let surface_format_features = adapter.get_texture_format_features(surface_format).flags;
+        let stencil_format_features = adapter
+            .get_texture_format_features(wgpu::TextureFormat::Stencil8)
+            .flags;
+        let sample_count = select_sample_count(surface_format_features, stencil_format_features);
         let surface_config = SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
-            format: TEXTURE_FORMAT,
+            format: surface_format,
             width: config.initial_width,
             height: config.initial_height,
             present_mode: PresentMode::Fifo,
-            alpha_mode: CompositeAlphaMode::PreMultiplied,
-            view_formats: vec![TEXTURE_FORMAT],
+            alpha_mode,
+            view_formats: vec![surface_format],
             desired_maximum_frame_latency: 2, //TODO 1 for lower latency?
         };
         surface.configure(&device, &surface_config);
@@ -289,14 +347,19 @@ impl<'w> RenderBackend<'w> {
             label: Some("bind_group"),
         });
 
-        let pipeline =
-            Self::create_pipeline(&device, surface_config.format, primitive_bind_group_layout);
+        let pipeline = Self::create_pipeline(
+            &device,
+            surface_config.format,
+            sample_count,
+            primitive_bind_group_layout,
+        );
 
-        let texture_renderer = TextureRenderer::new(&device);
+        let texture_renderer = TextureRenderer::new(&device, surface_config.format, sample_count);
         let stencil_renderer = StencilRenderer::new(
             &device,
             config.initial_width,
             config.initial_height,
+            sample_count,
             &globals_buffer,
         );
 
@@ -323,6 +386,10 @@ impl<'w> RenderBackend<'w> {
             gradients_buffer,
             globals,
             index_count: 0,
+            multisampled_target: None,
+            sample_count,
+            active_frame: None,
+            pending_clear: false,
         };
         backend.globals.dpr = initial_dpr;
         backend.resize(initial_width, initial_height);
@@ -332,6 +399,7 @@ impl<'w> RenderBackend<'w> {
     fn create_pipeline(
         device: &Device,
         format: TextureFormat,
+        sample_count: u32,
         primitive_bind_group_layout: BindGroupLayout,
     ) -> RenderPipeline {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -391,7 +459,7 @@ impl<'w> RenderBackend<'w> {
                 bias: Default::default(),
             }),
             multisample: wgpu::MultisampleState {
-                count: 1,
+                count: sample_count,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
@@ -417,6 +485,8 @@ impl<'w> RenderBackend<'w> {
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
+        self.active_frame = None;
+        self.pending_clear = false;
         self.surface_config.width = width;
         self.surface_config.height = height;
         self.globals.resolution = [width as f32, height as f32];
@@ -427,6 +497,19 @@ impl<'w> RenderBackend<'w> {
         );
         self.stencil_renderer.resize(&self.device, width, height);
         self.surface.configure(&self.device, &self.surface_config);
+        self.multisampled_target = if self.sample_count > 1 {
+            let (texture, view) = create_multisampled_framebuffer(
+                &self.device,
+                &self.surface_config,
+                self.sample_count,
+            );
+            Some(MultisampledTarget {
+                _texture: texture,
+                view,
+            })
+        } else {
+            None
+        };
     }
 
     fn write_buffers(&mut self, buffers: &mut CpuBuffers) {
@@ -488,7 +571,10 @@ impl<'w> RenderBackend<'w> {
     }
 
     pub(crate) fn render_primitives(&mut self, buffers: &mut CpuBuffers) {
-        let (screen_surface, screen_texture) = self.get_screen_texture();
+        self.write_buffers(buffers);
+        let load_op = self.take_color_load_op();
+        self.ensure_active_frame();
+        let (screen_texture, resolve_target) = self.current_color_attachment_views();
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -500,10 +586,10 @@ impl<'w> RenderBackend<'w> {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &screen_texture,
-                    resolve_target: None,
+                    view: screen_texture,
+                    resolve_target,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
+                        load: load_op,
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -518,8 +604,6 @@ impl<'w> RenderBackend<'w> {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            self.write_buffers(buffers);
-
             render_pass.set_pipeline(&self.pipeline);
             render_pass.set_bind_group(0, &self.bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -530,66 +614,116 @@ impl<'w> RenderBackend<'w> {
 
         //render primitives
         self.queue.submit(std::iter::once(encoder.finish()));
-        screen_surface.present();
     }
 
-    fn get_screen_texture(&self) -> (SurfaceTexture, TextureView) {
-        let screen_surface = self.surface.get_current_texture().unwrap();
-        let screen_texture = screen_surface
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        (screen_surface, screen_texture)
+    fn ensure_active_frame(&mut self) {
+        if self.active_frame.is_none() {
+            let surface = self.surface.get_current_texture().unwrap();
+            let view = surface
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            self.active_frame = Some(ActiveFrame { view, surface });
+        }
+    }
+
+    fn take_color_load_op(&mut self) -> wgpu::LoadOp<wgpu::Color> {
+        if std::mem::take(&mut self.pending_clear) {
+            wgpu::LoadOp::Clear(wgpu::Color {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 0.0,
+            })
+        } else {
+            wgpu::LoadOp::Load
+        }
     }
 
     pub(crate) fn render_image(&mut self, image: &Image, transform: Transform2D, rect: Box2D) {
-        let (screen_surface, screen_texture) = self.get_screen_texture();
+        let clear_target = std::mem::take(&mut self.pending_clear);
+        self.ensure_active_frame();
+        let (screen_texture, resolve_target) = self.current_color_attachment_views();
         self.texture_renderer.render_image(
             &self.device,
             &self.queue,
-            &screen_texture,
+            screen_texture,
+            resolve_target,
             &self.globals_buffer,
             &self.stencil_renderer,
+            clear_target,
             &image.rgba,
             image.pixel_width,
             transform,
             rect,
         );
-        screen_surface.present();
     }
 
     pub(crate) fn clear(&mut self) {
         self.stencil_renderer.clear(&self.device, &self.queue);
-        let (screen_surface, screen_texture) = self.get_screen_texture();
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
-
-        {
-            let _r = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &screen_texture,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.0,
-                            g: 0.0,
-                            b: 0.0,
-                            a: 0.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-        }
-        self.queue.submit(std::iter::once(encoder.finish()));
-        screen_surface.present();
+        self.pending_clear = true;
     }
+
+    pub(crate) fn present(&mut self) {
+        if self.pending_clear {
+            let load_op = self.take_color_load_op();
+            self.ensure_active_frame();
+            let (screen_texture, resolve_target) = self.current_color_attachment_views();
+            let mut encoder = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Render Encoder"),
+                });
+
+            {
+                let _r = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Render Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: screen_texture,
+                        resolve_target,
+                        ops: wgpu::Operations {
+                            load: load_op,
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+            }
+            self.queue.submit(std::iter::once(encoder.finish()));
+        }
+
+        if let Some(screen_surface) = self.active_frame.take() {
+            screen_surface.surface.present();
+        }
+    }
+
+    fn current_color_attachment_views(&self) -> (&TextureView, Option<&TextureView>) {
+        let surface_view = &self
+            .active_frame
+            .as_ref()
+            .expect("active frame should exist after acquisition")
+            .view;
+        if let Some(multisampled_target) = &self.multisampled_target {
+            (&multisampled_target.view, Some(surface_view))
+        } else {
+            (surface_view, None)
+        }
+    }
+}
+
+fn select_sample_count(
+    surface_format_features: TextureFormatFeatureFlags,
+    stencil_format_features: TextureFormatFeatureFlags,
+) -> u32 {
+    [4, 2]
+        .into_iter()
+        .find(|count| {
+            surface_format_features.sample_count_supported(*count)
+                && surface_format_features.contains(TextureFormatFeatureFlags::MULTISAMPLE_RESOLVE)
+                && stencil_format_features.sample_count_supported(*count)
+        })
+        .unwrap_or(1)
 }
 
 #[derive(Debug)]

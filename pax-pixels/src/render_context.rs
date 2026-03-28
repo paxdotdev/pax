@@ -176,6 +176,7 @@ impl<'w> WgpuRenderer<'w> {
         if self.buffers.primitives.len() > 0 {
             self.render_backend.render_primitives(&mut self.buffers);
         }
+        self.render_backend.present();
         self.buffers.reset();
         self.transform_index_stack.clear();
     }

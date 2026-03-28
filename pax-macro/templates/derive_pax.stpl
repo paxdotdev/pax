@@ -120,6 +120,10 @@
 
         let container = std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
             _engine: Box::into_raw(std::mem::ManuallyDrop::into_inner(engine)),
+            #[cfg(feature="ios")]
+            _render_context: std::ptr::null_mut(),
+            #[cfg(feature="ios")]
+            _render_target: std::ptr::null_mut(),
         }));
 
         Box::into_raw(std::mem::ManuallyDrop::into_inner(container))

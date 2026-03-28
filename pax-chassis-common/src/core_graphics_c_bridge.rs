@@ -2,43 +2,56 @@
 
 extern crate core;
 
-use std::ffi::c_void;
+use std::cell::RefCell;
 use std::collections::HashMap;
-
+use std::ffi::c_void;
 use std::mem::{transmute, ManuallyDrop};
+use std::rc::Rc;
 
+#[cfg(not(target_os = "ios"))]
 use core_graphics::context::CGContext;
-use pax_runtime::api::math::Point2;
-use piet_coregraphics::CoreGraphicsContext;
-use piet::{InterpolationMode, RenderContext as PietRenderContext};
-use piet::kurbo;
-
-use flexbuffers;
 use flexbuffers::DeserializationError;
-use serde::Serialize;
-
+#[cfg(target_os = "ios")]
+use pax_pixels::{
+    render_backend::{RenderBackend, RenderConfig},
+    point, Box2D, Image as PaxPixelsImage, WgpuRenderer,
+};
+use pax_runtime::api::math::Point2;
+#[cfg(target_os = "ios")]
+use pax_runtime::api::Axis;
+use pax_runtime::api::{
+    ButtonClick, Click, Event, Focus, ModifierKey, MouseButton, MouseEventArgs, RenderContext,
+    SelectStart, TextboxChange,
+};
+#[cfg(target_os = "ios")]
+use pax_runtime::pax_pixels_render_context::{convert_kurbo_to_lyon_path, to_pax_pixels_color};
 use pax_runtime::PaxEngine;
+use piet::kurbo;
+use piet::kurbo::Shape;
+#[cfg(not(target_os = "ios"))]
+use piet::{InterpolationMode, RenderContext as PietRenderContext};
+#[cfg(not(target_os = "ios"))]
+use piet_coregraphics::CoreGraphicsContext;
+use serde::Serialize;
 
 //Re-export all native message types; used by Swift via FFI.
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`
 //in order to be visible to Swift
 pub use pax_message::*;
-use pax_runtime::api::borrow;
-use pax_runtime::api::{
-    ButtonClick, Click, Event, Focus, ModifierKey, MouseButton, MouseEventArgs, RenderContext,
-    SelectStart, TextboxChange,
-};
 
+#[cfg(not(target_os = "ios"))]
 struct ImgData<'a> {
     img: <CoreGraphicsContext<'a> as PietRenderContext>::Image,
     size: (usize, usize),
 }
 
+#[cfg(not(target_os = "ios"))]
 struct AppleRenderContext<'a> {
     backend: CoreGraphicsContext<'a>,
     image_map: HashMap<String, ImgData<'a>>,
 }
 
+#[cfg(not(target_os = "ios"))]
 impl<'a> AppleRenderContext<'a> {
     fn new(backend: CoreGraphicsContext<'a>) -> Self {
         Self {
@@ -48,19 +61,22 @@ impl<'a> AppleRenderContext<'a> {
     }
 }
 
+#[cfg(not(target_os = "ios"))]
 impl<'a> RenderContext for AppleRenderContext<'a> {
-    fn fill(&mut self, _layer: usize, path: kurbo::BezPath, brush: &piet::PaintBrush) {
-        self.backend.fill(path, brush);
+    fn fill(&mut self, _layer: usize, path: kurbo::BezPath, brush: &pax_runtime::api::Fill) {
+        self.backend
+            .fill(path.clone(), &fill_to_piet_brush(brush, path.bounding_box()));
     }
 
     fn stroke(
         &mut self,
         _layer: usize,
         path: kurbo::BezPath,
-        brush: &piet::PaintBrush,
+        brush: &pax_runtime::api::Fill,
         width: f64,
     ) {
-        self.backend.stroke(path, brush, width);
+        self.backend
+            .stroke(path.clone(), &fill_to_piet_brush(brush, path.bounding_box()), width);
     }
 
     fn save(&mut self, _layer: usize) {
@@ -101,6 +117,10 @@ impl<'a> RenderContext for AppleRenderContext<'a> {
         self.image_map.get(image_path).map(|img| img.size)
     }
 
+    fn image_loaded(&self, image_path: &str) -> bool {
+        self.image_map.contains_key(image_path)
+    }
+
     fn transform(&mut self, _layer: usize, affine: kurbo::Affine) {
         self.backend.transform(affine);
     }
@@ -108,20 +128,286 @@ impl<'a> RenderContext for AppleRenderContext<'a> {
     fn layers(&self) -> usize {
         1
     }
+
+    fn resize_layers_to(&mut self, _layer_count: usize, _dirty_canvases: Rc<RefCell<Vec<bool>>>) {}
+
+    fn clear(&mut self, _layer: usize) {}
+
+    fn flush(&mut self, _layer: usize, _dirty_canvases: Rc<RefCell<Vec<bool>>>) {}
+
+    fn resize(&mut self, _width: usize, _height: usize) {}
+}
+
+#[cfg(not(target_os = "ios"))]
+fn fill_to_piet_brush(fill: &pax_runtime::api::Fill, rect: kurbo::Rect) -> piet::PaintBrush {
+    use piet::{LinearGradient, RadialGradient};
+
+    match fill {
+        pax_runtime::api::Fill::Solid(color) => color.to_piet_color().into(),
+        pax_runtime::api::Fill::LinearGradient(linear) => {
+            let linear_gradient = LinearGradient::new(
+                pax_runtime::api::Fill::to_unit_point(linear.start, (rect.width(), rect.height())),
+                pax_runtime::api::Fill::to_unit_point(linear.end, (rect.width(), rect.height())),
+                pax_runtime::api::Fill::to_piet_gradient_stops(linear.stops.clone()),
+            );
+            linear_gradient.into()
+        }
+        pax_runtime::api::Fill::RadialGradient(radial) => {
+            let origin =
+                pax_runtime::api::Fill::to_unit_point(radial.start, (rect.width(), rect.height()));
+            let center =
+                pax_runtime::api::Fill::to_unit_point(radial.end, (rect.width(), rect.height()));
+            let radial_gradient =
+                RadialGradient::new(radial.radius, pax_runtime::api::Fill::to_piet_gradient_stops(radial.stops.clone()))
+                    .with_center(center)
+                    .with_origin(origin);
+            radial_gradient.into()
+        }
+    }
+}
+
+#[cfg(target_os = "ios")]
+pub struct AppleRenderContext {
+    backend: WgpuRenderer<'static>,
+    image_map: HashMap<String, PaxPixelsImage>,
+}
+
+#[cfg(target_os = "ios")]
+impl AppleRenderContext {
+    fn new(layer: *mut c_void, width: usize, height: usize) -> Result<Self, String> {
+        let config = RenderConfig::new(false, width as u32, height as u32, 1);
+        let backend = unsafe {
+            pollster::block_on(RenderBackend::to_core_animation_layer(layer, config))
+        }
+        .map_err(|err| err.to_string())?;
+        Ok(Self {
+            backend: WgpuRenderer::new(backend),
+            image_map: HashMap::new(),
+        })
+    }
+
+    fn resize_if_needed(&mut self, width: usize, height: usize) -> bool {
+        let (curr_width, curr_height) = self.backend.size();
+        if curr_width.round() as usize == width && curr_height.round() as usize == height {
+            return false;
+        }
+        self.backend.resize(width as f32, height as f32);
+        true
+    }
+}
+
+#[cfg(target_os = "ios")]
+impl RenderContext for AppleRenderContext {
+    fn fill(&mut self, _layer: usize, path: kurbo::BezPath, fill: &pax_runtime::api::Fill) {
+        let bounds = path.bounding_box();
+        self.backend.fill_path(
+            convert_kurbo_to_lyon_path(&path),
+            to_pax_pixels_fill(fill, bounds),
+        );
+    }
+
+    fn stroke(
+        &mut self,
+        _layer: usize,
+        path: kurbo::BezPath,
+        fill: &pax_runtime::api::Fill,
+        width: f64,
+    ) {
+        let bounds = path.bounding_box();
+        self.backend.stroke_path(
+            convert_kurbo_to_lyon_path(&path),
+            to_pax_pixels_fill(fill, bounds),
+            width as f32,
+        );
+    }
+
+    fn save(&mut self, _layer: usize) {
+        self.backend.save();
+    }
+
+    fn restore(&mut self, _layer: usize) {
+        self.backend.restore();
+    }
+
+    fn clip(&mut self, _layer: usize, path: kurbo::BezPath) {
+        self.backend.clip(convert_kurbo_to_lyon_path(&path));
+    }
+
+    fn transform(&mut self, _layer: usize, affine: kurbo::Affine) {
+        self.backend.transform(pax_pixels::Transform2D::from_array(
+            affine.as_coeffs().map(|value| value as f32),
+        ));
+    }
+
+    fn load_image(&mut self, path: &str, buf: &[u8], width: usize, height: usize) {
+        self.image_map.insert(
+            path.to_string(),
+            PaxPixelsImage {
+                rgba: buf.to_vec(),
+                pixel_width: width as u32,
+                pixel_height: height as u32,
+            },
+        );
+    }
+
+    fn draw_image(&mut self, _layer: usize, image_path: &str, rect: kurbo::Rect) {
+        let Some(image) = self.image_map.get(image_path) else {
+            return;
+        };
+        self.backend.draw_image(
+            image,
+            Box2D {
+                min: point(rect.x0 as f32, rect.y0 as f32),
+                max: point(rect.x1 as f32, rect.y1 as f32),
+            },
+        );
+    }
+
+    fn get_image_size(&mut self, image_path: &str) -> Option<(usize, usize)> {
+        self.image_map
+            .get(image_path)
+            .map(|image| (image.pixel_width as usize, image.pixel_height as usize))
+    }
+
+    fn image_loaded(&self, image_path: &str) -> bool {
+        self.image_map.contains_key(image_path)
+    }
+
+    fn layers(&self) -> usize {
+        1
+    }
+
+    fn resize_layers_to(&mut self, _layer_count: usize, _dirty_canvases: Rc<RefCell<Vec<bool>>>) {}
+
+    fn clear(&mut self, _layer: usize) {
+        self.backend.clear();
+    }
+
+    fn flush(&mut self, _layer: usize, _dirty_canvases: Rc<RefCell<Vec<bool>>>) {
+        self.backend.flush();
+    }
+
+    fn resize(&mut self, width: usize, height: usize) {
+        self.backend.resize(width as f32, height as f32);
+    }
+}
+
+#[cfg(target_os = "ios")]
+fn to_pax_pixels_fill(fill: &pax_runtime::api::Fill, rect: kurbo::Rect) -> pax_pixels::Fill {
+    let bounds = (rect.width(), rect.height());
+    let origin = rect.origin();
+    match fill {
+        pax_runtime::api::Fill::Solid(color) => {
+            pax_pixels::Fill::Solid(to_pax_pixels_color(color))
+        }
+        pax_runtime::api::Fill::LinearGradient(gradient) => {
+            let start_x = gradient.start.0.evaluate(bounds, Axis::X);
+            let start_y = gradient.start.1.evaluate(bounds, Axis::Y);
+            let end_x = gradient.end.0.evaluate(bounds, Axis::X);
+            let end_y = gradient.end.1.evaluate(bounds, Axis::Y);
+            let main_axis =
+                pax_pixels::Vector2D::new((end_x - start_x) as f32, (end_y - start_y) as f32);
+            pax_pixels::Fill::Gradient {
+                stops: gradient
+                    .stops
+                    .iter()
+                    .map(|stop| pax_pixels::GradientStop {
+                        color: to_pax_pixels_color(&stop.color),
+                        stop: stop
+                            .position
+                            .evaluate((main_axis.length() as f64, 0.0), Axis::X)
+                            as f32,
+                    })
+                    .collect(),
+                gradient_type: pax_pixels::GradientType::Linear,
+                pos: pax_pixels::Point2D::new(
+                    (origin.x + start_x) as f32,
+                    (origin.y + start_y) as f32,
+                ),
+                main_axis,
+                off_axis: pax_pixels::Vector2D::zero(),
+            }
+        }
+        pax_runtime::api::Fill::RadialGradient(gradient) => {
+            let start_x = gradient.start.0.evaluate(bounds, Axis::X);
+            let start_y = gradient.start.1.evaluate(bounds, Axis::Y);
+            let end_x = gradient.end.0.evaluate(bounds, Axis::X);
+            let end_y = gradient.end.1.evaluate(bounds, Axis::Y);
+            let radius = gradient.radius as f32;
+            let main_axis = pax_pixels::Vector2D::new(
+                radius * (end_x - start_x) as f32,
+                radius * (end_y - start_y) as f32,
+            );
+            let off_axis = pax_pixels::Vector2D::new(-main_axis.y, main_axis.x);
+            pax_pixels::Fill::Gradient {
+                gradient_type: pax_pixels::GradientType::Radial,
+                pos: pax_pixels::Point2D::new(
+                    (origin.x + start_x) as f32,
+                    (origin.y + start_y) as f32,
+                ),
+                main_axis,
+                off_axis,
+                stops: gradient
+                    .stops
+                    .iter()
+                    .map(|stop| pax_pixels::GradientStop {
+                        color: to_pax_pixels_color(&stop.color),
+                        stop: stop
+                            .position
+                            .evaluate((main_axis.length() as f64, 0.0), Axis::X)
+                            as f32,
+                    })
+                    .collect(),
+            }
+        }
+    }
+}
+
+fn serialize_message_queue(messages: Vec<NativeMessage>) -> *mut NativeMessageQueue {
+    let wrapped_queue = MessageQueue { messages };
+    let mut serializer = flexbuffers::FlexbufferSerializer::new();
+
+    wrapped_queue.serialize(&mut serializer).unwrap();
+
+    let data_buffer = serializer.take_buffer();
+    let length = data_buffer.len();
+    let leaked_data: ManuallyDrop<Box<[u8]>> = ManuallyDrop::new(data_buffer.into_boxed_slice());
+
+    unsafe {
+        transmute(Box::new(NativeMessageQueue {
+            data_ptr: Box::into_raw(ManuallyDrop::into_inner(leaked_data)),
+            length: length as u64,
+        }))
+    }
 }
 
 /// Container data structure for PaxEngine, aggregated to support passing across C bridge
 #[repr(C)] //Exposed to Swift via PaxCartridge.h
 pub struct PaxEngineContainer {
     pub _engine: *mut PaxEngine,
-    //NOTE: since that has become a single field, this data structure may be be retired and `*mut PaxEngine` could be passed directly.
+    #[cfg(target_os = "ios")]
+    pub _render_context: *mut AppleRenderContext,
+    #[cfg(target_os = "ios")]
+    pub _render_target: *mut c_void,
 }
 
 /// Destroy `engine` and clean up the `ManuallyDrop` container surround it.
 #[no_mangle]
-pub extern "C" fn pax_dealloc_engine(_container: *mut PaxEngineContainer) {
-    //particularly for when we need to support elegant clean-up from attached harness
-    unimplemented!();
+pub extern "C" fn pax_dealloc_engine(container: *mut PaxEngineContainer) {
+    if container.is_null() {
+        return;
+    }
+
+    unsafe {
+        let container = Box::from_raw(container);
+        if !container._engine.is_null() {
+            drop(Box::from_raw(container._engine));
+        }
+        #[cfg(target_os = "ios")]
+        if !container._render_context.is_null() {
+            drop(Box::from_raw(container._render_context));
+        }
+    }
 }
 
 /// Send `interrupt`s from the chassis, for example: user input
@@ -134,11 +420,8 @@ pub extern "C" fn pax_interrupt(
     buffer: *const InterruptBuffer,
 ) {
     let engine = unsafe { Box::from_raw((*engine_container)._engine) };
-    // let slice = unsafe { buffer.as_ref().unwrap() };
 
-    let length: u64 = unsafe {
-        (*buffer).length.try_into().unwrap() // length negative or overflowed
-    };
+    let length: u64 = unsafe { (*buffer).length.try_into().unwrap() };
 
     let slice = unsafe {
         if (*buffer).data_ptr.is_null() {
@@ -174,7 +457,7 @@ pub extern "C" fn pax_interrupt(
             let modifiers = args
                 .modifiers
                 .iter()
-                .map(|x| ModifierKey::from(x))
+                .map(ModifierKey::from)
                 .collect();
             let args_click = Click {
                 mouse: MouseEventArgs {
@@ -184,11 +467,7 @@ pub extern "C" fn pax_interrupt(
                     modifiers,
                 },
             };
-            topmost_node.dispatch_click(
-                Event::new(args_click),
-                &globals,
-                &engine.runtime_context,
-            );
+            topmost_node.dispatch_click(Event::new(args_click), &globals, &engine.runtime_context);
         }
         NativeInterrupt::FormRadioSetChange(args) => {
             let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
@@ -209,7 +488,8 @@ pub extern "C" fn pax_interrupt(
             }
         }
         NativeInterrupt::FormButtonClick(args) => {
-            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id)) {
+            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+            {
                 node.dispatch_button_click(
                     Event::new(ButtonClick {}),
                     &globals,
@@ -218,17 +498,20 @@ pub extern "C" fn pax_interrupt(
             }
         }
         NativeInterrupt::FormTextboxInput(args) => {
-            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id)) {
+            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+            {
                 borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
             }
         }
         NativeInterrupt::TextInput(args) => {
-            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id)) {
+            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+            {
                 borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
             }
         }
         NativeInterrupt::FormTextboxChange(args) => {
-            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id)) {
+            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+            {
                 node.dispatch_textbox_change(
                     Event::new(TextboxChange {
                         text: args.text.clone(),
@@ -239,15 +522,44 @@ pub extern "C" fn pax_interrupt(
             }
         }
         NativeInterrupt::FormCheckboxToggle(args) => {
-            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id)) {
+            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+            {
                 borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
             }
         }
         NativeInterrupt::Scrollbar(_args) => {}
         NativeInterrupt::Scroll(_args) => {}
         NativeInterrupt::Image(args) => match args {
-            ImageLoadInterruptArgs::Reference(_ref_args) => {}
-            ImageLoadInterruptArgs::Data(_) => {}
+            ImageLoadInterruptArgs::Reference(_ref_args) => {
+                #[cfg(target_os = "ios")]
+                {
+                    let ref_args = _ref_args;
+                    let Some(render_context) = (unsafe { (*engine_container)._render_context.as_mut() })
+                    else {
+                        unsafe { (*engine_container)._engine = Box::into_raw(engine) };
+                        return;
+                    };
+                    let identifier = if ref_args.path.is_empty() {
+                        format!("image-{}", ref_args.id)
+                    } else {
+                        ref_args.path.clone()
+                    };
+                    let image_data = unsafe {
+                        std::slice::from_raw_parts(
+                            ref_args.image_data as *const u8,
+                            ref_args.image_data_length,
+                        )
+                    };
+                    render_context.load_image(
+                        &identifier,
+                        image_data,
+                        ref_args.width,
+                        ref_args.height,
+                    );
+                    engine.runtime_context.set_all_canvases_dirty();
+                }
+            }
+            ImageLoadInterruptArgs::Data(_args) => {}
         },
         NativeInterrupt::AddedLayer(_args) => {}
         _ => {}
@@ -262,49 +574,69 @@ pub extern "C" fn pax_interrupt(
 #[no_mangle] //Exposed to Swift via PaxCartridge.h
 pub extern "C" fn pax_tick(
     engine_container: *mut PaxEngineContainer,
-    cgContext: *mut c_void,
+    render_target: *mut c_void,
     width: f32,
     height: f32,
 ) -> *mut NativeMessageQueue {
-    // note that f32 is essentially `CFloat`, per: https://doc.rust-lang.org/std/os/raw/type.c_float.html
     let mut engine = unsafe { Box::from_raw((*engine_container)._engine) };
 
-    let will_cast_cgContext = cgContext as *mut CGContext;
-    let ctx = unsafe { &mut *will_cast_cgContext };
+    engine.set_viewport_size((width as f64, height as f64));
+    let messages = engine.tick();
 
-    (*engine).set_viewport_size((width as f64, height as f64));
-    let messages = (*engine).tick();
+    #[cfg(target_os = "ios")]
+    {
+        if width > 0.0 && height > 0.0 && !render_target.is_null() {
+            let container = unsafe { &mut *engine_container };
+            let should_recreate =
+                container._render_context.is_null() || container._render_target != render_target;
 
-    // Native Apple chassis currently composites all vector layers into a single CoreGraphics
-    // surface. Mirror the runtime's canvas bookkeeping so vector primitives render at all, even
-    // though true multi-surface compositing is still future work.
-    let max_native_layer = engine.runtime_context.layer_count.get();
-    engine.runtime_context.add_canvas(max_native_layer);
+            if should_recreate {
+                if !container._render_context.is_null() {
+                    unsafe { drop(Box::from_raw(container._render_context)) };
+                    container._render_context = std::ptr::null_mut();
+                }
+                match AppleRenderContext::new(render_target, width as usize, height as usize) {
+                    Ok(render_context) => {
+                        container._render_context = Box::into_raw(Box::new(render_context));
+                        container._render_target = render_target;
+                        engine.runtime_context.set_all_canvases_dirty();
+                    }
+                    Err(err) => {
+                        eprintln!("failed to initialize iOS gpu render context: {err}");
+                    }
+                }
+            } else if let Some(render_context) = unsafe { container._render_context.as_mut() } {
+                if render_context.resize_if_needed(width as usize, height as usize) {
+                    engine.runtime_context.set_all_canvases_dirty();
+                }
+            }
 
-    let mut render_context =
-        AppleRenderContext::new(CoreGraphicsContext::new_y_up(ctx, height as f64, None));
-    engine.render(&mut render_context as &mut dyn RenderContext);
-    engine.runtime_context.clear_all_dirty_canvases();
+            let should_redraw_all = engine
+                .runtime_context
+                .dirty_canvases
+                .borrow()
+                .iter()
+                .any(|dirty| *dirty);
+            if should_redraw_all {
+                engine.runtime_context.set_all_canvases_dirty();
+            }
 
-    let wrapped_queue = MessageQueue { messages };
-    let mut serializer = flexbuffers::FlexbufferSerializer::new();
+            if let Some(render_context) = unsafe { container._render_context.as_mut() } {
+                engine.render(render_context as &mut dyn RenderContext);
+            }
+        }
+    }
 
-    //side-effectfully serialize, mutating `serializer`
-    wrapped_queue.serialize(&mut serializer).unwrap();
+    #[cfg(not(target_os = "ios"))]
+    {
+        let will_cast_cgContext = render_target as *mut CGContext;
+        let ctx = unsafe { &mut *will_cast_cgContext };
+        let mut render_context =
+            AppleRenderContext::new(CoreGraphicsContext::new_y_up(ctx, height as f64, None));
+        engine.render(&mut render_context as &mut dyn RenderContext);
+    }
 
-    let data_buffer = serializer.take_buffer();
-    let length = data_buffer.len();
-
-    let leaked_data: ManuallyDrop<Box<[u8]>> = ManuallyDrop::new(data_buffer.into_boxed_slice());
-
-    let queue_container = unsafe {
-        transmute(Box::new(NativeMessageQueue {
-            data_ptr: Box::into_raw(ManuallyDrop::into_inner(leaked_data)),
-            length: length as u64,
-        }))
-    };
-
-    //`Box::into_raw` is our necessary manual clean-up, acting as a trigger to drop all of the RefCell::borrow_mut's throughout the tick lifecycle
+    let queue_container = serialize_message_queue(messages);
     unsafe { (*engine_container)._engine = Box::into_raw(engine) };
 
     queue_container

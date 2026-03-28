@@ -14,6 +14,7 @@ pub struct StencilRenderer {
     stencil_geometry_stack: Vec<VertexBuffers<Vertex, u16>>,
     width: u32,
     height: u32,
+    sample_count: u32,
     stencil_bind_group: wgpu::BindGroup,
     _stencil_bind_group_layout: wgpu::BindGroupLayout,
 }
@@ -25,7 +26,13 @@ pub struct Vertex {
 }
 
 impl StencilRenderer {
-    pub fn new(device: &Device, width: u32, height: u32, globals: &wgpu::Buffer) -> Self {
+    pub fn new(
+        device: &Device,
+        width: u32,
+        height: u32,
+        sample_count: u32,
+        globals: &wgpu::Buffer,
+    ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Stencil Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("stencil.wgsl").into()),
@@ -107,7 +114,10 @@ impl StencilRenderer {
                 },
                 bias: Default::default(),
             }),
-            multisample: wgpu::MultisampleState::default(),
+            multisample: wgpu::MultisampleState {
+                count: sample_count,
+                ..Default::default()
+            },
             multiview: None,
             cache: None,
         });
@@ -158,7 +168,10 @@ impl StencilRenderer {
                 },
                 bias: Default::default(),
             }),
-            multisample: wgpu::MultisampleState::default(),
+            multisample: wgpu::MultisampleState {
+                count: sample_count,
+                ..Default::default()
+            },
             multiview: None,
             cache: None,
         });
@@ -179,7 +192,8 @@ impl StencilRenderer {
             usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
         });
 
-        let (stencil_texture, stencil_view) = Self::create_stencil_texture(device, width, height);
+        let (stencil_texture, stencil_view) =
+            Self::create_stencil_texture(device, width, height, sample_count);
 
         Self {
             stencil_pipeline,
@@ -190,6 +204,7 @@ impl StencilRenderer {
             stencil_view,
             width,
             height,
+            sample_count,
             stencil_layer: 0,
             stencil_geometry_stack: vec![],
             stencil_bind_group,
@@ -201,6 +216,7 @@ impl StencilRenderer {
         device: &Device,
         width: u32,
         height: u32,
+        sample_count: u32,
     ) -> (wgpu::Texture, wgpu::TextureView) {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Stencil Texture"),
@@ -210,7 +226,7 @@ impl StencilRenderer {
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
-            sample_count: 1,
+            sample_count,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Stencil8,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
@@ -227,7 +243,7 @@ impl StencilRenderer {
         }
 
         (self.stencil_texture, self.stencil_view) =
-            Self::create_stencil_texture(device, width, height);
+            Self::create_stencil_texture(device, width, height, self.sample_count);
         self.width = width;
         self.height = height;
     }

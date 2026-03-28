@@ -1,8 +1,8 @@
-fn _create_multisampled_framebuffer(
+pub(crate) fn create_multisampled_framebuffer(
     device: &wgpu::Device,
     desc: &wgpu::SurfaceConfiguration,
     sample_count: u32,
-) -> wgpu::TextureView {
+) -> (wgpu::Texture, wgpu::TextureView) {
     let multisampled_frame_descriptor = &wgpu::TextureDescriptor {
         label: Some("Multisampled frame descriptor"),
         size: wgpu::Extent3d {
@@ -18,7 +18,7 @@ fn _create_multisampled_framebuffer(
         view_formats: &[desc.format],
     };
 
-    device
-        .create_texture(multisampled_frame_descriptor)
-        .create_view(&wgpu::TextureViewDescriptor::default())
+    let texture = device.create_texture(multisampled_frame_descriptor);
+    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+    (texture, view)
 }

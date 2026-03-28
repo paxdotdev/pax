@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Foundation
+import QuartzCore
 import FlexBuffers
 import Messages
 import Rendering
@@ -128,6 +129,9 @@ struct PaxViewIos: View {
 
 
     class PaxCanvasViewIos: UIView {
+        override class var layerClass: AnyClass {
+            CAMetalLayer.self
+        }
 
         let textElements = TextElements.singleton
         let frameElements = FrameElements.singleton
@@ -142,21 +146,26 @@ struct PaxViewIos: View {
         let eventBlockerElements = EventBlockerElements.singleton
         private var displayLink: CADisplayLink?
 
+        private var metalLayer: CAMetalLayer {
+            layer as! CAMetalLayer
+        }
+
         override init(frame: CGRect) {
             super.init(frame: frame)
-             createDisplayLink()
+            configureMetalLayer()
+            createDisplayLink()
         }
 
         required init?(coder: NSCoder) {
             super.init(coder: coder)
-             createDisplayLink()
+            configureMetalLayer()
+            createDisplayLink()
         }
 
 
         private var requestAnimationFrameQueue: [() -> Void] = []
 
         private func processRequestAnimationFrameQueue() {
-            // Execute and remove each closure in the array
             while !requestAnimationFrameQueue.isEmpty {
                 let closure = requestAnimationFrameQueue.removeFirst()
                 closure()
@@ -166,7 +175,21 @@ struct PaxViewIos: View {
         func requestAnimationFrame(_ closure: @escaping () -> Void) {
             requestAnimationFrameQueue.append(closure)
         }
-        
+
+        private func configureMetalLayer() {
+            isOpaque = false
+            contentScaleFactor = 1.0
+            metalLayer.contentsScale = 1.0
+            metalLayer.framebufferOnly = false
+            metalLayer.isOpaque = false
+            metalLayer.presentsWithTransaction = false
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            metalLayer.frame = bounds
+            metalLayer.drawableSize = bounds.size
+        }
 
         private func createDisplayLink() {
             displayLink = CADisplayLink(target: self, selector: #selector(handleDisplayLink))
@@ -175,44 +198,37 @@ struct PaxViewIos: View {
 
         @objc private func handleDisplayLink() {
             DispatchQueue.main.async {
-                self.setNeedsDisplay()
                 self.processRequestAnimationFrameQueue()
+                self.tick()
             }
         }
 
         deinit {
             displayLink?.invalidate()
         }
-        
-        override func draw(_ rect: CGRect) {
-            super.draw(rect)
-            guard let cgContext = UIGraphicsGetCurrentContext() else { return }
-            
-            // Apply affine transform to cgContext to emulate macOS's "y-up" coordinate space.
-            cgContext.translateBy(x: 0, y: rect.height) // Move the origin to the bottom-left
-            cgContext.scaleBy(x: 1.0, y: -1.0) // Reflect over x axis
+
+        private func tick() {
+            guard bounds.width > 0, bounds.height > 0 else {
+                return
+            }
 
             if PaxEngineContainer.paxEngineContainer == nil {
                 PaxEngineContainer.paxEngineContainer = pax_init()
-            } else {
-                guard var mutableCGContext = UIGraphicsGetCurrentContext() else { return }
-                let nativeMessageQueue = pax_tick(PaxEngineContainer.paxEngineContainer!, &mutableCGContext, Float(rect.width), Float(rect.height))
-                processNativeMessageQueue(queue: nativeMessageQueue.unsafelyUnwrapped.pointee)
-                pax_dealloc_message_queue(nativeMessageQueue)
             }
 
-            if currentTickWorkItem != nil {
-                currentTickWorkItem!.cancel()
+            guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
+                return
             }
 
-            currentTickWorkItem = DispatchWorkItem {
-                self.setNeedsDisplay(rect)
-                self.setNeedsLayout()
-            }
-
+            let nativeMessageQueue = pax_tick(
+                engineContainer,
+                Unmanaged.passUnretained(metalLayer).toOpaque(),
+                Float(bounds.width),
+                Float(bounds.height)
+            )
+            processNativeMessageQueue(queue: nativeMessageQueue.unsafelyUnwrapped.pointee)
+            pax_dealloc_message_queue(nativeMessageQueue)
         }
-        
-        var currentTickWorkItem : DispatchWorkItem? = nil
 
         private func sendChassisResizeRequest(id: PaxNodeId, size: CGSize) {
             dispatchChassisResizeRequest(id: id, width: Double(size.width), height: Double(size.height))
@@ -557,6 +573,7 @@ struct PaxViewIos: View {
                     builder.addMapWithStringKey("Image") { imageBuilder in
                         imageBuilder.addMapWithStringKey("Reference") { referenceBuilder in
                             referenceBuilder.addWithStringKey("id", UInt(patch.id))
+                            referenceBuilder.addStringWithStringKey("path", fullPatchPath)
                             referenceBuilder.addWithStringKey("image_data", raw_pointer_uint)
                             referenceBuilder.addWithStringKey("image_data_length", UInt(totalBytes))
                             referenceBuilder.addWithStringKey("width", UInt(width))

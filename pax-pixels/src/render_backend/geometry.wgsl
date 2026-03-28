@@ -131,38 +131,59 @@ fn gradient(fill_id: u32, coord: vec2<f32>) -> vec4<f32> {
     let n = g_a / m_a_l;
     let color_space = dot(p_t, n);
 
-    let s1 = gradient.stops_set1;
-    let s2 = gradient.stops_set2;
-    let stops = array<f32, 8>(s1[0], s1[1], s1[2], s1[3], s2[0], s2[1], s2[2], s2[3]);
-    
     // Find the appropriate stop segment
     var left_idx = 0u;
     var right_idx = 1u;
     
     // Handle edge cases first
-    if color_space <= stops[0] {
-        return gradient.colors[0];
+    if color_space <= gradient_stop(gradient, 0u) {
+        return gradient_color(gradient, 0u);
     }
-    if color_space >= stops[gradient.stop_count - 1u] {
-        return gradient.colors[gradient.stop_count - 1u];
+    if color_space >= gradient_stop(gradient, gradient.stop_count - 1u) {
+        return gradient_color(gradient, gradient.stop_count - 1u);
     }
 
     // Find the segment using a fixed loop
     for (var i = 0u; i < 7u; i++) {
         if i >= gradient.stop_count - 1u { break; }
-        if stops[i + 1u] > color_space {
+        if gradient_stop(gradient, i + 1u) > color_space {
             left_idx = i;
             right_idx = i + 1u;
             break;
         }
     }
 
-    let left_stop = stops[left_idx];
-    let right_stop = stops[right_idx];
-    let left_col = gradient.colors[left_idx];
-    let right_col = gradient.colors[right_idx];
+    let left_stop = gradient_stop(gradient, left_idx);
+    let right_stop = gradient_stop(gradient, right_idx);
+    let left_col = gradient_color(gradient, left_idx);
+    let right_col = gradient_color(gradient, right_idx);
     
     let t = (color_space - left_stop) / (right_stop - left_stop);
     return mix(left_col, right_col, t);
 }
 
+fn gradient_stop(gradient: Gradient, index: u32) -> f32 {
+    switch index {
+        case 0u: { return gradient.stops_set1[0]; }
+        case 1u: { return gradient.stops_set1[1]; }
+        case 2u: { return gradient.stops_set1[2]; }
+        case 3u: { return gradient.stops_set1[3]; }
+        case 4u: { return gradient.stops_set2[0]; }
+        case 5u: { return gradient.stops_set2[1]; }
+        case 6u: { return gradient.stops_set2[2]; }
+        default: { return gradient.stops_set2[3]; }
+    }
+}
+
+fn gradient_color(gradient: Gradient, index: u32) -> vec4<f32> {
+    switch index {
+        case 0u: { return gradient.colors[0]; }
+        case 1u: { return gradient.colors[1]; }
+        case 2u: { return gradient.colors[2]; }
+        case 3u: { return gradient.colors[3]; }
+        case 4u: { return gradient.colors[4]; }
+        case 5u: { return gradient.colors[5]; }
+        case 6u: { return gradient.colors[6]; }
+        default: { return gradient.colors[7]; }
+    }
+}

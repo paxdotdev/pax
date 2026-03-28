@@ -21,8 +21,7 @@ pub struct TextureRenderer {
 }
 
 impl TextureRenderer {
-    pub fn new(device: &wgpu::Device) -> Self {
-        const TEXTURE_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
+    pub fn new(device: &wgpu::Device, target_format: TextureFormat, sample_count: u32) -> Self {
         let texture_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Texture Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("textures.wgsl").into()),
@@ -80,7 +79,7 @@ impl TextureRenderer {
                 module: &texture_shader,
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: TEXTURE_FORMAT,
+                    format: target_format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -113,7 +112,7 @@ impl TextureRenderer {
                 bias: Default::default(),
             }),
             multisample: wgpu::MultisampleState {
-                count: 1,
+                count: sample_count,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
@@ -156,8 +155,10 @@ impl TextureRenderer {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         target: &wgpu::TextureView,
+        resolve_target: Option<&wgpu::TextureView>,
         globals: &wgpu::Buffer,
         stencil_renderer: &StencilRenderer,
+        clear_target: bool,
         rgba: &[u8],
         rgba_width: u32,
         transform: Transform2D,
@@ -247,10 +248,19 @@ impl TextureRenderer {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Texture Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &target,
-                    resolve_target: None,
+                    view: target,
+                    resolve_target,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
+                        load: if clear_target {
+                            wgpu::LoadOp::Clear(wgpu::Color {
+                                r: 0.0,
+                                g: 0.0,
+                                b: 0.0,
+                                a: 0.0,
+                            })
+                        } else {
+                            wgpu::LoadOp::Load
+                        },
                         store: wgpu::StoreOp::Store,
                     },
                 })],
