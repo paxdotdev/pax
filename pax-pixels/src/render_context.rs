@@ -33,6 +33,8 @@ use crate::render_backend::RenderBackend;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
+const DEFAULT_TESSELLATION_TOLERANCE: f32 = 0.1;
+
 pub struct WgpuRenderer<'w> {
     render_backend: RenderBackend<'w>,
     scene: HashMap<u32, RetainedNode>,
@@ -56,7 +58,7 @@ impl<'w> WgpuRenderer<'w> {
     pub fn new(render_backend: RenderBackend<'w>) -> Self {
         Self {
             render_backend,
-            tolerance: 0.5, //TODO expose as option
+            tolerance: DEFAULT_TESSELLATION_TOLERANCE, // TODO expose as option
             scene: HashMap::new(),
             sorted_nodes: Vec::new(),
             order_dirty: false,

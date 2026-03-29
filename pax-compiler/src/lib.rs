@@ -57,6 +57,8 @@ pub struct RunContext {
     pub process_child_ids: Arc<Mutex<Vec<u64>>>,
     pub should_run_designer: bool,
     pub is_release: bool,
+    pub ios_device: Option<String>,
+    pub ios_development_team: Option<String>,
 }
 
 #[derive(PartialEq)]

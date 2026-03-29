@@ -231,6 +231,8 @@ fn create_designer_run_context() -> RunContext {
         should_run_designer: true,
         process_child_ids: Arc::new(Mutex::new(vec![])),
         is_release: false,
+        ios_device: None,
+        ios_development_team: None,
     }
 }
 

@@ -68,6 +68,18 @@ fn main() -> Result<(), Report> {
         .help("Runs project directly without wrapping in designer & designtime.");
 
     #[allow(non_snake_case)]
+    let ARG_IOS_DEVICE = Arg::with_name("ios-device")
+        .long("ios-device")
+        .takes_value(true)
+        .help("Select the iOS destination. Use `simulator` (default for `run`), `device`, `simulator:<name-or-udid>`, `device:<name-or-udid>`, or an exact device name/UDID.");
+
+    #[allow(non_snake_case)]
+    let ARG_IOS_DEVELOPMENT_TEAM = Arg::with_name("ios-development-team")
+        .long("ios-development-team")
+        .takes_value(true)
+        .help("Set the Apple Development Team ID for iOS device builds, e.g. `TWM39MH96F`.");
+
+    #[allow(non_snake_case)]
     let ARG_DESIGNER = Arg::with_name("designer")
         .long("designer")
         .takes_value(false)
@@ -93,6 +105,8 @@ fn main() -> Result<(), Report> {
                 .arg( ARG_PATH.clone() )
                 .arg( ARG_NO_DESIGNER.clone() )
                 .arg( ARG_TARGET.clone() )
+                .arg( ARG_IOS_DEVICE.clone() )
+                .arg( ARG_IOS_DEVELOPMENT_TEAM.clone() )
                 .arg( ARG_VERBOSE.clone() )
                 .arg( ARG_LIBDEV.clone() )
         )
@@ -101,6 +115,8 @@ fn main() -> Result<(), Report> {
                 .about("Builds the Pax project from the current working directory into a platform-specific executable, for the specific `target` platform.")
                 .arg( ARG_PATH.clone() )
                 .arg( ARG_TARGET.clone() )
+                .arg( ARG_IOS_DEVICE.clone() )
+                .arg( ARG_IOS_DEVELOPMENT_TEAM.clone() )
                 .arg( ARG_DESIGNER.clone() )
                 .arg( ARG_VERBOSE.clone() )
                 .arg( ARG_LIBDEV.clone() )
@@ -185,6 +201,10 @@ fn perform_nominal_action(
             let verbose = args.is_present("verbose");
             let is_libdev_mode = args.is_present("libdev");
             let should_run_designer = !args.is_present("no-designer");
+            let ios_device = args.value_of("ios-device").map(str::to_string);
+            let ios_development_team = args
+                .value_of("ios-development-team")
+                .map(str::to_string);
 
             let _ = pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
@@ -195,6 +215,8 @@ fn perform_nominal_action(
                 process_child_ids,
                 should_run_designer,
                 is_release: false,
+                ios_device,
+                ios_development_team,
             })?;
 
             Ok(())
@@ -206,6 +228,10 @@ fn perform_nominal_action(
             let should_run_designer = args.is_present("designer");
             let is_libdev_mode = args.is_present("libdev");
             let is_release = args.is_present("release");
+            let ios_device = args.value_of("ios-device").map(str::to_string);
+            let ios_development_team = args
+                .value_of("ios-development-team")
+                .map(str::to_string);
 
             let _ = pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
@@ -216,6 +242,8 @@ fn perform_nominal_action(
                 is_libdev_mode,
                 process_child_ids,
                 is_release,
+                ios_device,
+                ios_development_team,
             })?;
 
             Ok(())
@@ -255,6 +283,8 @@ fn perform_nominal_action(
                 is_libdev_mode,
                 process_child_ids,
                 is_release: false,
+                ios_device: None,
+                ios_development_team: None,
             })?;
 
             Ok(())

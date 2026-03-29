@@ -7,6 +7,8 @@ use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, 
 use_RefCell!();
 use std::rc::Rc;
 
+const ELLIPSE_PATH_ACCURACY: f64 = 0.01;
+
 /// A basic 2D vector ellipse
 #[pax]
 #[engine_import_path("pax_engine")]
@@ -89,8 +91,7 @@ impl InstanceNode for EllipseInstance {
         expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
             let rect = Rect::from_points((0.0, 0.0), (width, height));
             let ellipse = kurbo::Ellipse::from_rect(rect);
-            let accuracy = 0.1;
-            let bez_path = ellipse.to_path(accuracy);
+            let bez_path = ellipse.to_path(ELLIPSE_PATH_ACCURACY);
             rc.save(layer_id);
             rc.transform(layer_id, tab.transform.into());
             rc.fill(layer_id, bez_path.clone(), &properties.fill.get());

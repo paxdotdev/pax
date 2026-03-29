@@ -39,6 +39,30 @@ enum SimulatorVariantRank {
     Pro = 3,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum IosDeviceKind {
+    Simulator,
+    Physical,
+}
+
+#[derive(Clone)]
+struct ResolvedIosDevice {
+    kind: IosDeviceKind,
+    name: String,
+    identifier: String,
+}
+
+struct SimulatorDevice {
+    name: String,
+    udid: String,
+    state: String,
+}
+
+struct PhysicalDevice {
+    name: String,
+    identifier: String,
+}
+
 pub fn build_apple_project_with_cartridge(
     ctx: &RunContext,
     pax_dir: &PathBuf,
@@ -55,6 +79,12 @@ pub fn build_apple_project_with_cartridge(
         true
     } else {
         false
+    };
+
+    let resolved_ios_device = if is_ios && (ctx.should_also_run || ctx.ios_device.is_some()) {
+        Some(resolve_ios_device(ctx.ios_device.as_deref(), &process_child_ids)?)
+    } else {
+        None
     };
 
     let build_mode_name: &str = if is_release { "release" } else { "debug" };
@@ -422,8 +452,13 @@ Note that the temporary directories mentioned above are subject to overwriting.\
     let _ = fs::create_dir_all(&derived_data_path);
     let _ = fs::create_dir_all(&source_packages_path);
 
+    let build_for_physical_device = matches!(
+        resolved_ios_device.as_ref().map(|device| device.kind),
+        Some(IosDeviceKind::Physical)
+    );
+
     let sdk = if let RunTarget::iOS = target {
-        if is_release {
+        if build_for_physical_device || (is_release && resolved_ios_device.is_none()) {
             "iphoneos"
         } else {
             "iphonesimulator"
@@ -453,9 +488,21 @@ Note that the temporary directories mentioned above are subject to overwriting.\
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::piped());
 
-    if !is_release {
+    if let Some(device) = resolved_ios_device.as_ref() {
+        cmd.arg("-destination")
+            .arg(format!("id={}", device.identifier));
+    }
+
+    if !is_release && !build_for_physical_device {
         cmd.arg("CODE_SIGNING_REQUIRED=NO")
             .arg("CODE_SIGN_IDENTITY=");
+    } else if build_for_physical_device {
+        cmd.arg("-allowProvisioningUpdates")
+            .arg("-allowProvisioningDeviceRegistration");
+    }
+
+    if let Some(team_id) = ctx.ios_development_team.as_deref() {
+        cmd.arg(format!("DEVELOPMENT_TEAM={team_id}"));
     }
 
     if !ctx.verbose {
@@ -499,6 +546,16 @@ Note that the temporary directories mentioned above are subject to overwriting.\
     }
 
     if !output.status.success() {
+        if build_for_physical_device && stderr.contains("Developer Mode disabled") {
+            let device_name = resolved_ios_device
+                .as_ref()
+                .map(|device| device.name.as_str())
+                .unwrap_or("the selected device");
+            return Err(eyre!(
+                "Xcode can see `{}`, but Developer Mode is disabled. Enable Developer Mode on the phone, restart it if prompted, reconnect/trust it, and run again.",
+                device_name
+            ));
+        }
         return Err(eyre!("Failed to build project with xcodebuild. Aborting."));
     }
 
@@ -575,216 +632,26 @@ Note that the temporary directories mentioned above are subject to overwriting.\
             //
             // Handle iOS `run`
             //
+            let device = resolved_ios_device
+                .as_ref()
+                .ok_or_else(|| eyre!("Missing resolved iOS target device."))?;
 
-            // Get list of devices
-            let mut cmd = Command::new("xcrun");
-            cmd.arg("simctl")
-                .arg("list")
-                .arg("-j")
-                .arg("devices")
-                .arg("available")
-                .stdout(std::process::Stdio::piped());
-
-            #[cfg(unix)]
-            unsafe {
-                cmd.pre_exec(crate::pre_exec_hook);
+            match device.kind {
+                IosDeviceKind::Simulator => run_on_simulator(
+                    &device.identifier,
+                    &device.name,
+                    &executable_output_dir_path,
+                    &executable_dot_app_path,
+                    &process_child_ids,
+                )?,
+                IosDeviceKind::Physical => run_on_physical_device(
+                    &device.identifier,
+                    &device.name,
+                    &executable_output_dir_path,
+                    &executable_dot_app_path,
+                    &process_child_ids,
+                )?,
             }
-            let child = cmd.spawn().expect(ERR_SPAWN);
-            let output = wait_with_output(&process_child_ids, child);
-            let output_str = std::str::from_utf8(&output.stdout)
-                .map_err(|_| eyre!("Failed to parse stdout for xcrun"))?;
-            let parsed: Value = serde_json::from_str(&output_str)
-                .map_err(|_| eyre!("Failed to deserialize xcrun."))?;
-
-            // Extract devices
-            let devices = parsed["devices"].as_object().ok_or_else(|| {
-                return eyre!("Invalid JSON format for devices.");
-            })?;
-
-            let mut best_choice: Option<(i32, SimulatorVariantRank, &str)> = None;
-
-            for (_, device_list) in devices {
-                if let Some(device_array) = device_list.as_array() {
-                    for device in device_array {
-                        let Some(name) = device["name"].as_str() else {
-                            continue;
-                        };
-                        let Some((generation, variant_rank)) =
-                            parse_iphone_simulator_preference(name)
-                        else {
-                            continue;
-                        };
-                        let Some(udid) = device["udid"].as_str() else {
-                            continue;
-                        };
-
-                        let candidate = (generation, variant_rank, udid);
-                        if best_choice
-                            .map(|best| candidate > best)
-                            .unwrap_or(true)
-                        {
-                            best_choice = Some(candidate);
-                        }
-                    }
-                }
-            }
-
-            let device_udid = match best_choice {
-                Some((_, _, udid)) => udid,
-                None => {
-                    return Err(eyre!("No installed iOS simulators found on this system. Install at least one iPhone simulator through xcode and try again."));
-                }
-            };
-
-            for (_, device_list) in devices {
-                if let Some(device_array) = device_list.as_array() {
-                    for device in device_array {
-                        let Some(udid) = device["udid"].as_str() else {
-                            continue;
-                        };
-                        let is_booted =
-                            device["state"].as_str().map(|state| state == "Booted").unwrap_or(false);
-                        if is_booted && udid != device_udid {
-                            let mut cmd = Command::new("xcrun");
-                            cmd.arg("simctl")
-                                .arg("shutdown")
-                                .arg(udid)
-                                .stdout(std::process::Stdio::null())
-                                .stderr(std::process::Stdio::null());
-
-                            #[cfg(unix)]
-                            unsafe {
-                                cmd.pre_exec(crate::pre_exec_hook);
-                            }
-
-                            let child = cmd.spawn().expect(ERR_SPAWN);
-                            let _ = wait_with_output(&process_child_ids, child);
-                        }
-                    }
-                }
-            }
-
-            // Open the Simulator app
-            let mut cmd = Command::new("open");
-            cmd.arg("-a")
-                .arg("Simulator")
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped());
-
-            #[cfg(unix)]
-            unsafe {
-                cmd.pre_exec(crate::pre_exec_hook);
-            }
-            let child = cmd.spawn().expect(ERR_SPAWN);
-            let output = wait_with_output(&process_child_ids, child);
-            if !output.status.success() {
-                return Err(eyre!("Error opening iOS simulator. Aborting."));
-            }
-
-            // Boot current device
-            let mut cmd = Command::new("xcrun");
-            cmd.arg("simctl")
-                .arg("boot")
-                .arg(device_udid)
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped());
-
-            #[cfg(unix)]
-            unsafe {
-                cmd.pre_exec(crate::pre_exec_hook);
-            }
-            let child = cmd.spawn().expect(ERR_SPAWN);
-            let _output = wait_with_output(&process_child_ids, child);
-
-            // Boot the relevant simulator
-            let mut cmd = Command::new("xcrun");
-            cmd.arg("simctl")
-                .arg("spawn")
-                .arg(device_udid)
-                .arg("launchctl")
-                .arg("print")
-                .arg("system")
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::inherit());
-
-            #[cfg(unix)]
-            unsafe {
-                cmd.pre_exec(crate::pre_exec_hook);
-            }
-            let child = cmd.spawn().expect(ERR_SPAWN);
-            let output = wait_with_output(&process_child_ids, child);
-            if !output.status.success() {
-                return Err(eyre!("Error spawning iOS simulator. Aborting."));
-            }
-            // ^ Note that we don't handle errors on this particular command; it will return an error by default
-            // if the simulator isn't running, which isn't an "error" for us.  Instead, defer to the following
-            // polling logic to decide whether the simulator failed to start, which would indeed be an error.
-
-            // After opening the simulator, wait for the simulator to be booted
-            let max_retries = 5;
-            let retry_period_secs = 5;
-            let mut retries = 0;
-
-            while !is_simulator_booted(device_udid, &process_child_ids) && retries < max_retries {
-                println!("{} 💤 Waiting for simulator to boot...", *PAX_BADGE);
-                std::thread::sleep(std::time::Duration::from_secs(retry_period_secs));
-                retries = retries + 1;
-            }
-
-            if retries == max_retries {
-                return Err(eyre!(
-                    "Failed to boot the simulator within the expected time. Aborting."
-                ));
-            }
-
-            // Install and run app on simulator
-            println!(
-                "{} 📤 Installing and running app from {} on simulator...",
-                *PAX_BADGE,
-                executable_output_dir_path.to_str().unwrap()
-            );
-
-            let mut cmd = Command::new("xcrun");
-            cmd.arg("simctl")
-                .arg("install")
-                .arg(device_udid)
-                .arg(executable_dot_app_path)
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped());
-
-            #[cfg(unix)]
-            unsafe {
-                cmd.pre_exec(crate::pre_exec_hook);
-            }
-            let child = cmd.spawn().expect(ERR_SPAWN);
-            let output = wait_with_output(&process_child_ids, child);
-            if !output.status.success() {
-                return Err(eyre!("Error installing app on iOS simulator. Aborting."));
-            }
-
-            let mut cmd = Command::new("xcrun");
-            cmd.arg("simctl")
-                .arg("launch")
-                .arg(device_udid)
-                .arg("dev.pax.pax-app-ios")
-                .stdout(std::process::Stdio::inherit())
-                .stderr(std::process::Stdio::inherit());
-
-            #[cfg(unix)]
-            unsafe {
-                cmd.pre_exec(crate::pre_exec_hook);
-            }
-            let child = cmd.spawn().expect(ERR_SPAWN);
-            let output = wait_with_output(&process_child_ids, child);
-            if !output.status.success() {
-                return Err(eyre!("Error launching app on iOS simulator. Aborting."));
-            }
-            let status = output.status.code().unwrap();
-
-            println!(
-                "{} 🚀 App launched on simulator. Launch command exited with code: {:?}",
-                *PAX_BADGE, status
-            );
         }
     } else {
         let build_path = executable_output_dir_path.to_str().unwrap().bold();
@@ -794,6 +661,529 @@ Note that the temporary directories mentioned above are subject to overwriting.\
         );
     }
     Ok(())
+}
+
+fn resolve_ios_device(
+    selector: Option<&str>,
+    process_child_ids: &Arc<Mutex<Vec<u64>>>,
+) -> Result<ResolvedIosDevice, eyre::Report> {
+    let selector = selector.map(str::trim).filter(|value| !value.is_empty());
+    let (kind_hint, query) = parse_ios_device_selector(selector);
+
+    match query {
+        None => match kind_hint.unwrap_or(IosDeviceKind::Simulator) {
+            IosDeviceKind::Simulator => choose_best_simulator(process_child_ids),
+            IosDeviceKind::Physical => choose_single_physical_device(process_child_ids),
+        },
+        Some(query) => resolve_named_ios_device(kind_hint, &query, process_child_ids),
+    }
+}
+
+fn parse_ios_device_selector(selector: Option<&str>) -> (Option<IosDeviceKind>, Option<String>) {
+    match selector {
+        None => (Some(IosDeviceKind::Simulator), None),
+        Some("simulator") => (Some(IosDeviceKind::Simulator), None),
+        Some("device") => (Some(IosDeviceKind::Physical), None),
+        Some(value) => {
+            if let Some(query) = value.strip_prefix("simulator:") {
+                (Some(IosDeviceKind::Simulator), Some(query.trim().to_string()))
+            } else if let Some(query) = value.strip_prefix("device:") {
+                (Some(IosDeviceKind::Physical), Some(query.trim().to_string()))
+            } else {
+                (None, Some(value.to_string()))
+            }
+        }
+    }
+}
+
+fn choose_best_simulator(
+    process_child_ids: &Arc<Mutex<Vec<u64>>>,
+) -> Result<ResolvedIosDevice, eyre::Report> {
+    let simulators = list_available_ios_simulators(process_child_ids)?;
+    let mut best_choice: Option<(i32, SimulatorVariantRank, bool, &SimulatorDevice)> = None;
+
+    for simulator in &simulators {
+        let Some((generation, variant_rank)) = parse_iphone_simulator_preference(&simulator.name)
+        else {
+            continue;
+        };
+
+        let candidate = (
+            generation,
+            variant_rank,
+            simulator.state == "Booted",
+            simulator,
+        );
+        if best_choice
+            .as_ref()
+            .map(|best| candidate.0 > best.0
+                || (candidate.0 == best.0
+                    && (candidate.1 > best.1
+                        || (candidate.1 == best.1 && candidate.2 && !best.2))))
+            .unwrap_or(true)
+        {
+            best_choice = Some(candidate);
+        }
+    }
+
+    let Some((_, _, _, simulator)) = best_choice else {
+        return Err(eyre!(
+            "No installed iOS simulators found on this system. Install at least one iPhone simulator through Xcode and try again."
+        ));
+    };
+
+    Ok(ResolvedIosDevice {
+        kind: IosDeviceKind::Simulator,
+        name: simulator.name.clone(),
+        identifier: simulator.udid.clone(),
+    })
+}
+
+fn choose_single_physical_device(
+    process_child_ids: &Arc<Mutex<Vec<u64>>>,
+) -> Result<ResolvedIosDevice, eyre::Report> {
+    let devices = list_connected_physical_devices(process_child_ids)?;
+    match devices.as_slice() {
+        [] => Err(eyre!(
+            "No connected iOS devices found. Attach and trust a phone, or pass --ios-device=simulator."
+        )),
+        [device] => Ok(ResolvedIosDevice {
+            kind: IosDeviceKind::Physical,
+            name: device.name.clone(),
+            identifier: device.identifier.clone(),
+        }),
+        _ => Err(eyre!(
+            "Multiple physical iOS devices are connected: {}. Pass --ios-device=device:<name-or-udid> to choose one.",
+            devices
+                .iter()
+                .map(|device| format!("{} ({})", device.name, device.identifier))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )),
+    }
+}
+
+fn resolve_named_ios_device(
+    kind_hint: Option<IosDeviceKind>,
+    query: &str,
+    process_child_ids: &Arc<Mutex<Vec<u64>>>,
+) -> Result<ResolvedIosDevice, eyre::Report> {
+    let mut candidates = Vec::new();
+
+    if kind_hint != Some(IosDeviceKind::Physical) {
+        candidates.extend(
+            list_available_ios_simulators(process_child_ids)?
+                .into_iter()
+                .map(|simulator| ResolvedIosDevice {
+                    kind: IosDeviceKind::Simulator,
+                    name: simulator.name,
+                    identifier: simulator.udid,
+                }),
+        );
+    }
+
+    if kind_hint != Some(IosDeviceKind::Simulator) {
+        candidates.extend(
+            list_connected_physical_devices(process_child_ids)?
+                .into_iter()
+                .map(|device| ResolvedIosDevice {
+                    kind: IosDeviceKind::Physical,
+                    name: device.name,
+                    identifier: device.identifier,
+                }),
+        );
+    }
+
+    match_ios_device_query(query, candidates)
+}
+
+fn match_ios_device_query(
+    query: &str,
+    candidates: Vec<ResolvedIosDevice>,
+) -> Result<ResolvedIosDevice, eyre::Report> {
+    if candidates.is_empty() {
+        return Err(eyre!("No matching iOS destinations are available."));
+    }
+
+    let query_lower = query.to_ascii_lowercase();
+    for match_mode in [
+        MatchMode::IdentifierExact,
+        MatchMode::NameExact,
+        MatchMode::NameContains,
+    ] {
+        let matches = candidates
+            .iter()
+            .filter(|candidate| match_mode.matches(candidate, &query_lower))
+            .cloned()
+            .collect::<Vec<_>>();
+        match matches.as_slice() {
+            [] => continue,
+            [device] => return Ok(device.clone()),
+            _ => {
+                return Err(eyre!(
+                    "Ambiguous iOS destination `{}`. Matches: {}",
+                    query,
+                    matches
+                        .iter()
+                        .map(|device| format!("{} ({})", device.name, device.identifier))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
+        }
+    }
+
+    Err(eyre!(
+        "No iOS destination matched `{}`. Available destinations: {}",
+        query,
+        candidates
+            .iter()
+            .map(|device| format!("{} ({})", device.name, device.identifier))
+            .collect::<Vec<_>>()
+            .join(", ")
+    ))
+}
+
+fn list_available_ios_simulators(
+    process_child_ids: &Arc<Mutex<Vec<u64>>>,
+) -> Result<Vec<SimulatorDevice>, eyre::Report> {
+    let mut cmd = Command::new("xcrun");
+    cmd.arg("simctl")
+        .arg("list")
+        .arg("-j")
+        .arg("devices")
+        .arg("available")
+        .stdout(std::process::Stdio::piped());
+
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(crate::pre_exec_hook);
+    }
+    let child = cmd.spawn().expect(ERR_SPAWN);
+    let output = wait_with_output(process_child_ids, child);
+    let output_str = std::str::from_utf8(&output.stdout)
+        .map_err(|_| eyre!("Failed to parse stdout for xcrun simctl list devices"))?;
+    let parsed: Value = serde_json::from_str(output_str)
+        .map_err(|_| eyre!("Failed to deserialize xcrun simctl list devices JSON."))?;
+
+    let devices = parsed["devices"]
+        .as_object()
+        .ok_or_else(|| eyre!("Invalid JSON format for simulator devices."))?;
+
+    let mut simulators = Vec::new();
+    for device_list in devices.values() {
+        let Some(device_array) = device_list.as_array() else {
+            continue;
+        };
+        for device in device_array {
+            let Some(name) = device["name"].as_str() else {
+                continue;
+            };
+            let Some(udid) = device["udid"].as_str() else {
+                continue;
+            };
+            let Some(state) = device["state"].as_str() else {
+                continue;
+            };
+            simulators.push(SimulatorDevice {
+                name: name.to_string(),
+                udid: udid.to_string(),
+                state: state.to_string(),
+            });
+        }
+    }
+
+    Ok(simulators)
+}
+
+fn list_connected_physical_devices(
+    process_child_ids: &Arc<Mutex<Vec<u64>>>,
+) -> Result<Vec<PhysicalDevice>, eyre::Report> {
+    let mut cmd = Command::new("xcrun");
+    cmd.arg("xctrace")
+        .arg("list")
+        .arg("devices")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(crate::pre_exec_hook);
+    }
+    let child = cmd.spawn().expect(ERR_SPAWN);
+    let output = wait_with_output(process_child_ids, child);
+    if !output.status.success() {
+        return Err(eyre!("Failed to list connected iOS devices with xcrun xctrace."));
+    }
+
+    let output_str = std::str::from_utf8(&output.stdout)
+        .map_err(|_| eyre!("Failed to parse stdout for xcrun xctrace list devices"))?;
+
+    let mut in_devices_section = false;
+    let mut devices = Vec::new();
+
+    for line in output_str.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if line.starts_with("== ") && line.ends_with(" ==") {
+            in_devices_section = line == "== Devices ==";
+            continue;
+        }
+        if !in_devices_section {
+            continue;
+        }
+        let Some((name, identifier)) = parse_named_identifier_line(line) else {
+            continue;
+        };
+        devices.push(PhysicalDevice { name, identifier });
+    }
+
+    Ok(devices)
+}
+
+fn parse_named_identifier_line(line: &str) -> Option<(String, String)> {
+    let id_start = line.rfind(" (")?;
+    let id_end = line.strip_suffix(')')?;
+    let identifier = &id_end[id_start + 2..];
+    let prefix = &id_end[..id_start];
+    if !prefix.ends_with(')') {
+        return None;
+    }
+    let version_start = prefix.rfind(" (")?;
+    let version = &prefix[version_start + 2..prefix.len() - 1];
+    if !version.chars().any(|ch| ch.is_ascii_digit()) {
+        return None;
+    }
+    let name = prefix[..version_start].trim();
+    if name.is_empty() {
+        return None;
+    }
+    Some((name.to_string(), identifier.to_string()))
+}
+
+fn run_on_simulator(
+    device_udid: &str,
+    device_name: &str,
+    executable_output_dir_path: &PathBuf,
+    executable_dot_app_path: &PathBuf,
+    process_child_ids: &Arc<Mutex<Vec<u64>>>,
+) -> Result<(), eyre::Report> {
+    let simulators = list_available_ios_simulators(process_child_ids)?;
+    for simulator in simulators {
+        if simulator.state == "Booted" && simulator.udid != device_udid {
+            let mut cmd = Command::new("xcrun");
+            cmd.arg("simctl")
+                .arg("shutdown")
+                .arg(&simulator.udid)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null());
+
+            #[cfg(unix)]
+            unsafe {
+                cmd.pre_exec(crate::pre_exec_hook);
+            }
+
+            let child = cmd.spawn().expect(ERR_SPAWN);
+            let _ = wait_with_output(process_child_ids, child);
+        }
+    }
+
+    let mut cmd = Command::new("open");
+    cmd.arg("-a")
+        .arg("Simulator")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(crate::pre_exec_hook);
+    }
+    let child = cmd.spawn().expect(ERR_SPAWN);
+    let output = wait_with_output(process_child_ids, child);
+    if !output.status.success() {
+        return Err(eyre!("Error opening iOS simulator. Aborting."));
+    }
+
+    let mut cmd = Command::new("xcrun");
+    cmd.arg("simctl")
+        .arg("boot")
+        .arg(device_udid)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(crate::pre_exec_hook);
+    }
+    let child = cmd.spawn().expect(ERR_SPAWN);
+    let _ = wait_with_output(process_child_ids, child);
+
+    let mut cmd = Command::new("xcrun");
+    cmd.arg("simctl")
+        .arg("spawn")
+        .arg(device_udid)
+        .arg("launchctl")
+        .arg("print")
+        .arg("system")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::inherit());
+
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(crate::pre_exec_hook);
+    }
+    let child = cmd.spawn().expect(ERR_SPAWN);
+    let output = wait_with_output(process_child_ids, child);
+    if !output.status.success() {
+        return Err(eyre!("Error spawning iOS simulator. Aborting."));
+    }
+
+    let max_retries = 5;
+    let retry_period_secs = 5;
+    let mut retries = 0;
+
+    while !is_simulator_booted(device_udid, process_child_ids) && retries < max_retries {
+        println!("{} 💤 Waiting for simulator to boot...", *PAX_BADGE);
+        std::thread::sleep(std::time::Duration::from_secs(retry_period_secs));
+        retries += 1;
+    }
+
+    if retries == max_retries {
+        return Err(eyre!(
+            "Failed to boot the simulator within the expected time. Aborting."
+        ));
+    }
+
+    println!(
+        "{} 📤 Installing and running app from {} on simulator {}...",
+        *PAX_BADGE,
+        executable_output_dir_path.to_str().unwrap(),
+        device_name
+    );
+
+    let mut cmd = Command::new("xcrun");
+    cmd.arg("simctl")
+        .arg("install")
+        .arg(device_udid)
+        .arg(executable_dot_app_path)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(crate::pre_exec_hook);
+    }
+    let child = cmd.spawn().expect(ERR_SPAWN);
+    let output = wait_with_output(process_child_ids, child);
+    if !output.status.success() {
+        return Err(eyre!("Error installing app on iOS simulator. Aborting."));
+    }
+
+    let mut cmd = Command::new("xcrun");
+    cmd.arg("simctl")
+        .arg("launch")
+        .arg(device_udid)
+        .arg("dev.pax.pax-app-ios")
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit());
+
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(crate::pre_exec_hook);
+    }
+    let child = cmd.spawn().expect(ERR_SPAWN);
+    let output = wait_with_output(process_child_ids, child);
+    if !output.status.success() {
+        return Err(eyre!("Error launching app on iOS simulator. Aborting."));
+    }
+
+    println!(
+        "{} 🚀 App launched on simulator {}.",
+        *PAX_BADGE, device_name
+    );
+    Ok(())
+}
+
+fn run_on_physical_device(
+    device_identifier: &str,
+    device_name: &str,
+    executable_output_dir_path: &PathBuf,
+    executable_dot_app_path: &PathBuf,
+    process_child_ids: &Arc<Mutex<Vec<u64>>>,
+) -> Result<(), eyre::Report> {
+    println!(
+        "{} 📤 Installing and running app from {} on device {}...",
+        *PAX_BADGE,
+        executable_output_dir_path.to_str().unwrap(),
+        device_name
+    );
+
+    let mut cmd = Command::new("xcrun");
+    cmd.arg("devicectl")
+        .arg("device")
+        .arg("install")
+        .arg("app")
+        .arg("--device")
+        .arg(device_identifier)
+        .arg(executable_dot_app_path)
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit());
+
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(crate::pre_exec_hook);
+    }
+    let child = cmd.spawn().expect(ERR_SPAWN);
+    let output = wait_with_output(process_child_ids, child);
+    if !output.status.success() {
+        return Err(eyre!("Error installing app on physical iOS device. Aborting."));
+    }
+
+    let mut cmd = Command::new("xcrun");
+    cmd.arg("devicectl")
+        .arg("device")
+        .arg("process")
+        .arg("launch")
+        .arg("--device")
+        .arg(device_identifier)
+        .arg("--console")
+        .arg("--terminate-existing")
+        .arg("dev.pax.pax-app-ios")
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit());
+
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(crate::pre_exec_hook);
+    }
+    let child = cmd.spawn().expect(ERR_SPAWN);
+    let output = wait_with_output(process_child_ids, child);
+    if !output.status.success() {
+        return Err(eyre!("Error launching app on physical iOS device. Aborting."));
+    }
+
+    println!("{} 🚀 App launched on device {}.", *PAX_BADGE, device_name);
+    Ok(())
+}
+
+enum MatchMode {
+    IdentifierExact,
+    NameExact,
+    NameContains,
+}
+
+impl MatchMode {
+    fn matches(&self, candidate: &ResolvedIosDevice, query: &str) -> bool {
+        let identifier = candidate.identifier.to_ascii_lowercase();
+        let name = candidate.name.to_ascii_lowercase();
+        match self {
+            MatchMode::IdentifierExact => identifier == query,
+            MatchMode::NameExact => name == query,
+            MatchMode::NameContains => name.contains(query),
+        }
+    }
 }
 
 fn resolve_dylib_file_name(project_path: &PathBuf) -> Result<String, eyre::Report> {
