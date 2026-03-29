@@ -201,14 +201,22 @@ struct PaxViewIos: View {
 
         private func createDisplayLink() {
             displayLink = CADisplayLink(target: self, selector: #selector(handleDisplayLink))
+            if #available(iOS 15.0, *) {
+                let maximumFramesPerSecond = UIScreen.main.maximumFramesPerSecond
+                displayLink?.preferredFrameRateRange = CAFrameRateRange(
+                    minimum: 30,
+                    maximum: Float(maximumFramesPerSecond),
+                    preferred: Float(maximumFramesPerSecond)
+                )
+            } else {
+                displayLink?.preferredFramesPerSecond = UIScreen.main.maximumFramesPerSecond
+            }
             displayLink?.add(to: .current, forMode: .common)
         }
 
         @objc private func handleDisplayLink() {
-            DispatchQueue.main.async {
-                self.processRequestAnimationFrameQueue()
-                self.tick()
-            }
+            processRequestAnimationFrameQueue()
+            tick()
         }
 
         deinit {

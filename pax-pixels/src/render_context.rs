@@ -185,6 +185,7 @@ impl<'w> WgpuRenderer<'w> {
             self.current_node = None;
             return;
         }
+        self.ensure_vector_resources_for_immediate_scene();
         let mut current_clip_stack: Vec<u64> = Vec::new();
         let mut current_batch: Vec<RetainedDraw<'_>> = Vec::new();
         let mut current_batch_clip_stack: Option<Vec<ClipGeometry>> = None;
@@ -210,7 +211,10 @@ impl<'w> WgpuRenderer<'w> {
             }
             match node {
                 RetainedNode::Vector(node) => {
-                    current_batch.push(RetainedDraw::Vector(&node.resource));
+                    let Some(resource) = node.resource.as_ref() else {
+                        continue;
+                    };
+                    current_batch.push(RetainedDraw::Vector(resource));
                 }
                 RetainedNode::Image(node) => {
                     let Some(texture) = self.cached_images.get(&node.draw.resource.image_key) else {
@@ -328,29 +332,26 @@ impl<'w> WgpuRenderer<'w> {
 
         let updated = match pending_node.kind {
             PendingNodeKind::Empty => None,
-            PendingNodeKind::Vector(mut buffers) => {
+            PendingNodeKind::Vector(buffers) => {
                 if let Some(RetainedNode::Vector(existing)) = self.scene.get_mut(&node_id) {
                     let prev_z = existing.z_index;
-                    if self
-                        .render_backend
-                        .update_vector_resource(&mut existing.resource, &mut buffers.buffers)
-                    {
-                        existing.buffers = buffers.buffers;
-                        existing.clip_stack = buffers.clip_stack;
-                        existing.z_index = pending_node.z_index;
-                        if prev_z != pending_node.z_index {
-                            self.order_dirty = true;
-                        }
-                        self.scene_dirty = true;
-                        return true;
+                    existing.buffers = buffers.buffers;
+                    existing.clip_stack = buffers.clip_stack;
+                    existing.z_index = pending_node.z_index;
+                    existing.gpu_resource_dirty = true;
+                    if prev_z != pending_node.z_index {
+                        self.order_dirty = true;
                     }
+                    self.scene_dirty = true;
+                    return true;
                 }
 
                 Some(RetainedNode::Vector(RetainedVectorNode {
-                    resource: self.render_backend.create_vector_resource(&mut buffers.buffers),
+                    resource: None,
                     buffers: buffers.buffers,
                     clip_stack: buffers.clip_stack,
                     z_index: pending_node.z_index,
+                    gpu_resource_dirty: true,
                 }))
             }
             PendingNodeKind::Image(image_node) => Some(RetainedNode::Image(RetainedImageNode {
@@ -404,6 +405,35 @@ impl<'w> WgpuRenderer<'w> {
                 .scene
                 .values()
                 .all(|node| matches!(node, RetainedNode::Vector(_)))
+    }
+
+    fn ensure_vector_resources_for_immediate_scene(&mut self) {
+        let node_ids: Vec<u32> = self.sorted_nodes.iter().map(|(_, node_id)| *node_id).collect();
+        for node_id in node_ids {
+            let Some(RetainedNode::Vector(node)) = self.scene.get_mut(&node_id) else {
+                continue;
+            };
+            if !node.gpu_resource_dirty {
+                continue;
+            }
+
+            match node.resource.as_mut() {
+                Some(resource) => {
+                    if !self
+                        .render_backend
+                        .update_vector_resource(resource, &mut node.buffers)
+                    {
+                        node.resource = Some(
+                            self.render_backend.create_vector_resource(&mut node.buffers),
+                        );
+                    }
+                }
+                None => {
+                    node.resource = Some(self.render_backend.create_vector_resource(&mut node.buffers));
+                }
+            }
+            node.gpu_resource_dirty = false;
+        }
     }
 
     fn flush_vector_scene_batch(&mut self) {
@@ -508,10 +538,11 @@ impl RetainedNode {
 }
 
 struct RetainedVectorNode {
-    resource: RetainedVectorResource,
+    resource: Option<RetainedVectorResource>,
     buffers: CpuBuffers,
     clip_stack: Vec<ClipGeometry>,
     z_index: i32,
+    gpu_resource_dirty: bool,
 }
 
 struct RetainedImageNode {
