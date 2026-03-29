@@ -71,7 +71,7 @@ impl RenderContext for PaxPixelsRenderer {
         self.with_layer_context(layer, |context| {
             let bounds = path.bounding_box();
             let path = convert_kurbo_to_lyon_path(&path);
-            let fill = to_pax_pixels_fill(fill, bounds);
+            let fill = to_pax_pixels_fill(fill, bounds, context.current_transform());
             context.fill_path(path, fill);
         });
     }
@@ -87,7 +87,7 @@ impl RenderContext for PaxPixelsRenderer {
             let bounds = path.bounding_box();
             context.stroke_path(
                 convert_kurbo_to_lyon_path(&path),
-                to_pax_pixels_fill(fill, bounds),
+                to_pax_pixels_fill(fill, bounds, context.current_transform()),
                 width as f32,
             );
         });
@@ -269,19 +269,25 @@ impl RenderContext for PaxPixelsRenderer {
     }
 }
 
-fn to_pax_pixels_fill(fill: &pax_runtime_api::Fill, rect: kurbo::Rect) -> pax_pixels::Fill {
+fn to_pax_pixels_fill(
+    fill: &pax_runtime_api::Fill,
+    rect: kurbo::Rect,
+    transform: pax_pixels::Transform2D,
+) -> pax_pixels::Fill {
     let bounds = (rect.width(), rect.height());
     let orig = rect.origin();
     match fill {
         pax_runtime_api::Fill::Solid(color) => pax_pixels::Fill::Solid(to_pax_pixels_color(color)),
-        // TODO fill in impls
         pax_runtime_api::Fill::LinearGradient(gradient) => {
             let start_x = gradient.start.0.evaluate(bounds, Axis::X);
             let start_y = gradient.start.1.evaluate(bounds, Axis::Y);
             let end_x = gradient.end.0.evaluate(bounds, Axis::X);
             let end_y = gradient.end.1.evaluate(bounds, Axis::Y);
-            let main_axis =
-                pax_pixels::Vector2D::new((end_x - start_x) as f32, (end_y - start_y) as f32);
+            let local_pos = pax_pixels::Point2D::new((orig.x + start_x) as f32, (orig.y + start_y) as f32);
+            let local_end = pax_pixels::Point2D::new((orig.x + end_x) as f32, (orig.y + end_y) as f32);
+            let world_pos = transform.transform_point(local_pos);
+            let world_end = transform.transform_point(local_end);
+            let main_axis = world_end - world_pos;
             pax_pixels::Fill::Gradient {
                 stops: gradient
                     .stops
@@ -295,7 +301,7 @@ fn to_pax_pixels_fill(fill: &pax_runtime_api::Fill, rect: kurbo::Rect) -> pax_pi
                     })
                     .collect(),
                 gradient_type: pax_pixels::GradientType::Linear,
-                pos: pax_pixels::Point2D::new((orig.x + start_x) as f32, (orig.y + start_y) as f32),
+                pos: world_pos,
                 main_axis,
                 off_axis: pax_pixels::Vector2D::zero(), //not used for linear
             }
@@ -306,17 +312,26 @@ fn to_pax_pixels_fill(fill: &pax_runtime_api::Fill, rect: kurbo::Rect) -> pax_pi
             let end_x = gradient.end.0.evaluate(bounds, Axis::X);
             let end_y = gradient.end.1.evaluate(bounds, Axis::Y);
             let r = gradient.radius as f32;
-            let main_axis = pax_pixels::Vector2D::new(
+            let local_pos = pax_pixels::Point2D::new((orig.x + start_x) as f32, (orig.y + start_y) as f32);
+            let local_main_axis = pax_pixels::Vector2D::new(
                 r * (end_x - start_x) as f32,
                 r * (end_y - start_y) as f32,
             );
-            // rotate 90 deg
-            let off_axis = pax_pixels::Vector2D::new(-main_axis.y, main_axis.x);
+            let local_off_axis = pax_pixels::Vector2D::new(-local_main_axis.y, local_main_axis.x);
+            let world_pos = transform.transform_point(local_pos);
+            let world_main_axis = transform.transform_point(pax_pixels::Point2D::new(
+                local_pos.x + local_main_axis.x,
+                local_pos.y + local_main_axis.y,
+            )) - world_pos;
+            let world_off_axis = transform.transform_point(pax_pixels::Point2D::new(
+                local_pos.x + local_off_axis.x,
+                local_pos.y + local_off_axis.y,
+            )) - world_pos;
             pax_pixels::Fill::Gradient {
                 gradient_type: pax_pixels::GradientType::Radial,
-                pos: pax_pixels::Point2D::new((orig.x + start_x) as f32, (orig.y + start_y) as f32),
-                main_axis,
-                off_axis,
+                pos: world_pos,
+                main_axis: world_main_axis,
+                off_axis: world_off_axis,
                 stops: gradient
                     .stops
                     .iter()
@@ -324,7 +339,7 @@ fn to_pax_pixels_fill(fill: &pax_runtime_api::Fill, rect: kurbo::Rect) -> pax_pi
                         color: to_pax_pixels_color(&g.color),
                         stop: g
                             .position
-                            .evaluate((main_axis.length() as f64, 0.0), Axis::X)
+                            .evaluate((world_main_axis.length() as f64, 0.0), Axis::X)
                             as f32,
                     })
                     .collect(),

@@ -91,10 +91,9 @@ impl InstanceNode for EllipseInstance {
             let ellipse = kurbo::Ellipse::from_rect(rect);
             let accuracy = 0.1;
             let bez_path = ellipse.to_path(accuracy);
-
-            let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
-            let duplicate_transformed_bez_path = transformed_bez_path.clone();
-            rc.fill(layer_id, transformed_bez_path, &properties.fill.get());
+            rc.save(layer_id);
+            rc.transform(layer_id, tab.transform.into());
+            rc.fill(layer_id, bez_path.clone(), &properties.fill.get());
 
             //hack to address "phantom stroke" bug on Web
             let width: f64 = properties
@@ -108,11 +107,12 @@ impl InstanceNode for EllipseInstance {
             if width > f64::EPSILON {
                 rc.stroke(
                     layer_id,
-                    duplicate_transformed_bez_path,
+                    bez_path,
                     &Fill::Solid(properties.stroke.get().color.get()),
                     width,
                 );
             }
+            rc.restore(layer_id);
         });
         if rc.end_node(layer_id, expanded_node.id.to_u32()) {
             rtc.clear_canvas_node_dirty(&expanded_node.id);

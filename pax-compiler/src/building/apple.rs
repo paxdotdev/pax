@@ -31,6 +31,14 @@ const MACOS_MULTIARCH_PACKAGE_ID: &str = "macos-arm64_x86_64";
 const IOS_SIMULATOR_MULTIARCH_PACKAGE_ID: &str = "ios-arm64_x86_64-simulator";
 const IOS_PACKAGE_ID: &str = "ios-arm64";
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum SimulatorVariantRank {
+    Other = 0,
+    Base = 1,
+    ProMax = 2,
+    Pro = 3,
+}
+
 pub fn build_apple_project_with_cartridge(
     ctx: &RunContext,
     pax_dir: &PathBuf,
@@ -593,36 +601,68 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                 return eyre!("Invalid JSON format for devices.");
             })?;
 
-            let mut max_iphone_number = 0;
-            let mut desired_udid = None;
+            let mut best_choice: Option<(i32, SimulatorVariantRank, &str)> = None;
 
             for (_, device_list) in devices {
                 if let Some(device_array) = device_list.as_array() {
                     for device in device_array {
-                        if let Some(device_type) = device["deviceTypeIdentifier"].as_str() {
-                            if device_type
-                                .starts_with("com.apple.CoreSimulator.SimDeviceType.iPhone-")
-                            {
-                                if let Some(number) = device_type.split('-').last() {
-                                    if let Ok(number) = number.parse::<i32>() {
-                                        if number > max_iphone_number {
-                                            max_iphone_number = number;
-                                            desired_udid = device["udid"].as_str();
-                                        }
-                                    }
-                                }
-                            }
+                        let Some(name) = device["name"].as_str() else {
+                            continue;
+                        };
+                        let Some((generation, variant_rank)) =
+                            parse_iphone_simulator_preference(name)
+                        else {
+                            continue;
+                        };
+                        let Some(udid) = device["udid"].as_str() else {
+                            continue;
+                        };
+
+                        let candidate = (generation, variant_rank, udid);
+                        if best_choice
+                            .map(|best| candidate > best)
+                            .unwrap_or(true)
+                        {
+                            best_choice = Some(candidate);
                         }
                     }
                 }
             }
 
-            let device_udid = match desired_udid {
-                Some(udid) => udid,
+            let device_udid = match best_choice {
+                Some((_, _, udid)) => udid,
                 None => {
                     return Err(eyre!("No installed iOS simulators found on this system. Install at least one iPhone simulator through xcode and try again."));
                 }
             };
+
+            for (_, device_list) in devices {
+                if let Some(device_array) = device_list.as_array() {
+                    for device in device_array {
+                        let Some(udid) = device["udid"].as_str() else {
+                            continue;
+                        };
+                        let is_booted =
+                            device["state"].as_str().map(|state| state == "Booted").unwrap_or(false);
+                        if is_booted && udid != device_udid {
+                            let mut cmd = Command::new("xcrun");
+                            cmd.arg("simctl")
+                                .arg("shutdown")
+                                .arg(udid)
+                                .stdout(std::process::Stdio::null())
+                                .stderr(std::process::Stdio::null());
+
+                            #[cfg(unix)]
+                            unsafe {
+                                cmd.pre_exec(crate::pre_exec_hook);
+                            }
+
+                            let child = cmd.spawn().expect(ERR_SPAWN);
+                            let _ = wait_with_output(&process_child_ids, child);
+                        }
+                    }
+                }
+            }
 
             // Open the Simulator app
             let mut cmd = Command::new("open");
@@ -789,6 +829,20 @@ fn resolve_dylib_file_name(project_path: &PathBuf) -> Result<String, eyre::Repor
         "lib{}.dylib",
         dylib_target.name.replace('-', "_")
     ))
+}
+
+fn parse_iphone_simulator_preference(name: &str) -> Option<(i32, SimulatorVariantRank)> {
+    let rest = name.strip_prefix("iPhone ")?;
+    let generation_end = rest.find(|ch: char| !ch.is_ascii_digit())?;
+    let generation = rest[..generation_end].parse::<i32>().ok()?;
+    let variant = rest[generation_end..].trim();
+    let rank = match variant {
+        "Pro" => SimulatorVariantRank::Pro,
+        "Pro Max" => SimulatorVariantRank::ProMax,
+        "" => SimulatorVariantRank::Base,
+        _ => SimulatorVariantRank::Other,
+    };
+    Some((generation, rank))
 }
 
 // This function checks if the simulator with the given UDID is booted

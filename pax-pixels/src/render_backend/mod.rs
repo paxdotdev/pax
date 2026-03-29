@@ -45,16 +45,21 @@ pub struct RenderConfig {
     pub initial_dpr: u32,
 }
 
+pub(crate) const MAX_BATCH_PRIMITIVES: usize = 512;
+pub(crate) const MAX_BATCH_COLORS: usize = 512;
+pub(crate) const MAX_BATCH_GRADIENTS: usize = 64;
+pub(crate) const MAX_BATCH_TRANSFORMS: usize = 512;
+
 impl RenderConfig {
     pub fn new(_debug: bool, width: u32, height: u32, dpr: u32) -> Self {
         Self {
             debug: false,
             index_buffer_size: 2 << 12,
             vertex_buffer_size: 2 << 12,
-            primitive_buffer_size: 512,
-            colors_buffer_size: 512,
-            gradients_buffer_size: 64,
-            transforms_buffer_size: 64,
+            primitive_buffer_size: MAX_BATCH_PRIMITIVES as u64,
+            colors_buffer_size: MAX_BATCH_COLORS as u64,
+            gradients_buffer_size: MAX_BATCH_GRADIENTS as u64,
+            transforms_buffer_size: MAX_BATCH_TRANSFORMS as u64,
             initial_width: width,
             initial_height: height,
             initial_dpr: dpr,

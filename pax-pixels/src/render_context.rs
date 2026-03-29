@@ -1,5 +1,9 @@
 use crate::render_backend::stencil;
 use crate::render_backend::CpuBuffers;
+use crate::render_backend::MAX_BATCH_COLORS;
+use crate::render_backend::MAX_BATCH_GRADIENTS;
+use crate::render_backend::MAX_BATCH_PRIMITIVES;
+use crate::render_backend::MAX_BATCH_TRANSFORMS;
 use crate::render_backend::RetainedDraw;
 use crate::render_backend::RetainedImageDraw;
 use crate::render_backend::RetainedVectorResource;
@@ -13,6 +17,7 @@ use lyon::lyon_tessellation::FillOptions;
 use lyon::lyon_tessellation::FillTessellator;
 use lyon::lyon_tessellation::FillVertex;
 use lyon::lyon_tessellation::VertexBuffers;
+use lyon::path::PathEvent;
 use lyon::path::Path;
 use lyon::tessellation::StrokeOptions;
 use lyon::tessellation::StrokeTessellator;
@@ -64,7 +69,7 @@ impl<'w> WgpuRenderer<'w> {
         }
     }
 
-    fn current_transform(&self) -> Transform2D {
+    pub fn current_transform(&self) -> Transform2D {
         self.transform_stack
             .last()
             .copied()
@@ -72,8 +77,8 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     pub fn stroke_path(&mut self, path: Path, stroke_fill: Fill, stroke_width: f32) {
-        let path = path.transformed(&self.current_transform());
-        let tolerance = self.tolerance;
+        let current_transform = self.current_transform();
+        let geometry_signature = hash_vector_path(&path, PendingVectorOpKind::Stroke(stroke_width));
         let Some(PendingNode {
             kind: PendingNodeKind::Vector(buffers),
             ..
@@ -81,25 +86,18 @@ impl<'w> WgpuRenderer<'w> {
         else {
             return;
         };
-        let prim_id = push_primitive_def(&mut buffers.buffers, stroke_fill, 0);
-        let options = StrokeOptions::tolerance(tolerance).with_line_width(stroke_width);
-        let mut geometry_builder =
-            BuffersBuilder::new(&mut buffers.buffers.geometry, |vertex: StrokeVertex| {
-            GpuVertex {
-                position: vertex.position().to_array(),
-                normal: [0.0; 2],
-                prim_id,
-            }
-            });
-        match StrokeTessellator::new().tessellate_path(&path, &options, &mut geometry_builder) {
-            Ok(_) => {}
-            Err(e) => log::warn!("{:?}", e),
-        };
+        buffers.ops.push(PendingVectorOp {
+            path,
+            fill: stroke_fill,
+            transform: current_transform,
+            kind: PendingVectorOpKind::Stroke(stroke_width),
+            geometry_signature,
+        });
     }
 
     pub fn fill_path(&mut self, path: Path, fill: Fill) {
-        let path = path.transformed(&self.current_transform());
-        let tolerance = self.tolerance;
+        let current_transform = self.current_transform();
+        let geometry_signature = hash_vector_path(&path, PendingVectorOpKind::Fill);
         let Some(PendingNode {
             kind: PendingNodeKind::Vector(buffers),
             ..
@@ -107,18 +105,13 @@ impl<'w> WgpuRenderer<'w> {
         else {
             return;
         };
-        let prim_id = push_primitive_def(&mut buffers.buffers, fill, 0);
-        let options = FillOptions::tolerance(tolerance);
-        let mut geometry_builder =
-            BuffersBuilder::new(&mut buffers.buffers.geometry, |vertex: FillVertex| GpuVertex {
-                position: vertex.position().to_array(),
-                normal: [0.0; 2],
-                prim_id,
-            });
-        match FillTessellator::new().tessellate_path(&path, &options, &mut geometry_builder) {
-            Ok(_) => {}
-            Err(e) => log::warn!("{:?}", e),
-        };
+        buffers.ops.push(PendingVectorOp {
+            path,
+            fill,
+            transform: current_transform,
+            kind: PendingVectorOpKind::Fill,
+            geometry_signature,
+        });
     }
 
     pub fn clear(&mut self) {
@@ -333,12 +326,24 @@ impl<'w> WgpuRenderer<'w> {
         let updated = match pending_node.kind {
             PendingNodeKind::Empty => None,
             PendingNodeKind::Vector(buffers) => {
+                let geometry_signatures = buffers
+                    .ops
+                    .iter()
+                    .map(|op| op.geometry_signature)
+                    .collect::<Vec<_>>();
                 if let Some(RetainedNode::Vector(existing)) = self.scene.get_mut(&node_id) {
                     let prev_z = existing.z_index;
-                    existing.buffers = buffers.buffers;
+                    let reuse_geometry = existing.geometry_signatures == geometry_signatures;
+                    rebuild_vector_buffers(
+                        self.tolerance,
+                        &buffers.ops,
+                        &mut existing.buffers,
+                        reuse_geometry,
+                    );
                     existing.clip_stack = buffers.clip_stack;
                     existing.z_index = pending_node.z_index;
                     existing.gpu_resource_dirty = true;
+                    existing.geometry_signatures = geometry_signatures;
                     if prev_z != pending_node.z_index {
                         self.order_dirty = true;
                     }
@@ -348,10 +353,20 @@ impl<'w> WgpuRenderer<'w> {
 
                 Some(RetainedNode::Vector(RetainedVectorNode {
                     resource: None,
-                    buffers: buffers.buffers,
+                    buffers: {
+                        let mut buffers_out = new_cpu_buffers();
+                        rebuild_vector_buffers(
+                            self.tolerance,
+                            &buffers.ops,
+                            &mut buffers_out,
+                            false,
+                        );
+                        buffers_out
+                    },
                     clip_stack: buffers.clip_stack,
                     z_index: pending_node.z_index,
                     gpu_resource_dirty: true,
+                    geometry_signatures,
                 }))
             }
             PendingNodeKind::Image(image_node) => Some(RetainedNode::Image(RetainedImageNode {
@@ -392,7 +407,7 @@ impl<'w> WgpuRenderer<'w> {
         let current_node = self.current_node.as_mut()?;
         if matches!(current_node.kind, PendingNodeKind::Empty) {
             current_node.kind = PendingNodeKind::Vector(PendingVectorNode {
-                buffers: new_cpu_buffers(),
+                ops: Vec::new(),
                 clip_stack: self.clip_stack.clone(),
             });
         }
@@ -464,6 +479,19 @@ impl<'w> WgpuRenderer<'w> {
                 current_batch_clip_stack = Some(node.clip_stack.clone());
             }
 
+            if has_geometry && would_exceed_batch_capacity(&current_buffers, &node.buffers) {
+                if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
+                    sync_clip_stack(
+                        &mut self.render_backend,
+                        &mut current_clip_stack,
+                        batch_clip_stack,
+                    );
+                }
+                self.render_backend.render_primitives(&mut current_buffers);
+                current_buffers = new_cpu_buffers();
+                current_batch_clip_stack = Some(node.clip_stack.clone());
+            }
+
             append_cpu_buffers(&mut current_buffers, &node.buffers);
             has_geometry = true;
         }
@@ -507,8 +535,22 @@ enum PendingNodeKind {
 }
 
 struct PendingVectorNode {
-    buffers: CpuBuffers,
+    ops: Vec<PendingVectorOp>,
     clip_stack: Vec<ClipGeometry>,
+}
+
+struct PendingVectorOp {
+    path: Path,
+    fill: Fill,
+    transform: Transform2D,
+    kind: PendingVectorOpKind,
+    geometry_signature: u64,
+}
+
+#[derive(Clone, Copy)]
+enum PendingVectorOpKind {
+    Fill,
+    Stroke(f32),
 }
 
 struct PendingImageNode {
@@ -543,6 +585,7 @@ struct RetainedVectorNode {
     clip_stack: Vec<ClipGeometry>,
     z_index: i32,
     gpu_resource_dirty: bool,
+    geometry_signatures: Vec<u64>,
 }
 
 struct RetainedImageNode {
@@ -561,6 +604,62 @@ fn new_cpu_buffers() -> CpuBuffers {
     }
 }
 
+fn rebuild_vector_buffers(
+    tolerance: f32,
+    ops: &[PendingVectorOp],
+    buffers: &mut CpuBuffers,
+    reuse_geometry: bool,
+) {
+    if !reuse_geometry {
+        buffers.geometry.vertices.clear();
+        buffers.geometry.indices.clear();
+    }
+    buffers.primitives.clear();
+    buffers.colors.clear();
+    buffers.gradients.clear();
+    buffers.transforms.truncate(1);
+
+    for op in ops {
+        let transform_id = push_transform(buffers, op.transform);
+        let prim_id = push_primitive_def(buffers, op.fill.clone(), transform_id);
+
+        if reuse_geometry {
+            continue;
+        }
+
+        match op.kind {
+            PendingVectorOpKind::Fill => {
+                let options = FillOptions::tolerance(tolerance);
+                let mut geometry_builder =
+                    BuffersBuilder::new(&mut buffers.geometry, |vertex: FillVertex| GpuVertex {
+                        position: vertex.position().to_array(),
+                        normal: [0.0; 2],
+                        prim_id,
+                    });
+                if let Err(err) = FillTessellator::new()
+                    .tessellate_path(&op.path, &options, &mut geometry_builder)
+                {
+                    log::warn!("{:?}", err);
+                }
+            }
+            PendingVectorOpKind::Stroke(stroke_width) => {
+                let options = StrokeOptions::tolerance(tolerance).with_line_width(stroke_width);
+                let mut geometry_builder =
+                    BuffersBuilder::new(&mut buffers.geometry, |vertex: StrokeVertex| GpuVertex {
+                        position: vertex.position().to_array(),
+                        normal: [0.0; 2],
+                        prim_id,
+                    });
+                if let Err(err) = StrokeTessellator::new()
+                    .tessellate_path(&op.path, &options, &mut geometry_builder)
+                {
+                    log::warn!("{:?}", err);
+                }
+            }
+        }
+    }
+}
+
 fn append_cpu_buffers(dst: &mut CpuBuffers, src: &CpuBuffers) {
     let vertex_offset = dst.geometry.vertices.len() as u16;
     let primitive_offset = dst.primitives.len() as u32;
@@ -569,7 +668,7 @@ fn append_cpu_buffers(dst: &mut CpuBuffers, src: &CpuBuffers) {
     let transform_offset = if src_uses_only_identity_transform {
         0
     } else {
-        dst.transforms.len() as u32
+        dst.transforms.len() as u32 - 1
     };
     let color_offset = dst.colors.len() as u16;
     let gradient_offset = dst.gradients.len() as u16;
@@ -587,7 +686,9 @@ fn append_cpu_buffers(dst: &mut CpuBuffers, src: &CpuBuffers) {
     );
     dst.primitives.extend(src.primitives.iter().map(|primitive| {
         let mut primitive = *primitive;
-        primitive.transform_id += transform_offset;
+        if primitive.transform_id != 0 {
+            primitive.transform_id += transform_offset;
+        }
         if primitive.fill_type_flag == 0 {
             primitive.fill_id = primitive.fill_id.saturating_add(color_offset);
         } else {
@@ -596,10 +697,42 @@ fn append_cpu_buffers(dst: &mut CpuBuffers, src: &CpuBuffers) {
         primitive
     }));
     if !src_uses_only_identity_transform {
-        dst.transforms.extend(src.transforms.iter().copied());
+        dst.transforms.extend(src.transforms.iter().skip(1).copied());
     }
     dst.colors.extend(src.colors.iter().copied());
     dst.gradients.extend(src.gradients.iter().copied());
+}
+
+fn push_transform(buffers: &mut CpuBuffers, transform: Transform2D) -> u32 {
+    if transform == Transform2D::identity() {
+        0
+    } else {
+        let transform_arrays = transform.to_arrays();
+        if let Some(transform_id) = buffers
+            .transforms
+            .iter()
+            .position(|existing| existing.transform == transform_arrays)
+        {
+            return transform_id as u32;
+        }
+
+        let transform_id = buffers.transforms.len() as u32;
+        buffers.transforms.push(GpuTransform {
+            transform: transform_arrays,
+            ..GpuTransform::default()
+        });
+        transform_id
+    }
+}
+
+fn would_exceed_batch_capacity(dst: &CpuBuffers, src: &CpuBuffers) -> bool {
+    let extra_transforms = src.transforms.len().saturating_sub(1);
+
+    dst.geometry.vertices.len() + src.geometry.vertices.len() > u16::MAX as usize
+        || dst.primitives.len() + src.primitives.len() > MAX_BATCH_PRIMITIVES
+        || dst.colors.len() + src.colors.len() > MAX_BATCH_COLORS
+        || dst.gradients.len() + src.gradients.len() > MAX_BATCH_GRADIENTS
+        || dst.transforms.len() + extra_transforms > MAX_BATCH_TRANSFORMS
 }
 
 fn push_primitive_def(buffers: &mut CpuBuffers, fill: Fill, transform_id: u32) -> u32 {
@@ -657,6 +790,67 @@ fn push_primitive_def(buffers: &mut CpuBuffers, fill: Fill, transform_id: u32) -
     prim_id
 }
 
+fn hash_vector_path(path: &Path, kind: PendingVectorOpKind) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    match kind {
+        PendingVectorOpKind::Fill => 0u8.hash(&mut hasher),
+        PendingVectorOpKind::Stroke(width) => {
+            1u8.hash(&mut hasher);
+            width.to_bits().hash(&mut hasher);
+        }
+    }
+    for event in path.iter() {
+        match event {
+            PathEvent::Begin { at } => {
+                0u8.hash(&mut hasher);
+                at.x.to_bits().hash(&mut hasher);
+                at.y.to_bits().hash(&mut hasher);
+            }
+            PathEvent::Line { from, to } => {
+                1u8.hash(&mut hasher);
+                from.x.to_bits().hash(&mut hasher);
+                from.y.to_bits().hash(&mut hasher);
+                to.x.to_bits().hash(&mut hasher);
+                to.y.to_bits().hash(&mut hasher);
+            }
+            PathEvent::Quadratic { from, ctrl, to } => {
+                2u8.hash(&mut hasher);
+                from.x.to_bits().hash(&mut hasher);
+                from.y.to_bits().hash(&mut hasher);
+                ctrl.x.to_bits().hash(&mut hasher);
+                ctrl.y.to_bits().hash(&mut hasher);
+                to.x.to_bits().hash(&mut hasher);
+                to.y.to_bits().hash(&mut hasher);
+            }
+            PathEvent::Cubic {
+                from,
+                ctrl1,
+                ctrl2,
+                to,
+            } => {
+                3u8.hash(&mut hasher);
+                from.x.to_bits().hash(&mut hasher);
+                from.y.to_bits().hash(&mut hasher);
+                ctrl1.x.to_bits().hash(&mut hasher);
+                ctrl1.y.to_bits().hash(&mut hasher);
+                ctrl2.x.to_bits().hash(&mut hasher);
+                ctrl2.y.to_bits().hash(&mut hasher);
+                to.x.to_bits().hash(&mut hasher);
+                to.y.to_bits().hash(&mut hasher);
+            }
+            PathEvent::End { last, first, close } => {
+                4u8.hash(&mut hasher);
+                last.x.to_bits().hash(&mut hasher);
+                last.y.to_bits().hash(&mut hasher);
+                first.x.to_bits().hash(&mut hasher);
+                first.y.to_bits().hash(&mut hasher);
+                close.hash(&mut hasher);
+            }
+        }
+    }
+    hasher.finish()
+}
+
 fn hash_clip_geometry(geometry: &VertexBuffers<stencil::Vertex, u16>) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     geometry.indices.hash(&mut hasher);
@@ -694,19 +888,19 @@ fn clip_stacks_match(left: &[ClipGeometry], right: &[ClipGeometry]) -> bool {
             .all(|(left, right)| left.signature == right.signature)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct GradientStop {
     pub color: Color,
     pub stop: f32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum GradientType {
     Linear,
     Radial,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Color {
     rgba: [f32; 4],
 }
@@ -789,7 +983,7 @@ impl Color {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Fill {
     Solid(Color),
     Gradient {

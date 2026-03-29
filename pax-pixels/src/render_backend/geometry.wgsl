@@ -30,7 +30,7 @@ struct Transform {
 }
 
 struct Transforms {
-    transforms: array<Transform, 64>,
+    transforms: array<Transform, 512>,
 }
 
 
