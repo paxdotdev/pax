@@ -5,7 +5,9 @@ use crate::helpers::{
 use crate::{copy_dir_recursively, RunContext, RunTarget};
 
 use color_eyre::eyre;
+use flate2::{write::GzEncoder, Compression};
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
@@ -15,6 +17,101 @@ use eyre::eyre;
 use pax_manifest::PaxManifest;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
+
+struct BundleStat {
+    label: &'static str,
+    raw_size: u64,
+    gzip_size: u64,
+}
+
+fn gzip_size(bytes: &[u8]) -> Result<u64, eyre::Report> {
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+    encoder.write_all(bytes)?;
+    Ok(encoder.finish()?.len() as u64)
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
+    let mut value = bytes as f64;
+    let mut unit = 0usize;
+    while value >= 1024.0 && unit + 1 < UNITS.len() {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{} {}", bytes, UNITS[unit])
+    } else {
+        format!("{value:.1} {}", UNITS[unit])
+    }
+}
+
+fn collect_bundle_stat(
+    build_dest: &std::path::Path,
+    label: &'static str,
+    filename: &'static str,
+) -> Result<Option<BundleStat>, eyre::Report> {
+    let path = build_dest.join(filename);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let bytes = fs::read(path)?;
+    Ok(Some(BundleStat {
+        label,
+        raw_size: bytes.len() as u64,
+        gzip_size: gzip_size(&bytes)?,
+    }))
+}
+
+fn print_web_bundle_stats(build_dest: &std::path::Path, is_release: bool) {
+    let stats_result = ["pax-cartridge_bg.wasm", "pax-cartridge.js", "pax-interface-web.js"]
+        .into_iter()
+        .zip(["wasm", "cartridge js", "interface js"])
+        .filter_map(|(filename, label)| collect_bundle_stat(build_dest, label, filename).transpose())
+        .collect::<Result<Vec<_>, _>>();
+
+    let stats = match stats_result {
+        Ok(stats) => stats,
+        Err(err) => {
+            eprintln!("{} 📦 Failed to calculate web bundle stats: {}", *PAX_BADGE, err);
+            return;
+        }
+    };
+
+    if stats.is_empty() {
+        return;
+    }
+
+    println!("{} 📦 Web bundle stats", *PAX_BADGE);
+    println!(
+        "{}    {}",
+        *PAX_BADGE,
+        if is_release {
+            "RELEASE MODE"
+        } else {
+            "DEBUG MODE"
+        }
+    );
+    let mut total_raw = 0u64;
+    let mut total_gzip = 0u64;
+    for stat in &stats {
+        total_raw += stat.raw_size;
+        total_gzip += stat.gzip_size;
+        println!(
+            "{}    {:<12} {:>9} emitted  {:>9} gzip",
+            *PAX_BADGE,
+            stat.label,
+            format_bytes(stat.raw_size),
+            format_bytes(stat.gzip_size),
+        );
+    }
+    println!(
+        "{}    {:<12} {:>9} emitted  {:>9} gzip",
+        *PAX_BADGE,
+        "total",
+        format_bytes(total_raw),
+        format_bytes(total_gzip),
+    );
+}
 
 pub fn build_web_project_with_cartridge(
     ctx: &RunContext,
@@ -120,6 +217,8 @@ pub fn build_web_project_with_cartridge(
             e
         );
     }
+
+    print_web_bundle_stats(&build_dest, is_release);
 
     // Start local server if this is a `run` rather than a `build`
     if ctx.should_also_run {

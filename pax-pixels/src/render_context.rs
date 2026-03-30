@@ -299,8 +299,11 @@ impl<'w> WgpuRenderer<'w> {
 
     pub fn set_viewport(&mut self, width: f32, height: f32, dpr: f32) {
         self.scene_dirty = true;
-        self.render_backend
-            .set_viewport(width, height, dpr.round().max(1.0) as u32);
+        self.render_backend.set_viewport(width, height, dpr.max(1.0));
+    }
+
+    pub fn max_surface_dimension(&self) -> u32 {
+        self.render_backend.max_surface_dimension()
     }
 
     pub fn size(&self) -> (f32, f32) {

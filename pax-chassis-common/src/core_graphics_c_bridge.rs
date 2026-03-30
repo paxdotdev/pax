@@ -179,7 +179,7 @@ pub struct AppleRenderContext {
 impl AppleRenderContext {
     fn new(layer: *mut c_void, width: usize, height: usize, dpr: f32) -> Result<Self, String> {
         let dpr = dpr.round().max(1.0) as u32;
-        let config = RenderConfig::new(false, width as u32, height as u32, dpr);
+        let config = RenderConfig::new(false, width as u32, height as u32, dpr as f32);
         let backend = unsafe {
             pollster::block_on(RenderBackend::to_core_animation_layer(layer, config))
         }

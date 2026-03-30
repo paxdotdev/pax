@@ -87,6 +87,28 @@ pub trait RenderContext {
     }
 }
 
+pub fn bez_path_to_svg_path_data(path: &BezPath) -> String {
+    use kurbo::PathEl;
+
+    let mut data = String::new();
+    for element in path.elements() {
+        match element {
+            PathEl::MoveTo(point) => data.push_str(&format!("M{:.3},{:.3}", point.x, point.y)),
+            PathEl::LineTo(point) => data.push_str(&format!("L{:.3},{:.3}", point.x, point.y)),
+            PathEl::QuadTo(ctrl, point) => data.push_str(&format!(
+                "Q{:.3},{:.3} {:.3},{:.3}",
+                ctrl.x, ctrl.y, point.x, point.y
+            )),
+            PathEl::CurveTo(ctrl1, ctrl2, point) => data.push_str(&format!(
+                "C{:.3},{:.3} {:.3},{:.3} {:.3},{:.3}",
+                ctrl1.x, ctrl1.y, ctrl2.x, ctrl2.y, point.x, point.y
+            )),
+            PathEl::ClosePath => data.push('Z'),
+        }
+    }
+    data
+}
+
 #[cfg(debug_assertions)]
 impl<T> std::fmt::Debug for TransitionQueueEntry<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

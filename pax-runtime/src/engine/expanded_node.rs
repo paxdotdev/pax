@@ -76,6 +76,9 @@ pub struct ExpandedNode {
     /// A list of mounted children that need to be dismounted when children is recalculated
     pub mounted_children: RefCell<Vec<Rc<ExpandedNode>>>,
 
+    /// Auxiliary children participate in update/layout but are not mounted or rendered directly.
+    pub sidecar_children: RefCell<Vec<Rc<ExpandedNode>>>,
+
     /// Each ExpandedNode has a unique "stamp" of computed properties
     pub properties: RefCell<Rc<RefCell<PaxAny>>>,
 
@@ -114,6 +117,9 @@ pub struct ExpandedNode {
     /// by native elements to move to the correct native layer.
     // occlusionID (canvas/native layer) + z-index
     pub occlusion: Property<Occlusion>,
+
+    /// Hash of the last native occlusion mask emitted for this node.
+    pub native_mask_hash: Cell<u64>,
 
     /// A map of all properties available on this expanded node.
     /// Used by the RuntimePropertiesStackFrame to resolve symbols.
@@ -256,11 +262,13 @@ impl ExpandedNode {
                 &format!("node children (node id: {})", id.0),
             ),
             mounted_children: RefCell::new(Vec::new()),
+            sidecar_children: RefCell::new(Vec::new()),
             transform_and_bounds: Property::new(TransformAndBounds::default()),
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
             flattened_slot_children_count: Property::new(0),
             occlusion: Property::new(Occlusion::default()),
+            native_mask_hash: Cell::new(0),
             properties_scope: RefCell::new(property_scope),
             slot_index: Property::default(),
             suspended: Property::new(false),
@@ -393,6 +401,26 @@ impl ExpandedNode {
         new_children
     }
 
+    pub fn attach_sidecar_children(
+        self: &Rc<Self>,
+        new_children: Vec<Rc<ExpandedNode>>,
+        context: &Rc<RuntimeContext>,
+        parent_frame: &Property<Option<ExpandedNodeIdentifier>>,
+    ) -> Vec<Rc<ExpandedNode>> {
+        for child in new_children.iter() {
+            *borrow_mut!(child.render_parent) = Rc::downgrade(self);
+            let parent_frame = parent_frame.clone();
+            let deps = [parent_frame.untyped()];
+            child
+                .parent_frame
+                .replace_with(Property::computed(move || parent_frame.get(), &deps));
+            child.inherit_suspend(self);
+            child.bind_to_parent_bounds(context);
+        }
+        *borrow_mut!(self.sidecar_children) = new_children.clone();
+        new_children
+    }
+
     fn bind_to_parent_bounds(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
         let parent_transform_and_bounds = borrow!(self.render_parent)
             .upgrade()
@@ -489,6 +517,9 @@ impl ExpandedNode {
             self.compute_flattened_slot_children();
         }
         for child in self.children.get().iter() {
+            child.recurse_update(context);
+        }
+        for child in borrow!(self.sidecar_children).iter() {
             child.recurse_update(context);
         }
     }

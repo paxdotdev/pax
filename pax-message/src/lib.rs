@@ -52,6 +52,7 @@ pub enum NativeMessage {
     LayerAdd(LayerAddPatch), //FUTURE: native form controls
     ShrinkLayersTo(u32),
     OcclusionUpdate(OcclusionPatch),
+    NativeMaskUpdate(NativeMaskPatch),
     Navigate(NavigationPatch),
     SetCursor(SetCursorPatch),
     Screenshot(ScreenshotPatch),
@@ -406,6 +407,23 @@ pub struct FramePatch {
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
+    pub clip_path: Option<String>,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize, Clone, PartialEq, Eq, Hash)]
+#[repr(C)]
+pub struct MaskPathPatch {
+    pub path: String,
+    pub clips: Vec<String>,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize, Clone, PartialEq)]
+#[repr(C)]
+pub struct NativeMaskPatch {
+    pub id: u32,
+    pub entries: Vec<MaskPathPatch>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]

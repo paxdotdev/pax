@@ -1,7 +1,7 @@
 struct Globals {
     resolution: vec2<f32>,
-    dpr: u32,
-    _pad2: u32,
+    dpr: f32,
+    _pad2: f32,
 };
 
 

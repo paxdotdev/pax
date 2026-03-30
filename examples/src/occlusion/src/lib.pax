@@ -1,0 +1,376 @@
+<Group width=100% height=100%>
+    <Text id=headline x=50% y=54px width=620px height=36px text="Occlusion + Masking"/>
+    <Text id=subhead x=50% y=92px width=760px height=24px text="single vector layer + single native overlay - vector punchout - native masking - path coverage"/>
+
+    <Group x=50% y=63% width=760px height=160px anchor_x=50% anchor_y=50% rotate=-6deg>
+        <Ellipse x=684px y=76px width=102px height=102px anchor_x=50% anchor_y=50% fill=rgba(244, 114, 182, 255)/>
+        <Ellipse x=84px y=76px width=120px height=120px anchor_x=50% anchor_y=50% fill=rgba(252, 211, 77, 255)/>
+        <Rectangle x=0px y=64px width=760px height=24px fill=rgba(251, 146, 60, 255)/>
+    </Group>
+
+    <Group class=card_left>
+        <Text class=pill_text x=28px y=258px width=206px height=20px text="Vector punchout should expose the canvas over native controls."/>
+        <Rectangle x=16px y=244px width=228px height=58px rotate=-5deg fill=rgba(52, 211, 153, 255)/>
+        <Text class=status_dark x=24px y=242px width=214px height=22px text={"Call sign: " + self.call_sign}/>
+        <Ellipse x=198px y=160px width=140px height=140px anchor_x=50% anchor_y=50% fill=rgba(226, 92, 62, 255)/>
+        <Textbox
+            class=input_light
+            x=24px
+            y=126px
+            width=214px
+            height=42px
+            text=bind:call_sign
+            placeholder="Type a call sign"
+            @textbox_change=self.update_call_sign
+        />
+        <Button
+            class=button_hot
+            x=24px
+            y=182px
+            width=214px
+            height=44px
+            label={"Deal " + self.button_clicks}
+            @button_click=self.increment_deal
+        />
+        <Text class=card_copy_dark x=24px y=58px width=210px height=40px text="Vector leaves above native controls should cut windows into the shared native overlay."/>
+        <Text class=card_title_dark x=24px y=22px width=200px height=28px text="Punchout"/>
+        <Rectangle class=card_surface_light fill=rgba(246, 232, 212, 255)/>
+        <Rectangle class=card_shadow fill=rgba(3, 8, 13, 110)/>
+    </Group>
+
+    <Group class=card_center>
+        <Mask width=262px height=340px>
+            <Group width=100% height=100%>
+                <Button class=button_dark x=24px y=246px width=214px height=44px label="Native stays clipped"/>
+                <Text class=status_light x=24px y=190px width=190px height=22px text={"Frame " + self.ticks}/>
+                <Text class=card_copy_light x=24px y=104px width=204px height=48px text="A Mask should clip vector fills and native text together while still animating."/>
+                <Text class=card_title_light x=24px y=22px width=190px height=28px text="Ellipse Mask"/>
+                <Rectangle x=22px y=160px width=218px height=12px rotate=-4deg fill=rgba(250, 204, 21, 255)/>
+                <Ellipse x=206px y=116px width=120px height=120px anchor_x=50% anchor_y=50% fill=rgba(248, 113, 113, 255)/>
+                <Rectangle x=0px y=0px width=100% height=92px fill=rgba(87, 57, 187, 255)/>
+                <Rectangle class=card_surface_dark fill=rgba(24, 36, 61, 255)/>
+            </Group>
+            <Ellipse
+                x={(self.ellipse_mask_x)px}
+                y={(self.ellipse_mask_y)px}
+                width={(self.ellipse_mask_size)px}
+                height={(self.ellipse_mask_size)px}
+                anchor_x=50%
+                anchor_y=50%
+                fill=BLACK
+            />
+        </Mask>
+        <Rectangle class=card_shadow fill=rgba(3, 8, 13, 140)/>
+    </Group>
+
+    <Group class=card_right>
+        <Mask width=262px height=340px>
+            <Group width=100% height=100%>
+                <Text class=status_dark x=24px y=286px width=214px height=20px text="Path coverage is the target geometry case."/>
+                <Textbox
+                    class=input_dark
+                    x=24px
+                    y=228px
+                    width=214px
+                    height=42px
+                    text=bind:call_sign
+                    placeholder="Masked textbox"
+                    @textbox_change=self.update_call_sign
+                />
+                <Text class=card_copy_dark x=24px y=108px width=204px height=46px text="This card uses a custom Path as the mask source, not just rects or ellipses."/>
+                <Text class=card_title_light x=24px y=24px width=190px height=28px text="Path Mask"/>
+                <Ellipse x=88px y=184px width=90px height=90px anchor_x=50% anchor_y=50% fill=rgba(249, 115, 22, 255)/>
+                <Rectangle x=14px y=152px width=232px height=26px rotate=6deg fill=rgba(59, 130, 246, 255)/>
+                <Rectangle x=0px y=0px width=100% height=98px fill=rgba(22, 163, 74, 255)/>
+                <Rectangle class=card_surface_mid fill=rgba(237, 247, 255, 255)/>
+            </Group>
+            <Path
+                x={(self.path_mask_x)px}
+                y=56px
+                width=160px
+                height=180px
+                rotate={(self.path_mask_rotation)deg}
+                fill=BLACK
+                elements=[
+                    PathElement::Point(50%, 0%),
+                    PathElement::Line,
+                    PathElement::Point(62%, 34%),
+                    PathElement::Line,
+                    PathElement::Point(100%, 38%),
+                    PathElement::Line,
+                    PathElement::Point(72%, 58%),
+                    PathElement::Line,
+                    PathElement::Point(82%, 100%),
+                    PathElement::Line,
+                    PathElement::Point(50%, 74%),
+                    PathElement::Line,
+                    PathElement::Point(18%, 100%),
+                    PathElement::Line,
+                    PathElement::Point(28%, 58%),
+                    PathElement::Line,
+                    PathElement::Point(0%, 38%),
+                    PathElement::Line,
+                    PathElement::Point(38%, 34%),
+                    PathElement::Close
+                ]
+            />
+        </Mask>
+        <Rectangle class=card_shadow fill=rgba(3, 8, 13, 125)/>
+    </Group>
+
+    <Ellipse x=92% y=88% width=420px height=420px fill=rgba(8, 28, 37, 100)/>
+    <Ellipse x=8% y=14% width=320px height=320px fill=rgba(46, 125, 95, 80)/>
+    <Rectangle width=100% height=100% fill=rgba(20, 59, 49, 255)/>
+</Group>
+
+@settings {
+    @mount: on_mount
+    @pre_render: handle_pre_render
+
+    #headline {
+        style: {
+            font_size: 30px,
+            fill: rgba(255, 247, 237, 255),
+            align_horizontal: TextAlignHorizontal::Center,
+            align_vertical: TextAlignVertical::Center,
+            align_multiline: TextAlignHorizontal::Center,
+            underline: false,
+        }
+    }
+
+    #subhead {
+        style: {
+            font_size: 14px,
+            fill: rgba(214, 211, 209, 255),
+            align_horizontal: TextAlignHorizontal::Center,
+            align_vertical: TextAlignVertical::Center,
+            align_multiline: TextAlignHorizontal::Center,
+            underline: false,
+        }
+    }
+
+    .card_left {
+        x: 22%,
+        y: 60%,
+        width: 262px,
+        height: 340px,
+        rotate: -16deg,
+        anchor_x: 50%,
+        anchor_y: 50%,
+    }
+
+    .card_center {
+        x: 49.5%,
+        y: 50.5%,
+        width: 262px,
+        height: 340px,
+        rotate: -2deg,
+        anchor_x: 50%,
+        anchor_y: 50%,
+    }
+
+    .card_right {
+        x: 77%,
+        y: 59%,
+        width: 262px,
+        height: 340px,
+        rotate: 14deg,
+        anchor_x: 50%,
+        anchor_y: 50%,
+    }
+
+    .card_shadow {
+        x: 10px,
+        y: 16px,
+        width: 100%,
+        height: 100%,
+    }
+
+    .card_surface_light {
+        width: 100%,
+        height: 100%,
+        corner_radii: {
+            top_left: 24,
+            top_right: 24,
+            bottom_left: 24,
+            bottom_right: 24,
+        },
+    }
+
+    .card_surface_dark {
+        width: 100%,
+        height: 100%,
+        corner_radii: {
+            top_left: 24,
+            top_right: 24,
+            bottom_left: 24,
+            bottom_right: 24,
+        },
+    }
+
+    .card_surface_mid {
+        width: 100%,
+        height: 100%,
+        corner_radii: {
+            top_left: 24,
+            top_right: 24,
+            bottom_left: 24,
+            bottom_right: 24,
+        },
+    }
+
+    .card_title_dark {
+        style: {
+            font_size: 26px,
+            fill: rgba(23, 23, 23, 255),
+            align_horizontal: TextAlignHorizontal::Left,
+            align_vertical: TextAlignVertical::Center,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .card_title_light {
+        style: {
+            font_size: 26px,
+            fill: rgba(250, 245, 255, 255),
+            align_horizontal: TextAlignHorizontal::Left,
+            align_vertical: TextAlignVertical::Center,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .card_copy_dark {
+        style: {
+            font_size: 13px,
+            fill: rgba(38, 38, 38, 255),
+            align_horizontal: TextAlignHorizontal::Left,
+            align_vertical: TextAlignVertical::Top,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .card_copy_light {
+        style: {
+            font_size: 13px,
+            fill: rgba(226, 232, 240, 255),
+            align_horizontal: TextAlignHorizontal::Left,
+            align_vertical: TextAlignVertical::Top,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .status_dark {
+        style: {
+            font_size: 13px,
+            fill: rgba(17, 24, 39, 255),
+            align_horizontal: TextAlignHorizontal::Left,
+            align_vertical: TextAlignVertical::Center,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .status_light {
+        style: {
+            font_size: 13px,
+            fill: rgba(191, 219, 254, 255),
+            align_horizontal: TextAlignHorizontal::Left,
+            align_vertical: TextAlignVertical::Center,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .pill_text {
+        style: {
+            font_size: 12px,
+            fill: rgba(6, 24, 19, 255),
+            align_horizontal: TextAlignHorizontal::Left,
+            align_vertical: TextAlignVertical::Top,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .input_light {
+        background: rgba(255, 250, 245, 255),
+        stroke: {
+            color: rgba(191, 109, 77, 255),
+            width: 1px,
+        },
+        outline: {
+            color: rgba(191, 109, 77, 255),
+            width: 0px,
+        },
+        border_radius: 14,
+        style: {
+            font_size: 15px,
+            fill: rgba(68, 64, 60, 255),
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .input_dark {
+        background: rgba(255, 255, 255, 240),
+        stroke: {
+            color: rgba(59, 130, 246, 255),
+            width: 1px,
+        },
+        outline: {
+            color: rgba(59, 130, 246, 255),
+            width: 0px,
+        },
+        border_radius: 14,
+        style: {
+            font_size: 15px,
+            fill: rgba(30, 41, 59, 255),
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .button_hot {
+        color: rgba(21, 128, 61, 255),
+        hover_color: rgba(22, 101, 52, 255),
+        border_radius: 14,
+        outline: {
+            color: rgba(255, 255, 255, 35),
+            width: 1px,
+        },
+        style: {
+            font_size: 16px,
+            fill: rgba(248, 250, 252, 255),
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+            align_multiline: TextAlignHorizontal::Center,
+            underline: false,
+        }
+    }
+
+    .button_dark {
+        color: rgba(37, 99, 235, 255),
+        hover_color: rgba(29, 78, 216, 255),
+        border_radius: 14,
+        outline: {
+            color: rgba(255, 255, 255, 40),
+            width: 1px,
+        },
+        style: {
+            font_size: 16px,
+            fill: rgba(239, 246, 255, 255),
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+            align_multiline: TextAlignHorizontal::Center,
+            underline: false,
+        }
+    }
+}

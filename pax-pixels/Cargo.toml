@@ -23,5 +23,5 @@ wasm-bindgen-futures = "0.4.38"
 version = "28.0.0"
 features = [
     "webgpu",     # Required for WebGPU support
-    # "webgl",      # Optional: for WebGL fallback
+    "webgl",      # Runtime fallback when WebGPU is unavailable in the browser
 ]

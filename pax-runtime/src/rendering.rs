@@ -212,6 +212,14 @@ pub trait InstanceNode {
         _context: &Rc<RuntimeContext>,
     ) {
     }
+
+    fn resolve_coverage_path(&self, _expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
+        None
+    }
+
+    fn resolve_effect_clip_path(&self, _expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
+        None
+    }
 }
 
 pub struct BaseInstance {

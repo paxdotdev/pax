@@ -6,8 +6,8 @@ use crate::Transform2D;
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct GpuGlobals {
     pub resolution: [f32; 2],
-    pub dpr: u32,
-    pub _pad2: i32,
+    pub dpr: f32,
+    pub _pad2: f32,
 }
 
 #[repr(C)]

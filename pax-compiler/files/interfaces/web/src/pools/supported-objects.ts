@@ -21,6 +21,7 @@ import { NavigationPatch } from "../classes/messages/navigation-patch";
 import { YoutubeVideoUpdatePatch } from "../classes/messages/youtube-video-update-patch";
 import { SetCursorPatch } from "../classes/messages/set-cursor-patch";
 import { ScreenshotPatch } from "../classes/messages/screenshot-patch";
+import { NativeMaskUpdatePatch } from "../classes/messages/native-mask-update-patch";
 
 export const OBJECT = "Object";
 export const ARRAY = "Array";
@@ -41,6 +42,7 @@ export const SCROLLER_UPDATE_PATCH = "Scroller Update Patch";
 export const NAVIGATION_PATCH = "Navigation Patch";
 export const SET_CURSOR_PATCH = "Set Cursor Patch";
 export const SCREENSHOT_PATCH = "Screenshot Patch";
+export const NATIVE_MASK_UPDATE_PATCH = "Native Mask Update Patch";
 export const TEXT_UPDATE_PATCH = "Text Update Patch";
 export const NATIVE_IMAGE_UPDATE_PATCH = "Native Image Update Patch";
 export const YOUTUBE_VIDEO_UPDATE_PATCH = "Youtube Video Update Patch";
@@ -235,6 +237,11 @@ export let SUPPORTED_OBJECTS = [{
     name: SCREENSHOT_PATCH,
     factory: () => new ScreenshotPatch(),
     cleanUp: (patch: ScreenshotPatch) => { patch.cleanUp() }
+},
+{
+    name: NATIVE_MASK_UPDATE_PATCH,
+    factory: () => new NativeMaskUpdatePatch(),
+    cleanUp: (patch: NativeMaskUpdatePatch) => { patch.cleanUp() }
 },
 {
     name: LAYER,

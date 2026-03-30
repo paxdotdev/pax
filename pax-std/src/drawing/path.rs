@@ -1,4 +1,4 @@
-use kurbo::BezPath;
+use kurbo::{Affine, BezPath};
 
 use pax_engine::api::{Fill, PathElement};
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
@@ -135,6 +135,68 @@ impl InstanceNode for PathInstance {
         // we know that all of the expanded and flattened children
         // are the same as the once being rendered
         expanded_node.compute_flattened_slot_children();
+    }
+
+    fn resolve_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
+        expanded_node.with_properties_unwrapped(|properties: &mut Path| {
+            let bounds = expanded_node.transform_and_bounds.get().bounds;
+            let mut bez_path = BezPath::new();
+            properties.elements.read(|elems| {
+                let mut itr_elems = elems.iter();
+
+                if let Some(elem) = itr_elems.next() {
+                    if let &PathElement::Point(x, y) = elem {
+                        bez_path.move_to(Point { x, y }.to_kurbo_point(bounds));
+                    } else {
+                        log::warn!("path must start with point");
+                        return;
+                    }
+                }
+
+                while let Some(elem) = itr_elems.next() {
+                    match elem {
+                        &PathElement::Point(x, y) => {
+                            bez_path.move_to(Point { x, y }.to_kurbo_point(bounds));
+                        }
+                        &PathElement::Line => {
+                            let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
+                                log::warn!("line expects to be followed by a point");
+                                return;
+                            };
+                            bez_path.line_to(Point { x, y }.to_kurbo_point(bounds));
+                        }
+                        &PathElement::Quadratic(h_x, h_y) => {
+                            let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
+                                log::warn!("curve expects to be followed by a point");
+                                return;
+                            };
+                            bez_path.quad_to(
+                                Point { x: h_x, y: h_y }.to_kurbo_point(bounds),
+                                Point { x, y }.to_kurbo_point(bounds),
+                            );
+                        }
+                        &PathElement::Cubic(v1, v2, v3, v4) => {
+                            let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
+                                log::warn!("curve expects to be followed by a point");
+                                return;
+                            };
+                            bez_path.curve_to(
+                                Point { x: v1, y: v2 }.to_kurbo_point(bounds),
+                                Point { x: v3, y: v4 }.to_kurbo_point(bounds),
+                                Point { x, y }.to_kurbo_point(bounds),
+                            );
+                        }
+                        &PathElement::Close => {
+                            bez_path.close_path();
+                        }
+                        PathElement::Empty => (),
+                    }
+                }
+            });
+
+            let tab = expanded_node.transform_and_bounds.get();
+            Some(Affine::from(tab.transform) * bez_path)
+        })
     }
 
     fn render(

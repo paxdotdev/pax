@@ -8,7 +8,7 @@ type LayerDef = (WgpuRenderer<'static>, Pin<Box<dyn Fn() -> LayerSurfaceSize>>);
 pub struct LayerSurfaceSize {
     pub surface_width: u32,
     pub surface_height: u32,
-    pub dpr: u32,
+    pub dpr: f32,
 }
 
 pub struct PaxPixelsRenderer {
@@ -21,6 +21,7 @@ pub struct PaxPixelsRenderer {
 
 pub enum RenderLayerState {
     Pending,
+    Failed,
     Ready(LayerDef),
 }
 
@@ -49,13 +50,8 @@ impl PaxPixelsRenderer {
                         failed_context_gets.resize(layer + 1, false);
                     }
                     failed_context_gets[layer] = true;
-                    // this happens to often to be useful right now - how to handle asyncness
-                    // better here feels important
-                    // log::warn!(
-                    //     "tried to retrieve layer {} context that wasn't ready",
-                    //     layer
-                    // );
                 }
+                RenderLayerState::Failed => {}
                 RenderLayerState::Ready((renderer, _)) => f(renderer),
             },
             None => log::warn!(
@@ -178,9 +174,13 @@ impl RenderContext for PaxPixelsRenderer {
                             (Some(change), Some(layer_def)) => {
                                 *change = RenderLayerState::Ready(layer_def);
                             }
-                            (Some(_), None) => log::warn!(
-                                "failed to set poll state to ready: backend failed to initialize"
-                            ),
+                            (Some(change), None) => {
+                                *change = RenderLayerState::Failed;
+                                log::warn!(
+                                    "failed to initialize render backend for layer {}",
+                                    i
+                                );
+                            }
                             (None, Some(_)) => {
                                 log::warn!("failed to set poll state to ready: layer doesn't exist anymore")
                             }
@@ -202,6 +202,7 @@ impl RenderContext for PaxPixelsRenderer {
         let mut backends = self.backends.borrow_mut();
         match backends.get_mut(layer) {
             Some(RenderLayerState::Pending) => {}
+            Some(RenderLayerState::Failed) => {}
             Some(RenderLayerState::Ready((context, _))) => {
                 if let Some(failed) = self.failed_context_gets.borrow_mut().get_mut(layer) {
                     if *failed {
@@ -225,9 +226,8 @@ impl RenderContext for PaxPixelsRenderer {
     fn resize(&mut self, width: usize, height: usize) {
         for backend in &mut *self.backends.borrow_mut() {
             match backend {
-                RenderLayerState::Pending => {
-                    log::warn!("tried to resize backend that was pending")
-                }
+                RenderLayerState::Pending => {}
+                RenderLayerState::Failed => {}
                 RenderLayerState::Ready((renderer, canvas_resizer)) => {
                     let surface = (canvas_resizer)();
                     renderer.resize_surface(

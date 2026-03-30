@@ -60,6 +60,26 @@ impl InstanceNode for FrameInstance {
 
     fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {}
 
+    fn resolve_effect_clip_path(&self, expanded_node: &ExpandedNode) -> Option<BezPath> {
+        if !expanded_node.with_properties_unwrapped(|frame: &mut Frame| frame._clip_content.get()) {
+            return None;
+        }
+
+        let t_and_b = expanded_node.transform_and_bounds.get();
+        let transform = t_and_b.transform;
+        let (width, height) = t_and_b.bounds;
+
+        let mut bez_path = BezPath::new();
+        bez_path.move_to((0.0, 0.0));
+        bez_path.line_to((width, 0.0));
+        bez_path.line_to((width, height));
+        bez_path.line_to((0.0, height));
+        bez_path.line_to((0.0, 0.0));
+        bez_path.close_path();
+
+        Some(<Affine>::from(transform) * bez_path)
+    }
+
     fn handle_pre_render(
         &self,
         expanded_node: &ExpandedNode,
@@ -77,22 +97,9 @@ impl InstanceNode for FrameInstance {
             return;
         }
 
-        if !expanded_node.with_properties_unwrapped(|frame: &mut Frame| frame._clip_content.get()) {
+        let Some(transformed_bez_path) = self.resolve_effect_clip_path(expanded_node) else {
             return;
-        }
-        let t_and_b = expanded_node.transform_and_bounds.get();
-        let transform = t_and_b.transform;
-        let (width, height) = t_and_b.bounds;
-
-        let mut bez_path = BezPath::new();
-        bez_path.move_to((0.0, 0.0));
-        bez_path.line_to((width, 0.0));
-        bez_path.line_to((width, height));
-        bez_path.line_to((0.0, height));
-        bez_path.line_to((0.0, 0.0));
-        bez_path.close_path();
-
-        let transformed_bez_path = <Affine>::from(transform) * bez_path;
+        };
 
         let layers = rcs.layers();
         for layer in 0..layers {

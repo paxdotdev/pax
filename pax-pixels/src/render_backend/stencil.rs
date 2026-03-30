@@ -3,6 +3,18 @@ use lyon::tessellation::VertexBuffers;
 use wgpu::util::DeviceExt;
 use wgpu::{BufferUsages, Device, Queue, RenderPipeline};
 
+fn write_u16_buffer_padded(queue: &Queue, buffer: &wgpu::Buffer, data: &[u16]) {
+    if data.len() % 2 == 0 {
+        queue.write_buffer(buffer, 0, bytemuck::cast_slice(data));
+        return;
+    }
+
+    let mut padded = Vec::with_capacity(data.len() + 1);
+    padded.extend_from_slice(data);
+    padded.push(0);
+    queue.write_buffer(buffer, 0, bytemuck::cast_slice(&padded));
+}
+
 pub struct StencilRenderer {
     stencil_pipeline: RenderPipeline,
     decrement_pipeline: RenderPipeline,
@@ -263,11 +275,7 @@ impl StencilRenderer {
             0,
             bytemuck::cast_slice(&geometry.vertices),
         );
-        queue.write_buffer(
-            &self.indices_buffer,
-            0,
-            bytemuck::cast_slice(&geometry.indices),
-        );
+        write_u16_buffer_padded(queue, &self.indices_buffer, &geometry.indices);
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -309,11 +317,7 @@ impl StencilRenderer {
                 0,
                 bytemuck::cast_slice(&geometry.vertices),
             );
-            queue.write_buffer(
-                &self.indices_buffer,
-                0,
-                bytemuck::cast_slice(&geometry.indices),
-            );
+            write_u16_buffer_padded(queue, &self.indices_buffer, &geometry.indices);
 
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Stencil Pop Encoder"),

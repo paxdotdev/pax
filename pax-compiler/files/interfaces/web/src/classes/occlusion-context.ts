@@ -4,7 +4,10 @@ import {ARRAY, DIV, LAYER} from "../pools/supported-objects";
 
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
 import { CLIPPING_CONTAINER } from "../utils/constants";
-import { getQuadClipPolygonCommand } from "../utils/helpers";
+import { affineMultiply } from "../utils/helpers";
+import type { NativeMaskEntry } from "./messages/native-mask-update-patch";
+
+const SVG_NS = "http://www.w3.org/2000/svg";
 
 export class OcclusionLayerManager {
     private layers?: Layer[];
@@ -13,10 +16,12 @@ export class OcclusionLayerManager {
     private objectManager: ObjectManager;
     private chassis?: PaxChassisWeb;
     private containers: Map<number, Container>;
+    private effects: SvgEffectManager;
 
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
         this.containers = new Map();
+        this.effects = new SvgEffectManager();
     }
 
     attach(parent: Element, chassis: PaxChassisWeb, canvasMap: Map<string, HTMLCanvasElement>) {
@@ -24,6 +29,7 @@ export class OcclusionLayerManager {
         this.parent = parent;
         this.chassis = chassis;
         this.canvasMap = canvasMap;
+        this.effects.attach(parent);
         this.growTo(0);
     }
 
@@ -55,7 +61,24 @@ export class OcclusionLayerManager {
         let attach_point = this.getOrCreateContainer(parent_container, occlusionLayerId);
         if (!attach_point.contains(element)) {
             attach_point.appendChild(element);
-        }        
+        }
+    }
+
+    updateElementMask(element: HTMLElement, id: number, entries: NativeMaskEntry[]) {
+        this.effects.updateMask(id, entries, this.parent);
+        if (entries.length === 0) {
+            element.style.mask = "";
+            (element.style as any).webkitMask = "";
+            element.style.maskRepeat = "";
+            (element.style as any).webkitMaskRepeat = "";
+            return;
+        }
+
+        let maskValue = `url(#${nativeMaskId(id)})`;
+        element.style.mask = maskValue;
+        (element.style as any).webkitMask = maskValue;
+        element.style.maskRepeat = "no-repeat";
+        (element.style as any).webkitMaskRepeat = "no-repeat";
     }
 
     // If a div for the container referenced already exists, returns it. if not,
@@ -66,27 +89,19 @@ export class OcclusionLayerManager {
             return layer;
         }
 
-        // see if there already is a dom node corresponding to this container in this layer
         let elem = layer.querySelector(`[data-container-id="${id}"]`);
         if (elem != undefined) {
             return elem!;
         }
 
-        //ok doesn't seem to exist, we need to create it
         let container = this.containers.get(id);
         if (container == null) {
             throw new Error("something referenced a container that doesn't exist");
         }
         let new_container: HTMLDivElement = this.objectManager.getFromPool(DIV);
         new_container.dataset.containerId = id.toString();
-
-        // set styling, includes referencing the variable especially created for this container
-        // (a container might need to exist on multiple native layers - variable results in less dom updates needed)
-        new_container.setAttribute("class", CLIPPING_CONTAINER)
-        let var_val = `var(${containerCssClipPathVar(id)})`;
-        new_container.style.clipPath = var_val;
-        (new_container.style as any).webkitClipPath = var_val;
-
+        new_container.setAttribute("class", CLIPPING_CONTAINER);
+        applyContainerClipPath(new_container, container.clipPathValue());
 
         let parent_container = this.getOrCreateContainer(container.parentFrame, occlusionLayerId);
         parent_container.appendChild(new_container);
@@ -102,33 +117,29 @@ export class OcclusionLayerManager {
         if (container == null) {
             throw new Error("tried to update non existent container");
         }
-        container.updateClippingPath(styles);
+        container.update(styles);
+        this.effects.updateClipPath(container.clipPathId(), container.clipPathData());
+        this.applyContainerClipPath(id);
     }
 
     updateContainerParent(id: number, new_parent_id: number | undefined) {
-        // Check if the container exists
         const container = this.containers.get(id);
         if (container == null) {
             throw new Error(`Container with id ${id} does not exist`);
         }
 
-        // Update the container's parent in our internal data structure
         container.parentFrame = new_parent_id;
 
-        // Update the DOM for each layer
         this.layers!.forEach((layer, layerIndex) => {
             const currentElement = layer.native!.querySelector(`[data-container-id="${id}"]`) as HTMLElement;
             if (currentElement) {
                 const newParentElement = this.getOrCreateContainer(new_parent_id, layerIndex);
-    
-                // Check if the current parent is different from the new parent
                 if (currentElement.parentElement !== newParentElement) {
-                    // Add to new parent
                     newParentElement.appendChild(currentElement);
                 }
             }
         });
-}
+    }
 
     removeContainer(id: number) {
         let container = this.containers.get(id);
@@ -136,6 +147,7 @@ export class OcclusionLayerManager {
             throw new Error(`tried to delete non-existent container with id ${id}`);
         }
         this.containers.delete(id);
+        this.effects.updateClipPath(container.clipPathId(), undefined);
 
         let existing_layer_instantiations = document.querySelectorAll(`[data-container-id="${id}"]`);
         existing_layer_instantiations.forEach((elem, _key, _parent) => {
@@ -146,8 +158,6 @@ export class OcclusionLayerManager {
             parent!.removeChild(elem);
             this.objectManager.returnToPool(DIV, elem);
         })
-        let var_name = containerCssClipPathVar(id);
-        document.documentElement.style.removeProperty(var_name);
     }
 
     cleanUp(){
@@ -156,8 +166,21 @@ export class OcclusionLayerManager {
                 this.objectManager.returnToPool(LAYER, layer);
             });
         }
+        this.containers.clear();
+        this.effects.cleanUp();
         this.canvasMap = undefined;
         this.parent = undefined;
+    }
+
+    private applyContainerClipPath(id: number) {
+        let container = this.containers.get(id);
+        if (container == null) {
+            return;
+        }
+        let clipValue = container.clipPathValue();
+        document
+            .querySelectorAll(`[data-container-id="${id}"]`)
+            .forEach((elem) => applyContainerClipPath(elem as HTMLElement, clipValue));
     }
 }
 
@@ -172,23 +195,218 @@ class Container {
         this.id = id;
     }
 
-    updateClippingPath(patch: Partial<ContainerStyle>) {
+    update(patch: Partial<ContainerStyle>) {
         this.styles = {...this.styles, ...patch};
-        let var_name = containerCssClipPathVar(this.id);
-        let polygonDef;
-        if (this.styles.clipContent) {
-            polygonDef = getQuadClipPolygonCommand(this.styles.width!, this.styles.height!, this.styles.transform!)
-            // element.style.clipPath = polygonDef;
-            // element.style.webkitClipPath = polygonDef;
-        } else {
-            polygonDef = "none";
+    }
+
+    clipPathId() {
+        return `pax-container-clip-${this.id}`;
+    }
+
+    clipPathValue() {
+        if (!this.styles.clipContent) {
+            return "none";
         }
-        document.documentElement.style.setProperty(var_name, polygonDef);
+        return `url(#${this.clipPathId()})`;
+    }
+
+    clipPathData() {
+        if (!this.styles.clipContent) {
+            return undefined;
+        }
+        if (this.styles.clipPath && this.styles.clipPath.length > 0) {
+            return this.styles.clipPath;
+        }
+        return getRectClipPathData(this.styles.width!, this.styles.height!, this.styles.transform!);
     }
 }
 
-function containerCssClipPathVar(id: number) {
-    return `--container-${id}-clip-path`;
+class SvgEffectManager {
+    private root?: SVGSVGElement;
+    private defs?: SVGDefsElement;
+
+    attach(parent: Element) {
+        this.root = document.createElementNS(SVG_NS, "svg");
+        this.root.setAttribute("width", "0");
+        this.root.setAttribute("height", "0");
+        this.root.setAttribute("aria-hidden", "true");
+        this.root.style.position = "absolute";
+        this.root.style.width = "0";
+        this.root.style.height = "0";
+        this.root.style.pointerEvents = "none";
+
+        this.defs = document.createElementNS(SVG_NS, "defs");
+        this.root.appendChild(this.defs);
+        parent.appendChild(this.root);
+    }
+
+    updateClipPath(id: string, pathData: string | undefined) {
+        if (!this.defs) {
+            return;
+        }
+
+        if (!pathData || pathData.length === 0) {
+            this.removeElement(id);
+            return;
+        }
+
+        let clipPath = this.getOrCreateClipPath(id);
+        let path = this.getOrCreatePathChild(clipPath);
+        if (path.getAttribute("d") !== pathData) {
+            path.setAttribute("d", pathData);
+        }
+    }
+
+    updateMask(id: number, entries: NativeMaskEntry[], parent?: Element) {
+        if (!this.defs) {
+            return;
+        }
+
+        if (entries.length === 0) {
+            this.removeElement(nativeMaskId(id));
+            this.removeUnusedMaskClips(id, new Set());
+            return;
+        }
+
+        let mask = this.getOrCreateMask(id);
+        let backdrop = this.getOrCreateBackdrop(mask);
+        let viewport = parent?.getBoundingClientRect();
+        backdrop.setAttribute("x", "0");
+        backdrop.setAttribute("y", "0");
+        backdrop.setAttribute("width", `${viewport?.width ?? 0}`);
+        backdrop.setAttribute("height", `${viewport?.height ?? 0}`);
+
+        Array.from(mask.children)
+            .filter((child) => child !== backdrop)
+            .forEach((child) => child.remove());
+
+        let desiredClipIds = new Set<string>();
+        entries.forEach((entry, index) => {
+            let path = document.createElementNS(SVG_NS, "path");
+            path.setAttribute("d", entry.path);
+            path.setAttribute("fill", "black");
+            mask.appendChild(this.wrapWithClips(id, index, path, entry.clips, desiredClipIds));
+        });
+        this.removeUnusedMaskClips(id, desiredClipIds);
+    }
+
+    cleanUp() {
+        this.root?.remove();
+        this.root = undefined;
+        this.defs = undefined;
+    }
+
+    private wrapWithClips(
+        id: number,
+        entryIndex: number,
+        element: SVGElement,
+        clips: string[],
+        desiredClipIds: Set<string>,
+    ) {
+        let current: SVGElement = element;
+        [...clips].reverse().forEach((clipPathData, clipIndex) => {
+            let clipPathId = nativeMaskClipId(id, entryIndex, clipIndex);
+            desiredClipIds.add(clipPathId);
+            this.updateClipPath(clipPathId, clipPathData);
+
+            let group = document.createElementNS(SVG_NS, "g");
+            group.setAttribute("clip-path", `url(#${clipPathId})`);
+            group.appendChild(current);
+            current = group;
+        });
+        return current;
+    }
+
+    private getOrCreateClipPath(id: string) {
+        let existing = this.defs?.querySelector<SVGClipPathElement>(`#${CSS.escape(id)}`);
+        if (existing) {
+            return existing;
+        }
+
+        let clipPath = document.createElementNS(SVG_NS, "clipPath");
+        clipPath.setAttribute("id", id);
+        clipPath.setAttribute("clipPathUnits", "userSpaceOnUse");
+        this.defs?.appendChild(clipPath);
+        return clipPath;
+    }
+
+    private getOrCreatePathChild(parent: SVGElement) {
+        let existing = parent.querySelector<SVGPathElement>(":scope > path");
+        if (existing) {
+            return existing;
+        }
+
+        let path = document.createElementNS(SVG_NS, "path");
+        parent.appendChild(path);
+        return path;
+    }
+
+    private getOrCreateMask(id: number) {
+        let existing = this.defs?.querySelector<SVGMaskElement>(`#${CSS.escape(nativeMaskId(id))}`);
+        if (existing) {
+            return existing;
+        }
+
+        let mask = document.createElementNS(SVG_NS, "mask");
+        mask.setAttribute("id", nativeMaskId(id));
+        mask.setAttribute("maskUnits", "userSpaceOnUse");
+        mask.setAttribute("maskContentUnits", "userSpaceOnUse");
+        mask.setAttribute("mask-type", "alpha");
+        this.defs?.appendChild(mask);
+        return mask;
+    }
+
+    private getOrCreateBackdrop(mask: SVGMaskElement) {
+        let existing = mask.querySelector<SVGRectElement>(':scope > rect[data-role="backdrop"]');
+        if (existing) {
+            return existing;
+        }
+
+        let backdrop = document.createElementNS(SVG_NS, "rect");
+        backdrop.dataset.role = "backdrop";
+        backdrop.setAttribute("fill", "white");
+        mask.appendChild(backdrop);
+        return backdrop;
+    }
+
+    private removeUnusedMaskClips(id: number, desiredIds: Set<string>) {
+        this.defs
+            ?.querySelectorAll(`[id^="${nativeMaskClipPrefix(id)}"]`)
+            .forEach((elem) => {
+                if (!desiredIds.has(elem.id)) {
+                    elem.remove();
+                }
+            });
+    }
+
+    private removeElement(id: string) {
+        this.defs?.querySelector(`#${CSS.escape(id)}`)?.remove();
+    }
+}
+
+function nativeMaskId(id: number) {
+    return `pax-native-mask-${id}`;
+}
+
+function nativeMaskClipPrefix(id: number) {
+    return `pax-native-mask-${id}-clip-`;
+}
+
+function nativeMaskClipId(id: number, entryIndex: number, clipIndex: number) {
+    return `${nativeMaskClipPrefix(id)}${entryIndex}-${clipIndex}`;
+}
+
+function applyContainerClipPath(element: HTMLElement, value: string) {
+    element.style.clipPath = value;
+    (element.style as any).webkitClipPath = value;
+}
+
+function getRectClipPathData(width: number, height: number, transform: number[]) {
+    let point0 = affineMultiply([0, 0], transform);
+    let point1 = affineMultiply([width, 0], transform);
+    let point2 = affineMultiply([width, height], transform);
+    let point3 = affineMultiply([0, height], transform);
+    return `M${point0[0]},${point0[1]}L${point1[0]},${point1[1]}L${point2[0]},${point2[1]}L${point3[0]},${point3[1]}Z`;
 }
 
 export class ContainerStyle {
@@ -196,11 +414,13 @@ export class ContainerStyle {
     transform: number[];
     width: number;
     height: number;
+    clipPath?: string;
 
     constructor() {
         this.clipContent = true;
         this.transform = [0, 0, 0, 0, 0, 0];
         this.width = 0;
         this.height = 0;
+        this.clipPath = undefined;
     }
 }

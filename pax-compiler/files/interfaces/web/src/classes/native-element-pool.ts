@@ -34,6 +34,7 @@ import { NativeImageUpdatePatch } from "./messages/native-image-update-patch";
 import { YoutubeVideoUpdatePatch } from "./messages/youtube-video-update-patch";
 import { SetCursorPatch } from "./messages/set-cursor-patch";
 import { ScreenshotPatch } from "./messages/screenshot-patch";
+import { NativeMaskUpdatePatch } from "./messages/native-mask-update-patch";
 
 import html2canvas from 'html2canvas';
 
@@ -93,6 +94,14 @@ export class NativeElementPool {
             // must be container
             this.layers.updateContainerParent(patch.id!, patch.parentFrame);
         }
+    }
+
+    nativeMaskUpdate(patch: NativeMaskUpdatePatch) {
+        let node: HTMLElement = this.nodesLookup.get(patch.id!)!;
+        if (!node) {
+            return;
+        }
+        this.layers.updateElementMask(node, patch.id!, patch.entries);
     }
 
     checkboxCreate(patch: AnyCreatePatch) {
@@ -901,6 +910,9 @@ export class NativeElementPool {
          }
          if (patch.clipContent != null) {
              styles.clipContent = patch.clipContent;
+         }
+         if (patch.clipPath != null) {
+             styles.clipPath = patch.clipPath;
          }
         
         this.layers.updateContainer(patch.id!, styles);

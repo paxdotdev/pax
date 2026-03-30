@@ -1,4 +1,4 @@
-use kurbo::{RoundedRect, RoundedRectRadii, Shape};
+use kurbo::{Affine, RoundedRect, RoundedRectRadii, Shape};
 use pax_runtime::{api::Fill, BaseInstance};
 use pax_runtime_api::use_RefCell;
 
@@ -78,6 +78,15 @@ impl InstanceNode for RectangleInstance {
     }
 
     fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {}
+
+    fn resolve_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
+        expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
+            let tab = expanded_node.transform_and_bounds.get();
+            let (width, height) = tab.bounds;
+            let rect = RoundedRect::new(0.0, 0.0, width, height, &properties.corner_radii.get());
+            Some(Affine::from(tab.transform) * rect.to_path(0.1))
+        })
+    }
 
     fn render(
         &self,

@@ -42,7 +42,7 @@ pub struct RenderConfig {
     transforms_buffer_size: u64,
     pub initial_width: u32,
     pub initial_height: u32,
-    pub initial_dpr: u32,
+    pub initial_dpr: f32,
 }
 
 pub(crate) const MAX_BATCH_PRIMITIVES: usize = 512;
@@ -51,7 +51,7 @@ pub(crate) const MAX_BATCH_GRADIENTS: usize = 64;
 pub(crate) const MAX_BATCH_TRANSFORMS: usize = 512;
 
 impl RenderConfig {
-    pub fn new(_debug: bool, width: u32, height: u32, dpr: u32) -> Self {
+    pub fn new(_debug: bool, width: u32, height: u32, dpr: f32) -> Self {
         Self {
             debug: false,
             index_buffer_size: 2 << 12,
@@ -71,6 +71,18 @@ fn next_capacity(required: usize) -> u64 {
     required.max(1).next_power_of_two() as u64
 }
 
+fn write_u16_buffer_padded(queue: &wgpu::Queue, buffer: &wgpu::Buffer, data: &[u16]) {
+    if data.len() % 2 == 0 {
+        queue.write_buffer(buffer, 0, bytemuck::cast_slice(data));
+        return;
+    }
+
+    let mut padded = Vec::with_capacity(data.len() + 1);
+    padded.extend_from_slice(data);
+    padded.push(0);
+    queue.write_buffer(buffer, 0, bytemuck::cast_slice(&padded));
+}
+
 pub struct RenderBackend<'w> {
     //configuration
     config: RenderConfig,
@@ -82,6 +94,7 @@ pub struct RenderBackend<'w> {
     queue: wgpu::Queue,
     surface: wgpu::Surface<'w>,
     surface_config: SurfaceConfiguration,
+    max_surface_dimension: u32,
     pipeline: RenderPipeline,
     bind_group: BindGroup,
     primitive_bind_group_layout: BindGroupLayout,
@@ -264,8 +277,8 @@ impl<'w> RenderBackend<'w> {
         canvas: web_sys::HtmlCanvasElement,
         config: RenderConfig,
     ) -> Result<Self, anyhow::Error> {
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::BROWSER_WEBGPU,
+        let instance = wgpu::util::new_instance_with_webgpu_detection(&wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL,
             flags: if config.debug {
                 wgpu::InstanceFlags::DEBUG
             } else {
@@ -273,7 +286,8 @@ impl<'w> RenderBackend<'w> {
             },
             memory_budget_thresholds: Default::default(),
             backend_options: Default::default(),
-        });
+        })
+        .await;
         let surface_target = wgpu::SurfaceTarget::Canvas(canvas);
         let surface = instance.create_surface(surface_target)?;
         Self::new(surface, instance, config).await
@@ -320,6 +334,12 @@ impl<'w> RenderBackend<'w> {
             })
             .await
             .map_err(|_| anyhow!("couldn't find adapter"))?;
+        let adapter_info = adapter.get_info();
+        log::info!(
+            "render backend: using {:?} adapter \"{}\"",
+            adapter_info.backend,
+            adapter_info.name
+        );
         #[cfg(target_arch = "wasm32")]
         let required_limits = wgpu::Limits::downlevel_webgl2_defaults();
         #[cfg(not(target_arch = "wasm32"))]
@@ -337,6 +357,11 @@ impl<'w> RenderBackend<'w> {
             )
             .await
             .expect("couldn't find device");
+        let max_surface_dimension = device.limits().max_texture_dimension_2d;
+        log::info!(
+            "render backend: max surface dimension {}",
+            max_surface_dimension
+        );
 
         let surface_caps = surface.get_capabilities(&adapter);
         #[cfg(target_arch = "wasm32")]
@@ -374,8 +399,8 @@ impl<'w> RenderBackend<'w> {
         let surface_config = SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
-            width: config.initial_width,
-            height: config.initial_height,
+            width: config.initial_width.max(1),
+            height: config.initial_height.max(1),
             present_mode: PresentMode::Fifo,
             alpha_mode,
             view_formats: vec![surface_format],
@@ -399,9 +424,9 @@ impl<'w> RenderBackend<'w> {
         }
 
         let globals = GpuGlobals {
-            resolution: [config.initial_width as f32, config.initial_height as f32],
+            resolution: [config.initial_width.max(1) as f32, config.initial_height.max(1) as f32],
             dpr: config.initial_dpr,
-            _pad2: 0,
+            _pad2: 0.0,
         };
         let (_, globals_buffer) = create_buffer::<GpuGlobals>(
             &device,
@@ -558,6 +583,7 @@ impl<'w> RenderBackend<'w> {
             queue,
             config,
             surface_config,
+            max_surface_dimension,
             bind_group,
             primitive_bind_group_layout,
             pipeline,
@@ -674,6 +700,8 @@ impl<'w> RenderBackend<'w> {
     }
 
     pub fn resize_surface(&mut self, width: u32, height: u32) {
+        let width = width.max(1);
+        let height = height.max(1);
         self.active_frame = None;
         self.pending_clear = false;
         self.surface_config.width = width;
@@ -695,14 +723,18 @@ impl<'w> RenderBackend<'w> {
         };
     }
 
-    pub fn set_viewport(&mut self, width: f32, height: f32, dpr: u32) {
-        self.globals.resolution = [width, height];
+    pub fn set_viewport(&mut self, width: f32, height: f32, dpr: f32) {
+        self.globals.resolution = [width.max(1.0), height.max(1.0)];
         self.globals.dpr = dpr;
         self.queue.write_buffer(
             &self.globals_buffer,
             0,
             bytemuck::cast_slice(&[self.globals]),
         );
+    }
+
+    pub fn max_surface_dimension(&self) -> u32 {
+        self.max_surface_dimension
     }
 
     pub(crate) fn create_vector_resource(
@@ -827,8 +859,7 @@ impl<'w> RenderBackend<'w> {
 
         self.queue
             .write_buffer(&resource.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
-        self.queue
-            .write_buffer(&resource.index_buffer, 0, bytemuck::cast_slice(&indices));
+        write_u16_buffer_padded(&self.queue, &resource.index_buffer, &indices);
         self.queue.write_buffer(
             &resource._primitive_buffer,
             0,
@@ -1074,8 +1105,7 @@ impl<'w> RenderBackend<'w> {
             gradients.len(),
         );
 
-        self.queue
-            .write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&geom.indices));
+        write_u16_buffer_padded(&self.queue, &self.index_buffer, &geom.indices);
         self.queue
             .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&geom.vertices));
         self.queue

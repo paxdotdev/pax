@@ -1,7 +1,7 @@
 struct Globals {
     resolution: vec2<f32>,
-    dpr: u32,
-    _pad2: u32,
+    dpr: f32,
+    _pad2: f32,
 };
 
 
@@ -29,4 +29,3 @@ fn vs_main(
 fn fs_main() -> @location(0) vec4<f32> {
     return vec4<f32>(1.0, 1.0, 1.0, 1.0);
 }                    
-

@@ -1,4 +1,4 @@
-use kurbo::Shape;
+use kurbo::{Affine, Rect, Shape};
 use pax_engine::*;
 use pax_runtime::api::{borrow_mut, use_RefCell};
 use pax_runtime::{api::Property, api::RenderContext, ExpandedNodeIdentifier};
@@ -152,6 +152,12 @@ impl InstanceNode for ImageInstance {
             .changed_listener
             .replace_with(Property::default());
         borrow_mut!(self.needs_to_load_data).remove(&id);
+    }
+
+    fn resolve_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
+        let tab = expanded_node.transform_and_bounds.get();
+        let rect = Rect::new(0.0, 0.0, tab.bounds.0, tab.bounds.1);
+        Some(Affine::from(tab.transform) * rect.into_path(0.01))
     }
 
     fn render(

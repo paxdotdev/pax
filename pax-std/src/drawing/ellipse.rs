@@ -1,4 +1,4 @@
-use kurbo::{Rect, Shape};
+use kurbo::{Affine, Rect, Shape};
 use pax_engine::*;
 use pax_runtime::api::{use_RefCell, Stroke};
 use pax_runtime::api::{Fill, Layer, RenderContext};
@@ -68,6 +68,14 @@ impl InstanceNode for EllipseInstance {
     }
 
     fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {}
+
+    fn resolve_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
+        let tab = expanded_node.transform_and_bounds.get();
+        let (width, height) = tab.bounds;
+        let rect = Rect::from_points((0.0, 0.0), (width, height));
+        let ellipse = kurbo::Ellipse::from_rect(rect);
+        Some(Affine::from(tab.transform) * ellipse.to_path(ELLIPSE_PATH_ACCURACY))
+    }
 
     fn render(
         &self,

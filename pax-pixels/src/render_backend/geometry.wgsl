@@ -1,7 +1,7 @@
 struct Globals {
     resolution: vec2<f32>,
-    dpr: u32,
-    _pad2: u32,
+    dpr: f32,
+    _pad2: f32,
 };
 
 struct Primitive {
@@ -124,8 +124,8 @@ fn gradient(fill_id: u32, coord: vec2<f32>) -> vec4<f32> {
     let gradient = gradients.gradients[fill_id];
     
     // Calculate color space position
-    let g_p = gradient.position * f32(globals.dpr);
-    let g_a = gradient.main_axis * f32(globals.dpr);
+    let g_p = gradient.position * globals.dpr;
+    let g_a = gradient.main_axis * globals.dpr;
     let p_t = coord - g_p;
     let m_a_l = length(g_a);
     let n = g_a / m_a_l;

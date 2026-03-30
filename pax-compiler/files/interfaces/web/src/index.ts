@@ -17,6 +17,7 @@ import {
     NATIVE_IMAGE_UPDATE_PATCH,
     SET_CURSOR_PATCH,
     SCREENSHOT_PATCH,
+    NATIVE_MASK_UPDATE_PATCH,
 } from "./pools/supported-objects";
 import {NativeElementPool} from "./classes/native-element-pool";
 import {AnyCreatePatch} from "./classes/messages/any-create-patch";
@@ -38,6 +39,7 @@ import { NavigationPatch } from "./classes/messages/navigation-patch";
 import { NativeImageUpdatePatch } from "./classes/messages/native-image-update-patch";
 import { YoutubeVideoUpdatePatch } from "./classes/messages/youtube-video-update-patch";
 import { ScreenshotPatch } from "./classes/messages/screenshot-patch";
+import { NativeMaskUpdatePatch } from "./classes/messages/native-mask-update-patch";
 
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let messages : any[];
@@ -142,6 +144,11 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             let patch: OcclusionUpdatePatch = objectManager.getFromPool(OCCLUSION_UPDATE_PATCH);
             patch.fromPatch(msg);
             nativePool.occlusionUpdate(patch);
+        } else if(unwrapped_msg["NativeMaskUpdate"]) {
+            let msg = unwrapped_msg["NativeMaskUpdate"];
+            let patch: NativeMaskUpdatePatch = objectManager.getFromPool(NATIVE_MASK_UPDATE_PATCH);
+            patch.fromPatch(msg);
+            nativePool.nativeMaskUpdate(patch);
         } else if(unwrapped_msg["ButtonCreate"]) {
             let msg = unwrapped_msg["ButtonCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
@@ -323,4 +330,3 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
         }
     });
 }
-
