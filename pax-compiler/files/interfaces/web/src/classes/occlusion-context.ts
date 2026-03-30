@@ -64,13 +64,24 @@ export class OcclusionLayerManager {
         }
     }
 
-    updateElementMask(element: HTMLElement, id: number, entries: NativeMaskEntry[]) {
-        this.effects.updateMask(id, entries, this.parent);
+    updateElementMask(
+        element: HTMLElement,
+        id: number,
+        entries: NativeMaskEntry[],
+        sizeX: number | undefined,
+        sizeY: number | undefined,
+    ) {
+        this.effects.updateMask(id, entries, sizeX ?? 0, sizeY ?? 0);
         if (entries.length === 0) {
             element.style.mask = "";
             (element.style as any).webkitMask = "";
             element.style.maskRepeat = "";
             (element.style as any).webkitMaskRepeat = "";
+            element.style.maskPosition = "";
+            (element.style as any).webkitMaskPosition = "";
+            element.style.maskMode = "";
+            (element.style as any).webkitMaskSize = "";
+            element.style.maskSize = "";
             return;
         }
 
@@ -79,6 +90,11 @@ export class OcclusionLayerManager {
         (element.style as any).webkitMask = maskValue;
         element.style.maskRepeat = "no-repeat";
         (element.style as any).webkitMaskRepeat = "no-repeat";
+        element.style.maskPosition = "0px 0px";
+        (element.style as any).webkitMaskPosition = "0px 0px";
+        element.style.maskMode = "alpha";
+        element.style.maskSize = `${sizeX ?? 0}px ${sizeY ?? 0}px`;
+        (element.style as any).webkitMaskSize = `${sizeX ?? 0}px ${sizeY ?? 0}px`;
     }
 
     // If a div for the container referenced already exists, returns it. if not,
@@ -257,7 +273,7 @@ class SvgEffectManager {
         }
     }
 
-    updateMask(id: number, entries: NativeMaskEntry[], parent?: Element) {
+    updateMask(id: number, entries: NativeMaskEntry[], sizeX: number, sizeY: number) {
         if (!this.defs) {
             return;
         }
@@ -270,11 +286,10 @@ class SvgEffectManager {
 
         let mask = this.getOrCreateMask(id);
         let backdrop = this.getOrCreateBackdrop(mask);
-        let viewport = parent?.getBoundingClientRect();
         backdrop.setAttribute("x", "0");
         backdrop.setAttribute("y", "0");
-        backdrop.setAttribute("width", `${viewport?.width ?? 0}`);
-        backdrop.setAttribute("height", `${viewport?.height ?? 0}`);
+        backdrop.setAttribute("width", `${sizeX}`);
+        backdrop.setAttribute("height", `${sizeY}`);
 
         Array.from(mask.children)
             .filter((child) => child !== backdrop)

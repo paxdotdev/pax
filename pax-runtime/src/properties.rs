@@ -158,7 +158,11 @@ impl RuntimeContext {
 
     pub fn resize_canvas_layers_to(&self, id: usize) {
         let mut dirty_canvases = borrow_mut!(self.dirty_canvases);
+        let old_len = dirty_canvases.len();
         dirty_canvases.resize(id, false);
+        for dirty in dirty_canvases.iter_mut().skip(old_len) {
+            *dirty = true;
+        }
     }
 
     pub fn clear_all_dirty_canvases(&self) {

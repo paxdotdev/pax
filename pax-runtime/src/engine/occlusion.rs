@@ -2,7 +2,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-use kurbo::Shape;
+use kurbo::{Affine, BezPath, Shape};
 use pax_message::{borrow, MaskPathPatch, NativeMaskPatch, OcclusionPatch};
 use pax_runtime_api::{bez_path_to_svg_path_data, Layer, Window};
 
@@ -61,7 +61,8 @@ impl OcclusionBox {
 #[derive(Clone)]
 struct CoverageEntry {
     bounds: OcclusionBox,
-    patch: MaskPathPatch,
+    path: BezPath,
+    clips: Vec<BezPath>,
 }
 
 enum DrawableInfo {
@@ -93,22 +94,16 @@ fn update_node_occlusion_recursive(
     node: &Rc<ExpandedNode>,
     ctx: &RuntimeContext,
     active_container: Option<u32>,
-    active_clips: &[String],
+    active_clips: &[BezPath],
     z_index: &mut i32,
     drawables: &mut Vec<DrawableInfo>,
 ) {
     let effect_clip_path = borrow!(node.instance_node).resolve_effect_clip_path(node);
-    let effect_clip_svg = effect_clip_path
-        .as_ref()
-        .map(bez_path_to_svg_path_data)
-        .filter(|path| !path.is_empty());
+    let has_effect_clip = effect_clip_path.is_some();
 
-    let descendant_container = effect_clip_svg
-        .as_ref()
-        .map(|_| node.id.to_u32())
-        .or(active_container);
+    let descendant_container = has_effect_clip.then(|| node.id.to_u32()).or(active_container);
     let mut descendant_clips = active_clips.to_vec();
-    if let Some(clip_path) = effect_clip_svg.clone() {
+    if let Some(clip_path) = effect_clip_path.clone() {
         descendant_clips.push(clip_path);
     }
 
@@ -133,7 +128,7 @@ fn update_node_occlusion_recursive(
     }
 
     let layer = borrow!(node.instance_node).base().flags().layer;
-    if layer == Layer::DontCare && effect_clip_svg.is_none() {
+    if layer == Layer::DontCare && !has_effect_clip {
         return;
     }
 
@@ -143,7 +138,7 @@ fn update_node_occlusion_recursive(
         parent_frame: active_container,
     };
 
-    if (matches!(layer, Layer::Native | Layer::NativeNonOccluding) || effect_clip_svg.is_some())
+    if (matches!(layer, Layer::Native | Layer::NativeNonOccluding) || has_effect_clip)
         && node.occlusion.get() != new_occlusion
     {
         let occlusion_patch = OcclusionPatch {
@@ -176,10 +171,8 @@ fn update_node_occlusion_recursive(
                 if let Some(bounds) = OcclusionBox::new_from_path(&coverage_path) {
                     drawables.push(DrawableInfo::Canvas(CoverageEntry {
                         bounds,
-                        patch: MaskPathPatch {
-                            path: bez_path_to_svg_path_data(&coverage_path),
-                            clips: active_clips.to_vec(),
-                        },
+                        path: coverage_path,
+                        clips: active_clips.to_vec(),
                     }));
                 }
             }
@@ -204,22 +197,38 @@ fn update_native_masks(drawables: &[DrawableInfo], ctx: &RuntimeContext) {
         match drawable {
             DrawableInfo::Canvas(entry) => vector_above.push(entry.clone()),
             DrawableInfo::Native { node, layer, bounds } => {
+                let t_and_b = node.transform_and_bounds.get();
+                let size = t_and_b.bounds;
                 let entries = if *layer == Layer::Native {
+                    let inverse = Affine::from(t_and_b.transform.inverse());
                     vector_above
                         .iter()
                         .filter(|entry| entry.bounds.intersects(bounds))
-                        .map(|entry| entry.patch.clone())
+                        .map(|entry| MaskPathPatch {
+                            path: bez_path_to_svg_path_data(&(inverse * entry.path.clone())),
+                            clips: entry
+                                .clips
+                                .iter()
+                                .map(|clip| bez_path_to_svg_path_data(&(inverse * clip.clone())))
+                                .collect(),
+                        })
                         .collect::<Vec<_>>()
                 } else {
                     Vec::new()
                 };
 
-                let new_hash = hash_mask_entries(&entries);
+                let new_hash = if entries.is_empty() {
+                    0
+                } else {
+                    hash_mask_entries(size, &entries)
+                };
                 if node.native_mask_hash.get() != new_hash {
                     node.native_mask_hash.set(new_hash);
                     ctx.enqueue_native_message(pax_message::NativeMessage::NativeMaskUpdate(
                         NativeMaskPatch {
                             id: node.id.to_u32(),
+                            size_x: size.0,
+                            size_y: size.1,
                             entries,
                         },
                     ));
@@ -229,8 +238,10 @@ fn update_native_masks(drawables: &[DrawableInfo], ctx: &RuntimeContext) {
     }
 }
 
-fn hash_mask_entries(entries: &[MaskPathPatch]) -> u64 {
+fn hash_mask_entries(size: (f64, f64), entries: &[MaskPathPatch]) -> u64 {
     let mut hasher = DefaultHasher::new();
+    size.0.to_bits().hash(&mut hasher);
+    size.1.to_bits().hash(&mut hasher);
     entries.hash(&mut hasher);
     hasher.finish()
 }

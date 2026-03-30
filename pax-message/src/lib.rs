@@ -423,6 +423,8 @@ pub struct MaskPathPatch {
 #[repr(C)]
 pub struct NativeMaskPatch {
     pub id: u32,
+    pub size_x: f64,
+    pub size_y: f64,
     pub entries: Vec<MaskPathPatch>,
 }
 

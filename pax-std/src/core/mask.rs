@@ -150,6 +150,10 @@ impl InstanceNode for MaskInstance {
                         context.enqueue_native_message(pax_message::NativeMessage::FrameUpdate(
                             patch,
                         ));
+                        context.mark_canvas_nodes_on_layer_dirty(
+                            expanded_node.occlusion.get().occlusion_layer_id,
+                        );
+                        context.set_canvas_dirty(expanded_node.occlusion.get().occlusion_layer_id);
                     }
                 },
                 &deps,

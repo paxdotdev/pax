@@ -73,9 +73,6 @@ export class NativeElementPool {
         });
     }
 
-    resizeAllCanvases(): void {
-    }
-
     attach(chassis: PaxChassisWeb, mount: Element){
         this.chassis = chassis;
         this.layers.attach(mount, chassis, this.canvases);
@@ -101,7 +98,7 @@ export class NativeElementPool {
         if (!node) {
             return;
         }
-        this.layers.updateElementMask(node, patch.id!, patch.entries);
+        this.layers.updateElementMask(node, patch.id!, patch.entries, patch.sizeX, patch.sizeY);
     }
 
     checkboxCreate(patch: AnyCreatePatch) {
