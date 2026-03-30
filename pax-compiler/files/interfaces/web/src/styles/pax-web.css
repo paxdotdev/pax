@@ -71,6 +71,11 @@ strong {
     contain: layout style paint;
 }
 
+.native-leaf.masked-native-leaf {
+    contain: layout style;
+    will-change: auto;
+}
+
 .clipping-container {
     position: absolute;
     top: 0;

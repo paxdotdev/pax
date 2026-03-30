@@ -49,6 +49,7 @@
                 <Ellipse x=206px y=116px width=120px height=120px anchor_x=50% anchor_y=50% fill=rgba(248, 113, 113, 255)/>
                 <Rectangle x=0px y=0px width=100% height=92px fill=rgba(87, 57, 187, 255)/>
                 <Rectangle class=card_surface_dark fill=rgba(24, 36, 61, 255)/>
+                <Rectangle class=card_shadow fill=rgba(3, 8, 13, 140)/>
             </Group>
             <Ellipse
                 x={(self.ellipse_mask_x)px}
@@ -60,7 +61,6 @@
                 fill=BLACK
             />
         </Mask>
-        <Rectangle class=card_shadow fill=rgba(3, 8, 13, 140)/>
     </Group>
 
     <Group class=card_right>
@@ -83,12 +83,13 @@
                 <Rectangle x=14px y=152px width=232px height=26px rotate=6deg fill=rgba(59, 130, 246, 255)/>
                 <Rectangle x=0px y=0px width=100% height=98px fill=rgba(22, 163, 74, 255)/>
                 <Rectangle class=card_surface_mid fill=rgba(237, 247, 255, 255)/>
+                <Rectangle class=card_shadow fill=rgba(3, 8, 13, 125)/>
             </Group>
             <Path
                 x={(self.path_mask_x)px}
                 y=56px
-                width=160px
-                height=180px
+                width=250px
+                height=250px
                 rotate={(self.path_mask_rotation)deg}
                 fill=BLACK
                 elements=[
@@ -115,7 +116,6 @@
                 ]
             />
         </Mask>
-        <Rectangle class=card_shadow fill=rgba(3, 8, 13, 125)/>
     </Group>
 
     <Ellipse x=92% y=88% width=420px height=420px fill=rgba(8, 28, 37, 100)/>

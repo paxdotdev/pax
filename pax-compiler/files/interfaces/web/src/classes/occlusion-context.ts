@@ -73,28 +73,14 @@ export class OcclusionLayerManager {
     ) {
         this.effects.updateMask(id, entries, sizeX ?? 0, sizeY ?? 0);
         if (entries.length === 0) {
-            element.style.mask = "";
-            (element.style as any).webkitMask = "";
-            element.style.maskRepeat = "";
-            (element.style as any).webkitMaskRepeat = "";
-            element.style.maskPosition = "";
-            (element.style as any).webkitMaskPosition = "";
-            element.style.maskMode = "";
-            (element.style as any).webkitMaskSize = "";
-            element.style.maskSize = "";
+            element.classList.remove(MASKED_NATIVE_LEAF_CLASS);
+            clearMaskStyles(element);
             return;
         }
 
         let maskValue = `url(#${nativeMaskId(id)})`;
-        element.style.mask = maskValue;
-        (element.style as any).webkitMask = maskValue;
-        element.style.maskRepeat = "no-repeat";
-        (element.style as any).webkitMaskRepeat = "no-repeat";
-        element.style.maskPosition = "0px 0px";
-        (element.style as any).webkitMaskPosition = "0px 0px";
-        element.style.maskMode = "alpha";
-        element.style.maskSize = `${sizeX ?? 0}px ${sizeY ?? 0}px`;
-        (element.style as any).webkitMaskSize = `${sizeX ?? 0}px ${sizeY ?? 0}px`;
+        element.classList.add(MASKED_NATIVE_LEAF_CLASS);
+        applyMaskStyles(element, maskValue);
     }
 
     // If a div for the container referenced already exists, returns it. if not,
@@ -285,6 +271,10 @@ class SvgEffectManager {
         }
 
         let mask = this.getOrCreateMask(id);
+        mask.setAttribute("x", "0");
+        mask.setAttribute("y", "0");
+        mask.setAttribute("width", `${sizeX}`);
+        mask.setAttribute("height", `${sizeY}`);
         let backdrop = this.getOrCreateBackdrop(mask);
         backdrop.setAttribute("x", "0");
         backdrop.setAttribute("y", "0");
@@ -366,7 +356,7 @@ class SvgEffectManager {
         mask.setAttribute("id", nativeMaskId(id));
         mask.setAttribute("maskUnits", "userSpaceOnUse");
         mask.setAttribute("maskContentUnits", "userSpaceOnUse");
-        mask.setAttribute("mask-type", "alpha");
+        mask.setAttribute("mask-type", "luminance");
         this.defs?.appendChild(mask);
         return mask;
     }
@@ -399,6 +389,8 @@ class SvgEffectManager {
     }
 }
 
+const MASKED_NATIVE_LEAF_CLASS = "masked-native-leaf";
+
 function nativeMaskId(id: number) {
     return `pax-native-mask-${id}`;
 }
@@ -414,6 +406,37 @@ function nativeMaskClipId(id: number, entryIndex: number, clipIndex: number) {
 function applyContainerClipPath(element: HTMLElement, value: string) {
     element.style.clipPath = value;
     (element.style as any).webkitClipPath = value;
+}
+
+function clearMaskStyles(element: HTMLElement) {
+    element.style.maskImage = "";
+    element.style.maskRepeat = "";
+    element.style.maskPosition = "";
+    (element.style as any).webkitMaskImage = "";
+    (element.style as any).webkitMaskRepeat = "";
+    (element.style as any).webkitMaskPosition = "";
+}
+
+function applyMaskStyles(element: HTMLElement, maskValue: string) {
+    clearMaskStyles(element);
+    if (prefersWebkitMaskProperties()) {
+        (element.style as any).webkitMaskImage = maskValue;
+        (element.style as any).webkitMaskRepeat = "no-repeat";
+        (element.style as any).webkitMaskPosition = "0px 0px";
+        return;
+    }
+
+    element.style.maskImage = maskValue;
+    element.style.maskRepeat = "no-repeat";
+    element.style.maskPosition = "0px 0px";
+}
+
+function prefersWebkitMaskProperties() {
+    if (typeof navigator === "undefined") {
+        return false;
+    }
+    let userAgent = navigator.userAgent;
+    return /AppleWebKit/i.test(userAgent) && !/Firefox/i.test(userAgent);
 }
 
 function getRectClipPathData(width: number, height: number, transform: number[]) {
