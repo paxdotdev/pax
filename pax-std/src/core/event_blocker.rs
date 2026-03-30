@@ -31,7 +31,7 @@ impl InstanceNode for EventBlockerInstance {
                 InstanceFlags {
                     invisible_to_slot: false,
                     invisible_to_raycasting: false,
-                    layer: Layer::Native,
+                    layer: Layer::NativeNonOccluding,
                     is_component: false,
                     is_slot: false,
                 },

@@ -238,7 +238,7 @@ impl From<&TouchMessage> for Touch {
             y: value.y,
             identifier: value.identifier,
             delta_x: value.delta_x,
-            delta_y: value.delta_x,
+            delta_y: value.delta_y,
         }
     }
 }
@@ -1123,6 +1123,7 @@ pub struct Timeline {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Layer {
     Native,
+    NativeNonOccluding,
     Canvas,
     DontCare,
 }

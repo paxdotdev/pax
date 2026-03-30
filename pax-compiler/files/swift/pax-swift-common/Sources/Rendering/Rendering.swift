@@ -272,7 +272,7 @@ public struct NativeRenderingLayer: View {
         )
         .tint(element.accent)
 
-        return positioned(slider, element: element)
+        return positioned(ZStack { slider }, element: element)
     }
 
     private func dropdownView(for element: DropdownElement) -> AnyView {

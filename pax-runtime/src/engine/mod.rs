@@ -3,7 +3,6 @@ use crate::{
 };
 use_RefCell!();
 use std::collections::HashMap;
-use std::ops::Range;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -288,7 +287,7 @@ impl PaxEngine {
     }
 
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
-        let new_range = self.update_layer_count(rcs);
+        self.update_layer_count(rcs);
 
         for i in 0..rcs.layers() {
             if self
@@ -320,11 +319,6 @@ impl PaxEngine {
         for i in 0..rcs.layers() {
             rcs.flush(i, Rc::clone(&self.runtime_context.dirty_canvases));
         }
-
-        //dirtify the canvases that where created this frame
-        for i in new_range {
-            self.runtime_context.set_canvas_dirty(i);
-        }
     }
 
     pub fn get_expanded_node(&self, id: ExpandedNodeIdentifier) -> Option<Rc<ExpandedNode>> {
@@ -341,7 +335,7 @@ impl PaxEngine {
         });
     }
 
-    pub fn update_layer_count(&self, rcs: &mut dyn RenderContext) -> Range<usize> {
+    pub fn update_layer_count(&self, rcs: &mut dyn RenderContext) {
         static LAST_LAYER_COUNT: AtomicUsize = AtomicUsize::new(0); // last-patch layer_count
         let curr_layer_count = self.runtime_context.layer_count.get();
         let old_layer_count = LAST_LAYER_COUNT.load(Ordering::Relaxed);
@@ -354,7 +348,6 @@ impl PaxEngine {
                 .resize_canvas_layers_to(curr_layer_count);
             LAST_LAYER_COUNT.store(curr_layer_count, Ordering::Relaxed)
         }
-        old_layer_count..curr_layer_count
     }
 
     pub fn global_dispatch_focus(&self, args: Focus) -> bool {

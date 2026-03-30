@@ -265,7 +265,7 @@ impl<'w> RenderBackend<'w> {
         config: RenderConfig,
     ) -> Result<Self, anyhow::Error> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
+            backends: wgpu::Backends::BROWSER_WEBGPU,
             flags: if config.debug {
                 wgpu::InstanceFlags::DEBUG
             } else {
@@ -339,6 +339,13 @@ impl<'w> RenderBackend<'w> {
             .expect("couldn't find device");
 
         let surface_caps = surface.get_capabilities(&adapter);
+        #[cfg(target_arch = "wasm32")]
+        let surface_format = surface_caps
+            .formats
+            .first()
+            .copied()
+            .ok_or_else(|| anyhow!("surface reported no compatible texture formats"))?;
+        #[cfg(not(target_arch = "wasm32"))]
         let surface_format = surface_caps
             .formats
             .iter()
@@ -355,6 +362,10 @@ impl<'w> RenderBackend<'w> {
         .find(|mode| surface_caps.alpha_modes.contains(mode))
         .or_else(|| surface_caps.alpha_modes.first().copied())
         .ok_or_else(|| anyhow!("surface reported no compatible alpha modes"))?;
+        #[cfg(target_arch = "wasm32")]
+        if alpha_mode == CompositeAlphaMode::Opaque {
+            log::warn!("render backend: browser surface only exposes opaque alpha");
+        }
         let surface_format_features = adapter.get_texture_format_features(surface_format).flags;
         let stencil_format_features = adapter
             .get_texture_format_features(wgpu::TextureFormat::Stencil8)

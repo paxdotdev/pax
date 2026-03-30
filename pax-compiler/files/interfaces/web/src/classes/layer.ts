@@ -25,6 +25,7 @@ export class Layer {
         this.native = this.objectManager.getFromPool(DIV);
 
         this.canvas.style.zIndex = String(occlusionLayerId * 2);
+        this.canvas.style.backgroundColor = "transparent";
         this.canvas.id = String(occlusionLayerId);
         parent.appendChild(this.canvas);
 

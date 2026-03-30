@@ -25,17 +25,43 @@ struct PaxViewIos: View {
                         let deltaX = dragGesture.location.x - previous.x
                         let deltaY = dragGesture.location.y - previous.y
 
+                        sendTouchInterrupt(
+                            kind: "TouchMove",
+                            location: dragGesture.location,
+                            delta: CGPoint(x: deltaX, y: deltaY)
+                        )
+
                         let json = String(format: "{\"Scroll\": {\"x\": %f, \"y\": %f, \"delta_x\": %f, \"delta_y\": %f} }",
                                           dragGesture.location.x,
                                           dragGesture.location.y,
                                           -deltaX,
                                           -deltaY)
                         sendInterrupt(with: json)
+                    } else {
+                        sendTouchInterrupt(
+                            kind: "TouchStart",
+                            location: dragGesture.location,
+                            delta: .zero
+                        )
                     }
 
                     self.previousScrollLocation = dragGesture.location
                 }
                 .onEnded { dragGesture in
+                    let delta: CGPoint
+                    if let previous = self.previousScrollLocation {
+                        delta = CGPoint(
+                            x: dragGesture.location.x - previous.x,
+                            y: dragGesture.location.y - previous.y
+                        )
+                    } else {
+                        delta = .zero
+                    }
+                    sendTouchInterrupt(
+                        kind: "TouchEnd",
+                        location: dragGesture.location,
+                        delta: delta
+                    )
                     self.previousScrollLocation = nil
 
                     let json = String(format: "{\"Click\": {\"x\": %f, \"y\": %f, \"button\": \"Left\", \"modifiers\":[] } }", dragGesture.location.x, dragGesture.location.y)
@@ -62,6 +88,18 @@ struct PaxViewIos: View {
     func sendInterrupt(with json: String) {
         let buffer = try! FlexBufferBuilder.fromJSON(json)
         sendInterrupt(data: buffer.data)
+    }
+
+    func sendTouchInterrupt(kind: String, location: CGPoint, delta: CGPoint) {
+        let json = String(
+            format: "{\"%@\":{\"touches\":[{\"x\":%f,\"y\":%f,\"identifier\":0,\"delta_x\":%f,\"delta_y\":%f}]}}",
+            kind,
+            location.x,
+            location.y,
+            delta.x,
+            delta.y
+        )
+        sendInterrupt(with: json)
     }
 
     func sendInterrupt(data: Data) {

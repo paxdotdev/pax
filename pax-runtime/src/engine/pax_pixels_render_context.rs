@@ -160,7 +160,7 @@ impl RenderContext for PaxPixelsRenderer {
         self.backends.borrow().len()
     }
 
-    fn resize_layers_to(&mut self, layer_count: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>) {
+    fn resize_layers_to(&mut self, layer_count: usize, _dirty_canvases: Rc<RefCell<Vec<bool>>>) {
         let current_len = self.backends.borrow().len();
         match layer_count.cmp(&current_len) {
             std::cmp::Ordering::Less => {
@@ -172,15 +172,11 @@ impl RenderContext for PaxPixelsRenderer {
                     self.backends.borrow_mut().push(RenderLayerState::Pending);
                     let factory = Rc::clone(&self.layer_factory);
                     let backends = Rc::clone(&self.backends);
-                    let dirty_canvases = Rc::clone(&dirty_canvases);
                     wasm_bindgen_futures::spawn_local(async move {
                         let backend = (factory)(i).await;
                         match (backends.borrow_mut().get_mut(i), backend) {
                             (Some(change), Some(layer_def)) => {
                                 *change = RenderLayerState::Ready(layer_def);
-                                if let Some(dirty_bit) = dirty_canvases.borrow_mut().get_mut(i) {
-                                    *dirty_bit = true;
-                                }
                             }
                             (Some(_), None) => log::warn!(
                                 "failed to set poll state to ready: backend failed to initialize"
@@ -203,27 +199,27 @@ impl RenderContext for PaxPixelsRenderer {
     }
 
     fn flush(&mut self, layer: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>) {
-        // HACK: GPU rendering currently doesn't correctly handle
-        // re-dirtyfying canvases that where created but not ready before
-        // being drawn to - maybe encapsulate canvas dirtifiation inside
-        // rendercontext?
-        if let Some(dirty_bit) = dirty_canvases.borrow_mut().get_mut(layer) {
-            *dirty_bit = true;
-        }
-
-        self.with_layer_context(layer, |context| {
-            if let Some(failed) = self.failed_context_gets.borrow_mut().get_mut(layer) {
-                if *failed {
-                    if let Some(dirty_bit) = dirty_canvases.borrow_mut().get_mut(layer) {
-                        // if we failed to draw to this layer last frame because the context wasn't
-                        // vailable yet, set this canvas to dirty for next frame
-                        *dirty_bit = true;
+        let mut backends = self.backends.borrow_mut();
+        match backends.get_mut(layer) {
+            Some(RenderLayerState::Pending) => {}
+            Some(RenderLayerState::Ready((context, _))) => {
+                if let Some(failed) = self.failed_context_gets.borrow_mut().get_mut(layer) {
+                    if *failed {
+                        if let Some(dirty_bit) = dirty_canvases.borrow_mut().get_mut(layer) {
+                            // If we failed to draw to this layer because the context wasn't
+                            // available yet, retry once the backend is ready.
+                            *dirty_bit = true;
+                        }
+                        *failed = false;
                     }
-                    *failed = false;
                 }
+                context.flush();
             }
-            context.flush();
-        });
+            None => log::warn!(
+                "tried to flush layer {} context for non-existent layer",
+                layer
+            ),
+        }
     }
 
     fn resize(&mut self, width: usize, height: usize) {

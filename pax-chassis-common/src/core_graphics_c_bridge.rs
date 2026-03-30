@@ -21,7 +21,7 @@ use pax_runtime::api::math::Point2;
 use pax_runtime::api::Axis;
 use pax_runtime::api::{
     ButtonClick, Click, Event, Focus, ModifierKey, MouseButton, MouseEventArgs, RenderContext,
-    SelectStart, TextboxChange,
+    SelectStart, TextboxChange, Touch, TouchEnd, TouchMove, TouchStart,
 };
 #[cfg(target_os = "ios")]
 use pax_runtime::pax_pixels_render_context::{convert_kurbo_to_lyon_path, to_pax_pixels_color};
@@ -498,6 +498,45 @@ pub extern "C" fn pax_interrupt(
                 },
             };
             topmost_node.dispatch_click(Event::new(args_click), &globals, &engine.runtime_context);
+        }
+        NativeInterrupt::TouchStart(args) => {
+            if let Some(first_touch) = args.touches.first() {
+                let topmost_node = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
+                let touches = args.touches.iter().map(Touch::from).collect();
+                topmost_node.dispatch_touch_start(
+                    Event::new(TouchStart { touches }),
+                    &globals,
+                    &engine.runtime_context,
+                );
+            }
+        }
+        NativeInterrupt::TouchMove(args) => {
+            if let Some(first_touch) = args.touches.first() {
+                let topmost_node = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
+                let touches = args.touches.iter().map(Touch::from).collect();
+                topmost_node.dispatch_touch_move(
+                    Event::new(TouchMove { touches }),
+                    &globals,
+                    &engine.runtime_context,
+                );
+            }
+        }
+        NativeInterrupt::TouchEnd(args) => {
+            if let Some(first_touch) = args.touches.first() {
+                let topmost_node = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
+                let touches = args.touches.iter().map(Touch::from).collect();
+                topmost_node.dispatch_touch_end(
+                    Event::new(TouchEnd { touches }),
+                    &globals,
+                    &engine.runtime_context,
+                );
+            }
         }
         NativeInterrupt::FormRadioSetChange(args) => {
             let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));

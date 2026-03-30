@@ -1,6 +1,8 @@
 use pax_kit::*;
 use pax_kit::math::*;
 
+const PALETTE_IMAGE_SIZE: usize = 64;
+
 #[pax]
 #[main]
 #[file("color_picker.pax")]
@@ -28,34 +30,17 @@ pub struct ColorPickerExample {
     pub alpha_text: Property<String>,
 
     pub property_listener: Property<bool>,
-    pub cycle_detection: Property<bool>,
 }
 
 impl ColorPickerExample {
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
         let color = self.color.clone();
+        let initial_hsla = color.get().to_hsla_0_1();
+        self.hue.set(initial_hsla[0]);
+        self.saturation.set(initial_hsla[1]);
+        self.lightness.set(initial_hsla[2]);
+        self.alpha.set(initial_hsla[3]);
         self.hue_slider_image_data.set(hue_slider().to_vec());
-        let cycle = self.cycle_detection.clone();
-        let deps = [color.untyped()];
-        self.hue.replace_with(Property::computed(
-            move || color.get().to_hsla_0_1()[0],
-            &deps,
-        ));
-        let color = self.color.clone();
-        self.saturation.replace_with(Property::computed(
-            move || color.get().to_hsla_0_1()[1],
-            &deps,
-        ));
-        let color = self.color.clone();
-        self.lightness.replace_with(Property::computed(
-            move || color.get().to_hsla_0_1()[2],
-            &deps,
-        ));
-        let color = self.color.clone();
-        self.alpha.replace_with(Property::computed(
-            move || color.get().to_hsla_0_1()[3],
-            &deps,
-        ));
 
         fn get_color_channel(color: &Property<Color>, i: usize) -> String {
             ((color.get().to_rgba_0_1()[i] * 255.0) as u8).to_string()
@@ -110,17 +95,13 @@ impl ColorPickerExample {
         ];
         self.property_listener.replace_with(Property::computed(
             move || {
-                if !cycle.get() {
-                    cycle.set(true);
-                    let new_col = Color::hsla(
-                        Rotation::Percent(hue.get().into()),
-                        (saturation.get() * 255.0).into(),
-                        (lightness.get() * 255.0).into(),
-                        (alpha.get() * 255.0).into(),
-                    );
-                    color.set(new_col);
-                }
-
+                let new_col = Color::hsla(
+                    Rotation::Percent(hue.get().into()),
+                    (saturation.get() * 255.0).into(),
+                    (lightness.get() * 255.0).into(),
+                    (alpha.get() * 255.0).into(),
+                );
+                color.set(new_col);
                 true
             },
             &deps,
@@ -135,11 +116,11 @@ impl ColorPickerExample {
 
     pub fn palette_mouse_down(&mut self, ctx: &NodeContext, event: Event<MouseDown>) {
         self.mouse_is_down_on_palette.set(true);
-        self.palette_set(ctx, &event.mouse)
+        self.palette_set_from_mouse(ctx, &event.mouse)
     }
     pub fn palette_mouse_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
         if self.mouse_is_down_on_palette.get() {
-            self.palette_set(ctx, &event.mouse);
+            self.palette_set_from_mouse(ctx, &event.mouse);
         }
     }
 
@@ -147,19 +128,41 @@ impl ColorPickerExample {
         self.mouse_is_down_on_palette.set(false);
     }
 
-    pub fn palette_set(&mut self, ctx: &NodeContext, mouse: &MouseEventArgs) {
-        let p = Point2::new(mouse.x, mouse.y);
+    pub fn palette_touch_start(&mut self, ctx: &NodeContext, event: Event<TouchStart>) {
+        if let Some(touch) = event.touches.first() {
+            self.mouse_is_down_on_palette.set(true);
+            self.palette_set_xy(ctx, touch.x, touch.y);
+        }
+    }
+
+    pub fn palette_touch_move(&mut self, ctx: &NodeContext, event: Event<TouchMove>) {
+        if self.mouse_is_down_on_palette.get() {
+            if let Some(touch) = event.touches.first() {
+                self.palette_set_xy(ctx, touch.x, touch.y);
+            }
+        }
+    }
+
+    pub fn palette_touch_end(&mut self, ctx: &NodeContext, event: Event<TouchEnd>) {
+        if let Some(touch) = event.touches.first() {
+            self.palette_set_xy(ctx, touch.x, touch.y);
+        }
+        self.mouse_is_down_on_palette.set(false);
+    }
+
+    pub fn palette_set_from_mouse(&mut self, ctx: &NodeContext, mouse: &MouseEventArgs) {
+        self.palette_set_xy(ctx, mouse.x, mouse.y);
+    }
+
+    fn palette_set_xy(&mut self, ctx: &NodeContext, x: f64, y: f64) {
+        let p = Point2::new(x, y);
         let local = ctx.local_point(p);
         self.saturation.set(local.x.clamp(0.0, 1.0));
         self.lightness.set(1.0 - local.y.clamp(0.0, 1.0));
     }
 
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        // first time, might make property_listener dirty again
         self.property_listener.get();
-        // on this second trigger, cycle is checked (without this it's triggered in a cycle each tick)
-        self.property_listener.get();
-        self.cycle_detection.set(false);
     }
 
     pub fn red_change(&mut self, _ctx: &NodeContext, event: Event<TextboxChange>) {
@@ -206,13 +209,14 @@ impl ColorPickerExample {
 
 #[rustfmt::skip]
 fn palette(hue: f64) -> Vec<u8> {
-    let mut res = Vec::with_capacity(5*5*4);
-    for y in 0..5 {
-        for x in 0..5 {
+    let mut res = Vec::with_capacity(PALETTE_IMAGE_SIZE * PALETTE_IMAGE_SIZE * 4);
+    let max_index = (PALETTE_IMAGE_SIZE - 1) as i32;
+    for y in 0..PALETTE_IMAGE_SIZE as i32 {
+        for x in 0..PALETTE_IMAGE_SIZE as i32 {
             let c = Color::hsl(
                 Rotation::Percent(hue.into()),
-                (x*255/4).into(),
-                (255 - y*255/4).into(),
+                (x * 255 / max_index).into(),
+                (255 - y * 255 / max_index).into(),
             )
             .to_rgba_0_1();
            res.extend(c.map(|v| (v * 255.0) as u8)) 

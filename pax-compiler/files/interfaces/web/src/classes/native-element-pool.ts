@@ -504,6 +504,7 @@ export class NativeElementPool {
         sliderDiv.appendChild(slider);
         sliderDiv.setAttribute("class", NATIVE_LEAF_CLASS)
         sliderDiv.style.overflow = "visible";
+        sliderDiv.style.contain = "layout style";
         sliderDiv.setAttribute("pax_id", String(patch.id));
 
         if(patch.id != undefined && patch.occlusionLayerId != undefined){
@@ -520,6 +521,7 @@ export class NativeElementPool {
         let leaf = this.nodesLookup.get(patch.id!);
         updateCommonProps(leaf!, patch);
         let slider = leaf!.firstChild as HTMLInputElement;
+        slider.style.height = "";
 
         if (patch.step != null && patch.step.toString() != slider.step) {
             slider.step = patch.step.toString();

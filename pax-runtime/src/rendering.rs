@@ -245,7 +245,8 @@ pub struct InstanceFlags {
     /// Since these container elements are on top of the elements they contain,
     /// this is needed otherwise the containers would intercept rays that should hit their contents.
     pub invisible_to_raycasting: bool,
-    /// The layer type (`Layer::Native` or `Layer::Canvas`) for this RenderNode.
+    /// The layer type (`Layer::Native`, `Layer::NativeNonOccluding`, or `Layer::Canvas`)
+    /// for this RenderNode.
     /// Default is `Layer::Canvas`, and must be overwritten for `InstanceNode`s that manage native
     /// content.
     pub layer: Layer,

@@ -103,11 +103,11 @@ fn update_node_occlusion_recursive(
         }
 
         let occl_layer = &mut occlusion_stack[occlusion_index];
-        let set = match layer {
-            Layer::Native => &mut occl_layer.0,
-            _ => &mut occl_layer.1,
+        match layer {
+            Layer::Native => occl_layer.0.push(occlusion_box),
+            Layer::NativeNonOccluding => {}
+            _ => occl_layer.1.push(occlusion_box),
         };
-        set.push(occlusion_box);
 
         let new_occlusion = Occlusion {
             occlusion_layer_id: occlusion_index,
@@ -119,7 +119,10 @@ fn update_node_occlusion_recursive(
                 .map(|v| v.to_u32()),
         };
 
-        if (layer == Layer::Native || borrow!(node.instance_node).clips_content(&node))
+        if (
+            matches!(layer, Layer::Native | Layer::NativeNonOccluding)
+                || borrow!(node.instance_node).clips_content(&node)
+        )
             && node.occlusion.get() != new_occlusion
         {
             let occlusion_patch = OcclusionPatch {

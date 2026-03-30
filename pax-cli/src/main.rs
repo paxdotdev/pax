@@ -65,7 +65,8 @@ fn main() -> Result<(), Report> {
     let ARG_NO_DESIGNER = Arg::with_name("no-designer")
         .long("no-designer")
         .takes_value(false)
-        .help("Runs project directly without wrapping in designer & designtime.");
+        .help("Deprecated no-op; designer is now off by default.")
+        .hidden(true);
 
     #[allow(non_snake_case)]
     let ARG_IOS_DEVICE = Arg::with_name("ios-device")
@@ -103,6 +104,7 @@ fn main() -> Result<(), Report> {
             App::new("run")
                 .about("Run the Pax project from the current working directory in a demo harness")
                 .arg( ARG_PATH.clone() )
+                .arg( ARG_DESIGNER.clone() )
                 .arg( ARG_NO_DESIGNER.clone() )
                 .arg( ARG_TARGET.clone() )
                 .arg( ARG_IOS_DEVICE.clone() )
@@ -200,7 +202,7 @@ fn perform_nominal_action(
             let path = args.value_of("path").unwrap().to_string(); //default value "."
             let verbose = args.is_present("verbose");
             let is_libdev_mode = args.is_present("libdev");
-            let should_run_designer = !args.is_present("no-designer");
+            let should_run_designer = args.is_present("designer");
             let ios_device = args.value_of("ios-device").map(str::to_string);
             let ios_development_team = args
                 .value_of("ios-development-team")

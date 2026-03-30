@@ -6,12 +6,66 @@
 >
     <Group
         x=5px
+        width=300px
+        y=310px	
+        height=100px
+    >
+        <Group
+            x=50%
+            width=290px
+            y=0px
+            height=24px
+        >
+            <Slider min=0.0 max=1.0 step=0.001 value=bind:hue accent=WHITE background=TRANSPARENT/>
+            <Image 
+                y=50%
+                width=290px
+                height=10px
+                source={ImageSource::Data(10, 1, self.hue_slider_image_data)}
+                fit=ImageFit::Fill
+            />
+        </Group>
+        <Group
+            x=50%
+            width=290px
+            y=28px
+            height=24px
+        >
+            <Slider min=0.0 max=1.0 step=0.001 value=bind:alpha accent=WHITE background=TRANSPARENT/>
+            <Image 
+                y=50%
+                width=290px
+                height=10px
+                source={ImageSource::Data(10, 1, self.alpha_slider_image_data)}
+                fit=ImageFit::Fill
+            />
+            <Image 
+                y=50%
+                width=290px
+                height=10px
+                source=ImageSource::Url("assets/color_picker/transparency_grid.png")
+                fit=ImageFit::Fill
+            />
+        </Group>
+        <Group y=58px>
+            <Text class=rgba_label text="rgba:"/>
+            <Textbox class=input class=col_2 class=span_1 text={self.red}  @textbox_change=self.red_change/>
+            <Textbox class=input class=col_3 class=span_1 text={self.green} @textbox_change=self.green_change/>
+            <Textbox class=input class=col_4 class=span_1 text={self.blue} @textbox_change=self.blue_change/>
+            <Textbox class=input class=col_5 class=span_1 text={self.alpha_text} @textbox_change=self.alpha_change/>
+        </Group>
+    </Group>
+    <Group
+        x=5px
         y=5px
         width=300px
         height=300px
         @mouse_down=self.palette_mouse_down
         @mouse_move=self.palette_mouse_move
         @mouse_up=self.palette_mouse_up
+        @touch_start=self.palette_touch_start
+        @touch_move=self.palette_touch_move
+        @touch_end=self.palette_touch_end
     >
         <Ellipse
             x={(self.saturation*100)%}
@@ -23,61 +77,14 @@
             fill=TRANSPARENT
             stroke={color: WHITE, width: 2px}
         />
-        <Frame>
         <Image
-            x={-30px} 
-            y={-30px} 
-            width=360px
-            height=360px
-            source={ImageSource::Data(5, 5, self.saturation_and_lightness_image_data)}
+            width=300px
+            height=300px
+            source={ImageSource::Data(64, 64, self.saturation_and_lightness_image_data)}
             fit=ImageFit::Fill
         />
-        </Frame>
-    </Group>
-    <Group
-        x=5px
-        width=300px
-        y=310px	
-        height=100px
-    >
-        <Group
-            x=50%
-            width=290px
-            y=5px
-            height=10px
-        >
-            <Slider min=0.0 max=1.0 step=0.001 value=bind:hue accent=WHITE background=TRANSPARENT/>
-            <Image 
-                source={ImageSource::Data(10, 1, self.hue_slider_image_data)}
-                fit=ImageFit::Fill
-            />
-        </Group>
-        <Group
-            x=50%
-            width=290px
-            y=25px
-            height=10px
-        >
-            <Slider min=0.0 max=1.0 step=0.001 value=bind:alpha accent=WHITE background=TRANSPARENT/>
-            <Image 
-                source={ImageSource::Data(10, 1, self.alpha_slider_image_data)}
-                fit=ImageFit::Fill
-            />
-            <Image 
-                source=ImageSource::Url("assets/color_picker/transparency_grid.png")
-                fit=ImageFit::Fill
-            />
-        </Group>
-        <Group y=45px>
-            <Text class=rgba_label text="rgba:"/>
-            <Textbox class=input class=col_2 class=span_1 text={self.red}  @textbox_change=self.red_change/>
-            <Textbox class=input class=col_3 class=span_1 text={self.green} @textbox_change=self.green_change/>
-            <Textbox class=input class=col_4 class=span_1 text={self.blue} @textbox_change=self.blue_change/>
-            <Textbox class=input class=col_5 class=span_1 text={self.alpha_text} @textbox_change=self.alpha_change/>
-        </Group>
     </Group>
     <Rectangle fill=BLACK/>
-    <EventBlocker/>
 </Group>
 
 <Rectangle x=0% y=0% height=100% width=100% fill=color/>
