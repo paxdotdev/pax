@@ -90,8 +90,10 @@
             <Path
                 x={(self.path_mask_x)px}
                 y=56px
-                width=250px
-                height=250px
+                anchor_x=50%
+                anchor_y=50%
+                width=320px
+                height=320px
                 rotate={(self.path_mask_rotation)deg}
                 fill=BLACK
                 elements=[
@@ -186,7 +188,12 @@
         y: 16px,
         width: 100%,
         height: 100%,
-        border_radius: 14,
+        corner_radii: {
+            top_left: 24,
+            top_right: 24,
+            bottom_left: 24,
+            bottom_right: 24,
+        },
     }
 
     .card_surface_light {

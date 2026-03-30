@@ -626,6 +626,7 @@ pub extern "C" fn pax_interrupt(
                         ref_args.height,
                     );
                     engine.runtime_context.set_all_canvases_dirty();
+                    engine.runtime_context.mark_all_canvas_nodes_dirty();
                 }
             }
             ImageLoadInterruptArgs::Data(_args) => {}
@@ -670,6 +671,7 @@ pub extern "C" fn pax_tick(
                         container._render_context = Box::into_raw(Box::new(render_context));
                         container._render_target = render_target;
                         engine.runtime_context.set_all_canvases_dirty();
+                        engine.runtime_context.mark_all_canvas_nodes_dirty();
                     }
                     Err(err) => {
                         eprintln!("failed to initialize iOS gpu render context: {err}");
@@ -678,6 +680,7 @@ pub extern "C" fn pax_tick(
             } else if let Some(render_context) = unsafe { container._render_context.as_mut() } {
                 if render_context.resize_if_needed(width as usize, height as usize, _dpr) {
                     engine.runtime_context.set_all_canvases_dirty();
+                    engine.runtime_context.mark_all_canvas_nodes_dirty();
                 }
             }
 
@@ -689,6 +692,7 @@ pub extern "C" fn pax_tick(
                 .any(|dirty| *dirty);
             if should_redraw_all {
                 engine.runtime_context.set_all_canvases_dirty();
+                engine.runtime_context.mark_all_canvas_nodes_dirty();
             }
 
             if let Some(render_context) = unsafe { container._render_context.as_mut() } {

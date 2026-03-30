@@ -214,6 +214,16 @@ impl RuntimeContext {
         }
     }
 
+    pub fn mark_all_canvas_nodes_dirty(&self) {
+        let node_cache = borrow!(self.node_cache);
+        let dirty_nodes = &mut *borrow_mut!(self.dirty_canvas_nodes);
+        for node in node_cache.eid_to_node.values() {
+            if borrow!(node.instance_node).base().flags().layer == crate::api::Layer::Canvas {
+                dirty_nodes.insert(node.id);
+            }
+        }
+    }
+
     pub fn enqueue_canvas_node_removal(&self, layer: usize, node_id: u32) {
         borrow_mut!(self.removed_canvas_nodes).push((layer, node_id));
     }

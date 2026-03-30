@@ -12,6 +12,16 @@ use pax_runtime::{
 use_RefCell!();
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
 
+fn mark_canvas_descendants_dirty(expanded_node: &ExpandedNode, context: &Rc<RuntimeContext>) {
+    for child in expanded_node.children.get().iter() {
+        if borrow!(child.instance_node).base().flags().layer == Layer::Canvas {
+            context.mark_canvas_node_dirty(child.id);
+            context.set_canvas_dirty(child.occlusion.get().occlusion_layer_id);
+        }
+        mark_canvas_descendants_dirty(child, context);
+    }
+}
+
 /// A primitive that gathers children underneath a single render node with a shared base transform,
 /// like [`Group`], except [`Frame`] has the option of clipping rendering outside
 /// of its bounds.
@@ -211,12 +221,9 @@ impl InstanceNode for FrameInstance {
                             cloned_context.enqueue_native_message(
                                 pax_message::NativeMessage::FrameUpdate(patch),
                             );
+                            mark_canvas_descendants_dirty(&expanded_node, &cloned_context);
                         }
                     });
-                    cloned_context
-                        .mark_canvas_nodes_on_layer_dirty(expanded_node.occlusion.get().occlusion_layer_id);
-                    cloned_context
-                        .set_canvas_dirty(expanded_node.occlusion.get().occlusion_layer_id)
                 },
                 &deps,
             ));

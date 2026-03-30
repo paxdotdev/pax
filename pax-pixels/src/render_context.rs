@@ -30,6 +30,7 @@ use crate::render_backend::data::GpuTransform;
 use crate::render_backend::data::GpuVertex;
 use crate::render_backend::CachedTextureResource;
 use crate::render_backend::RenderBackend;
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
@@ -336,19 +337,24 @@ impl<'w> WgpuRenderer<'w> {
                     .iter()
                     .map(|op| op.geometry_signature)
                     .collect::<Vec<_>>();
+                let style_signature = hash_vector_styles(&buffers.ops);
                 if let Some(RetainedNode::Vector(existing)) = self.scene.get_mut(&node_id) {
                     let prev_z = existing.z_index;
                     let reuse_geometry = existing.geometry_signatures == geometry_signatures;
-                    rebuild_vector_buffers(
-                        self.tolerance,
-                        &buffers.ops,
-                        &mut existing.buffers,
-                        reuse_geometry,
-                    );
+                    let style_changed = existing.style_signature != style_signature;
+                    if !reuse_geometry || style_changed {
+                        rebuild_vector_buffers(
+                            self.tolerance,
+                            &buffers.ops,
+                            &mut existing.buffers,
+                            reuse_geometry,
+                        );
+                    }
                     existing.clip_stack = buffers.clip_stack;
                     existing.z_index = pending_node.z_index;
-                    existing.gpu_resource_dirty = true;
+                    existing.gpu_resource_dirty |= !reuse_geometry || style_changed;
                     existing.geometry_signatures = geometry_signatures;
+                    existing.style_signature = style_signature;
                     if prev_z != pending_node.z_index {
                         self.order_dirty = true;
                     }
@@ -372,6 +378,7 @@ impl<'w> WgpuRenderer<'w> {
                     z_index: pending_node.z_index,
                     gpu_resource_dirty: true,
                     geometry_signatures,
+                    style_signature,
                 }))
             }
             PendingNodeKind::Image(image_node) => Some(RetainedNode::Image(RetainedImageNode {
@@ -591,6 +598,7 @@ struct RetainedVectorNode {
     z_index: i32,
     gpu_resource_dirty: bool,
     geometry_signatures: Vec<u64>,
+    style_signature: u64,
 }
 
 struct RetainedImageNode {
@@ -738,6 +746,63 @@ fn would_exceed_batch_capacity(dst: &CpuBuffers, src: &CpuBuffers) -> bool {
         || dst.colors.len() + src.colors.len() > MAX_BATCH_COLORS
         || dst.gradients.len() + src.gradients.len() > MAX_BATCH_GRADIENTS
         || dst.transforms.len() + extra_transforms > MAX_BATCH_TRANSFORMS
+}
+
+fn hash_vector_styles(ops: &[PendingVectorOp]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    ops.len().hash(&mut hasher);
+    for op in ops {
+        hash_transform_bits(&op.transform, &mut hasher);
+        hash_fill_bits(&op.fill, &mut hasher);
+    }
+    hasher.finish()
+}
+
+fn hash_transform_bits<H: Hasher>(transform: &Transform2D, state: &mut H) {
+    for row in transform.to_arrays() {
+        for value in row {
+            value.to_bits().hash(state);
+        }
+    }
+}
+
+fn hash_fill_bits<H: Hasher>(fill: &Fill, state: &mut H) {
+    match fill {
+        Fill::Solid(color) => {
+            0u8.hash(state);
+            hash_color_bits(color, state);
+        }
+        Fill::Gradient {
+            gradient_type,
+            pos,
+            main_axis,
+            off_axis,
+            stops,
+        } => {
+            1u8.hash(state);
+            match gradient_type {
+                GradientType::Linear => 0u8.hash(state),
+                GradientType::Radial => 1u8.hash(state),
+            }
+            pos.x.to_bits().hash(state);
+            pos.y.to_bits().hash(state);
+            main_axis.x.to_bits().hash(state);
+            main_axis.y.to_bits().hash(state);
+            off_axis.x.to_bits().hash(state);
+            off_axis.y.to_bits().hash(state);
+            stops.len().hash(state);
+            for stop in stops {
+                hash_color_bits(&stop.color, state);
+                stop.stop.to_bits().hash(state);
+            }
+        }
+    }
+}
+
+fn hash_color_bits<H: Hasher>(color: &Color, state: &mut H) {
+    for value in color.rgba {
+        value.to_bits().hash(state);
+    }
 }
 
 fn push_primitive_def(buffers: &mut CpuBuffers, fill: Fill, transform_id: u32) -> u32 {

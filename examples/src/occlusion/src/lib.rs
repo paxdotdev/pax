@@ -28,7 +28,7 @@ impl Example {
         let t = ticks as f64 / 60.0;
         self.ellipse_mask_x.set(132.0 + 54.0 * (t * 1.2).sin());
         self.ellipse_mask_y.set(154.0 + 42.0 * (t * 0.9).cos());
-        self.ellipse_mask_size.set(220.0 + 52.0 * (t * 1.6).sin());
+        self.ellipse_mask_size.set(270.0 + 82.0 * (t * 1.6).sin());
         self.path_mask_x.set(106.0 + 48.0 * (t * 1.05).cos());
         self.path_mask_rotation.set(18.0 * (t * 0.55).sin());
     }

@@ -167,6 +167,24 @@ struct PaxViewIos: View {
 
 
     class PaxCanvasViewIos: UIView {
+        struct DirtyCollections {
+            var text = false
+            var frame = false
+            var button = false
+            var checkbox = false
+            var nativeImage = false
+            var youtubeVideo = false
+            var dropdown = false
+            var radioSet = false
+            var slider = false
+            var textbox = false
+            var eventBlocker = false
+
+            var hasAny: Bool {
+                text || frame || button || checkbox || nativeImage || youtubeVideo || dropdown || radioSet || slider || textbox || eventBlocker
+            }
+        }
+
         override class var layerClass: AnyClass {
             CAMetalLayer.self
         }
@@ -183,6 +201,8 @@ struct PaxViewIos: View {
         let textboxElements = TextboxElements.singleton
         let eventBlockerElements = EventBlockerElements.singleton
         private var displayLink: CADisplayLink?
+        private var previousViewportSize: CGSize = .zero
+        private var needsNativeTextRemeasure = false
 
         private var metalLayer: CAMetalLayer {
             layer as! CAMetalLayer
@@ -235,6 +255,14 @@ struct PaxViewIos: View {
             contentScaleFactor = scale
             metalLayer.contentsScale = scale
             metalLayer.drawableSize = CGSize(width: bounds.width * scale, height: bounds.height * scale)
+
+            if bounds.size != previousViewportSize {
+                previousViewportSize = bounds.size
+                needsNativeTextRemeasure = true
+                for textElement in textElements.elements.values {
+                    textElement.lastMeasuredSize = nil
+                }
+            }
         }
 
         private func createDisplayLink() {
@@ -287,6 +315,13 @@ struct PaxViewIos: View {
             )
             processNativeMessageQueue(queue: nativeMessageQueue.unsafelyUnwrapped.pointee)
             pax_dealloc_message_queue(nativeMessageQueue)
+
+            if needsNativeTextRemeasure {
+                needsNativeTextRemeasure = false
+                for textElement in textElements.elements.values {
+                    requestTextResizeIfNeeded(textElement)
+                }
+            }
         }
 
         private func sendChassisResizeRequest(id: PaxNodeId, size: CGSize) {
@@ -334,172 +369,211 @@ struct PaxViewIos: View {
             sendChassisResizeRequest(id: textElement.id, size: measuredSize)
         }
 
-        func handleTextCreate(patch: AnyCreatePatch) {
-            textElements.add(element: TextElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
-            textElements.objectWillChange.send()
+        private func publish(_ dirty: DirtyCollections) {
+            guard dirty.hasAny else {
+                return
+            }
+            if dirty.text {
+                textElements.objectWillChange.send()
+            }
+            if dirty.frame {
+                frameElements.objectWillChange.send()
+            }
+            if dirty.button {
+                buttonElements.objectWillChange.send()
+            }
+            if dirty.checkbox {
+                checkboxElements.objectWillChange.send()
+            }
+            if dirty.nativeImage {
+                nativeImageElements.objectWillChange.send()
+            }
+            if dirty.youtubeVideo {
+                youtubeVideoElements.objectWillChange.send()
+            }
+            if dirty.dropdown {
+                dropdownElements.objectWillChange.send()
+            }
+            if dirty.radioSet {
+                radioSetElements.objectWillChange.send()
+            }
+            if dirty.slider {
+                sliderElements.objectWillChange.send()
+            }
+            if dirty.textbox {
+                textboxElements.objectWillChange.send()
+            }
+            if dirty.eventBlocker {
+                eventBlockerElements.objectWillChange.send()
+            }
         }
 
-        func handleTextUpdate(patch: TextUpdatePatch) {
+        func handleTextCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
+            textElements.add(element: TextElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+            dirty.text = true
+        }
+
+        func handleTextUpdate(patch: TextUpdatePatch, dirty: inout DirtyCollections) {
             if let textElement = textElements.elements[patch.id] {
                 textElement.applyPatch(patch: patch)
                 requestTextResizeIfNeeded(textElement)
             }
-            textElements.objectWillChange.send()
+            dirty.text = true
         }
 
-        func handleTextDelete(patch: AnyDeletePatch) {
+        func handleTextDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             self.textElements.remove(id: patch.id)
-            textElements.objectWillChange.send()
+            dirty.text = true
         }
 
-        func handleFrameCreate(patch: AnyCreatePatch) {
+        func handleFrameCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             frameElements.add(element: FrameElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame))
-            frameElements.objectWillChange.send()
+            dirty.frame = true
         }
 
-        func handleFrameUpdate(patch: FrameUpdatePatch) {
+        func handleFrameUpdate(patch: FrameUpdatePatch, dirty: inout DirtyCollections) {
             frameElements.elements[patch.id]?.applyPatch(patch: patch)
-            frameElements.objectWillChange.send()
+            dirty.frame = true
         }
 
-        func handleFrameDelete(patch: AnyDeletePatch) {
+        func handleFrameDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             frameElements.remove(id: patch.id)
-            frameElements.objectWillChange.send()
+            dirty.frame = true
         }
 
-        func handleButtonCreate(patch: AnyCreatePatch) {
+        func handleButtonCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             buttonElements.add(element: ButtonElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
-            buttonElements.objectWillChange.send()
+            dirty.button = true
         }
 
-        func handleButtonUpdate(patch: ButtonUpdatePatch) {
+        func handleButtonUpdate(patch: ButtonUpdatePatch, dirty: inout DirtyCollections) {
             buttonElements.elements[patch.id]?.applyPatch(patch)
-            buttonElements.objectWillChange.send()
+            dirty.button = true
         }
 
-        func handleButtonDelete(patch: AnyDeletePatch) {
+        func handleButtonDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             buttonElements.remove(id: patch.id)
-            buttonElements.objectWillChange.send()
+            dirty.button = true
         }
 
-        func handleCheckboxCreate(patch: AnyCreatePatch) {
+        func handleCheckboxCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             checkboxElements.add(element: CheckboxElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
-            checkboxElements.objectWillChange.send()
+            dirty.checkbox = true
         }
 
-        func handleCheckboxUpdate(patch: CheckboxUpdatePatch) {
+        func handleCheckboxUpdate(patch: CheckboxUpdatePatch, dirty: inout DirtyCollections) {
             checkboxElements.elements[patch.id]?.applyPatch(patch)
-            checkboxElements.objectWillChange.send()
+            dirty.checkbox = true
         }
 
-        func handleCheckboxDelete(patch: AnyDeletePatch) {
+        func handleCheckboxDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             checkboxElements.remove(id: patch.id)
-            checkboxElements.objectWillChange.send()
+            dirty.checkbox = true
         }
 
-        func handleNativeImageCreate(patch: AnyCreatePatch) {
+        func handleNativeImageCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             nativeImageElements.add(element: NativeImageElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
-            nativeImageElements.objectWillChange.send()
+            dirty.nativeImage = true
         }
 
-        func handleNativeImageUpdate(patch: NativeImageUpdatePatch) {
+        func handleNativeImageUpdate(patch: NativeImageUpdatePatch, dirty: inout DirtyCollections) {
             nativeImageElements.elements[patch.id]?.applyPatch(patch)
-            nativeImageElements.objectWillChange.send()
+            dirty.nativeImage = true
         }
 
-        func handleNativeImageDelete(patch: AnyDeletePatch) {
+        func handleNativeImageDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             nativeImageElements.remove(id: patch.id)
-            nativeImageElements.objectWillChange.send()
+            dirty.nativeImage = true
         }
 
-        func handleYoutubeVideoCreate(patch: AnyCreatePatch) {
+        func handleYoutubeVideoCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             youtubeVideoElements.add(element: YoutubeVideoElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
-            youtubeVideoElements.objectWillChange.send()
+            dirty.youtubeVideo = true
         }
 
-        func handleYoutubeVideoUpdate(patch: YoutubeVideoUpdatePatch) {
+        func handleYoutubeVideoUpdate(patch: YoutubeVideoUpdatePatch, dirty: inout DirtyCollections) {
             youtubeVideoElements.elements[patch.id]?.applyPatch(patch)
-            youtubeVideoElements.objectWillChange.send()
+            dirty.youtubeVideo = true
         }
 
-        func handleYoutubeVideoDelete(patch: AnyDeletePatch) {
+        func handleYoutubeVideoDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             youtubeVideoElements.remove(id: patch.id)
-            youtubeVideoElements.objectWillChange.send()
+            dirty.youtubeVideo = true
         }
 
-        func handleDropdownCreate(patch: AnyCreatePatch) {
+        func handleDropdownCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             dropdownElements.add(element: DropdownElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
-            dropdownElements.objectWillChange.send()
+            dirty.dropdown = true
         }
 
-        func handleDropdownUpdate(patch: DropdownUpdatePatch) {
+        func handleDropdownUpdate(patch: DropdownUpdatePatch, dirty: inout DirtyCollections) {
             dropdownElements.elements[patch.id]?.applyPatch(patch)
-            dropdownElements.objectWillChange.send()
+            dirty.dropdown = true
         }
 
-        func handleDropdownDelete(patch: AnyDeletePatch) {
+        func handleDropdownDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             dropdownElements.remove(id: patch.id)
-            dropdownElements.objectWillChange.send()
+            dirty.dropdown = true
         }
 
-        func handleRadioSetCreate(patch: AnyCreatePatch) {
+        func handleRadioSetCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             radioSetElements.add(element: RadioSetElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
-            radioSetElements.objectWillChange.send()
+            dirty.radioSet = true
         }
 
-        func handleRadioSetUpdate(patch: RadioSetUpdatePatch) {
+        func handleRadioSetUpdate(patch: RadioSetUpdatePatch, dirty: inout DirtyCollections) {
             radioSetElements.elements[patch.id]?.applyPatch(patch)
-            radioSetElements.objectWillChange.send()
+            dirty.radioSet = true
         }
 
-        func handleRadioSetDelete(patch: AnyDeletePatch) {
+        func handleRadioSetDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             radioSetElements.remove(id: patch.id)
-            radioSetElements.objectWillChange.send()
+            dirty.radioSet = true
         }
 
-        func handleSliderCreate(patch: AnyCreatePatch) {
+        func handleSliderCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             sliderElements.add(element: SliderElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
-            sliderElements.objectWillChange.send()
+            dirty.slider = true
         }
 
-        func handleSliderUpdate(patch: SliderUpdatePatch) {
+        func handleSliderUpdate(patch: SliderUpdatePatch, dirty: inout DirtyCollections) {
             sliderElements.elements[patch.id]?.applyPatch(patch)
-            sliderElements.objectWillChange.send()
+            dirty.slider = true
         }
 
-        func handleSliderDelete(patch: AnyDeletePatch) {
+        func handleSliderDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             sliderElements.remove(id: patch.id)
-            sliderElements.objectWillChange.send()
+            dirty.slider = true
         }
 
-        func handleTextboxCreate(patch: AnyCreatePatch) {
+        func handleTextboxCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             textboxElements.add(element: TextboxElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
-            textboxElements.objectWillChange.send()
+            dirty.textbox = true
         }
 
-        func handleTextboxUpdate(patch: TextboxUpdatePatch) {
+        func handleTextboxUpdate(patch: TextboxUpdatePatch, dirty: inout DirtyCollections) {
             textboxElements.elements[patch.id]?.applyPatch(patch)
-            textboxElements.objectWillChange.send()
+            dirty.textbox = true
         }
 
-        func handleTextboxDelete(patch: AnyDeletePatch) {
+        func handleTextboxDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             textboxElements.remove(id: patch.id)
-            textboxElements.objectWillChange.send()
+            dirty.textbox = true
         }
 
-        func handleEventBlockerCreate(patch: AnyCreatePatch) {
+        func handleEventBlockerCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             eventBlockerElements.add(element: EventBlockerElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
-            eventBlockerElements.objectWillChange.send()
+            dirty.eventBlocker = true
         }
 
-        func handleEventBlockerUpdate(patch: EventBlockerPatchMessage) {
+        func handleEventBlockerUpdate(patch: EventBlockerPatchMessage, dirty: inout DirtyCollections) {
             eventBlockerElements.elements[patch.id]?.applyPatch(patch)
-            eventBlockerElements.objectWillChange.send()
+            dirty.eventBlocker = true
         }
 
-        func handleEventBlockerDelete(patch: AnyDeletePatch) {
+        func handleEventBlockerDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             eventBlockerElements.remove(id: patch.id)
-            eventBlockerElements.objectWillChange.send()
+            dirty.eventBlocker = true
         }
 
         func handleNavigate(patch: NavigationPatchMessage) {
@@ -509,60 +583,112 @@ struct PaxViewIos: View {
             UIApplication.shared.open(url)
         }
 
-        func handleOcclusionUpdate(patch: OcclusionUpdatePatch) {
+        func handleOcclusionUpdate(patch: OcclusionUpdatePatch, dirty: inout DirtyCollections) {
             if let textElement = textElements.elements[patch.id] {
                 textElement.applyOcclusionPatch(patch)
-                textElements.objectWillChange.send()
+                dirty.text = true
                 return
             }
             if let frameElement = frameElements.elements[patch.id] {
                 frameElement.applyOcclusionPatch(patch)
-                frameElements.objectWillChange.send()
+                dirty.frame = true
                 return
             }
             if let buttonElement = buttonElements.elements[patch.id] {
                 buttonElement.applyOcclusionPatch(patch)
-                buttonElements.objectWillChange.send()
+                dirty.button = true
                 return
             }
             if let checkboxElement = checkboxElements.elements[patch.id] {
                 checkboxElement.applyOcclusionPatch(patch)
-                checkboxElements.objectWillChange.send()
+                dirty.checkbox = true
                 return
             }
             if let nativeImageElement = nativeImageElements.elements[patch.id] {
                 nativeImageElement.applyOcclusionPatch(patch)
-                nativeImageElements.objectWillChange.send()
+                dirty.nativeImage = true
                 return
             }
             if let youtubeVideoElement = youtubeVideoElements.elements[patch.id] {
                 youtubeVideoElement.applyOcclusionPatch(patch)
-                youtubeVideoElements.objectWillChange.send()
+                dirty.youtubeVideo = true
                 return
             }
             if let dropdownElement = dropdownElements.elements[patch.id] {
                 dropdownElement.applyOcclusionPatch(patch)
-                dropdownElements.objectWillChange.send()
+                dirty.dropdown = true
                 return
             }
             if let radioSetElement = radioSetElements.elements[patch.id] {
                 radioSetElement.applyOcclusionPatch(patch)
-                radioSetElements.objectWillChange.send()
+                dirty.radioSet = true
                 return
             }
             if let sliderElement = sliderElements.elements[patch.id] {
                 sliderElement.applyOcclusionPatch(patch)
-                sliderElements.objectWillChange.send()
+                dirty.slider = true
                 return
             }
             if let textboxElement = textboxElements.elements[patch.id] {
                 textboxElement.applyOcclusionPatch(patch)
-                textboxElements.objectWillChange.send()
+                dirty.textbox = true
                 return
             }
             if let eventBlockerElement = eventBlockerElements.elements[patch.id] {
                 eventBlockerElement.applyOcclusionPatch(patch)
-                eventBlockerElements.objectWillChange.send()
+                dirty.eventBlocker = true
+            }
+        }
+
+        func handleNativeMaskUpdate(patch: NativeMaskPatch, dirty: inout DirtyCollections) {
+            if let textElement = textElements.elements[patch.id] {
+                textElement.applyNativeMaskPatch(patch)
+                dirty.text = true
+                return
+            }
+            if let buttonElement = buttonElements.elements[patch.id] {
+                buttonElement.applyNativeMaskPatch(patch)
+                dirty.button = true
+                return
+            }
+            if let checkboxElement = checkboxElements.elements[patch.id] {
+                checkboxElement.applyNativeMaskPatch(patch)
+                dirty.checkbox = true
+                return
+            }
+            if let nativeImageElement = nativeImageElements.elements[patch.id] {
+                nativeImageElement.applyNativeMaskPatch(patch)
+                dirty.nativeImage = true
+                return
+            }
+            if let youtubeVideoElement = youtubeVideoElements.elements[patch.id] {
+                youtubeVideoElement.applyNativeMaskPatch(patch)
+                dirty.youtubeVideo = true
+                return
+            }
+            if let dropdownElement = dropdownElements.elements[patch.id] {
+                dropdownElement.applyNativeMaskPatch(patch)
+                dirty.dropdown = true
+                return
+            }
+            if let radioSetElement = radioSetElements.elements[patch.id] {
+                radioSetElement.applyNativeMaskPatch(patch)
+                dirty.radioSet = true
+                return
+            }
+            if let sliderElement = sliderElements.elements[patch.id] {
+                sliderElement.applyNativeMaskPatch(patch)
+                dirty.slider = true
+                return
+            }
+            if let textboxElement = textboxElements.elements[patch.id] {
+                textboxElement.applyNativeMaskPatch(patch)
+                dirty.textbox = true
+                return
+            }
+            if let eventBlockerElement = eventBlockerElements.elements[patch.id] {
+                eventBlockerElement.applyNativeMaskPatch(patch)
+                dirty.eventBlocker = true
             }
         }
 
@@ -658,177 +784,183 @@ struct PaxViewIos: View {
 
             let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
             let root = FlexBuffer.decode(data: Data.init(buffer: buffer))!
+            var dirty = DirtyCollections()
 
             root["messages"]?.asVector?.makeIterator().forEach( { message in
 
                 let textCreateMessage = message["TextCreate"]
                 if textCreateMessage != nil {
-                    handleTextCreate(patch: AnyCreatePatch(fb: textCreateMessage!))
+                    handleTextCreate(patch: AnyCreatePatch(fb: textCreateMessage!), dirty: &dirty)
                 }
 
                 let textUpdateMessage = message["TextUpdate"]
                 if textUpdateMessage != nil {
-                    handleTextUpdate(patch: TextUpdatePatch(fb: textUpdateMessage!))
+                    handleTextUpdate(patch: TextUpdatePatch(fb: textUpdateMessage!), dirty: &dirty)
                 }
 
                 let textDeleteMessage = message["TextDelete"]
                 if textDeleteMessage != nil {
-                    handleTextDelete(patch: AnyDeletePatch(fb: textDeleteMessage!))
+                    handleTextDelete(patch: AnyDeletePatch(fb: textDeleteMessage!), dirty: &dirty)
                 }
 
                 let frameCreateMessage = message["FrameCreate"]
                 if frameCreateMessage != nil {
-                    handleFrameCreate(patch: AnyCreatePatch(fb: frameCreateMessage!))
+                    handleFrameCreate(patch: AnyCreatePatch(fb: frameCreateMessage!), dirty: &dirty)
                 }
 
                 let frameUpdateMessage = message["FrameUpdate"]
                 if frameUpdateMessage != nil {
-                    handleFrameUpdate(patch: FrameUpdatePatch(fb: frameUpdateMessage!))
+                    handleFrameUpdate(patch: FrameUpdatePatch(fb: frameUpdateMessage!), dirty: &dirty)
                 }
 
                 let frameDeleteMessage = message["FrameDelete"]
                 if frameDeleteMessage != nil {
-                    handleFrameDelete(patch: AnyDeletePatch(fb: frameDeleteMessage!))
+                    handleFrameDelete(patch: AnyDeletePatch(fb: frameDeleteMessage!), dirty: &dirty)
                 }
 
                 let buttonCreateMessage = message["ButtonCreate"]
                 if buttonCreateMessage != nil {
-                    handleButtonCreate(patch: AnyCreatePatch(fb: buttonCreateMessage!))
+                    handleButtonCreate(patch: AnyCreatePatch(fb: buttonCreateMessage!), dirty: &dirty)
                 }
 
                 let buttonUpdateMessage = message["ButtonUpdate"]
                 if buttonUpdateMessage != nil {
-                    handleButtonUpdate(patch: ButtonUpdatePatch(fb: buttonUpdateMessage!))
+                    handleButtonUpdate(patch: ButtonUpdatePatch(fb: buttonUpdateMessage!), dirty: &dirty)
                 }
 
                 let buttonDeleteMessage = message["ButtonDelete"]
                 if buttonDeleteMessage != nil {
-                    handleButtonDelete(patch: AnyDeletePatch(fb: buttonDeleteMessage!))
+                    handleButtonDelete(patch: AnyDeletePatch(fb: buttonDeleteMessage!), dirty: &dirty)
                 }
 
                 let checkboxCreateMessage = message["CheckboxCreate"]
                 if checkboxCreateMessage != nil {
-                    handleCheckboxCreate(patch: AnyCreatePatch(fb: checkboxCreateMessage!))
+                    handleCheckboxCreate(patch: AnyCreatePatch(fb: checkboxCreateMessage!), dirty: &dirty)
                 }
 
                 let checkboxUpdateMessage = message["CheckboxUpdate"]
                 if checkboxUpdateMessage != nil {
-                    handleCheckboxUpdate(patch: CheckboxUpdatePatch(fb: checkboxUpdateMessage!))
+                    handleCheckboxUpdate(patch: CheckboxUpdatePatch(fb: checkboxUpdateMessage!), dirty: &dirty)
                 }
 
                 let checkboxDeleteMessage = message["CheckboxDelete"]
                 if checkboxDeleteMessage != nil {
-                    handleCheckboxDelete(patch: AnyDeletePatch(fb: checkboxDeleteMessage!))
+                    handleCheckboxDelete(patch: AnyDeletePatch(fb: checkboxDeleteMessage!), dirty: &dirty)
                 }
 
                 let nativeImageCreateMessage = message["NativeImageCreate"]
                 if nativeImageCreateMessage != nil {
-                    handleNativeImageCreate(patch: AnyCreatePatch(fb: nativeImageCreateMessage!))
+                    handleNativeImageCreate(patch: AnyCreatePatch(fb: nativeImageCreateMessage!), dirty: &dirty)
                 }
 
                 let nativeImageUpdateMessage = message["NativeImageUpdate"]
                 if nativeImageUpdateMessage != nil {
-                    handleNativeImageUpdate(patch: NativeImageUpdatePatch(fb: nativeImageUpdateMessage!))
+                    handleNativeImageUpdate(patch: NativeImageUpdatePatch(fb: nativeImageUpdateMessage!), dirty: &dirty)
                 }
 
                 let nativeImageDeleteMessage = message["NativeImageDelete"]
                 if nativeImageDeleteMessage != nil {
-                    handleNativeImageDelete(patch: AnyDeletePatch(fb: nativeImageDeleteMessage!))
+                    handleNativeImageDelete(patch: AnyDeletePatch(fb: nativeImageDeleteMessage!), dirty: &dirty)
                 }
 
                 let youtubeVideoCreateMessage = message["YoutubeVideoCreate"]
                 if youtubeVideoCreateMessage != nil {
-                    handleYoutubeVideoCreate(patch: AnyCreatePatch(fb: youtubeVideoCreateMessage!))
+                    handleYoutubeVideoCreate(patch: AnyCreatePatch(fb: youtubeVideoCreateMessage!), dirty: &dirty)
                 }
 
                 let youtubeVideoUpdateMessage = message["YoutubeVideoUpdate"]
                 if youtubeVideoUpdateMessage != nil {
-                    handleYoutubeVideoUpdate(patch: YoutubeVideoUpdatePatch(fb: youtubeVideoUpdateMessage!))
+                    handleYoutubeVideoUpdate(patch: YoutubeVideoUpdatePatch(fb: youtubeVideoUpdateMessage!), dirty: &dirty)
                 }
 
                 let youtubeVideoDeleteMessage = message["YoutubeVideoDelete"]
                 if youtubeVideoDeleteMessage != nil {
-                    handleYoutubeVideoDelete(patch: AnyDeletePatch(fb: youtubeVideoDeleteMessage!))
+                    handleYoutubeVideoDelete(patch: AnyDeletePatch(fb: youtubeVideoDeleteMessage!), dirty: &dirty)
                 }
 
                 let textboxCreateMessage = message["TextboxCreate"]
                 if textboxCreateMessage != nil {
-                    handleTextboxCreate(patch: AnyCreatePatch(fb: textboxCreateMessage!))
+                    handleTextboxCreate(patch: AnyCreatePatch(fb: textboxCreateMessage!), dirty: &dirty)
                 }
 
                 let textboxUpdateMessage = message["TextboxUpdate"]
                 if textboxUpdateMessage != nil {
-                    handleTextboxUpdate(patch: TextboxUpdatePatch(fb: textboxUpdateMessage!))
+                    handleTextboxUpdate(patch: TextboxUpdatePatch(fb: textboxUpdateMessage!), dirty: &dirty)
                 }
 
                 let textboxDeleteMessage = message["TextboxDelete"]
                 if textboxDeleteMessage != nil {
-                    handleTextboxDelete(patch: AnyDeletePatch(fb: textboxDeleteMessage!))
+                    handleTextboxDelete(patch: AnyDeletePatch(fb: textboxDeleteMessage!), dirty: &dirty)
                 }
 
                 let sliderCreateMessage = message["SliderCreate"]
                 if sliderCreateMessage != nil {
-                    handleSliderCreate(patch: AnyCreatePatch(fb: sliderCreateMessage!))
+                    handleSliderCreate(patch: AnyCreatePatch(fb: sliderCreateMessage!), dirty: &dirty)
                 }
 
                 let sliderUpdateMessage = message["SliderUpdate"]
                 if sliderUpdateMessage != nil {
-                    handleSliderUpdate(patch: SliderUpdatePatch(fb: sliderUpdateMessage!))
+                    handleSliderUpdate(patch: SliderUpdatePatch(fb: sliderUpdateMessage!), dirty: &dirty)
                 }
 
                 let sliderDeleteMessage = message["SliderDelete"]
                 if sliderDeleteMessage != nil {
-                    handleSliderDelete(patch: AnyDeletePatch(fb: sliderDeleteMessage!))
+                    handleSliderDelete(patch: AnyDeletePatch(fb: sliderDeleteMessage!), dirty: &dirty)
                 }
 
                 let dropdownCreateMessage = message["DropdownCreate"]
                 if dropdownCreateMessage != nil {
-                    handleDropdownCreate(patch: AnyCreatePatch(fb: dropdownCreateMessage!))
+                    handleDropdownCreate(patch: AnyCreatePatch(fb: dropdownCreateMessage!), dirty: &dirty)
                 }
 
                 let dropdownUpdateMessage = message["DropdownUpdate"]
                 if dropdownUpdateMessage != nil {
-                    handleDropdownUpdate(patch: DropdownUpdatePatch(fb: dropdownUpdateMessage!))
+                    handleDropdownUpdate(patch: DropdownUpdatePatch(fb: dropdownUpdateMessage!), dirty: &dirty)
                 }
 
                 let dropdownDeleteMessage = message["DropdownDelete"]
                 if dropdownDeleteMessage != nil {
-                    handleDropdownDelete(patch: AnyDeletePatch(fb: dropdownDeleteMessage!))
+                    handleDropdownDelete(patch: AnyDeletePatch(fb: dropdownDeleteMessage!), dirty: &dirty)
                 }
 
                 let radioSetCreateMessage = message["RadioSetCreate"]
                 if radioSetCreateMessage != nil {
-                    handleRadioSetCreate(patch: AnyCreatePatch(fb: radioSetCreateMessage!))
+                    handleRadioSetCreate(patch: AnyCreatePatch(fb: radioSetCreateMessage!), dirty: &dirty)
                 }
 
                 let radioSetUpdateMessage = message["RadioSetUpdate"]
                 if radioSetUpdateMessage != nil {
-                    handleRadioSetUpdate(patch: RadioSetUpdatePatch(fb: radioSetUpdateMessage!))
+                    handleRadioSetUpdate(patch: RadioSetUpdatePatch(fb: radioSetUpdateMessage!), dirty: &dirty)
                 }
 
                 let radioSetDeleteMessage = message["RadioSetDelete"]
                 if radioSetDeleteMessage != nil {
-                    handleRadioSetDelete(patch: AnyDeletePatch(fb: radioSetDeleteMessage!))
+                    handleRadioSetDelete(patch: AnyDeletePatch(fb: radioSetDeleteMessage!), dirty: &dirty)
                 }
 
                 let eventBlockerCreateMessage = message["EventBlockerCreate"]
                 if eventBlockerCreateMessage != nil {
-                    handleEventBlockerCreate(patch: AnyCreatePatch(fb: eventBlockerCreateMessage!))
+                    handleEventBlockerCreate(patch: AnyCreatePatch(fb: eventBlockerCreateMessage!), dirty: &dirty)
                 }
 
                 let eventBlockerUpdateMessage = message["EventBlockerUpdate"]
                 if eventBlockerUpdateMessage != nil {
-                    handleEventBlockerUpdate(patch: EventBlockerPatchMessage(fb: eventBlockerUpdateMessage!))
+                    handleEventBlockerUpdate(patch: EventBlockerPatchMessage(fb: eventBlockerUpdateMessage!), dirty: &dirty)
                 }
 
                 let eventBlockerDeleteMessage = message["EventBlockerDelete"]
                 if eventBlockerDeleteMessage != nil {
-                    handleEventBlockerDelete(patch: AnyDeletePatch(fb: eventBlockerDeleteMessage!))
+                    handleEventBlockerDelete(patch: AnyDeletePatch(fb: eventBlockerDeleteMessage!), dirty: &dirty)
                 }
 
                 let occlusionUpdateMessage = message["OcclusionUpdate"]
                 if occlusionUpdateMessage != nil {
-                    handleOcclusionUpdate(patch: OcclusionUpdatePatch(fb: occlusionUpdateMessage!))
+                    handleOcclusionUpdate(patch: OcclusionUpdatePatch(fb: occlusionUpdateMessage!), dirty: &dirty)
+                }
+
+                let nativeMaskUpdateMessage = message["NativeMaskUpdate"]
+                if nativeMaskUpdateMessage != nil {
+                    handleNativeMaskUpdate(patch: NativeMaskPatch(fb: nativeMaskUpdateMessage!), dirty: &dirty)
                 }
 
                 let imageLoadMessage = message["ImageLoad"]
@@ -850,6 +982,8 @@ struct PaxViewIos: View {
 
                 //^ Add new message-receive handlers here ^
             })
+
+            publish(dirty)
 
         }
 

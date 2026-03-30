@@ -25,6 +25,16 @@ pub struct MaskInstance {
 }
 
 impl MaskInstance {
+    fn mark_canvas_descendants_dirty(expanded_node: &ExpandedNode, context: &Rc<RuntimeContext>) {
+        for child in expanded_node.children.get().iter() {
+            if borrow!(child.instance_node).base().flags().layer == Layer::Canvas {
+                context.mark_canvas_node_dirty(child.id);
+                context.set_canvas_dirty(child.occlusion.get().occlusion_layer_id);
+            }
+            Self::mark_canvas_descendants_dirty(child, context);
+        }
+    }
+
     fn resolve_mask_path(expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
         let mask_source = {
             let sidecar_children = borrow!(expanded_node.sidecar_children);
@@ -150,10 +160,7 @@ impl InstanceNode for MaskInstance {
                         context.enqueue_native_message(pax_message::NativeMessage::FrameUpdate(
                             patch,
                         ));
-                        context.mark_canvas_nodes_on_layer_dirty(
-                            expanded_node.occlusion.get().occlusion_layer_id,
-                        );
-                        context.set_canvas_dirty(expanded_node.occlusion.get().occlusion_layer_id);
+                        Self::mark_canvas_descendants_dirty(&expanded_node, &context);
                     }
                 },
                 &deps,

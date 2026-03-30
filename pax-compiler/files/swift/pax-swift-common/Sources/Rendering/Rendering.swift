@@ -20,6 +20,15 @@ private func affineTransform(from coeffs: [Float]) -> CGAffineTransform {
     )
 }
 
+private func invertedAffineTransform(from coeffs: [Float]) -> CGAffineTransform {
+    let transform = affineTransform(from: coeffs)
+    let determinant = (transform.a * transform.d) - (transform.b * transform.c)
+    guard abs(determinant) > .ulpOfOne else {
+        return .identity
+    }
+    return transform.inverted()
+}
+
 private func resolvedDimension(_ value: Float) -> CGFloat? {
     guard value >= 0 else {
         return nil
@@ -104,13 +113,20 @@ public struct NativeRenderingLayer: View {
         }
     }
 
-    private func getClippingFrames(startingAt parentFrame: PaxNodeId?) -> [FrameElement] {
-        var elements: [FrameElement] = []
+    private func getClippingFrames(startingAt parentFrame: PaxNodeId?) -> [FrameClipDescriptor] {
+        var elements: [FrameClipDescriptor] = []
         var currentFrame = parentFrame
 
         while let frameId = currentFrame, let frame = frameElements.elements[frameId] {
             if frame.clipContent {
-                elements.insert(frame, at: 0)
+                elements.insert(
+                    FrameClipDescriptor(
+                        clipPath: frame.clipPath,
+                        transform: frame.transform,
+                        size: CGSize(width: CGFloat(frame.size_x), height: CGFloat(frame.size_y))
+                    ),
+                    at: 0
+                )
             }
             currentFrame = frame.parentFrame
         }
@@ -118,43 +134,79 @@ public struct NativeRenderingLayer: View {
         return elements
     }
 
-    private func clippingMask(parentFrame: PaxNodeId?) -> some View {
+    private func applyFrameClips<V: View>(_ view: V, elementTransform: [Float], parentFrame: PaxNodeId?) -> AnyView {
         let elements = getClippingFrames(startingAt: parentFrame)
-
-        return ZStack {
-            ForEach(elements, id: \.id) { frameElement in
-                Rectangle()
-                    .frame(width: CGFloat(frameElement.size_x), height: CGFloat(frameElement.size_y))
-                    .position(x: CGFloat(frameElement.size_x) / 2.0, y: CGFloat(frameElement.size_y) / 2.0)
-                    .transformEffect(affineTransform(from: frameElement.transform))
-            }
-        }
-    }
-
-    private func masked<V: View>(_ view: V, parentFrame: PaxNodeId?) -> AnyView {
-        if getClippingFrames(startingAt: parentFrame).isEmpty {
+        if elements.isEmpty {
             return AnyView(view)
         }
-        return AnyView(view.mask(clippingMask(parentFrame: parentFrame)))
+
+        let localFromWorld = invertedAffineTransform(from: elementTransform)
+        var clipped = AnyView(view)
+        for frameElement in elements {
+            clipped = AnyView(
+                clipped.clipShape(
+                    FrameClipShape(
+                        descriptor: frameElement,
+                        localFromWorld: localFromWorld
+                    )
+                )
+            )
+        }
+        return clipped
+    }
+
+    private func applyNativeMask<V: View>(_ view: V, patch: NativeMaskPatch?, fallbackSize: CGSize) -> AnyView {
+        guard let patch, !patch.entries.isEmpty else {
+            return AnyView(view)
+        }
+        return AnyView(
+            view
+                .compositingGroup()
+                .mask(NativeMaskView(patch: patch, fallbackSize: fallbackSize))
+        )
     }
 
     private func positioned<V: View>(_ view: V, element: NativePositionElement) -> AnyView {
         let size = resolvedSize(element)
-        let base = view
+        let bounded = view
             .frame(width: resolvedDimension(element.size_x), height: resolvedDimension(element.size_y))
+            .clipped()
+        let localMasked = applyNativeMask(
+            bounded,
+            patch: element.nativeMaskPatch,
+            fallbackSize: size
+        )
+        let localClipped = applyFrameClips(
+            localMasked,
+            elementTransform: element.transform,
+            parentFrame: element.parentFrame
+        )
+        let base = localClipped
             .position(x: size.width / 2.0, y: size.height / 2.0)
             .transformEffect(affineTransform(from: element.transform))
             .zIndex(Double(element.zIndex))
-        return masked(base, parentFrame: element.parentFrame)
+        return AnyView(base)
     }
 
     private func positionedText<V: View>(_ view: V, element: TextElement, width: CGFloat, height: CGFloat) -> AnyView {
-        let base = view
+        let bounded = view
             .frame(width: width > 0 ? width : nil, height: height > 0 ? height : nil)
+            .clipped()
+        let localMasked = applyNativeMask(
+            bounded,
+            patch: element.nativeMaskPatch,
+            fallbackSize: CGSize(width: width, height: height)
+        )
+        let localClipped = applyFrameClips(
+            localMasked,
+            elementTransform: element.transform,
+            parentFrame: element.parentFrame
+        )
+        let base = localClipped
             .position(x: width / 2.0, y: height / 2.0)
             .transformEffect(affineTransform(from: element.transform))
             .zIndex(Double(element.zIndex))
-        return masked(base, parentFrame: element.parentFrame)
+        return AnyView(base)
     }
 
     private func attributedString(for element: TextElement) -> AttributedString {
