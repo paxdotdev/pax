@@ -419,6 +419,9 @@ function clearMaskStyles(element: HTMLElement) {
 
 function applyMaskStyles(element: HTMLElement, maskValue: string) {
     clearMaskStyles(element);
+    // Blink/WebKit can incorrectly cull transformed native text under SVG masks
+    // when the generic mask path is combined with the browser's paint containment
+    // optimizations. Prefer the prefixed mask-image path on those engines.
     if (prefersWebkitMaskProperties()) {
         (element.style as any).webkitMaskImage = maskValue;
         (element.style as any).webkitMaskRepeat = "no-repeat";

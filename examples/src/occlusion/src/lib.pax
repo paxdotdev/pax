@@ -184,6 +184,7 @@
         y: 16px,
         width: 100%,
         height: 100%,
+        border_radius: 14,
     }
 
     .card_surface_light {
