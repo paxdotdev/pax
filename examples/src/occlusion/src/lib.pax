@@ -2,11 +2,7 @@
     <Text id=headline x=50% y=54px width=620px height=36px text="Occlusion + Masking"/>
     <Text id=subhead x=50% y=92px width=760px height=24px text="single vector layer + single native overlay - vector punchout - native masking - path coverage"/>
 
-    <Group x=50% y=63% width=760px height=160px anchor_x=50% anchor_y=50% rotate=-6deg>
-        <Ellipse x=684px y=76px width=102px height=102px anchor_x=50% anchor_y=50% fill=rgba(244, 114, 182, 255)/>
-        <Ellipse x=84px y=76px width=120px height=120px anchor_x=50% anchor_y=50% fill=rgba(252, 211, 77, 255)/>
-        <Rectangle x=0px y=64px width=760px height=24px fill=rgba(251, 146, 60, 255)/>
-    </Group>
+
 
     <Group class=card_left>
         <Text class=pill_text x=28px y=258px width=206px height=20px text="Vector punchout should expose the canvas over native controls."/>
@@ -36,6 +32,12 @@
         <Text class=card_title_dark x=24px y=22px width=200px height=28px text="Punchout"/>
         <Rectangle class=card_surface_light fill=rgba(246, 232, 212, 255)/>
         <Rectangle class=card_shadow fill=rgba(3, 8, 13, 110)/>
+    </Group>
+
+    <Group x=50% y=63% width=760px height=160px anchor_x=50% anchor_y=50% rotate=-6deg>
+        <Ellipse x=684px y=76px width=102px height=102px anchor_x=50% anchor_y=50% fill=rgba(244, 114, 182, 255)/>
+        <Ellipse x=84px y=76px width=120px height=120px anchor_x=50% anchor_y=50% fill=rgba(252, 211, 77, 255)/>
+        <Rectangle x=0px y=64px width=760px height=24px fill=rgba(251, 146, 60, 255)/>
     </Group>
 
     <Group class=card_center>
