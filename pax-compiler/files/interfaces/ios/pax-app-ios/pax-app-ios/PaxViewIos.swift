@@ -366,7 +366,57 @@ struct PaxViewIos: View {
             }
 
             textElement.lastMeasuredSize = measuredSize
+            recomputeResolvedMask(for: textElement)
             sendChassisResizeRequest(id: textElement.id, size: measuredSize)
+        }
+
+        private func resolvedTextMaskSize(_ textElement: TextElement) -> CGSize {
+            let width = textElement.size_x >= 0 ? CGFloat(textElement.size_x) : textElement.lastMeasuredSize?.width ?? 0
+            let height = textElement.size_y >= 0 ? CGFloat(textElement.size_y) : textElement.lastMeasuredSize?.height ?? 0
+            return CGSize(width: max(0, width), height: max(0, height))
+        }
+
+        private func recomputeResolvedMask(for textElement: TextElement) {
+            let mask = resolveNativeMask(
+                elementTransform: textElement.transform,
+                parentFrame: textElement.parentFrame,
+                patch: textElement.nativeMaskPatch,
+                fallbackSize: resolvedTextMaskSize(textElement),
+                frames: frameElements.elements
+            )
+            setResolvedNativeMask(id: textElement.id, mask: mask)
+        }
+
+        private func recomputeResolvedMask<T: NativePositionElement>(for element: T) {
+            let mask = resolveNativeMask(
+                elementTransform: element.transform,
+                parentFrame: element.parentFrame,
+                patch: element.nativeMaskPatch,
+                fallbackSize: CGSize(width: max(0, CGFloat(element.size_x)), height: max(0, CGFloat(element.size_y))),
+                frames: frameElements.elements
+            )
+            setResolvedNativeMask(id: element.id, mask: mask)
+        }
+
+        private func recomputeResolvedMasks<T: NativePositionElement>(in elements: [PaxNodeId: T]) {
+            for element in elements.values {
+                recomputeResolvedMask(for: element)
+            }
+        }
+
+        private func recomputeAllResolvedMasks() {
+            for textElement in textElements.elements.values {
+                recomputeResolvedMask(for: textElement)
+            }
+            recomputeResolvedMasks(in: buttonElements.elements)
+            recomputeResolvedMasks(in: checkboxElements.elements)
+            recomputeResolvedMasks(in: nativeImageElements.elements)
+            recomputeResolvedMasks(in: youtubeVideoElements.elements)
+            recomputeResolvedMasks(in: dropdownElements.elements)
+            recomputeResolvedMasks(in: radioSetElements.elements)
+            recomputeResolvedMasks(in: sliderElements.elements)
+            recomputeResolvedMasks(in: textboxElements.elements)
+            recomputeResolvedMasks(in: eventBlockerElements.elements)
         }
 
         private func publish(_ dirty: DirtyCollections) {
@@ -410,12 +460,16 @@ struct PaxViewIos: View {
 
         func handleTextCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             textElements.add(element: TextElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+            if let textElement = textElements.elements[patch.id] {
+                recomputeResolvedMask(for: textElement)
+            }
             dirty.text = true
         }
 
         func handleTextUpdate(patch: TextUpdatePatch, dirty: inout DirtyCollections) {
             if let textElement = textElements.elements[patch.id] {
                 textElement.applyPatch(patch: patch)
+                recomputeResolvedMask(for: textElement)
                 requestTextResizeIfNeeded(textElement)
             }
             dirty.text = true
@@ -423,156 +477,223 @@ struct PaxViewIos: View {
 
         func handleTextDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             self.textElements.remove(id: patch.id)
+            removeResolvedNativeMask(id: patch.id)
             dirty.text = true
         }
 
         func handleFrameCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             frameElements.add(element: FrameElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame))
+            recomputeAllResolvedMasks()
             dirty.frame = true
         }
 
         func handleFrameUpdate(patch: FrameUpdatePatch, dirty: inout DirtyCollections) {
             frameElements.elements[patch.id]?.applyPatch(patch: patch)
+            recomputeAllResolvedMasks()
             dirty.frame = true
         }
 
         func handleFrameDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             frameElements.remove(id: patch.id)
+            recomputeAllResolvedMasks()
             dirty.frame = true
         }
 
         func handleButtonCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             buttonElements.add(element: ButtonElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+            if let element = buttonElements.elements[patch.id] {
+                recomputeResolvedMask(for: element)
+            }
             dirty.button = true
         }
 
         func handleButtonUpdate(patch: ButtonUpdatePatch, dirty: inout DirtyCollections) {
-            buttonElements.elements[patch.id]?.applyPatch(patch)
+            if let element = buttonElements.elements[patch.id] {
+                element.applyPatch(patch)
+                recomputeResolvedMask(for: element)
+            }
             dirty.button = true
         }
 
         func handleButtonDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             buttonElements.remove(id: patch.id)
+            removeResolvedNativeMask(id: patch.id)
             dirty.button = true
         }
 
         func handleCheckboxCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             checkboxElements.add(element: CheckboxElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+            if let element = checkboxElements.elements[patch.id] {
+                recomputeResolvedMask(for: element)
+            }
             dirty.checkbox = true
         }
 
         func handleCheckboxUpdate(patch: CheckboxUpdatePatch, dirty: inout DirtyCollections) {
-            checkboxElements.elements[patch.id]?.applyPatch(patch)
+            if let element = checkboxElements.elements[patch.id] {
+                element.applyPatch(patch)
+                recomputeResolvedMask(for: element)
+            }
             dirty.checkbox = true
         }
 
         func handleCheckboxDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             checkboxElements.remove(id: patch.id)
+            removeResolvedNativeMask(id: patch.id)
             dirty.checkbox = true
         }
 
         func handleNativeImageCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             nativeImageElements.add(element: NativeImageElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+            if let element = nativeImageElements.elements[patch.id] {
+                recomputeResolvedMask(for: element)
+            }
             dirty.nativeImage = true
         }
 
         func handleNativeImageUpdate(patch: NativeImageUpdatePatch, dirty: inout DirtyCollections) {
-            nativeImageElements.elements[patch.id]?.applyPatch(patch)
+            if let element = nativeImageElements.elements[patch.id] {
+                element.applyPatch(patch)
+                recomputeResolvedMask(for: element)
+            }
             dirty.nativeImage = true
         }
 
         func handleNativeImageDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             nativeImageElements.remove(id: patch.id)
+            removeResolvedNativeMask(id: patch.id)
             dirty.nativeImage = true
         }
 
         func handleYoutubeVideoCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             youtubeVideoElements.add(element: YoutubeVideoElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+            if let element = youtubeVideoElements.elements[patch.id] {
+                recomputeResolvedMask(for: element)
+            }
             dirty.youtubeVideo = true
         }
 
         func handleYoutubeVideoUpdate(patch: YoutubeVideoUpdatePatch, dirty: inout DirtyCollections) {
-            youtubeVideoElements.elements[patch.id]?.applyPatch(patch)
+            if let element = youtubeVideoElements.elements[patch.id] {
+                element.applyPatch(patch)
+                recomputeResolvedMask(for: element)
+            }
             dirty.youtubeVideo = true
         }
 
         func handleYoutubeVideoDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             youtubeVideoElements.remove(id: patch.id)
+            removeResolvedNativeMask(id: patch.id)
             dirty.youtubeVideo = true
         }
 
         func handleDropdownCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             dropdownElements.add(element: DropdownElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+            if let element = dropdownElements.elements[patch.id] {
+                recomputeResolvedMask(for: element)
+            }
             dirty.dropdown = true
         }
 
         func handleDropdownUpdate(patch: DropdownUpdatePatch, dirty: inout DirtyCollections) {
-            dropdownElements.elements[patch.id]?.applyPatch(patch)
+            if let element = dropdownElements.elements[patch.id] {
+                element.applyPatch(patch)
+                recomputeResolvedMask(for: element)
+            }
             dirty.dropdown = true
         }
 
         func handleDropdownDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             dropdownElements.remove(id: patch.id)
+            removeResolvedNativeMask(id: patch.id)
             dirty.dropdown = true
         }
 
         func handleRadioSetCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             radioSetElements.add(element: RadioSetElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+            if let element = radioSetElements.elements[patch.id] {
+                recomputeResolvedMask(for: element)
+            }
             dirty.radioSet = true
         }
 
         func handleRadioSetUpdate(patch: RadioSetUpdatePatch, dirty: inout DirtyCollections) {
-            radioSetElements.elements[patch.id]?.applyPatch(patch)
+            if let element = radioSetElements.elements[patch.id] {
+                element.applyPatch(patch)
+                recomputeResolvedMask(for: element)
+            }
             dirty.radioSet = true
         }
 
         func handleRadioSetDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             radioSetElements.remove(id: patch.id)
+            removeResolvedNativeMask(id: patch.id)
             dirty.radioSet = true
         }
 
         func handleSliderCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             sliderElements.add(element: SliderElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+            if let element = sliderElements.elements[patch.id] {
+                recomputeResolvedMask(for: element)
+            }
             dirty.slider = true
         }
 
         func handleSliderUpdate(patch: SliderUpdatePatch, dirty: inout DirtyCollections) {
-            sliderElements.elements[patch.id]?.applyPatch(patch)
+            if let element = sliderElements.elements[patch.id] {
+                element.applyPatch(patch)
+                recomputeResolvedMask(for: element)
+            }
             dirty.slider = true
         }
 
         func handleSliderDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             sliderElements.remove(id: patch.id)
+            removeResolvedNativeMask(id: patch.id)
             dirty.slider = true
         }
 
         func handleTextboxCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             textboxElements.add(element: TextboxElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+            if let element = textboxElements.elements[patch.id] {
+                recomputeResolvedMask(for: element)
+            }
             dirty.textbox = true
         }
 
         func handleTextboxUpdate(patch: TextboxUpdatePatch, dirty: inout DirtyCollections) {
-            textboxElements.elements[patch.id]?.applyPatch(patch)
+            if let element = textboxElements.elements[patch.id] {
+                element.applyPatch(patch)
+                recomputeResolvedMask(for: element)
+            }
             dirty.textbox = true
         }
 
         func handleTextboxDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             textboxElements.remove(id: patch.id)
+            removeResolvedNativeMask(id: patch.id)
             dirty.textbox = true
         }
 
         func handleEventBlockerCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
             eventBlockerElements.add(element: EventBlockerElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+            if let element = eventBlockerElements.elements[patch.id] {
+                recomputeResolvedMask(for: element)
+            }
             dirty.eventBlocker = true
         }
 
         func handleEventBlockerUpdate(patch: EventBlockerPatchMessage, dirty: inout DirtyCollections) {
-            eventBlockerElements.elements[patch.id]?.applyPatch(patch)
+            if let element = eventBlockerElements.elements[patch.id] {
+                element.applyPatch(patch)
+                recomputeResolvedMask(for: element)
+            }
             dirty.eventBlocker = true
         }
 
         func handleEventBlockerDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
             eventBlockerElements.remove(id: patch.id)
+            removeResolvedNativeMask(id: patch.id)
             dirty.eventBlocker = true
         }
 
@@ -586,6 +707,7 @@ struct PaxViewIos: View {
         func handleOcclusionUpdate(patch: OcclusionUpdatePatch, dirty: inout DirtyCollections) {
             if let textElement = textElements.elements[patch.id] {
                 textElement.applyOcclusionPatch(patch)
+                recomputeResolvedMask(for: textElement)
                 dirty.text = true
                 return
             }
@@ -596,46 +718,55 @@ struct PaxViewIos: View {
             }
             if let buttonElement = buttonElements.elements[patch.id] {
                 buttonElement.applyOcclusionPatch(patch)
+                recomputeResolvedMask(for: buttonElement)
                 dirty.button = true
                 return
             }
             if let checkboxElement = checkboxElements.elements[patch.id] {
                 checkboxElement.applyOcclusionPatch(patch)
+                recomputeResolvedMask(for: checkboxElement)
                 dirty.checkbox = true
                 return
             }
             if let nativeImageElement = nativeImageElements.elements[patch.id] {
                 nativeImageElement.applyOcclusionPatch(patch)
+                recomputeResolvedMask(for: nativeImageElement)
                 dirty.nativeImage = true
                 return
             }
             if let youtubeVideoElement = youtubeVideoElements.elements[patch.id] {
                 youtubeVideoElement.applyOcclusionPatch(patch)
+                recomputeResolvedMask(for: youtubeVideoElement)
                 dirty.youtubeVideo = true
                 return
             }
             if let dropdownElement = dropdownElements.elements[patch.id] {
                 dropdownElement.applyOcclusionPatch(patch)
+                recomputeResolvedMask(for: dropdownElement)
                 dirty.dropdown = true
                 return
             }
             if let radioSetElement = radioSetElements.elements[patch.id] {
                 radioSetElement.applyOcclusionPatch(patch)
+                recomputeResolvedMask(for: radioSetElement)
                 dirty.radioSet = true
                 return
             }
             if let sliderElement = sliderElements.elements[patch.id] {
                 sliderElement.applyOcclusionPatch(patch)
+                recomputeResolvedMask(for: sliderElement)
                 dirty.slider = true
                 return
             }
             if let textboxElement = textboxElements.elements[patch.id] {
                 textboxElement.applyOcclusionPatch(patch)
+                recomputeResolvedMask(for: textboxElement)
                 dirty.textbox = true
                 return
             }
             if let eventBlockerElement = eventBlockerElements.elements[patch.id] {
                 eventBlockerElement.applyOcclusionPatch(patch)
+                recomputeResolvedMask(for: eventBlockerElement)
                 dirty.eventBlocker = true
             }
         }
@@ -643,51 +774,61 @@ struct PaxViewIos: View {
         func handleNativeMaskUpdate(patch: NativeMaskPatch, dirty: inout DirtyCollections) {
             if let textElement = textElements.elements[patch.id] {
                 textElement.applyNativeMaskPatch(patch)
+                recomputeResolvedMask(for: textElement)
                 dirty.text = true
                 return
             }
             if let buttonElement = buttonElements.elements[patch.id] {
                 buttonElement.applyNativeMaskPatch(patch)
+                recomputeResolvedMask(for: buttonElement)
                 dirty.button = true
                 return
             }
             if let checkboxElement = checkboxElements.elements[patch.id] {
                 checkboxElement.applyNativeMaskPatch(patch)
+                recomputeResolvedMask(for: checkboxElement)
                 dirty.checkbox = true
                 return
             }
             if let nativeImageElement = nativeImageElements.elements[patch.id] {
                 nativeImageElement.applyNativeMaskPatch(patch)
+                recomputeResolvedMask(for: nativeImageElement)
                 dirty.nativeImage = true
                 return
             }
             if let youtubeVideoElement = youtubeVideoElements.elements[patch.id] {
                 youtubeVideoElement.applyNativeMaskPatch(patch)
+                recomputeResolvedMask(for: youtubeVideoElement)
                 dirty.youtubeVideo = true
                 return
             }
             if let dropdownElement = dropdownElements.elements[patch.id] {
                 dropdownElement.applyNativeMaskPatch(patch)
+                recomputeResolvedMask(for: dropdownElement)
                 dirty.dropdown = true
                 return
             }
             if let radioSetElement = radioSetElements.elements[patch.id] {
                 radioSetElement.applyNativeMaskPatch(patch)
+                recomputeResolvedMask(for: radioSetElement)
                 dirty.radioSet = true
                 return
             }
             if let sliderElement = sliderElements.elements[patch.id] {
                 sliderElement.applyNativeMaskPatch(patch)
+                recomputeResolvedMask(for: sliderElement)
                 dirty.slider = true
                 return
             }
             if let textboxElement = textboxElements.elements[patch.id] {
                 textboxElement.applyNativeMaskPatch(patch)
+                recomputeResolvedMask(for: textboxElement)
                 dirty.textbox = true
                 return
             }
             if let eventBlockerElement = eventBlockerElements.elements[patch.id] {
                 eventBlockerElement.applyNativeMaskPatch(patch)
+                recomputeResolvedMask(for: eventBlockerElement)
                 dirty.eventBlocker = true
             }
         }

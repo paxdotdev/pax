@@ -33,6 +33,7 @@ use crate::render_backend::RenderBackend;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use crate::render_backend::VectorResourceDirty;
 
 const DEFAULT_TESSELLATION_TOLERANCE: f32 = 0.1;
 
@@ -337,24 +338,34 @@ impl<'w> WgpuRenderer<'w> {
                     .iter()
                     .map(|op| op.geometry_signature)
                     .collect::<Vec<_>>();
-                let style_signature = hash_vector_styles(&buffers.ops);
+                let fill_signature = hash_vector_fills(&buffers.ops);
+                let transform_signature = hash_vector_transforms(&buffers.ops);
                 if let Some(RetainedNode::Vector(existing)) = self.scene.get_mut(&node_id) {
                     let prev_z = existing.z_index;
                     let reuse_geometry = existing.geometry_signatures == geometry_signatures;
-                    let style_changed = existing.style_signature != style_signature;
-                    if !reuse_geometry || style_changed {
+                    let geometry_changed = !reuse_geometry;
+                    let fill_changed = existing.fill_signature != fill_signature;
+                    let transform_changed =
+                        existing.transform_signature != transform_signature;
+                    if geometry_changed || fill_changed || transform_changed {
                         rebuild_vector_buffers(
                             self.tolerance,
                             &buffers.ops,
                             &mut existing.buffers,
                             reuse_geometry,
+                            !fill_changed,
                         );
                     }
                     existing.clip_stack = buffers.clip_stack;
                     existing.z_index = pending_node.z_index;
-                    existing.gpu_resource_dirty |= !reuse_geometry || style_changed;
+                    existing.resource_dirty.geometry |= geometry_changed;
+                    existing.resource_dirty.primitives |=
+                        geometry_changed || fill_changed || transform_changed;
+                    existing.resource_dirty.transforms |= transform_changed;
+                    existing.resource_dirty.fill |= fill_changed;
                     existing.geometry_signatures = geometry_signatures;
-                    existing.style_signature = style_signature;
+                    existing.fill_signature = fill_signature;
+                    existing.transform_signature = transform_signature;
                     if prev_z != pending_node.z_index {
                         self.order_dirty = true;
                     }
@@ -371,14 +382,21 @@ impl<'w> WgpuRenderer<'w> {
                             &buffers.ops,
                             &mut buffers_out,
                             false,
+                            false,
                         );
                         buffers_out
                     },
                     clip_stack: buffers.clip_stack,
                     z_index: pending_node.z_index,
-                    gpu_resource_dirty: true,
+                    resource_dirty: VectorResourceDirty {
+                        geometry: true,
+                        primitives: true,
+                        transforms: true,
+                        fill: true,
+                    },
                     geometry_signatures,
-                    style_signature,
+                    fill_signature,
+                    transform_signature,
                 }))
             }
             PendingNodeKind::Image(image_node) => Some(RetainedNode::Image(RetainedImageNode {
@@ -440,7 +458,7 @@ impl<'w> WgpuRenderer<'w> {
             let Some(RetainedNode::Vector(node)) = self.scene.get_mut(&node_id) else {
                 continue;
             };
-            if !node.gpu_resource_dirty {
+            if !node.resource_dirty.any() {
                 continue;
             }
 
@@ -448,7 +466,7 @@ impl<'w> WgpuRenderer<'w> {
                 Some(resource) => {
                     if !self
                         .render_backend
-                        .update_vector_resource(resource, &mut node.buffers)
+                        .update_vector_resource(resource, &mut node.buffers, node.resource_dirty)
                     {
                         node.resource = Some(
                             self.render_backend.create_vector_resource(&mut node.buffers),
@@ -459,7 +477,7 @@ impl<'w> WgpuRenderer<'w> {
                     node.resource = Some(self.render_backend.create_vector_resource(&mut node.buffers));
                 }
             }
-            node.gpu_resource_dirty = false;
+            node.resource_dirty = VectorResourceDirty::default();
         }
     }
 
@@ -596,9 +614,10 @@ struct RetainedVectorNode {
     buffers: CpuBuffers,
     clip_stack: Vec<ClipGeometry>,
     z_index: i32,
-    gpu_resource_dirty: bool,
+    resource_dirty: VectorResourceDirty,
     geometry_signatures: Vec<u64>,
-    style_signature: u64,
+    fill_signature: u64,
+    transform_signature: u64,
 }
 
 struct RetainedImageNode {
@@ -622,19 +641,35 @@ fn rebuild_vector_buffers(
     ops: &[PendingVectorOp],
     buffers: &mut CpuBuffers,
     reuse_geometry: bool,
+    reuse_fill: bool,
 ) {
     if !reuse_geometry {
         buffers.geometry.vertices.clear();
         buffers.geometry.indices.clear();
     }
     buffers.primitives.clear();
-    buffers.colors.clear();
-    buffers.gradients.clear();
+    if !reuse_fill {
+        buffers.colors.clear();
+        buffers.gradients.clear();
+    }
     buffers.transforms.truncate(1);
+
+    let mut next_color_id: u16 = 0;
+    let mut next_gradient_id: u16 = 0;
 
     for op in ops {
         let transform_id = push_transform(buffers, op.transform);
-        let prim_id = push_primitive_def(buffers, op.fill.clone(), transform_id);
+        let prim_id = if reuse_fill {
+            push_primitive_with_existing_fill(
+                buffers,
+                &op.fill,
+                transform_id,
+                &mut next_color_id,
+                &mut next_gradient_id,
+            )
+        } else {
+            push_primitive_def(buffers, op.fill.clone(), transform_id)
+        };
 
         if reuse_geometry {
             continue;
@@ -748,12 +783,20 @@ fn would_exceed_batch_capacity(dst: &CpuBuffers, src: &CpuBuffers) -> bool {
         || dst.transforms.len() + extra_transforms > MAX_BATCH_TRANSFORMS
 }
 
-fn hash_vector_styles(ops: &[PendingVectorOp]) -> u64 {
+fn hash_vector_fills(ops: &[PendingVectorOp]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    ops.len().hash(&mut hasher);
+    for op in ops {
+        hash_fill_bits(&op.fill, &mut hasher);
+    }
+    hasher.finish()
+}
+
+fn hash_vector_transforms(ops: &[PendingVectorOp]) -> u64 {
     let mut hasher = DefaultHasher::new();
     ops.len().hash(&mut hasher);
     for op in ops {
         hash_transform_bits(&op.transform, &mut hasher);
-        hash_fill_bits(&op.fill, &mut hasher);
     }
     hasher.finish()
 }
@@ -857,6 +900,36 @@ fn push_primitive_def(buffers: &mut CpuBuffers, fill: Fill, transform_id: u32) -
     };
     let prim_id = buffers.primitives.len() as u32;
     buffers.primitives.push(primitive);
+    prim_id
+}
+
+fn push_primitive_with_existing_fill(
+    buffers: &mut CpuBuffers,
+    fill: &Fill,
+    transform_id: u32,
+    next_color_id: &mut u16,
+    next_gradient_id: &mut u16,
+) -> u32 {
+    let (fill_id, fill_type_flag) = match fill {
+        Fill::Solid(_) => {
+            let fill_id = *next_color_id;
+            *next_color_id = next_color_id.saturating_add(1);
+            (fill_id, 0)
+        }
+        Fill::Gradient { .. } => {
+            let fill_id = *next_gradient_id;
+            *next_gradient_id = next_gradient_id.saturating_add(1);
+            (fill_id, 1)
+        }
+    };
+    let prim_id = buffers.primitives.len() as u32;
+    buffers.primitives.push(GpuPrimitive {
+        fill_id,
+        fill_type_flag,
+        clipping_id: 0,
+        transform_id,
+        z_index: 0,
+    });
     prim_id
 }
 

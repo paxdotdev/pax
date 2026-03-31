@@ -146,6 +146,20 @@ pub(crate) struct RetainedVectorResource {
     _gradients_buffer: wgpu::Buffer,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct VectorResourceDirty {
+    pub geometry: bool,
+    pub primitives: bool,
+    pub transforms: bool,
+    pub fill: bool,
+}
+
+impl VectorResourceDirty {
+    pub fn any(self) -> bool {
+        self.geometry || self.primitives || self.transforms || self.fill
+    }
+}
+
 pub(crate) enum RetainedDraw<'a> {
     Vector(&'a RetainedVectorResource),
     Image {
@@ -844,6 +858,7 @@ impl<'w> RenderBackend<'w> {
         &self,
         resource: &mut RetainedVectorResource,
         buffers: &mut CpuBuffers,
+        dirty: VectorResourceDirty,
     ) -> bool {
         let (vertices, indices, primitives, transforms, colors, gradients) =
             aligned_cpu_buffers(buffers);
@@ -857,26 +872,34 @@ impl<'w> RenderBackend<'w> {
             return false;
         }
 
-        self.queue
-            .write_buffer(&resource.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
-        write_u16_buffer_padded(&self.queue, &resource.index_buffer, &indices);
-        self.queue.write_buffer(
-            &resource._primitive_buffer,
-            0,
-            bytemuck::cast_slice(&primitives),
-        );
-        self.queue.write_buffer(
-            &resource._transforms_buffer,
-            0,
-            bytemuck::cast_slice(&transforms),
-        );
-        self.queue
-            .write_buffer(&resource._colors_buffer, 0, bytemuck::cast_slice(&colors));
-        self.queue.write_buffer(
-            &resource._gradients_buffer,
-            0,
-            bytemuck::cast_slice(&gradients),
-        );
+        if dirty.geometry {
+            self.queue
+                .write_buffer(&resource.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+            write_u16_buffer_padded(&self.queue, &resource.index_buffer, &indices);
+        }
+        if dirty.primitives {
+            self.queue.write_buffer(
+                &resource._primitive_buffer,
+                0,
+                bytemuck::cast_slice(&primitives),
+            );
+        }
+        if dirty.transforms {
+            self.queue.write_buffer(
+                &resource._transforms_buffer,
+                0,
+                bytemuck::cast_slice(&transforms),
+            );
+        }
+        if dirty.fill {
+            self.queue
+                .write_buffer(&resource._colors_buffer, 0, bytemuck::cast_slice(&colors));
+            self.queue.write_buffer(
+                &resource._gradients_buffer,
+                0,
+                bytemuck::cast_slice(&gradients),
+            );
+        }
         resource.index_count = buffers.geometry.indices.len() as u32;
         true
     }

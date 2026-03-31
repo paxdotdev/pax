@@ -1,6 +1,44 @@
 import SwiftUI
 import Messages
 
+private enum SVGPathCache {
+    static var paths: [String: Path] = [:]
+}
+
+private enum ResolvedNativeMaskCache {
+    static var masks: [PaxNodeId: ResolvedNativeMask] = [:]
+}
+
+public struct ResolvedMaskHole {
+    public let path: Path
+    public let clips: [Path]
+
+    public init(path: Path, clips: [Path]) {
+        self.path = path
+        self.clips = clips
+    }
+}
+
+public struct ResolvedNativeMask {
+    public let size: CGSize
+    public let frameClips: [Path]
+    public let holes: [ResolvedMaskHole]
+
+    public init(size: CGSize, frameClips: [Path], holes: [ResolvedMaskHole]) {
+        self.size = size
+        self.frameClips = frameClips
+        self.holes = holes
+    }
+}
+
+private struct ResolvedPathShape: Shape {
+    let resolvedPath: Path
+
+    func path(in _: CGRect) -> Path {
+        resolvedPath
+    }
+}
+
 private func frameAffineTransform(from coeffs: [Float]) -> CGAffineTransform {
     guard coeffs.count >= 6 else {
         return .identity
@@ -13,6 +51,15 @@ private func frameAffineTransform(from coeffs: [Float]) -> CGAffineTransform {
         tx: CGFloat(coeffs[4]),
         ty: CGFloat(coeffs[5])
     )
+}
+
+private func invertedFrameAffineTransform(from coeffs: [Float]) -> CGAffineTransform {
+    let transform = frameAffineTransform(from: coeffs)
+    let determinant = (transform.a * transform.d) - (transform.b * transform.c)
+    guard abs(determinant) > .ulpOfOne else {
+        return .identity
+    }
+    return transform.inverted()
 }
 
 private extension Character {
@@ -195,8 +242,15 @@ func parseSVGPath(_ pathData: String) -> Path? {
     guard !pathData.isEmpty else {
         return nil
     }
+    if let cached = SVGPathCache.paths[pathData] {
+        return cached
+    }
     var parser = SVGPathParser(pathData: pathData)
-    return parser.parse()
+    let path = parser.parse()
+    if let path {
+        SVGPathCache.paths[pathData] = path
+    }
+    return path
 }
 
 struct SVGPathShape: Shape {
@@ -229,45 +283,118 @@ private func frameWorldPath(for descriptor: FrameClipDescriptor) -> Path {
     return Path(rect).applying(frameAffineTransform(from: descriptor.transform))
 }
 
-struct FrameClipShape: Shape {
-    let descriptor: FrameClipDescriptor
-    let localFromWorld: CGAffineTransform
+private func collectFrameClipDescriptors(startingAt parentFrame: PaxNodeId?, frames: [PaxNodeId: FrameElement]) -> [FrameClipDescriptor] {
+    var descriptors: [FrameClipDescriptor] = []
+    var currentFrame = parentFrame
 
-    func path(in _: CGRect) -> Path {
-        frameWorldPath(for: descriptor).applying(localFromWorld)
+    while let frameId = currentFrame, let frame = frames[frameId] {
+        if frame.clipContent {
+            descriptors.insert(
+                FrameClipDescriptor(
+                    clipPath: frame.clipPath,
+                    transform: frame.transform,
+                    size: CGSize(width: CGFloat(frame.size_x), height: CGFloat(frame.size_y))
+                ),
+                at: 0
+            )
+        }
+        currentFrame = frame.parentFrame
+    }
+
+    return descriptors
+}
+
+private func resolvedMaskSize(patch: NativeMaskPatch?, fallbackSize: CGSize) -> CGSize {
+    let width = (patch?.size_x ?? 0) > 0 ? CGFloat(patch?.size_x ?? 0) : fallbackSize.width
+    let height = (patch?.size_y ?? 0) > 0 ? CGFloat(patch?.size_y ?? 0) : fallbackSize.height
+    return CGSize(width: max(0, width), height: max(0, height))
+}
+
+public func setResolvedNativeMask(id: PaxNodeId, mask: ResolvedNativeMask?) {
+    if let mask {
+        ResolvedNativeMaskCache.masks[id] = mask
+    } else {
+        ResolvedNativeMaskCache.masks.removeValue(forKey: id)
     }
 }
 
-struct NativeMaskView: View {
-    let patch: NativeMaskPatch
-    let fallbackSize: CGSize
+public func resolvedNativeMask(for id: PaxNodeId) -> ResolvedNativeMask? {
+    ResolvedNativeMaskCache.masks[id]
+}
 
-    private var resolvedSize: CGSize {
-        let width = patch.size_x > 0 ? CGFloat(patch.size_x) : fallbackSize.width
-        let height = patch.size_y > 0 ? CGFloat(patch.size_y) : fallbackSize.height
-        return CGSize(width: max(0, width), height: max(0, height))
+public func removeResolvedNativeMask(id: PaxNodeId) {
+    ResolvedNativeMaskCache.masks.removeValue(forKey: id)
+}
+
+public func resolveNativeMask(
+    elementTransform: [Float],
+    parentFrame: PaxNodeId?,
+    patch: NativeMaskPatch?,
+    fallbackSize: CGSize,
+    frames: [PaxNodeId: FrameElement]
+) -> ResolvedNativeMask? {
+    let size = resolvedMaskSize(patch: patch, fallbackSize: fallbackSize)
+    let localFromWorld = invertedFrameAffineTransform(from: elementTransform)
+
+    let frameClips = collectFrameClipDescriptors(startingAt: parentFrame, frames: frames).compactMap { descriptor -> Path? in
+        let localPath = frameWorldPath(for: descriptor).applying(localFromWorld)
+        return localPath.isEmpty ? nil : localPath
     }
 
-    var body: some View {
-        Canvas { context, _ in
-            let bounds = CGRect(origin: .zero, size: resolvedSize)
-            context.fill(Path(bounds), with: .color(.white))
+    let holes = patch?.entries.compactMap { entry -> ResolvedMaskHole? in
+        guard let holePath = parseSVGPath(entry.path) else {
+            return nil
+        }
+        if holePath.isEmpty {
+            return nil
+        }
+        let localClips = entry.clips.compactMap { clip -> Path? in
+            guard let clipPath = parseSVGPath(clip) else {
+                return nil
+            }
+            return clipPath.isEmpty ? nil : clipPath
+        }
+        return ResolvedMaskHole(path: holePath, clips: localClips)
+    } ?? []
 
-            for entry in patch.entries {
-                guard let holePath = parseSVGPath(entry.path) else {
-                    continue
-                }
+    if frameClips.isEmpty && holes.isEmpty {
+        return nil
+    }
 
-                var holeContext = context
-                for clip in entry.clips {
-                    if let clipPath = parseSVGPath(clip) {
-                        holeContext.clip(to: clipPath)
-                    }
-                }
-                holeContext.blendMode = .destinationOut
-                holeContext.fill(holePath, with: .color(.white))
+    return ResolvedNativeMask(size: size, frameClips: frameClips, holes: holes)
+}
+
+public struct CombinedMaskView: View {
+    let mask: ResolvedNativeMask
+
+    public init(mask: ResolvedNativeMask) {
+        self.mask = mask
+    }
+
+    public var body: some View {
+        ZStack {
+            clippedView(
+                ResolvedPathShape(resolvedPath: Path(CGRect(origin: .zero, size: mask.size)))
+                    .fill(Color.white),
+                paths: mask.frameClips
+            )
+
+            ForEach(Array(mask.holes.enumerated()), id: \.offset) { _, hole in
+                clippedView(
+                    ResolvedPathShape(resolvedPath: hole.path)
+                        .fill(Color.black),
+                    paths: hole.clips
+                )
             }
         }
-        .frame(width: resolvedSize.width, height: resolvedSize.height)
+        .compositingGroup()
+        .luminanceToAlpha()
+        .frame(width: mask.size.width, height: mask.size.height)
+    }
+
+    private func clippedView<V: View>(_ view: V, paths: [Path]) -> AnyView {
+        paths.reduce(AnyView(view)) { current, path in
+            AnyView(current.clipShape(ResolvedPathShape(resolvedPath: path)))
+        }
     }
 }
