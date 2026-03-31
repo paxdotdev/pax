@@ -29,7 +29,7 @@ let package = Package(
             name: "FlexBuffers"),
         .target(
             name: "Rendering",
-            dependencies: ["Messages"]),
+            dependencies: ["Messages", "FlexBuffers"]),
         .target(
             name: "Messages",
             dependencies: ["FlexBuffers"]),
