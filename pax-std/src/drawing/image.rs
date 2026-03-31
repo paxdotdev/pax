@@ -75,9 +75,7 @@ impl InstanceNode for ImageInstance {
             ..Default::default()
         }));
 
-        let (source, fit) = expanded_node.with_properties_unwrapped(|props: &mut Image| {
-            (props.source.clone(), props.fit.clone())
-        });
+        let source = expanded_node.with_properties_unwrapped(|props: &mut Image| props.source.clone());
 
         let tab = expanded_node.transform_and_bounds.clone();
         let deps = [tab.untyped()];

@@ -88,7 +88,7 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
     }
 
     fn get_image_size(&mut self, image_path: &str) -> Option<(usize, usize)> {
-        self.image_map.get(image_path).map(|img| (img.size))
+        self.image_map.get(image_path).map(|img| img.size)
     }
 
     fn draw_image(&mut self, layer: usize, image_path: &str, rect: kurbo::Rect) {

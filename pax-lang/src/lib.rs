@@ -121,7 +121,7 @@ fn renamed_rules(rule: &Rule) -> String {
     }
 }
 
-pub fn parse_pax_str(expected_rule: Rule, input: &str) -> Result<Pair<Rule>, String> {
+pub fn parse_pax_str(expected_rule: Rule, input: &str) -> Result<Pair<'_, Rule>, String> {
     let pairs = PaxParser::parse(expected_rule, input);
     match pairs {
         Ok(mut pairs) => {
@@ -135,7 +135,7 @@ pub fn parse_pax_str(expected_rule: Rule, input: &str) -> Result<Pair<Rule>, Str
     }
 }
 
-pub fn parse_pax_err(expected_rule: Rule, input: &str) -> Result<Pair<Rule>, Error<Rule>> {
+pub fn parse_pax_err(expected_rule: Rule, input: &str) -> Result<Pair<'_, Rule>, Error<Rule>> {
     let pairs = PaxParser::parse(expected_rule, input);
     match pairs {
         Ok(mut pairs) => {
@@ -149,7 +149,7 @@ pub fn parse_pax_err(expected_rule: Rule, input: &str) -> Result<Pair<Rule>, Err
     }
 }
 
-pub fn parse_pax_pairs(expected_rule: Rule, input: &str) -> Result<Pairs<Rule>, Error<Rule>> {
+pub fn parse_pax_pairs(expected_rule: Rule, input: &str) -> Result<Pairs<'_, Rule>, Error<Rule>> {
     let pairs = PaxParser::parse(expected_rule, input);
     match pairs {
         Ok(pairs) => Ok(pairs),

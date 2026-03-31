@@ -75,22 +75,22 @@ impl InstanceNode for TextInstance {
 
     fn render(
         &self,
-        expanded_node: &ExpandedNode,
+        _expanded_node: &ExpandedNode,
         _context: &Rc<RuntimeContext>,
-        rc: &mut dyn RenderContext,
+        _rc: &mut dyn RenderContext,
     ) {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
 
         #[cfg(feature = "designtime")]
         if DEBUG_TEXT_GREEN_BACKGROUND {
-            let tab = expanded_node.transform_and_bounds.get();
+            let tab = _expanded_node.transform_and_bounds.get();
             let width: f64 = tab.bounds.0;
             let height: f64 = tab.bounds.1;
             let rect = RoundedRect::new(0.0, 0.0, width, height, 0.0);
             let bez_path = rect.to_path(0.1);
             let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
-            rc.fill(
-                expanded_node.occlusion.get().occlusion_layer_id,
+            _rc.fill(
+                _expanded_node.occlusion.get().occlusion_layer_id,
                 transformed_bez_path,
                 &Fill::Solid(Color::rgba(0.into(), 255.into(), 0.into(), 100.into())),
             );

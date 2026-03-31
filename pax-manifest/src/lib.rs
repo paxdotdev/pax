@@ -1449,7 +1449,7 @@ pub struct PropertyDefinition {
 }
 
 impl PropertyDefinition {
-    pub fn get_type_definition<'a>(&'a self, tt: &'a TypeTable) -> &TypeDefinition {
+    pub fn get_type_definition<'a>(&'a self, tt: &'a TypeTable) -> &'a TypeDefinition {
         if let None = tt.get(&self.type_id) {
             panic!("TypeTable does not contain type_id: {}", &self.type_id);
         }
@@ -1459,7 +1459,7 @@ impl PropertyDefinition {
     pub fn get_inner_iterable_type_definition<'a>(
         &'a self,
         tt: &'a TypeTable,
-    ) -> Option<&TypeDefinition> {
+    ) -> Option<&'a TypeDefinition> {
         if let Some(ref iiti) = tt.get(&self.type_id).unwrap().inner_iterable_type_id {
             Some(tt.get(iiti).unwrap())
         } else {

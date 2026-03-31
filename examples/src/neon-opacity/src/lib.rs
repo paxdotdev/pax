@@ -28,6 +28,10 @@ pub struct Example {
     pub lattice_left_opacity: Property<f64>,
     pub lattice_right_opacity: Property<f64>,
     pub halo_opacity: Property<f64>,
+    pub orbit_a: Property<f64>,
+    pub orbit_b: Property<f64>,
+    pub orbit_c: Property<f64>,
+    pub orbit_d: Property<f64>,
     pub drift_a: Property<f64>,
     pub drift_b: Property<f64>,
     pub drift_c: Property<f64>,
@@ -36,8 +40,10 @@ pub struct Example {
     pub iris_x: Property<f64>,
     pub iris_y: Property<f64>,
     pub iris_size: Property<f64>,
+    pub star_size: Property<f64>,
     pub star_rotation: Property<f64>,
     pub mask_hole_opacity: Property<f64>,
+    pub prism_rotation: Property<f64>,
     pub ribbon_rotation: Property<f64>,
     pub mode_label: Property<String>,
     pub beam_label: Property<String>,
@@ -75,21 +81,40 @@ impl Example {
         self.halo_opacity
             .set(0.46 + 0.18 * wave(t * 0.43 + 2.0));
 
-        self.drift_a.set(28.0 * (t * 0.63).sin());
-        self.drift_b.set(22.0 * (t * 0.82).cos());
-        self.drift_c.set(18.0 * (t * 1.14).sin());
+        self.orbit_a.set((t * 0.37).sin());
+        self.orbit_b.set((t * 0.29 + 1.1).cos());
+        self.orbit_c
+            .set(0.62 * (t * 0.53).sin() + 0.38 * (t * 1.07).cos());
+        self.orbit_d
+            .set(0.58 * (t * 0.41).cos() - 0.42 * (t * 0.93).sin());
+
+        self.drift_a
+            .set(42.0 * (t * 0.63).sin() + 14.0 * (t * 1.34).cos());
+        self.drift_b
+            .set(34.0 * (t * 0.82).cos() + 10.0 * (t * 0.47).sin());
+        self.drift_c
+            .set(26.0 * (t * 1.14).sin() - 9.0 * (t * 0.58).cos());
 
         self.spotlight_x
-            .set(26.0 + 170.0 * smooth_wave(t * 0.44 + 0.4));
-        self.spotlight_y.set(52.0 + 18.0 * (t * 0.57).cos());
-        self.iris_x.set(96.0 + 138.0 * wave(t * 0.78 + 0.5));
-        self.iris_y.set(124.0 + 82.0 * wave(t * 0.61 + 1.6));
-        self.iris_size.set(154.0 + 92.0 * wave(t * 1.19 + 0.2));
+            .set(46.0 + 240.0 * smooth_wave(t * 0.44 + 0.4) + 24.0 * (t * 1.21).sin());
+        self.spotlight_y
+            .set(56.0 + 24.0 * (t * 0.57).cos() + 12.0 * (t * 1.08).sin());
+        self.iris_x
+            .set(118.0 + 128.0 * wave(t * 0.78 + 0.5) + 18.0 * self.orbit_b.get());
+        self.iris_y
+            .set(138.0 + 96.0 * wave(t * 0.61 + 1.6) + 12.0 * self.orbit_d.get());
+        self.iris_size
+            .set(198.0 + 118.0 * wave(t * 1.19 + 0.2));
+        self.star_size
+            .set(292.0 + 48.0 * wave(t * 0.86 + 0.7));
         self.star_rotation
-            .set(ticks as f64 * 1.25 + 18.0 * (t * 0.37).sin());
+            .set(ticks as f64 * 1.25 + 24.0 * (t * 0.37).sin());
         self.mask_hole_opacity
             .set(0.18 + 0.56 * wave(t * 1.17 + 0.9));
-        self.ribbon_rotation.set(-4.5 + 1.8 * (t * 0.34).sin());
+        self.prism_rotation
+            .set(-9.0 + 7.0 * (t * 0.22).sin() + 2.6 * (t * 0.71).cos());
+        self.ribbon_rotation
+            .set(-6.0 + 2.4 * (t * 0.34).sin() + 1.2 * (t * 0.82).cos());
 
         self.refresh_labels();
     }

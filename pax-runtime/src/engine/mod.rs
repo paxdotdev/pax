@@ -323,7 +323,7 @@ impl PaxEngine {
 
     pub fn get_expanded_node(&self, id: ExpandedNodeIdentifier) -> Option<Rc<ExpandedNode>> {
         let val = self.runtime_context.get_expanded_node_by_eid(id).clone();
-        val.map(|v| (v.clone()))
+        val.map(|v| v.clone())
     }
 
     /// Called by chassis when viewport size changes, e.g. with native window resizes

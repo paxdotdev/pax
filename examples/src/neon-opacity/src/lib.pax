@@ -1,39 +1,45 @@
 <Group width=100% height=100%>
-    <Text id=headline x=50% y=56px width=88% height=40px text="Afterimage Observatory"/>
+    <Text id=headline x=50% y=68px width=90% height=56px text="Afterimage Observatory"/>
     <Text
         id=subhead
         x=50%
-        y=94px
+        y=116px
         width=88%
-        height=20px
+        height=32px
         text="Opacity as atmosphere: fully opaque overlaps, nested attenuation, masked native controls, and moving vector collisions in one noctilucent test bed."
     />
     <Text
         id=live_line
         x=50%
-        y=122px
+        y=156px
         width=88%
-        height=16px
+        height=22px
         text={"LIVE // " + self.mode_label + " // BAND " + self.spectrum_label + " // CALLSIGN " + self.callsign}
     />
 
-    <Group class=constellation_strip opacity={(0.54 + self.beam_gain * 0.22)}>
-        <Group x=20px y=18px width=300px height=98px opacity=0.86>
-            <Text class=eyebrow x=14px y=10px width=180px height=14px text="OPAQUE OVERLAP // NO INHERITED LOSS"/>
-            <Text class=panel_title_small x=14px y=28px width=210px height=26px text="Diffraction Field"/>
+    <Group
+        class=constellation_strip
+        x={(53.0 + self.orbit_a * 2.6)%}
+        y={(26.0 + self.orbit_b * 1.8)%}
+        rotate={(4.0 + self.orbit_c * 5.4)deg}
+        opacity={(0.54 + self.beam_gain * 0.22)}
+    >
+        <Group x=24px y=22px width=366px height=124px opacity=0.86>
+            <Text class=eyebrow x=16px y=12px width=220px height=18px text="OPAQUE OVERLAP // NO INHERITED LOSS"/>
+            <Text class=panel_title_small x=16px y=40px width=252px height=34px text="Diffraction Field"/>
             <Text
                 class=body_copy
-                x=14px
-                y=54px
-                width=184px
-                height=28px
+                x=16px
+                y=78px
+                width=238px
+                height=44px
                 text="Single elements at 1.00 should stay fully saturated even while translucent groups drift behind them."
             />
             <Ellipse
-                x=228px
-                y=52px
-                width=86px
-                height=86px
+                x=300px
+                y=66px
+                width=100px
+                height=100px
                 anchor_x=50%
                 anchor_y=50%
                 opacity=1
@@ -47,10 +53,10 @@
                 )}
             />
             <Ellipse
-                x=264px
-                y=40px
-                width=56px
-                height=56px
+                x=344px
+                y=50px
+                width=66px
+                height=66px
                 anchor_x=50%
                 anchor_y=50%
                 opacity=1
@@ -64,10 +70,10 @@
                 )}
             />
             <Rectangle
-                x=202px
-                y=58px
-                width=108px
-                height=12px
+                x=256px
+                y=72px
+                width=136px
+                height=14px
                 rotate=22deg
                 opacity=1
                 class=beam_capsule
@@ -119,24 +125,30 @@
         />
     </Group>
 
-    <Group class=monolith opacity={self.monolith_opacity}>
-        <Group x=20px y=22px width=264px height=394px opacity={self.inner_glass_opacity}>
-            <Text class=eyebrow x=18px y=12px width=220px height=14px text="GROUP CASCADE // NATIVE + VECTOR"/>
-            <Text class=panel_title x=18px y=34px width=210px height=30px text="Afterimage Console"/>
+    <Group
+        class=monolith
+        x={(36.0 + self.orbit_b * 2.0)%}
+        y={(58.0 + self.orbit_a * 2.4)%}
+        rotate={(-12.0 + self.orbit_d * 6.4)deg}
+        opacity={self.monolith_opacity}
+    >
+        <Group x=24px y=28px width=332px height=500px opacity={self.inner_glass_opacity}>
+            <Text class=eyebrow x=20px y=14px width=280px height=18px text="GROUP CASCADE // NATIVE + VECTOR"/>
+            <Text class=panel_title x=20px y=42px width=270px height=42px text="Afterimage Console"/>
             <Text
                 class=body_copy
-                x=18px
-                y=72px
-                width=208px
-                height=40px
+                x=20px
+                y=92px
+                width=256px
+                height=54px
                 text="One breathing opacity field attenuates glass, text, and native controls together while hard 1.00 probes stay crisp."
             />
-            <Group x=190px y=56px width=66px height=66px opacity=1>
+            <Group x=250px y=74px width=86px height=86px opacity=1>
                 <Ellipse
-                    x=18px
-                    y=36px
-                    width=44px
-                    height=44px
+                    x=24px
+                    y=44px
+                    width=52px
+                    height=52px
                     anchor_x=50%
                     anchor_y=50%
                     opacity=1
@@ -150,10 +162,10 @@
                     )}
                 />
                 <Ellipse
-                    x=44px
-                    y=20px
-                    width=34px
-                    height=34px
+                    x=54px
+                    y=24px
+                    width=40px
+                    height=40px
                     anchor_x=50%
                     anchor_y=50%
                     opacity=1
@@ -167,10 +179,10 @@
                     )}
                 />
                 <Rectangle
-                    x=18px
-                    y=28px
-                    width=38px
-                    height=8px
+                    x=24px
+                    y=34px
+                    width=48px
+                    height=10px
                     rotate=28deg
                     class=beam_capsule
                     opacity=1
@@ -186,8 +198,8 @@
                 />
             </Group>
 
-            <Group x=18px y=134px width=228px height=206px opacity=0.82>
-                <Text class=tiny_label x=0px y=0px width=188px height=12px text="HIERARCHICAL OPACITY // GROUP 0.82"/>
+            <Group x=20px y=172px width=284px height=258px opacity=0.82>
+                <Text class=tiny_label x=0px y=0px width=240px height=16px text="HIERARCHICAL OPACITY // GROUP 0.82"/>
                 <Rectangle
                     class=control_surface
                     fill={Fill::linearGradient(
@@ -200,33 +212,33 @@
                         ]
                     )}
                 />
-                <Text class=stat_label x=18px y=20px width=126px height=14px text={"CALLSIGN // " + self.callsign}/>
-                <Text class=stat_right x=146px y=20px width=66px height=14px text={"BEAM " + self.beam_label}/>
+                <Text class=stat_label x=20px y=24px width=156px height=18px text={"CALLSIGN // " + self.callsign}/>
+                <Text class=stat_right x=190px y=24px width=74px height=18px text={"BEAM " + self.beam_label}/>
                 <Textbox
                     class=input_neon
-                    x=18px
-                    y=48px
-                    width=192px
-                    height=36px
+                    x=20px
+                    y=58px
+                    width=244px
+                    height=44px
                     text=bind:callsign
                     placeholder="Pilot callsign"
                     @textbox_change=self.update_callsign
                 />
                 <Dropdown
                     class=dropdown_neon
-                    x=18px
-                    y=92px
-                    width=132px
-                    height=34px
+                    x=20px
+                    y=114px
+                    width=184px
+                    height=40px
                     selected_id=bind:selected_mode
                     options=["SPECTRAL", "NATIVE", "MASK"]
                 />
-                <Text class=stat_label x=160px y=102px width=50px height=14px text={self.mode_label}/>
+                <Text class=stat_label x=214px y=124px width=56px height=18px text={self.mode_label}/>
                 <Slider
-                    x=18px
-                    y=138px
-                    width=192px
-                    height=22px
+                    x=20px
+                    y=168px
+                    width=244px
+                    height=26px
                     value=bind:beam_gain
                     min=0.2
                     max=1.0
@@ -237,22 +249,22 @@
                 />
                 <Button
                     class=button_neon
-                    x=18px
-                    y=166px
-                    width=192px
-                    height=30px
+                    x=20px
+                    y=208px
+                    width=244px
+                    height=42px
                     label={self.engage_label}
                     @button_click=self.increment_engage
                 />
             </Group>
 
-            <Group x=24px y=344px width=212px height=48px opacity=0.58>
-                <Text class=tiny_label x=0px y=0px width=212px height=12px text="CHILD OPACITY // 1.00 • 0.68 • 0.32"/>
+            <Group x=28px y=444px width=256px height=56px opacity=0.58>
+                <Text class=tiny_label x=0px y=0px width=256px height=16px text="CHILD OPACITY // 1.00 • 0.68 • 0.32"/>
                 <Rectangle
                     x=0px
-                    y=24px
-                    width=212px
-                    height=10px
+                    y=28px
+                    width=256px
+                    height=12px
                     class=beam_capsule
                     opacity=1
                     fill={Fill::linearGradient(
@@ -266,10 +278,10 @@
                     )}
                 />
                 <Rectangle
-                    x=12px
-                    y=18px
-                    width=176px
-                    height=10px
+                    x=14px
+                    y=22px
+                    width=214px
+                    height=12px
                     class=beam_capsule
                     opacity=0.68
                     fill={Fill::linearGradient(
@@ -283,10 +295,10 @@
                     )}
                 />
                 <Rectangle
-                    x=28px
-                    y=12px
-                    width=132px
-                    height=10px
+                    x=34px
+                    y=16px
+                    width=162px
+                    height=12px
                     class=beam_capsule
                     opacity=0.32
                     fill={Fill::linearGradient(
@@ -302,10 +314,10 @@
             </Group>
 
             <Path
-                x=222px
-                y=332px
-                width=94px
-                height=94px
+                x=282px
+                y=434px
+                width=118px
+                height=118px
                 anchor_x=50%
                 anchor_y=50%
                 rotate={(self.star_rotation * -0.3)deg}
@@ -367,34 +379,39 @@
         />
     </Group>
 
-    <Group class=mask_orchid>
+    <Group
+        class=mask_orchid
+        x={(70.0 + self.orbit_c * 2.5)%}
+        y={(55.0 + self.orbit_d * 2.2)%}
+        rotate={(11.0 - self.orbit_a * 6.8)deg}
+    >
         <Mask width=100% height=100% opacity={self.mask_panel_opacity}>
             <Group width=100% height=100%>
-                <Group x=18px y=16px width=228px height=332px opacity=0.82>
-                    <Text class=eyebrow x=12px y=10px width=180px height=14px text="PARTIAL MASK // MIXED NATIVE"/>
-                    <Text class=panel_title_small x=12px y=30px width=170px height=24px text="Luminous Chamber"/>
+                <Group x=20px y=20px width=286px height=404px opacity=0.82>
+                    <Text class=eyebrow x=14px y=12px width=220px height=18px text="PARTIAL MASK // MIXED NATIVE"/>
+                    <Text class=panel_title_small x=14px y=40px width=214px height=34px text="Luminous Chamber"/>
                     <Text
                         class=body_copy
-                        x=12px
-                        y=60px
-                        width=188px
-                        height=36px
+                        x=14px
+                        y=78px
+                        width=232px
+                        height=54px
                         text="Animated iris and star cut away the subtree with fractional strength instead of snapping to a hard binary hole."
                     />
                     <RadioSet
                         class=radio_neon
-                        x=12px
-                        y=110px
-                        width=168px
-                        height=82px
+                        x=14px
+                        y=136px
+                        width=208px
+                        height=102px
                         selected_id=bind:spectrum_band
                         options=["AURORA", "NOCTIS", "PULSE"]
                     />
                     <Rectangle
-                        x=12px
-                        y=202px
-                        width=186px
-                        height=12px
+                        x=14px
+                        y=246px
+                        width=228px
+                        height=14px
                         rotate=-6deg
                         class=beam_capsule
                         opacity=0.7
@@ -410,31 +427,31 @@
                     />
                     <Checkbox
                         class=checkbox_neon
-                        x=12px
-                        y=224px
-                        width=28px
-                        height=28px
+                        x=14px
+                        y=272px
+                        width=34px
+                        height=34px
                         checked=bind:stabilizers
                         @checkbox_change=self.update_stabilizers
                     />
-                    <Text class=stat_label x=50px y=230px width=140px height=16px text={"STABILIZERS // " + self.stabilizer_label}/>
-                    <Text class=stat_label x=12px y=256px width=140px height=16px text={"MODE // " + self.mode_label}/>
-                    <Text class=stat_label x=12px y=274px width=140px height=16px text={"BAND // " + self.spectrum_label}/>
+                    <Text class=stat_label x=58px y=280px width=196px height=18px text={"STABILIZERS // " + self.stabilizer_label}/>
+                    <Text class=stat_label x=14px y=314px width=180px height=18px text={"MODE // " + self.mode_label}/>
+                    <Text class=stat_label x=14px y=338px width=180px height=18px text={"BAND // " + self.spectrum_label}/>
                     <Button
                         class=button_hot
-                        x=12px
-                        y=294px
-                        width=188px
-                        height=26px
+                        x=14px
+                        y=356px
+                        width=228px
+                        height=38px
                         label={"SYNC " + self.spectrum_label}
                     />
-                    <Group x=146px y=210px width=72px height=72px opacity=0.58>
-                        <Text class=tiny_label x=0px y=0px width=72px height=12px text="NESTED"/>
+                    <Group x=194px y=268px width=86px height=86px opacity=0.58>
+                        <Text class=tiny_label x=0px y=0px width=86px height=16px text="NESTED"/>
                         <Ellipse
-                            x=38px
-                            y=42px
-                            width=52px
-                            height=52px
+                            x=44px
+                            y=50px
+                            width=60px
+                            height=60px
                             anchor_x=50%
                             anchor_y=50%
                             opacity=1
@@ -448,10 +465,10 @@
                             )}
                         />
                         <Ellipse
-                            x=40px
-                            y=42px
-                            width=38px
-                            height=38px
+                            x=46px
+                            y=50px
+                            width=44px
+                            height=44px
                             anchor_x=50%
                             anchor_y=50%
                             opacity=0.62
@@ -465,10 +482,10 @@
                             )}
                         />
                         <Ellipse
-                            x=42px
-                            y=42px
-                            width=24px
-                            height=24px
+                            x=48px
+                            y=50px
+                            width=28px
+                            height=28px
                             anchor_x=50%
                             anchor_y=50%
                             opacity=0.28
@@ -483,10 +500,10 @@
                         />
                     </Group>
                     <Path
-                        x=194px
-                        y=90px
-                        width=72px
-                        height=72px
+                        x=236px
+                        y=106px
+                        width=92px
+                        height=92px
                         anchor_x=50%
                         anchor_y=50%
                         rotate={(self.star_rotation * -0.6)deg}
@@ -575,8 +592,8 @@
             <Path
                 x={(self.iris_x)px}
                 y={(self.iris_y)px}
-                width=146px
-                height=146px
+                width={(self.star_size)px}
+                height={(self.star_size)px}
                 anchor_x=50%
                 anchor_y=50%
                 rotate={(self.star_rotation)deg}
@@ -608,14 +625,20 @@
         </Mask>
     </Group>
 
-    <Group class=footer_ribbon rotate={(self.ribbon_rotation)deg} opacity={(0.42 + self.beam_gain * 0.28)}>
-        <Text class=footer_title x=20px y=18px width=320px height=24px text="OPAQUE / TRANSLUCENT / MASKED / NATIVE"/>
+    <Group
+        class=footer_ribbon
+        x={(50.0 + self.orbit_d * 1.8)%}
+        y={(87.0 + self.orbit_b * 1.4)%}
+        rotate={(self.ribbon_rotation)deg}
+        opacity={(0.42 + self.beam_gain * 0.28)}
+    >
+        <Text class=footer_title x=24px y=22px width=412px height=32px text="OPAQUE / TRANSLUCENT / MASKED / NATIVE"/>
         <Text
             class=footer_copy
-            x=20px
-            y=48px
-            width=320px
-            height=16px
+            x=24px
+            y=62px
+            width=412px
+            height=22px
             text="parallax halos • animated partial masks • hierarchical attenuation"
         />
         <Rectangle
@@ -643,13 +666,19 @@
         />
     </Group>
 
-    <Group class=collision_left opacity={self.lattice_left_opacity}>
-        <Group x={(140.0 + self.drift_a)px} y=72px width=278px height=112px rotate=-9deg opacity=1>
-            <Text class=tiny_label x=10px y=2px width=224px height=12px text="GROUP A // 0.64 × (1.00, 0.70, 0.34)"/>
+    <Group
+        class=collision_left
+        x={(50.0 + self.orbit_c * 2.4)%}
+        y={(64.0 + self.orbit_b * 1.6)%}
+        rotate={(self.orbit_d * 1.8)deg}
+        opacity={self.lattice_left_opacity}
+    >
+        <Group x={(120.0 + self.drift_a)px} y={(70.0 + self.orbit_d * 18.0)px} width=320px height=126px rotate={(-10.0 + self.orbit_b * 4.0)deg} opacity=1>
+            <Text class=tiny_label x=10px y=2px width=250px height=16px text="GROUP A // 0.64 × (1.00, 0.70, 0.34)"/>
             <Rectangle
                 x=0px
-                y=26px
-                width=278px
+                y=30px
+                width=320px
                 height=18px
                 class=beam_capsule
                 opacity=1
@@ -664,9 +693,9 @@
                 )}
             />
             <Rectangle
-                x=18px
-                y=48px
-                width=232px
+                x=20px
+                y=56px
+                width=268px
                 height=18px
                 class=beam_capsule
                 opacity=0.7
@@ -681,9 +710,9 @@
                 )}
             />
             <Rectangle
-                x=48px
-                y=70px
-                width=168px
+                x=58px
+                y=82px
+                width=188px
                 height=18px
                 class=beam_capsule
                 opacity=0.34
@@ -700,13 +729,19 @@
         </Group>
     </Group>
 
-    <Group class=collision_right opacity={self.lattice_right_opacity}>
-        <Group x={(286.0 + self.drift_b)px} y={(414.0 + self.drift_c)px} width=304px height=126px rotate=8deg opacity=0.88>
-            <Text class=tiny_label x=14px y=4px width=232px height=12px text="GROUP B // MOVING COLLISION SWARM"/>
+    <Group
+        class=collision_right
+        x={(50.0 + self.orbit_a * 2.2)%}
+        y={(58.0 + self.orbit_c * 1.8)%}
+        rotate={(self.orbit_b * -1.6)deg}
+        opacity={self.lattice_right_opacity}
+    >
+        <Group x={(276.0 + self.drift_b)px} y={(404.0 + self.drift_c)px} width=336px height=140px rotate={(10.0 - self.orbit_c * 5.0)deg} opacity=0.88>
+            <Text class=tiny_label x=14px y=4px width=270px height=16px text="GROUP B // MOVING COLLISION SWARM"/>
             <Rectangle
                 x=0px
                 y=28px
-                width=304px
+                width=336px
                 height=24px
                 class=beam_capsule
                 opacity=1
@@ -723,7 +758,7 @@
             <Rectangle
                 x=18px
                 y=62px
-                width=260px
+                width=286px
                 height=20px
                 class=beam_capsule
                 opacity=0.68
@@ -738,10 +773,10 @@
                 )}
             />
             <Ellipse
-                x=254px
-                y=88px
-                width=76px
-                height=76px
+                x=286px
+                y=94px
+                width=84px
+                height=84px
                 anchor_x=50%
                 anchor_y=50%
                 opacity=0.5
@@ -757,12 +792,18 @@
         </Group>
     </Group>
 
-    <Group class=sky_sweep opacity={(0.16 + self.beam_gain * 0.24)}>
+    <Group
+        class=sky_sweep
+        x={(50.0 + self.orbit_b * 2.0)%}
+        y={(36.0 + self.orbit_a * 1.8)%}
+        rotate={(self.orbit_c * -1.4)deg}
+        opacity={(0.16 + self.beam_gain * 0.24)}
+    >
         <Rectangle
             x={(self.spotlight_x)px}
             y={(self.spotlight_y)px}
-            width=260px
-            height=34px
+            width=320px
+            height=40px
             anchor_x=50%
             anchor_y=50%
             rotate=-14deg
@@ -780,8 +821,8 @@
         <Rectangle
             x={(self.spotlight_x - 56.0)px}
             y={(self.spotlight_y + 26.0)px}
-            width=320px
-            height=18px
+            width=396px
+            height=22px
             anchor_x=50%
             anchor_y=50%
             rotate=-15deg
@@ -800,94 +841,307 @@
     </Group>
 
     <Group opacity={self.halo_opacity}>
-        <Ellipse
-            x=80%
-            y=22%
+        <Path
+            x={(18.0 + self.orbit_a * 4.2)%}
+            y={(32.0 + self.orbit_b * 2.4)%}
             width=36%
-            height=42%
-            opacity=0.9
-            fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(101, 70, 255, 0), 0%),
-                    GradientStop::get(Color::rgba(106, 72, 255, 118), 52%),
-                    GradientStop::get(Color::rgba(255, 108, 224, 42), 100%)
-                ]
-            )}
-        />
-        <Ellipse
-            x=18%
-            y=76%
-            width=42%
-            height=42%
-            opacity=0.84
-            fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(18, 162, 210, 0), 0%),
-                    GradientStop::get(Color::rgba(24, 160, 210, 110), 56%),
-                    GradientStop::get(Color::rgba(88, 245, 255, 38), 100%)
-                ]
-            )}
-        />
-        <Ellipse
-            x=20%
-            y=26%
-            width=30%
-            height=34%
-            opacity=0.7
-            fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(255, 112, 224, 0), 0%),
-                    GradientStop::get(Color::rgba(255, 112, 224, 96), 54%),
-                    GradientStop::get(Color::rgba(255, 188, 88, 34), 100%)
-                ]
-            )}
-        />
-        <Rectangle
-            x=50%
-            y=82%
-            width=84%
-            height=18px
+            height=38%
             anchor_x=50%
             anchor_y=50%
-            rotate=-8deg
-            class=beam_capsule
+            rotate={(-18.0 + self.orbit_c * 14.0)deg}
             opacity=0.66
             fill={Fill::linearGradient(
-                (0%, 50%),
-                (100%, 50%),
+                (0%, 0%),
+                (100%, 100%),
                 [
-                    GradientStop::get(Color::rgba(96, 242, 255, 0), 0%),
-                    GradientStop::get(Color::rgba(96, 242, 255, 144), 50%),
-                    GradientStop::get(Color::rgba(96, 242, 255, 0), 100%)
+                    GradientStop::get(Color::rgba(255, 118, 226, 0), 0%),
+                    GradientStop::get(Color::rgba(255, 118, 226, 96), 44%),
+                    GradientStop::get(Color::rgba(24, 18, 62, 110), 100%)
                 ]
             )}
+            elements=[
+                PathElement::Point(18%, 8%),
+                PathElement::Line,
+                PathElement::Point(72%, 0%),
+                PathElement::Line,
+                PathElement::Point(100%, 28%),
+                PathElement::Line,
+                PathElement::Point(90%, 78%),
+                PathElement::Line,
+                PathElement::Point(46%, 100%),
+                PathElement::Line,
+                PathElement::Point(10%, 82%),
+                PathElement::Line,
+                PathElement::Point(0%, 42%),
+                PathElement::Line,
+                PathElement::Point(8%, 18%),
+                PathElement::Close
+            ]
         />
-        <Rectangle
-            x=50%
-            y=84%
-            width=84%
-            height=8px
+        <Path
+            x={(79.0 + self.orbit_b * 3.6)%}
+            y={(30.0 + self.orbit_d * 2.8)%}
+            width=40%
+            height=44%
             anchor_x=50%
             anchor_y=50%
-            rotate=-8deg
-            class=beam_capsule
-            opacity=0.46
+            rotate={(12.0 + self.orbit_a * 16.0)deg}
+            opacity=0.78
             fill={Fill::linearGradient(
-                (0%, 50%),
-                (100%, 50%),
+                (0%, 0%),
+                (100%, 100%),
                 [
-                    GradientStop::get(Color::rgba(255, 104, 224, 0), 0%),
-                    GradientStop::get(Color::rgba(255, 104, 224, 132), 50%),
-                    GradientStop::get(Color::rgba(255, 104, 224, 0), 100%)
+                    GradientStop::get(Color::rgba(88, 92, 255, 0), 0%),
+                    GradientStop::get(Color::rgba(96, 92, 255, 112), 42%),
+                    GradientStop::get(Color::rgba(255, 108, 224, 44), 100%)
                 ]
             )}
+            elements=[
+                PathElement::Point(12%, 16%),
+                PathElement::Line,
+                PathElement::Point(62%, 0%),
+                PathElement::Line,
+                PathElement::Point(100%, 20%),
+                PathElement::Line,
+                PathElement::Point(94%, 76%),
+                PathElement::Line,
+                PathElement::Point(68%, 100%),
+                PathElement::Line,
+                PathElement::Point(26%, 92%),
+                PathElement::Line,
+                PathElement::Point(0%, 58%),
+                PathElement::Line,
+                PathElement::Point(4%, 28%),
+                PathElement::Close
+            ]
         />
+        <Path
+            x={(24.0 + self.orbit_d * 3.0)%}
+            y={(76.0 + self.orbit_c * 2.4)%}
+            width=48%
+            height=30%
+            anchor_x=50%
+            anchor_y=50%
+            rotate={(8.0 + self.orbit_b * 10.0)deg}
+            opacity=0.72
+            fill={Fill::linearGradient(
+                (0%, 0%),
+                (100%, 100%),
+                [
+                    GradientStop::get(Color::rgba(40, 192, 218, 0), 0%),
+                    GradientStop::get(Color::rgba(40, 192, 218, 102), 48%),
+                    GradientStop::get(Color::rgba(96, 242, 255, 26), 100%)
+                ]
+            )}
+            elements=[
+                PathElement::Point(0%, 26%),
+                PathElement::Line,
+                PathElement::Point(28%, 0%),
+                PathElement::Line,
+                PathElement::Point(76%, 8%),
+                PathElement::Line,
+                PathElement::Point(100%, 38%),
+                PathElement::Line,
+                PathElement::Point(92%, 88%),
+                PathElement::Line,
+                PathElement::Point(44%, 100%),
+                PathElement::Line,
+                PathElement::Point(8%, 78%),
+                PathElement::Close
+            ]
+        />
+        <Group
+            x={(52.0 + self.orbit_c * 2.0)%}
+            y={(58.0 + self.orbit_d * 2.4)%}
+            width=340px
+            height=340px
+            anchor_x=50%
+            anchor_y=50%
+            rotate={(self.prism_rotation)deg}
+            opacity=0.62
+        >
+            <Path
+                x=170px
+                y=170px
+                width=250px
+                height=250px
+                anchor_x=50%
+                anchor_y=50%
+                opacity=0.46
+                fill={Fill::linearGradient(
+                    (0%, 0%),
+                    (100%, 100%),
+                    [
+                        GradientStop::get(Color::rgba(96, 242, 255, 18), 0%),
+                        GradientStop::get(Color::rgba(96, 242, 255, 118), 52%),
+                        GradientStop::get(Color::rgba(255, 104, 224, 34), 100%)
+                    ]
+                )}
+                elements=[
+                    PathElement::Point(50%, 0%),
+                    PathElement::Line,
+                    PathElement::Point(100%, 50%),
+                    PathElement::Line,
+                    PathElement::Point(50%, 100%),
+                    PathElement::Line,
+                    PathElement::Point(0%, 50%),
+                    PathElement::Close
+                ]
+            />
+            <Path
+                x=170px
+                y=170px
+                width=164px
+                height=164px
+                anchor_x=50%
+                anchor_y=50%
+                opacity=0.72
+                fill={Fill::linearGradient(
+                    (0%, 0%),
+                    (100%, 100%),
+                    [
+                        GradientStop::get(Color::rgba(18, 24, 58, 0), 0%),
+                        GradientStop::get(Color::rgba(18, 24, 58, 128), 36%),
+                        GradientStop::get(Color::rgba(255, 116, 226, 46), 100%)
+                    ]
+                )}
+                elements=[
+                    PathElement::Point(50%, 0%),
+                    PathElement::Line,
+                    PathElement::Point(100%, 50%),
+                    PathElement::Line,
+                    PathElement::Point(50%, 100%),
+                    PathElement::Line,
+                    PathElement::Point(0%, 50%),
+                    PathElement::Close
+                ]
+            />
+            <Rectangle
+                x=170px
+                y=150px
+                width=178px
+                height=18px
+                anchor_x=50%
+                anchor_y=50%
+                rotate=-26deg
+                class=beam_capsule
+                opacity=0.72
+                fill={Fill::linearGradient(
+                    (0%, 50%),
+                    (100%, 50%),
+                    [
+                        GradientStop::get(Color::rgba(255, 255, 255, 0), 0%),
+                        GradientStop::get(Color::rgba(255, 244, 255, 188), 48%),
+                        GradientStop::get(Color::rgba(255, 255, 255, 0), 100%)
+                    ]
+                )}
+            />
+            <Rectangle
+                x=170px
+                y=190px
+                width=210px
+                height=10px
+                anchor_x=50%
+                anchor_y=50%
+                rotate=18deg
+                class=beam_capsule
+                opacity=0.58
+                fill={Fill::linearGradient(
+                    (0%, 50%),
+                    (100%, 50%),
+                    [
+                        GradientStop::get(Color::rgba(96, 242, 255, 0), 0%),
+                        GradientStop::get(Color::rgba(96, 242, 255, 154), 48%),
+                        GradientStop::get(Color::rgba(96, 242, 255, 0), 100%)
+                    ]
+                )}
+            />
+            <Rectangle
+                x=196px
+                y=224px
+                width=92px
+                height=92px
+                rotate=32deg
+                opacity=0.38
+                fill={Fill::linearGradient(
+                    (0%, 0%),
+                    (100%, 100%),
+                    [
+                        GradientStop::get(Color::rgba(88, 245, 255, 122), 0%),
+                        GradientStop::get(Color::rgba(88, 245, 255, 12), 100%)
+                    ]
+                )}
+            />
+        </Group>
+        <Group
+            x={(50.0 + self.orbit_d * 1.8)%}
+            y={(83.0 + self.orbit_b * 1.2)%}
+            width=84%
+            height=120px
+            anchor_x=50%
+            anchor_y=50%
+            rotate={(-7.0 + self.orbit_a * 4.0)deg}
+            opacity=0.56
+        >
+            <Rectangle
+                x=50%
+                y=44px
+                width=100%
+                height=22px
+                anchor_x=50%
+                anchor_y=50%
+                class=beam_capsule
+                opacity=0.72
+                fill={Fill::linearGradient(
+                    (0%, 50%),
+                    (100%, 50%),
+                    [
+                        GradientStop::get(Color::rgba(96, 242, 255, 0), 0%),
+                        GradientStop::get(Color::rgba(96, 242, 255, 150), 50%),
+                        GradientStop::get(Color::rgba(96, 242, 255, 0), 100%)
+                    ]
+                )}
+            />
+            <Rectangle
+                x=50%
+                y=64px
+                width=100%
+                height=10px
+                anchor_x=50%
+                anchor_y=50%
+                class=beam_capsule
+                opacity=0.58
+                fill={Fill::linearGradient(
+                    (0%, 50%),
+                    (100%, 50%),
+                    [
+                        GradientStop::get(Color::rgba(255, 104, 224, 0), 0%),
+                        GradientStop::get(Color::rgba(255, 104, 224, 136), 50%),
+                        GradientStop::get(Color::rgba(255, 104, 224, 0), 100%)
+                    ]
+                )}
+            />
+            <Rectangle
+                x=58%
+                y=84px
+                width=66%
+                height=42px
+                anchor_x=50%
+                anchor_y=50%
+                rotate=4deg
+                opacity=0.16
+                fill={Fill::linearGradient(
+                    (0%, 0%),
+                    (100%, 100%),
+                    [
+                        GradientStop::get(Color::rgba(74, 68, 255, 0), 0%),
+                        GradientStop::get(Color::rgba(74, 68, 255, 136), 42%),
+                        GradientStop::get(Color::rgba(255, 108, 224, 38), 100%)
+                    ]
+                )}
+                class=beam_capsule
+            />
+        </Group>
     </Group>
 
     <Rectangle
@@ -917,7 +1171,7 @@
                 FontStyle::Normal,
                 FontWeight::Bold
             ),
-            font_size: 30px,
+            font_size: 42px,
             fill: rgba(238, 247, 255, 255),
             align_horizontal: TextAlignHorizontal::Center,
             align_vertical: TextAlignVertical::Center,
@@ -934,7 +1188,7 @@
                 FontStyle::Normal,
                 FontWeight::Normal
             ),
-            font_size: 11px,
+            font_size: 14px,
             fill: rgba(190, 202, 236, 255),
             align_horizontal: TextAlignHorizontal::Center,
             align_vertical: TextAlignVertical::Center,
@@ -951,7 +1205,7 @@
                 FontStyle::Normal,
                 FontWeight::Bold
             ),
-            font_size: 10px,
+            font_size: 12px,
             fill: rgba(108, 241, 255, 255),
             align_horizontal: TextAlignHorizontal::Center,
             align_vertical: TextAlignVertical::Center,
@@ -963,8 +1217,8 @@
     .constellation_strip {
         x: 52%,
         y: 26%,
-        width: 340px,
-        height: 132px,
+        width: 420px,
+        height: 172px,
         rotate: 4deg,
         anchor_x: 50%,
         anchor_y: 50%,
@@ -973,8 +1227,8 @@
     .monolith {
         x: 36%,
         y: 58%,
-        width: 304px,
-        height: 438px,
+        width: 380px,
+        height: 560px,
         rotate: -13deg,
         anchor_x: 50%,
         anchor_y: 50%,
@@ -983,8 +1237,8 @@
     .mask_orchid {
         x: 70%,
         y: 55%,
-        width: 264px,
-        height: 364px,
+        width: 336px,
+        height: 472px,
         rotate: 12deg,
         anchor_x: 50%,
         anchor_y: 50%,
@@ -993,8 +1247,8 @@
     .footer_ribbon {
         x: 50%,
         y: 88%,
-        width: 360px,
-        height: 88px,
+        width: 460px,
+        height: 112px,
         anchor_x: 50%,
         anchor_y: 50%,
     }
@@ -1002,8 +1256,8 @@
     .collision_left {
         x: 50%,
         y: 64%,
-        width: 720px,
-        height: 220px,
+        width: 880px,
+        height: 280px,
         anchor_x: 50%,
         anchor_y: 50%,
     }
@@ -1011,8 +1265,8 @@
     .collision_right {
         x: 50%,
         y: 58%,
-        width: 760px,
-        height: 560px,
+        width: 880px,
+        height: 620px,
         anchor_x: 50%,
         anchor_y: 50%,
     }
@@ -1020,8 +1274,8 @@
     .sky_sweep {
         x: 50%,
         y: 36%,
-        width: 660px,
-        height: 220px,
+        width: 820px,
+        height: 280px,
         anchor_x: 50%,
         anchor_y: 50%,
     }
@@ -1183,7 +1437,7 @@
                 FontStyle::Normal,
                 FontWeight::Bold
             ),
-            font_size: 10px,
+            font_size: 12px,
             fill: rgba(108, 241, 255, 255),
             align_horizontal: TextAlignHorizontal::Left,
             align_vertical: TextAlignVertical::Center,
@@ -1200,7 +1454,7 @@
                 FontStyle::Normal,
                 FontWeight::Bold
             ),
-            font_size: 9px,
+            font_size: 11px,
             fill: rgba(182, 199, 236, 255),
             align_horizontal: TextAlignHorizontal::Left,
             align_vertical: TextAlignVertical::Center,
@@ -1217,7 +1471,7 @@
                 FontStyle::Normal,
                 FontWeight::Bold
             ),
-            font_size: 25px,
+            font_size: 34px,
             fill: rgba(244, 247, 255, 255),
             align_horizontal: TextAlignHorizontal::Left,
             align_vertical: TextAlignVertical::Center,
@@ -1234,7 +1488,7 @@
                 FontStyle::Normal,
                 FontWeight::Bold
             ),
-            font_size: 20px,
+            font_size: 28px,
             fill: rgba(244, 247, 255, 255),
             align_horizontal: TextAlignHorizontal::Left,
             align_vertical: TextAlignVertical::Center,
@@ -1251,7 +1505,7 @@
                 FontStyle::Normal,
                 FontWeight::Normal
             ),
-            font_size: 10px,
+            font_size: 13px,
             fill: rgba(204, 212, 238, 255),
             align_horizontal: TextAlignHorizontal::Left,
             align_vertical: TextAlignVertical::Top,
@@ -1268,7 +1522,7 @@
                 FontStyle::Normal,
                 FontWeight::Bold
             ),
-            font_size: 10px,
+            font_size: 12px,
             fill: rgba(231, 241, 255, 255),
             align_horizontal: TextAlignHorizontal::Left,
             align_vertical: TextAlignVertical::Center,
@@ -1285,7 +1539,7 @@
                 FontStyle::Normal,
                 FontWeight::Bold
             ),
-            font_size: 10px,
+            font_size: 12px,
             fill: rgba(108, 241, 255, 255),
             align_horizontal: TextAlignHorizontal::Right,
             align_vertical: TextAlignVertical::Center,
@@ -1302,7 +1556,7 @@
                 FontStyle::Normal,
                 FontWeight::Bold
             ),
-            font_size: 18px,
+            font_size: 24px,
             fill: rgba(238, 247, 255, 255),
             align_horizontal: TextAlignHorizontal::Left,
             align_vertical: TextAlignVertical::Center,
@@ -1319,7 +1573,7 @@
                 FontStyle::Normal,
                 FontWeight::Normal
             ),
-            font_size: 10px,
+            font_size: 12px,
             fill: rgba(190, 202, 236, 255),
             align_horizontal: TextAlignHorizontal::Left,
             align_vertical: TextAlignVertical::Center,
@@ -1338,7 +1592,7 @@
             color: rgba(255, 80, 212, 180),
             width: 1px,
         },
-        border_radius: 12,
+        border_radius: 14,
         style: {
             font: Font::Web(
                 "Space Mono",
@@ -1346,7 +1600,7 @@
                 FontStyle::Normal,
                 FontWeight::Normal
             ),
-            font_size: 12px,
+            font_size: 15px,
             fill: rgba(240, 248, 255, 255),
             align_horizontal: TextAlignHorizontal::Left,
             align_vertical: TextAlignVertical::Center,
@@ -1361,7 +1615,7 @@
             color: rgba(95, 238, 255, 255),
             width: 1px,
         },
-        border_radius: 12,
+        border_radius: 14,
         style: {
             font: Font::Web(
                 "Space Mono",
@@ -1369,7 +1623,7 @@
                 FontStyle::Normal,
                 FontWeight::Bold
             ),
-            font_size: 11px,
+            font_size: 14px,
             fill: rgba(238, 246, 255, 255),
             align_horizontal: TextAlignHorizontal::Left,
             align_vertical: TextAlignVertical::Center,
@@ -1385,7 +1639,7 @@
             color: rgba(255, 80, 212, 210),
             width: 1px,
         },
-        border_radius: 9,
+        border_radius: 10,
     }
 
     .radio_neon {
@@ -1402,7 +1656,7 @@
                 FontStyle::Normal,
                 FontWeight::Bold
             ),
-            font_size: 11px,
+            font_size: 14px,
             fill: rgba(238, 246, 255, 255),
             align_horizontal: TextAlignHorizontal::Left,
             align_vertical: TextAlignVertical::Center,
@@ -1414,7 +1668,7 @@
     .button_neon {
         color: rgba(17, 20, 58, 255),
         hover_color: rgba(255, 78, 205, 255),
-        border_radius: 12,
+        border_radius: 14,
         outline: {
             color: rgba(95, 238, 255, 255),
             width: 1px,
@@ -1426,7 +1680,7 @@
                 FontStyle::Normal,
                 FontWeight::Bold
             ),
-            font_size: 13px,
+            font_size: 16px,
             fill: rgba(240, 248, 255, 255),
             align_horizontal: TextAlignHorizontal::Center,
             align_vertical: TextAlignVertical::Center,
@@ -1438,7 +1692,7 @@
     .button_hot {
         color: rgba(34, 16, 74, 255),
         hover_color: rgba(96, 242, 255, 255),
-        border_radius: 12,
+        border_radius: 14,
         outline: {
             color: rgba(255, 80, 212, 210),
             width: 1px,
@@ -1450,7 +1704,7 @@
                 FontStyle::Normal,
                 FontWeight::Bold
             ),
-            font_size: 13px,
+            font_size: 16px,
             fill: rgba(248, 244, 255, 255),
             align_horizontal: TextAlignHorizontal::Center,
             align_vertical: TextAlignVertical::Center,

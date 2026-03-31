@@ -28,4 +28,5 @@ wasm-bindgen = {version = "0.2.93", features=["serde-serialize"]}
 wasm-bindgen-futures = "0.4.42"
 
 [features]
+designer = []
 designtime = ["dep:pax-designtime"]

@@ -274,7 +274,7 @@ impl<'de> de::Deserializer<'de> for PaxDeserializer<'de> {
 
     fn deserialize_tuple<V>(
         self,
-        len: usize,
+        _len: usize,
         visitor: V,
     ) -> std::result::Result<V::Value, Self::Error>
     where
