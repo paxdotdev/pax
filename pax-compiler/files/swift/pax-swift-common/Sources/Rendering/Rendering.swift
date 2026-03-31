@@ -112,6 +112,10 @@ public struct NativeRenderingLayer: View {
             view
                 .compositingGroup()
                 .mask(CombinedMaskView(mask: mask))
+                .transaction { transaction in
+                    transaction.animation = nil
+                    transaction.disablesAnimations = true
+                }
         )
     }
 

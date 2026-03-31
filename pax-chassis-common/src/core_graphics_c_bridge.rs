@@ -8,29 +8,29 @@ use std::ffi::c_void;
 use std::mem::{transmute, ManuallyDrop};
 use std::rc::Rc;
 
-#[cfg(not(target_os = "ios"))]
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
 use core_graphics::context::CGContext;
 use flexbuffers::DeserializationError;
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 use pax_pixels::{
     render_backend::{RenderBackend, RenderConfig},
     point, Box2D, Image as PaxPixelsImage, WgpuRenderer,
 };
 use pax_runtime::api::math::Point2;
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 use pax_runtime::api::Axis;
 use pax_runtime::api::{
     ButtonClick, Click, Event, Focus, ModifierKey, MouseButton, MouseEventArgs, RenderContext,
     SelectStart, TextboxChange, Touch, TouchEnd, TouchMove, TouchStart,
 };
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 use pax_runtime::pax_pixels_render_context::{convert_kurbo_to_lyon_path, to_pax_pixels_color};
 use pax_runtime::PaxEngine;
 use piet::kurbo;
 use piet::kurbo::Shape;
-#[cfg(not(target_os = "ios"))]
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
 use piet::{InterpolationMode, RenderContext as PietRenderContext};
-#[cfg(not(target_os = "ios"))]
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
 use piet_coregraphics::CoreGraphicsContext;
 use serde::Serialize;
 
@@ -39,19 +39,19 @@ use serde::Serialize;
 //in order to be visible to Swift
 pub use pax_message::*;
 
-#[cfg(not(target_os = "ios"))]
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
 struct ImgData<'a> {
     img: <CoreGraphicsContext<'a> as PietRenderContext>::Image,
     size: (usize, usize),
 }
 
-#[cfg(not(target_os = "ios"))]
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
 struct AppleRenderContext<'a> {
     backend: CoreGraphicsContext<'a>,
     image_map: HashMap<String, ImgData<'a>>,
 }
 
-#[cfg(not(target_os = "ios"))]
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
 impl<'a> AppleRenderContext<'a> {
     fn new(backend: CoreGraphicsContext<'a>) -> Self {
         Self {
@@ -61,7 +61,7 @@ impl<'a> AppleRenderContext<'a> {
     }
 }
 
-#[cfg(not(target_os = "ios"))]
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
 impl<'a> RenderContext for AppleRenderContext<'a> {
     fn fill(&mut self, _layer: usize, path: kurbo::BezPath, brush: &pax_runtime::api::Fill) {
         self.backend
@@ -138,7 +138,7 @@ impl<'a> RenderContext for AppleRenderContext<'a> {
     fn resize(&mut self, _width: usize, _height: usize) {}
 }
 
-#[cfg(not(target_os = "ios"))]
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
 fn fill_to_piet_brush(fill: &pax_runtime::api::Fill, rect: kurbo::Rect) -> piet::PaintBrush {
     use piet::{LinearGradient, RadialGradient};
 
@@ -166,7 +166,7 @@ fn fill_to_piet_brush(fill: &pax_runtime::api::Fill, rect: kurbo::Rect) -> piet:
     }
 }
 
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 pub struct AppleRenderContext {
     backend: WgpuRenderer<'static>,
     image_map: HashMap<String, PaxPixelsImage>,
@@ -175,7 +175,7 @@ pub struct AppleRenderContext {
     dpr: u32,
 }
 
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 impl AppleRenderContext {
     fn new(layer: *mut c_void, width: usize, height: usize, dpr: f32) -> Result<Self, String> {
         let dpr = dpr.round().max(1.0) as u32;
@@ -210,7 +210,7 @@ impl AppleRenderContext {
     }
 }
 
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 impl RenderContext for AppleRenderContext {
     fn fill(&mut self, _layer: usize, path: kurbo::BezPath, fill: &pax_runtime::api::Fill) {
         let bounds = path.bounding_box();
@@ -322,7 +322,7 @@ impl RenderContext for AppleRenderContext {
     }
 }
 
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 fn to_pax_pixels_fill(fill: &pax_runtime::api::Fill, rect: kurbo::Rect) -> pax_pixels::Fill {
     let bounds = (rect.width(), rect.height());
     let origin = rect.origin();
@@ -415,9 +415,9 @@ fn serialize_message_queue(messages: Vec<NativeMessage>) -> *mut NativeMessageQu
 #[repr(C)] //Exposed to Swift via PaxCartridge.h
 pub struct PaxEngineContainer {
     pub _engine: *mut PaxEngine,
-    #[cfg(target_os = "ios")]
+    #[cfg(any(target_os = "ios", target_os = "macos"))]
     pub _render_context: *mut AppleRenderContext,
-    #[cfg(target_os = "ios")]
+    #[cfg(any(target_os = "ios", target_os = "macos"))]
     pub _render_target: *mut c_void,
 }
 
@@ -433,7 +433,7 @@ pub extern "C" fn pax_dealloc_engine(container: *mut PaxEngineContainer) {
         if !container._engine.is_null() {
             drop(Box::from_raw(container._engine));
         }
-        #[cfg(target_os = "ios")]
+        #[cfg(any(target_os = "ios", target_os = "macos"))]
         if !container._render_context.is_null() {
             drop(Box::from_raw(container._render_context));
         }
@@ -600,7 +600,7 @@ pub extern "C" fn pax_interrupt(
         NativeInterrupt::Scroll(_args) => {}
         NativeInterrupt::Image(args) => match args {
             ImageLoadInterruptArgs::Reference(_ref_args) => {
-                #[cfg(target_os = "ios")]
+                #[cfg(any(target_os = "ios", target_os = "macos"))]
                 {
                     let ref_args = _ref_args;
                     let Some(render_context) = (unsafe { (*engine_container)._render_context.as_mut() })
@@ -654,7 +654,7 @@ pub extern "C" fn pax_tick(
     engine.set_viewport_size((width as f64, height as f64));
     let messages = engine.tick();
 
-    #[cfg(target_os = "ios")]
+    #[cfg(any(target_os = "ios", target_os = "macos"))]
     {
         if width > 0.0 && height > 0.0 && !render_target.is_null() {
             let container = unsafe { &mut *engine_container };
@@ -674,7 +674,7 @@ pub extern "C" fn pax_tick(
                         engine.runtime_context.mark_all_canvas_nodes_dirty();
                     }
                     Err(err) => {
-                        eprintln!("failed to initialize iOS gpu render context: {err}");
+                        eprintln!("failed to initialize Apple gpu render context: {err}");
                     }
                 }
             } else if let Some(render_context) = unsafe { container._render_context.as_mut() } {
@@ -701,7 +701,7 @@ pub extern "C" fn pax_tick(
         }
     }
 
-    #[cfg(not(target_os = "ios"))]
+    #[cfg(not(any(target_os = "ios", target_os = "macos")))]
     {
         let will_cast_cgContext = render_target as *mut CGContext;
         let ctx = unsafe { &mut *will_cast_cgContext };

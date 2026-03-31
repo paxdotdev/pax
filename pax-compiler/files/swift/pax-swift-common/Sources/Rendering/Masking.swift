@@ -3,6 +3,23 @@ import Messages
 
 private enum SVGPathCache {
     static var paths: [String: Path] = [:]
+    static var insertionOrder: [String] = []
+    static let maxEntries = 512
+
+    static func cachedPath(for key: String) -> Path? {
+        paths[key]
+    }
+
+    static func store(_ path: Path, for key: String) {
+        if paths[key] == nil {
+            insertionOrder.append(key)
+            if insertionOrder.count > maxEntries, let oldestKey = insertionOrder.first {
+                insertionOrder.removeFirst()
+                paths.removeValue(forKey: oldestKey)
+            }
+        }
+        paths[key] = path
+    }
 }
 
 private enum ResolvedNativeMaskCache {
@@ -242,13 +259,13 @@ func parseSVGPath(_ pathData: String) -> Path? {
     guard !pathData.isEmpty else {
         return nil
     }
-    if let cached = SVGPathCache.paths[pathData] {
+    if let cached = SVGPathCache.cachedPath(for: pathData) {
         return cached
     }
     var parser = SVGPathParser(pathData: pathData)
     let path = parser.parse()
     if let path {
-        SVGPathCache.paths[pathData] = path
+        SVGPathCache.store(path, for: pathData)
     }
     return path
 }

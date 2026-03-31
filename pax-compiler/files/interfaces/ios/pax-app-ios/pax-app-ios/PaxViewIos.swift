@@ -229,6 +229,7 @@ struct PaxViewIos: View {
             metalLayer.framebufferOnly = false
             metalLayer.isOpaque = false
             metalLayer.presentsWithTransaction = false
+            metalLayer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
         }
 
         override func layoutSubviews() {

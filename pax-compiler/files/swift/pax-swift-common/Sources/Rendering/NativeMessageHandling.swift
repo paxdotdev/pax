@@ -159,19 +159,16 @@ public extension NativeMessageHandling {
 
     func handleFrameCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
         frameElements.add(element: FrameElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame))
-        recomputeAllResolvedMasks()
         dirty.frame = true
     }
 
     func handleFrameUpdate(patch: FrameUpdatePatch, dirty: inout DirtyCollections) {
         frameElements.elements[patch.id]?.applyPatch(patch: patch)
-        recomputeAllResolvedMasks()
         dirty.frame = true
     }
 
     func handleFrameDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
         frameElements.remove(id: patch.id)
-        recomputeAllResolvedMasks()
         dirty.frame = true
     }
 
@@ -507,6 +504,7 @@ public extension NativeMessageHandling {
             return
         }
         var dirty = DirtyCollections()
+        var needsFrameMaskRecompute = false
 
         root["messages"]?.asVector?.makeIterator().forEach { message in
             if let textCreateMessage = message["TextCreate"] {
@@ -521,12 +519,15 @@ public extension NativeMessageHandling {
 
             if let frameCreateMessage = message["FrameCreate"] {
                 handleFrameCreate(patch: AnyCreatePatch(fb: frameCreateMessage), dirty: &dirty)
+                needsFrameMaskRecompute = true
             }
             if let frameUpdateMessage = message["FrameUpdate"] {
                 handleFrameUpdate(patch: FrameUpdatePatch(fb: frameUpdateMessage), dirty: &dirty)
+                needsFrameMaskRecompute = true
             }
             if let frameDeleteMessage = message["FrameDelete"] {
                 handleFrameDelete(patch: AnyDeletePatch(fb: frameDeleteMessage), dirty: &dirty)
+                needsFrameMaskRecompute = true
             }
 
             if let buttonCreateMessage = message["ButtonCreate"] {
@@ -640,6 +641,9 @@ public extension NativeMessageHandling {
             let _ = message["ScrollerDelete"]
         }
 
+        if needsFrameMaskRecompute {
+            recomputeAllResolvedMasks()
+        }
         publish(dirty)
     }
 }

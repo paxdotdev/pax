@@ -389,14 +389,11 @@ impl<'w> RenderBackend<'w> {
             .formats
             .iter()
             .copied()
-            .find(|format| {
-                matches!(
-                    format,
-                    TextureFormat::Bgra8UnormSrgb
-                        | TextureFormat::Rgba8UnormSrgb
-                        | TextureFormat::Bgra8Unorm
-                        | TextureFormat::Rgba8Unorm
-                )
+            .find(|format| format.is_srgb())
+            .or_else(|| {
+                surface_caps.formats.iter().copied().find(|format| {
+                    matches!(format, TextureFormat::Bgra8Unorm | TextureFormat::Rgba8Unorm)
+                })
             })
             .or_else(|| {
                 surface_caps
@@ -407,6 +404,11 @@ impl<'w> RenderBackend<'w> {
             })
             .or_else(|| surface_caps.formats.first().copied())
             .ok_or_else(|| anyhow!("surface reported no compatible texture formats"))?;
+        log::info!(
+            "render backend: surface format {:?} (srgb={})",
+            surface_format,
+            surface_format.is_srgb()
+        );
         let alpha_mode = [
             CompositeAlphaMode::PreMultiplied,
             CompositeAlphaMode::PostMultiplied,

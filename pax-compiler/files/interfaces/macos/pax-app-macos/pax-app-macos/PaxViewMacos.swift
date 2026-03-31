@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Foundation
+import QuartzCore
 import FlexBuffers
 import Messages
 import Rendering
@@ -112,26 +113,37 @@ struct PaxViewMacos: View {
 
         private var displayLink: CVDisplayLink?
         private var isShuttingDown = false
-        var currentTickWorkItem : DispatchWorkItem? = nil
+        private let tickStateLock = NSLock()
+        private var tickScheduled = false
+
+        private var metalLayer: CAMetalLayer {
+            layer as! CAMetalLayer
+        }
 
         override init(frame frameRect: NSRect) {
             super.init(frame: frameRect)
             self.wantsLayer = true
-            self.layer?.drawsAsynchronously = true
+            configureMetalLayer()
             createDisplayLink()
         }
 
         required init?(coder: NSCoder) {
             super.init(coder: coder)
+            self.wantsLayer = true
+            configureMetalLayer()
             createDisplayLink()
+        }
+
+        override func makeBackingLayer() -> CALayer {
+            CAMetalLayer()
         }
 
         private var requestAnimationFrameQueue: [() -> Void] = []
 
         private func processRequestAnimationFrameQueue() {
-            // Execute and remove each closure in the array
-            while !requestAnimationFrameQueue.isEmpty {
-                let closure = requestAnimationFrameQueue.removeFirst()
+            let callbacks = requestAnimationFrameQueue
+            requestAnimationFrameQueue.removeAll(keepingCapacity: true)
+            for closure in callbacks {
                 closure()
             }
         }
@@ -149,12 +161,31 @@ struct PaxViewMacos: View {
                 return
             }
             CVDisplayLinkSetOutputHandler(displayLink) { [weak self] (_, _, _, _, _) -> CVReturn in
+                guard let self else {
+                    return kCVReturnSuccess
+                }
+                self.tickStateLock.lock()
+                let shouldSchedule = !self.isShuttingDown && !self.tickScheduled
+                if shouldSchedule {
+                    self.tickScheduled = true
+                }
+                self.tickStateLock.unlock()
+                guard shouldSchedule else {
+                    return kCVReturnSuccess
+                }
                 DispatchQueue.main.async {
-                    guard let self, !self.isShuttingDown else {
+                    defer {
+                        self.tickStateLock.lock()
+                        self.tickScheduled = false
+                        self.tickStateLock.unlock()
+                    }
+                    guard !self.isShuttingDown else {
                         return
                     }
-                    self.setNeedsDisplay(self.bounds)
-                    self.processRequestAnimationFrameQueue()
+                    autoreleasepool {
+                        self.processRequestAnimationFrameQueue()
+                        self.tick()
+                    }
                 }
                 return kCVReturnSuccess
             }
@@ -174,8 +205,9 @@ struct PaxViewMacos: View {
                 return
             }
             isShuttingDown = true
-            currentTickWorkItem?.cancel()
-            currentTickWorkItem = nil
+            tickStateLock.lock()
+            tickScheduled = false
+            tickStateLock.unlock()
             stopDisplayLink()
         }
 
@@ -190,15 +222,42 @@ struct PaxViewMacos: View {
             shutdown()
         }
 
-        override func draw(_ dirtyRect: NSRect) {
+        private func currentScale() -> CGFloat {
+            window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1.0
+        }
 
-            super.draw(dirtyRect)
+        private func configureMetalLayer() {
+            wantsLayer = true
+            if layer == nil {
+                layer = makeBackingLayer()
+            }
+            metalLayer.framebufferOnly = false
+            metalLayer.isOpaque = false
+            metalLayer.presentsWithTransaction = false
+            metalLayer.contentsScale = currentScale()
+            metalLayer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
+            metalLayer.frame = bounds
+            metalLayer.drawableSize = CGSize(
+                width: bounds.width * metalLayer.contentsScale,
+                height: bounds.height * metalLayer.contentsScale
+            )
+        }
+
+        override func layout() {
+            super.layout()
+            let scale = currentScale()
+            metalLayer.contentsScale = scale
+            metalLayer.frame = bounds
+            metalLayer.drawableSize = CGSize(width: bounds.width * scale, height: bounds.height * scale)
+        }
+
+        private func tick() {
             guard !isShuttingDown else { return }
-            guard let context = NSGraphicsContext.current else { return }
-            var cgContext = context.cgContext
-            let scale = self.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1.0
-            let width = CFloat(bounds.width)
-            let height = CFloat(bounds.height)
+            guard bounds.width > 0, bounds.height > 0 else { return }
+
+            let scale = currentScale()
+            let width = Float(bounds.width)
+            let height = Float(bounds.height)
 
             if PaxEngineContainer.paxEngineContainer == nil {
                 PaxEngineContainer.paxEngineContainer = pax_init(width, height)
@@ -208,29 +267,17 @@ struct PaxViewMacos: View {
 
             let nativeMessageQueue = pax_tick(
                 engineContainer,
-                &cgContext,
+                Unmanaged.passUnretained(metalLayer).toOpaque(),
                 width,
                 height,
-                CFloat(scale)
+                Float(scale)
             )
             let queue = nativeMessageQueue.unsafelyUnwrapped.pointee
             let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
             processNativeMessageQueueData(Data(buffer: buffer))
             pax_dealloc_message_queue(nativeMessageQueue)
-
-            //This DispatchWorkItem `cancel()` is required because sometimes `draw` will be triggered externally from this loop, which
-            //would otherwise create new families of continuously reproducing DispatchWorkItems, each ticking up a frenzy, well past the bounds of our target FPS.
-            //This cancellation + shared singleton (`tickWorkItem`) ensures that only one DispatchWorkItem is enqueued at a time.
-            if currentTickWorkItem != nil {
-                currentTickWorkItem!.cancel()
-            }
-
-            currentTickWorkItem = DispatchWorkItem {
-                self.setNeedsDisplay(dirtyRect)
-                self.displayIfNeeded()
-            }
-
         }
+
         func handleNavigate(patch: NavigationPatchMessage) {
             guard let url = URL(string: patch.url) else {
                 return
