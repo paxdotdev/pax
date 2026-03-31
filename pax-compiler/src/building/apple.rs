@@ -11,11 +11,13 @@ use color_eyre::eyre;
 use eyre::eyre;
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
+#[cfg(unix)]
+use std::os::unix::fs as unix_fs;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
 
@@ -30,6 +32,100 @@ const XCODE_IOS_TARGET_RELEASE: &str = "Pax iOS (Release)";
 const MACOS_MULTIARCH_PACKAGE_ID: &str = "macos-arm64_x86_64";
 const IOS_SIMULATOR_MULTIARCH_PACKAGE_ID: &str = "ios-arm64_x86_64-simulator";
 const IOS_PACKAGE_ID: &str = "ios-arm64";
+const PAX_CARTRIDGE_FRAMEWORK_BINARY: &str = "PaxCartridge";
+
+fn remove_path_if_exists(path: &Path) -> Result<(), eyre::Report> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) => {
+            if metadata.file_type().is_dir() && !metadata.file_type().is_symlink() {
+                fs::remove_dir_all(path)?;
+            } else {
+                fs::remove_file(path)?;
+            }
+            Ok(())
+        }
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(err.into()),
+    }
+}
+
+#[cfg(unix)]
+fn replace_symlink(link_path: &Path, target: &Path) -> Result<(), eyre::Report> {
+    remove_path_if_exists(link_path)?;
+    unix_fs::symlink(target, link_path)?;
+    Ok(())
+}
+
+fn move_into_versions_if_needed(src: &Path, dst: &Path) -> Result<(), eyre::Report> {
+    match fs::symlink_metadata(src) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() {
+                return Ok(());
+            }
+            if let Some(parent) = dst.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            if fs::symlink_metadata(dst).is_ok() {
+                remove_path_if_exists(dst)?;
+            }
+            fs::rename(src, dst)?;
+            Ok(())
+        }
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(err.into()),
+    }
+}
+
+fn normalize_macos_framework_bundle(framework_dir: &Path) -> Result<(), eyre::Report> {
+    let versions_dir = framework_dir.join("Versions");
+    let version_dir = versions_dir.join("A");
+    let resources_dir = version_dir.join("Resources");
+    fs::create_dir_all(resources_dir.as_path())?;
+
+    move_into_versions_if_needed(
+        framework_dir.join(PAX_CARTRIDGE_FRAMEWORK_BINARY).as_path(),
+        version_dir.join(PAX_CARTRIDGE_FRAMEWORK_BINARY).as_path(),
+    )?;
+    move_into_versions_if_needed(
+        framework_dir.join("Headers").as_path(),
+        version_dir.join("Headers").as_path(),
+    )?;
+    move_into_versions_if_needed(
+        framework_dir.join("Modules").as_path(),
+        version_dir.join("Modules").as_path(),
+    )?;
+    move_into_versions_if_needed(
+        framework_dir.join("Resources").as_path(),
+        version_dir.join("Resources").as_path(),
+    )?;
+    move_into_versions_if_needed(
+        framework_dir.join("Info.plist").as_path(),
+        resources_dir.join("Info.plist").as_path(),
+    )?;
+
+    #[cfg(unix)]
+    {
+        replace_symlink(versions_dir.join("Current").as_path(), Path::new("A"))?;
+        replace_symlink(
+            framework_dir.join(PAX_CARTRIDGE_FRAMEWORK_BINARY).as_path(),
+            Path::new("Versions/Current/PaxCartridge"),
+        )?;
+        replace_symlink(
+            framework_dir.join("Headers").as_path(),
+            Path::new("Versions/Current/Headers"),
+        )?;
+        replace_symlink(
+            framework_dir.join("Modules").as_path(),
+            Path::new("Versions/Current/Modules"),
+        )?;
+        replace_symlink(
+            framework_dir.join("Resources").as_path(),
+            Path::new("Versions/Current/Resources"),
+        )?;
+    }
+
+    Ok(())
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum SimulatorVariantRank {
@@ -271,14 +367,18 @@ pub fn build_apple_project_with_cartridge(
         _ => {}
     };
 
-    let macos_dylib_dest = pax_dir
+    let macos_framework_dir = pax_dir
         .join(INTERFACE_DIR_NAME)
         .join("common")
         .join("pax-swift-cartridge")
         .join("PaxCartridge.xcframework")
         .join(MACOS_MULTIARCH_PACKAGE_ID)
-        .join("PaxCartridge.framework")
-        .join("PaxCartridge");
+        .join("PaxCartridge.framework");
+
+    let macos_dylib_dest = macos_framework_dir
+        .join("Versions")
+        .join("A")
+        .join(PAX_CARTRIDGE_FRAMEWORK_BINARY);
 
     let simulator_dylib_dest = pax_dir
         .join(INTERFACE_DIR_NAME)
@@ -297,6 +397,10 @@ pub fn build_apple_project_with_cartridge(
         .join(IOS_PACKAGE_ID)
         .join("PaxCartridge.framework")
         .join("PaxCartridge");
+
+    if let RunTarget::macOS = target {
+        normalize_macos_framework_bundle(&macos_framework_dir)?;
+    }
 
     if is_release || is_ios {
         // Merge architecture-specific binaries with `lipo` (this is an undocumented requirement

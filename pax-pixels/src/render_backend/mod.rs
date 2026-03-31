@@ -389,7 +389,22 @@ impl<'w> RenderBackend<'w> {
             .formats
             .iter()
             .copied()
-            .find(|format| *format == TextureFormat::Rgba16Float)
+            .find(|format| {
+                matches!(
+                    format,
+                    TextureFormat::Bgra8UnormSrgb
+                        | TextureFormat::Rgba8UnormSrgb
+                        | TextureFormat::Bgra8Unorm
+                        | TextureFormat::Rgba8Unorm
+                )
+            })
+            .or_else(|| {
+                surface_caps
+                    .formats
+                    .iter()
+                    .copied()
+                    .find(|format| *format == TextureFormat::Rgba16Float)
+            })
             .or_else(|| surface_caps.formats.first().copied())
             .ok_or_else(|| anyhow!("surface reported no compatible texture formats"))?;
         let alpha_mode = [

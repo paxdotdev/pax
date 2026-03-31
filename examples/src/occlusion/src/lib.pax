@@ -8,7 +8,7 @@
         <Text class=pill_text x=28px y=258px width=206px height=20px text="Vector punchout should expose the canvas over native controls."/>
         <Rectangle x=16px y=244px width=228px height=58px rotate=-5deg fill=rgba(52, 211, 153, 255)/>
         <Text class=status_dark x=24px y=242px width=214px height=22px text={"Call sign: " + self.call_sign}/>
-        <Ellipse x=198px y=160px width=140px height=140px anchor_x=50% anchor_y=50% fill=rgba(226, 92, 62, 255)/>
+        <Ellipse x=198px y=160px width=140px height=140px anchor_x=50% anchor_y=50% fill=rgba(226, 92, 62, 125)/>
         <Textbox
             class=input_light
             x=24px
