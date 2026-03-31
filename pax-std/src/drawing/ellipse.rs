@@ -116,16 +116,11 @@ impl InstanceNode for EllipseInstance {
             let ellipse = kurbo::Ellipse::from_rect(rect);
             let bez_path = ellipse.to_path(ELLIPSE_PATH_ACCURACY);
             let opacity = expanded_node.computed_opacity.get();
-            let fill = properties.fill.get().with_alpha_factor(opacity);
-            let stroke_color = properties
-                .stroke
-                .get()
-                .color
-                .get()
-                .with_alpha_factor(opacity);
+            let fill = properties.fill.get();
+            let stroke_color = properties.stroke.get().color.get();
             rc.save(layer_id);
             rc.transform(layer_id, tab.transform.into());
-            rc.fill(layer_id, bez_path.clone(), &fill);
+            rc.fill_with_opacity(layer_id, bez_path.clone(), &fill, opacity);
 
             //hack to address "phantom stroke" bug on Web
             let width: f64 = properties
@@ -137,7 +132,13 @@ impl InstanceNode for EllipseInstance {
                 .to_float();
 
             if width > f64::EPSILON {
-                rc.stroke(layer_id, bez_path, &Fill::Solid(stroke_color), width);
+                rc.stroke_with_opacity(
+                    layer_id,
+                    bez_path,
+                    &Fill::Solid(stroke_color),
+                    width,
+                    opacity,
+                );
             }
             rc.restore(layer_id);
         });

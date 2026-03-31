@@ -190,7 +190,7 @@ impl PaxManifestORM {
         &mut self,
         containing_component_type_id: TypeId,
         node_type_id: TypeId,
-    ) -> NodeBuilder {
+    ) -> NodeBuilder<'_> {
         NodeBuilder::new(self, containing_component_type_id, node_type_id, true)
     }
 
@@ -387,7 +387,7 @@ impl PaxManifestORM {
         &mut self,
         uni: UniqueTemplateNodeIdentifier,
         overwrite_expressions: bool,
-    ) -> Option<NodeBuilder> {
+    ) -> Option<NodeBuilder<'_>> {
         NodeBuilder::retrieve_node(self, uni, overwrite_expressions)
     }
 

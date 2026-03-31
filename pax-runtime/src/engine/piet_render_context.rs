@@ -32,17 +32,30 @@ impl<R: piet::RenderContext> PietRenderer<R> {
 }
 
 impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
-    fn fill(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill) {
+    fn fill_with_opacity(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        fill: &Fill,
+        opacity: f64,
+    ) {
         let rect = path.bounding_box();
-        let brush = fill_to_piet_brush(fill, rect);
+        let brush = fill_to_piet_brush(&fill.with_alpha_factor(opacity), rect);
         if let Some((layer, _, _)) = self.backends.get_mut(layer) {
             layer.fill(path, &brush);
         }
     }
 
-    fn stroke(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill, width: f64) {
+    fn stroke_with_opacity(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        fill: &Fill,
+        width: f64,
+        opacity: f64,
+    ) {
         let rect = path.bounding_box();
-        let brush = fill_to_piet_brush(fill, rect);
+        let brush = fill_to_piet_brush(&fill.with_alpha_factor(opacity), rect);
         if let Some((layer, _, _)) = self.backends.get_mut(layer) {
             layer.stroke(path, &brush, width);
         }

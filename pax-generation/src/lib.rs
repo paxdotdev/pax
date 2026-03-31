@@ -11,7 +11,6 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::thread::sleep;
 use futures::channel::mpsc;
 
 const CLAUDE_API_URL: &str = "https://api.anthropic.com/v1/messages";
@@ -26,6 +25,7 @@ macro_rules! project_root {
     };
 }
 
+#[allow(dead_code)]
 fn output_dir() -> PathBuf {
     project_root!().join("generated_project")
 }
@@ -402,6 +402,7 @@ impl PaxAppGenerator {
     }
 
     // New method to copy all contents from one directory to another
+    #[allow(dead_code)]
     fn copy_directory_contents(&self, from: &Path, to: &Path) -> io::Result<()> {
         // Convert both paths to absolute paths
         let abs_from = fs::canonicalize(from)?;
@@ -426,6 +427,7 @@ impl PaxAppGenerator {
     }
 
     // New method to read all files in a directory as a Vec<(String, String)>
+    #[allow(dead_code)]
     fn read_directory_files_as_vec(&self, dir: &Path) -> io::Result<Vec<(String, String)>> {
         let mut files = Vec::new();
         for entry in fs::read_dir(dir)? {
@@ -440,6 +442,7 @@ impl PaxAppGenerator {
         Ok(files)
     }
 
+    #[allow(dead_code)]
     fn replace_main_struct_name_in_file(&self, content: &str) -> String {
         let main_struct_re =
             Regex::new(r"(?m)^#\[main\]\s*(?:#\[(?:pax|file\([^\)]+\))\]\s*)*pub struct (\w+)")
@@ -604,6 +607,7 @@ impl PaxAppGenerator {
         parse_errors
     }
 
+    #[allow(dead_code)]
     fn write_files_to_directory(&self, dir: &Path, files: &[(String, String)]) -> io::Result<()> {
         // Create the directory if it doesn't exist
         fs::create_dir_all(dir)?;
@@ -624,6 +628,7 @@ impl PaxAppGenerator {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn compile_and_run_project(&self) -> Result<bool, Box<dyn Error>> {
         let output = Command::new("./pax")
             .current_dir(output_dir())
@@ -642,6 +647,7 @@ impl PaxAppGenerator {
         }
     }
 
+    #[allow(dead_code)]
     fn read_directory_files(&self, dir: &Path) -> io::Result<String> {
         let mut files_content = String::new();
         for entry in fs::read_dir(dir)? {

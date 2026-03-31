@@ -217,10 +217,12 @@ async fn ai_page() -> Result<HttpResponse> {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct AiMessage {
     message: String,
 }
 
+#[allow(dead_code)]
 fn create_designer_run_context() -> RunContext {
     RunContext {
         target: RunTarget::Web,
@@ -236,11 +238,13 @@ fn create_designer_run_context() -> RunContext {
     }
 }
 
+#[allow(dead_code)]
 fn perform_build() -> std::io::Result<(PaxManifest, Option<PathBuf>)> {
     let ctx = create_designer_run_context();
     crate::perform_build(&ctx).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
 }
 
+#[allow(dead_code)]
 fn perform_build_and_update_state(state: &AppState, folder_to_watch: &str) -> std::io::Result<()> {
     let (manifest, fs_path) = perform_build()?;
 

@@ -735,6 +735,11 @@ export class NativeElementPool {
 
         let textDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let textChild: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        // Text should be allowed to paint outside its measured box by default;
+        // otherwise large headings get clipped by native leaf paint containment.
+        textDiv.style.overflow = "visible";
+        textDiv.style.contain = "layout style";
+        textChild.style.overflow = "visible";
         textDiv.addEventListener("click", (_event) => {
             if (textDiv.contentEditable != "false") {
                 textChild.focus();

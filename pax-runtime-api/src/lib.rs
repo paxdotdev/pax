@@ -52,8 +52,27 @@ pub struct TransitionQueueEntry<T> {
 // TODO migrate from using kurbo types to our own?
 pub trait RenderContext {
     //drawing
-    fn fill(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill);
-    fn stroke(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill, width: f64);
+    fn fill(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill) {
+        self.fill_with_opacity(layer, path, fill, 1.0);
+    }
+    fn fill_with_opacity(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        fill: &Fill,
+        opacity: f64,
+    );
+    fn stroke(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill, width: f64) {
+        self.stroke_with_opacity(layer, path, fill, width, 1.0);
+    }
+    fn stroke_with_opacity(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        fill: &Fill,
+        width: f64,
+        opacity: f64,
+    );
 
     // clip/transform
     fn save(&mut self, layer: usize);

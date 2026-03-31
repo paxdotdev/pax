@@ -25,8 +25,8 @@ struct Transform {
     yy: f32,
     zx: f32,
     zy: f32,
-    _pad1: u32,
-    _pad2: u32,
+    opacity: f32,
+    _pad1: f32,
 }
 
 struct Transforms {
@@ -116,6 +116,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let p = in.clip_position.xy;
         color = gradient(fill_id, p);
     }
+    color.a *= transforms.transforms[primitive.transform_id].opacity;
     return color;
 }
 

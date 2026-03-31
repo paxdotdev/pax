@@ -136,7 +136,6 @@ public struct NativeRenderingLayer: View {
     private func positionedText<V: View>(_ view: V, element: TextElement, width: CGFloat, height: CGFloat) -> AnyView {
         let bounded = view
             .frame(width: width > 0 ? width : nil, height: height > 0 ? height : nil)
-            .clipped()
         let localMasked = applyNativeMask(bounded, elementId: element.id)
         let base = localMasked
             .position(x: width / 2.0, y: height / 2.0)

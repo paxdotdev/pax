@@ -63,28 +63,36 @@ impl PaxPixelsRenderer {
 }
 
 impl RenderContext for PaxPixelsRenderer {
-    fn fill(&mut self, layer: usize, path: kurbo::BezPath, fill: &pax_runtime_api::Fill) {
+    fn fill_with_opacity(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        fill: &pax_runtime_api::Fill,
+        opacity: f64,
+    ) {
         self.with_layer_context(layer, |context| {
             let bounds = path.bounding_box();
             let path = convert_kurbo_to_lyon_path(&path);
             let fill = to_pax_pixels_fill(fill, bounds, context.current_transform());
-            context.fill_path(path, fill);
+            context.fill_path_with_opacity(path, fill, opacity as f32);
         });
     }
 
-    fn stroke(
+    fn stroke_with_opacity(
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
         fill: &pax_runtime_api::Fill,
         width: f64,
+        opacity: f64,
     ) {
         self.with_layer_context(layer, |context| {
             let bounds = path.bounding_box();
-            context.stroke_path(
+            context.stroke_path_with_opacity(
                 convert_kurbo_to_lyon_path(&path),
                 to_pax_pixels_fill(fill, bounds, context.current_transform()),
                 width as f32,
+                opacity as f32,
             );
         });
     }

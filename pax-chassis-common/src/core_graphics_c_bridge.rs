@@ -212,26 +212,35 @@ impl AppleRenderContext {
 
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 impl RenderContext for AppleRenderContext {
-    fn fill(&mut self, _layer: usize, path: kurbo::BezPath, fill: &pax_runtime::api::Fill) {
+    fn fill_with_opacity(
+        &mut self,
+        _layer: usize,
+        path: kurbo::BezPath,
+        fill: &pax_runtime::api::Fill,
+        opacity: f64,
+    ) {
         let bounds = path.bounding_box();
-        self.backend.fill_path(
+        self.backend.fill_path_with_opacity(
             convert_kurbo_to_lyon_path(&path),
             to_pax_pixels_fill(fill, bounds),
+            opacity as f32,
         );
     }
 
-    fn stroke(
+    fn stroke_with_opacity(
         &mut self,
         _layer: usize,
         path: kurbo::BezPath,
         fill: &pax_runtime::api::Fill,
         width: f64,
+        opacity: f64,
     ) {
         let bounds = path.bounding_box();
-        self.backend.stroke_path(
+        self.backend.stroke_path_with_opacity(
             convert_kurbo_to_lyon_path(&path),
             to_pax_pixels_fill(fill, bounds),
             width as f32,
+            opacity as f32,
         );
     }
 

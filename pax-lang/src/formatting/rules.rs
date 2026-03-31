@@ -913,6 +913,7 @@ impl FormattingRule for IgnoreRule {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 struct PanicRule;
 
 impl FormattingRule for PanicRule {

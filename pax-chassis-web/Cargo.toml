@@ -15,6 +15,7 @@ crate-type = ["cdylib", "rlib"]
 [features]
 default = ["console_error_panic_hook", "gpu"]
 designtime = ["dep:pax-designtime", "pax-runtime/designtime"]
+designer = []
 gpu = []
 piet = []
 

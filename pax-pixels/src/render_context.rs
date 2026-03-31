@@ -31,7 +31,7 @@ use crate::render_backend::data::GpuVertex;
 use crate::render_backend::CachedTextureResource;
 use crate::render_backend::RenderBackend;
 use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use crate::render_backend::VectorResourceDirty;
 
@@ -81,6 +81,16 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     pub fn stroke_path(&mut self, path: Path, stroke_fill: Fill, stroke_width: f32) {
+        self.stroke_path_with_opacity(path, stroke_fill, stroke_width, 1.0);
+    }
+
+    pub fn stroke_path_with_opacity(
+        &mut self,
+        path: Path,
+        stroke_fill: Fill,
+        stroke_width: f32,
+        opacity: f32,
+    ) {
         let current_transform = self.current_transform();
         let geometry_signature = hash_vector_path(&path, PendingVectorOpKind::Stroke(stroke_width));
         let Some(PendingNode {
@@ -94,12 +104,17 @@ impl<'w> WgpuRenderer<'w> {
             path,
             fill: stroke_fill,
             transform: current_transform,
+            opacity,
             kind: PendingVectorOpKind::Stroke(stroke_width),
             geometry_signature,
         });
     }
 
     pub fn fill_path(&mut self, path: Path, fill: Fill) {
+        self.fill_path_with_opacity(path, fill, 1.0);
+    }
+
+    pub fn fill_path_with_opacity(&mut self, path: Path, fill: Fill, opacity: f32) {
         let current_transform = self.current_transform();
         let geometry_signature = hash_vector_path(&path, PendingVectorOpKind::Fill);
         let Some(PendingNode {
@@ -113,6 +128,7 @@ impl<'w> WgpuRenderer<'w> {
             path,
             fill,
             transform: current_transform,
+            opacity,
             kind: PendingVectorOpKind::Fill,
             geometry_signature,
         });
@@ -243,6 +259,8 @@ impl<'w> WgpuRenderer<'w> {
                 )
             })
         });
+        self.render_backend
+            .retain_stencil_geometry(&collect_active_clip_signatures(&self.scene));
         self.render_backend.present();
         self.scene_dirty = false;
         self.transform_stack.truncate(1);
@@ -340,6 +358,7 @@ impl<'w> WgpuRenderer<'w> {
                     .collect::<Vec<_>>();
                 let fill_signature = hash_vector_fills(&buffers.ops);
                 let transform_signature = hash_vector_transforms(&buffers.ops);
+                let transform_layout_signature = hash_vector_transform_layout(&buffers.ops);
                 if let Some(RetainedNode::Vector(existing)) = self.scene.get_mut(&node_id) {
                     let prev_z = existing.z_index;
                     let reuse_geometry = existing.geometry_signatures == geometry_signatures;
@@ -347,6 +366,8 @@ impl<'w> WgpuRenderer<'w> {
                     let fill_changed = existing.fill_signature != fill_signature;
                     let transform_changed =
                         existing.transform_signature != transform_signature;
+                    let transform_layout_changed =
+                        existing.transform_layout_signature != transform_layout_signature;
                     if geometry_changed || fill_changed || transform_changed {
                         rebuild_vector_buffers(
                             self.tolerance,
@@ -360,12 +381,13 @@ impl<'w> WgpuRenderer<'w> {
                     existing.z_index = pending_node.z_index;
                     existing.resource_dirty.geometry |= geometry_changed;
                     existing.resource_dirty.primitives |=
-                        geometry_changed || fill_changed || transform_changed;
+                        geometry_changed || fill_changed || transform_layout_changed;
                     existing.resource_dirty.transforms |= transform_changed;
                     existing.resource_dirty.fill |= fill_changed;
                     existing.geometry_signatures = geometry_signatures;
                     existing.fill_signature = fill_signature;
                     existing.transform_signature = transform_signature;
+                    existing.transform_layout_signature = transform_layout_signature;
                     if prev_z != pending_node.z_index {
                         self.order_dirty = true;
                     }
@@ -397,6 +419,7 @@ impl<'w> WgpuRenderer<'w> {
                     geometry_signatures,
                     fill_signature,
                     transform_signature,
+                    transform_layout_signature,
                 }))
             }
             PendingNodeKind::Image(image_node) => Some(RetainedNode::Image(RetainedImageNode {
@@ -537,6 +560,8 @@ impl<'w> WgpuRenderer<'w> {
             self.render_backend.render_primitives(&mut current_buffers);
         }
 
+        self.render_backend
+            .retain_stencil_geometry(&collect_active_clip_signatures(&self.scene));
         self.render_backend.present();
     }
 }
@@ -573,6 +598,7 @@ struct PendingVectorOp {
     path: Path,
     fill: Fill,
     transform: Transform2D,
+    opacity: f32,
     kind: PendingVectorOpKind,
     geometry_signature: u64,
 }
@@ -618,6 +644,7 @@ struct RetainedVectorNode {
     geometry_signatures: Vec<u64>,
     fill_signature: u64,
     transform_signature: u64,
+    transform_layout_signature: u64,
 }
 
 struct RetainedImageNode {
@@ -658,7 +685,7 @@ fn rebuild_vector_buffers(
     let mut next_gradient_id: u16 = 0;
 
     for op in ops {
-        let transform_id = push_transform(buffers, op.transform);
+        let transform_id = push_transform_with_opacity(buffers, op.transform, op.opacity);
         let prim_id = if reuse_fill {
             push_primitive_with_existing_fill(
                 buffers,
@@ -712,7 +739,10 @@ fn append_cpu_buffers(dst: &mut CpuBuffers, src: &CpuBuffers) {
     let vertex_offset = dst.geometry.vertices.len() as u16;
     let primitive_offset = dst.primitives.len() as u32;
     let src_uses_only_identity_transform =
-        src.transforms.len() == 1 && src.transforms[0].transform == GpuTransform::default().transform;
+        src.transforms.len() == 1
+            && src.transforms[0].transform == GpuTransform::default().transform
+            && (src.transforms[0].opacity - GpuTransform::default().opacity).abs()
+                <= f32::EPSILON;
     let transform_offset = if src_uses_only_identity_transform {
         0
     } else {
@@ -751,15 +781,22 @@ fn append_cpu_buffers(dst: &mut CpuBuffers, src: &CpuBuffers) {
     dst.gradients.extend(src.gradients.iter().copied());
 }
 
-fn push_transform(buffers: &mut CpuBuffers, transform: Transform2D) -> u32 {
-    if transform == Transform2D::identity() {
+fn push_transform_with_opacity(
+    buffers: &mut CpuBuffers,
+    transform: Transform2D,
+    opacity: f32,
+) -> u32 {
+    if transform == Transform2D::identity() && (opacity - 1.0).abs() <= f32::EPSILON {
         0
     } else {
         let transform_arrays = transform.to_arrays();
         if let Some(transform_id) = buffers
             .transforms
             .iter()
-            .position(|existing| existing.transform == transform_arrays)
+            .position(|existing| {
+                existing.transform == transform_arrays
+                    && (existing.opacity - opacity).abs() <= f32::EPSILON
+            })
         {
             return transform_id as u32;
         }
@@ -767,6 +804,7 @@ fn push_transform(buffers: &mut CpuBuffers, transform: Transform2D) -> u32 {
         let transform_id = buffers.transforms.len() as u32;
         buffers.transforms.push(GpuTransform {
             transform: transform_arrays,
+            opacity,
             ..GpuTransform::default()
         });
         transform_id
@@ -796,17 +834,36 @@ fn hash_vector_transforms(ops: &[PendingVectorOp]) -> u64 {
     let mut hasher = DefaultHasher::new();
     ops.len().hash(&mut hasher);
     for op in ops {
-        hash_transform_bits(&op.transform, &mut hasher);
+        hash_transform_bits(&op.transform, op.opacity, &mut hasher);
     }
     hasher.finish()
 }
 
-fn hash_transform_bits<H: Hasher>(transform: &Transform2D, state: &mut H) {
+fn hash_vector_transform_layout(ops: &[PendingVectorOp]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    let mut unique_states: Vec<([[f32; 2]; 3], u32)> = Vec::new();
+    ops.len().hash(&mut hasher);
+    for op in ops {
+        let state = (op.transform.to_arrays(), op.opacity.to_bits());
+        let transform_id = unique_states
+            .iter()
+            .position(|existing| *existing == state)
+            .unwrap_or_else(|| {
+                unique_states.push(state);
+                unique_states.len() - 1
+            });
+        transform_id.hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+fn hash_transform_bits<H: Hasher>(transform: &Transform2D, opacity: f32, state: &mut H) {
     for row in transform.to_arrays() {
         for value in row {
             value.to_bits().hash(state);
         }
     }
+    opacity.to_bits().hash(state);
 }
 
 fn hash_fill_bits<H: Hasher>(fill: &Fill, state: &mut H) {
@@ -1018,9 +1075,19 @@ fn sync_clip_stack<'w>(
     render_backend.reset_stencil_depth_to(shared_prefix as u32);
     current_clip_stack.truncate(shared_prefix);
     for clip in desired_clip_stack.iter().skip(shared_prefix) {
-        render_backend.push_stencil_geometry(clip.geometry.clone());
+        render_backend.push_stencil_geometry(clip.signature, &clip.geometry);
         current_clip_stack.push(clip.signature);
     }
+}
+
+fn collect_active_clip_signatures(scene: &HashMap<u32, RetainedNode>) -> HashSet<u64> {
+    let mut signatures = HashSet::new();
+    for node in scene.values() {
+        for clip in node.clip_stack() {
+            signatures.insert(clip.signature);
+        }
+    }
+    signatures
 }
 
 fn clip_stacks_match(left: &[ClipGeometry], right: &[ClipGeometry]) -> bool {

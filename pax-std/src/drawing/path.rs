@@ -297,17 +297,12 @@ impl InstanceNode for PathInstance {
             //our "save point" before clipping — restored to in the post_render
 
             let opacity = expanded_node.computed_opacity.get();
-            let fill = properties.fill.get().with_alpha_factor(opacity);
-            let stroke_color = properties
-                .stroke
-                .get()
-                .color
-                .get()
-                .with_alpha_factor(opacity);
+            let fill = properties.fill.get();
+            let stroke_color = properties.stroke.get().color.get();
             rc.save(layer_id);
             rc.transform(layer_id, tab.transform.into());
             rc.clip(layer_id, clip_path.clone());
-            rc.fill(layer_id, bez_path.clone(), &fill);
+            rc.fill_with_opacity(layer_id, bez_path.clone(), &fill, opacity);
             if properties
                 .stroke
                 .get()
@@ -317,7 +312,7 @@ impl InstanceNode for PathInstance {
                 .to_float()
                 > f64::EPSILON
             {
-                rc.stroke(
+                rc.stroke_with_opacity(
                     layer_id,
                     bez_path,
                     &Fill::Solid(stroke_color),
@@ -328,6 +323,7 @@ impl InstanceNode for PathInstance {
                         .get()
                         .expect_pixels()
                         .to_float(),
+                    opacity,
                 );
             }
             rc.restore(layer_id);

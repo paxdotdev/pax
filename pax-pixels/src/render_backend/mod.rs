@@ -2,6 +2,7 @@ use anyhow::anyhow;
 use bytemuck::Pod;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use std::ffi::c_void;
+use std::collections::HashSet;
 
 use lyon::lyon_tessellation::VertexBuffers;
 use wgpu::{
@@ -709,10 +710,14 @@ impl<'w> RenderBackend<'w> {
         })
     }
 
-    pub fn push_stencil(&mut self, geometry: VertexBuffers<stencil::Vertex, u16>) {
+    pub fn push_stencil(
+        &mut self,
+        signature: u64,
+        geometry: &VertexBuffers<stencil::Vertex, u16>,
+    ) {
         // self.stencil_renderer.clear(&self.device, &self.queue);
         self.stencil_renderer
-            .push_stencil(&self.device, &self.queue, geometry);
+            .push_stencil(&self.device, &self.queue, signature, geometry);
     }
 
     pub fn reset_stencil_depth_to(&mut self, depth: u32) {
@@ -921,6 +926,7 @@ impl<'w> RenderBackend<'w> {
         true
     }
 
+    #[allow(dead_code)]
     pub(crate) fn draw_vector_resource(&mut self, resource: &RetainedVectorResource) {
         let load_op = self.take_color_load_op();
         self.ensure_active_frame();
@@ -1037,10 +1043,15 @@ impl<'w> RenderBackend<'w> {
 
     pub(crate) fn push_stencil_geometry(
         &mut self,
-        geometry: VertexBuffers<stencil::Vertex, u16>,
+        signature: u64,
+        geometry: &VertexBuffers<stencil::Vertex, u16>,
     ) {
         self.stencil_renderer
-            .push_stencil(&self.device, &self.queue, geometry);
+            .push_stencil(&self.device, &self.queue, signature, geometry);
+    }
+
+    pub(crate) fn retain_stencil_geometry(&mut self, active_signatures: &HashSet<u64>) {
+        self.stencil_renderer.retain_cached_geometry(active_signatures);
     }
 
     pub(crate) fn create_cached_texture(
@@ -1073,6 +1084,7 @@ impl<'w> RenderBackend<'w> {
         RetainedImageDraw { resource }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn update_image_draw(
         &self,
         draw: &RetainedImageDraw,
@@ -1085,6 +1097,7 @@ impl<'w> RenderBackend<'w> {
             .update_retained_image_resource(&self.queue, &draw.resource, verts);
     }
 
+    #[allow(dead_code)]
     pub(crate) fn draw_image_resource(
         &mut self,
         texture: &CachedTextureResource,
@@ -1231,6 +1244,7 @@ impl<'w> RenderBackend<'w> {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn render_image(&mut self, image: &Image, transform: Transform2D, rect: Box2D) {
         let clear_target = std::mem::take(&mut self.pending_clear);
         self.ensure_active_frame();
@@ -1408,6 +1422,7 @@ pub(crate) struct CpuBuffers {
 }
 
 impl CpuBuffers {
+    #[allow(dead_code)]
     pub(crate) fn reset(&mut self) {
         let CpuBuffers {
             geometry,

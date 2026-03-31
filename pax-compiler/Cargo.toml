@@ -19,6 +19,7 @@ include = [
 [features]
 default = ["json"]
 json = ["serde_json"]
+designtime = []
 
 [lib]
 

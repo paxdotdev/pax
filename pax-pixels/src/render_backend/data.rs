@@ -47,16 +47,16 @@ pub(crate) struct GpuGradient {
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
 pub(crate) struct GpuTransform {
     pub transform: [[f32; 2]; 3],
-    pub _pad: u32,
-    pub _pad2: u32,
+    pub opacity: f32,
+    pub _pad: f32,
 }
 
 impl Default for GpuTransform {
     fn default() -> Self {
         Self {
             transform: Transform2D::identity().to_arrays(),
-            _pad: 0,
-            _pad2: 0,
+            opacity: 1.0,
+            _pad: 0.0,
         }
     }
 }

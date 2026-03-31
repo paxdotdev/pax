@@ -12,6 +12,7 @@ use wgpu::TextureFormat;
 use super::stencil::StencilRenderer;
 
 pub struct TextureRenderer {
+    #[allow(dead_code)]
     vertices_buffer: wgpu::Buffer,
     indices_buffer: wgpu::Buffer,
 
@@ -22,7 +23,9 @@ pub struct TextureRenderer {
 
 pub(crate) struct CachedTextureResource {
     pub bind_group: wgpu::BindGroup,
+    #[allow(dead_code)]
     pub width: u32,
+    #[allow(dead_code)]
     pub height: u32,
     _texture: wgpu::Texture,
 }
@@ -162,6 +165,7 @@ impl TextureRenderer {
         }
     }
 
+    #[allow(dead_code)]
     pub fn render_image(
         &self,
         device: &wgpu::Device,
@@ -385,6 +389,7 @@ impl TextureRenderer {
         }
     }
 
+    #[allow(dead_code)]
     pub fn update_retained_image_resource(
         &self,
         queue: &wgpu::Queue,
@@ -394,6 +399,7 @@ impl TextureRenderer {
         queue.write_buffer(&resource.vertices_buffer, 0, bytemuck::cast_slice(&verts));
     }
 
+    #[allow(dead_code)]
     pub fn draw_retained_image(
         &self,
         device: &wgpu::Device,
@@ -509,6 +515,7 @@ pub(crate) fn corners_to_texture_vertices(
     ]
 }
 
+#[allow(dead_code)]
 fn get_transformed_corners(box2d: &Box2D, transform: &Transform2D) -> [Point<f32>; 4] {
     let min = box2d.min;
     let max = box2d.max;

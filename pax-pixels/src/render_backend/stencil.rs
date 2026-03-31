@@ -1,29 +1,34 @@
 use bytemuck::{Pod, Zeroable};
 use lyon::tessellation::VertexBuffers;
+use std::collections::{HashMap, HashSet};
 use wgpu::util::DeviceExt;
 use wgpu::{BufferUsages, Device, Queue, RenderPipeline};
 
-fn write_u16_buffer_padded(queue: &Queue, buffer: &wgpu::Buffer, data: &[u16]) {
+fn padded_u16_buffer(data: &[u16]) -> Vec<u16> {
     if data.len() % 2 == 0 {
-        queue.write_buffer(buffer, 0, bytemuck::cast_slice(data));
-        return;
+        return data.to_vec();
     }
 
     let mut padded = Vec::with_capacity(data.len() + 1);
     padded.extend_from_slice(data);
     padded.push(0);
-    queue.write_buffer(buffer, 0, bytemuck::cast_slice(&padded));
+    padded
+}
+
+struct CachedStencilGeometry {
+    vertices_buffer: wgpu::Buffer,
+    indices_buffer: wgpu::Buffer,
+    index_count: u32,
 }
 
 pub struct StencilRenderer {
     stencil_pipeline: RenderPipeline,
     decrement_pipeline: RenderPipeline,
-    vertices_buffer: wgpu::Buffer,
-    indices_buffer: wgpu::Buffer,
     stencil_texture: wgpu::Texture,
     stencil_view: wgpu::TextureView,
     stencil_layer: u32,
-    stencil_geometry_stack: Vec<VertexBuffers<Vertex, u16>>,
+    stencil_geometry_stack: Vec<u64>,
+    cached_geometry: HashMap<u64, CachedStencilGeometry>,
     width: u32,
     height: u32,
     sample_count: u32,
@@ -188,30 +193,12 @@ impl StencilRenderer {
             cache: None,
         });
 
-        let vertices = [Vertex {
-            position: [0.0, 0.0],
-        }; 1024];
-        let vertices_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Stencil Vertices"),
-            contents: bytemuck::cast_slice(&vertices),
-            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-        });
-
-        let indices: [u16; 1024] = [0; 1024];
-        let indices_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Stencil Indices"),
-            contents: bytemuck::cast_slice(&indices),
-            usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
-        });
-
         let (stencil_texture, stencil_view) =
             Self::create_stencil_texture(device, width, height, sample_count);
 
         Self {
             stencil_pipeline,
             decrement_pipeline,
-            vertices_buffer,
-            indices_buffer,
             stencil_texture,
             stencil_view,
             width,
@@ -219,6 +206,7 @@ impl StencilRenderer {
             sample_count,
             stencil_layer: 0,
             stencil_geometry_stack: vec![],
+            cached_geometry: HashMap::new(),
             stencil_bind_group,
             _stencil_bind_group_layout: stencil_bind_group_layout,
         }
@@ -260,22 +248,55 @@ impl StencilRenderer {
         self.height = height;
     }
 
+    fn create_cached_geometry(
+        device: &Device,
+        geometry: &VertexBuffers<Vertex, u16>,
+    ) -> CachedStencilGeometry {
+        let vertices_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Stencil Vertices"),
+            contents: bytemuck::cast_slice(&geometry.vertices),
+            usage: BufferUsages::VERTEX,
+        });
+        let padded_indices = padded_u16_buffer(&geometry.indices);
+        let indices_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Stencil Indices"),
+            contents: bytemuck::cast_slice(&padded_indices),
+            usage: BufferUsages::INDEX,
+        });
+
+        CachedStencilGeometry {
+            vertices_buffer,
+            indices_buffer,
+            index_count: geometry.indices.len() as u32,
+        }
+    }
+
+    fn ensure_cached_geometry(
+        &mut self,
+        device: &Device,
+        signature: u64,
+        geometry: &VertexBuffers<Vertex, u16>,
+    ) {
+        self.cached_geometry
+            .entry(signature)
+            .or_insert_with(|| Self::create_cached_geometry(device, geometry));
+    }
+
     pub fn push_stencil(
         &mut self,
         device: &Device,
         queue: &Queue,
-        geometry: VertexBuffers<Vertex, u16>,
+        signature: u64,
+        geometry: &VertexBuffers<Vertex, u16>,
     ) {
+        self.ensure_cached_geometry(device, signature, geometry);
+        let cached_geometry = self
+            .cached_geometry
+            .get(&signature)
+            .expect("cached stencil geometry should exist after insertion");
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Stencil Encoder"),
         });
-
-        queue.write_buffer(
-            &self.vertices_buffer,
-            0,
-            bytemuck::cast_slice(&geometry.vertices),
-        );
-        write_u16_buffer_padded(queue, &self.indices_buffer, &geometry.indices);
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -295,29 +316,31 @@ impl StencilRenderer {
             });
 
             render_pass.set_pipeline(&self.stencil_pipeline);
-            render_pass.set_vertex_buffer(0, self.vertices_buffer.slice(..));
+            render_pass.set_vertex_buffer(0, cached_geometry.vertices_buffer.slice(..));
             render_pass.set_bind_group(0, &self.stencil_bind_group, &[]);
-            render_pass.set_index_buffer(self.indices_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            render_pass.draw_indexed(0..(geometry.indices.len() as u32), 0, 0..1);
+            render_pass.set_index_buffer(
+                cached_geometry.indices_buffer.slice(..),
+                wgpu::IndexFormat::Uint16,
+            );
+            render_pass.draw_indexed(0..cached_geometry.index_count, 0, 0..1);
         }
 
         queue.submit(std::iter::once(encoder.finish()));
-        self.stencil_geometry_stack.push(geometry);
+        self.stencil_geometry_stack.push(signature);
         self.stencil_layer += 1;
     }
 
     pub fn reset_stencil_depth_to(&mut self, device: &Device, queue: &Queue, depth: u32) {
         while self.stencil_layer > depth {
-            let Some(geometry) = self.stencil_geometry_stack.pop() else {
+            let Some(signature) = self.stencil_geometry_stack.pop() else {
                 log::error!("geometry stack shouldn't be embty when stencil layer > 0");
                 break;
             };
-            queue.write_buffer(
-                &self.vertices_buffer,
-                0,
-                bytemuck::cast_slice(&geometry.vertices),
-            );
-            write_u16_buffer_padded(queue, &self.indices_buffer, &geometry.indices);
+            let Some(cached_geometry) = self.cached_geometry.get(&signature) else {
+                log::error!("missing cached stencil geometry for signature {}", signature);
+                self.stencil_layer = self.stencil_layer.saturating_sub(1);
+                continue;
+            };
 
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Stencil Pop Encoder"),
@@ -342,16 +365,25 @@ impl StencilRenderer {
 
                 render_pass.set_pipeline(&self.decrement_pipeline);
                 render_pass.set_bind_group(0, &self.stencil_bind_group, &[]);
-                render_pass.set_vertex_buffer(0, self.vertices_buffer.slice(..));
+                render_pass.set_vertex_buffer(0, cached_geometry.vertices_buffer.slice(..));
                 render_pass.set_bind_group(0, &self.stencil_bind_group, &[]);
-                render_pass
-                    .set_index_buffer(self.indices_buffer.slice(..), wgpu::IndexFormat::Uint16);
-                render_pass.draw_indexed(0..(geometry.indices.len() as u32), 0, 0..1);
+                render_pass.set_index_buffer(
+                    cached_geometry.indices_buffer.slice(..),
+                    wgpu::IndexFormat::Uint16,
+                );
+                render_pass.draw_indexed(0..cached_geometry.index_count, 0, 0..1);
             }
 
             queue.submit(std::iter::once(encoder.finish()));
             self.stencil_layer = self.stencil_layer.saturating_sub(1);
         }
+    }
+
+    pub fn retain_cached_geometry(&mut self, active_signatures: &HashSet<u64>) {
+        let stack_signatures: HashSet<u64> = self.stencil_geometry_stack.iter().copied().collect();
+        self.cached_geometry.retain(|signature, _| {
+            active_signatures.contains(signature) || stack_signatures.contains(signature)
+        });
     }
 
     pub fn get_stencil(&self) -> (&wgpu::TextureView, u32) {
