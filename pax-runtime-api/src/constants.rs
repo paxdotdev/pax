@@ -18,7 +18,7 @@ pub const TYPE_ID_REPEAT: &str = "REPEAT";
 pub const TYPE_ID_SLOT: &str = "SLOT";
 pub const TYPE_ID_COMMENT: &str = "COMMENT";
 
-pub const COMMON_PROPERTIES: [&str; 13] = [
+pub const COMMON_PROPERTIES: [&str; 14] = [
     "id",
     "x",
     "y",
@@ -32,6 +32,7 @@ pub const COMMON_PROPERTIES: [&str; 13] = [
     "transform",
     "width",
     "height",
+    "opacity",
 ];
 
 pub fn is_intoable_downstream_type(type_to_check: &str) -> bool {
@@ -64,5 +65,6 @@ pub const COMMON_PROPERTIES_TYPE: &[(&str, &str)] = &[
     ("transform", "pax_engine::api::Transform2D"),
     ("width", "pax_engine::api::Size"),
     ("height", "pax_engine::api::Size"),
+    ("opacity", "f64"),
     ("_raycastable", "bool"),
 ];

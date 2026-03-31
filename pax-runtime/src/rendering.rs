@@ -217,6 +217,10 @@ pub trait InstanceNode {
         None
     }
 
+    fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {
+        expanded_node.computed_opacity.get()
+    }
+
     fn resolve_effect_clip_path(&self, _expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
         None
     }

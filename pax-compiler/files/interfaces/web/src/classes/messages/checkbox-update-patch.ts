@@ -6,6 +6,7 @@ export class CheckboxUpdatePatch {
     public size_x?: number;
     public size_y?: number;
     public transform?: number[];
+    public opacity?: number;
     public checked?: boolean;
     public borderRadius?: number;
     public outlineColor?: ColorGroup;
@@ -24,6 +25,7 @@ export class CheckboxUpdatePatch {
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
         this.transform = jsonMessage["transform"];
+        this.opacity = jsonMessage["opacity"];
         this.checked = jsonMessage["checked"];
         this.borderRadius = jsonMessage["border_radius"];
         this.outlineColor = jsonMessage["outline_color"];
@@ -37,6 +39,7 @@ export class CheckboxUpdatePatch {
         this.size_x = 0;
         this.size_y = 0;
         this.transform = [];
+        this.opacity = undefined;
         this.checked = undefined;
     }
 }

@@ -5,6 +5,7 @@ export class FrameUpdatePatch {
     public transform?: number[];
     public clipContent?: boolean;
     public clipPath?: string;
+    public opacity?: number;
 
     fromPatch(jsonMessage: any) {
         if(jsonMessage != null) {
@@ -14,6 +15,7 @@ export class FrameUpdatePatch {
             this.transform = jsonMessage["transform"];
             this.clipContent = jsonMessage["clip_content"];
             this.clipPath = jsonMessage["clip_path"];
+            this.opacity = jsonMessage["opacity"];
         }
     }
 
@@ -24,5 +26,6 @@ export class FrameUpdatePatch {
         this.transform = [];
         this.clipContent = undefined;
         this.clipPath = undefined;
+        this.opacity = undefined;
     }
 }

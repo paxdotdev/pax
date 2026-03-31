@@ -8,6 +8,7 @@ export class RadioSetUpdatePatch {
     public size_y?: number;
     public background?: ColorGroup; 
     public transform?: number[];
+    public opacity?: number;
     public selected_id?: number;
     public options?: string[];
     objectManager: ObjectManager;
@@ -25,6 +26,7 @@ export class RadioSetUpdatePatch {
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
         this.transform = jsonMessage["transform"];
+        this.opacity = jsonMessage["opacity"];
         this.options = jsonMessage["options"];
         this.background = jsonMessage["background"];
         this.selected_id = jsonMessage["selected_id"];
@@ -44,6 +46,7 @@ export class RadioSetUpdatePatch {
         this.size_x = 0;
         this.size_y = 0;
         this.transform = [];
+        this.opacity = undefined;
         this.options = [];
         this.selected_id = 0;
     }

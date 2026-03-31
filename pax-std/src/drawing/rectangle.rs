@@ -61,6 +61,7 @@ impl InstanceNode for RectangleInstance {
             corner_radii.untyped(),
             stroke.untyped(),
             fill.untyped(),
+            expanded_node.computed_opacity.untyped(),
         ];
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
@@ -88,6 +89,13 @@ impl InstanceNode for RectangleInstance {
         })
     }
 
+    fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {
+        expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
+            (properties.fill.get().max_alpha_0_1() * expanded_node.computed_opacity.get())
+                .clamp(0.0, 1.0)
+        })
+    }
+
     fn render(
         &self,
         expanded_node: &ExpandedNode,
@@ -100,8 +108,11 @@ impl InstanceNode for RectangleInstance {
             return;
         }
 
-        if !rc.begin_node(layer_id, expanded_node.id.to_u32(), expanded_node.occlusion.get().z_index)
-        {
+        if !rc.begin_node(
+            layer_id,
+            expanded_node.id.to_u32(),
+            expanded_node.occlusion.get().z_index,
+        ) {
             return;
         }
         let tab = expanded_node.transform_and_bounds.get();
@@ -110,9 +121,17 @@ impl InstanceNode for RectangleInstance {
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
             let rect = RoundedRect::new(0.0, 0.0, width, height, &properties.corner_radii.get());
             let bez_path = rect.to_path(0.1);
+            let opacity = expanded_node.computed_opacity.get();
+            let fill = properties.fill.get().with_alpha_factor(opacity);
+            let stroke_color = properties
+                .stroke
+                .get()
+                .color
+                .get()
+                .with_alpha_factor(opacity);
             rc.save(layer_id);
             rc.transform(layer_id, tab.transform.into());
-            rc.fill(layer_id, bez_path.clone(), &properties.fill.get());
+            rc.fill(layer_id, bez_path.clone(), &fill);
             //hack to address "phantom stroke" bug on Web
             let width: f64 = properties
                 .stroke
@@ -122,13 +141,8 @@ impl InstanceNode for RectangleInstance {
                 .expect_pixels()
                 .to_float();
             if width > f64::EPSILON {
-                rc.stroke(
-                    layer_id,
-                    bez_path,
-                    &Fill::Solid(properties.stroke.get().color.get()),
-                    width,
-                    );
-                }
+                rc.stroke(layer_id, bez_path, &Fill::Solid(stroke_color), width);
+            }
             rc.restore(layer_id);
         });
         if rc.end_node(layer_id, expanded_node.id.to_u32()) {

@@ -12,6 +12,7 @@ export class TextboxUpdatePatch {
     public border_radius?: number;
     public focus_on_mount?: boolean;
     public transform?: number[];
+    public opacity?: number;
     public text?: string;
     public placeholder?: string;
     objectManager: ObjectManager;
@@ -28,6 +29,7 @@ export class TextboxUpdatePatch {
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
         this.transform = jsonMessage["transform"];
+        this.opacity = jsonMessage["opacity"];
         this.text = jsonMessage["text"];
         this.stroke_color = jsonMessage["stroke_color"];
         this.stroke_width = jsonMessage["stroke_width"];
@@ -50,6 +52,7 @@ export class TextboxUpdatePatch {
         this.size_x = 0;
         this.size_y = 0;
         this.transform = [];
+        this.opacity = undefined;
         this.text = "";
     }
 }

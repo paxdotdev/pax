@@ -7,6 +7,7 @@ export class SliderUpdatePatch {
     public size_y?: number;
     public accent?: ColorGroup;
     public transform?: number[];
+    public opacity?: number;
     public value?: number;
     public step?: number;
     public min?: number;
@@ -24,6 +25,7 @@ export class SliderUpdatePatch {
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
         this.transform = jsonMessage["transform"];
+        this.opacity = jsonMessage["opacity"];
         this.accent = jsonMessage["accent"];
         this.value = jsonMessage["value"];
         this.step = jsonMessage["step"];
@@ -45,5 +47,6 @@ export class SliderUpdatePatch {
         this.background = undefined;
         this.accent = undefined;
         this.transform = [];
+        this.opacity = undefined;
     }
 }

@@ -89,7 +89,10 @@ impl InstanceNode for SliderInstance {
             .values()
             .cloned()
             .map(|v| v.get_untyped_property().clone())
-            .chain([expanded_node.transform_and_bounds.untyped()])
+            .chain([
+                expanded_node.transform_and_bounds.untyped(),
+                expanded_node.computed_opacity.untyped(),
+            ])
             .collect();
         expanded_node
             .changed_listener
@@ -150,6 +153,11 @@ impl InstanceNode for SliderInstance {
                                 &mut old_state.background,
                                 &mut patch.background,
                                 (&properties.background.get()).into(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.opacity,
+                                &mut patch.opacity,
+                                expanded_node.computed_opacity.get(),
                             ),
                         ];
                         if updates.into_iter().any(|v| v == true) {

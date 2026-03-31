@@ -1,6 +1,7 @@
 export type NativeMaskEntry = {
     path: string;
     clips: string[];
+    opacity?: number;
 };
 
 export class NativeMaskUpdatePatch {
@@ -16,6 +17,7 @@ export class NativeMaskUpdatePatch {
         this.entries = (jsonMessage["entries"] || []).map((entry: any) => ({
             path: entry["path"] || "",
             clips: entry["clips"] || [],
+            opacity: entry["opacity"],
         }));
     }
 

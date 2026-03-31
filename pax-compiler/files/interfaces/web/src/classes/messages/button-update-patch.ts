@@ -7,6 +7,7 @@ export class ButtonUpdatePatch {
     public size_x?: number;
     public size_y?: number;
     public transform?: number[];
+    public opacity?: number;
     public content?: string;
     public color?: ColorGroup; 
     public style?: TextStyle;
@@ -27,6 +28,7 @@ export class ButtonUpdatePatch {
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
         this.transform = jsonMessage["transform"];
+        this.opacity = jsonMessage["opacity"];
         this.color = jsonMessage["color"];
         this.hoverColor = jsonMessage["hover_color"];
         this.outlineStrokeColor = jsonMessage["outline_stroke_color"];
@@ -45,6 +47,7 @@ export class ButtonUpdatePatch {
         this.size_x = 0;
         this.size_y = 0;
         this.transform = [];
+        this.opacity = undefined;
         this.objectManager.returnToPool(TEXT_STYLE, this.style);
         this.style = undefined;
     }

@@ -129,6 +129,7 @@ public struct NativeRenderingLayer: View {
             .position(x: size.width / 2.0, y: size.height / 2.0)
             .transformEffect(affineTransform(from: element.transform))
             .zIndex(Double(element.zIndex))
+            .opacity(element.opacity)
         return AnyView(base)
     }
 
@@ -141,6 +142,7 @@ public struct NativeRenderingLayer: View {
             .position(x: width / 2.0, y: height / 2.0)
             .transformEffect(affineTransform(from: element.transform))
             .zIndex(Double(element.zIndex))
+            .opacity(element.opacity)
         return AnyView(base)
     }
 

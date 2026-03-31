@@ -114,6 +114,7 @@ impl InstanceNode for PathInstance {
             elements.untyped(),
             stroke.untyped(),
             fill.untyped(),
+            expanded_node.computed_opacity.untyped(),
         ];
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
@@ -199,6 +200,13 @@ impl InstanceNode for PathInstance {
         })
     }
 
+    fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {
+        expanded_node.with_properties_unwrapped(|properties: &mut Path| {
+            (properties.fill.get().max_alpha_0_1() * expanded_node.computed_opacity.get())
+                .clamp(0.0, 1.0)
+        })
+    }
+
     fn render(
         &self,
         expanded_node: &ExpandedNode,
@@ -211,8 +219,11 @@ impl InstanceNode for PathInstance {
             return;
         }
 
-        if !rc.begin_node(layer_id, expanded_node.id.to_u32(), expanded_node.occlusion.get().z_index)
-        {
+        if !rc.begin_node(
+            layer_id,
+            expanded_node.id.to_u32(),
+            expanded_node.occlusion.get().z_index,
+        ) {
             return;
         }
 
@@ -285,10 +296,18 @@ impl InstanceNode for PathInstance {
             clip_path.close_path();
             //our "save point" before clipping — restored to in the post_render
 
+            let opacity = expanded_node.computed_opacity.get();
+            let fill = properties.fill.get().with_alpha_factor(opacity);
+            let stroke_color = properties
+                .stroke
+                .get()
+                .color
+                .get()
+                .with_alpha_factor(opacity);
             rc.save(layer_id);
             rc.transform(layer_id, tab.transform.into());
             rc.clip(layer_id, clip_path.clone());
-            rc.fill(layer_id, bez_path.clone(), &properties.fill.get());
+            rc.fill(layer_id, bez_path.clone(), &fill);
             if properties
                 .stroke
                 .get()
@@ -301,7 +320,7 @@ impl InstanceNode for PathInstance {
                 rc.stroke(
                     layer_id,
                     bez_path,
-                    &Fill::Solid(properties.stroke.get().color.get()),
+                    &Fill::Solid(stroke_color),
                     properties
                         .stroke
                         .get()

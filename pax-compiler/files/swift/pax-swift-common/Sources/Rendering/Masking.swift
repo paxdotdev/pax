@@ -29,10 +29,12 @@ private enum ResolvedNativeMaskCache {
 public struct ResolvedMaskHole {
     public let path: Path
     public let clips: [Path]
+    public let opacity: Double
 
-    public init(path: Path, clips: [Path]) {
+    public init(path: Path, clips: [Path], opacity: Double) {
         self.path = path
         self.clips = clips
+        self.opacity = opacity
     }
 }
 
@@ -371,7 +373,11 @@ public func resolveNativeMask(
             }
             return clipPath.isEmpty ? nil : clipPath
         }
-        return ResolvedMaskHole(path: holePath, clips: localClips)
+        return ResolvedMaskHole(
+            path: holePath,
+            clips: localClips,
+            opacity: min(max(entry.opacity, 0.0), 1.0)
+        )
     } ?? []
 
     if frameClips.isEmpty && holes.isEmpty {
@@ -399,7 +405,8 @@ public struct CombinedMaskView: View {
             ForEach(Array(mask.holes.enumerated()), id: \.offset) { _, hole in
                 clippedView(
                     ResolvedPathShape(resolvedPath: hole.path)
-                        .fill(Color.black),
+                        .fill(Color.black)
+                        .opacity(hole.opacity),
                     paths: hole.clips
                 )
             }

@@ -5,6 +5,7 @@ export class ScrollerUpdatePatch {
     public sizeInnerPaneX? : number;
     public sizeInnerPaneY? : number;
     public transform? : number[];
+    public opacity? : number;
     public scrollX? : number;
     public scrollY? : number;
 
@@ -15,6 +16,7 @@ export class ScrollerUpdatePatch {
         this.sizeInnerPaneX = jsonMessage["size_inner_pane_x"];
         this.sizeInnerPaneY = jsonMessage["size_inner_pane_y"];
         this.transform = jsonMessage["transform"];
+        this.opacity = jsonMessage["opacity"];
         this.scrollX = jsonMessage["scroll_x"];
         this.scrollY = jsonMessage["scroll_y"];
     }
@@ -26,6 +28,7 @@ export class ScrollerUpdatePatch {
         this.sizeInnerPaneX = 0;
         this.sizeInnerPaneY = 0;
         this.transform = [];
+        this.opacity = undefined;
         this.scrollX = 0;
         this.scrollY = 0;
     }

@@ -82,7 +82,10 @@ impl InstanceNode for MaskInstance {
         let env = Rc::clone(&expanded_node.stack);
         let children = borrow!(self.base().get_instance_children());
         if children.len() != 2 {
-            log::warn!("Mask expects exactly 2 direct children, got {}", children.len());
+            log::warn!(
+                "Mask expects exactly 2 direct children, got {}",
+                children.len()
+            );
         }
         let this_mask_prop = Property::new(Some(expanded_node.id));
 
@@ -118,7 +121,7 @@ impl InstanceNode for MaskInstance {
             ..Default::default()
         }));
 
-        let mut deps = Vec::new();
+        let mut deps = vec![expanded_node.computed_opacity.untyped()];
         if let Some(mask_child) = borrow!(expanded_node.sidecar_children).first() {
             deps.push(mask_child.transform_and_bounds.untyped());
             deps.extend(
@@ -154,12 +157,16 @@ impl InstanceNode for MaskInstance {
                             !clip_path.is_empty(),
                         ),
                         patch_if_needed(&mut old_state.clip_path, &mut patch.clip_path, clip_path),
+                        patch_if_needed(
+                            &mut old_state.opacity,
+                            &mut patch.opacity,
+                            expanded_node.computed_opacity.get(),
+                        ),
                     ];
 
                     if updates.into_iter().any(|updated| updated) {
-                        context.enqueue_native_message(pax_message::NativeMessage::FrameUpdate(
-                            patch,
-                        ));
+                        context
+                            .enqueue_native_message(pax_message::NativeMessage::FrameUpdate(patch));
                         Self::mark_canvas_descendants_dirty(&expanded_node, &context);
                     }
                 },

@@ -408,14 +408,34 @@ pub struct FramePatch {
     pub size_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
     pub clip_path: Option<String>,
+    pub opacity: Option<f64>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Serialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Default, Serialize, Clone)]
 #[repr(C)]
 pub struct MaskPathPatch {
     pub path: String,
     pub clips: Vec<String>,
+    pub opacity: Option<f64>,
+}
+
+impl PartialEq for MaskPathPatch {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path
+            && self.clips == other.clips
+            && self.opacity.map(f64::to_bits) == other.opacity.map(f64::to_bits)
+    }
+}
+
+impl Eq for MaskPathPatch {}
+
+impl std::hash::Hash for MaskPathPatch {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.path.hash(state);
+        self.clips.hash(state);
+        self.opacity.map(f64::to_bits).hash(state);
+    }
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -436,6 +456,7 @@ pub struct EventBlockerPatch {
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
+    pub opacity: Option<f64>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -451,6 +472,7 @@ pub struct CheckboxPatch {
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
+    pub opacity: Option<f64>,
     pub checked: Option<bool>,
 }
 
@@ -462,6 +484,7 @@ pub struct NativeImagePatch {
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
+    pub opacity: Option<f64>,
     pub url: Option<String>,
     pub fit: Option<String>,
 }
@@ -474,6 +497,7 @@ pub struct YoutubeVideoPatch {
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
+    pub opacity: Option<f64>,
     pub url: Option<String>,
 }
 
@@ -487,6 +511,7 @@ pub struct DropdownPatch {
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
+    pub opacity: Option<f64>,
     pub background: Option<ColorMessage>,
     pub stroke_color: Option<ColorMessage>,
     pub stroke_width: Option<f64>,
@@ -509,6 +534,7 @@ pub struct RadioSetPatch {
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
+    pub opacity: Option<f64>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -523,6 +549,7 @@ pub struct SliderPatch {
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
+    pub opacity: Option<f64>,
     pub accent: Option<ColorMessage>,
     pub background: Option<ColorMessage>,
     pub border_radius: Option<f64>,
@@ -536,6 +563,7 @@ pub struct TextboxPatch {
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
+    pub opacity: Option<f64>,
     pub text: Option<String>,
     pub background: Option<ColorMessage>,
     pub stroke_color: Option<ColorMessage>,
@@ -561,6 +589,7 @@ pub struct ButtonPatch {
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
+    pub opacity: Option<f64>,
     pub content: Option<String>,
     pub color: Option<ColorMessage>,
     pub style: Option<TextStyleMessage>,
@@ -609,6 +638,7 @@ pub struct TextPatch {
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
+    pub opacity: Option<f64>,
     pub style: Option<TextStyleMessage>,
     pub style_link: Option<TextStyleMessage>,
 }
@@ -685,6 +715,7 @@ pub struct ScrollerPatch {
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
+    pub opacity: Option<f64>,
     pub size_inner_pane_x: Option<f64>,
     pub size_inner_pane_y: Option<f64>,
     pub scroll_x: Option<f64>,

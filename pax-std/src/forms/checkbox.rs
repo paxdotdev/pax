@@ -87,7 +87,10 @@ impl InstanceNode for CheckboxInstance {
             .values()
             .cloned()
             .map(|v| v.get_untyped_property().clone())
-            .chain([expanded_node.transform_and_bounds.untyped()])
+            .chain([
+                expanded_node.transform_and_bounds.untyped(),
+                expanded_node.computed_opacity.untyped(),
+            ])
             .collect();
         expanded_node
             .changed_listener
@@ -148,6 +151,11 @@ impl InstanceNode for CheckboxInstance {
                                 &mut old_state.transform,
                                 &mut patch.transform,
                                 computed_tab.transform.coeffs().to_vec(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.opacity,
+                                &mut patch.opacity,
+                                expanded_node.computed_opacity.get(),
                             ),
                         ];
                         if updates.into_iter().any(|v| v == true) {

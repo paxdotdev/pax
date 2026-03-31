@@ -153,11 +153,13 @@ impl CoercionRules for Fill {
                             LinearGradient::try_coerce(args.into_iter().next().unwrap())?;
                         Fill::LinearGradient(gradient)
                     }
+                    "linearGradient" => Fill::LinearGradient(parse_linear_gradient_args(args)?),
                     "RadialGradient" => {
                         let gradient =
                             RadialGradient::try_coerce(args.into_iter().next().unwrap())?;
                         Fill::RadialGradient(gradient)
                     }
+                    "radialGradient" => Fill::RadialGradient(parse_radial_gradient_args(args)?),
                     _ => {
                         return Err(format!(
                             "failed to coerce Fill: unknown enum variant {:?}",
@@ -208,6 +210,13 @@ impl CoercionRules for LinearGradient {
                     start: (s1, s2),
                     end: (e1, e2),
                     stops,
+                }
+            }
+            PaxValue::Enum(contents) => {
+                let (_, variant, args) = *contents;
+                match variant.as_str() {
+                    "linearGradient" => parse_linear_gradient_args(args)?,
+                    _ => return Err(format!("failed to coerce LinearGradient")),
                 }
             }
             PaxValue::Option(o) => {
@@ -271,6 +280,13 @@ impl CoercionRules for RadialGradient {
                     stops,
                 }
             }
+            PaxValue::Enum(contents) => {
+                let (_, variant, args) = *contents;
+                match variant.as_str() {
+                    "radialGradient" => parse_radial_gradient_args(args)?,
+                    _ => return Err(format!("failed to coerce RadialGradient")),
+                }
+            }
             PaxValue::Option(o) => {
                 if let Some(o) = *o {
                     RadialGradient::try_coerce(o)?
@@ -295,6 +311,22 @@ impl CoercionRules for GradientStop {
                 let color = Color::try_coerce(color)?;
                 GradientStop { position, color }
             }
+            PaxValue::Enum(contents) => {
+                let (_, variant, args) = *contents;
+                match variant.as_str() {
+                    "get" => {
+                        let mut args = args.into_iter();
+                        let color = Color::try_coerce(args.next().ok_or_else(|| {
+                            "failed to convert to GradientStop".to_string()
+                        })?)?;
+                        let position = Size::try_coerce(args.next().ok_or_else(|| {
+                            "failed to convert to GradientStop".to_string()
+                        })?)?;
+                        GradientStop { position, color }
+                    }
+                    _ => return Err(format!("failed to convert to GradientStop")),
+                }
+            }
             PaxValue::Option(o) => {
                 if let Some(o) = *o {
                     GradientStop::try_coerce(o)?
@@ -306,6 +338,109 @@ impl CoercionRules for GradientStop {
                 return Err(format!("failed to convert to GradientStop"));
             }
         })
+    }
+}
+
+fn parse_gradient_point(value: PaxValue) -> Result<(Size, Size), String> {
+    match value {
+        PaxValue::Vec(vec) => {
+            let mut itr = vec.into_iter();
+            let x = Size::try_coerce(itr.next().ok_or_else(|| {
+                "failed to coerce gradient point".to_string()
+            })?)?;
+            let y = Size::try_coerce(itr.next().ok_or_else(|| {
+                "failed to coerce gradient point".to_string()
+            })?)?;
+            Ok((x, y))
+        }
+        _ => Err("failed to coerce gradient point".to_string()),
+    }
+}
+
+fn parse_linear_gradient_args(args: Vec<PaxValue>) -> Result<LinearGradient, String> {
+    if args.len() != 3 {
+        return Err("failed to coerce Fill::linearGradient".to_string());
+    }
+    let mut args = args.into_iter();
+    let start = parse_gradient_point(args.next().unwrap())?;
+    let end = parse_gradient_point(args.next().unwrap())?;
+    let stops = Vec::<GradientStop>::try_coerce(args.next().unwrap())?;
+    Ok(LinearGradient { start, end, stops })
+}
+
+fn parse_radial_gradient_args(args: Vec<PaxValue>) -> Result<RadialGradient, String> {
+    if args.len() != 4 {
+        return Err("failed to coerce Fill::radialGradient".to_string());
+    }
+    let mut args = args.into_iter();
+    let start = parse_gradient_point(args.next().unwrap())?;
+    let end = parse_gradient_point(args.next().unwrap())?;
+    let stops = Vec::<GradientStop>::try_coerce(args.next().unwrap())?;
+    let radius = Numeric::try_coerce(args.next().unwrap())?.to_float();
+    Ok(RadialGradient {
+        start,
+        end,
+        radius,
+        stops,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pct(value: i64) -> PaxValue {
+        PaxValue::Percent(Percent(Numeric::I64(value)))
+    }
+
+    fn color(hex: &str) -> PaxValue {
+        PaxValue::Color(Box::new(Color::from_hex(hex)))
+    }
+
+    #[test]
+    fn coerces_fill_linear_gradient_helper_syntax() {
+        let pax_value = PaxValue::Enum(Box::new((
+            "Fill".to_string(),
+            "linearGradient".to_string(),
+            vec![
+                PaxValue::Vec(vec![pct(0), pct(50)]),
+                PaxValue::Vec(vec![pct(100), pct(50)]),
+                PaxValue::Vec(vec![
+                    PaxValue::Enum(Box::new((
+                        "GradientStop".to_string(),
+                        "get".to_string(),
+                        vec![color("ff00ffff"), pct(0)],
+                    ))),
+                    PaxValue::Enum(Box::new((
+                        "GradientStop".to_string(),
+                        "get".to_string(),
+                        vec![color("ffffffff"), pct(100)],
+                    ))),
+                ]),
+            ],
+        )));
+
+        let fill = Fill::try_coerce(pax_value).expect("helper syntax should coerce");
+        let Fill::LinearGradient(gradient) = fill else {
+            panic!("expected linear gradient");
+        };
+
+        assert_eq!(gradient.stops.len(), 2);
+        assert_eq!(gradient.start.0, Size::Percent(Numeric::I64(0)));
+        assert_eq!(gradient.end.0, Size::Percent(Numeric::I64(100)));
+    }
+
+    #[test]
+    fn coerces_gradient_stop_get_helper_syntax() {
+        let pax_value = PaxValue::Enum(Box::new((
+            "GradientStop".to_string(),
+            "get".to_string(),
+            vec![color("11223344"), pct(48)],
+        )));
+
+        let stop = GradientStop::try_coerce(pax_value).expect("helper syntax should coerce");
+        assert_eq!(stop.position, Size::Percent(Numeric::I64(48)));
+        assert_eq!(stop.color, Color::from_hex("11223344"));
     }
 }
 

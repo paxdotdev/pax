@@ -63,6 +63,7 @@ struct CoverageEntry {
     bounds: OcclusionBox,
     path: BezPath,
     clips: Vec<BezPath>,
+    opacity: f64,
 }
 
 enum DrawableInfo {
@@ -101,7 +102,9 @@ fn update_node_occlusion_recursive(
     let effect_clip_path = borrow!(node.instance_node).resolve_effect_clip_path(node);
     let has_effect_clip = effect_clip_path.is_some();
 
-    let descendant_container = has_effect_clip.then(|| node.id.to_u32()).or(active_container);
+    let descendant_container = has_effect_clip
+        .then(|| node.id.to_u32())
+        .or(active_container);
     let mut descendant_clips = active_clips.to_vec();
     if let Some(clip_path) = effect_clip_path.clone() {
         descendant_clips.push(clip_path);
@@ -147,9 +150,7 @@ fn update_node_occlusion_recursive(
             occlusion_layer_id: new_occlusion.occlusion_layer_id,
             parent_frame: new_occlusion.parent_frame,
         };
-        ctx.enqueue_native_message(pax_message::NativeMessage::OcclusionUpdate(
-            occlusion_patch,
-        ));
+        ctx.enqueue_native_message(pax_message::NativeMessage::OcclusionUpdate(occlusion_patch));
     }
 
     if new_occlusion != node.occlusion.get() {
@@ -169,11 +170,15 @@ fn update_node_occlusion_recursive(
         Layer::Canvas => {
             if let Some(coverage_path) = borrow!(node.instance_node).resolve_coverage_path(node) {
                 if let Some(bounds) = OcclusionBox::new_from_path(&coverage_path) {
-                    drawables.push(DrawableInfo::Canvas(CoverageEntry {
-                        bounds,
-                        path: coverage_path,
-                        clips: active_clips.to_vec(),
-                    }));
+                    let opacity = borrow!(node.instance_node).resolve_coverage_opacity(node);
+                    if opacity > f64::EPSILON {
+                        drawables.push(DrawableInfo::Canvas(CoverageEntry {
+                            bounds,
+                            path: coverage_path,
+                            clips: active_clips.to_vec(),
+                            opacity,
+                        }));
+                    }
                 }
             }
         }
@@ -181,7 +186,9 @@ fn update_node_occlusion_recursive(
             drawables.push(DrawableInfo::Native {
                 node: Rc::clone(node),
                 layer,
-                bounds: OcclusionBox::new_from_transform_and_bounds(node.transform_and_bounds.get()),
+                bounds: OcclusionBox::new_from_transform_and_bounds(
+                    node.transform_and_bounds.get(),
+                ),
             });
         }
         Layer::DontCare => {}
@@ -196,7 +203,11 @@ fn update_native_masks(drawables: &[DrawableInfo], ctx: &RuntimeContext) {
     for drawable in drawables.iter().rev() {
         match drawable {
             DrawableInfo::Canvas(entry) => vector_above.push(entry.clone()),
-            DrawableInfo::Native { node, layer, bounds } => {
+            DrawableInfo::Native {
+                node,
+                layer,
+                bounds,
+            } => {
                 let t_and_b = node.transform_and_bounds.get();
                 let size = t_and_b.bounds;
                 let entries = if *layer == Layer::Native {
@@ -211,6 +222,7 @@ fn update_native_masks(drawables: &[DrawableInfo], ctx: &RuntimeContext) {
                                 .iter()
                                 .map(|clip| bez_path_to_svg_path_data(&(inverse * clip.clone())))
                                 .collect(),
+                            opacity: Some(entry.opacity),
                         })
                         .collect::<Vec<_>>()
                 } else {

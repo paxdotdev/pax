@@ -10,6 +10,7 @@ export class DropdownUpdatePatch {
     public stroke_color?: ColorGroup;
     public background?: ColorGroup; 
     public transform?: number[];
+    public opacity?: number;
     public selected_id?: number;
     public options?: string[];
     objectManager: ObjectManager;
@@ -25,6 +26,7 @@ export class DropdownUpdatePatch {
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
         this.transform = jsonMessage["transform"];
+        this.opacity = jsonMessage["opacity"];
         this.options = jsonMessage["options"];
         this.stroke_color = jsonMessage["stroke_color"];
         this.stroke_width = jsonMessage["stroke_width"];
@@ -44,6 +46,7 @@ export class DropdownUpdatePatch {
         this.size_x = 0;
         this.size_y = 0;
         this.transform = [];
+        this.opacity = undefined;
         this.options = [];
         this.selected_id = 0;
     }

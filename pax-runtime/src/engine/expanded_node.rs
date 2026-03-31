@@ -92,6 +92,10 @@ pub struct ExpandedNode {
     /// computed property based on parent bounds + common properties
     pub transform_and_bounds: Property<TransformAndBounds<NodeLocal, Window>>,
 
+    /// The accumulated opacity inherited from render ancestors and this node's
+    /// own common opacity value.
+    pub computed_opacity: Property<f64>,
+
     /// For component instances only, tracks the expanded slot_children in its
     /// non-collapsed form (repeat and conditionals still present). This allows
     /// repeat/conditionals to update their children (handled in component.rs
@@ -264,6 +268,7 @@ impl ExpandedNode {
             mounted_children: RefCell::new(Vec::new()),
             sidecar_children: RefCell::new(Vec::new()),
             transform_and_bounds: Property::new(TransformAndBounds::default()),
+            computed_opacity: Property::new(1.0),
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
             flattened_slot_children_count: Property::new(0),
@@ -435,6 +440,22 @@ impl ExpandedNode {
             parent_transform_and_bounds,
         );
         self.transform_and_bounds.replace_with(transform_and_bounds);
+
+        let parent_opacity = borrow!(self.render_parent)
+            .upgrade()
+            .map(|n| n.computed_opacity.clone())
+            .unwrap_or_else(|| Property::new(1.0));
+        let common_props = self.get_common_properties();
+        let self_opacity = borrow!(common_props).opacity.clone();
+        let deps = [parent_opacity.untyped(), self_opacity.untyped()];
+        self.computed_opacity.replace_with(Property::computed(
+            move || {
+                let parent = parent_opacity.get().clamp(0.0, 1.0);
+                let local = self_opacity.get().unwrap_or(1.0).clamp(0.0, 1.0);
+                (parent * local).clamp(0.0, 1.0)
+            },
+            &deps,
+        ));
     }
 
     pub fn inherit_suspend(self: &Rc<Self>, node: &Rc<Self>) {

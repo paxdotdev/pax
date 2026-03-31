@@ -1,3 +1,4 @@
+use crate::{Font, TextAlignHorizontal, TextAlignVertical, TextStyle};
 use pax_message::{AnyCreatePatch, TextboxPatch};
 use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::{use_RefCell, Layer, Property};
@@ -5,7 +6,6 @@ use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use_RefCell!();
-use crate::*;
 use pax_engine::pax;
 use pax_runtime_api::*;
 use std::rc::Rc;
@@ -104,7 +104,10 @@ impl InstanceNode for TextboxInstance {
             .values()
             .cloned()
             .map(|v| v.get_untyped_property().clone())
-            .chain([expanded_node.transform_and_bounds.untyped()])
+            .chain([
+                expanded_node.transform_and_bounds.untyped(),
+                expanded_node.computed_opacity.untyped(),
+            ])
             .collect();
         expanded_node
             .changed_listener
@@ -180,6 +183,11 @@ impl InstanceNode for TextboxInstance {
                                 &mut old_state.outline_width,
                                 &mut patch.outline_width,
                                 properties.outline.get().width.get().get_pixels(width),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.opacity,
+                                &mut patch.opacity,
+                                expanded_node.computed_opacity.get(),
                             ),
                         ];
                         if updates.into_iter().any(|v| v == true) {

@@ -8,6 +8,7 @@ export class TextUpdatePatch {
     public size_x?: number;
     public size_y?: number;
     public transform?: number[];
+    public opacity?: number;
     public style?: TextStyle;
     public style_link?: TextStyle;
     public depth?: number;
@@ -26,6 +27,7 @@ export class TextUpdatePatch {
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
         this.transform = jsonMessage["transform"];
+        this.opacity = jsonMessage["opacity"];
         this.depth = jsonMessage["depth"];
         this.editable = jsonMessage["editable"];
         this.selectable = jsonMessage["selectable"];
@@ -50,6 +52,7 @@ export class TextUpdatePatch {
         this.size_x = 0;
         this.size_y = 0;
         this.transform = [];
+        this.opacity = undefined;
         this.objectManager.returnToPool(TEXT_STYLE, this.style);
         this.style = undefined;
         this.objectManager.returnToPool(TEXT_STYLE, this.style_link);

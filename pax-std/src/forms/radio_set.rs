@@ -1,3 +1,4 @@
+use crate::{Font, TextAlignHorizontal, TextAlignVertical, TextStyle};
 use pax_message::{AnyCreatePatch, NativeInterrupt, RadioSetPatch};
 use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::{use_RefCell, Layer, Property};
@@ -5,7 +6,6 @@ use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use_RefCell!();
-use crate::*;
 use pax_runtime_api::*;
 
 use pax_engine::pax;
@@ -100,7 +100,10 @@ impl InstanceNode for RadioSetInstance {
             .values()
             .cloned()
             .map(|v| v.get_untyped_property().clone())
-            .chain([expanded_node.transform_and_bounds.untyped()])
+            .chain([
+                expanded_node.transform_and_bounds.untyped(),
+                expanded_node.computed_opacity.untyped(),
+            ])
             .collect();
         expanded_node
             .changed_listener
@@ -167,6 +170,11 @@ impl InstanceNode for RadioSetInstance {
                                 &mut old_state.options,
                                 &mut patch.options,
                                 properties.options.get(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.opacity,
+                                &mut patch.opacity,
+                                expanded_node.computed_opacity.get(),
                             ),
                         ];
                         if updates.into_iter().any(|v| v == true) {

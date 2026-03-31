@@ -103,7 +103,11 @@ export class OcclusionLayerManager {
         let new_container: HTMLDivElement = this.objectManager.getFromPool(DIV);
         new_container.dataset.containerId = id.toString();
         new_container.setAttribute("class", CLIPPING_CONTAINER);
-        applyContainerClipPath(new_container, container.clipPathValue());
+        applyContainerStyles(
+            new_container,
+            container.clipPathValue(),
+            container.styles.opacity,
+        );
 
         let parent_container = this.getOrCreateContainer(container.parentFrame, occlusionLayerId);
         parent_container.appendChild(new_container);
@@ -182,7 +186,13 @@ export class OcclusionLayerManager {
         let clipValue = container.clipPathValue();
         document
             .querySelectorAll(`[data-container-id="${id}"]`)
-            .forEach((elem) => applyContainerClipPath(elem as HTMLElement, clipValue));
+            .forEach((elem) =>
+                applyContainerStyles(
+                    elem as HTMLElement,
+                    clipValue,
+                    container.styles.opacity,
+                ),
+            );
     }
 }
 
@@ -290,6 +300,7 @@ class SvgEffectManager {
             let path = document.createElementNS(SVG_NS, "path");
             path.setAttribute("d", entry.path);
             path.setAttribute("fill", "black");
+            path.setAttribute("fill-opacity", `${entry.opacity ?? 1}`);
             mask.appendChild(this.wrapWithClips(id, index, path, entry.clips, desiredClipIds));
         });
         this.removeUnusedMaskClips(id, desiredClipIds);
@@ -408,6 +419,13 @@ function applyContainerClipPath(element: HTMLElement, value: string) {
     (element.style as any).webkitClipPath = value;
 }
 
+function applyContainerStyles(element: HTMLElement, clipPath: string, _opacity: number) {
+    applyContainerClipPath(element, clipPath);
+    // Native leaves already receive inherited opacity in their own patches.
+    // Applying it again on synthetic containers would double-count ancestors.
+    element.style.opacity = "1";
+}
+
 function clearMaskStyles(element: HTMLElement) {
     element.style.maskImage = "";
     element.style.maskRepeat = "";
@@ -455,6 +473,7 @@ export class ContainerStyle {
     transform: number[];
     width: number;
     height: number;
+    opacity: number;
     clipPath?: string;
 
     constructor() {
@@ -462,6 +481,7 @@ export class ContainerStyle {
         this.transform = [0, 0, 0, 0, 0, 0];
         this.width = 0;
         this.height = 0;
+        this.opacity = 1;
         this.clipPath = undefined;
     }
 }

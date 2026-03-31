@@ -655,6 +655,7 @@ pub struct CommonProperties {
     pub skew_y: Property<Option<Rotation>>,
     pub rotate: Property<Option<Rotation>>,
     pub transform: Property<Option<Transform2D>>,
+    pub opacity: Property<Option<f64>>,
     pub unclippable: Property<Option<bool>>,
     pub _raycastable: Property<Option<bool>>,
     pub _suspended: Property<Option<bool>>,
@@ -710,6 +711,7 @@ impl CommonProperties {
             skew_y,
             rotate,
             transform,
+            opacity,
             unclippable,
             _raycastable,
             _suspended,
@@ -760,6 +762,10 @@ impl CommonProperties {
             (
                 "transform".to_string(),
                 Variable::new_from_typed_property(transform.clone()),
+            ),
+            (
+                "opacity".to_string(),
+                Variable::new_from_typed_property(opacity.clone()),
             ),
             (
                 "width".to_string(),
@@ -867,7 +873,8 @@ impl<T: Interpolatable> TransitionManager<T> {
         };
 
         let local_fe = global_fe.saturating_sub(*origin_fe);
-        let progress = (local_fe as f64 / current_transition.duration_frames as f64).clamp(0.0, 1.0);
+        let progress =
+            (local_fe as f64 / current_transition.duration_frames as f64).clamp(0.0, 1.0);
         let interpolated_val = current_transition.curve.interpolate(
             &self.transition_checkpoint_value,
             &current_transition.ending_value,
@@ -1388,6 +1395,16 @@ impl Color {
         )
     }
 
+    pub fn alpha_0_1(&self) -> f64 {
+        self.to_rgba_0_1()[3]
+    }
+
+    pub fn with_alpha_factor(&self, factor: f64) -> Self {
+        let mut rgba = self.to_rgba_0_1();
+        rgba[3] = (rgba[3] * factor.clamp(0.0, 1.0)).clamp(0.0, 1.0);
+        Self::from_rgba_0_1(rgba)
+    }
+
     // Returns a slice of four channels, normalized to [0,1]
     pub fn to_rgba_0_1(&self) -> [f64; 4] {
         match self {
@@ -1906,6 +1923,13 @@ impl GradientStop {
     pub fn get(color: Color, position: Size) -> GradientStop {
         GradientStop { position, color }
     }
+
+    pub fn with_alpha_factor(&self, factor: f64) -> GradientStop {
+        GradientStop {
+            position: self.position.clone(),
+            color: self.color.with_alpha_factor(factor),
+        }
+    }
 }
 
 impl Default for Fill {
@@ -1958,6 +1982,47 @@ impl Fill {
         stops: Vec<GradientStop>,
     ) -> Fill {
         Fill::LinearGradient(LinearGradient { start, end, stops })
+    }
+
+    pub fn with_alpha_factor(&self, factor: f64) -> Fill {
+        match self {
+            Fill::Solid(color) => Fill::Solid(color.with_alpha_factor(factor)),
+            Fill::LinearGradient(gradient) => Fill::LinearGradient(LinearGradient {
+                start: gradient.start.clone(),
+                end: gradient.end.clone(),
+                stops: gradient
+                    .stops
+                    .iter()
+                    .map(|stop| stop.with_alpha_factor(factor))
+                    .collect(),
+            }),
+            Fill::RadialGradient(gradient) => Fill::RadialGradient(RadialGradient {
+                start: gradient.start.clone(),
+                end: gradient.end.clone(),
+                radius: gradient.radius,
+                stops: gradient
+                    .stops
+                    .iter()
+                    .map(|stop| stop.with_alpha_factor(factor))
+                    .collect(),
+            }),
+        }
+    }
+
+    pub fn max_alpha_0_1(&self) -> f64 {
+        match self {
+            Fill::Solid(color) => color.alpha_0_1(),
+            Fill::LinearGradient(gradient) => gradient
+                .stops
+                .iter()
+                .map(|stop| stop.color.alpha_0_1())
+                .fold(0.0, f64::max),
+            Fill::RadialGradient(gradient) => gradient
+                .stops
+                .iter()
+                .map(|stop| stop.color.alpha_0_1())
+                .fold(0.0, f64::max),
+        }
     }
 }
 

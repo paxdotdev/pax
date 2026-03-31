@@ -799,6 +799,10 @@ export class NativeElementPool {
             leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
 
+        if (patch.opacity != null) {
+            leaf!.style.opacity = `${patch.opacity}`;
+        }
+
         if (patch.editable != null) {
             if (patch.editable == true) {
                 const selection = window.getSelection();
@@ -911,6 +915,9 @@ export class NativeElementPool {
          if (patch.clipPath != null) {
              styles.clipPath = patch.clipPath;
          }
+         if (patch.opacity != null) {
+             styles.opacity = patch.opacity;
+         }
         
         this.layers.updateContainer(patch.id!, styles);
     }
@@ -996,6 +1003,10 @@ export class NativeElementPool {
             leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
 
+        if (patch.opacity != null) {
+            leaf.style.opacity = `${patch.opacity}`;
+        }
+
        
     }
 
@@ -1044,6 +1055,9 @@ export class NativeElementPool {
         // Handle transform
         if (patch.transform != null) {
             leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+        }
+        if (patch.opacity != null) {
+            leaf.style.opacity = `${patch.opacity}`;
         }
     }
 
@@ -1194,5 +1208,8 @@ function updateCommonProps(leaf: HTMLElement, patch: any) {
     // Handle transform
     if (patch.transform != null) {
         leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+    }
+    if (patch.opacity != null) {
+        leaf.style.opacity = `${patch.opacity}`;
     }
 }
