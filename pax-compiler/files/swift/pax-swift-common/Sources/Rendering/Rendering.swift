@@ -94,12 +94,26 @@ private final class LayerMaskedHostingController: UIViewController {
         rendererFormat.scale = UIScreen.main.scale
         let renderer = UIGraphicsImageRenderer(size: mask.size, format: rendererFormat)
         let image = renderer.image { context in
+            let cgContext = context.cgContext
+            let bounds = CGRect(origin: .zero, size: mask.size)
+
+            cgContext.saveGState()
+            if !mask.frameClips.isEmpty {
+                for clip in mask.frameClips {
+                    cgContext.addPath(UIBezierPath(cgPath: clip.cgPath).cgPath)
+                    cgContext.clip()
+                }
+            }
             UIColor.white.setFill()
-            context.fill(CGRect(origin: .zero, size: mask.size))
+            cgContext.fill(bounds)
+            cgContext.restoreGState()
 
             for hole in mask.holes {
-                let cgContext = context.cgContext
                 cgContext.saveGState()
+                for clip in mask.frameClips {
+                    cgContext.addPath(UIBezierPath(cgPath: clip.cgPath).cgPath)
+                    cgContext.clip()
+                }
                 for clip in hole.clips {
                     cgContext.addPath(UIBezierPath(cgPath: clip.cgPath).cgPath)
                     cgContext.clip()
@@ -238,9 +252,19 @@ public struct NativeRenderingLayer: View {
                     .transaction { transaction in
                         transaction.animation = nil
                         transaction.disablesAnimations = true
-                    }
+                }
             )
         }
+#if os(iOS) || os(tvOS) || os(watchOS)
+        return AnyView(
+            LayerMaskedView(content: AnyView(view), mask: mask)
+                .frame(width: mask.size.width, height: mask.size.height)
+                .transaction { transaction in
+                    transaction.animation = nil
+                    transaction.disablesAnimations = true
+                }
+        )
+#else
         let frameClipped = mask.frameClips.reduce(AnyView(view)) { current, path in
             AnyView(current.clipShape(ResolvedPathShape(resolvedPath: path)))
         }
@@ -253,16 +277,6 @@ public struct NativeRenderingLayer: View {
                     }
             )
         }
-#if os(iOS) || os(tvOS) || os(watchOS)
-        return AnyView(
-            LayerMaskedView(content: frameClipped, mask: mask)
-                .frame(width: mask.size.width, height: mask.size.height)
-                .transaction { transaction in
-                    transaction.animation = nil
-                    transaction.disablesAnimations = true
-                }
-        )
-#else
         return AnyView(
             frameClipped
                 .compositingGroup()

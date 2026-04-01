@@ -103,16 +103,21 @@ private func signedBits(_ value: Int) -> UInt64 {
     UInt64(bitPattern: Int64(value))
 }
 
-private func hashFrameClipDescriptor(_ descriptor: FrameClipDescriptor) -> UInt64 {
+private func hashLocalFrameClipDescriptor(
+    clipPath: String?,
+    localTransform: CGAffineTransform,
+    size: CGSize
+) -> UInt64 {
     var hash = UInt64(1469598103934665603)
-    hash = mixMaskHash(hash, UInt64(descriptor.frame.id))
-    hash = mixMaskHash(hash, UInt64(descriptor.frame.parentFrame ?? 0))
-    hash = mixMaskHash(hash, descriptor.clipPath.map { signedBits($0.hashValue) } ?? 0)
-    for coeff in descriptor.transform {
-        hash = mixMaskHash(hash, UInt64(coeff.bitPattern))
-    }
-    hash = mixMaskHash(hash, Double(descriptor.size.width).bitPattern)
-    hash = mixMaskHash(hash, Double(descriptor.size.height).bitPattern)
+    hash = mixMaskHash(hash, clipPath.map { signedBits($0.hashValue) } ?? 0)
+    hash = mixMaskHash(hash, Double(localTransform.a).bitPattern)
+    hash = mixMaskHash(hash, Double(localTransform.b).bitPattern)
+    hash = mixMaskHash(hash, Double(localTransform.c).bitPattern)
+    hash = mixMaskHash(hash, Double(localTransform.d).bitPattern)
+    hash = mixMaskHash(hash, Double(localTransform.tx).bitPattern)
+    hash = mixMaskHash(hash, Double(localTransform.ty).bitPattern)
+    hash = mixMaskHash(hash, Double(size.width).bitPattern)
+    hash = mixMaskHash(hash, Double(size.height).bitPattern)
     return hash
 }
 
@@ -443,7 +448,15 @@ public func resolveNativeMask(
 
     let frameDescriptors = collectFrameClipDescriptors(startingAt: parentFrame, frames: frames)
     let frameClips = frameDescriptors.compactMap { descriptor -> Path? in
-        maskSignature = mixMaskHash(maskSignature, hashFrameClipDescriptor(descriptor))
+        let localTransform = frameAffineTransform(from: descriptor.transform).concatenating(localFromWorld)
+        maskSignature = mixMaskHash(
+            maskSignature,
+            hashLocalFrameClipDescriptor(
+                clipPath: descriptor.clipPath,
+                localTransform: localTransform,
+                size: descriptor.size
+            )
+        )
         let localPath = frameWorldPath(for: descriptor).applying(localFromWorld)
         return localPath.isEmpty ? nil : localPath
     }

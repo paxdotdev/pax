@@ -202,7 +202,7 @@ impl InstanceNode for PathInstance {
 
     fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
-            (properties.fill.get().max_alpha_0_1() * expanded_node.computed_opacity.get())
+            (properties.fill.get().coverage_alpha_0_1() * expanded_node.computed_opacity.get())
                 .clamp(0.0, 1.0)
         })
     }

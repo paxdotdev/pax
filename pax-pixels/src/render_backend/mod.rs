@@ -388,14 +388,18 @@ impl<'w> RenderBackend<'w> {
             .formats
             .iter()
             .copied()
-            .find(|format| format.is_srgb())
+            .find(|format| {
+                matches!(
+                    format,
+                    TextureFormat::Bgra8Unorm | TextureFormat::Rgba8Unorm
+                )
+            })
             .or_else(|| {
-                surface_caps.formats.iter().copied().find(|format| {
-                    matches!(
-                        format,
-                        TextureFormat::Bgra8Unorm | TextureFormat::Rgba8Unorm
-                    )
-                })
+                surface_caps
+                    .formats
+                    .iter()
+                    .copied()
+                    .find(|format| format.is_srgb())
             })
             .or_else(|| {
                 surface_caps

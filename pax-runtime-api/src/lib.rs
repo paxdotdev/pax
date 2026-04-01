@@ -2017,6 +2017,64 @@ impl Default for Fill {
 }
 
 impl Fill {
+    fn gradient_stop_position_0_1(position: &Size) -> Option<f64> {
+        match position {
+            Size::Percent(p) => Some((p.to_float() / 100.0).clamp(0.0, 1.0)),
+            Size::Pixels(_) | Size::Combined(_, _) => None,
+        }
+    }
+
+    fn integrated_gradient_alpha_0_1(stops: &[GradientStop]) -> f64 {
+        if stops.is_empty() {
+            return 0.0;
+        }
+
+        let mut positioned_stops = stops
+            .iter()
+            .filter_map(|stop| {
+                Self::gradient_stop_position_0_1(&stop.position)
+                    .map(|position| (position, stop.color.alpha_0_1()))
+            })
+            .collect::<Vec<_>>();
+
+        if positioned_stops.is_empty() {
+            return stops
+                .iter()
+                .map(|stop| stop.color.alpha_0_1())
+                .fold(0.0, f64::max);
+        }
+
+        positioned_stops.sort_by(|lhs, rhs| lhs.0.total_cmp(&rhs.0));
+
+        if positioned_stops.first().map(|stop| stop.0 > 0.0).unwrap_or(false) {
+            let alpha = positioned_stops[0].1;
+            positioned_stops.insert(0, (0.0, alpha));
+        }
+
+        if positioned_stops
+            .last()
+            .map(|stop| stop.0 < 1.0)
+            .unwrap_or(false)
+        {
+            let alpha = positioned_stops.last().map(|stop| stop.1).unwrap_or(0.0);
+            positioned_stops.push((1.0, alpha));
+        }
+
+        let mut integrated_alpha = 0.0;
+        for window in positioned_stops.windows(2) {
+            let [(start_pos, start_alpha), (end_pos, end_alpha)] = window else {
+                continue;
+            };
+            let span = (end_pos - start_pos).clamp(0.0, 1.0);
+            if span <= f64::EPSILON {
+                continue;
+            }
+            integrated_alpha += (start_alpha + end_alpha) * 0.5 * span;
+        }
+
+        integrated_alpha.clamp(0.0, 1.0)
+    }
+
     pub fn to_unit_point((x, y): (Size, Size), (width, height): (f64, f64)) -> UnitPoint {
         let normalized_x = match x {
             Size::Pixels(val) => val.to_float() / width,
@@ -2101,6 +2159,52 @@ impl Fill {
                 .map(|stop| stop.color.alpha_0_1())
                 .fold(0.0, f64::max),
         }
+    }
+
+    pub fn coverage_alpha_0_1(&self) -> f64 {
+        match self {
+            Fill::Solid(color) => color.alpha_0_1(),
+            Fill::LinearGradient(gradient) => {
+                Self::integrated_gradient_alpha_0_1(&gradient.stops)
+            }
+            Fill::RadialGradient(gradient) => {
+                Self::integrated_gradient_alpha_0_1(&gradient.stops)
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod fill_coverage_tests {
+    use super::{Color, ColorChannel, Fill, GradientStop, LinearGradient, Numeric, Size};
+
+    fn rgba_alpha(alpha: u8) -> Color {
+        Color::rgba(
+            ColorChannel::Integer(0),
+            ColorChannel::Integer(0),
+            ColorChannel::Integer(0),
+            ColorChannel::Integer(alpha),
+        )
+    }
+
+    #[test]
+    fn coverage_alpha_matches_solid_alpha() {
+        let fill = Fill::Solid(rgba_alpha(128));
+        assert!((fill.coverage_alpha_0_1() - (128.0 / 255.0)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn coverage_alpha_integrates_gradient_stops() {
+        let fill = Fill::LinearGradient(LinearGradient {
+            start: (Size::Percent(Numeric::F64(0.0)), Size::Percent(Numeric::F64(50.0))),
+            end: (Size::Percent(Numeric::F64(100.0)), Size::Percent(Numeric::F64(50.0))),
+            stops: vec![
+                GradientStop::get(rgba_alpha(0), Size::Percent(Numeric::F64(0.0))),
+                GradientStop::get(rgba_alpha(255), Size::Percent(Numeric::F64(50.0))),
+                GradientStop::get(rgba_alpha(0), Size::Percent(Numeric::F64(100.0))),
+            ],
+        });
+        assert!((fill.coverage_alpha_0_1() - 0.5).abs() < 1e-6);
     }
 }
 
