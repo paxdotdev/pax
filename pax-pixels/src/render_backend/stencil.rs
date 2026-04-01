@@ -1,6 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 use lyon::tessellation::VertexBuffers;
 use std::collections::{HashMap, HashSet};
+use crate::Transform2D;
 use wgpu::util::DeviceExt;
 use wgpu::{BufferUsages, Device, Queue, RenderPipeline};
 
@@ -21,17 +22,53 @@ struct CachedStencilGeometry {
     index_count: u32,
 }
 
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Pod, Zeroable)]
+struct GpuStencilTransform {
+    xx: f32,
+    xy: f32,
+    yx: f32,
+    yy: f32,
+    zx: f32,
+    zy: f32,
+    _pad0: f32,
+    _pad1: f32,
+}
+
+impl From<Transform2D> for GpuStencilTransform {
+    fn from(transform: Transform2D) -> Self {
+        let [[xx, xy], [yx, yy], [zx, zy]] = transform.to_arrays();
+        Self {
+            xx,
+            xy,
+            yx,
+            yy,
+            zx,
+            zy,
+            _pad0: 0.0,
+            _pad1: 0.0,
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+struct StencilStackEntry {
+    geometry_signature: u64,
+    transform: GpuStencilTransform,
+}
+
 pub struct StencilRenderer {
     stencil_pipeline: RenderPipeline,
     decrement_pipeline: RenderPipeline,
     stencil_texture: wgpu::Texture,
     stencil_view: wgpu::TextureView,
     stencil_layer: u32,
-    stencil_geometry_stack: Vec<u64>,
+    stencil_geometry_stack: Vec<StencilStackEntry>,
     cached_geometry: HashMap<u64, CachedStencilGeometry>,
     width: u32,
     height: u32,
     sample_count: u32,
+    stencil_transform_buffer: wgpu::Buffer,
     stencil_bind_group: wgpu::BindGroup,
     _stencil_bind_group_layout: wgpu::BindGroupLayout,
 }
@@ -57,25 +94,50 @@ impl StencilRenderer {
 
         let stencil_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                }],
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::VERTEX,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                ],
                 label: Some("stencil_bind_group_layout"),
+            });
+
+        let stencil_transform_buffer =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Stencil Transform Buffer"),
+                contents: bytemuck::bytes_of(&GpuStencilTransform::from(Transform2D::identity())),
+                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             });
 
         let stencil_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &stencil_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: globals.as_entire_binding(),
-            }],
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: globals.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: stencil_transform_buffer.as_entire_binding(),
+                },
+            ],
             label: Some("stencil_bind_group"),
         });
 
@@ -207,6 +269,7 @@ impl StencilRenderer {
             stencil_layer: 0,
             stencil_geometry_stack: vec![],
             cached_geometry: HashMap::new(),
+            stencil_transform_buffer,
             stencil_bind_group,
             _stencil_bind_group_layout: stencil_bind_group_layout,
         }
@@ -288,12 +351,19 @@ impl StencilRenderer {
         queue: &Queue,
         signature: u64,
         geometry: &VertexBuffers<Vertex, u16>,
+        transform: Transform2D,
     ) {
         self.ensure_cached_geometry(device, signature, geometry);
         let cached_geometry = self
             .cached_geometry
             .get(&signature)
             .expect("cached stencil geometry should exist after insertion");
+        let gpu_transform = GpuStencilTransform::from(transform);
+        queue.write_buffer(
+            &self.stencil_transform_buffer,
+            0,
+            bytemuck::bytes_of(&gpu_transform),
+        );
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Stencil Encoder"),
         });
@@ -326,21 +396,32 @@ impl StencilRenderer {
         }
 
         queue.submit(std::iter::once(encoder.finish()));
-        self.stencil_geometry_stack.push(signature);
+        self.stencil_geometry_stack.push(StencilStackEntry {
+            geometry_signature: signature,
+            transform: gpu_transform,
+        });
         self.stencil_layer += 1;
     }
 
     pub fn reset_stencil_depth_to(&mut self, device: &Device, queue: &Queue, depth: u32) {
         while self.stencil_layer > depth {
-            let Some(signature) = self.stencil_geometry_stack.pop() else {
+            let Some(entry) = self.stencil_geometry_stack.pop() else {
                 log::error!("geometry stack shouldn't be embty when stencil layer > 0");
                 break;
             };
-            let Some(cached_geometry) = self.cached_geometry.get(&signature) else {
-                log::error!("missing cached stencil geometry for signature {}", signature);
+            let Some(cached_geometry) = self.cached_geometry.get(&entry.geometry_signature) else {
+                log::error!(
+                    "missing cached stencil geometry for signature {}",
+                    entry.geometry_signature
+                );
                 self.stencil_layer = self.stencil_layer.saturating_sub(1);
                 continue;
             };
+            queue.write_buffer(
+                &self.stencil_transform_buffer,
+                0,
+                bytemuck::bytes_of(&entry.transform),
+            );
 
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Stencil Pop Encoder"),
@@ -380,7 +461,11 @@ impl StencilRenderer {
     }
 
     pub fn retain_cached_geometry(&mut self, active_signatures: &HashSet<u64>) {
-        let stack_signatures: HashSet<u64> = self.stencil_geometry_stack.iter().copied().collect();
+        let stack_signatures: HashSet<u64> = self
+            .stencil_geometry_stack
+            .iter()
+            .map(|entry| entry.geometry_signature)
+            .collect();
         self.cached_geometry.retain(|signature, _| {
             active_signatures.contains(signature) || stack_signatures.contains(signature)
         });

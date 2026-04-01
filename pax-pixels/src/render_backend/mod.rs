@@ -714,10 +714,11 @@ impl<'w> RenderBackend<'w> {
         &mut self,
         signature: u64,
         geometry: &VertexBuffers<stencil::Vertex, u16>,
+        transform: Transform2D,
     ) {
         // self.stencil_renderer.clear(&self.device, &self.queue);
         self.stencil_renderer
-            .push_stencil(&self.device, &self.queue, signature, geometry);
+            .push_stencil(&self.device, &self.queue, signature, geometry, transform);
     }
 
     pub fn reset_stencil_depth_to(&mut self, depth: u32) {
@@ -1045,9 +1046,10 @@ impl<'w> RenderBackend<'w> {
         &mut self,
         signature: u64,
         geometry: &VertexBuffers<stencil::Vertex, u16>,
+        transform: Transform2D,
     ) {
         self.stencil_renderer
-            .push_stencil(&self.device, &self.queue, signature, geometry);
+            .push_stencil(&self.device, &self.queue, signature, geometry, transform);
     }
 
     pub(crate) fn retain_stencil_geometry(&mut self, active_signatures: &HashSet<u64>) {

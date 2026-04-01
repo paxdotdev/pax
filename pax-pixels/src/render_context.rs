@@ -289,7 +289,7 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     pub fn clip(&mut self, path: Path) {
-        let path = path.transformed(&self.current_transform());
+        let transform = self.current_transform();
         let options = FillOptions::tolerance(self.tolerance);
         let mut geometry = VertexBuffers::new();
         let mut geometry_builder =
@@ -300,9 +300,12 @@ impl<'w> WgpuRenderer<'w> {
             Ok(_) => {}
             Err(e) => log::warn!("{:?}", e),
         };
+        let geometry_signature = hash_clip_geometry(&geometry);
         self.clip_stack.push(ClipGeometry {
-            signature: hash_clip_geometry(&geometry),
+            geometry_signature,
+            state_signature: hash_clip_state(geometry_signature, &transform),
             geometry,
+            transform,
         });
     }
 
@@ -573,8 +576,10 @@ struct SceneStateSave {
 
 #[derive(Clone)]
 struct ClipGeometry {
-    signature: u64,
+    geometry_signature: u64,
+    state_signature: u64,
     geometry: VertexBuffers<stencil::Vertex, u16>,
+    transform: Transform2D,
 }
 
 struct PendingNode {
@@ -1066,7 +1071,10 @@ fn sync_clip_stack<'w>(
     current_clip_stack: &mut Vec<u64>,
     desired_clip_stack: &[ClipGeometry],
 ) {
-    let desired_signatures: Vec<u64> = desired_clip_stack.iter().map(|clip| clip.signature).collect();
+    let desired_signatures: Vec<u64> = desired_clip_stack
+        .iter()
+        .map(|clip| clip.state_signature)
+        .collect();
     let shared_prefix = current_clip_stack
         .iter()
         .zip(desired_signatures.iter())
@@ -1075,8 +1083,12 @@ fn sync_clip_stack<'w>(
     render_backend.reset_stencil_depth_to(shared_prefix as u32);
     current_clip_stack.truncate(shared_prefix);
     for clip in desired_clip_stack.iter().skip(shared_prefix) {
-        render_backend.push_stencil_geometry(clip.signature, &clip.geometry);
-        current_clip_stack.push(clip.signature);
+        render_backend.push_stencil_geometry(
+            clip.geometry_signature,
+            &clip.geometry,
+            clip.transform,
+        );
+        current_clip_stack.push(clip.state_signature);
     }
 }
 
@@ -1084,7 +1096,7 @@ fn collect_active_clip_signatures(scene: &HashMap<u32, RetainedNode>) -> HashSet
     let mut signatures = HashSet::new();
     for node in scene.values() {
         for clip in node.clip_stack() {
-            signatures.insert(clip.signature);
+            signatures.insert(clip.geometry_signature);
         }
     }
     signatures
@@ -1095,7 +1107,18 @@ fn clip_stacks_match(left: &[ClipGeometry], right: &[ClipGeometry]) -> bool {
         && left
             .iter()
             .zip(right.iter())
-            .all(|(left, right)| left.signature == right.signature)
+            .all(|(left, right)| left.state_signature == right.state_signature)
+}
+
+fn hash_clip_state(geometry_signature: u64, transform: &Transform2D) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    geometry_signature.hash(&mut hasher);
+    for row in transform.to_arrays() {
+        for value in row {
+            value.to_bits().hash(&mut hasher);
+        }
+    }
+    hasher.finish()
 }
 
 #[derive(Debug, Clone, Copy)]
