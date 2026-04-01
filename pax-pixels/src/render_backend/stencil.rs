@@ -1,7 +1,7 @@
+use crate::Transform2D;
 use bytemuck::{Pod, Zeroable};
 use lyon::tessellation::VertexBuffers;
 use std::collections::{HashMap, HashSet};
-use crate::Transform2D;
 use wgpu::util::DeviceExt;
 use wgpu::{BufferUsages, Device, Queue, RenderPipeline};
 

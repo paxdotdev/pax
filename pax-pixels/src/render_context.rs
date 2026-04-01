@@ -1,12 +1,13 @@
 use crate::render_backend::stencil;
 use crate::render_backend::CpuBuffers;
+use crate::render_backend::RetainedDraw;
+use crate::render_backend::RetainedImageDraw;
+use crate::render_backend::RetainedVectorResource;
 use crate::render_backend::MAX_BATCH_COLORS;
 use crate::render_backend::MAX_BATCH_GRADIENTS;
 use crate::render_backend::MAX_BATCH_PRIMITIVES;
 use crate::render_backend::MAX_BATCH_TRANSFORMS;
-use crate::render_backend::RetainedDraw;
-use crate::render_backend::RetainedImageDraw;
-use crate::render_backend::RetainedVectorResource;
+use crate::render_backend::MAX_SCENE_TRANSFORMS;
 use crate::Box2D;
 use crate::Image;
 use crate::Point2D;
@@ -17,8 +18,8 @@ use lyon::lyon_tessellation::FillOptions;
 use lyon::lyon_tessellation::FillTessellator;
 use lyon::lyon_tessellation::FillVertex;
 use lyon::lyon_tessellation::VertexBuffers;
-use lyon::path::PathEvent;
 use lyon::path::Path;
+use lyon::path::PathEvent;
 use lyon::tessellation::StrokeOptions;
 use lyon::tessellation::StrokeTessellator;
 use lyon::tessellation::StrokeVertex;
@@ -30,16 +31,17 @@ use crate::render_backend::data::GpuTransform;
 use crate::render_backend::data::GpuVertex;
 use crate::render_backend::CachedTextureResource;
 use crate::render_backend::RenderBackend;
+use crate::render_backend::VectorResourceDirty;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
-use crate::render_backend::VectorResourceDirty;
 
 const DEFAULT_TESSELLATION_TOLERANCE: f32 = 0.1;
 
 pub struct WgpuRenderer<'w> {
     render_backend: RenderBackend<'w>,
     scene: HashMap<u32, RetainedNode>,
+    transform_arena: TransformArena,
     sorted_nodes: Vec<(i32, u32)>,
     order_dirty: bool,
     scene_dirty: bool,
@@ -56,12 +58,108 @@ struct CachedImageEntry {
     version: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct TransformArenaKey {
+    node_id: u32,
+    op_index: u32,
+}
+
+struct TransformArena {
+    slots: Vec<GpuTransform>,
+    entries: HashMap<TransformArenaKey, u32>,
+    free_slots: Vec<u32>,
+    next_slot: u32,
+    dirty: bool,
+}
+
+impl TransformArena {
+    fn new() -> Self {
+        Self {
+            slots: vec![GpuTransform::default(); MAX_SCENE_TRANSFORMS],
+            entries: HashMap::new(),
+            free_slots: Vec::new(),
+            next_slot: 1,
+            dirty: true,
+        }
+    }
+
+    fn sync_node(
+        &mut self,
+        node_id: u32,
+        ops: &[PendingVectorOp],
+    ) -> (Vec<TransformArenaKey>, Vec<u32>) {
+        let mut keys = Vec::with_capacity(ops.len());
+        let mut ids = Vec::with_capacity(ops.len());
+        for (op_index, op) in ops.iter().enumerate() {
+            let key = TransformArenaKey {
+                node_id,
+                op_index: op_index as u32,
+            };
+            let slot = self.entries.get(&key).copied().unwrap_or_else(|| {
+                let slot = self
+                    .free_slots
+                    .pop()
+                    .or_else(|| {
+                        ((self.next_slot as usize) < MAX_SCENE_TRANSFORMS).then(|| {
+                            let slot = self.next_slot;
+                            self.next_slot += 1;
+                            slot
+                        })
+                    })
+                    .unwrap_or_else(|| {
+                        log::error!(
+                            "transform arena capacity exceeded (capacity {})",
+                            MAX_SCENE_TRANSFORMS
+                        );
+                        0
+                    });
+                self.entries.insert(key, slot);
+                self.dirty = true;
+                slot
+            });
+            let value = GpuTransform {
+                transform: op.transform.to_arrays(),
+                opacity: op.opacity,
+                ..GpuTransform::default()
+            };
+            if self.slots[slot as usize].transform != value.transform
+                || (self.slots[slot as usize].opacity - value.opacity).abs() > f32::EPSILON
+            {
+                self.slots[slot as usize] = value;
+                self.dirty = true;
+            }
+            keys.push(key);
+            ids.push(slot);
+        }
+        (keys, ids)
+    }
+
+    fn release_keys(&mut self, keys: &[TransformArenaKey]) {
+        for key in keys {
+            if let Some(slot) = self.entries.remove(key) {
+                if slot != 0 {
+                    self.free_slots.push(slot);
+                }
+            }
+        }
+    }
+
+    fn flush_to_gpu<'w>(&mut self, render_backend: &RenderBackend<'w>) {
+        if !self.dirty {
+            return;
+        }
+        render_backend.update_scene_transforms(&self.slots);
+        self.dirty = false;
+    }
+}
+
 impl<'w> WgpuRenderer<'w> {
     pub fn new(render_backend: RenderBackend<'w>) -> Self {
         Self {
             render_backend,
             tolerance: DEFAULT_TESSELLATION_TOLERANCE, // TODO expose as option
             scene: HashMap::new(),
+            transform_arena: TransformArena::new(),
             sorted_nodes: Vec::new(),
             order_dirty: false,
             scene_dirty: false,
@@ -166,10 +264,7 @@ impl<'w> WgpuRenderer<'w> {
         let Some(current_node) = self.current_node.as_mut() else {
             return;
         };
-        current_node.kind = PendingNodeKind::Image(PendingImageNode {
-            draw,
-            clip_stack,
-        });
+        current_node.kind = PendingNodeKind::Image(PendingImageNode { draw, clip_stack });
     }
 
     pub fn flush(&mut self) {
@@ -199,6 +294,7 @@ impl<'w> WgpuRenderer<'w> {
             return;
         }
         self.ensure_vector_resources_for_immediate_scene();
+        self.transform_arena.flush_to_gpu(&self.render_backend);
         let mut current_clip_stack: Vec<u64> = Vec::new();
         let mut current_batch: Vec<RetainedDraw<'_>> = Vec::new();
         let mut current_batch_clip_stack: Option<Vec<ClipGeometry>> = None;
@@ -230,7 +326,8 @@ impl<'w> WgpuRenderer<'w> {
                     current_batch.push(RetainedDraw::Vector(resource));
                 }
                 RetainedNode::Image(node) => {
-                    let Some(texture) = self.cached_images.get(&node.draw.resource.image_key) else {
+                    let Some(texture) = self.cached_images.get(&node.draw.resource.image_key)
+                    else {
                         continue;
                     };
                     current_batch.push(RetainedDraw::Image {
@@ -322,7 +419,8 @@ impl<'w> WgpuRenderer<'w> {
 
     pub fn set_viewport(&mut self, width: f32, height: f32, dpr: f32) {
         self.scene_dirty = true;
-        self.render_backend.set_viewport(width, height, dpr.max(1.0));
+        self.render_backend
+            .set_viewport(width, height, dpr.max(1.0));
     }
 
     pub fn max_surface_dimension(&self) -> u32 {
@@ -351,8 +449,16 @@ impl<'w> WgpuRenderer<'w> {
             return false;
         }
 
+        let previous = self.scene.remove(&node_id);
+        let prev_z = previous.as_ref().map(|node| node.z_index());
+
         let updated = match pending_node.kind {
-            PendingNodeKind::Empty => None,
+            PendingNodeKind::Empty => {
+                if let Some(RetainedNode::Vector(existing)) = previous.as_ref() {
+                    self.transform_arena.release_keys(&existing.transform_keys);
+                }
+                None
+            }
             PendingNodeKind::Vector(buffers) => {
                 let geometry_signatures = buffers
                     .ops
@@ -361,46 +467,55 @@ impl<'w> WgpuRenderer<'w> {
                     .collect::<Vec<_>>();
                 let fill_signature = hash_vector_fills(&buffers.ops);
                 let transform_signature = hash_vector_transforms(&buffers.ops);
-                let transform_layout_signature = hash_vector_transform_layout(&buffers.ops);
-                if let Some(RetainedNode::Vector(existing)) = self.scene.get_mut(&node_id) {
-                    let prev_z = existing.z_index;
-                    let reuse_geometry = existing.geometry_signatures == geometry_signatures;
-                    let geometry_changed = !reuse_geometry;
-                    let fill_changed = existing.fill_signature != fill_signature;
-                    let transform_changed =
-                        existing.transform_signature != transform_signature;
-                    let transform_layout_changed =
-                        existing.transform_layout_signature != transform_layout_signature;
-                    if geometry_changed || fill_changed || transform_changed {
-                        rebuild_vector_buffers(
-                            self.tolerance,
-                            &buffers.ops,
-                            &mut existing.buffers,
-                            reuse_geometry,
-                            !fill_changed,
-                        );
-                    }
-                    existing.clip_stack = buffers.clip_stack;
-                    existing.z_index = pending_node.z_index;
-                    existing.resource_dirty.geometry |= geometry_changed;
-                    existing.resource_dirty.primitives |=
-                        geometry_changed || fill_changed || transform_layout_changed;
-                    existing.resource_dirty.transforms |= transform_changed;
-                    existing.resource_dirty.fill |= fill_changed;
-                    existing.geometry_signatures = geometry_signatures;
-                    existing.fill_signature = fill_signature;
-                    existing.transform_signature = transform_signature;
-                    existing.transform_layout_signature = transform_layout_signature;
-                    if prev_z != pending_node.z_index {
-                        self.order_dirty = true;
-                    }
-                    self.scene_dirty = true;
-                    return true;
-                }
+                let (transform_keys, transform_ids) =
+                    self.transform_arena.sync_node(node_id, &buffers.ops);
+                let transform_layout_signature = hash_transform_ids(&transform_ids);
 
-                Some(RetainedNode::Vector(RetainedVectorNode {
-                    resource: None,
-                    buffers: {
+                match previous {
+                    Some(RetainedNode::Vector(mut existing)) => {
+                        if existing.transform_keys.len() > transform_keys.len() {
+                            self.transform_arena
+                                .release_keys(&existing.transform_keys[transform_keys.len()..]);
+                        }
+                        let reuse_geometry = existing.geometry_signatures == geometry_signatures;
+                        let geometry_changed = !reuse_geometry;
+                        let fill_changed = existing.fill_signature != fill_signature;
+                        let transform_changed = existing.transform_signature != transform_signature;
+                        let transform_layout_changed =
+                            existing.transform_layout_signature != transform_layout_signature;
+
+                        if geometry_changed || fill_changed || transform_changed {
+                            rebuild_vector_buffers(
+                                self.tolerance,
+                                &buffers.ops,
+                                &mut existing.buffers,
+                                reuse_geometry,
+                                !fill_changed,
+                            );
+                        }
+
+                        if geometry_changed || fill_changed || transform_layout_changed {
+                            existing.retained_primitives = build_retained_primitives(
+                                &existing.buffers.primitives,
+                                &transform_ids,
+                            );
+                        }
+
+                        existing.transform_keys = transform_keys;
+                        existing.clip_stack = buffers.clip_stack;
+                        existing.z_index = pending_node.z_index;
+                        existing.resource_dirty.geometry |= geometry_changed;
+                        existing.resource_dirty.primitives |=
+                            geometry_changed || fill_changed || transform_layout_changed;
+                        existing.resource_dirty.transforms = false;
+                        existing.resource_dirty.fill |= fill_changed;
+                        existing.geometry_signatures = geometry_signatures;
+                        existing.fill_signature = fill_signature;
+                        existing.transform_signature = transform_signature;
+                        existing.transform_layout_signature = transform_layout_signature;
+                        Some(RetainedNode::Vector(existing))
+                    }
+                    Some(RetainedNode::Image(_)) | None => {
                         let mut buffers_out = new_cpu_buffers();
                         rebuild_vector_buffers(
                             self.tolerance,
@@ -409,32 +524,43 @@ impl<'w> WgpuRenderer<'w> {
                             false,
                             false,
                         );
-                        buffers_out
-                    },
-                    clip_stack: buffers.clip_stack,
+                        let retained_primitives =
+                            build_retained_primitives(&buffers_out.primitives, &transform_ids);
+                        Some(RetainedNode::Vector(RetainedVectorNode {
+                            resource: None,
+                            buffers: buffers_out,
+                            retained_primitives,
+                            transform_keys,
+                            clip_stack: buffers.clip_stack,
+                            z_index: pending_node.z_index,
+                            resource_dirty: VectorResourceDirty {
+                                geometry: true,
+                                primitives: true,
+                                transforms: false,
+                                fill: true,
+                            },
+                            geometry_signatures,
+                            fill_signature,
+                            transform_signature,
+                            transform_layout_signature,
+                        }))
+                    }
+                }
+            }
+            PendingNodeKind::Image(image_node) => {
+                if let Some(RetainedNode::Vector(existing)) = previous.as_ref() {
+                    self.transform_arena.release_keys(&existing.transform_keys);
+                }
+                Some(RetainedNode::Image(RetainedImageNode {
+                    draw: image_node.draw,
+                    clip_stack: image_node.clip_stack,
                     z_index: pending_node.z_index,
-                    resource_dirty: VectorResourceDirty {
-                        geometry: true,
-                        primitives: true,
-                        transforms: true,
-                        fill: true,
-                    },
-                    geometry_signatures,
-                    fill_signature,
-                    transform_signature,
-                    transform_layout_signature,
                 }))
             }
-            PendingNodeKind::Image(image_node) => Some(RetainedNode::Image(RetainedImageNode {
-                draw: image_node.draw,
-                clip_stack: image_node.clip_stack,
-                z_index: pending_node.z_index,
-            })),
         };
 
         match updated {
             Some(node) => {
-                let prev_z = self.scene.get(&node_id).map(|node| node.z_index());
                 self.scene.insert(node_id, node);
                 if prev_z != Some(pending_node.z_index) {
                     self.order_dirty = true;
@@ -442,7 +568,7 @@ impl<'w> WgpuRenderer<'w> {
                 self.scene_dirty = true;
             }
             None => {
-                if self.scene.remove(&node_id).is_some() {
+                if prev_z.is_some() {
                     self.order_dirty = true;
                     self.scene_dirty = true;
                 }
@@ -452,7 +578,10 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     pub fn remove_node(&mut self, node_id: u32) -> bool {
-        if self.scene.remove(&node_id).is_some() {
+        if let Some(node) = self.scene.remove(&node_id) {
+            if let RetainedNode::Vector(node) = &node {
+                self.transform_arena.release_keys(&node.transform_keys);
+            }
             self.order_dirty = true;
             self.scene_dirty = true;
         }
@@ -479,7 +608,11 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     fn ensure_vector_resources_for_immediate_scene(&mut self) {
-        let node_ids: Vec<u32> = self.sorted_nodes.iter().map(|(_, node_id)| *node_id).collect();
+        let node_ids: Vec<u32> = self
+            .sorted_nodes
+            .iter()
+            .map(|(_, node_id)| *node_id)
+            .collect();
         for node_id in node_ids {
             let Some(RetainedNode::Vector(node)) = self.scene.get_mut(&node_id) else {
                 continue;
@@ -490,17 +623,24 @@ impl<'w> WgpuRenderer<'w> {
 
             match node.resource.as_mut() {
                 Some(resource) => {
-                    if !self
-                        .render_backend
-                        .update_vector_resource(resource, &mut node.buffers, node.resource_dirty)
-                    {
-                        node.resource = Some(
-                            self.render_backend.create_vector_resource(&mut node.buffers),
-                        );
+                    if !self.render_backend.update_vector_resource(
+                        resource,
+                        &mut node.buffers,
+                        &node.retained_primitives,
+                        node.resource_dirty,
+                    ) {
+                        node.resource =
+                            Some(self.render_backend.create_vector_resource(
+                                &mut node.buffers,
+                                &node.retained_primitives,
+                            ));
                     }
                 }
                 None => {
-                    node.resource = Some(self.render_backend.create_vector_resource(&mut node.buffers));
+                    node.resource = Some(
+                        self.render_backend
+                            .create_vector_resource(&mut node.buffers, &node.retained_primitives),
+                    );
                 }
             }
             node.resource_dirty = VectorResourceDirty::default();
@@ -643,6 +783,8 @@ impl RetainedNode {
 struct RetainedVectorNode {
     resource: Option<RetainedVectorResource>,
     buffers: CpuBuffers,
+    retained_primitives: Vec<GpuPrimitive>,
+    transform_keys: Vec<TransformArenaKey>,
     clip_stack: Vec<ClipGeometry>,
     z_index: i32,
     resource_dirty: VectorResourceDirty,
@@ -666,6 +808,20 @@ fn new_cpu_buffers() -> CpuBuffers {
         gradients: Vec::new(),
         transforms: vec![GpuTransform::default()],
     }
+}
+
+fn build_retained_primitives(
+    local_primitives: &[GpuPrimitive],
+    transform_ids: &[u32],
+) -> Vec<GpuPrimitive> {
+    local_primitives
+        .iter()
+        .zip(transform_ids.iter().copied())
+        .map(|(primitive, transform_id)| GpuPrimitive {
+            transform_id,
+            ..*primitive
+        })
+        .collect()
 }
 
 fn rebuild_vector_buffers(
@@ -716,9 +872,11 @@ fn rebuild_vector_buffers(
                         normal: [0.0; 2],
                         prim_id,
                     });
-                if let Err(err) = FillTessellator::new()
-                    .tessellate_path(&op.path, &options, &mut geometry_builder)
-                {
+                if let Err(err) = FillTessellator::new().tessellate_path(
+                    &op.path,
+                    &options,
+                    &mut geometry_builder,
+                ) {
                     log::warn!("{:?}", err);
                 }
             }
@@ -730,9 +888,11 @@ fn rebuild_vector_buffers(
                         normal: [0.0; 2],
                         prim_id,
                     });
-                if let Err(err) = StrokeTessellator::new()
-                    .tessellate_path(&op.path, &options, &mut geometry_builder)
-                {
+                if let Err(err) = StrokeTessellator::new().tessellate_path(
+                    &op.path,
+                    &options,
+                    &mut geometry_builder,
+                ) {
                     log::warn!("{:?}", err);
                 }
             }
@@ -743,11 +903,9 @@ fn rebuild_vector_buffers(
 fn append_cpu_buffers(dst: &mut CpuBuffers, src: &CpuBuffers) {
     let vertex_offset = dst.geometry.vertices.len() as u16;
     let primitive_offset = dst.primitives.len() as u32;
-    let src_uses_only_identity_transform =
-        src.transforms.len() == 1
-            && src.transforms[0].transform == GpuTransform::default().transform
-            && (src.transforms[0].opacity - GpuTransform::default().opacity).abs()
-                <= f32::EPSILON;
+    let src_uses_only_identity_transform = src.transforms.len() == 1
+        && src.transforms[0].transform == GpuTransform::default().transform
+        && (src.transforms[0].opacity - GpuTransform::default().opacity).abs() <= f32::EPSILON;
     let transform_offset = if src_uses_only_identity_transform {
         0
     } else {
@@ -756,31 +914,35 @@ fn append_cpu_buffers(dst: &mut CpuBuffers, src: &CpuBuffers) {
     let color_offset = dst.colors.len() as u16;
     let gradient_offset = dst.gradients.len() as u16;
 
-    dst.geometry.vertices.extend(src.geometry.vertices.iter().map(|vertex| {
-        let mut vertex = *vertex;
-        vertex.prim_id += primitive_offset;
-        vertex
-    }));
+    dst.geometry
+        .vertices
+        .extend(src.geometry.vertices.iter().map(|vertex| {
+            let mut vertex = *vertex;
+            vertex.prim_id += primitive_offset;
+            vertex
+        }));
     dst.geometry.indices.extend(
         src.geometry
             .indices
             .iter()
             .map(|index| index.saturating_add(vertex_offset)),
     );
-    dst.primitives.extend(src.primitives.iter().map(|primitive| {
-        let mut primitive = *primitive;
-        if primitive.transform_id != 0 {
-            primitive.transform_id += transform_offset;
-        }
-        if primitive.fill_type_flag == 0 {
-            primitive.fill_id = primitive.fill_id.saturating_add(color_offset);
-        } else {
-            primitive.fill_id = primitive.fill_id.saturating_add(gradient_offset);
-        }
-        primitive
-    }));
+    dst.primitives
+        .extend(src.primitives.iter().map(|primitive| {
+            let mut primitive = *primitive;
+            if primitive.transform_id != 0 {
+                primitive.transform_id += transform_offset;
+            }
+            if primitive.fill_type_flag == 0 {
+                primitive.fill_id = primitive.fill_id.saturating_add(color_offset);
+            } else {
+                primitive.fill_id = primitive.fill_id.saturating_add(gradient_offset);
+            }
+            primitive
+        }));
     if !src_uses_only_identity_transform {
-        dst.transforms.extend(src.transforms.iter().skip(1).copied());
+        dst.transforms
+            .extend(src.transforms.iter().skip(1).copied());
     }
     dst.colors.extend(src.colors.iter().copied());
     dst.gradients.extend(src.gradients.iter().copied());
@@ -795,14 +957,10 @@ fn push_transform_with_opacity(
         0
     } else {
         let transform_arrays = transform.to_arrays();
-        if let Some(transform_id) = buffers
-            .transforms
-            .iter()
-            .position(|existing| {
-                existing.transform == transform_arrays
-                    && (existing.opacity - opacity).abs() <= f32::EPSILON
-            })
-        {
+        if let Some(transform_id) = buffers.transforms.iter().position(|existing| {
+            existing.transform == transform_arrays
+                && (existing.opacity - opacity).abs() <= f32::EPSILON
+        }) {
             return transform_id as u32;
         }
 
@@ -844,19 +1002,10 @@ fn hash_vector_transforms(ops: &[PendingVectorOp]) -> u64 {
     hasher.finish()
 }
 
-fn hash_vector_transform_layout(ops: &[PendingVectorOp]) -> u64 {
+fn hash_transform_ids(transform_ids: &[u32]) -> u64 {
     let mut hasher = DefaultHasher::new();
-    let mut unique_states: Vec<([[f32; 2]; 3], u32)> = Vec::new();
-    ops.len().hash(&mut hasher);
-    for op in ops {
-        let state = (op.transform.to_arrays(), op.opacity.to_bits());
-        let transform_id = unique_states
-            .iter()
-            .position(|existing| *existing == state)
-            .unwrap_or_else(|| {
-                unique_states.push(state);
-                unique_states.len() - 1
-            });
+    transform_ids.len().hash(&mut hasher);
+    for transform_id in transform_ids {
         transform_id.hash(&mut hasher);
     }
     hasher.finish()

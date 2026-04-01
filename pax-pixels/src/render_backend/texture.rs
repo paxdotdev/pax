@@ -492,9 +492,7 @@ impl TextureVertex {
     }
 }
 
-pub(crate) fn corners_to_texture_vertices(
-    points: [[f32; 2]; 4],
-) -> [TextureVertex; 4] {
+pub(crate) fn corners_to_texture_vertices(points: [[f32; 2]; 4]) -> [TextureVertex; 4] {
     [
         TextureVertex {
             position: points[0],

@@ -1,8 +1,8 @@
 use anyhow::anyhow;
 use bytemuck::Pod;
+use std::collections::HashSet;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use std::ffi::c_void;
-use std::collections::HashSet;
 
 use lyon::lyon_tessellation::VertexBuffers;
 use wgpu::{
@@ -28,8 +28,8 @@ use crate::{
 };
 
 use self::{
-    gpu_resources::create_multisampled_framebuffer,
     data::{GpuColor, GpuGradient, GpuTransform},
+    gpu_resources::create_multisampled_framebuffer,
     stencil::StencilRenderer,
 };
 
@@ -50,6 +50,7 @@ pub(crate) const MAX_BATCH_PRIMITIVES: usize = 512;
 pub(crate) const MAX_BATCH_COLORS: usize = 512;
 pub(crate) const MAX_BATCH_GRADIENTS: usize = 64;
 pub(crate) const MAX_BATCH_TRANSFORMS: usize = 512;
+pub(crate) const MAX_SCENE_TRANSFORMS: usize = 1024;
 
 impl RenderConfig {
     pub fn new(_debug: bool, width: u32, height: u32, dpr: f32) -> Self {
@@ -60,7 +61,7 @@ impl RenderConfig {
             primitive_buffer_size: MAX_BATCH_PRIMITIVES as u64,
             colors_buffer_size: MAX_BATCH_COLORS as u64,
             gradients_buffer_size: MAX_BATCH_GRADIENTS as u64,
-            transforms_buffer_size: MAX_BATCH_TRANSFORMS as u64,
+            transforms_buffer_size: MAX_SCENE_TRANSFORMS as u64,
             initial_width: width,
             initial_height: height,
             initial_dpr: dpr,
@@ -138,11 +139,9 @@ pub(crate) struct RetainedVectorResource {
     vertex_capacity: usize,
     index_capacity: usize,
     primitive_capacity: usize,
-    transform_capacity: usize,
     color_capacity: usize,
     gradient_capacity: usize,
     _primitive_buffer: wgpu::Buffer,
-    _transforms_buffer: wgpu::Buffer,
     _colors_buffer: wgpu::Buffer,
     _gradients_buffer: wgpu::Buffer,
 }
@@ -228,8 +227,7 @@ impl<'w> RenderBackend<'w> {
             self.config.vertex_buffer_size = next_capacity(required_vertices);
             self.vertex_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Vertex Buffer"),
-                size: self.config.vertex_buffer_size
-                    * std::mem::size_of::<GpuVertex>() as u64,
+                size: self.config.vertex_buffer_size * std::mem::size_of::<GpuVertex>() as u64,
                 usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
@@ -248,15 +246,11 @@ impl<'w> RenderBackend<'w> {
         }
 
         if required_transforms > self.config.transforms_buffer_size as usize {
-            self.config.transforms_buffer_size = next_capacity(required_transforms);
-            self.transforms_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("Transforms Buffer"),
-                size: self.config.transforms_buffer_size
-                    * std::mem::size_of::<GpuTransform>() as u64,
-                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-            rebind_main_group = true;
+            log::error!(
+                "render backend: transform arena capacity exceeded (required {}, capacity {})",
+                required_transforms,
+                self.config.transforms_buffer_size
+            );
         }
 
         if required_colors > self.config.colors_buffer_size as usize {
@@ -274,8 +268,7 @@ impl<'w> RenderBackend<'w> {
             self.config.gradients_buffer_size = next_capacity(required_gradients);
             self.gradients_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Gradients Buffer"),
-                size: self.config.gradients_buffer_size
-                    * std::mem::size_of::<GpuGradient>() as u64,
+                size: self.config.gradients_buffer_size * std::mem::size_of::<GpuGradient>() as u64,
                 usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
@@ -313,7 +306,9 @@ impl<'w> RenderBackend<'w> {
         _canvas: web_sys::HtmlCanvasElement,
         _config: RenderConfig,
     ) -> Result<Self, anyhow::Error> {
-        Err(anyhow!("canvas surfaces are only supported on wasm32 targets"))
+        Err(anyhow!(
+            "canvas surfaces are only supported on wasm32 targets"
+        ))
     }
 
     #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -331,8 +326,9 @@ impl<'w> RenderBackend<'w> {
             memory_budget_thresholds: Default::default(),
             backend_options: Default::default(),
         });
-        let surface =
-            unsafe { instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::CoreAnimationLayer(layer))? };
+        let surface = unsafe {
+            instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::CoreAnimationLayer(layer))?
+        };
         RenderBackend::<'static>::new(surface, instance, config).await
     }
 
@@ -360,16 +356,14 @@ impl<'w> RenderBackend<'w> {
         #[cfg(not(target_arch = "wasm32"))]
         let required_limits = adapter.limits();
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: None,
-                    required_features: wgpu::Features::default(),
-                    required_limits,
-                    experimental_features: wgpu::ExperimentalFeatures::disabled(),
-                    memory_hints: wgpu::MemoryHints::Performance,
-                    trace: wgpu::Trace::Off,
-                },
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                label: None,
+                required_features: wgpu::Features::default(),
+                required_limits,
+                experimental_features: wgpu::ExperimentalFeatures::disabled(),
+                memory_hints: wgpu::MemoryHints::Performance,
+                trace: wgpu::Trace::Off,
+            })
             .await
             .expect("couldn't find device");
         let max_surface_dimension = device.limits().max_texture_dimension_2d;
@@ -393,7 +387,10 @@ impl<'w> RenderBackend<'w> {
             .find(|format| format.is_srgb())
             .or_else(|| {
                 surface_caps.formats.iter().copied().find(|format| {
-                    matches!(format, TextureFormat::Bgra8Unorm | TextureFormat::Rgba8Unorm)
+                    matches!(
+                        format,
+                        TextureFormat::Bgra8Unorm | TextureFormat::Rgba8Unorm
+                    )
                 })
             })
             .or_else(|| {
@@ -456,7 +453,10 @@ impl<'w> RenderBackend<'w> {
         }
 
         let globals = GpuGlobals {
-            resolution: [config.initial_width.max(1) as f32, config.initial_height.max(1) as f32],
+            resolution: [
+                config.initial_width.max(1) as f32,
+                config.initial_height.max(1) as f32,
+            ],
             dpr: config.initial_dpr,
             _pad2: 0.0,
         };
@@ -717,8 +717,13 @@ impl<'w> RenderBackend<'w> {
         transform: Transform2D,
     ) {
         // self.stencil_renderer.clear(&self.device, &self.queue);
-        self.stencil_renderer
-            .push_stencil(&self.device, &self.queue, signature, geometry, transform);
+        self.stencil_renderer.push_stencil(
+            &self.device,
+            &self.queue,
+            signature,
+            geometry,
+            transform,
+        );
     }
 
     pub fn reset_stencil_depth_to(&mut self, depth: u32) {
@@ -774,22 +779,61 @@ impl<'w> RenderBackend<'w> {
         self.max_surface_dimension
     }
 
+    fn create_retained_bind_group(
+        &self,
+        primitive_buffer: &wgpu::Buffer,
+        colors_buffer: &wgpu::Buffer,
+        gradients_buffer: &wgpu::Buffer,
+    ) -> BindGroup {
+        self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &self.primitive_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.globals_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: primitive_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: self.transforms_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: colors_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: gradients_buffer.as_entire_binding(),
+                },
+            ],
+            label: Some("retained_bind_group"),
+        })
+    }
+
     pub(crate) fn create_vector_resource(
         &self,
         buffers: &mut CpuBuffers,
+        retained_primitives: &[GpuPrimitive],
     ) -> RetainedVectorResource {
-        let (vertices, indices, mut primitives, mut transforms, mut colors, mut gradients) =
-            aligned_cpu_buffers(buffers);
+        let (vertices, indices, _, _, mut colors, mut gradients) = aligned_cpu_buffers(buffers);
         let vertex_capacity = vertices.len();
         let index_capacity = indices.len();
-        let primitive_capacity = primitives.len();
-        let transform_capacity = transforms.len();
+        let primitive_capacity = retained_primitives.len();
         let color_capacity = colors.len();
         let gradient_capacity = gradients.len();
-        primitives.resize(self.config.primitive_buffer_size as usize, GpuPrimitive::default());
-        transforms.resize(self.config.transforms_buffer_size as usize, GpuTransform::default());
+        let mut primitives = retained_primitives.to_vec();
+        primitives.resize(
+            self.config.primitive_buffer_size as usize,
+            GpuPrimitive::default(),
+        );
         colors.resize(self.config.colors_buffer_size as usize, GpuColor::default());
-        gradients.resize(self.config.gradients_buffer_size as usize, GpuGradient::default());
+        gradients.resize(
+            self.config.gradients_buffer_size as usize,
+            GpuGradient::default(),
+        );
         let vertex_buffer = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -811,13 +855,6 @@ impl<'w> RenderBackend<'w> {
                 contents: bytemuck::cast_slice(&primitives),
                 usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             });
-        let transforms_buffer = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Retained Transform Buffer"),
-                contents: bytemuck::cast_slice(&transforms),
-                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-            });
         let colors_buffer = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -832,32 +869,8 @@ impl<'w> RenderBackend<'w> {
                 contents: bytemuck::cast_slice(&gradients),
                 usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             });
-        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &self.primitive_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: self.globals_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: primitive_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: transforms_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: colors_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: gradients_buffer.as_entire_binding(),
-                },
-            ],
-            label: Some("retained_bind_group"),
-        });
+        let bind_group =
+            self.create_retained_bind_group(&primitive_buffer, &colors_buffer, &gradients_buffer);
 
         RetainedVectorResource {
             bind_group,
@@ -867,11 +880,9 @@ impl<'w> RenderBackend<'w> {
             vertex_capacity,
             index_capacity,
             primitive_capacity,
-            transform_capacity,
             color_capacity,
             gradient_capacity,
             _primitive_buffer: primitive_buffer,
-            _transforms_buffer: transforms_buffer,
             _colors_buffer: colors_buffer,
             _gradients_buffer: gradients_buffer,
         }
@@ -881,14 +892,13 @@ impl<'w> RenderBackend<'w> {
         &self,
         resource: &mut RetainedVectorResource,
         buffers: &mut CpuBuffers,
+        retained_primitives: &[GpuPrimitive],
         dirty: VectorResourceDirty,
     ) -> bool {
-        let (vertices, indices, primitives, transforms, colors, gradients) =
-            aligned_cpu_buffers(buffers);
+        let (vertices, indices, _, _, colors, gradients) = aligned_cpu_buffers(buffers);
         if vertices.len() > resource.vertex_capacity
             || indices.len() > resource.index_capacity
-            || primitives.len() > resource.primitive_capacity
-            || transforms.len() > resource.transform_capacity
+            || retained_primitives.len() > resource.primitive_capacity
             || colors.len() > resource.color_capacity
             || gradients.len() > resource.gradient_capacity
         {
@@ -904,14 +914,7 @@ impl<'w> RenderBackend<'w> {
             self.queue.write_buffer(
                 &resource._primitive_buffer,
                 0,
-                bytemuck::cast_slice(&primitives),
-            );
-        }
-        if dirty.transforms {
-            self.queue.write_buffer(
-                &resource._transforms_buffer,
-                0,
-                bytemuck::cast_slice(&transforms),
+                bytemuck::cast_slice(retained_primitives),
             );
         }
         if dirty.fill {
@@ -925,6 +928,11 @@ impl<'w> RenderBackend<'w> {
         }
         resource.index_count = buffers.geometry.indices.len() as u32;
         true
+    }
+
+    pub(crate) fn update_scene_transforms(&self, transforms: &[GpuTransform]) {
+        self.queue
+            .write_buffer(&self.transforms_buffer, 0, bytemuck::cast_slice(transforms));
     }
 
     #[allow(dead_code)]
@@ -974,11 +982,7 @@ impl<'w> RenderBackend<'w> {
         self.queue.submit(std::iter::once(encoder.finish()));
     }
 
-    pub(crate) fn draw_retained_batch(
-        &mut self,
-        stencil_index: u32,
-        draws: &[RetainedDraw<'_>],
-    ) {
+    pub(crate) fn draw_retained_batch(&mut self, stencil_index: u32, draws: &[RetainedDraw<'_>]) {
         if draws.is_empty() {
             return;
         }
@@ -1048,12 +1052,18 @@ impl<'w> RenderBackend<'w> {
         geometry: &VertexBuffers<stencil::Vertex, u16>,
         transform: Transform2D,
     ) {
-        self.stencil_renderer
-            .push_stencil(&self.device, &self.queue, signature, geometry, transform);
+        self.stencil_renderer.push_stencil(
+            &self.device,
+            &self.queue,
+            signature,
+            geometry,
+            transform,
+        );
     }
 
     pub(crate) fn retain_stencil_geometry(&mut self, active_signatures: &HashSet<u64>) {
-        self.stencil_renderer.retain_cached_geometry(active_signatures);
+        self.stencil_renderer
+            .retain_cached_geometry(active_signatures);
     }
 
     pub(crate) fn create_cached_texture(
