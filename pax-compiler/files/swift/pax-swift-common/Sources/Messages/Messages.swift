@@ -989,16 +989,18 @@ public class FrameElement {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
     public var clipContent: Bool
+    public var opacity: Double
     public var zIndex: Int
     public var transform: [Float]
     public var size_x: Float
     public var size_y: Float
     public var clipPath: String?
     
-    public init(id: PaxNodeId, parentFrame: PaxNodeId?, clipContent: Bool, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, clipPath: String? = nil) {
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, clipContent: Bool, opacity: Double, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, clipPath: String? = nil) {
         self.id = id
         self.parentFrame = parentFrame
         self.clipContent = clipContent
+        self.opacity = opacity
         self.zIndex = zIndex
         self.transform = transform
         self.size_x = size_x
@@ -1007,7 +1009,7 @@ public class FrameElement {
     }
     
     public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?) -> FrameElement {
-        FrameElement(id: id, parentFrame: parentFrame, clipContent: false, zIndex: 0, transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0)
+        FrameElement(id: id, parentFrame: parentFrame, clipContent: false, opacity: 1.0, zIndex: 0, transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0)
     }
     
     public func applyPatch(patch: FrameUpdatePatch) {
@@ -1024,6 +1026,9 @@ public class FrameElement {
         }
         if let clipContent = patch.clipContent {
             self.clipContent = clipContent
+        }
+        if let opacity = patch.opacity {
+            self.opacity = opacity
         }
         if let clipPath = patch.clipPath {
             self.clipPath = clipPath.isEmpty ? nil : clipPath
@@ -1046,6 +1051,7 @@ public class FrameUpdatePatch {
     public var size_y: Float?
     public var clipContent: Bool?
     public var clipPath: String?
+    public var opacity: Double?
     
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? 0
@@ -1054,6 +1060,7 @@ public class FrameUpdatePatch {
         self.size_y = fb["size_y"]?.asFloat
         self.clipContent = fb["clip_content"]?.asBool
         self.clipPath = fb["clip_path"]?.asString
+        self.opacity = readDouble(fb["opacity"])
     }
 }
 

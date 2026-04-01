@@ -10,7 +10,7 @@ use pax_message::{AnyCreatePatch, NativeInterrupt, ScrollerPatch};
 use pax_runtime::api::{Layer, Property};
 use pax_runtime::{ExpandedNode, InstanceNode, InstantiationArgs};
 
-use crate::common::patch_if_needed;
+use crate::common::{native_surface_opacity, patch_if_needed};
 
 /// A combination of a clipping area (nearly identical to a `Frame`,) and an
 /// inner panel that can be scrolled on zero or more axes.  `Scroller` coordinates with each chassis to
@@ -166,7 +166,7 @@ impl InstanceNode for ScrollbarInstance {
                             patch_if_needed(
                                 &mut old_state.opacity,
                                 &mut patch.opacity,
-                                expanded_node.computed_opacity.get(),
+                                native_surface_opacity(&expanded_node, &context),
                             ),
                         ];
                         if updates.into_iter().any(|v| v == true) {

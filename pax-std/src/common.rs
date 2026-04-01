@@ -1,5 +1,6 @@
 pub use pax_engine::api::Size;
 use pax_engine::*;
+use pax_runtime::{ExpandedNode, RuntimeContext};
 
 #[pax]
 #[engine_import_path("pax_engine")]
@@ -32,5 +33,21 @@ pub fn patch_if_needed<T: PartialEq + Clone>(
         true
     } else {
         false
+    }
+}
+
+pub fn native_surface_opacity(expanded_node: &ExpandedNode, context: &RuntimeContext) -> f64 {
+    let opacity = expanded_node.computed_opacity.get().clamp(0.0, 1.0);
+    let Some(parent_frame_id) = expanded_node.parent_frame.get() else {
+        return opacity;
+    };
+    let Some(parent_frame) = context.get_expanded_node_by_eid(parent_frame_id) else {
+        return opacity;
+    };
+    let parent_opacity = parent_frame.computed_opacity.get().clamp(0.0, 1.0);
+    if parent_opacity <= f64::EPSILON {
+        0.0
+    } else {
+        (opacity / parent_opacity).clamp(0.0, 1.0)
     }
 }

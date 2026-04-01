@@ -9,7 +9,7 @@ use pax_runtime::{
 };
 use std::rc::Rc;
 use_RefCell!();
-use crate::common::patch_if_needed;
+use crate::common::{native_surface_opacity, patch_if_needed};
 use crate::TextStyle;
 
 #[pax]
@@ -168,7 +168,7 @@ impl InstanceNode for ButtonInstance {
                             patch_if_needed(
                                 &mut old_state.opacity,
                                 &mut patch.opacity,
-                                expanded_node.computed_opacity.get(),
+                                native_surface_opacity(&expanded_node, &context),
                             ),
                         ];
                         if updates.into_iter().any(|v| v == true) {

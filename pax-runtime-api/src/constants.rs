@@ -2,6 +2,7 @@
 pub const NUMERIC: &str = "Numeric";
 pub const SIZE: &str = "Size";
 pub const ROTATION: &str = "Rotation";
+pub const OPACITY: &str = "Opacity";
 pub const DEGREES: &str = "Degrees";
 pub const RADIANS: &str = "Radians";
 pub const PIXELS: &str = "Pixels";
@@ -43,10 +44,11 @@ pub fn is_intoable_downstream_type(type_to_check: &str) -> bool {
 
 // Only when parsing values for one of the types in this slice
 // will we look ahead and parse for an IntoableLiteral value.
-const BLESSED_INTOABLE_DOWNSTREAM_TYPES: [&'static str; 5] = [
+const BLESSED_INTOABLE_DOWNSTREAM_TYPES: [&'static str; 6] = [
     "pax_engine::api::Size",
     "pax_engine::api::Rotation",
     "pax_engine::api::ColorChannel",
+    "pax_engine::api::Opacity",
     "pax_engine::api::Stroke",
     "pax_engine::api::Fill",
 ];
@@ -65,6 +67,6 @@ pub const COMMON_PROPERTIES_TYPE: &[(&str, &str)] = &[
     ("transform", "pax_engine::api::Transform2D"),
     ("width", "pax_engine::api::Size"),
     ("height", "pax_engine::api::Size"),
-    ("opacity", "f64"),
+    ("opacity", "pax_engine::api::Opacity"),
     ("_raycastable", "bool"),
 ];

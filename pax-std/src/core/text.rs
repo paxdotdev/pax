@@ -21,7 +21,7 @@ use {
     pax_runtime::DEBUG_TEXT_GREEN_BACKGROUND,
 };
 
-use crate::common::patch_if_needed;
+use crate::common::{native_surface_opacity, patch_if_needed};
 
 /// Renders text in a platform-native way
 #[pax]
@@ -198,7 +198,7 @@ impl InstanceNode for TextInstance {
                             patch_if_needed(
                                 &mut old_state.opacity,
                                 &mut patch.opacity,
-                                expanded_node.computed_opacity.get(),
+                                native_surface_opacity(&expanded_node, &context),
                             ),
                         ];
                         if updates.into_iter().any(|v| v == true) {

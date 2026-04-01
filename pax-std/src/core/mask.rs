@@ -1,7 +1,7 @@
 use std::iter;
 use std::rc::Rc;
 
-use crate::common::patch_if_needed;
+use crate::common::{native_surface_opacity, patch_if_needed};
 use pax_engine::*;
 use pax_message::{AnyCreatePatch, FramePatch};
 use pax_runtime::api::{
@@ -160,7 +160,7 @@ impl InstanceNode for MaskInstance {
                         patch_if_needed(
                             &mut old_state.opacity,
                             &mut patch.opacity,
-                            expanded_node.computed_opacity.get(),
+                            native_surface_opacity(&expanded_node, &context),
                         ),
                     ];
 

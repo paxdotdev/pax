@@ -119,6 +119,20 @@ public struct NativeRenderingLayer: View {
         )
     }
 
+    private func resolvedFrameOpacity(startingAt parentFrame: PaxNodeId?) -> Double {
+        var opacity = 1.0
+        var currentFrame = parentFrame
+        while let frameId = currentFrame, let frame = frameElements.elements[frameId] {
+            opacity *= frame.opacity
+            currentFrame = frame.parentFrame
+        }
+        return min(max(opacity, 0.0), 1.0)
+    }
+
+    private func resolvedOpacity(_ localOpacity: Double, parentFrame: PaxNodeId?) -> Double {
+        min(max(localOpacity * resolvedFrameOpacity(startingAt: parentFrame), 0.0), 1.0)
+    }
+
     private func positioned<V: View>(_ view: V, element: NativePositionElement) -> AnyView {
         let size = resolvedSize(element)
         let bounded = view
@@ -129,7 +143,7 @@ public struct NativeRenderingLayer: View {
             .position(x: size.width / 2.0, y: size.height / 2.0)
             .transformEffect(affineTransform(from: element.transform))
             .zIndex(Double(element.zIndex))
-            .opacity(element.opacity)
+            .opacity(resolvedOpacity(element.opacity, parentFrame: element.parentFrame))
         return AnyView(base)
     }
 
@@ -141,7 +155,7 @@ public struct NativeRenderingLayer: View {
             .position(x: width / 2.0, y: height / 2.0)
             .transformEffect(affineTransform(from: element.transform))
             .zIndex(Double(element.zIndex))
-            .opacity(element.opacity)
+            .opacity(resolvedOpacity(element.opacity, parentFrame: element.parentFrame))
         return AnyView(base)
     }
 

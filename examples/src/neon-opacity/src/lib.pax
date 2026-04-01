@@ -384,6 +384,7 @@
         x={(70.0 + self.orbit_c * 2.5)%}
         y={(55.0 + self.orbit_d * 2.2)%}
         rotate={(11.0 - self.orbit_a * 6.8)deg}
+        opacity=50%
     >
         <Mask width=100% height=100% opacity={self.mask_panel_opacity}>
             <Group width=100% height=100%>

@@ -7,8 +7,8 @@ use std::ops::Range;
 use crate::{
     impl_default_coercion_rule,
     math::{Transform2, Vector2},
-    Color, ColorChannel, Fill, GradientStop, LinearGradient, Numeric, PathElement, PaxValue,
-    Percent, Property, RadialGradient, Rotation, Size, Stroke, Transform2D,
+    Color, ColorChannel, Fill, GradientStop, LinearGradient, Numeric, Opacity, PathElement,
+    PaxValue, Percent, Property, RadialGradient, Rotation, Size, Stroke, Transform2D,
 };
 
 // Default coercion rules:
@@ -316,12 +316,14 @@ impl CoercionRules for GradientStop {
                 match variant.as_str() {
                     "get" => {
                         let mut args = args.into_iter();
-                        let color = Color::try_coerce(args.next().ok_or_else(|| {
-                            "failed to convert to GradientStop".to_string()
-                        })?)?;
-                        let position = Size::try_coerce(args.next().ok_or_else(|| {
-                            "failed to convert to GradientStop".to_string()
-                        })?)?;
+                        let color = Color::try_coerce(
+                            args.next()
+                                .ok_or_else(|| "failed to convert to GradientStop".to_string())?,
+                        )?;
+                        let position = Size::try_coerce(
+                            args.next()
+                                .ok_or_else(|| "failed to convert to GradientStop".to_string())?,
+                        )?;
                         GradientStop { position, color }
                     }
                     _ => return Err(format!("failed to convert to GradientStop")),
@@ -345,12 +347,14 @@ fn parse_gradient_point(value: PaxValue) -> Result<(Size, Size), String> {
     match value {
         PaxValue::Vec(vec) => {
             let mut itr = vec.into_iter();
-            let x = Size::try_coerce(itr.next().ok_or_else(|| {
-                "failed to coerce gradient point".to_string()
-            })?)?;
-            let y = Size::try_coerce(itr.next().ok_or_else(|| {
-                "failed to coerce gradient point".to_string()
-            })?)?;
+            let x = Size::try_coerce(
+                itr.next()
+                    .ok_or_else(|| "failed to coerce gradient point".to_string())?,
+            )?;
+            let y = Size::try_coerce(
+                itr.next()
+                    .ok_or_else(|| "failed to coerce gradient point".to_string())?,
+            )?;
             Ok((x, y))
         }
         _ => Err("failed to coerce gradient point".to_string()),
@@ -442,6 +446,21 @@ mod tests {
         assert_eq!(stop.position, Size::Percent(Numeric::I64(48)));
         assert_eq!(stop.color, Color::from_hex("11223344"));
     }
+
+    #[test]
+    fn coerces_opacity_from_percent_literal() {
+        let opacity = Opacity::try_coerce(pct(50)).expect("percent opacity should coerce");
+        assert_eq!(opacity, Opacity::Percent(Numeric::I64(50)));
+        assert!((opacity.to_float_0_1() - 0.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn coerces_opacity_from_numeric_literal() {
+        let opacity = Opacity::try_coerce(PaxValue::Numeric(Numeric::F64(0.5)))
+            .expect("numeric opacity should coerce");
+        assert_eq!(opacity, Opacity::Alpha(Numeric::F64(0.5)));
+        assert!((opacity.to_float_0_1() - 0.5).abs() < f64::EPSILON);
+    }
 }
 
 impl CoercionRules for Stroke {
@@ -507,6 +526,42 @@ impl CoercionRules for ColorChannel {
                 }
             }
             _ => return Err(format!("failed to convert to ColorChannel")),
+        })
+    }
+}
+
+impl CoercionRules for Opacity {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        Ok(match value {
+            PaxValue::Percent(perc) => Opacity::Percent(perc.0),
+            PaxValue::Numeric(num) => Opacity::Alpha(num),
+            PaxValue::Enum(contents) => {
+                let (_, variant, args) = *contents;
+                match variant.as_str() {
+                    "Alpha" | "Numeric" => {
+                        let num = Numeric::try_coerce(args.into_iter().next().unwrap())?;
+                        Opacity::Alpha(num)
+                    }
+                    "Percent" => {
+                        let num = Numeric::try_coerce(args.into_iter().next().unwrap())?;
+                        Opacity::Percent(num)
+                    }
+                    _ => {
+                        return Err(format!(
+                            "failed to convert to Opacity: unknown variant {:?}",
+                            variant
+                        ))
+                    }
+                }
+            }
+            PaxValue::Option(o) => {
+                if let Some(o) = *o {
+                    Opacity::try_coerce(o)?
+                } else {
+                    return Err("failed to convert to Opacity".to_string());
+                }
+            }
+            _ => return Err("failed to convert to Opacity".to_string()),
         })
     }
 }

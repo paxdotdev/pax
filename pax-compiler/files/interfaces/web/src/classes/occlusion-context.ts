@@ -3,7 +3,7 @@ import {ObjectManager} from "../pools/object-manager";
 import {ARRAY, DIV, LAYER} from "../pools/supported-objects";
 
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
-import { CLIPPING_CONTAINER } from "../utils/constants";
+import { CLIPPING_CONTAINER, NATIVE_LEAF_CLASS } from "../utils/constants";
 import { affineMultiply } from "../utils/helpers";
 import type { NativeMaskEntry } from "./messages/native-mask-update-patch";
 
@@ -62,6 +62,7 @@ export class OcclusionLayerManager {
         if (!attach_point.contains(element)) {
             attach_point.appendChild(element);
         }
+        refreshLeafOpacities(element);
     }
 
     updateElementMask(
@@ -75,12 +76,14 @@ export class OcclusionLayerManager {
         if (entries.length === 0) {
             element.classList.remove(MASKED_NATIVE_LEAF_CLASS);
             clearMaskStyles(element);
+            refreshLeafOpacities(element);
             return;
         }
 
         let maskValue = `url(#${nativeMaskId(id)})`;
         element.classList.add(MASKED_NATIVE_LEAF_CLASS);
         applyMaskStyles(element, maskValue);
+        refreshLeafOpacities(element);
     }
 
     // If a div for the container referenced already exists, returns it. if not,
@@ -142,6 +145,7 @@ export class OcclusionLayerManager {
                 const newParentElement = this.getOrCreateContainer(new_parent_id, layerIndex);
                 if (currentElement.parentElement !== newParentElement) {
                     newParentElement.appendChild(currentElement);
+                    refreshLeafOpacities(currentElement);
                 }
             }
         });
@@ -187,11 +191,14 @@ export class OcclusionLayerManager {
         document
             .querySelectorAll(`[data-container-id="${id}"]`)
             .forEach((elem) =>
-                applyContainerStyles(
-                    elem as HTMLElement,
-                    clipValue,
-                    container.styles.opacity,
-                ),
+                {
+                    applyContainerStyles(
+                        elem as HTMLElement,
+                        clipValue,
+                        container.styles.opacity,
+                    );
+                    refreshLeafOpacities(elem as HTMLElement);
+                },
             );
     }
 }
@@ -419,11 +426,47 @@ function applyContainerClipPath(element: HTMLElement, value: string) {
     (element.style as any).webkitClipPath = value;
 }
 
-function applyContainerStyles(element: HTMLElement, clipPath: string, _opacity: number) {
+function applyContainerStyles(element: HTMLElement, clipPath: string, opacity: number) {
     applyContainerClipPath(element, clipPath);
-    // Native leaves already receive inherited opacity in their own patches.
-    // Applying it again on synthetic containers would double-count ancestors.
+    element.dataset.paxContainerOpacity = `${opacity}`;
     element.style.opacity = "1";
+}
+
+export function setLeafLocalOpacity(element: HTMLElement, opacity: number) {
+    element.dataset.paxLocalOpacity = `${opacity}`;
+    applyEffectiveLeafOpacity(element);
+}
+
+function applyEffectiveLeafOpacity(element: HTMLElement) {
+    let opacity = readOpacityValue(element.dataset.paxLocalOpacity, 1);
+    let current = element.parentElement;
+    while (current) {
+        if (current.classList.contains(CLIPPING_CONTAINER)) {
+            opacity *= readOpacityValue(
+                (current as HTMLElement).dataset.paxContainerOpacity,
+                1,
+            );
+        }
+        current = current.parentElement;
+    }
+    element.style.opacity = `${Math.min(Math.max(opacity, 0), 1)}`;
+}
+
+function refreshLeafOpacities(root: ParentNode) {
+    if (root instanceof HTMLElement && root.classList.contains(NATIVE_LEAF_CLASS)) {
+        applyEffectiveLeafOpacity(root);
+    }
+    root.querySelectorAll?.(`.${NATIVE_LEAF_CLASS}`).forEach((leaf) => {
+        applyEffectiveLeafOpacity(leaf as HTMLElement);
+    });
+}
+
+function readOpacityValue(value: string | undefined, fallback: number) {
+    if (value == null) {
+        return fallback;
+    }
+    let parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function clearMaskStyles(element: HTMLElement) {

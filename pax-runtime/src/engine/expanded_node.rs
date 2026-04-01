@@ -451,7 +451,11 @@ impl ExpandedNode {
         self.computed_opacity.replace_with(Property::computed(
             move || {
                 let parent = parent_opacity.get().clamp(0.0, 1.0);
-                let local = self_opacity.get().unwrap_or(1.0).clamp(0.0, 1.0);
+                let local = self_opacity
+                    .get()
+                    .unwrap_or_default()
+                    .to_float_0_1()
+                    .clamp(0.0, 1.0);
                 (parent * local).clamp(0.0, 1.0)
             },
             &deps,

@@ -10,7 +10,7 @@ use pax_engine::pax;
 use pax_runtime_api::*;
 use std::rc::Rc;
 
-use crate::common::patch_if_needed;
+use crate::common::{native_surface_opacity, patch_if_needed};
 
 /// A platform-native text input field
 #[pax]
@@ -187,7 +187,7 @@ impl InstanceNode for TextboxInstance {
                             patch_if_needed(
                                 &mut old_state.opacity,
                                 &mut patch.opacity,
-                                expanded_node.computed_opacity.get(),
+                                native_surface_opacity(&expanded_node, &context),
                             ),
                         ];
                         if updates.into_iter().any(|v| v == true) {

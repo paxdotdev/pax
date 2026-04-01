@@ -8,7 +8,7 @@ import {FrameUpdatePatch} from "./messages/frame-update-patch";
 import {ScrollerUpdatePatch} from "./messages/scroller-update-patch";
 import {ButtonUpdatePatch} from "./messages/button-update-patch";
 import {ImageLoadPatch} from "./messages/image-load-patch";
-import {ContainerStyle, OcclusionLayerManager} from "./occlusion-context";
+import {ContainerStyle, OcclusionLayerManager, setLeafLocalOpacity} from "./occlusion-context";
 import {ObjectManager} from "../pools/object-manager";
 import {
     IMAGE,
@@ -805,7 +805,7 @@ export class NativeElementPool {
         }
 
         if (patch.opacity != null) {
-            leaf!.style.opacity = `${patch.opacity}`;
+            setLeafLocalOpacity(leaf!, patch.opacity);
         }
 
         if (patch.editable != null) {
@@ -1009,7 +1009,7 @@ export class NativeElementPool {
         }
 
         if (patch.opacity != null) {
-            leaf.style.opacity = `${patch.opacity}`;
+            setLeafLocalOpacity(leaf, patch.opacity);
         }
 
        
@@ -1062,7 +1062,7 @@ export class NativeElementPool {
             leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
         if (patch.opacity != null) {
-            leaf.style.opacity = `${patch.opacity}`;
+            setLeafLocalOpacity(leaf, patch.opacity);
         }
     }
 
@@ -1215,6 +1215,6 @@ function updateCommonProps(leaf: HTMLElement, patch: any) {
         leaf!.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
     }
     if (patch.opacity != null) {
-        leaf.style.opacity = `${patch.opacity}`;
+        setLeafLocalOpacity(leaf, patch.opacity);
     }
 }

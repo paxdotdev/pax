@@ -17,6 +17,7 @@ use crate::ColorChannel;
 use crate::Fill;
 use crate::GradientStop;
 use crate::LinearGradient;
+use crate::Opacity;
 use crate::PathElement;
 use crate::Percent;
 use crate::Property;
@@ -157,6 +158,23 @@ impl ToPaxValue for ColorChannel {
                 "ColorChannel".to_string(),
                 "Integer".to_string(),
                 vec![num.to_pax_value()],
+            ))),
+        }
+    }
+}
+
+impl ToPaxValue for Opacity {
+    fn to_pax_value(self) -> PaxValue {
+        match self {
+            Opacity::Alpha(value) => PaxValue::Enum(Box::new((
+                "Opacity".to_string(),
+                "Alpha".to_string(),
+                vec![value.to_pax_value()],
+            ))),
+            Opacity::Percent(value) => PaxValue::Enum(Box::new((
+                "Opacity".to_string(),
+                "Percent".to_string(),
+                vec![value.to_pax_value()],
             ))),
         }
     }

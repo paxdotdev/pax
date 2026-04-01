@@ -1,6 +1,7 @@
 use std::iter;
 use std::rc::Rc;
 
+use crate::common::native_surface_opacity;
 use crate::patch_if_needed;
 use pax_engine::api::{borrow, borrow_mut, use_RefCell};
 use pax_engine::pax;
@@ -112,7 +113,7 @@ impl InstanceNode for EventBlockerInstance {
                             patch_if_needed(
                                 &mut old_state.opacity,
                                 &mut patch.opacity,
-                                expanded_node.computed_opacity.get(),
+                                native_surface_opacity(&expanded_node, &context),
                             ),
                         ];
 

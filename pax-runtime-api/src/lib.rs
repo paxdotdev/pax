@@ -55,13 +55,7 @@ pub trait RenderContext {
     fn fill(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill) {
         self.fill_with_opacity(layer, path, fill, 1.0);
     }
-    fn fill_with_opacity(
-        &mut self,
-        layer: usize,
-        path: kurbo::BezPath,
-        fill: &Fill,
-        opacity: f64,
-    );
+    fn fill_with_opacity(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill, opacity: f64);
     fn stroke(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill, width: f64) {
         self.stroke_with_opacity(layer, path, fill, width, 1.0);
     }
@@ -674,7 +668,7 @@ pub struct CommonProperties {
     pub skew_y: Property<Option<Rotation>>,
     pub rotate: Property<Option<Rotation>>,
     pub transform: Property<Option<Transform2D>>,
-    pub opacity: Property<Option<f64>>,
+    pub opacity: Property<Option<Opacity>>,
     pub unclippable: Property<Option<bool>>,
     pub _raycastable: Property<Option<bool>>,
     pub _suspended: Property<Option<bool>>,
@@ -1193,6 +1187,71 @@ impl Display for Percent {
 impl Interpolatable for Percent {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
         Self(self.0.interpolate(&other.0, t))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum Opacity {
+    /// Unitless alpha in the normalized [0.0, 1.0] range.
+    Alpha(Numeric),
+    /// Percent alpha in the [0.0, 100.0] range.
+    Percent(Numeric),
+}
+
+impl Display for Opacity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Opacity::Alpha(value) => write!(f, "{}", value),
+            Opacity::Percent(value) => write!(f, "{}%", value),
+        }
+    }
+}
+
+impl Default for Opacity {
+    fn default() -> Self {
+        Self::Alpha(Numeric::F64(1.0))
+    }
+}
+
+impl Interpolatable for Opacity {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Opacity::Alpha(Numeric::F64(
+            self.to_float_0_1().interpolate(&other.to_float_0_1(), t),
+        ))
+    }
+}
+
+impl From<f64> for Opacity {
+    fn from(value: f64) -> Self {
+        Numeric::F64(value).into()
+    }
+}
+
+impl From<i32> for Opacity {
+    fn from(value: i32) -> Self {
+        Numeric::from(value).into()
+    }
+}
+
+impl From<Numeric> for Opacity {
+    fn from(value: Numeric) -> Self {
+        Opacity::Alpha(value)
+    }
+}
+
+impl From<Percent> for Opacity {
+    fn from(value: Percent) -> Self {
+        Opacity::Percent(value.0)
+    }
+}
+
+impl Opacity {
+    /// Normalizes this Opacity as a float in [0.0, 1.0].
+    pub fn to_float_0_1(&self) -> f64 {
+        match self {
+            Opacity::Alpha(value) => value.to_float().clamp(0.0, 1.0),
+            Opacity::Percent(value) => (value.to_float() / 100.0).clamp(0.0, 1.0),
+        }
     }
 }
 
