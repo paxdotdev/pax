@@ -113,9 +113,17 @@ impl InstanceNode for FrameInstance {
 
         let layers = rcs.layers();
         for layer in 0..layers {
+            if !rcs.begin_node(
+                layer,
+                expanded_node.id.to_u32(),
+                expanded_node.occlusion.get().z_index,
+            ) {
+                continue;
+            }
             //our "save point" before clipping — restored to in the post_render
             rcs.save(layer);
             rcs.clip(layer, transformed_bez_path.clone());
+            let _ = rcs.end_node(layer, expanded_node.id.to_u32());
         }
     }
 

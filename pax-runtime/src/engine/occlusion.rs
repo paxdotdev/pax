@@ -210,7 +210,7 @@ fn update_native_masks(drawables: &[DrawableInfo], ctx: &RuntimeContext) {
             } => {
                 let t_and_b = node.transform_and_bounds.get();
                 let size = t_and_b.bounds;
-                let entries = if *layer == Layer::Native {
+                let mut entries = if *layer == Layer::Native {
                     let inverse = Affine::from(t_and_b.transform.inverse());
                     vector_above
                         .iter()
@@ -228,6 +228,17 @@ fn update_native_masks(drawables: &[DrawableInfo], ctx: &RuntimeContext) {
                 } else {
                     Vec::new()
                 };
+
+                entries.sort_by(|lhs, rhs| {
+                    lhs.path
+                        .cmp(&rhs.path)
+                        .then_with(|| lhs.clips.cmp(&rhs.clips))
+                        .then_with(|| {
+                            lhs.opacity
+                                .map(f64::to_bits)
+                                .cmp(&rhs.opacity.map(f64::to_bits))
+                        })
+                });
 
                 let new_hash = if entries.is_empty() {
                     0

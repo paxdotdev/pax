@@ -54,6 +54,84 @@ private func platformTextAlignment(_ alignment: TextAlignment) -> NSTextAlignmen
         return .left
     }
 }
+
+private final class LayerMaskedHostingController: UIViewController {
+    private let hostingController = UIHostingController(rootView: AnyView(EmptyView()))
+    private var lastMaskSignature: UInt64?
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .clear
+        view.isOpaque = false
+        hostingController.view.backgroundColor = .clear
+        hostingController.view.isOpaque = false
+        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
+        addChild(hostingController)
+        view.addSubview(hostingController.view)
+        NSLayoutConstraint.activate([
+            hostingController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            hostingController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            hostingController.view.topAnchor.constraint(equalTo: view.topAnchor),
+            hostingController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+        hostingController.didMove(toParent: self)
+    }
+
+    func update(rootView: AnyView, mask: ResolvedNativeMask) {
+        hostingController.rootView = rootView
+        if lastMaskSignature != mask.signature {
+            applyMask(mask)
+            lastMaskSignature = mask.signature
+        }
+    }
+
+    private func applyMask(_ mask: ResolvedNativeMask) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+
+        let rendererFormat = UIGraphicsImageRendererFormat()
+        rendererFormat.opaque = false
+        rendererFormat.scale = UIScreen.main.scale
+        let renderer = UIGraphicsImageRenderer(size: mask.size, format: rendererFormat)
+        let image = renderer.image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(origin: .zero, size: mask.size))
+
+            for hole in mask.holes {
+                let cgContext = context.cgContext
+                cgContext.saveGState()
+                for clip in hole.clips {
+                    cgContext.addPath(UIBezierPath(cgPath: clip.cgPath).cgPath)
+                    cgContext.clip()
+                }
+                cgContext.setFillColor(UIColor(white: 0.0, alpha: CGFloat(hole.opacity)).cgColor)
+                cgContext.addPath(UIBezierPath(cgPath: hole.path.cgPath).cgPath)
+                cgContext.fillPath()
+                cgContext.restoreGState()
+            }
+        }
+
+        let maskLayer = CALayer()
+        maskLayer.frame = CGRect(origin: .zero, size: mask.size)
+        maskLayer.contents = image.cgImage
+        maskLayer.contentsScale = UIScreen.main.scale
+        view.layer.mask = maskLayer
+        CATransaction.commit()
+    }
+}
+
+private struct LayerMaskedView: UIViewControllerRepresentable {
+    let content: AnyView
+    let mask: ResolvedNativeMask
+
+    func makeUIViewController(context: Context) -> LayerMaskedHostingController {
+        LayerMaskedHostingController()
+    }
+
+    func updateUIViewController(_ controller: LayerMaskedHostingController, context: Context) {
+        controller.update(rootView: content, mask: mask)
+    }
+}
 #elseif os(macOS)
 private func platformColor(_ color: Color) -> NSColor {
     NSColor(color)
@@ -74,17 +152,24 @@ private func platformTextAlignment(_ alignment: TextAlignment) -> NSTextAlignmen
 public struct NativeRenderingLayer: View {
     public init() {}
 
-    @ObservedObject var textElements = TextElements.singleton
-    @ObservedObject var frameElements = FrameElements.singleton
-    @ObservedObject var buttonElements = ButtonElements.singleton
-    @ObservedObject var checkboxElements = CheckboxElements.singleton
-    @ObservedObject var nativeImageElements = NativeImageElements.singleton
-    @ObservedObject var youtubeVideoElements = YoutubeVideoElements.singleton
-    @ObservedObject var dropdownElements = DropdownElements.singleton
-    @ObservedObject var radioSetElements = RadioSetElements.singleton
-    @ObservedObject var sliderElements = SliderElements.singleton
-    @ObservedObject var textboxElements = TextboxElements.singleton
-    @ObservedObject var eventBlockerElements = EventBlockerElements.singleton
+    @ObservedObject var nativeSceneInvalidation = NativeSceneInvalidation.singleton
+    let textElements = TextElements.singleton
+    let frameElements = FrameElements.singleton
+    let buttonElements = ButtonElements.singleton
+    let checkboxElements = CheckboxElements.singleton
+    let nativeImageElements = NativeImageElements.singleton
+    let youtubeVideoElements = YoutubeVideoElements.singleton
+    let dropdownElements = DropdownElements.singleton
+    let radioSetElements = RadioSetElements.singleton
+    let sliderElements = SliderElements.singleton
+    let textboxElements = TextboxElements.singleton
+    let eventBlockerElements = EventBlockerElements.singleton
+
+    private struct NativeRenderItem: Identifiable {
+        let id: PaxNodeId
+        let zIndex: Int
+        let view: AnyView
+    }
 
     private func sortedTextElements() -> [TextElement] {
         Array(textElements.elements.values).sorted { lhs, rhs in
@@ -104,19 +189,90 @@ public struct NativeRenderingLayer: View {
         }
     }
 
+    private func sortedRenderItems() -> [NativeRenderItem] {
+        var items: [NativeRenderItem] = []
+
+        items.append(contentsOf: sortedTextElements().map { element in
+            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: textView(for: element))
+        })
+        items.append(contentsOf: sortedElements(nativeImageElements.elements).map { element in
+            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: nativeImageView(for: element))
+        })
+        items.append(contentsOf: sortedElements(youtubeVideoElements.elements).map { element in
+            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: youtubeVideoView(for: element))
+        })
+        items.append(contentsOf: sortedElements(buttonElements.elements).map { element in
+            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: buttonView(for: element))
+        })
+        items.append(contentsOf: sortedElements(checkboxElements.elements).map { element in
+            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: checkboxView(for: element))
+        })
+        items.append(contentsOf: sortedElements(sliderElements.elements).map { element in
+            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: sliderView(for: element))
+        })
+        items.append(contentsOf: sortedElements(dropdownElements.elements).map { element in
+            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: dropdownView(for: element))
+        })
+        items.append(contentsOf: sortedElements(radioSetElements.elements).map { element in
+            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: radioSetView(for: element))
+        })
+        items.append(contentsOf: sortedElements(textboxElements.elements).map { element in
+            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: textboxView(for: element))
+        })
+        items.append(contentsOf: sortedElements(eventBlockerElements.elements).map { element in
+            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: eventBlockerView(for: element))
+        })
+
+        return items.sorted { lhs, rhs in
+            if lhs.zIndex == rhs.zIndex {
+                return lhs.id < rhs.id
+            }
+            return lhs.zIndex < rhs.zIndex
+        }
+    }
+
     private func applyNativeMask<V: View>(_ view: V, elementId: PaxNodeId) -> AnyView {
         guard let mask = resolvedNativeMask(for: elementId) else {
-            return AnyView(view)
+            return AnyView(
+                view
+                    .transaction { transaction in
+                        transaction.animation = nil
+                        transaction.disablesAnimations = true
+                    }
+            )
         }
+        let frameClipped = mask.frameClips.reduce(AnyView(view)) { current, path in
+            AnyView(current.clipShape(ResolvedPathShape(resolvedPath: path)))
+        }
+        guard !mask.holes.isEmpty else {
+            return AnyView(
+                frameClipped
+                    .transaction { transaction in
+                        transaction.animation = nil
+                        transaction.disablesAnimations = true
+                    }
+            )
+        }
+#if os(iOS) || os(tvOS) || os(watchOS)
         return AnyView(
-            view
-                .compositingGroup()
-                .mask(CombinedMaskView(mask: mask))
+            LayerMaskedView(content: frameClipped, mask: mask)
+                .frame(width: mask.size.width, height: mask.size.height)
                 .transaction { transaction in
                     transaction.animation = nil
                     transaction.disablesAnimations = true
                 }
         )
+#else
+        return AnyView(
+            frameClipped
+                .compositingGroup()
+                .mask(HoleMaskView(mask: mask).id(mask.signature))
+                .transaction { transaction in
+                    transaction.animation = nil
+                    transaction.disablesAnimations = true
+                }
+        )
+#endif
     }
 
     private func resolvedFrameOpacity(startingAt parentFrame: PaxNodeId?) -> Double {
@@ -144,6 +300,10 @@ public struct NativeRenderingLayer: View {
             .transformEffect(affineTransform(from: element.transform))
             .zIndex(Double(element.zIndex))
             .opacity(resolvedOpacity(element.opacity, parentFrame: element.parentFrame))
+            .transaction { transaction in
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
         return AnyView(base)
     }
 
@@ -156,6 +316,10 @@ public struct NativeRenderingLayer: View {
             .transformEffect(affineTransform(from: element.transform))
             .zIndex(Double(element.zIndex))
             .opacity(resolvedOpacity(element.opacity, parentFrame: element.parentFrame))
+            .transaction { transaction in
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
         return AnyView(base)
     }
 
@@ -401,38 +565,25 @@ public struct NativeRenderingLayer: View {
     }
 
     public var body: some View {
+        let _ = nativeSceneInvalidation.generation
         ZStack(alignment: .topLeading) {
-            ForEach(sortedTextElements(), id: \.id) { element in
-                textView(for: element)
-            }
-            ForEach(sortedElements(nativeImageElements.elements), id: \.id) { element in
-                nativeImageView(for: element)
-            }
-            ForEach(sortedElements(youtubeVideoElements.elements), id: \.id) { element in
-                youtubeVideoView(for: element)
-            }
-            ForEach(sortedElements(buttonElements.elements), id: \.id) { element in
-                buttonView(for: element)
-            }
-            ForEach(sortedElements(checkboxElements.elements), id: \.id) { element in
-                checkboxView(for: element)
-            }
-            ForEach(sortedElements(sliderElements.elements), id: \.id) { element in
-                sliderView(for: element)
-            }
-            ForEach(sortedElements(dropdownElements.elements), id: \.id) { element in
-                dropdownView(for: element)
-            }
-            ForEach(sortedElements(radioSetElements.elements), id: \.id) { element in
-                radioSetView(for: element)
-            }
-            ForEach(sortedElements(textboxElements.elements), id: \.id) { element in
-                textboxView(for: element)
-            }
-            ForEach(sortedElements(eventBlockerElements.elements), id: \.id) { element in
-                eventBlockerView(for: element)
+            ForEach(sortedRenderItems()) { item in
+                item.view
             }
         }
+        .transaction { transaction in
+            transaction.animation = nil
+            transaction.disablesAnimations = true
+        }
+    }
+}
+
+public class NativeSceneInvalidation: ObservableObject {
+    public static let singleton = NativeSceneInvalidation()
+    @Published public var generation: UInt64 = 0
+
+    public func invalidate() {
+        generation &+= 1
     }
 }
 

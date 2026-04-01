@@ -7,6 +7,7 @@ use crate::render_backend::MAX_BATCH_COLORS;
 use crate::render_backend::MAX_BATCH_GRADIENTS;
 use crate::render_backend::MAX_BATCH_PRIMITIVES;
 use crate::render_backend::MAX_BATCH_TRANSFORMS;
+use crate::render_backend::MAX_SCENE_CLIPS;
 use crate::render_backend::MAX_SCENE_TRANSFORMS;
 use crate::Box2D;
 use crate::Image;
@@ -42,12 +43,14 @@ pub struct WgpuRenderer<'w> {
     render_backend: RenderBackend<'w>,
     scene: HashMap<u32, RetainedNode>,
     transform_arena: TransformArena,
+    clip_arena: ClipArena,
+    clip_owner_keys: HashMap<u32, Vec<ClipArenaKey>>,
     sorted_nodes: Vec<(i32, u32)>,
     order_dirty: bool,
     scene_dirty: bool,
     cached_images: HashMap<String, CachedImageEntry>,
     transform_stack: Vec<Transform2D>,
-    clip_stack: Vec<ClipGeometry>,
+    clip_stack: Vec<ClipReference>,
     saves: Vec<SceneStateSave>,
     current_node: Option<PendingNode>,
     tolerance: f32,
@@ -70,6 +73,132 @@ struct TransformArena {
     free_slots: Vec<u32>,
     next_slot: u32,
     dirty: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct ClipArenaKey {
+    node_id: u32,
+    clip_index: u32,
+}
+
+#[derive(Clone, Copy)]
+struct ClipReference {
+    clip_id: u32,
+}
+
+struct ClipArenaEntry {
+    geometry_signature: u64,
+    geometry: VertexBuffers<stencil::Vertex, u16>,
+}
+
+struct ClipArena {
+    slots: Vec<GpuTransform>,
+    key_to_id: HashMap<ClipArenaKey, u32>,
+    entries: HashMap<u32, ClipArenaEntry>,
+    free_ids: Vec<u32>,
+    next_id: u32,
+    dirty: bool,
+}
+
+impl ClipArena {
+    fn new() -> Self {
+        Self {
+            slots: vec![GpuTransform::default(); MAX_SCENE_CLIPS],
+            key_to_id: HashMap::new(),
+            entries: HashMap::new(),
+            free_ids: Vec::new(),
+            next_id: 0,
+            dirty: true,
+        }
+    }
+
+    fn sync_clip(
+        &mut self,
+        node_id: u32,
+        clip_index: u32,
+        geometry_signature: u64,
+        geometry: VertexBuffers<stencil::Vertex, u16>,
+        transform: Transform2D,
+    ) -> Option<(ClipArenaKey, u32)> {
+        let key = ClipArenaKey {
+            node_id,
+            clip_index,
+        };
+        let clip_id = if let Some(clip_id) = self.key_to_id.get(&key).copied() {
+            clip_id
+        } else {
+            let Some(clip_id) = self.free_ids.pop().or_else(|| {
+                ((self.next_id as usize) < MAX_SCENE_CLIPS).then(|| {
+                    let clip_id = self.next_id;
+                    self.next_id += 1;
+                    clip_id
+                })
+            }) else {
+                log::error!(
+                    "clip arena capacity exceeded (capacity {})",
+                    MAX_SCENE_CLIPS
+                );
+                return None;
+            };
+            self.key_to_id.insert(key, clip_id);
+            self.dirty = true;
+            clip_id
+        };
+
+        let value = GpuTransform {
+            transform: transform.to_arrays(),
+            ..GpuTransform::default()
+        };
+        if self.slots[clip_id as usize].transform != value.transform {
+            self.slots[clip_id as usize] = value;
+            self.dirty = true;
+        }
+
+        match self.entries.get_mut(&clip_id) {
+            Some(entry) => {
+                if entry.geometry_signature != geometry_signature {
+                    entry.geometry_signature = geometry_signature;
+                    entry.geometry = geometry;
+                }
+            }
+            None => {
+                self.entries.insert(
+                    clip_id,
+                    ClipArenaEntry {
+                        geometry_signature,
+                        geometry,
+                    },
+                );
+                self.dirty = true;
+            }
+        }
+
+        Some((key, clip_id))
+    }
+
+    fn release_keys(&mut self, keys: &[ClipArenaKey]) {
+        for key in keys {
+            let Some(clip_id) = self.key_to_id.remove(key) else {
+                continue;
+            };
+            self.entries.remove(&clip_id);
+            self.slots[clip_id as usize] = GpuTransform::default();
+            self.free_ids.push(clip_id);
+            self.dirty = true;
+        }
+    }
+
+    fn get(&self, clip_id: u32) -> Option<&ClipArenaEntry> {
+        self.entries.get(&clip_id)
+    }
+
+    fn flush_to_gpu<'w>(&mut self, render_backend: &RenderBackend<'w>) {
+        if !self.dirty {
+            return;
+        }
+        render_backend.update_scene_clip_transforms(&self.slots);
+        self.dirty = false;
+    }
 }
 
 impl TransformArena {
@@ -160,6 +289,8 @@ impl<'w> WgpuRenderer<'w> {
             tolerance: DEFAULT_TESSELLATION_TOLERANCE, // TODO expose as option
             scene: HashMap::new(),
             transform_arena: TransformArena::new(),
+            clip_arena: ClipArena::new(),
+            clip_owner_keys: HashMap::new(),
             sorted_nodes: Vec::new(),
             order_dirty: false,
             scene_dirty: false,
@@ -285,6 +416,7 @@ impl<'w> WgpuRenderer<'w> {
             self.order_dirty = false;
         }
         if self.should_use_vector_scene_batch() {
+            self.render_backend.ensure_frame_cleared();
             self.flush_vector_scene_batch();
             self.scene_dirty = false;
             self.transform_stack.truncate(1);
@@ -293,11 +425,13 @@ impl<'w> WgpuRenderer<'w> {
             self.current_node = None;
             return;
         }
+        self.render_backend.ensure_frame_cleared();
         self.ensure_vector_resources_for_immediate_scene();
         self.transform_arena.flush_to_gpu(&self.render_backend);
-        let mut current_clip_stack: Vec<u64> = Vec::new();
+        self.clip_arena.flush_to_gpu(&self.render_backend);
+        let mut current_clip_stack: Vec<u32> = Vec::new();
         let mut current_batch: Vec<RetainedDraw<'_>> = Vec::new();
-        let mut current_batch_clip_stack: Option<Vec<ClipGeometry>> = None;
+        let mut current_batch_clip_stack: Option<Vec<ClipReference>> = None;
         for (_, node_id) in &self.sorted_nodes {
             let Some(node) = self.scene.get(node_id) else {
                 continue;
@@ -308,6 +442,7 @@ impl<'w> WgpuRenderer<'w> {
                         &mut self.render_backend,
                         &mut current_clip_stack,
                         batch_clip_stack,
+                        &self.clip_arena,
                     );
                     let stencil_index = self.render_backend.get_clip_depth();
                     self.render_backend
@@ -342,6 +477,7 @@ impl<'w> WgpuRenderer<'w> {
                 &mut self.render_backend,
                 &mut current_clip_stack,
                 batch_clip_stack,
+                &self.clip_arena,
             );
             let stencil_index = self.render_backend.get_clip_depth();
             self.render_backend
@@ -356,8 +492,10 @@ impl<'w> WgpuRenderer<'w> {
                 )
             })
         });
+        let (active_clip_signatures, active_clip_ids) =
+            collect_active_clip_resources(&self.scene, &self.clip_arena);
         self.render_backend
-            .retain_stencil_geometry(&collect_active_clip_signatures(&self.scene));
+            .retain_stencil_resources(&active_clip_signatures, &active_clip_ids);
         self.render_backend.present();
         self.scene_dirty = false;
         self.transform_stack.truncate(1);
@@ -387,6 +525,10 @@ impl<'w> WgpuRenderer<'w> {
 
     pub fn clip(&mut self, path: Path) {
         let transform = self.current_transform();
+        let Some(current_node) = self.current_node.as_mut() else {
+            log::warn!("clip called without an active node");
+            return;
+        };
         let options = FillOptions::tolerance(self.tolerance);
         let mut geometry = VertexBuffers::new();
         let mut geometry_builder =
@@ -398,12 +540,18 @@ impl<'w> WgpuRenderer<'w> {
             Err(e) => log::warn!("{:?}", e),
         };
         let geometry_signature = hash_clip_geometry(&geometry);
-        self.clip_stack.push(ClipGeometry {
+        let clip_index = current_node.owned_clip_keys.len() as u32;
+        let Some((clip_key, clip_id)) = self.clip_arena.sync_clip(
+            current_node.id,
+            clip_index,
             geometry_signature,
-            state_signature: hash_clip_state(geometry_signature, &transform),
             geometry,
             transform,
-        });
+        ) else {
+            return;
+        };
+        current_node.owned_clip_keys.push(clip_key);
+        self.clip_stack.push(ClipReference { clip_id });
     }
 
     pub fn resize(&mut self, width: f32, height: f32) {
@@ -436,6 +584,7 @@ impl<'w> WgpuRenderer<'w> {
         self.current_node = Some(PendingNode {
             id: node_id,
             z_index,
+            owned_clip_keys: Vec::new(),
             kind: PendingNodeKind::Empty,
         });
         true
@@ -448,6 +597,15 @@ impl<'w> WgpuRenderer<'w> {
         if pending_node.id != node_id {
             return false;
         }
+
+        let pending_z_index = pending_node.z_index;
+        let pending_owned_clip_keys = pending_node.owned_clip_keys.clone();
+        let pending_clip_count = pending_owned_clip_keys.len();
+        let previous_owned_clip_keys = self
+            .clip_owner_keys
+            .get(&node_id)
+            .cloned()
+            .unwrap_or_default();
 
         let previous = self.scene.remove(&node_id);
         let prev_z = previous.as_ref().map(|node| node.z_index());
@@ -503,7 +661,7 @@ impl<'w> WgpuRenderer<'w> {
 
                         existing.transform_keys = transform_keys;
                         existing.clip_stack = buffers.clip_stack;
-                        existing.z_index = pending_node.z_index;
+                        existing.z_index = pending_z_index;
                         existing.resource_dirty.geometry |= geometry_changed;
                         existing.resource_dirty.primitives |=
                             geometry_changed || fill_changed || transform_layout_changed;
@@ -515,7 +673,7 @@ impl<'w> WgpuRenderer<'w> {
                         existing.transform_layout_signature = transform_layout_signature;
                         Some(RetainedNode::Vector(existing))
                     }
-                    Some(RetainedNode::Image(_)) | None => {
+                    Some(RetainedNode::Image(_existing)) => {
                         let mut buffers_out = new_cpu_buffers();
                         rebuild_vector_buffers(
                             self.tolerance,
@@ -532,7 +690,37 @@ impl<'w> WgpuRenderer<'w> {
                             retained_primitives,
                             transform_keys,
                             clip_stack: buffers.clip_stack,
-                            z_index: pending_node.z_index,
+                            z_index: pending_z_index,
+                            resource_dirty: VectorResourceDirty {
+                                geometry: true,
+                                primitives: true,
+                                transforms: false,
+                                fill: true,
+                            },
+                            geometry_signatures,
+                            fill_signature,
+                            transform_signature,
+                            transform_layout_signature,
+                        }))
+                    }
+                    None => {
+                        let mut buffers_out = new_cpu_buffers();
+                        rebuild_vector_buffers(
+                            self.tolerance,
+                            &buffers.ops,
+                            &mut buffers_out,
+                            false,
+                            false,
+                        );
+                        let retained_primitives =
+                            build_retained_primitives(&buffers_out.primitives, &transform_ids);
+                        Some(RetainedNode::Vector(RetainedVectorNode {
+                            resource: None,
+                            buffers: buffers_out,
+                            retained_primitives,
+                            transform_keys,
+                            clip_stack: buffers.clip_stack,
+                            z_index: pending_z_index,
                             resource_dirty: VectorResourceDirty {
                                 geometry: true,
                                 primitives: true,
@@ -554,15 +742,26 @@ impl<'w> WgpuRenderer<'w> {
                 Some(RetainedNode::Image(RetainedImageNode {
                     draw: image_node.draw,
                     clip_stack: image_node.clip_stack,
-                    z_index: pending_node.z_index,
+                    z_index: pending_z_index,
                 }))
             }
         };
 
+        if previous_owned_clip_keys.len() > pending_clip_count {
+            self.clip_arena
+                .release_keys(&previous_owned_clip_keys[pending_clip_count..]);
+        }
+        if pending_owned_clip_keys.is_empty() {
+            self.clip_owner_keys.remove(&node_id);
+        } else {
+            self.clip_owner_keys
+                .insert(node_id, pending_owned_clip_keys.clone());
+        }
+
         match updated {
             Some(node) => {
                 self.scene.insert(node_id, node);
-                if prev_z != Some(pending_node.z_index) {
+                if prev_z != Some(pending_z_index) {
                     self.order_dirty = true;
                 }
                 self.scene_dirty = true;
@@ -578,10 +777,18 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     pub fn remove_node(&mut self, node_id: u32) -> bool {
+        let mut removed = false;
         if let Some(node) = self.scene.remove(&node_id) {
             if let RetainedNode::Vector(node) = &node {
                 self.transform_arena.release_keys(&node.transform_keys);
             }
+            removed = true;
+        }
+        if let Some(owned_clip_keys) = self.clip_owner_keys.remove(&node_id) {
+            self.clip_arena.release_keys(&owned_clip_keys);
+            removed = true;
+        }
+        if removed {
             self.order_dirty = true;
             self.scene_dirty = true;
         }
@@ -648,8 +855,10 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     fn flush_vector_scene_batch(&mut self) {
-        let mut current_clip_stack: Vec<u64> = Vec::new();
-        let mut current_batch_clip_stack: Option<Vec<ClipGeometry>> = None;
+        self.transform_arena.flush_to_gpu(&self.render_backend);
+        self.clip_arena.flush_to_gpu(&self.render_backend);
+        let mut current_clip_stack: Vec<u32> = Vec::new();
+        let mut current_batch_clip_stack: Option<Vec<ClipReference>> = None;
         let mut current_buffers = new_cpu_buffers();
         let mut has_geometry = false;
 
@@ -665,6 +874,7 @@ impl<'w> WgpuRenderer<'w> {
                             &mut self.render_backend,
                             &mut current_clip_stack,
                             batch_clip_stack,
+                            &self.clip_arena,
                         );
                         self.render_backend.render_primitives(&mut current_buffers);
                         current_buffers = new_cpu_buffers();
@@ -681,6 +891,7 @@ impl<'w> WgpuRenderer<'w> {
                         &mut self.render_backend,
                         &mut current_clip_stack,
                         batch_clip_stack,
+                        &self.clip_arena,
                     );
                 }
                 self.render_backend.render_primitives(&mut current_buffers);
@@ -698,13 +909,16 @@ impl<'w> WgpuRenderer<'w> {
                     &mut self.render_backend,
                     &mut current_clip_stack,
                     batch_clip_stack,
+                    &self.clip_arena,
                 );
             }
             self.render_backend.render_primitives(&mut current_buffers);
         }
 
+        let (active_clip_signatures, active_clip_ids) =
+            collect_active_clip_resources(&self.scene, &self.clip_arena);
         self.render_backend
-            .retain_stencil_geometry(&collect_active_clip_signatures(&self.scene));
+            .retain_stencil_resources(&active_clip_signatures, &active_clip_ids);
         self.render_backend.present();
     }
 }
@@ -714,17 +928,10 @@ struct SceneStateSave {
     clip_depth: usize,
 }
 
-#[derive(Clone)]
-struct ClipGeometry {
-    geometry_signature: u64,
-    state_signature: u64,
-    geometry: VertexBuffers<stencil::Vertex, u16>,
-    transform: Transform2D,
-}
-
 struct PendingNode {
     id: u32,
     z_index: i32,
+    owned_clip_keys: Vec<ClipArenaKey>,
     kind: PendingNodeKind,
 }
 
@@ -736,7 +943,7 @@ enum PendingNodeKind {
 
 struct PendingVectorNode {
     ops: Vec<PendingVectorOp>,
-    clip_stack: Vec<ClipGeometry>,
+    clip_stack: Vec<ClipReference>,
 }
 
 struct PendingVectorOp {
@@ -756,7 +963,7 @@ enum PendingVectorOpKind {
 
 struct PendingImageNode {
     draw: RetainedImageDraw,
-    clip_stack: Vec<ClipGeometry>,
+    clip_stack: Vec<ClipReference>,
 }
 
 enum RetainedNode {
@@ -772,7 +979,7 @@ impl RetainedNode {
         }
     }
 
-    fn clip_stack(&self) -> &[ClipGeometry] {
+    fn clip_stack(&self) -> &[ClipReference] {
         match self {
             RetainedNode::Vector(node) => &node.clip_stack,
             RetainedNode::Image(node) => &node.clip_stack,
@@ -785,7 +992,7 @@ struct RetainedVectorNode {
     buffers: CpuBuffers,
     retained_primitives: Vec<GpuPrimitive>,
     transform_keys: Vec<TransformArenaKey>,
-    clip_stack: Vec<ClipGeometry>,
+    clip_stack: Vec<ClipReference>,
     z_index: i32,
     resource_dirty: VectorResourceDirty,
     geometry_signatures: Vec<u64>,
@@ -796,7 +1003,7 @@ struct RetainedVectorNode {
 
 struct RetainedImageNode {
     draw: RetainedImageDraw,
-    clip_stack: Vec<ClipGeometry>,
+    clip_stack: Vec<ClipReference>,
     z_index: i32,
 }
 
@@ -1217,57 +1424,56 @@ fn hash_clip_geometry(geometry: &VertexBuffers<stencil::Vertex, u16>) -> u64 {
 
 fn sync_clip_stack<'w>(
     render_backend: &mut RenderBackend<'w>,
-    current_clip_stack: &mut Vec<u64>,
-    desired_clip_stack: &[ClipGeometry],
+    current_clip_stack: &mut Vec<u32>,
+    desired_clip_stack: &[ClipReference],
+    clip_arena: &ClipArena,
 ) {
-    let desired_signatures: Vec<u64> = desired_clip_stack
-        .iter()
-        .map(|clip| clip.state_signature)
-        .collect();
     let shared_prefix = current_clip_stack
         .iter()
-        .zip(desired_signatures.iter())
-        .take_while(|(left, right)| left == right)
+        .zip(desired_clip_stack.iter().map(|clip| clip.clip_id))
+        .take_while(|(left, right)| left == &right)
         .count();
     render_backend.reset_stencil_depth_to(shared_prefix as u32);
     current_clip_stack.truncate(shared_prefix);
+    let mut clip_draws = Vec::new();
     for clip in desired_clip_stack.iter().skip(shared_prefix) {
-        render_backend.push_stencil_geometry(
-            clip.geometry_signature,
-            &clip.geometry,
-            clip.transform,
-        );
-        current_clip_stack.push(clip.state_signature);
+        let Some(entry) = clip_arena.get(clip.clip_id) else {
+            log::error!("missing clip arena entry for clip {}", clip.clip_id);
+            continue;
+        };
+        clip_draws.push(stencil::ClipDraw {
+            clip_id: clip.clip_id,
+            geometry_signature: entry.geometry_signature,
+            geometry: &entry.geometry,
+        });
+        current_clip_stack.push(clip.clip_id);
     }
+    render_backend.push_stencil_clips(&clip_draws);
 }
 
-fn collect_active_clip_signatures(scene: &HashMap<u32, RetainedNode>) -> HashSet<u64> {
+fn collect_active_clip_resources(
+    scene: &HashMap<u32, RetainedNode>,
+    clip_arena: &ClipArena,
+) -> (HashSet<u64>, HashSet<u32>) {
     let mut signatures = HashSet::new();
+    let mut clip_ids = HashSet::new();
     for node in scene.values() {
         for clip in node.clip_stack() {
-            signatures.insert(clip.geometry_signature);
+            clip_ids.insert(clip.clip_id);
+            if let Some(entry) = clip_arena.get(clip.clip_id) {
+                signatures.insert(entry.geometry_signature);
+            }
         }
     }
-    signatures
+    (signatures, clip_ids)
 }
 
-fn clip_stacks_match(left: &[ClipGeometry], right: &[ClipGeometry]) -> bool {
+fn clip_stacks_match(left: &[ClipReference], right: &[ClipReference]) -> bool {
     left.len() == right.len()
         && left
             .iter()
             .zip(right.iter())
-            .all(|(left, right)| left.state_signature == right.state_signature)
-}
-
-fn hash_clip_state(geometry_signature: u64, transform: &Transform2D) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    geometry_signature.hash(&mut hasher);
-    for row in transform.to_arrays() {
-        for value in row {
-            value.to_bits().hash(&mut hasher);
-        }
-    }
-    hasher.finish()
+            .all(|(left, right)| left.clip_id == right.clip_id)
 }
 
 #[derive(Debug, Clone, Copy)]

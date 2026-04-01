@@ -204,8 +204,16 @@ impl InstanceNode for MaskInstance {
 
         let layers = rcs.layers();
         for layer in 0..layers {
+            if !rcs.begin_node(
+                layer,
+                expanded_node.id.to_u32(),
+                expanded_node.occlusion.get().z_index,
+            ) {
+                continue;
+            }
             rcs.save(layer);
             rcs.clip(layer, mask_path.clone());
+            let _ = rcs.end_node(layer, expanded_node.id.to_u32());
         }
     }
 

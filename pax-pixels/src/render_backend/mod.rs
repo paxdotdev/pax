@@ -41,6 +41,7 @@ pub struct RenderConfig {
     colors_buffer_size: u64,
     gradients_buffer_size: u64,
     transforms_buffer_size: u64,
+    clip_transforms_buffer_size: u64,
     pub initial_width: u32,
     pub initial_height: u32,
     pub initial_dpr: f32,
@@ -51,6 +52,7 @@ pub(crate) const MAX_BATCH_COLORS: usize = 512;
 pub(crate) const MAX_BATCH_GRADIENTS: usize = 64;
 pub(crate) const MAX_BATCH_TRANSFORMS: usize = 512;
 pub(crate) const MAX_SCENE_TRANSFORMS: usize = 1024;
+pub(crate) const MAX_SCENE_CLIPS: usize = 1024;
 
 impl RenderConfig {
     pub fn new(_debug: bool, width: u32, height: u32, dpr: f32) -> Self {
@@ -62,6 +64,7 @@ impl RenderConfig {
             colors_buffer_size: MAX_BATCH_COLORS as u64,
             gradients_buffer_size: MAX_BATCH_GRADIENTS as u64,
             transforms_buffer_size: MAX_SCENE_TRANSFORMS as u64,
+            clip_transforms_buffer_size: MAX_SCENE_CLIPS as u64,
             initial_width: width,
             initial_height: height,
             initial_dpr: dpr,
@@ -107,6 +110,7 @@ pub struct RenderBackend<'w> {
     index_buffer: wgpu::Buffer,
     primitive_buffer: wgpu::Buffer,
     transforms_buffer: wgpu::Buffer,
+    clip_transforms_buffer: wgpu::Buffer,
     colors_buffer: wgpu::Buffer,
     gradients_buffer: wgpu::Buffer,
 
@@ -491,6 +495,12 @@ impl<'w> RenderBackend<'w> {
             config.transforms_buffer_size,
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         );
+        let (_, clip_transforms_buffer) = create_buffer::<GpuTransform>(
+            &device,
+            "Clip Transform Buffer",
+            config.clip_transforms_buffer_size,
+            BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        );
         let (_, colors_buffer) = create_buffer::<GpuColor>(
             &device,
             "Colors Buffer",
@@ -601,6 +611,7 @@ impl<'w> RenderBackend<'w> {
             config.initial_height,
             sample_count,
             &globals_buffer,
+            &clip_transforms_buffer,
         );
 
         let initial_width = config.initial_width;
@@ -623,6 +634,7 @@ impl<'w> RenderBackend<'w> {
             index_buffer,
             primitive_buffer,
             transforms_buffer,
+            clip_transforms_buffer,
             globals_buffer,
             colors_buffer,
             gradients_buffer,
@@ -708,22 +720,6 @@ impl<'w> RenderBackend<'w> {
             multiview_mask: None,
             cache: None,
         })
-    }
-
-    pub fn push_stencil(
-        &mut self,
-        signature: u64,
-        geometry: &VertexBuffers<stencil::Vertex, u16>,
-        transform: Transform2D,
-    ) {
-        // self.stencil_renderer.clear(&self.device, &self.queue);
-        self.stencil_renderer.push_stencil(
-            &self.device,
-            &self.queue,
-            signature,
-            geometry,
-            transform,
-        );
     }
 
     pub fn reset_stencil_depth_to(&mut self, depth: u32) {
@@ -935,6 +931,14 @@ impl<'w> RenderBackend<'w> {
             .write_buffer(&self.transforms_buffer, 0, bytemuck::cast_slice(transforms));
     }
 
+    pub(crate) fn update_scene_clip_transforms(&self, transforms: &[GpuTransform]) {
+        self.queue.write_buffer(
+            &self.clip_transforms_buffer,
+            0,
+            bytemuck::cast_slice(transforms),
+        );
+    }
+
     #[allow(dead_code)]
     pub(crate) fn draw_vector_resource(&mut self, resource: &RetainedVectorResource) {
         let load_op = self.take_color_load_op();
@@ -1046,24 +1050,18 @@ impl<'w> RenderBackend<'w> {
         self.queue.submit(std::iter::once(encoder.finish()));
     }
 
-    pub(crate) fn push_stencil_geometry(
-        &mut self,
-        signature: u64,
-        geometry: &VertexBuffers<stencil::Vertex, u16>,
-        transform: Transform2D,
-    ) {
-        self.stencil_renderer.push_stencil(
-            &self.device,
-            &self.queue,
-            signature,
-            geometry,
-            transform,
-        );
+    pub(crate) fn push_stencil_clips(&mut self, clips: &[stencil::ClipDraw<'_>]) {
+        self.stencil_renderer
+            .push_stencil_clips(&self.device, &self.queue, clips);
     }
 
-    pub(crate) fn retain_stencil_geometry(&mut self, active_signatures: &HashSet<u64>) {
+    pub(crate) fn retain_stencil_resources(
+        &mut self,
+        active_signatures: &HashSet<u64>,
+        active_clip_ids: &HashSet<u32>,
+    ) {
         self.stencil_renderer
-            .retain_cached_geometry(active_signatures);
+            .retain_cached_resources(active_signatures, active_clip_ids);
     }
 
     pub(crate) fn create_cached_texture(
@@ -1279,6 +1277,12 @@ impl<'w> RenderBackend<'w> {
     pub(crate) fn clear(&mut self) {
         self.stencil_renderer.clear(&self.device, &self.queue);
         self.pending_clear = true;
+    }
+
+    pub(crate) fn ensure_frame_cleared(&mut self) {
+        if !self.pending_clear {
+            self.clear();
+        }
     }
 
     pub(crate) fn present(&mut self) {
