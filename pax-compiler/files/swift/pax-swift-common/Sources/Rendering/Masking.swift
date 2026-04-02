@@ -32,14 +32,8 @@ private struct ParsedMaskEntry {
     let clips: [Path]
 }
 
-private struct CachedFrameClipPath {
-    let source: String?
-    let path: Path?
-}
-
 private enum ParsedMaskGeometryCache {
     static var entries: [ObjectIdentifier: ParsedMaskEntry] = [:]
-    static var frameClips: [ObjectIdentifier: CachedFrameClipPath] = [:]
 
     static func parsedEntry(for entry: MaskPathPatch) -> ParsedMaskEntry {
         let key = ObjectIdentifier(entry)
@@ -51,18 +45,6 @@ private enum ParsedMaskGeometryCache {
             clips: entry.clips.compactMap(parseSVGPath)
         )
         entries[key] = parsed
-        return parsed
-    }
-
-    static func parsedFrameClipPath(for frame: FrameElement) -> Path? {
-        let key = ObjectIdentifier(frame)
-        if let cached = frameClips[key], cached.source == frame.clipPath {
-            return cached.path
-        }
-        let parsed = frame.clipPath.flatMap { clipPath in
-            clipPath.isEmpty ? nil : parseSVGPath(clipPath)
-        }
-        frameClips[key] = CachedFrameClipPath(source: frame.clipPath, path: parsed)
         return parsed
     }
 }
@@ -95,21 +77,15 @@ public struct ResolvedMaskHole {
 public struct ResolvedNativeMask {
     public let signature: UInt64
     public let size: CGSize
-    public let frameClips: [Path]
-    public let frameClipCGPaths: [CGPath]
     public let holes: [ResolvedMaskHole]
 
     public init(
         signature: UInt64,
         size: CGSize,
-        frameClips: [Path],
-        frameClipCGPaths: [CGPath],
         holes: [ResolvedMaskHole]
     ) {
         self.signature = signature
         self.size = size
-        self.frameClips = frameClips
-        self.frameClipCGPaths = frameClipCGPaths
         self.holes = holes
     }
 }
@@ -120,24 +96,6 @@ private func mixMaskHash(_ state: UInt64, _ value: UInt64) -> UInt64 {
 
 private func signedBits(_ value: Int) -> UInt64 {
     UInt64(bitPattern: Int64(value))
-}
-
-private func hashLocalFrameClipDescriptor(
-    clipPath: String?,
-    localTransform: CGAffineTransform,
-    size: CGSize
-) -> UInt64 {
-    var hash = UInt64(1469598103934665603)
-    hash = mixMaskHash(hash, clipPath.map { signedBits($0.hashValue) } ?? 0)
-    hash = mixMaskHash(hash, Double(localTransform.a).bitPattern)
-    hash = mixMaskHash(hash, Double(localTransform.b).bitPattern)
-    hash = mixMaskHash(hash, Double(localTransform.c).bitPattern)
-    hash = mixMaskHash(hash, Double(localTransform.d).bitPattern)
-    hash = mixMaskHash(hash, Double(localTransform.tx).bitPattern)
-    hash = mixMaskHash(hash, Double(localTransform.ty).bitPattern)
-    hash = mixMaskHash(hash, Double(size.width).bitPattern)
-    hash = mixMaskHash(hash, Double(size.height).bitPattern)
-    return hash
 }
 
 private func hashMaskEntry(_ entry: MaskPathPatch) -> UInt64 {
@@ -170,15 +128,6 @@ private func frameAffineTransform(from coeffs: [Float]) -> CGAffineTransform {
         tx: CGFloat(coeffs[4]),
         ty: CGFloat(coeffs[5])
     )
-}
-
-private func invertedFrameAffineTransform(from coeffs: [Float]) -> CGAffineTransform {
-    let transform = frameAffineTransform(from: coeffs)
-    let determinant = (transform.a * transform.d) - (transform.b * transform.c)
-    guard abs(determinant) > .ulpOfOne else {
-        return .identity
-    }
-    return transform.inverted()
 }
 
 private extension Character {
@@ -380,54 +329,6 @@ struct SVGPathShape: Shape {
     }
 }
 
-struct FrameClipDescriptor {
-    let frame: FrameElement
-    let clipPath: String?
-    let transform: [Float]
-    let size: CGSize
-}
-
-private func frameWorldPath(for descriptor: FrameClipDescriptor) -> Path {
-    if let path = ParsedMaskGeometryCache.parsedFrameClipPath(for: descriptor.frame) {
-        return path.applying(frameAffineTransform(from: descriptor.transform))
-    }
-    if let clipPath = descriptor.clipPath,
-       !clipPath.isEmpty,
-       let path = parseSVGPath(clipPath) {
-        return path.applying(frameAffineTransform(from: descriptor.transform))
-    }
-
-    let rect = CGRect(
-        x: 0,
-        y: 0,
-        width: descriptor.size.width,
-        height: descriptor.size.height
-    )
-    return Path(rect).applying(frameAffineTransform(from: descriptor.transform))
-}
-
-private func collectFrameClipDescriptors(startingAt parentFrame: PaxNodeId?, frames: [PaxNodeId: FrameElement]) -> [FrameClipDescriptor] {
-    var descriptors: [FrameClipDescriptor] = []
-    var currentFrame = parentFrame
-
-    while let frameId = currentFrame, let frame = frames[frameId] {
-        if frame.clipContent {
-            descriptors.insert(
-                FrameClipDescriptor(
-                    frame: frame,
-                    clipPath: frame.clipPath,
-                    transform: frame.transform,
-                    size: CGSize(width: CGFloat(frame.size_x), height: CGFloat(frame.size_y))
-                ),
-                at: 0
-            )
-        }
-        currentFrame = frame.parentFrame
-    }
-
-    return descriptors
-}
-
 private func resolvedMaskSize(patch: NativeMaskPatch?, fallbackSize: CGSize) -> CGSize {
     let width = (patch?.size_x ?? 0) > 0 ? CGFloat(patch?.size_x ?? 0) : fallbackSize.width
     let height = (patch?.size_y ?? 0) > 0 ? CGFloat(patch?.size_y ?? 0) : fallbackSize.height
@@ -453,33 +354,13 @@ public func removeResolvedNativeMask(id: PaxNodeId) {
 }
 
 public func resolveNativeMask(
-    elementTransform: [Float],
-    parentFrame: PaxNodeId?,
     patch: NativeMaskPatch?,
-    fallbackSize: CGSize,
-    frames: [PaxNodeId: FrameElement]
+    fallbackSize: CGSize
 ) -> ResolvedNativeMask? {
     let size = resolvedMaskSize(patch: patch, fallbackSize: fallbackSize)
-    let localFromWorld = invertedFrameAffineTransform(from: elementTransform)
     var maskSignature = UInt64(1469598103934665603)
     maskSignature = mixMaskHash(maskSignature, Double(size.width).bitPattern)
     maskSignature = mixMaskHash(maskSignature, Double(size.height).bitPattern)
-
-    let frameDescriptors = collectFrameClipDescriptors(startingAt: parentFrame, frames: frames)
-    let frameClips = frameDescriptors.compactMap { descriptor -> Path? in
-        let localTransform = frameAffineTransform(from: descriptor.transform).concatenating(localFromWorld)
-        maskSignature = mixMaskHash(
-            maskSignature,
-            hashLocalFrameClipDescriptor(
-                clipPath: descriptor.clipPath,
-                localTransform: localTransform,
-                size: descriptor.size
-            )
-        )
-        let localPath = frameWorldPath(for: descriptor).applying(localFromWorld)
-        return localPath.isEmpty ? nil : localPath
-    }
-    let frameClipCGPaths = frameClips.map(\.cgPath)
 
     let sortedEntries = patch?.entries.sorted { lhs, rhs in
         if lhs.path != rhs.path {
@@ -512,15 +393,13 @@ public func resolveNativeMask(
         )
     }
 
-    if frameClips.isEmpty && holes.isEmpty {
+    if holes.isEmpty {
         return nil
     }
 
     return ResolvedNativeMask(
         signature: maskSignature,
         size: size,
-        frameClips: frameClips,
-        frameClipCGPaths: frameClipCGPaths,
         holes: holes
     )
 }
@@ -534,11 +413,8 @@ public struct HoleMaskView: View {
 
     public var body: some View {
         ZStack {
-            clippedView(
-                ResolvedPathShape(resolvedPath: Path(CGRect(origin: .zero, size: mask.size)))
-                    .fill(Color.white),
-                paths: mask.frameClips
-            )
+            ResolvedPathShape(resolvedPath: Path(CGRect(origin: .zero, size: mask.size)))
+                .fill(Color.white)
 
             ForEach(mask.holes, id: \.signature) { hole in
                 clippedView(

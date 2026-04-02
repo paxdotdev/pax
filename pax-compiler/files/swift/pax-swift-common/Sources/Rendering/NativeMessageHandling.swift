@@ -75,27 +75,6 @@ public extension NativeMessageHandling {
             || previousSizeY != element.size_y
     }
 
-    private func frameUpdateAffectsMasks(_ frame: FrameElement, patch: FrameUpdatePatch) -> Bool {
-        let wasClipping = frame.clipContent
-        let willClip = patch.clipContent ?? frame.clipContent
-        guard wasClipping || willClip else {
-            return false
-        }
-
-        let nextClipPath = patch.clipPath.map { $0.isEmpty ? nil : $0 } ?? frame.clipPath
-        let transformChanged = patch.transform != nil && patch.transform! != frame.transform
-        let sizeChanged = (patch.size_x != nil && patch.size_x! != frame.size_x)
-            || (patch.size_y != nil && patch.size_y! != frame.size_y)
-        let clipContentChanged = patch.clipContent != nil && patch.clipContent! != frame.clipContent
-        let clipPathChanged = patch.clipPath != nil && nextClipPath != frame.clipPath
-
-        return transformChanged || sizeChanged || clipContentChanged || clipPathChanged
-    }
-
-    private func frameOcclusionAffectsMasks(_ frame: FrameElement, patch: OcclusionUpdatePatch) -> Bool {
-        frame.clipContent && frame.parentFrame != patch.parentFrame
-    }
-
     private func recomputeResolvedMaskIfPresent(id: PaxNodeId) {
         if let textElement = textElements.elements[id] {
             recomputeResolvedMask(for: textElement)
@@ -156,22 +135,16 @@ public extension NativeMessageHandling {
 
     func recomputeResolvedMask(for textElement: TextElement) {
         let mask = resolveNativeMask(
-            elementTransform: textElement.transform,
-            parentFrame: textElement.parentFrame,
             patch: textElement.nativeMaskPatch,
-            fallbackSize: resolvedTextMaskSize(textElement),
-            frames: frameElements.elements
+            fallbackSize: resolvedTextMaskSize(textElement)
         )
         setResolvedNativeMask(id: textElement.id, mask: mask)
     }
 
     func recomputeResolvedMask<T: NativePositionElement>(for element: T) {
         let mask = resolveNativeMask(
-            elementTransform: element.transform,
-            parentFrame: element.parentFrame,
             patch: element.nativeMaskPatch,
-            fallbackSize: CGSize(width: max(0, CGFloat(element.size_x)), height: max(0, CGFloat(element.size_y))),
-            frames: frameElements.elements
+            fallbackSize: CGSize(width: max(0, CGFloat(element.size_x)), height: max(0, CGFloat(element.size_y)))
         )
         setResolvedNativeMask(id: element.id, mask: mask)
     }
@@ -240,20 +213,14 @@ public extension NativeMessageHandling {
         dirty.frame = true
     }
 
-    func handleFrameUpdate(patch: FrameUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+    func handleFrameUpdate(patch: FrameUpdatePatch, dirty: inout DirtyCollections, masks _: inout DirtyResolvedMasks) {
         if let frame = frameElements.elements[patch.id] {
-            if frameUpdateAffectsMasks(frame, patch: patch) {
-                masks.recomputeAll = true
-            }
             frame.applyPatch(patch: patch)
         }
         dirty.frame = true
     }
 
-    func handleFrameDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
-        if let frame = frameElements.elements[patch.id], frame.clipContent {
-            masks.recomputeAll = true
-        }
+    func handleFrameDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections, masks _: inout DirtyResolvedMasks) {
         frameElements.remove(id: patch.id)
         dirty.frame = true
     }
@@ -528,102 +495,59 @@ public extension NativeMessageHandling {
         dirty.eventBlocker = true
     }
 
-    func handleOcclusionUpdate(patch: OcclusionUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+    func handleOcclusionUpdate(patch: OcclusionUpdatePatch, dirty: inout DirtyCollections, masks _: inout DirtyResolvedMasks) {
         if let textElement = textElements.elements[patch.id] {
-            let previousParentFrame = textElement.parentFrame
             textElement.applyOcclusionPatch(patch)
-            if previousParentFrame != textElement.parentFrame {
-                masks.mark(patch.id)
-            }
             dirty.text = true
             return
         }
         if let frameElement = frameElements.elements[patch.id] {
-            if frameOcclusionAffectsMasks(frameElement, patch: patch) {
-                masks.recomputeAll = true
-            }
             frameElement.applyOcclusionPatch(patch)
             dirty.frame = true
             return
         }
         if let buttonElement = buttonElements.elements[patch.id] {
-            let previousParentFrame = buttonElement.parentFrame
             buttonElement.applyOcclusionPatch(patch)
-            if previousParentFrame != buttonElement.parentFrame {
-                masks.mark(patch.id)
-            }
             dirty.button = true
             return
         }
         if let checkboxElement = checkboxElements.elements[patch.id] {
-            let previousParentFrame = checkboxElement.parentFrame
             checkboxElement.applyOcclusionPatch(patch)
-            if previousParentFrame != checkboxElement.parentFrame {
-                masks.mark(patch.id)
-            }
             dirty.checkbox = true
             return
         }
         if let nativeImageElement = nativeImageElements.elements[patch.id] {
-            let previousParentFrame = nativeImageElement.parentFrame
             nativeImageElement.applyOcclusionPatch(patch)
-            if previousParentFrame != nativeImageElement.parentFrame {
-                masks.mark(patch.id)
-            }
             dirty.nativeImage = true
             return
         }
         if let youtubeVideoElement = youtubeVideoElements.elements[patch.id] {
-            let previousParentFrame = youtubeVideoElement.parentFrame
             youtubeVideoElement.applyOcclusionPatch(patch)
-            if previousParentFrame != youtubeVideoElement.parentFrame {
-                masks.mark(patch.id)
-            }
             dirty.youtubeVideo = true
             return
         }
         if let dropdownElement = dropdownElements.elements[patch.id] {
-            let previousParentFrame = dropdownElement.parentFrame
             dropdownElement.applyOcclusionPatch(patch)
-            if previousParentFrame != dropdownElement.parentFrame {
-                masks.mark(patch.id)
-            }
             dirty.dropdown = true
             return
         }
         if let radioSetElement = radioSetElements.elements[patch.id] {
-            let previousParentFrame = radioSetElement.parentFrame
             radioSetElement.applyOcclusionPatch(patch)
-            if previousParentFrame != radioSetElement.parentFrame {
-                masks.mark(patch.id)
-            }
             dirty.radioSet = true
             return
         }
         if let sliderElement = sliderElements.elements[patch.id] {
-            let previousParentFrame = sliderElement.parentFrame
             sliderElement.applyOcclusionPatch(patch)
-            if previousParentFrame != sliderElement.parentFrame {
-                masks.mark(patch.id)
-            }
             dirty.slider = true
             return
         }
         if let textboxElement = textboxElements.elements[patch.id] {
-            let previousParentFrame = textboxElement.parentFrame
             textboxElement.applyOcclusionPatch(patch)
-            if previousParentFrame != textboxElement.parentFrame {
-                masks.mark(patch.id)
-            }
             dirty.textbox = true
             return
         }
         if let eventBlockerElement = eventBlockerElements.elements[patch.id] {
-            let previousParentFrame = eventBlockerElement.parentFrame
             eventBlockerElement.applyOcclusionPatch(patch)
-            if previousParentFrame != eventBlockerElement.parentFrame {
-                masks.mark(patch.id)
-            }
             dirty.eventBlocker = true
         }
     }
