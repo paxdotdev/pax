@@ -35,6 +35,55 @@ private func resolvedTextSize(_ element: TextElement) -> CGSize {
     CGSize(width: max(0, CGFloat(element.size_x)), height: max(0, CGFloat(element.size_y)))
 }
 
+private func combineCGSize(_ size: CGSize, into hasher: inout Hasher) {
+    hasher.combine(size.width.bitPattern)
+    hasher.combine(size.height.bitPattern)
+}
+
+private func combineCGFloat(_ value: CGFloat, into hasher: inout Hasher) {
+    hasher.combine(value.bitPattern)
+}
+
+private func combineDouble(_ value: Double, into hasher: inout Hasher) {
+    hasher.combine(value.bitPattern)
+}
+
+private func combineFloat(_ value: Float, into hasher: inout Hasher) {
+    hasher.combine(value.bitPattern)
+}
+
+private func combineColor(_ color: Color, into hasher: inout Hasher) {
+#if os(iOS) || os(tvOS) || os(watchOS)
+    let platform = platformColor(color).cgColor
+#elseif os(macOS)
+    let platform = (platformColor(color).usingColorSpace(.deviceRGB) ?? platformColor(color)).cgColor
+#endif
+    if let converted = platform.converted(to: CGColorSpaceCreateDeviceRGB(), intent: .defaultIntent, options: nil),
+       let components = converted.components {
+        for component in components {
+            combineCGFloat(component, into: &hasher)
+        }
+    } else if let components = platform.components {
+        for component in components {
+            combineCGFloat(component, into: &hasher)
+        }
+    } else {
+        hasher.combine(String(describing: platform))
+    }
+}
+
+private func combineFont(_ font: PaxFont, into hasher: inout Hasher) {
+    hasher.combine(String(describing: font.type))
+}
+
+private func combineTextStyle(_ style: TextStyle, into hasher: inout Hasher) {
+    combineFont(style.font, into: &hasher)
+    combineColor(style.fill, into: &hasher)
+    hasher.combine(String(describing: style.alignmentMultiline))
+    hasher.combine(style.font_size.bitPattern)
+    hasher.combine(style.underline)
+}
+
 private func textAlignment(from alignment: TextAlignment) -> TextAlignment {
     alignment
 }
@@ -203,6 +252,84 @@ public struct NativeRenderingLayer: View {
                 return "event-blocker"
             }
         }
+
+        func contentSignature(size: CGSize) -> Int {
+            var hasher = Hasher()
+            hasher.combine(contentKey)
+            combineCGSize(size, into: &hasher)
+            switch self {
+            case .text(let element):
+                hasher.combine(element.content)
+                hasher.combine(element.editable)
+                hasher.combine(element.selectable)
+                hasher.combine(element.markdown)
+                combineTextStyle(element.textStyle, into: &hasher)
+                if let styleLink = element.style_link {
+                    combineTextStyle(styleLink, into: &hasher)
+                } else {
+                    hasher.combine(0)
+                }
+            case .button(let element):
+                hasher.combine(element.content)
+                combineColor(element.color, into: &hasher)
+                combineColor(element.hoverColor, into: &hasher)
+                combineColor(element.outlineStrokeColor, into: &hasher)
+                combineDouble(element.outlineStrokeWidth, into: &hasher)
+                combineDouble(element.borderRadius, into: &hasher)
+                combineTextStyle(element.style, into: &hasher)
+            case .checkbox(let element):
+                hasher.combine(element.checked)
+                combineColor(element.background, into: &hasher)
+                combineColor(element.backgroundChecked, into: &hasher)
+                combineColor(element.outlineColor, into: &hasher)
+                combineDouble(element.outlineWidth, into: &hasher)
+                combineDouble(element.borderRadius, into: &hasher)
+            case .slider(let element):
+                combineDouble(element.value, into: &hasher)
+                combineDouble(element.step, into: &hasher)
+                combineDouble(element.min, into: &hasher)
+                combineDouble(element.max, into: &hasher)
+                combineColor(element.accent, into: &hasher)
+                combineColor(element.background, into: &hasher)
+                combineDouble(element.borderRadius, into: &hasher)
+            case .dropdown(let element):
+                hasher.combine(element.selectedId)
+                hasher.combine(element.options)
+                combineColor(element.background, into: &hasher)
+                combineColor(element.strokeColor, into: &hasher)
+                combineDouble(element.strokeWidth, into: &hasher)
+                combineDouble(element.borderRadius, into: &hasher)
+                combineTextStyle(element.style, into: &hasher)
+            case .radioSet(let element):
+                hasher.combine(element.selectedId)
+                hasher.combine(element.options)
+                combineTextStyle(element.style, into: &hasher)
+                combineColor(element.backgroundChecked, into: &hasher)
+                combineColor(element.outlineColor, into: &hasher)
+                combineDouble(element.outlineWidth, into: &hasher)
+                combineColor(element.background, into: &hasher)
+            case .textbox(let element):
+                hasher.combine(element.text)
+                hasher.combine(element.focusOnMount)
+                hasher.combine(element.placeholder)
+                hasher.combine(element.isTextArea)
+                combineColor(element.background, into: &hasher)
+                combineColor(element.strokeColor, into: &hasher)
+                combineDouble(element.strokeWidth, into: &hasher)
+                combineDouble(element.borderRadius, into: &hasher)
+                combineTextStyle(element.style, into: &hasher)
+                combineColor(element.outlineColor, into: &hasher)
+                combineDouble(element.outlineWidth, into: &hasher)
+            case .nativeImage(let element):
+                hasher.combine(element.url)
+                hasher.combine(element.fit)
+            case .youtubeVideo(let element):
+                hasher.combine(element.url)
+            case .eventBlocker:
+                break
+            }
+            return hasher.finalize()
+        }
     }
 
     private struct NativeRenderItem: Identifiable {
@@ -362,15 +489,18 @@ public struct NativeRenderingLayer: View {
         private var queuedMaskRender: PendingMaskRender?
         private var contentKey: String?
         private var contentView: PlatformBaseView?
+        private var appliedContentSignature: Int?
 
         func update(item: NativeRenderItem) {
             ensureContentView(for: item.kind)
-            if let contentView {
+            let contentSignature = item.kind.contentSignature(size: item.size)
+            if let contentView, appliedContentSignature != contentSignature {
                 NativeRenderingLayer.updatePlatformLeafView(
                     contentView,
                     for: item.kind,
                     size: item.size
                 )
+                appliedContentSignature = contentSignature
             }
             updateMask(item.mask)
         }
@@ -388,6 +518,7 @@ public struct NativeRenderingLayer: View {
             NativeRenderingLayer.attachPlatformSubview(view, to: self)
             contentView = view
             contentKey = desiredKey
+            appliedContentSignature = nil
         }
 
         private static func currentMaskScale() -> CGFloat {
