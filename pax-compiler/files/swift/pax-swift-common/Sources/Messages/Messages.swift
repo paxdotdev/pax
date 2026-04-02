@@ -729,10 +729,28 @@ public class PaxFont {
     public var type: PaxFontType
     public var cachedFont: Font?
     public var currentSize: CGFloat
+    #if os(iOS) || os(tvOS) || os(watchOS)
+    public var cachedUIFont: UIFont?
+    public var currentUIFontSize: CGFloat
+    #elseif os(macOS)
+    public var cachedNSFont: NSFont?
+    public var currentNSFontSize: CGFloat
+    #endif
+
+    #if os(macOS)
+    private static var registeredFontCache: [String: Bool] = [:]
+    #elseif os(iOS) || os(tvOS) || os(watchOS)
+    private static var registeredFontCache: [String: Bool] = [:]
+    #endif
 
     public init(type: PaxFontType) {
         self.type = type
         self.currentSize = 12
+        #if os(iOS) || os(tvOS) || os(watchOS)
+        self.currentUIFontSize = 12
+        #elseif os(macOS)
+        self.currentNSFontSize = 12
+        #endif
     }
     
     public static func makeDefault() -> PaxFont {
@@ -791,6 +809,10 @@ public class PaxFont {
 
     #if os(iOS) || os(tvOS) || os(watchOS)
     public func getUIFont(size: CGFloat) -> UIFont {
+        if let cachedUIFont = cachedUIFont, currentUIFontSize == size {
+            return cachedUIFont
+        }
+
         var fontFamily: String?
         var fontStyle: FontStyle?
         var fontWeight: FontWeight?
@@ -817,20 +839,29 @@ public class PaxFont {
             baseFont = UIFont.systemFont(ofSize: size, weight: fontWeight?.uiFontWeight() ?? .regular)
         }
 
+        let finalFont: UIFont
         switch fontStyle ?? .normal {
         case .normal:
-            return baseFont
+            finalFont = baseFont
         case .italic:
             if let descriptor = baseFont.fontDescriptor.withSymbolicTraits(.traitItalic) {
-                return UIFont(descriptor: descriptor, size: size)
+                finalFont = UIFont(descriptor: descriptor, size: size)
+            } else {
+                finalFont = UIFont.italicSystemFont(ofSize: size)
             }
-            return UIFont.italicSystemFont(ofSize: size)
         case .oblique:
-            return baseFont
+            finalFont = baseFont
         }
+        cachedUIFont = finalFont
+        currentUIFontSize = size
+        return finalFont
     }
     #elseif os(macOS)
     public func getNSFont(size: CGFloat) -> NSFont {
+        if let cachedNSFont = cachedNSFont, currentNSFontSize == size {
+            return cachedNSFont
+        }
+
         var fontFamily: String?
         var fontStyle: FontStyle?
         var fontWeight: FontWeight?
@@ -857,21 +888,31 @@ public class PaxFont {
             baseFont = NSFont.systemFont(ofSize: size, weight: fontWeight?.nsFontWeight() ?? .regular)
         }
 
+        let finalFont: NSFont
         switch fontStyle ?? .normal {
         case .normal:
-            return baseFont
+            finalFont = baseFont
         case .italic:
             let descriptor = baseFont.fontDescriptor.withSymbolicTraits(.italic)
-            return NSFont(descriptor: descriptor, size: size) ?? NSFontManager.shared.convert(baseFont, toHaveTrait: .italicFontMask)
+            finalFont = NSFont(descriptor: descriptor, size: size) ?? NSFontManager.shared.convert(baseFont, toHaveTrait: .italicFontMask)
         case .oblique:
-            return baseFont
+            finalFont = baseFont
         }
+        cachedNSFont = finalFont
+        currentNSFontSize = size
+        return finalFont
     }
     #endif
 
 
 
     public func applyPatch(fb: FlxbReference) {
+        cachedFont = nil
+        #if os(iOS) || os(tvOS) || os(watchOS)
+        cachedUIFont = nil
+        #elseif os(macOS)
+        cachedNSFont = nil
+        #endif
         if let systemFontMessage = fb["System"] {
             if let family = systemFontMessage["family"]?.asString {
                 let styleMessage = FontStyle(rawValue: systemFontMessage["style"]?.asString ?? "normal") ?? .normal
@@ -901,9 +942,13 @@ public class PaxFont {
 
     #if os(macOS)
     public static func isFontRegistered(fontFamily: String) -> Bool {
+        if let cached = registeredFontCache[fontFamily] {
+            return cached
+        }
         let fontFamilies = CTFontManagerCopyAvailableFontFamilyNames() as! [String]
 
         if fontFamilies.contains(fontFamily) {
+            registeredFontCache[fontFamily] = true
             return true
         }
 
@@ -915,20 +960,26 @@ public class PaxFont {
                 for descriptor in fontDescriptors {
                     if let fontFamilyName = CTFontDescriptorCopyAttribute(descriptor, kCTFontFamilyNameAttribute) as? String {
                         if fontFamilyName == fontFamily {
+                            registeredFontCache[fontFamily] = true
                             return true
                         }
                     }
                 }
             }
         }
+        registeredFontCache[fontFamily] = false
         return false
 
     }
     #elseif  os(iOS) || os(tvOS) || os(watchOS)
     public static func isFontRegistered(fontFamily: String) -> Bool {
+        if let cached = registeredFontCache[fontFamily] {
+            return cached
+        }
         let availableFontFamilies = UIFont.familyNames
-        
-        return availableFontFamilies.contains(fontFamily)
+        let isRegistered = availableFontFamilies.contains(fontFamily)
+        registeredFontCache[fontFamily] = isRegistered
+        return isRegistered
     }
     #endif
 }

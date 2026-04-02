@@ -128,137 +128,6 @@ private func platformTextAlignment(_ alignment: TextAlignment) -> NSTextAlignmen
         return .left
     }
 }
-
-private final class LayerMaskedHostingController: UIViewController {
-    private static let maskRasterQueue = DispatchQueue(
-        label: "dev.pax.swift.native-mask-raster",
-        qos: .userInitiated
-    )
-
-    private let hostingController = UIHostingController(rootView: AnyView(EmptyView()))
-    private let maskLayer = CALayer()
-    private var appliedMaskSignature: UInt64?
-    private var appliedMaskSize: CGSize = .zero
-    private var requestedMaskSignature: UInt64?
-    private var requestedMaskSize: CGSize = .zero
-    private var nextMaskGeneration: UInt64 = 0
-    private var inFlightMaskRender: PendingMaskRender?
-    private var queuedMaskRender: PendingMaskRender?
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .clear
-        view.isOpaque = false
-        hostingController.view.backgroundColor = .clear
-        hostingController.view.isOpaque = false
-        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
-        addChild(hostingController)
-        view.addSubview(hostingController.view)
-        NSLayoutConstraint.activate([
-            hostingController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            hostingController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            hostingController.view.topAnchor.constraint(equalTo: view.topAnchor),
-            hostingController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-        ])
-        hostingController.didMove(toParent: self)
-        view.layer.mask = maskLayer
-    }
-
-    private static func currentMaskScale() -> CGFloat {
-        #if targetEnvironment(simulator)
-        return 1.0
-        #else
-        return UIScreen.main.scale
-        #endif
-    }
-
-    private func enqueueMaskRender(payload: RasterizedNativeMaskPayload, scale: CGFloat) {
-        nextMaskGeneration &+= 1
-        let render = PendingMaskRender(
-            generation: nextMaskGeneration,
-            scale: scale,
-            payload: payload
-        )
-        queuedMaskRender = render
-        startNextMaskRenderIfNeeded()
-    }
-
-    private func startNextMaskRenderIfNeeded() {
-        guard inFlightMaskRender == nil, let render = queuedMaskRender else {
-            return
-        }
-        queuedMaskRender = nil
-        inFlightMaskRender = render
-
-        Self.maskRasterQueue.async { [weak self] in
-            let image = rasterizedMaskImage(
-                payload: render.payload,
-                scale: render.scale
-            )
-            DispatchQueue.main.async {
-                guard let self else {
-                    return
-                }
-                guard self.inFlightMaskRender?.generation == render.generation else {
-                    return
-                }
-                self.inFlightMaskRender = nil
-                if self.requestedMaskSignature == render.payload.signature,
-                   self.requestedMaskSize == render.payload.size,
-                   let image
-                {
-                    CATransaction.begin()
-                    CATransaction.setDisableActions(true)
-                    self.maskLayer.frame = CGRect(origin: .zero, size: render.payload.size)
-                    self.maskLayer.contents = image
-                    self.maskLayer.contentsScale = render.scale
-                    CATransaction.commit()
-                    self.appliedMaskSignature = render.payload.signature
-                    self.appliedMaskSize = render.payload.size
-                }
-                self.startNextMaskRenderIfNeeded()
-            }
-        }
-    }
-
-    func update(rootView: AnyView, mask: ResolvedNativeMask) {
-        hostingController.rootView = rootView
-        requestedMaskSignature = mask.signature
-        requestedMaskSize = mask.size
-        if appliedMaskSignature == mask.signature && appliedMaskSize == mask.size {
-            return
-        }
-        if let inFlightMaskRender,
-           inFlightMaskRender.payload.signature == mask.signature,
-           inFlightMaskRender.payload.size == mask.size
-        {
-            return
-        }
-        if let queuedMaskRender,
-           queuedMaskRender.payload.signature == mask.signature,
-           queuedMaskRender.payload.size == mask.size
-        {
-            return
-        }
-        enqueueMaskRender(
-            payload: rasterPayload(from: mask),
-            scale: Self.currentMaskScale()
-        )
-    }
-}
-
-private struct LayerMaskedView: UIViewControllerRepresentable {
-    let content: AnyView
-    let mask: ResolvedNativeMask
-
-    func makeUIViewController(context: Context) -> LayerMaskedHostingController {
-        LayerMaskedHostingController()
-    }
-
-    func updateUIViewController(_ controller: LayerMaskedHostingController, context: Context) {
-        controller.update(rootView: content, mask: mask)
-    }
-}
 #elseif os(macOS)
 private func platformColor(_ color: Color) -> NSColor {
     NSColor(color)
@@ -272,135 +141,6 @@ private func platformTextAlignment(_ alignment: TextAlignment) -> NSTextAlignmen
         return .right
     default:
         return .left
-    }
-}
-
-private final class LayerMaskedHostingController: NSViewController {
-    private static let maskRasterQueue = DispatchQueue(
-        label: "dev.pax.swift.native-mask-raster",
-        qos: .userInitiated
-    )
-
-    private let hostingController = NSHostingController(rootView: AnyView(EmptyView()))
-    private let maskLayer = CALayer()
-    private var appliedMaskSignature: UInt64?
-    private var appliedMaskSize: CGSize = .zero
-    private var requestedMaskSignature: UInt64?
-    private var requestedMaskSize: CGSize = .zero
-    private var nextMaskGeneration: UInt64 = 0
-    private var inFlightMaskRender: PendingMaskRender?
-    private var queuedMaskRender: PendingMaskRender?
-
-    override func loadView() {
-        let rootView = NSView()
-        rootView.wantsLayer = true
-        rootView.layer?.backgroundColor = NSColor.clear.cgColor
-        rootView.layer?.mask = maskLayer
-        self.view = rootView
-    }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
-        addChild(hostingController)
-        view.addSubview(hostingController.view)
-        NSLayoutConstraint.activate([
-            hostingController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            hostingController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            hostingController.view.topAnchor.constraint(equalTo: view.topAnchor),
-            hostingController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-        ])
-    }
-
-    private static func currentMaskScale() -> CGFloat {
-        NSScreen.main?.backingScaleFactor ?? 1.0
-    }
-
-    private func enqueueMaskRender(payload: RasterizedNativeMaskPayload, scale: CGFloat) {
-        nextMaskGeneration &+= 1
-        let render = PendingMaskRender(
-            generation: nextMaskGeneration,
-            scale: scale,
-            payload: payload
-        )
-        queuedMaskRender = render
-        startNextMaskRenderIfNeeded()
-    }
-
-    private func startNextMaskRenderIfNeeded() {
-        guard inFlightMaskRender == nil, let render = queuedMaskRender else {
-            return
-        }
-        queuedMaskRender = nil
-        inFlightMaskRender = render
-
-        Self.maskRasterQueue.async { [weak self] in
-            let image = rasterizedMaskImage(
-                payload: render.payload,
-                scale: render.scale
-            )
-            DispatchQueue.main.async {
-                guard let self else {
-                    return
-                }
-                guard self.inFlightMaskRender?.generation == render.generation else {
-                    return
-                }
-                self.inFlightMaskRender = nil
-                if self.requestedMaskSignature == render.payload.signature,
-                   self.requestedMaskSize == render.payload.size,
-                   let image
-                {
-                    CATransaction.begin()
-                    CATransaction.setDisableActions(true)
-                    self.maskLayer.frame = CGRect(origin: .zero, size: render.payload.size)
-                    self.maskLayer.contents = image
-                    self.maskLayer.contentsScale = render.scale
-                    CATransaction.commit()
-                    self.appliedMaskSignature = render.payload.signature
-                    self.appliedMaskSize = render.payload.size
-                }
-                self.startNextMaskRenderIfNeeded()
-            }
-        }
-    }
-
-    func update(rootView: AnyView, mask: ResolvedNativeMask) {
-        hostingController.rootView = rootView
-        requestedMaskSignature = mask.signature
-        requestedMaskSize = mask.size
-        if appliedMaskSignature == mask.signature && appliedMaskSize == mask.size {
-            return
-        }
-        if let inFlightMaskRender,
-           inFlightMaskRender.payload.signature == mask.signature,
-           inFlightMaskRender.payload.size == mask.size
-        {
-            return
-        }
-        if let queuedMaskRender,
-           queuedMaskRender.payload.signature == mask.signature,
-           queuedMaskRender.payload.size == mask.size
-        {
-            return
-        }
-        enqueueMaskRender(
-            payload: rasterPayload(from: mask),
-            scale: Self.currentMaskScale()
-        )
-    }
-}
-
-private struct LayerMaskedView: NSViewControllerRepresentable {
-    let content: AnyView
-    let mask: ResolvedNativeMask
-
-    func makeNSViewController(context: Context) -> LayerMaskedHostingController {
-        LayerMaskedHostingController()
-    }
-
-    func updateNSViewController(_ controller: LayerMaskedHostingController, context: Context) {
-        controller.update(rootView: content, mask: mask)
     }
 }
 #endif
@@ -421,14 +161,58 @@ public struct NativeRenderingLayer: View {
     let textboxElements = TextboxElements.singleton
     let eventBlockerElements = EventBlockerElements.singleton
 
+    fileprivate enum NativeLeafKind {
+        case text(TextElement)
+        case button(ButtonElement)
+        case checkbox(CheckboxElement)
+        case slider(SliderElement)
+        case dropdown(DropdownElement)
+        case radioSet(RadioSetElement)
+        case textbox(TextboxElement)
+        case nativeImage(NativeImageElement)
+        case youtubeVideo(YoutubeVideoElement)
+        case eventBlocker(EventBlockerElement)
+
+        var contentKey: String {
+            switch self {
+            case .text(let element):
+                if element.editable {
+                    return "text-editable"
+                }
+                if element.selectable {
+                    return "text-selectable"
+                }
+                return "text-static"
+            case .button:
+                return "button"
+            case .checkbox:
+                return "checkbox"
+            case .slider:
+                return "slider"
+            case .dropdown:
+                return "dropdown"
+            case .radioSet:
+                return "radio-set"
+            case .textbox(let element):
+                return element.isTextArea ? "textbox-area" : "textbox-field"
+            case .nativeImage:
+                return "native-image"
+            case .youtubeVideo:
+                return "youtube-video"
+            case .eventBlocker:
+                return "event-blocker"
+            }
+        }
+    }
+
     private struct NativeRenderItem: Identifiable {
         let id: PaxNodeId
         let zIndex: Int
         let parentFrame: PaxNodeId?
-        let transform: [Float]
+        let localTransform: CGAffineTransform
         let size: CGSize
         let opacity: Double
-        let content: AnyView
+        let kind: NativeLeafKind
         let mask: ResolvedNativeMask?
     }
 
@@ -442,6 +226,13 @@ public struct NativeRenderingLayer: View {
         let clipPath: Path?
         let children: [NativeRenderNode]
     }
+
+    private final class RenderTreeCache {
+        var generation: UInt64 = .max
+        var nodes: [NativeRenderNode] = []
+    }
+
+    private static let renderTreeCache = RenderTreeCache()
 
     private enum NativeRenderNode: Identifiable {
         case item(NativeRenderItem)
@@ -474,6 +265,346 @@ public struct NativeRenderingLayer: View {
             }
         }
     }
+
+#if os(iOS) || os(tvOS) || os(watchOS)
+    fileprivate typealias PlatformBaseView = UIView
+    fileprivate typealias PlatformBaseViewController = UIViewController
+#elseif os(macOS)
+    fileprivate typealias PlatformBaseView = NSView
+    fileprivate typealias PlatformBaseViewController = NSViewController
+#endif
+
+    private class PlatformContainerView: PlatformBaseView {
+        private let clipMaskLayer = CAShapeLayer()
+
+#if os(iOS) || os(tvOS) || os(watchOS)
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            backgroundColor = .clear
+            isOpaque = false
+            clipsToBounds = false
+        }
+#elseif os(macOS)
+        override var isFlipped: Bool { true }
+
+        override init(frame frameRect: CGRect) {
+            super.init(frame: frameRect)
+            wantsLayer = true
+            layer?.backgroundColor = NSColor.clear.cgColor
+        }
+#endif
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        func applyClip(path: CGPath?) {
+            guard let layer else {
+                return
+            }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            if let path {
+                clipMaskLayer.frame = CGRect(origin: .zero, size: bounds.size)
+                clipMaskLayer.path = path
+                clipMaskLayer.fillColor = platformColor(.white).cgColor
+                layer.mask = clipMaskLayer
+            } else {
+                layer.mask = nil
+            }
+            CATransaction.commit()
+        }
+    }
+
+    private static func attachPlatformSubview(_ child: PlatformBaseView, to parent: PlatformBaseView) {
+        if child.superview !== parent {
+            child.removeFromSuperview()
+            parent.addSubview(child)
+        }
+    }
+
+    private static func applyViewGeometry(
+        _ view: PlatformBaseView,
+        size: CGSize,
+        localTransform: CGAffineTransform,
+        zIndex: Int,
+        opacity: Double
+    ) {
+        let rect = CGRect(origin: .zero, size: size)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        view.frame = rect
+        view.bounds = rect
+        if let layer = view.layer {
+            layer.bounds = rect
+            layer.anchorPoint = CGPoint(x: 0.0, y: 0.0)
+            layer.position = .zero
+            layer.setAffineTransform(localTransform)
+            layer.zPosition = CGFloat(zIndex)
+            layer.opacity = Float(opacity)
+        }
+        CATransaction.commit()
+    }
+
+    private final class PlatformMaskedLeafView: PlatformContainerView {
+        private static let maskRasterQueue = DispatchQueue(
+            label: "dev.pax.apple.native-mask-raster",
+            qos: .userInitiated
+        )
+
+        private let maskLayer = CALayer()
+        private var appliedMaskSignature: UInt64?
+        private var appliedMaskSize: CGSize = .zero
+        private var requestedMaskSignature: UInt64?
+        private var requestedMaskSize: CGSize = .zero
+        private var nextMaskGeneration: UInt64 = 0
+        private var inFlightMaskRender: PendingMaskRender?
+        private var queuedMaskRender: PendingMaskRender?
+        private var contentKey: String?
+        private var contentView: PlatformBaseView?
+
+        func update(item: NativeRenderItem) {
+            ensureContentView(for: item.kind)
+            if let contentView {
+                NativeRenderingLayer.updatePlatformLeafView(
+                    contentView,
+                    for: item.kind,
+                    size: item.size
+                )
+            }
+            updateMask(item.mask)
+        }
+
+        private func ensureContentView(for kind: NativeLeafKind) {
+            let desiredKey = kind.contentKey
+            if contentKey == desiredKey, contentView != nil {
+                return
+            }
+
+            contentView?.removeFromSuperview()
+            let view = NativeRenderingLayer.makePlatformLeafView(for: kind)
+            view.frame = bounds
+            view.autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
+            NativeRenderingLayer.attachPlatformSubview(view, to: self)
+            contentView = view
+            contentKey = desiredKey
+        }
+
+        private static func currentMaskScale() -> CGFloat {
+#if os(iOS) || os(tvOS) || os(watchOS)
+            #if targetEnvironment(simulator)
+            return 1.0
+            #else
+            return UIScreen.main.scale
+            #endif
+#elseif os(macOS)
+            return NSScreen.main?.backingScaleFactor ?? 1.0
+#endif
+        }
+
+        private func enqueueMaskRender(payload: RasterizedNativeMaskPayload, scale: CGFloat) {
+            nextMaskGeneration &+= 1
+            let render = PendingMaskRender(
+                generation: nextMaskGeneration,
+                scale: scale,
+                payload: payload
+            )
+            queuedMaskRender = render
+            startNextMaskRenderIfNeeded()
+        }
+
+        private func startNextMaskRenderIfNeeded() {
+            guard inFlightMaskRender == nil, let render = queuedMaskRender else {
+                return
+            }
+            queuedMaskRender = nil
+            inFlightMaskRender = render
+
+            Self.maskRasterQueue.async { [weak self] in
+                let image = rasterizedMaskImage(payload: render.payload, scale: render.scale)
+                DispatchQueue.main.async {
+                    guard let self else {
+                        return
+                    }
+                    guard self.inFlightMaskRender?.generation == render.generation else {
+                        return
+                    }
+                    self.inFlightMaskRender = nil
+                    if self.requestedMaskSignature == render.payload.signature,
+                       self.requestedMaskSize == render.payload.size,
+                       let image,
+                       let layer = self.layer
+                    {
+                        CATransaction.begin()
+                        CATransaction.setDisableActions(true)
+                        self.maskLayer.frame = CGRect(origin: .zero, size: render.payload.size)
+                        self.maskLayer.contents = image
+                        self.maskLayer.contentsScale = render.scale
+                        layer.mask = self.maskLayer
+                        CATransaction.commit()
+                        self.appliedMaskSignature = render.payload.signature
+                        self.appliedMaskSize = render.payload.size
+                    }
+                    self.startNextMaskRenderIfNeeded()
+                }
+            }
+        }
+
+        private func updateMask(_ mask: ResolvedNativeMask?) {
+            guard let layer else {
+                return
+            }
+            guard let mask else {
+                requestedMaskSignature = nil
+                requestedMaskSize = .zero
+                appliedMaskSignature = nil
+                appliedMaskSize = .zero
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                maskLayer.contents = nil
+                layer.mask = nil
+                CATransaction.commit()
+                return
+            }
+
+            requestedMaskSignature = mask.signature
+            requestedMaskSize = mask.size
+            if appliedMaskSignature == mask.signature && appliedMaskSize == mask.size {
+                return
+            }
+            if let inFlightMaskRender,
+               inFlightMaskRender.payload.signature == mask.signature,
+               inFlightMaskRender.payload.size == mask.size
+            {
+                return
+            }
+            if let queuedMaskRender,
+               queuedMaskRender.payload.signature == mask.signature,
+               queuedMaskRender.payload.size == mask.size
+            {
+                return
+            }
+
+            enqueueMaskRender(
+                payload: rasterPayload(from: mask),
+                scale: Self.currentMaskScale()
+            )
+        }
+    }
+
+    private final class NativeSceneController: PlatformBaseViewController {
+        private var frameViews: [PaxNodeId: PlatformContainerView] = [:]
+        private var leafViews: [PaxNodeId: PlatformMaskedLeafView] = [:]
+
+        override func loadView() {
+            self.view = PlatformContainerView(frame: .zero)
+        }
+
+        private var rootContainer: PlatformContainerView {
+            view as! PlatformContainerView
+        }
+
+        func update(nodes: [NativeRenderNode], size: CGSize) {
+            let rect = CGRect(origin: .zero, size: size)
+            view.frame = rect
+            view.bounds = rect
+            rootContainer.frame = rect
+            rootContainer.bounds = rect
+            var activeFrames = Set<PaxNodeId>()
+            var activeLeaves = Set<PaxNodeId>()
+            sync(nodes: nodes, parentView: rootContainer, activeFrames: &activeFrames, activeLeaves: &activeLeaves)
+            pruneInactiveNodes(activeFrames: activeFrames, activeLeaves: activeLeaves)
+        }
+
+        private func sync(
+            nodes: [NativeRenderNode],
+            parentView: PlatformContainerView,
+            activeFrames: inout Set<PaxNodeId>,
+            activeLeaves: inout Set<PaxNodeId>
+        ) {
+            for node in nodes {
+                switch node {
+                case .frame(let frame):
+                    activeFrames.insert(frame.id)
+                    let frameView = frameViews[frame.id] ?? {
+                        let view = PlatformContainerView(frame: .zero)
+                        frameViews[frame.id] = view
+                        return view
+                    }()
+                    NativeRenderingLayer.attachPlatformSubview(frameView, to: parentView)
+                    NativeRenderingLayer.applyViewGeometry(
+                        frameView,
+                        size: frame.size,
+                        localTransform: frame.localTransform,
+                        zIndex: frame.zIndex,
+                        opacity: frame.opacity
+                    )
+                    frameView.applyClip(path: frame.clipPath?.cgPath)
+                    sync(
+                        nodes: frame.children,
+                        parentView: frameView,
+                        activeFrames: &activeFrames,
+                        activeLeaves: &activeLeaves
+                    )
+                case .item(let item):
+                    activeLeaves.insert(item.id)
+                    let leafView = leafViews[item.id] ?? {
+                        let view = PlatformMaskedLeafView(frame: .zero)
+                        leafViews[item.id] = view
+                        return view
+                    }()
+                    NativeRenderingLayer.attachPlatformSubview(leafView, to: parentView)
+                    leafView.update(item: item)
+                    NativeRenderingLayer.applyViewGeometry(
+                        leafView,
+                        size: item.size,
+                        localTransform: item.localTransform,
+                        zIndex: item.zIndex,
+                        opacity: item.opacity
+                    )
+                }
+            }
+        }
+
+        private func pruneInactiveNodes(activeFrames: Set<PaxNodeId>, activeLeaves: Set<PaxNodeId>) {
+            for (id, view) in frameViews where !activeFrames.contains(id) {
+                view.removeFromSuperview()
+                frameViews.removeValue(forKey: id)
+            }
+            for (id, leafView) in leafViews where !activeLeaves.contains(id) {
+                leafView.removeFromSuperview()
+                leafViews.removeValue(forKey: id)
+            }
+        }
+    }
+
+#if os(iOS) || os(tvOS) || os(watchOS)
+    private struct PlatformNativeSceneView: UIViewControllerRepresentable {
+        let nodes: [NativeRenderNode]
+        let size: CGSize
+
+        func makeUIViewController(context: Context) -> NativeSceneController {
+            NativeSceneController()
+        }
+
+        func updateUIViewController(_ controller: NativeSceneController, context: Context) {
+            controller.update(nodes: nodes, size: size)
+        }
+    }
+#elseif os(macOS)
+    private struct PlatformNativeSceneView: NSViewControllerRepresentable {
+        let nodes: [NativeRenderNode]
+        let size: CGSize
+
+        func makeNSViewController(context: Context) -> NativeSceneController {
+            NativeSceneController()
+        }
+
+        func updateNSViewController(_ controller: NativeSceneController, context: Context) {
+            controller.update(nodes: nodes, size: size)
+        }
+    }
+#endif
 
     private func clampOpacity(_ opacity: Double) -> Double {
         min(max(opacity, 0.0), 1.0)
@@ -539,65 +670,31 @@ public struct NativeRenderingLayer: View {
         }
     }
 
-    private func applyResolvedMask<V: View>(_ view: V, mask: ResolvedNativeMask?) -> AnyView {
-        guard let mask else {
-            return AnyView(
-                view
-                    .transaction { transaction in
-                        transaction.animation = nil
-                        transaction.disablesAnimations = true
-                }
-            )
-        }
-        return AnyView(
-            LayerMaskedView(content: AnyView(view), mask: mask)
-                .frame(width: mask.size.width, height: mask.size.height)
-                .transaction { transaction in
-                    transaction.animation = nil
-                    transaction.disablesAnimations = true
-                }
-        )
-    }
-
-    private func applyFrameClip<V: View>(_ view: V, clipPath: Path?) -> AnyView {
-        guard let clipPath else {
-            return AnyView(view)
-        }
-        return AnyView(view.clipShape(ResolvedPathShape(resolvedPath: clipPath)))
-    }
-
-    private func renderItemContent<V: View>(_ view: V, element: NativePositionElement) -> NativeRenderItem {
+    private func renderItem(element: NativePositionElement, kind: NativeLeafKind) -> NativeRenderItem {
         let size = resolvedSize(element)
-        let bounded = AnyView(
-            view
-                .frame(width: resolvedDimension(element.size_x), height: resolvedDimension(element.size_y))
-                .clipped()
-        )
         return NativeRenderItem(
             id: element.id,
             zIndex: element.zIndex,
             parentFrame: element.parentFrame,
-            transform: element.transform,
+            localTransform: affineTransform(from: element.transform)
+                .concatenating(safeInverse(parentFrameTransform(element.parentFrame))),
             size: size,
             opacity: clampOpacity(element.opacity),
-            content: bounded,
+            kind: kind,
             mask: resolvedNativeMask(for: element.id)
         )
     }
 
-    private func renderTextContent<V: View>(_ view: V, element: TextElement, width: CGFloat, height: CGFloat) -> NativeRenderItem {
-        let bounded = AnyView(
-            view
-                .frame(width: width > 0 ? width : nil, height: height > 0 ? height : nil)
-        )
+    private func renderTextItem(_ element: TextElement, width: CGFloat, height: CGFloat) -> NativeRenderItem {
         return NativeRenderItem(
             id: element.id,
             zIndex: element.zIndex,
             parentFrame: element.parentFrame,
-            transform: element.transform,
+            localTransform: affineTransform(from: element.transform)
+                .concatenating(safeInverse(parentFrameTransform(element.parentFrame))),
             size: CGSize(width: width, height: height),
             opacity: clampOpacity(element.opacity),
-            content: bounded,
+            kind: .text(element),
             mask: resolvedNativeMask(for: element.id)
         )
     }
@@ -615,11 +712,6 @@ public struct NativeRenderingLayer: View {
             return .identity
         }
         return transform.inverted()
-    }
-
-    private func itemTransformInParentFrame(_ item: NativeRenderItem) -> CGAffineTransform {
-        let parentInverse = safeInverse(parentFrameTransform(item.parentFrame))
-        return affineTransform(from: item.transform).concatenating(parentInverse)
     }
 
     private func frameTransformInParentFrame(_ frame: FrameElement) -> CGAffineTransform {
@@ -697,299 +789,70 @@ public struct NativeRenderingLayer: View {
         return buildChildren(parent: nil)
     }
 
-    private func positionedItem(_ item: NativeRenderItem) -> AnyView {
-        let localMasked = applyResolvedMask(item.content, mask: item.mask)
-        let base = localMasked
-            .position(x: item.size.width / 2.0, y: item.size.height / 2.0)
-            .transformEffect(itemTransformInParentFrame(item))
-            .zIndex(Double(item.zIndex))
-            .opacity(item.opacity)
-            .transaction { transaction in
-                transaction.animation = nil
-                transaction.disablesAnimations = true
-            }
-        return AnyView(base)
-    }
-
-    private func renderFrameNode(_ frame: FrameRenderNode) -> AnyView {
-        let content = AnyView(
-            ZStack(alignment: .topLeading) {
-                ForEach(frame.children) { child in
-                    renderNode(child)
-                }
-            }
-            .frame(width: frame.size.width, height: frame.size.height, alignment: .topLeading)
-        )
-        let clipped = applyFrameClip(content, clipPath: frame.clipPath)
-        let base = clipped
-            .compositingGroup()
-            .position(x: frame.size.width / 2.0, y: frame.size.height / 2.0)
-            .transformEffect(frame.localTransform)
-            .zIndex(Double(frame.zIndex))
-            .opacity(frame.opacity)
-            .transaction { transaction in
-                transaction.animation = nil
-                transaction.disablesAnimations = true
-            }
-        return AnyView(base)
-    }
-
-    private func renderNode(_ node: NativeRenderNode) -> AnyView {
-        switch node {
-        case .item(let item):
-            return positionedItem(item)
-        case .frame(let frame):
-            return renderFrameNode(frame)
+    private func renderTree(for generation: UInt64) -> [NativeRenderNode] {
+        let cache = Self.renderTreeCache
+        if cache.generation != generation {
+            cache.nodes = buildRenderTree()
+            cache.generation = generation
         }
-    }
-
-    private func attributedString(for element: TextElement) -> AttributedString {
-        var attributedString: AttributedString
-        if element.markdown {
-            attributedString = (try? AttributedString(
-                markdown: element.content,
-                options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-            )) ?? AttributedString(element.content)
-        } else {
-            attributedString = AttributedString(element.content)
-        }
-
-        for run in attributedString.runs {
-            if run.link != nil, let linkStyle = element.style_link {
-                attributedString[run.range].font = linkStyle.font.getFont(size: linkStyle.font_size)
-                attributedString[run.range].underlineStyle = linkStyle.underline ? .single : .none
-                attributedString[run.range].foregroundColor = linkStyle.fill
-            }
-        }
-
-        return attributedString
+        return cache.nodes
     }
 
     private func textItem(for element: TextElement) -> NativeRenderItem {
         let measuredWidth = element.size_x >= 0 ? CGFloat(element.size_x) : element.lastMeasuredSize?.width ?? 0
         let measuredHeight = element.size_y >= 0 ? CGFloat(element.size_y) : element.lastMeasuredSize?.height ?? 0
 
-        if element.editable {
-            return renderTextContent(
-                EditableTextView(element: element),
-                element: element,
-                width: measuredWidth,
-                height: measuredHeight
-            )
-        }
-
-        let baseText = Text(attributedString(for: element))
-            .foregroundColor(element.textStyle.fill)
-            .font(element.textStyle.font.getFont(size: element.textStyle.font_size))
-            .frame(
-                width: measuredWidth > 0 ? measuredWidth : nil,
-                height: measuredHeight > 0 ? measuredHeight : nil,
-                alignment: element.textStyle.alignment
-            )
-            .allowsHitTesting(element.selectable)
-
-        let text: AnyView
-        if element.selectable {
-            text = AnyView(baseText.textSelection(.enabled))
-        } else {
-            text = AnyView(baseText.textSelection(.disabled))
-        }
-
-        return renderTextContent(text, element: element, width: measuredWidth, height: measuredHeight)
+        return renderTextItem(element, width: measuredWidth, height: measuredHeight)
     }
 
     private func buttonItem(for element: ButtonElement) -> NativeRenderItem {
-        let button = Button(action: {
-            dispatchFormButtonClick(id: element.id)
-        }) {
-            Text(element.content.isEmpty ? " " : element.content)
-                .font(element.style.font.getFont(size: element.style.font_size))
-                .foregroundColor(element.style.fill)
-                .multilineTextAlignment(textAlignment(from: element.style.alignmentMultiline))
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: element.style.alignment)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-        }
-        .buttonStyle(.plain)
-        .background(
-            RoundedRectangle(cornerRadius: element.borderRadius)
-                .fill(element.color)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: element.borderRadius)
-                .stroke(element.outlineStrokeColor, lineWidth: element.outlineStrokeWidth)
-        )
-
-        return renderItemContent(button, element: element)
+        renderItem(element: element, kind: .button(element))
     }
 
     private func checkboxItem(for element: CheckboxElement) -> NativeRenderItem {
-        let checkbox = Button(action: {
-            dispatchFormCheckboxToggle(id: element.id, state: !element.checked)
-        }) {
-            ZStack {
-                RoundedRectangle(cornerRadius: element.borderRadius)
-                    .fill(element.checked ? element.backgroundChecked : element.background)
-                RoundedRectangle(cornerRadius: element.borderRadius)
-                    .stroke(element.outlineColor, lineWidth: element.outlineWidth)
-                if element.checked {
-                    Image(systemName: "checkmark")
-                        .foregroundColor(.white)
-                        .font(.system(size: max(10, min(resolvedSize(element).width, resolvedSize(element).height) * 0.55)))
-                }
-            }
-        }
-        .buttonStyle(.plain)
-
-        return renderItemContent(checkbox, element: element)
+        renderItem(element: element, kind: .checkbox(element))
     }
 
     private func sliderItem(for element: SliderElement) -> NativeRenderItem {
-        let upperBound = element.max > element.min ? element.max : element.min + 1
-        let step = element.step > 0 ? element.step : 0.001
-
-        let slider = Slider(
-            value: Binding(
-                get: { element.value },
-                set: { dispatchFormSliderChange(id: element.id, value: $0) }
-            ),
-            in: element.min...upperBound,
-            step: step
-        )
-        .tint(element.accent)
-
-        return renderItemContent(ZStack { slider }, element: element)
+        renderItem(element: element, kind: .slider(element))
     }
 
     private func dropdownItem(for element: DropdownElement) -> NativeRenderItem {
-        let picker = Picker(
-            "",
-            selection: Binding(
-                get: { Int(element.selectedId) },
-                set: { dispatchFormDropdownChange(id: element.id, selectedId: UInt32($0)) }
-            )
-        ) {
-            ForEach(Array(element.options.enumerated()), id: \.offset) { index, option in
-                Text(option)
-                    .font(element.style.font.getFont(size: element.style.font_size))
-                    .tag(index)
-            }
-        }
-        .pickerStyle(.menu)
-        .labelsHidden()
-        .tint(element.style.fill)
-        .background(
-            RoundedRectangle(cornerRadius: element.borderRadius)
-                .fill(element.background)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: element.borderRadius)
-                .stroke(element.strokeColor, lineWidth: element.strokeWidth)
-        )
-
-        return renderItemContent(picker, element: element)
+        renderItem(element: element, kind: .dropdown(element))
     }
 
     private func radioSetItem(for element: RadioSetElement) -> NativeRenderItem {
-        let control = VStack(alignment: .leading, spacing: 6) {
-            ForEach(Array(element.options.enumerated()), id: \.offset) { index, option in
-                Button(action: {
-                    dispatchFormRadioSetChange(id: element.id, selectedId: UInt32(index))
-                }) {
-                    HStack(spacing: 8) {
-                        ZStack {
-                            Circle()
-                                .fill(element.background)
-                            Circle()
-                                .stroke(element.outlineColor, lineWidth: element.outlineWidth)
-                            if Int(element.selectedId) == index {
-                                Circle()
-                                    .fill(element.backgroundChecked)
-                                    .padding(4)
-                            }
-                        }
-                        .frame(width: 20, height: 20)
-
-                        Text(option)
-                            .font(element.style.font.getFont(size: element.style.font_size))
-                            .foregroundColor(element.style.fill)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-
-        return renderItemContent(control, element: element)
+        renderItem(element: element, kind: .radioSet(element))
     }
 
     private func textboxItem(for element: TextboxElement) -> NativeRenderItem {
-        if element.isTextArea {
-            return renderItemContent(PaxTextboxArea(element: element), element: element)
-        }
-        return renderItemContent(PaxTextboxField(element: element), element: element)
+        renderItem(element: element, kind: .textbox(element))
     }
 
     private func nativeImageItem(for element: NativeImageElement) -> NativeRenderItem {
-        let imageView = Group {
-            if let url = URL(string: element.url), url.scheme != nil {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        configuredImage(image, fit: element.fit)
-                    default:
-                        Color.clear
-                    }
-                }
-            } else if !element.url.isEmpty {
-                if let platformImage = loadPlatformImage(path: element.url) {
-                    configuredPlatformImage(platformImage, fit: element.fit)
-                } else {
-                    Color.clear
-                }
-            } else {
-                Color.clear
-            }
-        }
-
-        return renderItemContent(imageView, element: element)
+        renderItem(element: element, kind: .nativeImage(element))
     }
 
     private func youtubeVideoItem(for element: YoutubeVideoElement) -> NativeRenderItem {
-        let control = Group {
-            if let url = URL(string: element.url) {
-                Link(destination: url) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.black.opacity(0.85))
-                        VStack(spacing: 8) {
-                            Image(systemName: "play.rectangle.fill")
-                                .font(.system(size: 28))
-                                .foregroundColor(.white)
-                            Text("Open Video")
-                                .foregroundColor(.white)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-            } else {
-                Color.clear
-            }
-        }
-
-        return renderItemContent(control, element: element)
+        renderItem(element: element, kind: .youtubeVideo(element))
     }
 
     private func eventBlockerItem(for element: EventBlockerElement) -> NativeRenderItem {
-        renderItemContent(EventBlockerPlatformView(), element: element)
+        renderItem(element: element, kind: .eventBlocker(element))
     }
 
     public var body: some View {
-        let _ = nativeSceneInvalidation.generation
-        ZStack(alignment: .topLeading) {
-            ForEach(buildRenderTree()) { node in
-                renderNode(node)
-            }
+        let generation = nativeSceneInvalidation.generation
+        GeometryReader { proxy in
+            PlatformNativeSceneView(
+                nodes: renderTree(for: generation),
+                size: proxy.size
+            )
+                .frame(
+                    width: proxy.size.width,
+                    height: proxy.size.height,
+                    alignment: .topLeading
+                )
         }
         .transaction { transaction in
             transaction.animation = nil
@@ -1007,35 +870,928 @@ public class NativeSceneInvalidation: ObservableObject {
     }
 }
 
-private func configuredImage(_ image: Image, fit: String) -> some View {
-    Group {
-        switch fit {
-        case "cover":
-            image.resizable().scaledToFill()
-        case "fill":
-            image.resizable()
-        default:
-            image.resizable().scaledToFit()
+private func nativeAttributedString(for element: TextElement) -> AttributedString {
+    var attributedString: AttributedString
+    if element.markdown {
+        attributedString = (try? AttributedString(
+            markdown: element.content,
+            options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        )) ?? AttributedString(element.content)
+    } else {
+        attributedString = AttributedString(element.content)
+    }
+
+    for run in attributedString.runs {
+        if run.link != nil, let linkStyle = element.style_link {
+            attributedString[run.range].font = linkStyle.font.getFont(size: linkStyle.font_size)
+            attributedString[run.range].underlineStyle = linkStyle.underline ? .single : .none
+            attributedString[run.range].foregroundColor = linkStyle.fill
         }
     }
-    .clipped()
+
+    return attributedString
+}
+
+fileprivate extension NativeRenderingLayer {
+    static func fillAutoresizingMask() -> PlatformBaseView.AutoresizingMask {
+#if os(iOS) || os(tvOS) || os(watchOS)
+        [.flexibleWidth, .flexibleHeight]
+#elseif os(macOS)
+        [.width, .height]
+#endif
+    }
+
+    static func makePlatformLeafView(for kind: NativeLeafKind) -> PlatformBaseView {
+        switch kind {
+        case .text:
+            return PaxNativeTextLeafView()
+        case .button:
+            return PaxNativeButtonView()
+        case .checkbox:
+            return PaxNativeCheckboxView()
+        case .slider:
+            return PaxNativeSliderView()
+        case .dropdown:
+#if os(iOS) || os(tvOS) || os(watchOS)
+            return PaxNativeDropdownView()
+#elseif os(macOS)
+            return PaxNativeDropdownView(frame: .zero, pullsDown: false)
+#endif
+        case .radioSet:
+            return PaxNativeRadioSetView()
+        case .textbox(let element):
+            return element.isTextArea ? PaxNativeTextboxAreaView() : PaxNativeTextboxFieldView()
+        case .nativeImage:
+            return PaxNativeImageView()
+        case .youtubeVideo:
+            return PaxNativeYoutubeView()
+        case .eventBlocker:
+            return PaxNativeEventBlockerView()
+        }
+    }
+
+    static func updatePlatformLeafView(
+        _ view: PlatformBaseView,
+        for kind: NativeLeafKind,
+        size: CGSize
+    ) {
+        switch kind {
+        case .text(let element):
+            (view as? PaxNativeTextLeafView)?.apply(element: element, size: size)
+        case .button(let element):
+            (view as? PaxNativeButtonView)?.apply(element: element)
+        case .checkbox(let element):
+            (view as? PaxNativeCheckboxView)?.apply(element: element, size: size)
+        case .slider(let element):
+            (view as? PaxNativeSliderView)?.apply(element: element)
+        case .dropdown(let element):
+            (view as? PaxNativeDropdownView)?.apply(element: element)
+        case .radioSet(let element):
+            (view as? PaxNativeRadioSetView)?.apply(element: element)
+        case .textbox(let element):
+            if element.isTextArea {
+                (view as? PaxNativeTextboxAreaView)?.apply(element: element)
+            } else {
+                (view as? PaxNativeTextboxFieldView)?.apply(element: element)
+            }
+        case .nativeImage(let element):
+            (view as? PaxNativeImageView)?.apply(element: element)
+        case .youtubeVideo(let element):
+            (view as? PaxNativeYoutubeView)?.apply(element: element)
+        case .eventBlocker:
+            break
+        }
+    }
 }
 
 #if os(iOS) || os(tvOS) || os(watchOS)
+private final class PaxNativeEventBlockerView: UIView {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isOpaque = false
+        isUserInteractionEnabled = true
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
+    private let label = UILabel()
+    private let selectableView = UITextView()
+    private var usingSelectableView = false
+    private var suppressChange = false
+    private var editableNodeId: PaxNodeId = 0
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isOpaque = false
+
+        label.frame = bounds
+        label.autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
+        label.backgroundColor = .clear
+        label.numberOfLines = 0
+        label.lineBreakMode = .byWordWrapping
+
+        selectableView.frame = bounds
+        selectableView.autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
+        selectableView.backgroundColor = .clear
+        selectableView.isScrollEnabled = false
+        selectableView.textContainerInset = .zero
+        selectableView.textContainer.lineFragmentPadding = 0
+        selectableView.delegate = self
+
+        addSubview(label)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: TextElement, size: CGSize) {
+        let useSelectableView = element.selectable || element.editable
+        if useSelectableView != usingSelectableView {
+            if useSelectableView {
+                label.removeFromSuperview()
+                addSubview(selectableView)
+            } else {
+                selectableView.removeFromSuperview()
+                addSubview(label)
+            }
+            usingSelectableView = useSelectableView
+        }
+
+        let attr = NSAttributedString(nativeAttributedString(for: element))
+        if useSelectableView {
+            editableNodeId = element.id
+            suppressChange = true
+            selectableView.attributedText = attr
+            suppressChange = false
+            selectableView.font = element.textStyle.font.getUIFont(size: element.textStyle.font_size)
+            selectableView.textColor = platformColor(element.textStyle.fill)
+            selectableView.textAlignment = platformTextAlignment(element.textStyle.alignmentMultiline)
+            selectableView.isEditable = element.editable
+            selectableView.isSelectable = element.selectable || element.editable
+        } else {
+            label.attributedText = attr
+            label.textAlignment = platformTextAlignment(element.textStyle.alignmentMultiline)
+        }
+    }
+
+    func textViewDidChange(_ textView: UITextView) {
+        guard !suppressChange else {
+            return
+        }
+        dispatchTextInput(id: editableNodeId, text: textView.text)
+    }
+}
+
+private final class PaxNativeButtonView: UIButton {
+    private var nodeId: PaxNodeId = 0
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        layer.masksToBounds = true
+        addTarget(self, action: #selector(handleTap), for: .touchUpInside)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: ButtonElement) {
+        nodeId = element.id
+        setTitle(element.content.isEmpty ? " " : element.content, for: .normal)
+        titleLabel?.font = element.style.font.getUIFont(size: element.style.font_size)
+        setTitleColor(platformColor(element.style.fill), for: .normal)
+        backgroundColor = platformColor(element.color)
+        layer.cornerRadius = CGFloat(element.borderRadius)
+        layer.borderWidth = CGFloat(element.outlineStrokeWidth)
+        layer.borderColor = platformColor(element.outlineStrokeColor).cgColor
+    }
+
+    @objc private func handleTap() {
+        dispatchFormButtonClick(id: nodeId)
+    }
+}
+
+private final class PaxNativeCheckboxView: UIButton {
+    private var nodeId: PaxNodeId = 0
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        addTarget(self, action: #selector(handleTap), for: .touchUpInside)
+        titleLabel?.textAlignment = .center
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: CheckboxElement, size: CGSize) {
+        nodeId = element.id
+        backgroundColor = platformColor(element.checked ? element.backgroundChecked : element.background)
+        layer.cornerRadius = CGFloat(element.borderRadius)
+        layer.borderWidth = CGFloat(element.outlineWidth)
+        layer.borderColor = platformColor(element.outlineColor).cgColor
+        let checkSize = max(10, min(size.width, size.height) * 0.55)
+        titleLabel?.font = UIFont.systemFont(ofSize: checkSize, weight: .bold)
+        setTitle(element.checked ? "✓" : "", for: .normal)
+        setTitleColor(.white, for: .normal)
+    }
+
+    @objc private func handleTap() {
+        dispatchFormCheckboxToggle(id: nodeId, state: title(for: .normal)?.isEmpty ?? true)
+    }
+}
+
+private final class PaxNativeSliderView: UISlider {
+    private var nodeId: PaxNodeId = 0
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        addTarget(self, action: #selector(handleChange), for: .valueChanged)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: SliderElement) {
+        nodeId = element.id
+        minimumValue = Float(element.min)
+        maximumValue = Float(element.max > element.min ? element.max : element.min + 1)
+        value = Float(element.value)
+        minimumTrackTintColor = platformColor(element.accent)
+        maximumTrackTintColor = platformColor(element.background)
+    }
+
+    @objc private func handleChange() {
+        dispatchFormSliderChange(id: nodeId, value: Double(value))
+    }
+}
+
+private final class PaxNativeDropdownView: UIButton {
+    private var nodeId: PaxNodeId = 0
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        showsMenuAsPrimaryAction = true
+        layer.masksToBounds = true
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: DropdownElement) {
+        nodeId = element.id
+        backgroundColor = platformColor(element.background)
+        layer.cornerRadius = CGFloat(element.borderRadius)
+        layer.borderWidth = CGFloat(element.strokeWidth)
+        layer.borderColor = platformColor(element.strokeColor).cgColor
+        titleLabel?.font = element.style.font.getUIFont(size: element.style.font_size)
+        setTitleColor(platformColor(element.style.fill), for: .normal)
+        let selectedIndex = min(max(Int(element.selectedId), 0), max(element.options.count - 1, 0))
+        let title = element.options.indices.contains(selectedIndex) ? element.options[selectedIndex] : ""
+        setTitle(title, for: .normal)
+        menu = UIMenu(children: element.options.enumerated().map { index, option in
+            UIAction(title: option) { _ in
+                dispatchFormDropdownChange(id: element.id, selectedId: UInt32(index))
+            }
+        })
+    }
+}
+
+private final class PaxNativeRadioSetView: UIStackView {
+    private var nodeId: PaxNodeId = 0
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        axis = .vertical
+        spacing = 6
+        alignment = .fill
+        distribution = .fillEqually
+    }
+
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: RadioSetElement) {
+        nodeId = element.id
+        if arrangedSubviews.count != element.options.count {
+            arrangedSubviews.forEach { view in
+                removeArrangedSubview(view)
+                view.removeFromSuperview()
+            }
+            for index in element.options.indices {
+                let button = UIButton(type: .system)
+                button.tag = index
+                button.contentHorizontalAlignment = .left
+                button.addTarget(self, action: #selector(selectOption(_:)), for: .touchUpInside)
+                addArrangedSubview(button)
+            }
+        }
+
+        for (index, view) in arrangedSubviews.enumerated() {
+            guard let button = view as? UIButton else { continue }
+            let prefix = Int(element.selectedId) == index ? "◉ " : "○ "
+            button.setTitle(prefix + element.options[index], for: .normal)
+            button.titleLabel?.font = element.style.font.getUIFont(size: element.style.font_size)
+            button.setTitleColor(platformColor(element.style.fill), for: .normal)
+        }
+    }
+
+    @objc private func selectOption(_ sender: UIButton) {
+        dispatchFormRadioSetChange(id: nodeId, selectedId: UInt32(sender.tag))
+    }
+}
+
+private final class PaxNativeTextboxFieldView: UITextField, UITextFieldDelegate {
+    private var nodeId: PaxNodeId = 0
+    private var isProgrammaticChange = false
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        borderStyle = .none
+        autocorrectionType = .no
+        autocapitalizationType = .none
+        delegate = self
+        addTarget(self, action: #selector(textDidChange), for: .editingChanged)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: TextboxElement) {
+        nodeId = element.id
+        isProgrammaticChange = true
+        if text != element.text {
+            text = element.text
+        }
+        isProgrammaticChange = false
+        placeholder = element.placeholder
+        font = element.style.font.getUIFont(size: element.style.font_size)
+        textColor = platformColor(element.style.fill)
+        textAlignment = platformTextAlignment(element.style.alignmentMultiline)
+        backgroundColor = platformColor(element.background)
+        layer.cornerRadius = CGFloat(element.borderRadius)
+        layer.borderWidth = CGFloat(max(element.outlineWidth, element.strokeWidth))
+        layer.borderColor = platformColor(element.outlineWidth > 0 ? element.outlineColor : element.strokeColor).cgColor
+        if element.focusOnMount && !isFirstResponder {
+            DispatchQueue.main.async { [weak self] in self?.becomeFirstResponder() }
+        }
+    }
+
+    @objc private func textDidChange() {
+        guard !isProgrammaticChange else { return }
+        dispatchFormTextboxInput(id: nodeId, text: text ?? "")
+    }
+
+    func textFieldDidEndEditing(_ textField: UITextField) {
+        dispatchFormTextboxChange(id: nodeId, text: textField.text ?? "")
+    }
+}
+
+private final class PaxNativeTextboxAreaView: UITextView, UITextViewDelegate {
+    private var nodeId: PaxNodeId = 0
+    private var isProgrammaticChange = false
+
+    override init(frame: CGRect, textContainer: NSTextContainer?) {
+        super.init(frame: frame, textContainer: textContainer)
+        backgroundColor = .clear
+        textContainerInset = UIEdgeInsets(top: 6, left: 4, bottom: 6, right: 4)
+        delegate = self
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: TextboxElement) {
+        nodeId = element.id
+        isProgrammaticChange = true
+        if text != element.text {
+            text = element.text
+        }
+        isProgrammaticChange = false
+        font = element.style.font.getUIFont(size: element.style.font_size)
+        textColor = platformColor(element.style.fill)
+        textAlignment = platformTextAlignment(element.style.alignmentMultiline)
+        backgroundColor = platformColor(element.background)
+        layer.cornerRadius = CGFloat(element.borderRadius)
+        layer.borderWidth = CGFloat(max(element.outlineWidth, element.strokeWidth))
+        layer.borderColor = platformColor(element.outlineWidth > 0 ? element.outlineColor : element.strokeColor).cgColor
+        if element.focusOnMount && !isFirstResponder {
+            DispatchQueue.main.async { [weak self] in self?.becomeFirstResponder() }
+        }
+    }
+
+    func textViewDidChange(_ textView: UITextView) {
+        guard !isProgrammaticChange else { return }
+        dispatchFormTextboxInput(id: nodeId, text: textView.text)
+    }
+
+    func textViewDidEndEditing(_ textView: UITextView) {
+        dispatchFormTextboxChange(id: nodeId, text: textView.text)
+    }
+}
+
+private final class PaxNativeImageView: UIImageView {
+    private var currentURL: String = ""
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        clipsToBounds = true
+        backgroundColor = .clear
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: NativeImageElement) {
+        if currentURL != element.url {
+            currentURL = element.url
+            image = loadPlatformImage(path: element.url)
+        }
+        switch element.fit {
+        case "cover":
+            contentMode = .scaleAspectFill
+        case "fill":
+            contentMode = .scaleToFill
+        default:
+            contentMode = .scaleAspectFit
+        }
+    }
+}
+
+private final class PaxNativeYoutubeView: UIButton {
+    private var currentURL: URL?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        setTitle("Open Video", for: .normal)
+        setTitleColor(.white, for: .normal)
+        backgroundColor = UIColor.black.withAlphaComponent(0.85)
+        layer.cornerRadius = 12
+        addTarget(self, action: #selector(openVideo), for: .touchUpInside)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: YoutubeVideoElement) {
+        currentURL = URL(string: element.url)
+    }
+
+    @objc private func openVideo() {
+        guard let currentURL else { return }
+        UIApplication.shared.open(currentURL)
+    }
+}
+
 private func loadPlatformImage(path: String) -> UIImage? {
     UIImage(contentsOfFile: path)
 }
-
-private func configuredPlatformImage(_ image: UIImage, fit: String) -> some View {
-    configuredImage(Image(uiImage: image), fit: fit)
-}
 #elseif os(macOS)
+private final class PaxNativeEventBlockerView: NSView {
+    override var isFlipped: Bool { true }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
+    override var isFlipped: Bool { true }
+
+    private let label = NSTextField(labelWithString: "")
+    private let scrollView = NSScrollView()
+    private let textView = NSTextView()
+    private var usingTextView = false
+    private var suppressChange = false
+    private var editableNodeId: PaxNodeId = 0
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+
+        label.frame = bounds
+        label.autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
+        label.backgroundColor = .clear
+        label.isBordered = false
+        label.isEditable = false
+        label.lineBreakMode = .byWordWrapping
+        label.usesSingleLineMode = false
+
+        scrollView.frame = bounds
+        scrollView.autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.documentView = textView
+
+        textView.drawsBackground = false
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.delegate = self
+        textView.textContainerInset = .zero
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.isVerticallyResizable = false
+        textView.isHorizontallyResizable = false
+        textView.textContainer?.widthTracksTextView = true
+
+        addSubview(label)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: TextElement, size: CGSize) {
+        let useTextView = element.selectable || element.editable
+        if useTextView != usingTextView {
+            if useTextView {
+                label.removeFromSuperview()
+                addSubview(scrollView)
+            } else {
+                scrollView.removeFromSuperview()
+                addSubview(label)
+            }
+            usingTextView = useTextView
+        }
+
+        let attr = NSAttributedString(nativeAttributedString(for: element))
+        if useTextView {
+            editableNodeId = element.id
+            suppressChange = true
+            textView.textStorage?.setAttributedString(attr)
+            suppressChange = false
+            textView.font = element.textStyle.font.getNSFont(size: element.textStyle.font_size)
+            textView.textColor = platformColor(element.textStyle.fill)
+            textView.alignment = platformTextAlignment(element.textStyle.alignmentMultiline)
+            textView.isEditable = element.editable
+            textView.isSelectable = element.selectable || element.editable
+            textView.frame = CGRect(origin: .zero, size: size)
+        } else {
+            label.attributedStringValue = attr
+            label.alignment = platformTextAlignment(element.textStyle.alignmentMultiline)
+            label.font = element.textStyle.font.getNSFont(size: element.textStyle.font_size)
+            label.textColor = platformColor(element.textStyle.fill)
+        }
+    }
+
+    func textDidChange(_ notification: Notification) {
+        guard !suppressChange, let textView = notification.object as? NSTextView else {
+            return
+        }
+        dispatchTextInput(id: editableNodeId, text: textView.string)
+    }
+}
+
+private final class PaxNativeButtonView: NSButton {
+    private var nodeId: PaxNodeId = 0
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        isBordered = false
+        bezelStyle = .regularSquare
+        wantsLayer = true
+        target = self
+        action = #selector(handleTap)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: ButtonElement) {
+        nodeId = element.id
+        title = element.content.isEmpty ? " " : element.content
+        font = element.style.font.getNSFont(size: element.style.font_size)
+        contentTintColor = platformColor(element.style.fill)
+        layer?.backgroundColor = platformColor(element.color).cgColor
+        layer?.cornerRadius = CGFloat(element.borderRadius)
+        layer?.borderWidth = CGFloat(element.outlineStrokeWidth)
+        layer?.borderColor = platformColor(element.outlineStrokeColor).cgColor
+    }
+
+    @objc private func handleTap() {
+        dispatchFormButtonClick(id: nodeId)
+    }
+}
+
+private final class PaxNativeCheckboxView: NSButton {
+    private var nodeId: PaxNodeId = 0
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        isBordered = false
+        wantsLayer = true
+        target = self
+        action = #selector(handleTap)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: CheckboxElement, size: CGSize) {
+        nodeId = element.id
+        title = element.checked ? "✓" : ""
+        font = NSFont.systemFont(ofSize: max(10, min(size.width, size.height) * 0.55), weight: .bold)
+        contentTintColor = .white
+        layer?.backgroundColor = platformColor(element.checked ? element.backgroundChecked : element.background).cgColor
+        layer?.cornerRadius = CGFloat(element.borderRadius)
+        layer?.borderWidth = CGFloat(element.outlineWidth)
+        layer?.borderColor = platformColor(element.outlineColor).cgColor
+    }
+
+    @objc private func handleTap() {
+        dispatchFormCheckboxToggle(id: nodeId, state: title.isEmpty)
+    }
+}
+
+private final class PaxNativeSliderView: NSSlider {
+    private var nodeId: PaxNodeId = 0
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        target = self
+        action = #selector(handleChange)
+        isContinuous = true
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: SliderElement) {
+        nodeId = element.id
+        minValue = element.min
+        maxValue = element.max > element.min ? element.max : element.min + 1
+        doubleValue = element.value
+    }
+
+    @objc private func handleChange() {
+        dispatchFormSliderChange(id: nodeId, value: doubleValue)
+    }
+}
+
+private final class PaxNativeDropdownView: NSPopUpButton {
+    private var nodeId: PaxNodeId = 0
+
+    override init(frame frameRect: NSRect, pullsDown flag: Bool) {
+        super.init(frame: frameRect, pullsDown: flag)
+        wantsLayer = true
+        target = self
+        action = #selector(handleChange)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: DropdownElement) {
+        nodeId = element.id
+        if itemTitles != element.options {
+            removeAllItems()
+            addItems(withTitles: element.options)
+        }
+        selectItem(at: min(max(Int(element.selectedId), 0), max(numberOfItems - 1, 0)))
+        font = element.style.font.getNSFont(size: element.style.font_size)
+        contentTintColor = platformColor(element.style.fill)
+        layer?.backgroundColor = platformColor(element.background).cgColor
+        layer?.cornerRadius = CGFloat(element.borderRadius)
+        layer?.borderWidth = CGFloat(element.strokeWidth)
+        layer?.borderColor = platformColor(element.strokeColor).cgColor
+    }
+
+    @objc private func handleChange() {
+        dispatchFormDropdownChange(id: nodeId, selectedId: UInt32(max(indexOfSelectedItem, 0)))
+    }
+}
+
+private final class PaxNativeRadioSetView: NSStackView {
+    private var nodeId: PaxNodeId = 0
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        orientation = .vertical
+        spacing = 6
+        alignment = .leading
+        distribution = .fillEqually
+    }
+
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: RadioSetElement) {
+        nodeId = element.id
+        if arrangedSubviews.count != element.options.count {
+            arrangedSubviews.forEach { view in
+                removeArrangedSubview(view)
+                view.removeFromSuperview()
+            }
+            for index in element.options.indices {
+                let button = NSButton(radioButtonWithTitle: "", target: self, action: #selector(selectOption(_:)))
+                button.tag = index
+                addArrangedSubview(button)
+            }
+        }
+
+        for (index, view) in arrangedSubviews.enumerated() {
+            guard let button = view as? NSButton else { continue }
+            button.title = element.options[index]
+            button.font = element.style.font.getNSFont(size: element.style.font_size)
+            button.contentTintColor = platformColor(element.style.fill)
+            button.state = Int(element.selectedId) == index ? .on : .off
+        }
+    }
+
+    @objc private func selectOption(_ sender: NSButton) {
+        dispatchFormRadioSetChange(id: nodeId, selectedId: UInt32(sender.tag))
+    }
+}
+
+private final class PaxNativeTextboxFieldView: NSTextField, NSTextFieldDelegate {
+    private var nodeId: PaxNodeId = 0
+    private var isProgrammaticChange = false
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        delegate = self
+        isBordered = false
+        isBezeled = false
+        drawsBackground = true
+        focusRingType = .none
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: TextboxElement) {
+        nodeId = element.id
+        isProgrammaticChange = true
+        if stringValue != element.text {
+            stringValue = element.text
+        }
+        isProgrammaticChange = false
+        placeholderString = element.placeholder
+        font = element.style.font.getNSFont(size: element.style.font_size)
+        textColor = platformColor(element.style.fill)
+        alignment = platformTextAlignment(element.style.alignmentMultiline)
+        backgroundColor = platformColor(element.background)
+        layer?.cornerRadius = CGFloat(element.borderRadius)
+        layer?.borderWidth = CGFloat(max(element.outlineWidth, element.strokeWidth))
+        layer?.borderColor = platformColor(element.outlineWidth > 0 ? element.outlineColor : element.strokeColor).cgColor
+        if element.focusOnMount, window?.firstResponder !== currentEditor() {
+            DispatchQueue.main.async { [weak self] in self?.window?.makeFirstResponder(self) }
+        }
+    }
+
+    override func textDidChange(_ notification: Notification) {
+        guard !isProgrammaticChange else { return }
+        dispatchFormTextboxInput(id: nodeId, text: stringValue)
+    }
+
+    func controlTextDidEndEditing(_ obj: Notification) {
+        dispatchFormTextboxChange(id: nodeId, text: stringValue)
+    }
+}
+
+private final class PaxNativeTextboxAreaView: NSScrollView, NSTextViewDelegate {
+    private let textView = NSTextView()
+    private var nodeId: PaxNodeId = 0
+    private var isProgrammaticChange = false
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        borderType = .noBorder
+        drawsBackground = false
+        hasVerticalScroller = false
+        hasHorizontalScroller = false
+        textView.drawsBackground = false
+        textView.delegate = self
+        textView.textContainerInset = NSSize(width: 4, height: 6)
+        textView.textContainer?.lineFragmentPadding = 0
+        documentView = textView
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: TextboxElement) {
+        nodeId = element.id
+        isProgrammaticChange = true
+        if textView.string != element.text {
+            textView.string = element.text
+        }
+        isProgrammaticChange = false
+        textView.font = element.style.font.getNSFont(size: element.style.font_size)
+        textView.textColor = platformColor(element.style.fill)
+        textView.alignment = platformTextAlignment(element.style.alignmentMultiline)
+        layer?.backgroundColor = platformColor(element.background).cgColor
+        layer?.cornerRadius = CGFloat(element.borderRadius)
+        layer?.borderWidth = CGFloat(max(element.outlineWidth, element.strokeWidth))
+        layer?.borderColor = platformColor(element.outlineWidth > 0 ? element.outlineColor : element.strokeColor).cgColor
+        if element.focusOnMount, window?.firstResponder !== textView {
+            DispatchQueue.main.async { [weak self] in self?.window?.makeFirstResponder(self?.textView) }
+        }
+    }
+
+    func textDidChange(_ notification: Notification) {
+        guard !isProgrammaticChange else { return }
+        dispatchFormTextboxInput(id: nodeId, text: textView.string)
+    }
+
+    func textDidEndEditing(_ notification: Notification) {
+        dispatchFormTextboxChange(id: nodeId, text: textView.string)
+    }
+}
+
+private final class PaxNativeImageView: NSImageView {
+    private var currentURL: String = ""
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        imageScaling = .scaleProportionallyUpOrDown
+        imageAlignment = .alignCenter
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: NativeImageElement) {
+        if currentURL != element.url {
+            currentURL = element.url
+            image = loadPlatformImage(path: element.url)
+        }
+        switch element.fit {
+        case "cover":
+            imageScaling = .scaleAxesIndependently
+        case "fill":
+            imageScaling = .scaleAxesIndependently
+        default:
+            imageScaling = .scaleProportionallyUpOrDown
+        }
+    }
+}
+
+private final class PaxNativeYoutubeView: NSButton {
+    private var currentURL: URL?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        title = "Open Video"
+        isBordered = false
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.black.withAlphaComponent(0.85).cgColor
+        layer?.cornerRadius = 12
+        target = self
+        action = #selector(openVideo)
+        contentTintColor = .white
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: YoutubeVideoElement) {
+        currentURL = URL(string: element.url)
+    }
+
+    @objc private func openVideo() {
+        guard let currentURL else { return }
+        NSWorkspace.shared.open(currentURL)
+    }
+}
+
 private func loadPlatformImage(path: String) -> NSImage? {
     NSImage(contentsOfFile: path)
-}
-
-private func configuredPlatformImage(_ image: NSImage, fit: String) -> some View {
-    configuredImage(Image(nsImage: image), fit: fit)
 }
 #endif
 
