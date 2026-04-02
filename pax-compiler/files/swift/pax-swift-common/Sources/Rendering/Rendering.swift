@@ -350,7 +350,8 @@ public struct NativeRenderingLayer: View {
         let localTransform: CGAffineTransform
         let size: CGSize
         let opacity: Double
-        let clipPath: Path?
+        let clipPath: CGPath?
+        let clipSignature: Int
         let children: [NativeRenderNode]
     }
 
@@ -403,6 +404,14 @@ public struct NativeRenderingLayer: View {
 
     private class PlatformContainerView: PlatformBaseView {
         private let clipMaskLayer = CAShapeLayer()
+        private struct AppliedGeometry: Equatable {
+            let size: CGSize
+            let localTransform: CGAffineTransform
+            let zIndex: Int
+            let opacity: Double
+        }
+        private var appliedGeometry: AppliedGeometry?
+        private var appliedClipSignature: Int?
 
 #if os(iOS) || os(tvOS) || os(watchOS)
         override init(frame: CGRect) {
@@ -425,7 +434,10 @@ public struct NativeRenderingLayer: View {
             fatalError("init(coder:) has not been implemented")
         }
 
-        func applyClip(path: CGPath?) {
+        func applyClip(path: CGPath?, signature: Int) {
+            if appliedClipSignature == signature {
+                return
+            }
             guard let layer else {
                 return
             }
@@ -440,6 +452,39 @@ public struct NativeRenderingLayer: View {
                 layer.mask = nil
             }
             CATransaction.commit()
+            appliedClipSignature = signature
+        }
+
+        func applyGeometry(
+            size: CGSize,
+            localTransform: CGAffineTransform,
+            zIndex: Int,
+            opacity: Double
+        ) {
+            let geometry = AppliedGeometry(
+                size: size,
+                localTransform: localTransform,
+                zIndex: zIndex,
+                opacity: opacity
+            )
+            if appliedGeometry == geometry {
+                return
+            }
+            let rect = CGRect(origin: .zero, size: size)
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            frame = rect
+            bounds = rect
+            if let layer {
+                layer.bounds = rect
+                layer.anchorPoint = CGPoint(x: 0.0, y: 0.0)
+                layer.position = .zero
+                layer.setAffineTransform(localTransform)
+                layer.zPosition = CGFloat(zIndex)
+                layer.opacity = Float(opacity)
+            }
+            CATransaction.commit()
+            appliedGeometry = geometry
         }
     }
 
@@ -448,29 +493,6 @@ public struct NativeRenderingLayer: View {
             child.removeFromSuperview()
             parent.addSubview(child)
         }
-    }
-
-    private static func applyViewGeometry(
-        _ view: PlatformBaseView,
-        size: CGSize,
-        localTransform: CGAffineTransform,
-        zIndex: Int,
-        opacity: Double
-    ) {
-        let rect = CGRect(origin: .zero, size: size)
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        view.frame = rect
-        view.bounds = rect
-        if let layer = view.layer {
-            layer.bounds = rect
-            layer.anchorPoint = CGPoint(x: 0.0, y: 0.0)
-            layer.position = .zero
-            layer.setAffineTransform(localTransform)
-            layer.zPosition = CGFloat(zIndex)
-            layer.opacity = Float(opacity)
-        }
-        CATransaction.commit()
     }
 
     private final class PlatformMaskedLeafView: PlatformContainerView {
@@ -663,14 +685,13 @@ public struct NativeRenderingLayer: View {
                         return view
                     }()
                     NativeRenderingLayer.attachPlatformSubview(frameView, to: parentView)
-                    NativeRenderingLayer.applyViewGeometry(
-                        frameView,
+                    frameView.applyGeometry(
                         size: frame.size,
                         localTransform: frame.localTransform,
                         zIndex: frame.zIndex,
                         opacity: frame.opacity
                     )
-                    frameView.applyClip(path: frame.clipPath?.cgPath)
+                    frameView.applyClip(path: frame.clipPath, signature: frame.clipSignature)
                     sync(
                         nodes: frame.children,
                         parentView: frameView,
@@ -686,8 +707,7 @@ public struct NativeRenderingLayer: View {
                     }()
                     NativeRenderingLayer.attachPlatformSubview(leafView, to: parentView)
                     leafView.update(item: item)
-                    NativeRenderingLayer.applyViewGeometry(
-                        leafView,
+                    leafView.applyGeometry(
                         size: item.size,
                         localTransform: item.localTransform,
                         zIndex: item.zIndex,
@@ -867,6 +887,17 @@ public struct NativeRenderingLayer: View {
         return Path(CGRect(origin: .zero, size: size))
     }
 
+    private func clipSignature(for frame: FrameElement) -> Int {
+        guard frame.clipContent else {
+            return 0
+        }
+        var hasher = Hasher()
+        hasher.combine(frame.clipContent)
+        hasher.combine(frame.clipPath)
+        combineCGSize(frameSize(frame), into: &hasher)
+        return hasher.finalize()
+    }
+
     private func sortedNodes(_ nodes: [NativeRenderNode]) -> [NativeRenderNode] {
         nodes.sorted { lhs, rhs in
             if lhs.zIndex == rhs.zIndex {
@@ -904,7 +935,8 @@ public struct NativeRenderingLayer: View {
                 localTransform: frameTransformInParentFrame(frame),
                 size: frameSize(frame),
                 opacity: clampOpacity(frame.opacity),
-                clipPath: localClipPath(for: frame),
+                clipPath: localClipPath(for: frame)?.cgPath,
+                clipSignature: clipSignature(for: frame),
                 children: children
             )
         }
