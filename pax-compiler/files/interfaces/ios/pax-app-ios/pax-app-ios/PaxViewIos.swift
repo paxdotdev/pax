@@ -14,7 +14,47 @@ import Rendering
 import PaxCartridgeAssets
 import PaxCartridge
 
+private func registerPaxFontsIfNeeded() {
+    let nestedBundleURL = Bundle.main.url(
+        forResource: "PaxSwiftCartridge_PaxCartridgeAssets",
+        withExtension: "bundle"
+    )!
+
+    let resourceBundle = Bundle(url: nestedBundleURL)!
+    let resourceURL = resourceBundle.resourceURL!
+    let fontFileExtensions = ["ttf", "otf"]
+
+    do {
+        let resourceFiles = try FileManager.default.contentsOfDirectory(
+            at: resourceURL,
+            includingPropertiesForKeys: nil,
+            options: []
+        )
+        for fileURL in resourceFiles {
+            let fileExtension = fileURL.pathExtension.lowercased()
+            if fontFileExtensions.contains(fileExtension) {
+                let fontDescriptors = CTFontManagerCreateFontDescriptorsFromURL(fileURL as CFURL) as! [CTFontDescriptor]
+                if let fontDescriptor = fontDescriptors.first,
+                   let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as? String,
+                   let fontFamily = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontFamilyNameAttribute) as? String {
+                    if !PaxFont.isFontRegistered(fontFamily: postscriptName) {
+                        var errorRef: Unmanaged<CFError>?
+                        if !CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {
+                            print("Error registering font: \(fontFamily) - PostScript name: \(postscriptName) - \(String(describing: errorRef))")
+                        }
+                    }
+                }
+            }
+        }
+    } catch {
+        print("Error reading font files from resources: \(error)")
+    }
+}
+
 struct PaxViewIos: View {
+    init() {
+        registerPaxFontsIfNeeded()
+    }
 
     var canvasView : some View {
         PaxCanvasViewRepresentable()
@@ -81,7 +121,7 @@ struct PaxViewIos: View {
             NativeInterruptDispatcher.shared.sendData = { data in
                 sendInterrupt(data: data)
             }
-            registerFonts()
+            registerPaxFontsIfNeeded()
         }
     }
 
@@ -111,42 +151,6 @@ struct PaxViewIos: View {
         }
     }
 
-    func registerFonts() {
-
-        let nestedBundleURL = Bundle.main.url(forResource: "PaxSwiftCartridge_PaxCartridgeAssets", withExtension: "bundle")!
-
-        let resourceBundle = Bundle(url: nestedBundleURL)!
-        
-        let resourceURL = resourceBundle.resourceURL!
-        
-        let fontFileExtensions = ["ttf", "otf"]
-
-        do {
-            let resourceFiles = try FileManager.default.contentsOfDirectory(at: resourceURL, includingPropertiesForKeys: nil, options: [])
-            for fileURL in resourceFiles {
-                let fileExtension = fileURL.pathExtension.lowercased()
-                if fontFileExtensions.contains(fileExtension) {
-                    let fontDescriptors = CTFontManagerCreateFontDescriptorsFromURL(fileURL as CFURL) as! [CTFontDescriptor]
-                    if let fontDescriptor = fontDescriptors.first,
-                       let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as? String,
-                       let fontFamily = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontFamilyNameAttribute) as? String {
-                        if !PaxFont.isFontRegistered(fontFamily: postscriptName) {
-                            var errorRef: Unmanaged<CFError>?
-                            if !CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {
-                                print("Error registering font: \(fontFamily) - PostScript name: \(postscriptName) - \(String(describing: errorRef))")
-                            }
-                        } else {
-                            print("Font already registered: \(fontFamily) - PostScript name: \(postscriptName)")
-                        }
-                    }
-                }
-            }
-        } catch {
-            print("Error reading font files from resources: \(error)")
-        }
-    }
-
-
     class PaxEngineContainer {
         static var paxEngineContainer : OpaquePointer? = nil
     }
@@ -157,6 +161,7 @@ struct PaxViewIos: View {
         typealias UIViewType = PaxCanvasViewIos
 
         func makeUIView(context: Context) -> PaxCanvasViewIos {
+            registerPaxFontsIfNeeded()
             let view = PaxCanvasViewIos()
             return view
         }
