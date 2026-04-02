@@ -341,67 +341,13 @@ impl StencilRenderer {
             });
     }
 
-    pub fn push_stencil_clips(&mut self, device: &Device, queue: &Queue, clips: &[ClipDraw<'_>]) {
-        if clips.is_empty() {
-            return;
-        }
-        for clip in clips {
-            self.ensure_cached_geometry(device, clip.geometry_signature, clip.geometry);
-            self.ensure_cached_clip_instance(device, clip.clip_id);
-        }
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Stencil Encoder"),
-        });
-
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Stencil Pass"),
-                color_attachments: &[None],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.stencil_view,
-                    depth_ops: None,
-                    stencil_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    }),
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-
-            render_pass.set_pipeline(&self.stencil_pipeline);
-            render_pass.set_bind_group(0, &self.stencil_bind_group, &[]);
-            for clip in clips {
-                let cached_geometry = self
-                    .cached_geometry
-                    .get(&clip.geometry_signature)
-                    .expect("cached stencil geometry should exist after insertion");
-                let instance_buffer = self
-                    .cached_clip_instances
-                    .get(&clip.clip_id)
-                    .expect("cached stencil clip instance should exist after insertion");
-                render_pass.set_vertex_buffer(0, cached_geometry.vertices_buffer.slice(..));
-                render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
-                render_pass.set_index_buffer(
-                    cached_geometry.indices_buffer.slice(..),
-                    wgpu::IndexFormat::Uint16,
-                );
-                render_pass.draw_indexed(0..cached_geometry.index_count, 0, 0..1);
-            }
-        }
-
-        queue.submit(std::iter::once(encoder.finish()));
-        for clip in clips {
-            self.stencil_geometry_stack.push(StencilStackEntry {
-                clip_id: clip.clip_id,
-                geometry_signature: clip.geometry_signature,
-            });
-            self.stencil_layer += 1;
-        }
-    }
-
-    pub fn reset_stencil_depth_to(&mut self, device: &Device, queue: &Queue, depth: u32) {
+    pub fn sync_stencil_stack(
+        &mut self,
+        device: &Device,
+        queue: &Queue,
+        depth: u32,
+        clips: &[ClipDraw<'_>],
+    ) {
         let mut popped = Vec::new();
         while self.stencil_layer > depth {
             let Some(entry) = self.stencil_geometry_stack.pop() else {
@@ -411,17 +357,23 @@ impl StencilRenderer {
             popped.push(entry);
             self.stencil_layer = self.stencil_layer.saturating_sub(1);
         }
-        if popped.is_empty() {
+
+        for clip in clips {
+            self.ensure_cached_geometry(device, clip.geometry_signature, clip.geometry);
+            self.ensure_cached_clip_instance(device, clip.clip_id);
+        }
+
+        if popped.is_empty() && clips.is_empty() {
             return;
         }
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Stencil Pop Encoder"),
+            label: Some("Stencil Sync Encoder"),
         });
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Stencil Pop Pass"),
+                label: Some("Stencil Sync Pass"),
                 color_attachments: &[None],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.stencil_view,
@@ -436,35 +388,67 @@ impl StencilRenderer {
                 multiview_mask: None,
             });
 
-            render_pass.set_pipeline(&self.decrement_pipeline);
             render_pass.set_bind_group(0, &self.stencil_bind_group, &[]);
-            for entry in popped {
-                let Some(cached_geometry) = self.cached_geometry.get(&entry.geometry_signature)
-                else {
-                    log::error!(
-                        "missing cached stencil geometry for signature {}",
-                        entry.geometry_signature
+
+            if !popped.is_empty() {
+                render_pass.set_pipeline(&self.decrement_pipeline);
+                for entry in popped {
+                    let Some(cached_geometry) = self.cached_geometry.get(&entry.geometry_signature)
+                    else {
+                        log::error!(
+                            "missing cached stencil geometry for signature {}",
+                            entry.geometry_signature
+                        );
+                        continue;
+                    };
+                    let Some(instance_buffer) = self.cached_clip_instances.get(&entry.clip_id) else {
+                        log::error!(
+                            "missing cached stencil clip instance for clip {}",
+                            entry.clip_id
+                        );
+                        continue;
+                    };
+                    render_pass.set_vertex_buffer(0, cached_geometry.vertices_buffer.slice(..));
+                    render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
+                    render_pass.set_index_buffer(
+                        cached_geometry.indices_buffer.slice(..),
+                        wgpu::IndexFormat::Uint16,
                     );
-                    continue;
-                };
-                let Some(instance_buffer) = self.cached_clip_instances.get(&entry.clip_id) else {
-                    log::error!(
-                        "missing cached stencil clip instance for clip {}",
-                        entry.clip_id
+                    render_pass.draw_indexed(0..cached_geometry.index_count, 0, 0..1);
+                }
+            }
+
+            if !clips.is_empty() {
+                render_pass.set_pipeline(&self.stencil_pipeline);
+                for clip in clips {
+                    let cached_geometry = self
+                        .cached_geometry
+                        .get(&clip.geometry_signature)
+                        .expect("cached stencil geometry should exist after insertion");
+                    let instance_buffer = self
+                        .cached_clip_instances
+                        .get(&clip.clip_id)
+                        .expect("cached stencil clip instance should exist after insertion");
+                    render_pass.set_vertex_buffer(0, cached_geometry.vertices_buffer.slice(..));
+                    render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
+                    render_pass.set_index_buffer(
+                        cached_geometry.indices_buffer.slice(..),
+                        wgpu::IndexFormat::Uint16,
                     );
-                    continue;
-                };
-                render_pass.set_vertex_buffer(0, cached_geometry.vertices_buffer.slice(..));
-                render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
-                render_pass.set_index_buffer(
-                    cached_geometry.indices_buffer.slice(..),
-                    wgpu::IndexFormat::Uint16,
-                );
-                render_pass.draw_indexed(0..cached_geometry.index_count, 0, 0..1);
+                    render_pass.draw_indexed(0..cached_geometry.index_count, 0, 0..1);
+                }
             }
         }
 
         queue.submit(std::iter::once(encoder.finish()));
+
+        for clip in clips {
+            self.stencil_geometry_stack.push(StencilStackEntry {
+                clip_id: clip.clip_id,
+                geometry_signature: clip.geometry_signature,
+            });
+            self.stencil_layer += 1;
+        }
     }
 
     pub fn retain_cached_resources(

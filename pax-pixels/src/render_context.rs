@@ -1433,8 +1433,6 @@ fn sync_clip_stack<'w>(
         .zip(desired_clip_stack.iter().map(|clip| clip.clip_id))
         .take_while(|(left, right)| left == &right)
         .count();
-    render_backend.reset_stencil_depth_to(shared_prefix as u32);
-    current_clip_stack.truncate(shared_prefix);
     let mut clip_draws = Vec::new();
     for clip in desired_clip_stack.iter().skip(shared_prefix) {
         let Some(entry) = clip_arena.get(clip.clip_id) else {
@@ -1446,9 +1444,10 @@ fn sync_clip_stack<'w>(
             geometry_signature: entry.geometry_signature,
             geometry: &entry.geometry,
         });
-        current_clip_stack.push(clip.clip_id);
     }
-    render_backend.push_stencil_clips(&clip_draws);
+    render_backend.sync_stencil_stack(shared_prefix as u32, &clip_draws);
+    current_clip_stack.truncate(shared_prefix);
+    current_clip_stack.extend(clip_draws.iter().map(|clip| clip.clip_id));
 }
 
 fn collect_active_clip_resources(

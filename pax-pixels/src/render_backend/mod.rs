@@ -726,11 +726,6 @@ impl<'w> RenderBackend<'w> {
         })
     }
 
-    pub fn reset_stencil_depth_to(&mut self, depth: u32) {
-        self.stencil_renderer
-            .reset_stencil_depth_to(&self.device, &self.queue, depth);
-    }
-
     pub fn get_clip_depth(&mut self) -> u32 {
         let (_, depth) = self.stencil_renderer.get_stencil();
         depth
@@ -1054,9 +1049,9 @@ impl<'w> RenderBackend<'w> {
         self.queue.submit(std::iter::once(encoder.finish()));
     }
 
-    pub(crate) fn push_stencil_clips(&mut self, clips: &[stencil::ClipDraw<'_>]) {
+    pub(crate) fn sync_stencil_stack(&mut self, depth: u32, clips: &[stencil::ClipDraw<'_>]) {
         self.stencil_renderer
-            .push_stencil_clips(&self.device, &self.queue, clips);
+            .sync_stencil_stack(&self.device, &self.queue, depth, clips);
     }
 
     pub(crate) fn retain_stencil_resources(
