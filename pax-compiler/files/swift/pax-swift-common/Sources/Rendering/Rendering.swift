@@ -100,10 +100,49 @@ private struct RasterizedNativeMaskPayload {
     let holes: [RasterizedMaskHolePayload]
 }
 
+private enum NativeMaskDebug {
+    static let enabled = ProcessInfo.processInfo.environment["PAX_DEBUG_NATIVE_MASKS"] == "1"
+
+    static func log(_ message: @autoclosure () -> String) {
+        guard enabled else {
+            return
+        }
+        fputs("[pax-native-mask] \(message())\n", stderr)
+    }
+}
+
 private struct PendingMaskRender {
     let generation: UInt64
     let scale: CGFloat
     let payload: RasterizedNativeMaskPayload
+}
+
+private struct RasterizedNativeMaskCacheKey: Hashable {
+    let signature: UInt64
+    let width: UInt64
+    let height: UInt64
+    let scale: UInt64
+}
+
+private enum RasterizedNativeMaskImageCache {
+    static var images: [RasterizedNativeMaskCacheKey: CGImage] = [:]
+    static var insertionOrder: [RasterizedNativeMaskCacheKey] = []
+    static let maxEntries = 256
+
+    static func image(for key: RasterizedNativeMaskCacheKey) -> CGImage? {
+        images[key]
+    }
+
+    static func store(_ image: CGImage, for key: RasterizedNativeMaskCacheKey) {
+        if images[key] == nil {
+            insertionOrder.append(key)
+            if insertionOrder.count > maxEntries, let oldest = insertionOrder.first {
+                insertionOrder.removeFirst()
+                images.removeValue(forKey: oldest)
+            }
+        }
+        images[key] = image
+    }
 }
 
 private func rasterPayload(from mask: ResolvedNativeMask) -> RasterizedNativeMaskPayload {
@@ -144,6 +183,7 @@ private func rasterizedMaskImage(
 
     context.scaleBy(x: scale, y: scale)
     let bounds = CGRect(origin: .zero, size: payload.size)
+    context.setBlendMode(.normal)
     context.setFillColor(gray: 1.0, alpha: 1.0)
     context.fill(bounds)
 
@@ -153,7 +193,11 @@ private func rasterizedMaskImage(
             context.addPath(clip)
             context.clip()
         }
-        context.setFillColor(gray: 0.0, alpha: hole.opacity)
+        // CALayer.mask consumes alpha, not luminance. Remove coverage from the
+        // opaque backdrop directly so partial-opacity vector punch-through
+        // attenuates the native leaf instead of acting like a color-only tint.
+        context.setBlendMode(.destinationOut)
+        context.setFillColor(gray: 1.0, alpha: hole.opacity)
         context.addPath(hole.cgPath)
         context.fillPath()
         context.restoreGState()
@@ -161,6 +205,67 @@ private func rasterizedMaskImage(
 
     return context.makeImage()
 }
+
+private func rasterizedMaskCacheKey(
+    payload: RasterizedNativeMaskPayload,
+    scale: CGFloat
+) -> RasterizedNativeMaskCacheKey {
+    RasterizedNativeMaskCacheKey(
+        signature: payload.signature,
+        width: UInt64(Double(payload.size.width).bitPattern),
+        height: UInt64(Double(payload.size.height).bitPattern),
+        scale: UInt64(Double(scale).bitPattern)
+    )
+}
+
+private func cachedRasterizedMaskImage(
+    payload: RasterizedNativeMaskPayload,
+    scale: CGFloat
+) -> CGImage? {
+    let key = rasterizedMaskCacheKey(payload: payload, scale: scale)
+    if let cached = RasterizedNativeMaskImageCache.image(for: key) {
+        return cached
+    }
+    guard let image = rasterizedMaskImage(payload: payload, scale: scale) else {
+        return nil
+    }
+    RasterizedNativeMaskImageCache.store(image, for: key)
+    return image
+}
+
+#if os(macOS)
+private func compositedMaskedSnapshotImage(
+    snapshot: CGImage,
+    mask: CGImage,
+    size: CGSize,
+    scale: CGFloat
+) -> CGImage? {
+    let pixelWidth = max(Int(ceil(size.width * scale)), 1)
+    let pixelHeight = max(Int(ceil(size.height * scale)), 1)
+    let bytesPerRow = pixelWidth * 4
+    let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+        | CGBitmapInfo.byteOrder32Big.rawValue
+
+    guard let context = CGContext(
+        data: nil,
+        width: pixelWidth,
+        height: pixelHeight,
+        bitsPerComponent: 8,
+        bytesPerRow: bytesPerRow,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: bitmapInfo
+    ) else {
+        return nil
+    }
+
+    let rect = CGRect(origin: .zero, size: CGSize(width: pixelWidth, height: pixelHeight))
+    context.interpolationQuality = .high
+    context.draw(snapshot, in: rect)
+    context.setBlendMode(.destinationIn)
+    context.draw(mask, in: rect)
+    return context.makeImage()
+}
+#endif
 
 #if os(iOS) || os(tvOS) || os(watchOS)
 private func platformColor(_ color: Color) -> UIColor {
@@ -184,6 +289,28 @@ private func platformColor(_ color: Color) -> NSColor {
 
 private func platformTextAlignment(_ alignment: TextAlignment) -> NSTextAlignment {
     switch alignment {
+    case .center:
+        return .center
+    case .trailing:
+        return .right
+    default:
+        return .left
+    }
+}
+
+private func platformHorizontalTextAlignment(_ alignment: Alignment) -> NSTextAlignment {
+    switch alignment.horizontal {
+    case .center:
+        return .center
+    case .trailing:
+        return .right
+    default:
+        return .left
+    }
+}
+
+private func platformLayerTextAlignment(_ alignment: Alignment) -> CATextLayerAlignmentMode {
+    switch alignment.horizontal {
     case .center:
         return .center
     case .trailing:
@@ -419,6 +546,7 @@ public struct NativeRenderingLayer: View {
             backgroundColor = .clear
             isOpaque = false
             clipsToBounds = false
+            autoresizesSubviews = false
         }
 #elseif os(macOS)
         override var isFlipped: Bool { true }
@@ -427,6 +555,7 @@ public struct NativeRenderingLayer: View {
             super.init(frame: frameRect)
             wantsLayer = true
             layer?.backgroundColor = NSColor.clear.cgColor
+            autoresizesSubviews = false
         }
 #endif
 
@@ -470,16 +599,26 @@ public struct NativeRenderingLayer: View {
             if appliedGeometry == geometry {
                 return
             }
-            let rect = CGRect(origin: .zero, size: size)
+            let rect = CGRect(
+                origin: CGPoint(x: localTransform.tx, y: localTransform.ty),
+                size: size
+            )
+            let boundsRect = CGRect(origin: .zero, size: size)
+            let linearTransform = CGAffineTransform(
+                a: localTransform.a,
+                b: localTransform.b,
+                c: localTransform.c,
+                d: localTransform.d,
+                tx: 0,
+                ty: 0
+            )
             CATransaction.begin()
             CATransaction.setDisableActions(true)
             frame = rect
-            bounds = rect
+            bounds = boundsRect
             if let layer {
-                layer.bounds = rect
                 layer.anchorPoint = CGPoint(x: 0.0, y: 0.0)
-                layer.position = .zero
-                layer.setAffineTransform(localTransform)
+                layer.setAffineTransform(linearTransform)
                 layer.zPosition = CGFloat(zIndex)
                 layer.opacity = Float(opacity)
             }
@@ -501,7 +640,12 @@ public struct NativeRenderingLayer: View {
             qos: .userInitiated
         )
 
-        private let maskLayer = CALayer()
+        private var currentMaskLayer: CALayer?
+#if os(macOS)
+        private let snapshotLayer = CALayer()
+        private var appliedSnapshotSignature: Int?
+        private var snapshotSourceImage: CGImage?
+#endif
         private var appliedMaskSignature: UInt64?
         private var appliedMaskSize: CGSize = .zero
         private var requestedMaskSignature: UInt64?
@@ -512,9 +656,26 @@ public struct NativeRenderingLayer: View {
         private var contentKey: String?
         private var contentView: PlatformBaseView?
         private var appliedContentSignature: Int?
+        private var debugLeafId: PaxNodeId = 0
+
+        private static func shouldRasterizeMaskAsynchronously() -> Bool {
+#if os(macOS)
+            false
+#else
+            true
+#endif
+        }
 
         func update(item: NativeRenderItem) {
+            debugLeafId = item.id
             ensureContentView(for: item.kind)
+            if let contentView {
+                let rect = CGRect(origin: .zero, size: item.size)
+                if contentView.frame != rect {
+                    contentView.frame = rect
+                    contentView.bounds = rect
+                }
+            }
             let contentSignature = item.kind.contentSignature(size: item.size)
             if let contentView, appliedContentSignature != contentSignature {
                 NativeRenderingLayer.updatePlatformLeafView(
@@ -524,6 +685,9 @@ public struct NativeRenderingLayer: View {
                 )
                 appliedContentSignature = contentSignature
             }
+#if os(macOS)
+            updateSnapshot(for: item, contentSignature: contentSignature)
+#endif
             updateMask(item.mask)
         }
 
@@ -541,7 +705,81 @@ public struct NativeRenderingLayer: View {
             contentView = view
             contentKey = desiredKey
             appliedContentSignature = nil
+#if os(macOS)
+            appliedSnapshotSignature = nil
+#endif
         }
+
+#if os(macOS)
+        private func updateSnapshot(for item: NativeRenderItem, contentSignature: Int) {
+            guard let contentView else {
+                return
+            }
+            let shouldUseSnapshot = item.mask != nil
+            if !shouldUseSnapshot {
+                snapshotLayer.removeFromSuperlayer()
+                snapshotLayer.contents = nil
+                snapshotLayer.mask = nil
+                appliedSnapshotSignature = nil
+                snapshotSourceImage = nil
+                contentView.isHidden = false
+                contentView.alphaValue = 1.0
+                contentView.layer?.opacity = 1.0
+                return
+            }
+
+            if snapshotLayer.superlayer == nil {
+                snapshotLayer.zPosition = 1_000
+                snapshotLayer.contentsGravity = .resize
+                layer?.addSublayer(snapshotLayer)
+            }
+
+            let rect = CGRect(origin: .zero, size: item.size)
+            let scale = Self.currentMaskScale()
+            let snapshotSignature = contentSignature ^ Int(bitPattern: UInt(item.id))
+            if appliedSnapshotSignature != snapshotSignature {
+                let previousAlpha = contentView.alphaValue
+                let previousHidden = contentView.isHidden
+                contentView.isHidden = false
+                contentView.alphaValue = 1.0
+                contentView.layer?.opacity = 1.0
+                contentView.layoutSubtreeIfNeeded()
+                let pixelWidth = max(Int(ceil(item.size.width * scale)), 1)
+                let pixelHeight = max(Int(ceil(item.size.height * scale)), 1)
+                if let rep = NSBitmapImageRep(
+                    bitmapDataPlanes: nil,
+                    pixelsWide: pixelWidth,
+                    pixelsHigh: pixelHeight,
+                    bitsPerSample: 8,
+                    samplesPerPixel: 4,
+                    hasAlpha: true,
+                    isPlanar: false,
+                    colorSpaceName: .deviceRGB,
+                    bitmapFormat: [],
+                    bytesPerRow: 0,
+                    bitsPerPixel: 0
+                ) {
+                    rep.size = item.size
+                    contentView.cacheDisplay(in: rect, to: rep)
+                    snapshotSourceImage = rep.cgImage
+                    snapshotLayer.contents = rep.cgImage
+                    appliedSnapshotSignature = snapshotSignature
+                }
+                contentView.isHidden = previousHidden
+                contentView.alphaValue = previousAlpha
+            }
+
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            snapshotLayer.frame = rect
+            snapshotLayer.contentsScale = scale
+            snapshotLayer.isHidden = false
+            CATransaction.commit()
+            contentView.isHidden = false
+            contentView.alphaValue = 0.0
+            contentView.layer?.opacity = 0.0
+        }
+#endif
 
         private static func currentMaskScale() -> CGFloat {
 #if os(iOS) || os(tvOS) || os(watchOS)
@@ -574,7 +812,7 @@ public struct NativeRenderingLayer: View {
             inFlightMaskRender = render
 
             Self.maskRasterQueue.async { [weak self] in
-                let image = rasterizedMaskImage(payload: render.payload, scale: render.scale)
+                let image = cachedRasterizedMaskImage(payload: render.payload, scale: render.scale)
                 DispatchQueue.main.async {
                     guard let self else {
                         return
@@ -583,18 +821,21 @@ public struct NativeRenderingLayer: View {
                         return
                     }
                     self.inFlightMaskRender = nil
-                    if self.requestedMaskSignature == render.payload.signature,
-                       self.requestedMaskSize == render.payload.size,
-                       let image,
-                       let layer = self.layer
-                    {
+                   if self.requestedMaskSignature == render.payload.signature,
+                      self.requestedMaskSize == render.payload.size,
+                      let image,
+                      let layer = self.layer
+                   {
+                        let nextMaskLayer = CALayer()
+                        nextMaskLayer.frame = CGRect(origin: .zero, size: render.payload.size)
+                        nextMaskLayer.contents = image
+                        nextMaskLayer.contentsScale = render.scale
+                        nextMaskLayer.contentsGravity = .resize
                         CATransaction.begin()
                         CATransaction.setDisableActions(true)
-                        self.maskLayer.frame = CGRect(origin: .zero, size: render.payload.size)
-                        self.maskLayer.contents = image
-                        self.maskLayer.contentsScale = render.scale
-                        layer.mask = self.maskLayer
+                        layer.mask = nextMaskLayer
                         CATransaction.commit()
+                        self.currentMaskLayer = nextMaskLayer
                         self.appliedMaskSignature = render.payload.signature
                         self.appliedMaskSize = render.payload.size
                     }
@@ -603,25 +844,80 @@ public struct NativeRenderingLayer: View {
             }
         }
 
+        private func applyRasterizedMaskImage(
+            _ image: CGImage?,
+            payload: RasterizedNativeMaskPayload,
+            scale: CGFloat
+        ) {
+            guard let layer else {
+                return
+            }
+            NativeMaskDebug.log("apply id=\(debugLeafId) key=\(contentKey ?? "?") sig=\(payload.signature) holes=\(payload.holes.count) size=\(payload.size.width)x\(payload.size.height)")
+            let nextMaskLayer: CALayer? = {
+                guard let image else {
+                    return nil
+                }
+                let maskLayer = CALayer()
+                maskLayer.frame = CGRect(origin: .zero, size: payload.size)
+                maskLayer.contents = image
+                maskLayer.contentsScale = scale
+                maskLayer.contentsGravity = .resize
+                return maskLayer
+            }()
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+#if os(macOS)
+            if snapshotLayer.superlayer != nil {
+                if let snapshotSourceImage, let image {
+                    snapshotLayer.contents = compositedMaskedSnapshotImage(
+                        snapshot: snapshotSourceImage,
+                        mask: image,
+                        size: payload.size,
+                        scale: scale
+                    ) ?? snapshotSourceImage
+                } else {
+                    snapshotLayer.contents = nil
+                }
+                snapshotLayer.mask = nil
+                layer.mask = nil
+            } else {
+                layer.mask = nextMaskLayer
+                snapshotLayer.mask = nil
+            }
+#else
+            layer.mask = nextMaskLayer
+#endif
+            layer.rasterizationScale = scale
+            CATransaction.commit()
+            currentMaskLayer = nextMaskLayer
+            self.appliedMaskSignature = payload.signature
+            self.appliedMaskSize = payload.size
+        }
+
         private func updateMask(_ mask: ResolvedNativeMask?) {
             guard let layer else {
                 return
             }
             guard let mask else {
+                NativeMaskDebug.log("clear id=\(debugLeafId) key=\(contentKey ?? "?")")
                 requestedMaskSignature = nil
                 requestedMaskSize = .zero
                 appliedMaskSignature = nil
                 appliedMaskSize = .zero
+                currentMaskLayer = nil
                 CATransaction.begin()
                 CATransaction.setDisableActions(true)
-                maskLayer.contents = nil
                 layer.mask = nil
+#if os(macOS)
+                snapshotLayer.mask = nil
+#endif
                 CATransaction.commit()
                 return
             }
 
             requestedMaskSignature = mask.signature
             requestedMaskSize = mask.size
+            NativeMaskDebug.log("request id=\(debugLeafId) key=\(contentKey ?? "?") sig=\(mask.signature) holes=\(mask.holes.count) size=\(mask.size.width)x\(mask.size.height)")
             if appliedMaskSignature == mask.signature && appliedMaskSize == mask.size {
                 return
             }
@@ -637,38 +933,45 @@ public struct NativeRenderingLayer: View {
             {
                 return
             }
-
-            enqueueMaskRender(
-                payload: rasterPayload(from: mask),
-                scale: Self.currentMaskScale()
-            )
+            let payload = rasterPayload(from: mask)
+            let scale = Self.currentMaskScale()
+            if Self.shouldRasterizeMaskAsynchronously() {
+                enqueueMaskRender(payload: payload, scale: scale)
+            } else {
+                inFlightMaskRender = nil
+                queuedMaskRender = nil
+                let image = cachedRasterizedMaskImage(payload: payload, scale: scale)
+                applyRasterizedMaskImage(image, payload: payload, scale: scale)
+            }
         }
     }
 
-    private final class NativeSceneController: PlatformBaseViewController {
+    private final class NativeSceneHostView: PlatformContainerView {
         private var frameViews: [PaxNodeId: PlatformContainerView] = [:]
         private var leafViews: [PaxNodeId: PlatformMaskedLeafView] = [:]
-
-        override func loadView() {
-            self.view = PlatformContainerView(frame: .zero)
-        }
-
-        private var rootContainer: PlatformContainerView {
-            view as! PlatformContainerView
-        }
+        private var currentNodes: [NativeRenderNode] = []
 
         func update(nodes: [NativeRenderNode], size: CGSize) {
+            currentNodes = nodes
             let rect = CGRect(origin: .zero, size: size)
-            view.frame = rect
-            view.bounds = rect
-            rootContainer.frame = rect
-            rootContainer.bounds = rect
-            var activeFrames = Set<PaxNodeId>()
-            var activeLeaves = Set<PaxNodeId>()
-            sync(nodes: nodes, parentView: rootContainer, activeFrames: &activeFrames, activeLeaves: &activeLeaves)
-            pruneInactiveNodes(activeFrames: activeFrames, activeLeaves: activeLeaves)
+            if frame != rect || bounds != rect {
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                frame = rect
+                bounds = rect
+                layer?.frame = rect
+                layer?.bounds = rect
+                CATransaction.commit()
+            }
+            refreshScene()
         }
 
+        private func refreshScene() {
+            var activeFrames = Set<PaxNodeId>()
+            var activeLeaves = Set<PaxNodeId>()
+            sync(nodes: currentNodes, parentView: self, activeFrames: &activeFrames, activeLeaves: &activeLeaves)
+            pruneInactiveNodes(activeFrames: activeFrames, activeLeaves: activeLeaves)
+        }
         private func sync(
             nodes: [NativeRenderNode],
             parentView: PlatformContainerView,
@@ -730,29 +1033,29 @@ public struct NativeRenderingLayer: View {
     }
 
 #if os(iOS) || os(tvOS) || os(watchOS)
-    private struct PlatformNativeSceneView: UIViewControllerRepresentable {
+    private struct PlatformNativeSceneView: UIViewRepresentable {
         let nodes: [NativeRenderNode]
         let size: CGSize
 
-        func makeUIViewController(context: Context) -> NativeSceneController {
-            NativeSceneController()
+        func makeUIView(context: Context) -> NativeSceneHostView {
+            NativeSceneHostView(frame: .zero)
         }
 
-        func updateUIViewController(_ controller: NativeSceneController, context: Context) {
-            controller.update(nodes: nodes, size: size)
+        func updateUIView(_ view: NativeSceneHostView, context: Context) {
+            view.update(nodes: nodes, size: size)
         }
     }
 #elseif os(macOS)
-    private struct PlatformNativeSceneView: NSViewControllerRepresentable {
+    private struct PlatformNativeSceneView: NSViewRepresentable {
         let nodes: [NativeRenderNode]
         let size: CGSize
 
-        func makeNSViewController(context: Context) -> NativeSceneController {
-            NativeSceneController()
+        func makeNSView(context: Context) -> NativeSceneHostView {
+            NativeSceneHostView(frame: .zero)
         }
 
-        func updateNSViewController(_ controller: NativeSceneController, context: Context) {
-            controller.update(nodes: nodes, size: size)
+        func updateNSView(_ view: NativeSceneHostView, context: Context) {
+            view.update(nodes: nodes, size: size)
         }
     }
 #endif
@@ -762,7 +1065,8 @@ public struct NativeRenderingLayer: View {
     }
 
     private func sortedTextElements() -> [TextElement] {
-        Array(textElements.elements.values).sorted { lhs, rhs in
+        Array(textElements.elements.values)
+            .sorted { lhs, rhs in
             if lhs.zIndex == rhs.zIndex {
                 return lhs.id < rhs.id
             }
@@ -771,7 +1075,8 @@ public struct NativeRenderingLayer: View {
     }
 
     private func sortedElements<T: NativePositionElement>(_ elements: [PaxNodeId: T]) -> [T] {
-        Array(elements.values).sorted { lhs, rhs in
+        Array(elements.values)
+            .sorted { lhs, rhs in
             if lhs.zIndex == rhs.zIndex {
                 return lhs.id < rhs.id
             }
@@ -910,7 +1215,10 @@ public struct NativeRenderingLayer: View {
     private func buildRenderTree() -> [NativeRenderNode] {
         let items = sortedRenderItems()
         let itemsByParent = Dictionary(grouping: items, by: { $0.parentFrame })
-        let framesByParent = Dictionary(grouping: Array(frameElements.elements.values), by: { $0.parentFrame })
+        let framesByParent = Dictionary(
+            grouping: Array(frameElements.elements.values),
+            by: { $0.parentFrame }
+        )
 
         var activeFrames: [PaxNodeId: Bool] = [:]
         func frameHasNativeDescendants(_ frameId: PaxNodeId) -> Bool {
@@ -1011,11 +1319,11 @@ public struct NativeRenderingLayer: View {
                 nodes: renderTree(for: generation),
                 size: proxy.size
             )
-                .frame(
-                    width: proxy.size.width,
-                    height: proxy.size.height,
-                    alignment: .topLeading
-                )
+            .frame(
+                width: proxy.size.width,
+                height: proxy.size.height,
+                alignment: .topLeading
+            )
         }
         .transaction { transaction in
             transaction.animation = nil
@@ -1200,7 +1508,7 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
             selectableView.isSelectable = element.selectable || element.editable
         } else {
             label.attributedText = attr
-            label.textAlignment = platformTextAlignment(element.textStyle.alignmentMultiline)
+            label.textAlignment = platformHorizontalTextAlignment(element.textStyle.alignment)
         }
     }
 
@@ -1542,7 +1850,7 @@ private final class PaxNativeEventBlockerView: NSView {
 private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
     override var isFlipped: Bool { true }
 
-    private let label = NSTextField(labelWithString: "")
+    private let staticTextLayer = CATextLayer()
     private let scrollView = NSScrollView()
     private let textView = NSTextView()
     private var usingTextView = false
@@ -1553,14 +1861,11 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
-
-        label.frame = bounds
-        label.autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
-        label.backgroundColor = .clear
-        label.isBordered = false
-        label.isEditable = false
-        label.lineBreakMode = .byWordWrapping
-        label.usesSingleLineMode = false
+        staticTextLayer.frame = bounds
+        staticTextLayer.isWrapped = true
+        staticTextLayer.truncationMode = .none
+        staticTextLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 1.0
+        layer?.addSublayer(staticTextLayer)
 
         scrollView.frame = bounds
         scrollView.autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
@@ -1579,8 +1884,6 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
         textView.isVerticallyResizable = false
         textView.isHorizontallyResizable = false
         textView.textContainer?.widthTracksTextView = true
-
-        addSubview(label)
     }
 
     required init?(coder: NSCoder) {
@@ -1591,16 +1894,19 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
         let useTextView = element.selectable || element.editable
         if useTextView != usingTextView {
             if useTextView {
-                label.removeFromSuperview()
+                staticTextLayer.isHidden = true
                 addSubview(scrollView)
             } else {
                 scrollView.removeFromSuperview()
-                addSubview(label)
+                staticTextLayer.isHidden = false
             }
             usingTextView = useTextView
         }
 
         let attr = NSAttributedString(nativeAttributedString(for: element))
+        let rect = CGRect(origin: .zero, size: size)
+        staticTextLayer.frame = rect
+        scrollView.frame = rect
         if useTextView {
             editableNodeId = element.id
             suppressChange = true
@@ -1611,12 +1917,11 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
             textView.alignment = platformTextAlignment(element.textStyle.alignmentMultiline)
             textView.isEditable = element.editable
             textView.isSelectable = element.selectable || element.editable
-            textView.frame = CGRect(origin: .zero, size: size)
+            textView.frame = rect
         } else {
-            label.attributedStringValue = attr
-            label.alignment = platformTextAlignment(element.textStyle.alignmentMultiline)
-            label.font = element.textStyle.font.getNSFont(size: element.textStyle.font_size)
-            label.textColor = platformColor(element.textStyle.fill)
+            staticTextLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1.0
+            staticTextLayer.alignmentMode = platformLayerTextAlignment(element.textStyle.alignment)
+            staticTextLayer.string = attr
         }
     }
 
@@ -1696,6 +2001,7 @@ private final class PaxNativeSliderView: NSSlider {
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        wantsLayer = true
         target = self
         action = #selector(handleChange)
         isContinuous = true
@@ -1756,6 +2062,7 @@ private final class PaxNativeRadioSetView: NSStackView {
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        wantsLayer = true
         orientation = .vertical
         spacing = 6
         alignment = .leading

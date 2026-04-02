@@ -286,7 +286,74 @@ struct PaxViewMacos: View {
         }
 
         func didUpdateTextElement(_ textElement: TextElement) {
-            _ = textElement
+            requestTextResizeIfNeeded(textElement)
+        }
+
+        private func sendChassisResizeRequest(id: PaxNodeId, size: CGSize) {
+            dispatchChassisResizeRequest(id: id, width: Double(size.width), height: Double(size.height))
+        }
+
+        private func measureTextElement(_ textElement: TextElement) -> CGSize {
+            let attributed: AttributedString
+            if textElement.markdown {
+                attributed = (try? AttributedString(
+                    markdown: textElement.content,
+                    options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+                )) ?? AttributedString(textElement.content)
+            } else {
+                attributed = AttributedString(textElement.content)
+            }
+
+            let nsAttributed = NSMutableAttributedString(attributedString: NSAttributedString(attributed))
+            let paragraph = NSMutableParagraphStyle()
+            switch textElement.textStyle.alignmentMultiline {
+            case .center:
+                paragraph.alignment = .center
+            case .trailing:
+                paragraph.alignment = .right
+            default:
+                paragraph.alignment = .left
+            }
+
+            let fullRange = NSRange(location: 0, length: nsAttributed.length)
+            nsAttributed.addAttribute(
+                .font,
+                value: textElement.textStyle.font.getNSFont(size: textElement.textStyle.font_size),
+                range: fullRange
+            )
+            nsAttributed.addAttribute(
+                .foregroundColor,
+                value: NSColor(textElement.textStyle.fill),
+                range: fullRange
+            )
+            nsAttributed.addAttribute(.paragraphStyle, value: paragraph, range: fullRange)
+
+            let constraint = CGSize(
+                width: textElement.size_x >= 0 ? CGFloat(textElement.size_x) : CGFloat.greatestFiniteMagnitude,
+                height: textElement.size_y >= 0 ? CGFloat(textElement.size_y) : CGFloat.greatestFiniteMagnitude
+            )
+            let measured = nsAttributed.boundingRect(
+                with: constraint,
+                options: [.usesLineFragmentOrigin, .usesFontLeading]
+            ).integral
+            return CGSize(width: ceil(measured.width), height: ceil(measured.height))
+        }
+
+        private func requestTextResizeIfNeeded(_ textElement: TextElement) {
+            guard textElement.size_x < 0 || textElement.size_y < 0 else {
+                return
+            }
+
+            let measuredSize = measureTextElement(textElement)
+            if let priorSize = textElement.lastMeasuredSize,
+               abs(priorSize.width - measuredSize.width) < 0.5,
+               abs(priorSize.height - measuredSize.height) < 0.5 {
+                return
+            }
+
+            textElement.lastMeasuredSize = measuredSize
+            recomputeResolvedMask(for: textElement)
+            sendChassisResizeRequest(id: textElement.id, size: measuredSize)
         }
 
 //        let buffer = try! FlexBufferBuilder.encodeMap { builder in

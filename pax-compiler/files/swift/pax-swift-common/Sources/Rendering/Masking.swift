@@ -32,11 +32,18 @@ private struct ParsedMaskEntry {
     let clips: [Path]
 }
 
+private struct ParsedMaskGeometryCacheKey: Hashable {
+    let path: String
+    let clips: [String]
+}
+
 private enum ParsedMaskGeometryCache {
-    static var entries: [ObjectIdentifier: ParsedMaskEntry] = [:]
+    static var entries: [ParsedMaskGeometryCacheKey: ParsedMaskEntry] = [:]
+    static var insertionOrder: [ParsedMaskGeometryCacheKey] = []
+    static let maxEntries = 2048
 
     static func parsedEntry(for entry: MaskPathPatch) -> ParsedMaskEntry {
-        let key = ObjectIdentifier(entry)
+        let key = ParsedMaskGeometryCacheKey(path: entry.path, clips: entry.clips)
         if let cached = entries[key] {
             return cached
         }
@@ -44,6 +51,13 @@ private enum ParsedMaskGeometryCache {
             path: parseSVGPath(entry.path),
             clips: entry.clips.compactMap(parseSVGPath)
         )
+        if entries[key] == nil {
+            insertionOrder.append(key)
+            if insertionOrder.count > maxEntries, let oldest = insertionOrder.first {
+                insertionOrder.removeFirst()
+                entries.removeValue(forKey: oldest)
+            }
+        }
         entries[key] = parsed
         return parsed
     }
