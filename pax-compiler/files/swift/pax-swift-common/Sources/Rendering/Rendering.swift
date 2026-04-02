@@ -181,7 +181,12 @@ private func rasterizedMaskImage(
         return nil
     }
 
+    // Pax/native leaf geometry is expressed in a top-left, Y-down space.
+    // Raw CoreGraphics bitmap contexts default to a bottom-left, Y-up space,
+    // so normalize the context before rasterizing hole geometry into the mask.
     context.scaleBy(x: scale, y: scale)
+    context.translateBy(x: 0, y: payload.size.height)
+    context.scaleBy(x: 1, y: -1)
     let bounds = CGRect(origin: .zero, size: payload.size)
     context.setBlendMode(.normal)
     context.setFillColor(gray: 1.0, alpha: 1.0)
