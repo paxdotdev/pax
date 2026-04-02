@@ -71,12 +71,23 @@ public struct ResolvedMaskHole {
     public let signature: UInt64
     public let path: Path
     public let clips: [Path]
+    public let cgPath: CGPath
+    public let clipCGPaths: [CGPath]
     public let opacity: Double
 
-    public init(signature: UInt64, path: Path, clips: [Path], opacity: Double) {
+    public init(
+        signature: UInt64,
+        path: Path,
+        clips: [Path],
+        cgPath: CGPath,
+        clipCGPaths: [CGPath],
+        opacity: Double
+    ) {
         self.signature = signature
         self.path = path
         self.clips = clips
+        self.cgPath = cgPath
+        self.clipCGPaths = clipCGPaths
         self.opacity = opacity
     }
 }
@@ -85,12 +96,20 @@ public struct ResolvedNativeMask {
     public let signature: UInt64
     public let size: CGSize
     public let frameClips: [Path]
+    public let frameClipCGPaths: [CGPath]
     public let holes: [ResolvedMaskHole]
 
-    public init(signature: UInt64, size: CGSize, frameClips: [Path], holes: [ResolvedMaskHole]) {
+    public init(
+        signature: UInt64,
+        size: CGSize,
+        frameClips: [Path],
+        frameClipCGPaths: [CGPath],
+        holes: [ResolvedMaskHole]
+    ) {
         self.signature = signature
         self.size = size
         self.frameClips = frameClips
+        self.frameClipCGPaths = frameClipCGPaths
         self.holes = holes
     }
 }
@@ -460,6 +479,7 @@ public func resolveNativeMask(
         let localPath = frameWorldPath(for: descriptor).applying(localFromWorld)
         return localPath.isEmpty ? nil : localPath
     }
+    let frameClipCGPaths = frameClips.map(\.cgPath)
 
     let sortedEntries = patch?.entries.sorted { lhs, rhs in
         if lhs.path != rhs.path {
@@ -481,10 +501,13 @@ public func resolveNativeMask(
         if holePath.isEmpty {
             return nil
         }
+        let nonEmptyClips = parsedEntry.clips.filter { !$0.isEmpty }
         return ResolvedMaskHole(
             signature: entrySignature,
             path: holePath,
-            clips: parsedEntry.clips.filter { !$0.isEmpty },
+            clips: nonEmptyClips,
+            cgPath: holePath.cgPath,
+            clipCGPaths: nonEmptyClips.map(\.cgPath),
             opacity: min(max(entry.opacity, 0.0), 1.0)
         )
     }
@@ -493,7 +516,13 @@ public func resolveNativeMask(
         return nil
     }
 
-    return ResolvedNativeMask(signature: maskSignature, size: size, frameClips: frameClips, holes: holes)
+    return ResolvedNativeMask(
+        signature: maskSignature,
+        size: size,
+        frameClips: frameClips,
+        frameClipCGPaths: frameClipCGPaths,
+        holes: holes
+    )
 }
 
 public struct HoleMaskView: View {

@@ -44,6 +44,25 @@ private func platformColor(_ color: Color) -> UIColor {
     UIColor(color)
 }
 
+private struct RasterizedMaskHolePayload {
+    let cgPath: CGPath
+    let clipCGPaths: [CGPath]
+    let opacity: CGFloat
+}
+
+private struct RasterizedNativeMaskPayload {
+    let signature: UInt64
+    let size: CGSize
+    let frameClipCGPaths: [CGPath]
+    let holes: [RasterizedMaskHolePayload]
+}
+
+private struct PendingMaskRender {
+    let generation: UInt64
+    let scale: CGFloat
+    let payload: RasterizedNativeMaskPayload
+}
+
 private func platformTextAlignment(_ alignment: TextAlignment) -> NSTextAlignment {
     switch alignment {
     case .center:
@@ -56,8 +75,20 @@ private func platformTextAlignment(_ alignment: TextAlignment) -> NSTextAlignmen
 }
 
 private final class LayerMaskedHostingController: UIViewController {
+    private static let maskRasterQueue = DispatchQueue(
+        label: "dev.pax.swift.native-mask-raster",
+        qos: .userInitiated
+    )
+
     private let hostingController = UIHostingController(rootView: AnyView(EmptyView()))
-    private var lastMaskSignature: UInt64?
+    private let maskLayer = CALayer()
+    private var appliedMaskSignature: UInt64?
+    private var appliedMaskSize: CGSize = .zero
+    private var requestedMaskSignature: UInt64?
+    private var requestedMaskSize: CGSize = .zero
+    private var nextMaskGeneration: UInt64 = 0
+    private var inFlightMaskRender: PendingMaskRender?
+    private var queuedMaskRender: PendingMaskRender?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -75,62 +106,153 @@ private final class LayerMaskedHostingController: UIViewController {
             hostingController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
         hostingController.didMove(toParent: self)
+        view.layer.mask = maskLayer
+    }
+
+    private static func currentMaskScale() -> CGFloat {
+        #if targetEnvironment(simulator)
+        return 1.0
+        #else
+        return UIScreen.main.scale
+        #endif
+    }
+
+    private static func rasterPayload(from mask: ResolvedNativeMask) -> RasterizedNativeMaskPayload {
+        RasterizedNativeMaskPayload(
+            signature: mask.signature,
+            size: mask.size,
+            frameClipCGPaths: mask.frameClipCGPaths,
+            holes: mask.holes.map { hole in
+                RasterizedMaskHolePayload(
+                    cgPath: hole.cgPath,
+                    clipCGPaths: hole.clipCGPaths,
+                    opacity: CGFloat(hole.opacity)
+                )
+            }
+        )
+    }
+
+    private static func rasterizedMaskImage(
+        payload: RasterizedNativeMaskPayload,
+        scale: CGFloat
+    ) -> CGImage? {
+        let pixelWidth = max(Int(ceil(payload.size.width * scale)), 1)
+        let pixelHeight = max(Int(ceil(payload.size.height * scale)), 1)
+        let bytesPerRow = pixelWidth * 4
+        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+            | CGBitmapInfo.byteOrder32Big.rawValue
+
+        guard let context = CGContext(
+            data: nil,
+            width: pixelWidth,
+            height: pixelHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: bitmapInfo
+        ) else {
+            return nil
+        }
+
+        context.scaleBy(x: scale, y: scale)
+
+        let bounds = CGRect(origin: .zero, size: payload.size)
+        context.saveGState()
+        if !payload.frameClipCGPaths.isEmpty {
+            for clip in payload.frameClipCGPaths {
+                context.addPath(clip)
+                context.clip()
+            }
+        }
+        context.setFillColor(gray: 1.0, alpha: 1.0)
+        context.fill(bounds)
+        for hole in payload.holes {
+            context.saveGState()
+            for clip in hole.clipCGPaths {
+                context.addPath(clip)
+                context.clip()
+            }
+            context.setFillColor(gray: 0.0, alpha: hole.opacity)
+            context.addPath(hole.cgPath)
+            context.fillPath()
+            context.restoreGState()
+        }
+        context.restoreGState()
+        return context.makeImage()
+    }
+
+    private func enqueueMaskRender(payload: RasterizedNativeMaskPayload, scale: CGFloat) {
+        nextMaskGeneration &+= 1
+        let render = PendingMaskRender(
+            generation: nextMaskGeneration,
+            scale: scale,
+            payload: payload
+        )
+        queuedMaskRender = render
+        startNextMaskRenderIfNeeded()
+    }
+
+    private func startNextMaskRenderIfNeeded() {
+        guard inFlightMaskRender == nil, let render = queuedMaskRender else {
+            return
+        }
+        queuedMaskRender = nil
+        inFlightMaskRender = render
+
+        Self.maskRasterQueue.async { [weak self] in
+            let image = Self.rasterizedMaskImage(
+                payload: render.payload,
+                scale: render.scale
+            )
+            DispatchQueue.main.async {
+                guard let self else {
+                    return
+                }
+                guard self.inFlightMaskRender?.generation == render.generation else {
+                    return
+                }
+                self.inFlightMaskRender = nil
+                if self.requestedMaskSignature == render.payload.signature,
+                   self.requestedMaskSize == render.payload.size,
+                   let image
+                {
+                    CATransaction.begin()
+                    CATransaction.setDisableActions(true)
+                    self.maskLayer.frame = CGRect(origin: .zero, size: render.payload.size)
+                    self.maskLayer.contents = image
+                    self.maskLayer.contentsScale = render.scale
+                    CATransaction.commit()
+                    self.appliedMaskSignature = render.payload.signature
+                    self.appliedMaskSize = render.payload.size
+                }
+                self.startNextMaskRenderIfNeeded()
+            }
+        }
     }
 
     func update(rootView: AnyView, mask: ResolvedNativeMask) {
         hostingController.rootView = rootView
-        if lastMaskSignature != mask.signature {
-            applyMask(mask)
-            lastMaskSignature = mask.signature
+        requestedMaskSignature = mask.signature
+        requestedMaskSize = mask.size
+        if appliedMaskSignature == mask.signature && appliedMaskSize == mask.size {
+            return
         }
-    }
-
-    private func applyMask(_ mask: ResolvedNativeMask) {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-
-        let rendererFormat = UIGraphicsImageRendererFormat()
-        rendererFormat.opaque = false
-        rendererFormat.scale = UIScreen.main.scale
-        let renderer = UIGraphicsImageRenderer(size: mask.size, format: rendererFormat)
-        let image = renderer.image { context in
-            let cgContext = context.cgContext
-            let bounds = CGRect(origin: .zero, size: mask.size)
-
-            cgContext.saveGState()
-            if !mask.frameClips.isEmpty {
-                for clip in mask.frameClips {
-                    cgContext.addPath(UIBezierPath(cgPath: clip.cgPath).cgPath)
-                    cgContext.clip()
-                }
-            }
-            UIColor.white.setFill()
-            cgContext.fill(bounds)
-            cgContext.restoreGState()
-
-            for hole in mask.holes {
-                cgContext.saveGState()
-                for clip in mask.frameClips {
-                    cgContext.addPath(UIBezierPath(cgPath: clip.cgPath).cgPath)
-                    cgContext.clip()
-                }
-                for clip in hole.clips {
-                    cgContext.addPath(UIBezierPath(cgPath: clip.cgPath).cgPath)
-                    cgContext.clip()
-                }
-                cgContext.setFillColor(UIColor(white: 0.0, alpha: CGFloat(hole.opacity)).cgColor)
-                cgContext.addPath(UIBezierPath(cgPath: hole.path.cgPath).cgPath)
-                cgContext.fillPath()
-                cgContext.restoreGState()
-            }
+        if let inFlightMaskRender,
+           inFlightMaskRender.payload.signature == mask.signature,
+           inFlightMaskRender.payload.size == mask.size
+        {
+            return
         }
-
-        let maskLayer = CALayer()
-        maskLayer.frame = CGRect(origin: .zero, size: mask.size)
-        maskLayer.contents = image.cgImage
-        maskLayer.contentsScale = UIScreen.main.scale
-        view.layer.mask = maskLayer
-        CATransaction.commit()
+        if let queuedMaskRender,
+           queuedMaskRender.payload.signature == mask.signature,
+           queuedMaskRender.payload.size == mask.size
+        {
+            return
+        }
+        enqueueMaskRender(
+            payload: Self.rasterPayload(from: mask),
+            scale: Self.currentMaskScale()
+        )
     }
 }
 
@@ -182,8 +304,30 @@ public struct NativeRenderingLayer: View {
     private struct NativeRenderItem: Identifiable {
         let id: PaxNodeId
         let zIndex: Int
-        let view: AnyView
+        let parentFrame: PaxNodeId?
+        let transform: [Float]
+        let size: CGSize
+        let opacity: Double
+        let content: AnyView
+        let mask: ResolvedNativeMask?
     }
+
+#if os(iOS) || os(tvOS) || os(watchOS)
+    private struct WorldNativeMask {
+        let signature: UInt64
+        let frameClips: [Path]
+        let frameClipCGPaths: [CGPath]
+        let holes: [ResolvedMaskHole]
+    }
+
+    private struct NativeRenderGroup: Identifiable {
+        let id: String
+        let parentFrame: PaxNodeId?
+        let bounds: CGRect
+        let mask: ResolvedNativeMask?
+        let items: [NativeRenderItem]
+    }
+#endif
 
     private func sortedTextElements() -> [TextElement] {
         Array(textElements.elements.values).sorted { lhs, rhs in
@@ -207,34 +351,34 @@ public struct NativeRenderingLayer: View {
         var items: [NativeRenderItem] = []
 
         items.append(contentsOf: sortedTextElements().map { element in
-            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: textView(for: element))
+            textItem(for: element)
         })
         items.append(contentsOf: sortedElements(nativeImageElements.elements).map { element in
-            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: nativeImageView(for: element))
+            nativeImageItem(for: element)
         })
         items.append(contentsOf: sortedElements(youtubeVideoElements.elements).map { element in
-            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: youtubeVideoView(for: element))
+            youtubeVideoItem(for: element)
         })
         items.append(contentsOf: sortedElements(buttonElements.elements).map { element in
-            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: buttonView(for: element))
+            buttonItem(for: element)
         })
         items.append(contentsOf: sortedElements(checkboxElements.elements).map { element in
-            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: checkboxView(for: element))
+            checkboxItem(for: element)
         })
         items.append(contentsOf: sortedElements(sliderElements.elements).map { element in
-            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: sliderView(for: element))
+            sliderItem(for: element)
         })
         items.append(contentsOf: sortedElements(dropdownElements.elements).map { element in
-            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: dropdownView(for: element))
+            dropdownItem(for: element)
         })
         items.append(contentsOf: sortedElements(radioSetElements.elements).map { element in
-            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: radioSetView(for: element))
+            radioSetItem(for: element)
         })
         items.append(contentsOf: sortedElements(textboxElements.elements).map { element in
-            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: textboxView(for: element))
+            textboxItem(for: element)
         })
         items.append(contentsOf: sortedElements(eventBlockerElements.elements).map { element in
-            NativeRenderItem(id: element.id, zIndex: element.zIndex, view: eventBlockerView(for: element))
+            eventBlockerItem(for: element)
         })
 
         return items.sorted { lhs, rhs in
@@ -245,8 +389,8 @@ public struct NativeRenderingLayer: View {
         }
     }
 
-    private func applyNativeMask<V: View>(_ view: V, elementId: PaxNodeId) -> AnyView {
-        guard let mask = resolvedNativeMask(for: elementId) else {
+    private func applyResolvedMask<V: View>(_ view: V, mask: ResolvedNativeMask?) -> AnyView {
+        guard let mask else {
             return AnyView(
                 view
                     .transaction { transaction in
@@ -303,17 +447,49 @@ public struct NativeRenderingLayer: View {
         min(max(localOpacity * resolvedFrameOpacity(startingAt: parentFrame), 0.0), 1.0)
     }
 
-    private func positioned<V: View>(_ view: V, element: NativePositionElement) -> AnyView {
+    private func renderItemContent<V: View>(_ view: V, element: NativePositionElement) -> NativeRenderItem {
         let size = resolvedSize(element)
-        let bounded = view
-            .frame(width: resolvedDimension(element.size_x), height: resolvedDimension(element.size_y))
-            .clipped()
-        let localMasked = applyNativeMask(bounded, elementId: element.id)
+        let bounded = AnyView(
+            view
+                .frame(width: resolvedDimension(element.size_x), height: resolvedDimension(element.size_y))
+                .clipped()
+        )
+        return NativeRenderItem(
+            id: element.id,
+            zIndex: element.zIndex,
+            parentFrame: element.parentFrame,
+            transform: element.transform,
+            size: size,
+            opacity: resolvedOpacity(element.opacity, parentFrame: element.parentFrame),
+            content: bounded,
+            mask: resolvedNativeMask(for: element.id)
+        )
+    }
+
+    private func renderTextContent<V: View>(_ view: V, element: TextElement, width: CGFloat, height: CGFloat) -> NativeRenderItem {
+        let bounded = AnyView(
+            view
+                .frame(width: width > 0 ? width : nil, height: height > 0 ? height : nil)
+        )
+        return NativeRenderItem(
+            id: element.id,
+            zIndex: element.zIndex,
+            parentFrame: element.parentFrame,
+            transform: element.transform,
+            size: CGSize(width: width, height: height),
+            opacity: resolvedOpacity(element.opacity, parentFrame: element.parentFrame),
+            content: bounded,
+            mask: resolvedNativeMask(for: element.id)
+        )
+    }
+
+    private func positionedItem(_ item: NativeRenderItem) -> AnyView {
+        let localMasked = applyResolvedMask(item.content, mask: item.mask)
         let base = localMasked
-            .position(x: size.width / 2.0, y: size.height / 2.0)
-            .transformEffect(affineTransform(from: element.transform))
-            .zIndex(Double(element.zIndex))
-            .opacity(resolvedOpacity(element.opacity, parentFrame: element.parentFrame))
+            .position(x: item.size.width / 2.0, y: item.size.height / 2.0)
+            .transformEffect(affineTransform(from: item.transform))
+            .zIndex(Double(item.zIndex))
+            .opacity(item.opacity)
             .transaction { transaction in
                 transaction.animation = nil
                 transaction.disablesAnimations = true
@@ -321,21 +497,246 @@ public struct NativeRenderingLayer: View {
         return AnyView(base)
     }
 
-    private func positionedText<V: View>(_ view: V, element: TextElement, width: CGFloat, height: CGFloat) -> AnyView {
-        let bounded = view
-            .frame(width: width > 0 ? width : nil, height: height > 0 ? height : nil)
-        let localMasked = applyNativeMask(bounded, elementId: element.id)
-        let base = localMasked
-            .position(x: width / 2.0, y: height / 2.0)
-            .transformEffect(affineTransform(from: element.transform))
-            .zIndex(Double(element.zIndex))
-            .opacity(resolvedOpacity(element.opacity, parentFrame: element.parentFrame))
+#if os(iOS) || os(tvOS) || os(watchOS)
+    private func mixMaskHash(_ state: UInt64, _ value: UInt64) -> UInt64 {
+        state &* 1099511628211 ^ value
+    }
+
+    private func hashCGPath(_ path: CGPath) -> UInt64 {
+        var hash = UInt64(1469598103934665603)
+        path.applyWithBlock { elementPointer in
+            let element = elementPointer.pointee
+            hash = mixMaskHash(hash, UInt64(element.type.rawValue))
+            let pointCount: Int
+            switch element.type {
+            case .moveToPoint, .addLineToPoint:
+                pointCount = 1
+            case .addQuadCurveToPoint:
+                pointCount = 2
+            case .addCurveToPoint:
+                pointCount = 3
+            case .closeSubpath:
+                pointCount = 0
+            @unknown default:
+                pointCount = 0
+            }
+            if pointCount > 0 {
+                for index in 0..<pointCount {
+                    let point = element.points[index]
+                    hash = mixMaskHash(hash, Double(point.x).bitPattern)
+                    hash = mixMaskHash(hash, Double(point.y).bitPattern)
+                }
+            }
+        }
+        return hash
+    }
+
+    private func transformedBounds(size: CGSize, transform: CGAffineTransform) -> CGRect {
+        let rect = CGRect(origin: .zero, size: size)
+        let points = [
+            CGPoint(x: rect.minX, y: rect.minY).applying(transform),
+            CGPoint(x: rect.maxX, y: rect.minY).applying(transform),
+            CGPoint(x: rect.minX, y: rect.maxY).applying(transform),
+            CGPoint(x: rect.maxX, y: rect.maxY).applying(transform),
+        ]
+        let minX = points.map(\.x).min() ?? 0
+        let maxX = points.map(\.x).max() ?? 0
+        let minY = points.map(\.y).min() ?? 0
+        let maxY = points.map(\.y).max() ?? 0
+        return CGRect(x: minX, y: minY, width: max(0, maxX - minX), height: max(0, maxY - minY))
+    }
+
+    private func parentFrameTransform(_ parentFrame: PaxNodeId?) -> CGAffineTransform {
+        guard let parentFrame, let frame = frameElements.elements[parentFrame] else {
+            return .identity
+        }
+        return affineTransform(from: frame.transform)
+    }
+
+    private func safeInverse(_ transform: CGAffineTransform) -> CGAffineTransform {
+        let determinant = (transform.a * transform.d) - (transform.b * transform.c)
+        guard abs(determinant) > .ulpOfOne else {
+            return .identity
+        }
+        return transform.inverted()
+    }
+
+    private func itemTransformInParentFrame(_ item: NativeRenderItem) -> CGAffineTransform {
+        let parentInverse = safeInverse(parentFrameTransform(item.parentFrame))
+        return affineTransform(from: item.transform).concatenating(parentInverse)
+    }
+
+    private func worldMask(for item: NativeRenderItem) -> WorldNativeMask? {
+        guard let mask = item.mask else {
+            return nil
+        }
+
+        let transform = itemTransformInParentFrame(item)
+        var signature = UInt64(1469598103934665603)
+        let worldFrameClips = mask.frameClips.compactMap { path -> Path? in
+            let worldPath = path.applying(transform)
+            guard !worldPath.isEmpty else {
+                return nil
+            }
+            let cgPath = worldPath.cgPath
+            signature = mixMaskHash(signature, hashCGPath(cgPath))
+            return worldPath
+        }
+        let worldFrameClipCGPaths = worldFrameClips.map(\.cgPath)
+        let worldHoles = mask.holes.compactMap { hole -> ResolvedMaskHole? in
+            let worldPath = hole.path.applying(transform)
+            guard !worldPath.isEmpty else {
+                return nil
+            }
+            let worldClips = hole.clips.compactMap { clip -> Path? in
+                let worldClip = clip.applying(transform)
+                return worldClip.isEmpty ? nil : worldClip
+            }
+            let worldCGPath = worldPath.cgPath
+            signature = mixMaskHash(signature, hashCGPath(worldCGPath))
+            for clip in worldClips {
+                signature = mixMaskHash(signature, hashCGPath(clip.cgPath))
+            }
+            signature = mixMaskHash(signature, hole.opacity.bitPattern)
+            return ResolvedMaskHole(
+                signature: hole.signature,
+                path: worldPath,
+                clips: worldClips,
+                cgPath: worldCGPath,
+                clipCGPaths: worldClips.map(\.cgPath),
+                opacity: hole.opacity
+            )
+        }
+
+        guard !worldFrameClips.isEmpty || !worldHoles.isEmpty else {
+            return nil
+        }
+
+        return WorldNativeMask(
+            signature: signature,
+            frameClips: worldFrameClips,
+            frameClipCGPaths: worldFrameClipCGPaths,
+            holes: worldHoles
+        )
+    }
+
+    private func maskTranslated(_ mask: WorldNativeMask, into bounds: CGRect) -> ResolvedNativeMask {
+        let translation = CGAffineTransform(translationX: -bounds.minX, y: -bounds.minY)
+        let translatedFrameClips = mask.frameClips.map { $0.applying(translation) }
+        let translatedHoles = mask.holes.map { hole in
+            let translatedPath = hole.path.applying(translation)
+            let translatedClips = hole.clips.map { $0.applying(translation) }
+            return ResolvedMaskHole(
+                signature: hole.signature,
+                path: translatedPath,
+                clips: translatedClips,
+                cgPath: translatedPath.cgPath,
+                clipCGPaths: translatedClips.map(\.cgPath),
+                opacity: hole.opacity
+            )
+        }
+        return ResolvedNativeMask(
+            signature: mask.signature,
+            size: bounds.size,
+            frameClips: translatedFrameClips,
+            frameClipCGPaths: translatedFrameClips.map(\.cgPath),
+            holes: translatedHoles
+        )
+    }
+
+    private func renderGroupedItem(_ item: NativeRenderItem, groupBounds: CGRect) -> AnyView {
+        var transform = itemTransformInParentFrame(item)
+        transform.tx -= groupBounds.minX
+        transform.ty -= groupBounds.minY
+        let base = item.content
+            .position(x: item.size.width / 2.0, y: item.size.height / 2.0)
+            .transformEffect(transform)
+            .zIndex(Double(item.zIndex))
+            .opacity(item.opacity)
             .transaction { transaction in
                 transaction.animation = nil
                 transaction.disablesAnimations = true
             }
         return AnyView(base)
     }
+
+    private func groupedRenderItems(_ items: [NativeRenderItem]) -> [NativeRenderGroup] {
+        var groups: [NativeRenderGroup] = []
+        var currentItems: [NativeRenderItem] = []
+        var currentMask: WorldNativeMask?
+
+        func stableGroupId(for items: [NativeRenderItem]) -> String {
+            items.map { String($0.id) }.joined(separator: "-")
+        }
+
+        func flushCurrentGroup() {
+            guard !currentItems.isEmpty else {
+                return
+            }
+            let bounds = currentItems
+                .map { transformedBounds(size: $0.size, transform: itemTransformInParentFrame($0)) }
+                .reduce(into: CGRect.null) { partialResult, rect in
+                    partialResult = partialResult.union(rect)
+                }
+            let resolvedBounds = bounds.isNull ? CGRect(origin: .zero, size: .zero) : bounds.integral
+            let groupMask = currentMask.map { maskTranslated($0, into: resolvedBounds) }
+            groups.append(
+                NativeRenderGroup(
+                    id: stableGroupId(for: currentItems),
+                    parentFrame: currentItems[0].parentFrame,
+                    bounds: resolvedBounds,
+                    mask: groupMask,
+                    items: currentItems
+                )
+            )
+            currentItems.removeAll(keepingCapacity: true)
+            currentMask = nil
+        }
+
+        for item in items {
+            let itemMask = worldMask(for: item)
+            if currentItems.isEmpty {
+                currentItems = [item]
+                currentMask = itemMask
+                continue
+            }
+            if let currentMask,
+               let itemMask,
+               currentItems[0].parentFrame == item.parentFrame,
+               currentMask.signature == itemMask.signature {
+                currentItems.append(item)
+                continue
+            }
+            flushCurrentGroup()
+            currentItems = [item]
+            currentMask = itemMask
+        }
+
+        flushCurrentGroup()
+        return groups
+    }
+
+    private func groupedView(for group: NativeRenderGroup) -> AnyView {
+        let groupContent = AnyView(
+            ZStack(alignment: .topLeading) {
+                ForEach(group.items) { item in
+                    renderGroupedItem(item, groupBounds: group.bounds)
+                }
+            }
+            .frame(width: group.bounds.width, height: group.bounds.height, alignment: .topLeading)
+        )
+        let masked = applyResolvedMask(groupContent, mask: group.mask)
+        let outerTransform = parentFrameTransform(group.parentFrame)
+        let base = masked
+            .position(x: group.bounds.midX, y: group.bounds.midY)
+            .transformEffect(outerTransform)
+            .transaction { transaction in
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
+        return AnyView(base)
+    }
+#endif
 
     private func attributedString(for element: TextElement) -> AttributedString {
         var attributedString: AttributedString
@@ -359,12 +760,12 @@ public struct NativeRenderingLayer: View {
         return attributedString
     }
 
-    private func textView(for element: TextElement) -> AnyView {
+    private func textItem(for element: TextElement) -> NativeRenderItem {
         let measuredWidth = element.size_x >= 0 ? CGFloat(element.size_x) : element.lastMeasuredSize?.width ?? 0
         let measuredHeight = element.size_y >= 0 ? CGFloat(element.size_y) : element.lastMeasuredSize?.height ?? 0
 
         if element.editable {
-            return positionedText(
+            return renderTextContent(
                 EditableTextView(element: element),
                 element: element,
                 width: measuredWidth,
@@ -389,10 +790,10 @@ public struct NativeRenderingLayer: View {
             text = AnyView(baseText.textSelection(.disabled))
         }
 
-        return positionedText(text, element: element, width: measuredWidth, height: measuredHeight)
+        return renderTextContent(text, element: element, width: measuredWidth, height: measuredHeight)
     }
 
-    private func buttonView(for element: ButtonElement) -> AnyView {
+    private func buttonItem(for element: ButtonElement) -> NativeRenderItem {
         let button = Button(action: {
             dispatchFormButtonClick(id: element.id)
         }) {
@@ -414,10 +815,10 @@ public struct NativeRenderingLayer: View {
                 .stroke(element.outlineStrokeColor, lineWidth: element.outlineStrokeWidth)
         )
 
-        return positioned(button, element: element)
+        return renderItemContent(button, element: element)
     }
 
-    private func checkboxView(for element: CheckboxElement) -> AnyView {
+    private func checkboxItem(for element: CheckboxElement) -> NativeRenderItem {
         let checkbox = Button(action: {
             dispatchFormCheckboxToggle(id: element.id, state: !element.checked)
         }) {
@@ -435,10 +836,10 @@ public struct NativeRenderingLayer: View {
         }
         .buttonStyle(.plain)
 
-        return positioned(checkbox, element: element)
+        return renderItemContent(checkbox, element: element)
     }
 
-    private func sliderView(for element: SliderElement) -> AnyView {
+    private func sliderItem(for element: SliderElement) -> NativeRenderItem {
         let upperBound = element.max > element.min ? element.max : element.min + 1
         let step = element.step > 0 ? element.step : 0.001
 
@@ -452,10 +853,10 @@ public struct NativeRenderingLayer: View {
         )
         .tint(element.accent)
 
-        return positioned(ZStack { slider }, element: element)
+        return renderItemContent(ZStack { slider }, element: element)
     }
 
-    private func dropdownView(for element: DropdownElement) -> AnyView {
+    private func dropdownItem(for element: DropdownElement) -> NativeRenderItem {
         let picker = Picker(
             "",
             selection: Binding(
@@ -481,10 +882,10 @@ public struct NativeRenderingLayer: View {
                 .stroke(element.strokeColor, lineWidth: element.strokeWidth)
         )
 
-        return positioned(picker, element: element)
+        return renderItemContent(picker, element: element)
     }
 
-    private func radioSetView(for element: RadioSetElement) -> AnyView {
+    private func radioSetItem(for element: RadioSetElement) -> NativeRenderItem {
         let control = VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(element.options.enumerated()), id: \.offset) { index, option in
                 Button(action: {
@@ -514,17 +915,17 @@ public struct NativeRenderingLayer: View {
             }
         }
 
-        return positioned(control, element: element)
+        return renderItemContent(control, element: element)
     }
 
-    private func textboxView(for element: TextboxElement) -> AnyView {
+    private func textboxItem(for element: TextboxElement) -> NativeRenderItem {
         if element.isTextArea {
-            return positioned(PaxTextboxArea(element: element), element: element)
+            return renderItemContent(PaxTextboxArea(element: element), element: element)
         }
-        return positioned(PaxTextboxField(element: element), element: element)
+        return renderItemContent(PaxTextboxField(element: element), element: element)
     }
 
-    private func nativeImageView(for element: NativeImageElement) -> AnyView {
+    private func nativeImageItem(for element: NativeImageElement) -> NativeRenderItem {
         let imageView = Group {
             if let url = URL(string: element.url), url.scheme != nil {
                 AsyncImage(url: url) { phase in
@@ -546,10 +947,10 @@ public struct NativeRenderingLayer: View {
             }
         }
 
-        return positioned(imageView, element: element)
+        return renderItemContent(imageView, element: element)
     }
 
-    private func youtubeVideoView(for element: YoutubeVideoElement) -> AnyView {
+    private func youtubeVideoItem(for element: YoutubeVideoElement) -> NativeRenderItem {
         let control = Group {
             if let url = URL(string: element.url) {
                 Link(destination: url) {
@@ -571,18 +972,18 @@ public struct NativeRenderingLayer: View {
             }
         }
 
-        return positioned(control, element: element)
+        return renderItemContent(control, element: element)
     }
 
-    private func eventBlockerView(for element: EventBlockerElement) -> AnyView {
-        positioned(EventBlockerPlatformView(), element: element)
+    private func eventBlockerItem(for element: EventBlockerElement) -> NativeRenderItem {
+        renderItemContent(EventBlockerPlatformView(), element: element)
     }
 
     public var body: some View {
         let _ = nativeSceneInvalidation.generation
         ZStack(alignment: .topLeading) {
             ForEach(sortedRenderItems()) { item in
-                item.view
+                positionedItem(item)
             }
         }
         .transaction { transaction in
