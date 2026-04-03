@@ -16,6 +16,10 @@ import AppKit
 
 public typealias PaxNodeId = UInt32
 
+public extension Notification.Name {
+    static let paxFontRegistered = Notification.Name("PaxFontRegistered")
+}
+
 public final class NativeInterruptDispatcher {
     public static let shared = NativeInterruptDispatcher()
 
@@ -25,6 +29,168 @@ public final class NativeInterruptDispatcher {
 
     public func send(_ data: Data) {
         sendData?(data)
+    }
+}
+
+private final class PaxWebFontLoader {
+    static let shared = PaxWebFontLoader()
+
+    private let stateQueue = DispatchQueue(label: "dev.pax.font-loader")
+    private var inFlightSources: Set<String> = []
+    private var loadedSources: Set<String> = []
+
+    private init() {}
+
+    func ensureLoaded(font: PaxFont.WebFont) {
+        let sourceKey = font.url.absoluteString
+        let shouldStart = stateQueue.sync { () -> Bool in
+            if loadedSources.contains(sourceKey) || inFlightSources.contains(sourceKey) {
+                return false
+            }
+            inFlightSources.insert(sourceKey)
+            return true
+        }
+        guard shouldStart else {
+            return
+        }
+
+        load(font: font, sourceKey: sourceKey)
+    }
+
+    private func finish(sourceKey: String, didLoad: Bool) {
+        stateQueue.async {
+            self.inFlightSources.remove(sourceKey)
+            if didLoad {
+                self.loadedSources.insert(sourceKey)
+            }
+        }
+    }
+
+    private func load(font: PaxFont.WebFont, sourceKey: String) {
+        if font.url.absoluteString.contains("fonts.googleapis.com/css") {
+            URLSession.shared.dataTask(with: font.url) { data, _, error in
+                guard let data, error == nil, let css = String(data: data, encoding: .utf8) else {
+                    self.finish(sourceKey: sourceKey, didLoad: false)
+                    return
+                }
+                let assetURLs = self.parseCSSFontURLs(from: css, baseURL: font.url)
+                guard !assetURLs.isEmpty else {
+                    self.finish(sourceKey: sourceKey, didLoad: false)
+                    return
+                }
+                self.loadAssetURLs(assetURLs, expectedFamily: font.family) { didLoad in
+                    self.finish(sourceKey: sourceKey, didLoad: didLoad)
+                }
+            }.resume()
+        } else {
+            loadAssetURLs([font.url], expectedFamily: font.family) { didLoad in
+                self.finish(sourceKey: sourceKey, didLoad: didLoad)
+            }
+        }
+    }
+
+    private func loadAssetURLs(_ urls: [URL], expectedFamily: String, completion: @escaping (Bool) -> Void) {
+        let group = DispatchGroup()
+        let resultQueue = DispatchQueue(label: "dev.pax.font-loader.results")
+        var didLoadAny = false
+
+        for assetURL in urls {
+            group.enter()
+            URLSession.shared.dataTask(with: assetURL) { data, _, error in
+                defer { group.leave() }
+                guard let data, error == nil else {
+                    return
+                }
+                if self.registerFontData(data, sourceURL: assetURL, expectedFamily: expectedFamily) {
+                    resultQueue.sync {
+                        didLoadAny = true
+                    }
+                }
+            }.resume()
+        }
+
+        group.notify(queue: .main) {
+            completion(didLoadAny)
+        }
+    }
+
+    private func registerFontData(_ data: Data, sourceURL: URL, expectedFamily: String) -> Bool {
+        let fileManager = FileManager.default
+        let temporaryURL = fileManager.temporaryDirectory
+            .appendingPathComponent("pax-font-\(UUID().uuidString)")
+            .appendingPathExtension(sourceURL.pathExtension.isEmpty ? "font" : sourceURL.pathExtension)
+
+        do {
+            try data.write(to: temporaryURL, options: .atomic)
+        } catch {
+            return false
+        }
+
+        defer {
+            try? fileManager.removeItem(at: temporaryURL)
+        }
+
+        var errorRef: Unmanaged<CFError>?
+        let registered = CTFontManagerRegisterFontsForURL(temporaryURL as CFURL, .process, &errorRef)
+        if !registered {
+            return false
+        }
+
+        var didMarkFamily = false
+        var didRegisterNewFont = false
+        if let descriptors = CTFontManagerCreateFontDescriptorsFromURL(temporaryURL as CFURL) as? [CTFontDescriptor] {
+            for descriptor in descriptors {
+                if let fontFamily = CTFontDescriptorCopyAttribute(descriptor, kCTFontFamilyNameAttribute) as? String {
+                    didRegisterNewFont = PaxFont.markFontRegistered(fontFamily: fontFamily) || didRegisterNewFont
+                    didMarkFamily = didMarkFamily || (fontFamily == expectedFamily)
+                }
+                if let postscriptName = CTFontDescriptorCopyAttribute(descriptor, kCTFontNameAttribute) as? String {
+                    didRegisterNewFont = PaxFont.markFontRegistered(fontFamily: postscriptName) || didRegisterNewFont
+                }
+            }
+        }
+
+        if !didMarkFamily {
+            didRegisterNewFont = PaxFont.markFontRegistered(fontFamily: expectedFamily) || didRegisterNewFont
+        }
+
+        if didRegisterNewFont {
+            NotificationCenter.default.post(name: .paxFontRegistered, object: expectedFamily)
+        }
+        return true
+    }
+
+    private func parseCSSFontURLs(from css: String, baseURL: URL) -> [URL] {
+        let pattern = #"url\((['"]?)([^'")]+)\1\)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return []
+        }
+
+        let nsRange = NSRange(css.startIndex..<css.endIndex, in: css)
+        var urls: [URL] = []
+        var seen: Set<String> = []
+        regex.enumerateMatches(in: css, options: [], range: nsRange) { match, _, _ in
+            guard
+                let match,
+                match.numberOfRanges >= 3,
+                let valueRange = Range(match.range(at: 2), in: css)
+            else {
+                return
+            }
+
+            let rawValue = String(css[valueRange])
+            let resolvedURL = URL(string: rawValue, relativeTo: baseURL)?.absoluteURL
+            guard let resolvedURL else {
+                return
+            }
+            let key = resolvedURL.absoluteString
+            guard !seen.contains(key) else {
+                return
+            }
+            seen.insert(key)
+            urls.append(resolvedURL)
+        }
+        return urls
     }
 }
 
@@ -729,12 +895,15 @@ public class PaxFont {
     public var type: PaxFontType
     public var cachedFont: Font?
     public var currentSize: CGFloat
+    public var currentFontGeneration: UInt64
     #if os(iOS) || os(tvOS) || os(watchOS)
     public var cachedUIFont: UIFont?
     public var currentUIFontSize: CGFloat
+    public var currentUIFontGeneration: UInt64
     #elseif os(macOS)
     public var cachedNSFont: NSFont?
     public var currentNSFontSize: CGFloat
+    public var currentNSFontGeneration: UInt64
     #endif
 
     #if os(macOS)
@@ -742,14 +911,18 @@ public class PaxFont {
     #elseif os(iOS) || os(tvOS) || os(watchOS)
     private static var registeredFontCache: [String: Bool] = [:]
     #endif
+    private static var fontRegistryGeneration: UInt64 = 0
 
     public init(type: PaxFontType) {
         self.type = type
         self.currentSize = 12
+        self.currentFontGeneration = 0
         #if os(iOS) || os(tvOS) || os(watchOS)
         self.currentUIFontSize = 12
+        self.currentUIFontGeneration = 0
         #elseif os(macOS)
         self.currentNSFontSize = 12
+        self.currentNSFontGeneration = 0
         #endif
     }
     
@@ -759,7 +932,9 @@ public class PaxFont {
     }
     
     public func getFont(size: CGFloat) -> Font {
-        if let cachedFont = cachedFont, currentSize == size {
+        ensureFontAvailabilityIfNeeded()
+        let registryGeneration = PaxFont.fontRegistryGeneration
+        if let cachedFont = cachedFont, currentSize == size, currentFontGeneration == registryGeneration {
             return cachedFont
         }
         
@@ -803,13 +978,16 @@ public class PaxFont {
 
         cachedFont = finalFont
         currentSize = size
+        currentFontGeneration = registryGeneration
 
         return finalFont
     }
 
     #if os(iOS) || os(tvOS) || os(watchOS)
     public func getUIFont(size: CGFloat) -> UIFont {
-        if let cachedUIFont = cachedUIFont, currentUIFontSize == size {
+        ensureFontAvailabilityIfNeeded()
+        let registryGeneration = PaxFont.fontRegistryGeneration
+        if let cachedUIFont = cachedUIFont, currentUIFontSize == size, currentUIFontGeneration == registryGeneration {
             return cachedUIFont
         }
 
@@ -854,11 +1032,14 @@ public class PaxFont {
         }
         cachedUIFont = finalFont
         currentUIFontSize = size
+        currentUIFontGeneration = registryGeneration
         return finalFont
     }
     #elseif os(macOS)
     public func getNSFont(size: CGFloat) -> NSFont {
-        if let cachedNSFont = cachedNSFont, currentNSFontSize == size {
+        ensureFontAvailabilityIfNeeded()
+        let registryGeneration = PaxFont.fontRegistryGeneration
+        if let cachedNSFont = cachedNSFont, currentNSFontSize == size, currentNSFontGeneration == registryGeneration {
             return cachedNSFont
         }
 
@@ -900,6 +1081,7 @@ public class PaxFont {
         }
         cachedNSFont = finalFont
         currentNSFontSize = size
+        currentNSFontGeneration = registryGeneration
         return finalFont
     }
     #endif
@@ -908,10 +1090,13 @@ public class PaxFont {
 
     public func applyPatch(fb: FlxbReference) {
         cachedFont = nil
+        currentFontGeneration = 0
         #if os(iOS) || os(tvOS) || os(watchOS)
         cachedUIFont = nil
+        currentUIFontGeneration = 0
         #elseif os(macOS)
         cachedNSFont = nil
+        currentNSFontGeneration = 0
         #endif
         if let systemFontMessage = fb["System"] {
             if let family = systemFontMessage["family"]?.asString {
@@ -937,6 +1122,24 @@ public class PaxFont {
 
                 self.type = .local(LocalFont(family: family, path: path, style: style, weight: weight))
             }
+        }
+    }
+
+    private func ensureFontAvailabilityIfNeeded() {
+        switch type {
+        case .web(let webFont):
+            if !PaxFont.isFontRegistered(fontFamily: webFont.family) {
+                PaxWebFontLoader.shared.ensureLoaded(font: webFont)
+            }
+        case .local(let localFont):
+            if !PaxFont.isFontRegistered(fontFamily: localFont.family) {
+                var errorRef: Unmanaged<CFError>?
+                if CTFontManagerRegisterFontsForURL(localFont.path as CFURL, .process, &errorRef) {
+                    PaxFont.markFontRegistered(fontFamily: localFont.family)
+                }
+            }
+        case .system:
+            break
         }
     }
 
@@ -971,6 +1174,15 @@ public class PaxFont {
         return false
 
     }
+    @discardableResult
+    public static func markFontRegistered(fontFamily: String) -> Bool {
+        if registeredFontCache[fontFamily] == true {
+            return false
+        }
+        registeredFontCache[fontFamily] = true
+        fontRegistryGeneration &+= 1
+        return true
+    }
     #elseif  os(iOS) || os(tvOS) || os(watchOS)
     public static func isFontRegistered(fontFamily: String) -> Bool {
         if let cached = registeredFontCache[fontFamily] {
@@ -980,6 +1192,15 @@ public class PaxFont {
         let isRegistered = availableFontFamilies.contains(fontFamily)
         registeredFontCache[fontFamily] = isRegistered
         return isRegistered
+    }
+    @discardableResult
+    public static func markFontRegistered(fontFamily: String) -> Bool {
+        if registeredFontCache[fontFamily] == true {
+            return false
+        }
+        registeredFontCache[fontFamily] = true
+        fontRegistryGeneration &+= 1
+        return true
     }
     #endif
 }

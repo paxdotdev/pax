@@ -32,33 +32,49 @@ private func registerPaxFontsIfNeeded() {
         )
         for fileURL in resourceFiles {
             let fileExtension = fileURL.pathExtension.lowercased()
-            if fontFileExtensions.contains(fileExtension) {
-                let fontDescriptors = CTFontManagerCreateFontDescriptorsFromURL(fileURL as CFURL) as! [CTFontDescriptor]
-                if let fontDescriptor = fontDescriptors.first,
-                   let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as? String,
-                   let fontFamily = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontFamilyNameAttribute) as? String {
-                    if !PaxFont.isFontRegistered(fontFamily: postscriptName) {
-                        var errorRef: Unmanaged<CFError>?
-                        if !CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {
-                            print("Error registering font: \(fontFamily) - PostScript name: \(postscriptName) - \(String(describing: errorRef))")
+                if fontFileExtensions.contains(fileExtension) {
+                    let fontDescriptors = CTFontManagerCreateFontDescriptorsFromURL(fileURL as CFURL) as! [CTFontDescriptor]
+                    if let fontDescriptor = fontDescriptors.first,
+                       let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as? String,
+                       let fontFamily = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontFamilyNameAttribute) as? String {
+                        if !PaxFont.isFontRegistered(fontFamily: postscriptName) {
+                            var errorRef: Unmanaged<CFError>?
+                            if !CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {
+                                print("Error registering font: \(fontFamily) - PostScript name: \(postscriptName) - \(String(describing: errorRef))")
+                            } else {
+                                PaxFont.markFontRegistered(fontFamily: postscriptName)
+                                PaxFont.markFontRegistered(fontFamily: fontFamily)
+                            }
+                        } else {
+                            PaxFont.markFontRegistered(fontFamily: postscriptName)
+                            PaxFont.markFontRegistered(fontFamily: fontFamily)
                         }
                     }
                 }
             }
-        }
     } catch {
         print("Error reading font files from resources: \(error)")
+    }
+}
+
+private func sendInterruptToEngine(data: Data) {
+    data.withUnsafeBytes { ptr in
+        var ffi_container = InterruptBuffer(data_ptr: ptr.baseAddress!, length: UInt64(ptr.count))
+        withUnsafePointer(to: &ffi_container) { ffi_container_ptr in
+            pax_interrupt(PaxViewIos.PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
+        }
     }
 }
 
 struct PaxViewIos: View {
     init() {
         registerPaxFontsIfNeeded()
+        NativeInterruptDispatcher.shared.sendData = sendInterruptToEngine
     }
 
-    var canvasView : some View {
+    func canvasView(size: CGSize) -> some View {
         PaxCanvasViewRepresentable()
-            .frame(minWidth: 300, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
+            .frame(width: size.width, height: size.height, alignment: .topLeading)
             .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .local)
                 .onChanged { dragGesture in
                     if let previous = self.previousScrollLocation {
@@ -113,14 +129,17 @@ struct PaxViewIos: View {
     @State private var previousScrollLocation: CGPoint? = nil
 
     var body: some View {
-        ZStack {
-            self.canvasView
-            NativeRenderingLayer()
-        }
-        .onAppear {
-            NativeInterruptDispatcher.shared.sendData = { data in
-                sendInterrupt(data: data)
+        GeometryReader { proxy in
+            ZStack(alignment: .topLeading) {
+                self.canvasView(size: proxy.size)
+                NativeRenderingLayer()
+                    .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
             }
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+        }
+        .ignoresSafeArea()
+        .onAppear {
+            NativeInterruptDispatcher.shared.sendData = sendInterruptToEngine
             registerPaxFontsIfNeeded()
         }
     }
@@ -143,12 +162,7 @@ struct PaxViewIos: View {
     }
 
     func sendInterrupt(data: Data) {
-        data.withUnsafeBytes { ptr in
-            var ffi_container = InterruptBuffer(data_ptr: ptr.baseAddress!, length: UInt64(ptr.count))
-            withUnsafePointer(to: &ffi_container) { ffi_container_ptr in
-                pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
-            }
-        }
+        sendInterruptToEngine(data: data)
     }
 
     class PaxEngineContainer {
@@ -162,6 +176,7 @@ struct PaxViewIos: View {
 
         func makeUIView(context: Context) -> PaxCanvasViewIos {
             registerPaxFontsIfNeeded()
+            NativeInterruptDispatcher.shared.sendData = sendInterruptToEngine
             let view = PaxCanvasViewIos()
             return view
         }
@@ -191,6 +206,9 @@ struct PaxViewIos: View {
         private var displayLink: CADisplayLink?
         private var previousViewportSize: CGSize = .zero
         private var needsNativeTextRemeasure = false
+        private var debugLayoutLogCount = 0
+        private var debugTickLogCount = 0
+        private var debugHeadingLogCount = 0
 
         private var metalLayer: CAMetalLayer {
             layer as! CAMetalLayer
@@ -244,6 +262,13 @@ struct PaxViewIos: View {
             contentScaleFactor = scale
             metalLayer.contentsScale = scale
             metalLayer.drawableSize = CGSize(width: bounds.width * scale, height: bounds.height * scale)
+            if debugLayoutLogCount < 8 {
+                NSLog("[pax-ios-debug] layoutSubviews bounds=%@ frame=%@ scale=%0.2f",
+                      NSCoder.string(for: bounds),
+                      NSCoder.string(for: frame),
+                      scale)
+                debugLayoutLogCount += 1
+            }
 
             if bounds.size != previousViewportSize {
                 previousViewportSize = bounds.size
@@ -286,6 +311,15 @@ struct PaxViewIos: View {
             let width = Float(bounds.width)
             let height = Float(bounds.height)
             let scale = Float(currentScale())
+            if debugTickLogCount < 8 {
+                NSLog("[pax-ios-debug] tick bounds=%@ width=%0.2f height=%0.2f scale=%0.2f engine=%@",
+                      NSCoder.string(for: bounds),
+                      width,
+                      height,
+                      scale,
+                      PaxEngineContainer.paxEngineContainer == nil ? "nil" : "ready")
+                debugTickLogCount += 1
+            }
 
             if PaxEngineContainer.paxEngineContainer == nil {
                 PaxEngineContainer.paxEngineContainer = pax_init(width, height)
@@ -362,6 +396,16 @@ struct PaxViewIos: View {
         }
 
         func didUpdateTextElement(_ textElement: TextElement) {
+            if debugHeadingLogCount < 6, textElement.content == "Afterimage Observatory" {
+                NSLog("[pax-ios-debug] heading-update transform=%@ size=(%0.2f,%0.2f) opacity=%0.3f parentFrame=%@ measured=%@",
+                      textElement.transform.map { String(format: "%0.3f", $0) }.joined(separator: ","),
+                      textElement.size_x,
+                      textElement.size_y,
+                      textElement.opacity,
+                      textElement.parentFrame.map(String.init(describing:)) ?? "nil",
+                      textElement.lastMeasuredSize.map { NSCoder.string(for: CGRect(origin: .zero, size: $0)) } ?? "nil")
+                debugHeadingLogCount += 1
+            }
             requestTextResizeIfNeeded(textElement)
         }
 

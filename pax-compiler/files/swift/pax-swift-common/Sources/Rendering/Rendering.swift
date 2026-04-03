@@ -277,6 +277,17 @@ private func platformColor(_ color: Color) -> UIColor {
     UIColor(color)
 }
 
+private func platformLayerTextAlignment(_ alignment: Alignment) -> CATextLayerAlignmentMode {
+    switch alignment.horizontal {
+    case .center:
+        return .center
+    case .trailing:
+        return .right
+    default:
+        return .left
+    }
+}
+
 private func platformHorizontalTextAlignment(_ alignment: Alignment) -> NSTextAlignment {
     switch alignment.horizontal {
     case .center:
@@ -340,6 +351,7 @@ private func platformLayerTextAlignment(_ alignment: Alignment) -> CATextLayerAl
 public struct NativeRenderingLayer: View {
     public init() {}
 
+    private let fontObserver = FontRegistrationObserver.shared
     @ObservedObject var nativeSceneInvalidation = NativeSceneInvalidation.singleton
     let textElements = TextElements.singleton
     let frameElements = FrameElements.singleton
@@ -563,6 +575,7 @@ public struct NativeRenderingLayer: View {
             isOpaque = false
             clipsToBounds = false
             autoresizesSubviews = false
+            layer.anchorPoint = CGPoint(x: 0.0, y: 0.0)
         }
 #elseif os(macOS)
         override var isFlipped: Bool { true }
@@ -571,6 +584,7 @@ public struct NativeRenderingLayer: View {
             super.init(frame: frameRect)
             wantsLayer = true
             layer?.backgroundColor = NSColor.clear.cgColor
+            layer?.anchorPoint = CGPoint(x: 0.0, y: 0.0)
             autoresizesSubviews = false
         }
 #endif
@@ -641,7 +655,6 @@ public struct NativeRenderingLayer: View {
             frame = rect
             bounds = boundsRect
             let layer = backingLayer
-            layer.anchorPoint = CGPoint(x: 0.0, y: 0.0)
             layer.setAffineTransform(linearTransform)
             layer.zPosition = CGFloat(zIndex)
             layer.opacity = Float(opacity)
@@ -969,8 +982,46 @@ public struct NativeRenderingLayer: View {
         private var leafViews: [PaxNodeId: PlatformMaskedLeafView] = [:]
         private var currentNodes: [NativeRenderNode] = []
 
+#if os(iOS) || os(tvOS) || os(watchOS)
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func didMoveToSuperview() {
+            super.didMoveToSuperview()
+            syncToSuperviewBoundsIfNeeded()
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            syncToSuperviewBoundsIfNeeded()
+        }
+
+        private func syncToSuperviewBoundsIfNeeded() {
+            guard let superview else {
+                return
+            }
+            let targetBounds = superview.bounds
+            let targetFrame = CGRect(origin: .zero, size: targetBounds.size)
+            if frame != targetFrame {
+                frame = targetFrame
+            }
+            if bounds.size != targetBounds.size {
+                bounds = CGRect(origin: .zero, size: targetBounds.size)
+            }
+        }
+#endif
+
         func update(nodes: [NativeRenderNode]) {
             currentNodes = nodes
+#if os(iOS) || os(tvOS) || os(watchOS)
+            syncToSuperviewBoundsIfNeeded()
+#endif
             refreshScene()
         }
 
@@ -1017,13 +1068,13 @@ public struct NativeRenderingLayer: View {
                         return view
                     }()
                     NativeRenderingLayer.attachPlatformSubview(leafView, to: parentView)
-                    leafView.update(item: item)
                     leafView.applyGeometry(
                         size: item.size,
                         localTransform: item.localTransform,
                         zIndex: item.zIndex,
                         opacity: item.opacity
                     )
+                    leafView.update(item: item)
                 }
             }
         }
@@ -1329,6 +1380,41 @@ public struct NativeRenderingLayer: View {
     }
 }
 
+private final class FontRegistrationObserver {
+    static let shared = FontRegistrationObserver()
+    private var observerInstalled = false
+    private var invalidationPending = false
+
+    private init() {
+        installIfNeeded()
+    }
+
+    private func installIfNeeded() {
+        guard !observerInstalled else {
+            return
+        }
+        observerInstalled = true
+        NotificationCenter.default.addObserver(
+            forName: .paxFontRegistered,
+            object: nil,
+            queue: .main
+        ) { _ in
+            self.scheduleInvalidationIfNeeded()
+        }
+    }
+
+    private func scheduleInvalidationIfNeeded() {
+        guard !invalidationPending else {
+            return
+        }
+        invalidationPending = true
+        DispatchQueue.main.async {
+            self.invalidationPending = false
+            NativeSceneInvalidation.singleton.invalidate()
+        }
+    }
+}
+
 public class NativeSceneInvalidation: ObservableObject {
     public static let singleton = NativeSceneInvalidation()
     @Published public var generation: UInt64 = 0
@@ -1358,6 +1444,30 @@ private func nativeAttributedString(for element: TextElement) -> AttributedStrin
     }
 
     return attributedString
+}
+
+private func reportMeasuredTextSizeIfNeeded(_ measuredSize: CGSize, for element: TextElement) {
+    guard element.size_x < 0 || element.size_y < 0 else {
+        return
+    }
+
+    let resolvedSize = CGSize(
+        width: element.size_x >= 0 ? CGFloat(element.size_x) : ceil(max(0, measuredSize.width)),
+        height: element.size_y >= 0 ? CGFloat(element.size_y) : ceil(max(0, measuredSize.height))
+    )
+
+    if let previous = element.lastMeasuredSize,
+       abs(previous.width - resolvedSize.width) < 0.5,
+       abs(previous.height - resolvedSize.height) < 0.5 {
+        return
+    }
+
+    element.lastMeasuredSize = resolvedSize
+    dispatchChassisResizeRequest(
+        id: element.id,
+        width: Double(resolvedSize.width),
+        height: Double(resolvedSize.height)
+    )
 }
 
 fileprivate extension NativeRenderingLayer {
@@ -1447,7 +1557,7 @@ private final class PaxNativeEventBlockerView: UIView {
 }
 
 private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
-    private let label = UILabel()
+    private let staticTextLayer = CATextLayer()
     private let selectableView = UITextView()
     private var usingSelectableView = false
     private var suppressChange = false
@@ -1458,11 +1568,11 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
         backgroundColor = .clear
         isOpaque = false
 
-        label.frame = bounds
-        label.autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
-        label.backgroundColor = .clear
-        label.numberOfLines = 0
-        label.lineBreakMode = .byWordWrapping
+        staticTextLayer.frame = bounds
+        staticTextLayer.isWrapped = true
+        staticTextLayer.truncationMode = .none
+        staticTextLayer.contentsScale = UIScreen.main.scale
+        layer.addSublayer(staticTextLayer)
 
         selectableView.frame = bounds
         selectableView.autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
@@ -1472,7 +1582,6 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
         selectableView.textContainer.lineFragmentPadding = 0
         selectableView.delegate = self
 
-        addSubview(label)
     }
 
     required init?(coder: NSCoder) {
@@ -1483,23 +1592,26 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
         let useSelectableView = element.selectable || element.editable
         if useSelectableView != usingSelectableView {
             if useSelectableView {
-                label.removeFromSuperview()
+                staticTextLayer.isHidden = true
                 addSubview(selectableView)
             } else {
                 selectableView.removeFromSuperview()
-                addSubview(label)
+                staticTextLayer.isHidden = false
             }
             usingSelectableView = useSelectableView
         }
 
         let rect = CGRect(origin: .zero, size: size)
-        label.frame = rect
-        label.bounds = rect
-        label.preferredMaxLayoutWidth = size.width
+        staticTextLayer.frame = rect
+        staticTextLayer.contentsScale = UIScreen.main.scale
         selectableView.frame = rect
         selectableView.bounds = rect
 
         let attr = NSAttributedString(nativeAttributedString(for: element))
+        let measurementConstraint = CGSize(
+            width: element.size_x >= 0 ? size.width : CGFloat.greatestFiniteMagnitude,
+            height: element.size_y >= 0 ? size.height : CGFloat.greatestFiniteMagnitude
+        )
         if useSelectableView {
             editableNodeId = element.id
             suppressChange = true
@@ -1511,11 +1623,29 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
             selectableView.isEditable = element.editable
             selectableView.isSelectable = element.selectable || element.editable
             selectableView.textContainer.size = size
+            reportMeasuredTextSizeIfNeeded(selectableView.sizeThatFits(measurementConstraint), for: element)
         } else {
-            label.attributedText = attr
-            label.font = element.textStyle.font.getUIFont(size: element.textStyle.font_size)
-            label.textColor = platformColor(element.textStyle.fill)
-            label.textAlignment = platformHorizontalTextAlignment(element.textStyle.alignment)
+            let mutable = NSMutableAttributedString(attributedString: attr)
+            let fullRange = NSRange(location: 0, length: mutable.length)
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.alignment = platformHorizontalTextAlignment(element.textStyle.alignment)
+            paragraphStyle.lineBreakMode = .byWordWrapping
+            mutable.addAttributes(
+                [
+                    .font: element.textStyle.font.getUIFont(size: element.textStyle.font_size),
+                    .foregroundColor: platformColor(element.textStyle.fill),
+                    .paragraphStyle: paragraphStyle
+                ],
+                range: fullRange
+            )
+            staticTextLayer.alignmentMode = platformLayerTextAlignment(element.textStyle.alignment)
+            staticTextLayer.string = mutable
+            let measured = mutable.boundingRect(
+                with: measurementConstraint,
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                context: nil
+            ).integral.size
+            reportMeasuredTextSizeIfNeeded(measured, for: element)
         }
     }
 
@@ -1914,6 +2044,10 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
         let rect = CGRect(origin: .zero, size: size)
         staticTextLayer.frame = rect
         scrollView.frame = rect
+        let measurementConstraint = CGSize(
+            width: element.size_x >= 0 ? size.width : CGFloat.greatestFiniteMagnitude,
+            height: element.size_y >= 0 ? size.height : CGFloat.greatestFiniteMagnitude
+        )
         if useTextView {
             editableNodeId = element.id
             suppressChange = true
@@ -1925,10 +2059,17 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
             textView.isEditable = element.editable
             textView.isSelectable = element.selectable || element.editable
             textView.frame = rect
+            reportMeasuredTextSizeIfNeeded(textView.fittingSize, for: element)
         } else {
             staticTextLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1.0
             staticTextLayer.alignmentMode = platformLayerTextAlignment(element.textStyle.alignment)
             staticTextLayer.string = attr
+            let measured = attr.boundingRect(
+                with: measurementConstraint,
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                context: nil
+            ).integral.size
+            reportMeasuredTextSizeIfNeeded(measured, for: element)
         }
     }
 

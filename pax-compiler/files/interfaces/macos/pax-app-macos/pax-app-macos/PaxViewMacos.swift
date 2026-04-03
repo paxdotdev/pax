@@ -66,8 +66,13 @@ struct PaxViewMacos: View {
                             var errorRef: Unmanaged<CFError>?
                             if !CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {
                                 print("Error registering font: \(fontFamily) - PostScript name: \(postscriptName) - \(String(describing: errorRef))")
+                            } else {
+                                PaxFont.markFontRegistered(fontFamily: postscriptName)
+                                PaxFont.markFontRegistered(fontFamily: fontFamily)
                             }
                         } else {
+                            PaxFont.markFontRegistered(fontFamily: postscriptName)
+                            PaxFont.markFontRegistered(fontFamily: fontFamily)
                             print("Font already registered: \(fontFamily) - PostScript name: \(postscriptName)")
                         }
                     }
