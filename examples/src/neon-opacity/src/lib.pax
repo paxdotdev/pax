@@ -22,9 +22,9 @@
         x={(53.0 + self.orbit_a * 2.6)%}
         y={(26.0 + self.orbit_b * 1.8)%}
         rotate={(4.0 + self.orbit_c * 5.4)deg}
-        opacity={(0.54 + self.beam_gain * 0.22)}
+        opacity={self.scene_opacity}
     >
-        <Group x=24px y=20px width=388px height=146px opacity=0.86>
+        <Group x=24px y=20px width=388px height=146px opacity=1>
             <Text class=eyebrow x=16px y=14px width=286px height=22px text="OPAQUE OVERLAP // NO INHERITED LOSS"/>
             <Text class=panel_title_small x=16px y=42px width=304px height=42px text="Diffraction Field"/>
             <Text
@@ -130,9 +130,9 @@
         x={(36.0 + self.orbit_b * 2.0)%}
         y={(58.0 + self.orbit_a * 2.4)%}
         rotate={(-12.0 + self.orbit_d * 6.4)deg}
-        opacity={self.monolith_opacity}
+        opacity={self.scene_opacity}
     >
-        <Group x=22px y=26px width=352px height=520px opacity={self.inner_glass_opacity}>
+        <Group x=22px y=26px width=352px height=520px opacity=1>
             <Text class=eyebrow x=20px y=16px width=312px height=22px text="GROUP CASCADE // NATIVE + VECTOR"/>
             <Text class=panel_title x=20px y=46px width=320px height=52px text="Afterimage Console"/>
             <Text
@@ -198,20 +198,9 @@
                 />
             </Group>
 
-            <Group x=20px y=198px width=292px height=258px opacity=0.82>
-                <Text class=tiny_label x=0px y=0px width=256px height=18px text="HIERARCHICAL OPACITY // GROUP 0.82"/>
-                <Rectangle
-                    class=control_surface
-                    fill={Fill::linearGradient(
-                        (0%, 0%),
-                        (100%, 100%),
-                        [
-                            GradientStop::get(Color::rgba(13, 19, 49, 246), 0%),
-                            GradientStop::get(Color::rgba(22, 14, 63, 236), 50%),
-                            GradientStop::get(Color::rgba(9, 18, 42, 242), 100%)
-                        ]
-                    )}
-                />
+            <Group x=20px y=198px width=292px height=258px opacity=1>
+                <Text class=tiny_label x=0px y=0px width=256px height=18px text={"GROUP OPACITY // " + self.beam_label}/>
+
                 <Text class=stat_label x=20px y=24px width=156px height=18px text={"CALLSIGN // " + self.callsign}/>
                 <Text class=stat_right x=190px y=24px width=74px height=18px text={"BEAM " + self.beam_label}/>
                 <Textbox
@@ -240,7 +229,7 @@
                     width=244px
                     height=26px
                     value=bind:beam_gain
-                    min=0.2
+                    min=0.1
                     max=1.0
                     step=0.01
                     accent=rgba(96, 242, 255, 255)
@@ -256,10 +245,22 @@
                     label={self.engage_label}
                     @button_click=self.increment_engage
                 />
+                <Rectangle
+                    class=control_surface
+                    fill={Fill::linearGradient(
+                        (0%, 0%),
+                        (100%, 100%),
+                        [
+                            GradientStop::get(Color::rgba(13, 19, 49, 246), 0%),
+                            GradientStop::get(Color::rgba(22, 14, 63, 236), 50%),
+                            GradientStop::get(Color::rgba(9, 18, 42, 242), 100%)
+                        ]
+                    )}
+                />
             </Group>
 
-            <Group x=28px y=472px width=286px height=60px opacity=0.58>
-                <Text class=tiny_label x=0px y=0px width=286px height=18px text="CHILD OPACITY // 1.00 • 0.68 • 0.32"/>
+            <Group x=28px y=472px width=286px height=60px opacity=1>
+                <Text class=tiny_label x=0px y=0px width=286px height=18px text="GROUP FLOOR // 10% MINIMUM"/>
                 <Rectangle
                     x=0px
                     y=30px
@@ -283,7 +284,7 @@
                     width=238px
                     height=12px
                     class=beam_capsule
-                    opacity=0.68
+                    opacity=1
                     fill={Fill::linearGradient(
                         (0%, 50%),
                         (100%, 50%),
@@ -300,7 +301,7 @@
                     width=184px
                     height=12px
                     class=beam_capsule
-                    opacity=0.32
+                    opacity=1
                     fill={Fill::linearGradient(
                         (0%, 50%),
                         (100%, 50%),
@@ -321,7 +322,7 @@
                 anchor_x=50%
                 anchor_y=50%
                 rotate={(self.star_rotation * -0.3)deg}
-                opacity=0.46
+                opacity=1
                 fill={Fill::linearGradient(
                     (0%, 0%),
                     (100%, 100%),
@@ -384,11 +385,11 @@
         x={(70.0 + self.orbit_c * 2.5)%}
         y={(55.0 + self.orbit_d * 2.2)%}
         rotate={(11.0 - self.orbit_a * 6.8)deg}
-        opacity=50%
+        opacity={self.scene_opacity}
     >
-        <Mask width=100% height=100% opacity={self.mask_panel_opacity}>
+        <Mask width=100% height=100% opacity=1>
             <Group width=100% height=100%>
-                <Group x=20px y=20px width=304px height=420px opacity=0.82>
+                <Group x=20px y=20px width=304px height=420px opacity=1>
                     <Text class=eyebrow x=14px y=14px width=252px height=22px text="PARTIAL MASK // MIXED NATIVE"/>
                     <Text class=panel_title_small x=14px y=44px width=264px height=40px text="Luminous Chamber"/>
                     <Text
@@ -415,7 +416,7 @@
                         height=14px
                         rotate=-6deg
                         class=beam_capsule
-                        opacity=0.7
+                        opacity=1
                         fill={Fill::linearGradient(
                             (0%, 50%),
                             (100%, 50%),
@@ -446,7 +447,7 @@
                         height=38px
                         label={"SYNC " + self.spectrum_label}
                     />
-                    <Group x=224px y=300px width=72px height=72px opacity=0.58>
+                    <Group x=224px y=300px width=72px height=72px opacity=1>
                         <Text class=tiny_label x=0px y=0px width=72px height=16px text="NESTED"/>
                         <Ellipse
                             x=36px
@@ -472,7 +473,7 @@
                             height=34px
                             anchor_x=50%
                             anchor_y=50%
-                            opacity=0.62
+                            opacity=1
                             fill={Fill::linearGradient(
                                 (0%, 0%),
                                 (100%, 100%),
@@ -489,7 +490,7 @@
                             height=22px
                             anchor_x=50%
                             anchor_y=50%
-                            opacity=0.28
+                            opacity=1
                             fill={Fill::linearGradient(
                                 (0%, 0%),
                                 (100%, 100%),
@@ -508,7 +509,7 @@
                         anchor_x=50%
                         anchor_y=50%
                         rotate={(self.star_rotation * -0.6)deg}
-                        opacity=0.44
+                        opacity=1
                         fill={Fill::linearGradient(
                             (0%, 0%),
                             (100%, 100%),
@@ -631,7 +632,7 @@
         x={(50.0 + self.orbit_d * 1.8)%}
         y={(84.5 + self.orbit_b * 1.1)%}
         rotate={(self.ribbon_rotation)deg}
-        opacity={(0.42 + self.beam_gain * 0.28)}
+        opacity={self.scene_opacity}
     >
         <Text class=footer_title x=24px y=20px width=412px height=40px text="OPAQUE / TRANSLUCENT / MASKED / NATIVE"/>
         <Text
@@ -672,10 +673,10 @@
         x={(50.0 + self.orbit_c * 2.4)%}
         y={(64.0 + self.orbit_b * 1.6)%}
         rotate={(self.orbit_d * 1.8)deg}
-        opacity={self.lattice_left_opacity}
+        opacity={self.scene_opacity}
     >
         <Group x={(120.0 + self.drift_a)px} y={(70.0 + self.orbit_d * 18.0)px} width=320px height=126px rotate={(-10.0 + self.orbit_b * 4.0)deg} opacity=1>
-            <Text class=tiny_label x=10px y=2px width=250px height=16px text="GROUP A // 0.64 × (1.00, 0.70, 0.34)"/>
+            <Text class=tiny_label x=10px y=2px width=250px height=16px text={"GROUP A // " + self.beam_label}/>
             <Rectangle
                 x=0px
                 y=30px
@@ -699,7 +700,7 @@
                 width=268px
                 height=18px
                 class=beam_capsule
-                opacity=0.7
+                opacity=1
                 fill={Fill::linearGradient(
                     (0%, 50%),
                     (100%, 50%),
@@ -716,7 +717,7 @@
                 width=188px
                 height=18px
                 class=beam_capsule
-                opacity=0.34
+                opacity=1
                 fill={Fill::linearGradient(
                     (0%, 50%),
                     (100%, 50%),
@@ -735,9 +736,9 @@
         x={(50.0 + self.orbit_a * 2.2)%}
         y={(58.0 + self.orbit_c * 1.8)%}
         rotate={(self.orbit_b * -1.6)deg}
-        opacity={self.lattice_right_opacity}
+        opacity={self.scene_opacity}
     >
-        <Group x={(276.0 + self.drift_b)px} y={(404.0 + self.drift_c)px} width=336px height=140px rotate={(10.0 - self.orbit_c * 5.0)deg} opacity=0.88>
+        <Group x={(276.0 + self.drift_b)px} y={(404.0 + self.drift_c)px} width=336px height=140px rotate={(10.0 - self.orbit_c * 5.0)deg} opacity=1>
             <Text class=tiny_label x=14px y=4px width=270px height=16px text="GROUP B // MOVING COLLISION SWARM"/>
             <Rectangle
                 x=0px
@@ -762,7 +763,7 @@
                 width=286px
                 height=20px
                 class=beam_capsule
-                opacity=0.68
+                opacity=1
                 fill={Fill::linearGradient(
                     (0%, 50%),
                     (100%, 50%),
@@ -780,7 +781,7 @@
                 height=84px
                 anchor_x=50%
                 anchor_y=50%
-                opacity=0.5
+                opacity=1
                 fill={Fill::linearGradient(
                     (0%, 0%),
                     (100%, 100%),

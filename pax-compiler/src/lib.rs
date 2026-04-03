@@ -26,10 +26,16 @@ use eyre::eyre;
 use fs_extra::dir::{self, CopyOptions};
 use helpers::{copy_dir_recursively, wait_with_output, ERR_SPAWN};
 use pax_manifest::{
-    ComponentDefinition, ComponentTemplate, PaxManifest, TemplateNodeDefinition, TypeId,
+    ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, PaxExpression, PaxManifest,
+    SettingsBlockElement, SettingElement, TemplateNodeDefinition, TypeId, ValueDefinition,
 };
+use reqwest::blocking::Client;
+use reqwest::Url;
+use serde_json::Value as JsonValue;
 use std::fs;
 use std::io::Write;
+use std::collections::HashSet;
+use std::collections::hash_map::DefaultHasher;
 use std::sync::{Arc, Mutex};
 
 #[cfg(unix)]
@@ -40,6 +46,7 @@ use crate::building::build_project_with_cartridge;
 use crate::cartridge_generation::generate_cartridge_partial_rs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::hash::{Hash, Hasher};
 
 use crate::helpers::{
     get_or_create_pax_directory, update_pax_dependency_versions, INTERFACE_DIR_NAME, PAX_BADGE,
@@ -59,6 +66,12 @@ pub struct RunContext {
     pub is_release: bool,
     pub ios_device: Option<String>,
     pub ios_development_team: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct WebFontSource {
+    family: String,
+    url: String,
 }
 
 #[derive(PartialEq)]
@@ -170,6 +183,8 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     } else {
         None
     };
+
+    vendor_apple_web_fonts(ctx, &pax_dir, &merged_manifest)?;
 
     println!("{} 🦀 Generating Rust", *PAX_BADGE);
     generate_cartridge_partial_rs(
@@ -328,6 +343,448 @@ fn copy_common_swift_files(ctx: &RunContext, common_dest: &Path) {
         PAX_SWIFT_CARTRIDGE_TEMPLATE
             .extract(&common_swift_cartridge_dest)
             .expect("Failed to extract swift cartridge template files");
+    }
+}
+
+fn vendor_apple_web_fonts(
+    ctx: &RunContext,
+    pax_dir: &Path,
+    manifest: &PaxManifest,
+) -> eyre::Result<(), Report> {
+    if !matches!(ctx.target, RunTarget::macOS | RunTarget::iOS) {
+        return Ok(());
+    }
+
+    let font_sources = collect_web_font_sources(manifest);
+    if font_sources.is_empty() {
+        return Ok(());
+    }
+
+    let resources_dir = pax_dir
+        .join(INTERFACE_DIR_NAME)
+        .join("common")
+        .join("pax-swift-cartridge")
+        .join("Sources")
+        .join("PaxCartridgeAssets")
+        .join("Resources");
+    fs::create_dir_all(&resources_dir)?;
+    if let Ok(existing_entries) = fs::read_dir(&resources_dir) {
+        for entry in existing_entries.flatten() {
+            let path = entry.path();
+            let Some(file_name) = path.file_name().and_then(|value| value.to_str()) else {
+                continue;
+            };
+            if file_name.starts_with("pax-font-") {
+                let _ = fs::remove_file(path);
+            }
+        }
+    }
+
+    let client = Client::builder().build()?;
+
+    let mut vendored_assets: HashSet<String> = HashSet::new();
+    let mut vendored_count = 0usize;
+
+    for font_source in font_sources {
+        if let Err(error) = vendor_web_font_source(
+            &client,
+            &font_source,
+            &resources_dir,
+            &mut vendored_assets,
+            &mut vendored_count,
+        ) {
+            println!(
+                "{} ⚠️  Failed to vendor Apple font '{}' from {}: {}",
+                *PAX_BADGE, font_source.family, font_source.url, error
+            );
+        }
+    }
+
+    if vendored_count > 0 {
+        println!(
+            "{} 🔤 Vendored {} Apple font asset{} for bundled native builds",
+            *PAX_BADGE,
+            vendored_count,
+            if vendored_count == 1 { "" } else { "s" }
+        );
+    }
+
+    Ok(())
+}
+
+fn collect_web_font_sources(manifest: &PaxManifest) -> Vec<WebFontSource> {
+    let mut seen = HashSet::new();
+    let mut collected = Vec::new();
+
+    for component in manifest.components.values() {
+        if let Some(template) = &component.template {
+            for node in template.get_nodes() {
+                if let Some(settings) = &node.settings {
+                    collect_setting_elements(settings, &mut seen, &mut collected);
+                }
+            }
+        }
+
+        if let Some(settings) = &component.settings {
+            collect_settings_block_elements(settings, &mut seen, &mut collected);
+        }
+    }
+
+    collected
+}
+
+fn collect_settings_block_elements(
+    settings: &[SettingsBlockElement],
+    seen: &mut HashSet<WebFontSource>,
+    collected: &mut Vec<WebFontSource>,
+) {
+    for setting in settings {
+        match setting {
+            SettingsBlockElement::SelectorBlock(_, block) => {
+                collect_literal_block_definition(block, seen, collected);
+            }
+            SettingsBlockElement::Handler(_, _) | SettingsBlockElement::Comment(_) => {}
+        }
+    }
+}
+
+fn collect_setting_elements(
+    settings: &[SettingElement],
+    seen: &mut HashSet<WebFontSource>,
+    collected: &mut Vec<WebFontSource>,
+) {
+    for setting in settings {
+        match setting {
+            SettingElement::Setting(_, value) => {
+                collect_value_definition(value, seen, collected);
+            }
+            SettingElement::Comment(_) => {}
+        }
+    }
+}
+
+fn collect_literal_block_definition(
+    block: &LiteralBlockDefinition,
+    seen: &mut HashSet<WebFontSource>,
+    collected: &mut Vec<WebFontSource>,
+) {
+    collect_setting_elements(&block.elements, seen, collected);
+}
+
+fn collect_value_definition(
+    value: &ValueDefinition,
+    seen: &mut HashSet<WebFontSource>,
+    collected: &mut Vec<WebFontSource>,
+) {
+    match value {
+        ValueDefinition::Block(block) => collect_literal_block_definition(block, seen, collected),
+        ValueDefinition::Expression(expression_info) => {
+            collect_font_sources_from_expression(&expression_info.expression, seen, collected);
+        }
+        ValueDefinition::LiteralValue(literal_value) => {
+            let Ok(serialized) = serde_json::to_value(literal_value) else {
+                return;
+            };
+            collect_font_sources_from_serialized_json(&serialized, seen, collected);
+        }
+        ValueDefinition::Undefined
+        | ValueDefinition::Identifier(_)
+        | ValueDefinition::DoubleBinding(_)
+        | ValueDefinition::EventBindingTarget(_) => {}
+    }
+}
+
+fn collect_font_sources_from_expression(
+    expression: &PaxExpression,
+    seen: &mut HashSet<WebFontSource>,
+    collected: &mut Vec<WebFontSource>,
+) {
+    let Ok(serialized) = serde_json::to_value(expression) else {
+        return;
+    };
+    collect_font_sources_from_serialized_json(&serialized, seen, collected);
+}
+
+fn collect_font_sources_from_serialized_json(
+    value: &JsonValue,
+    seen: &mut HashSet<WebFontSource>,
+    collected: &mut Vec<WebFontSource>,
+) {
+    match value {
+        JsonValue::Object(map) => {
+            if let Some(function_or_enum) = map.get("FunctionOrEnum") {
+                if let Some(font_source) = parse_font_web_source(function_or_enum) {
+                    if seen.insert(font_source.clone()) {
+                        collected.push(font_source);
+                    }
+                }
+            }
+            if let Some(enum_value) = map.get("Enum") {
+                if let Some(font_source) = parse_font_web_source(enum_value) {
+                    if seen.insert(font_source.clone()) {
+                        collected.push(font_source);
+                    }
+                }
+            }
+
+            for child in map.values() {
+                collect_font_sources_from_serialized_json(child, seen, collected);
+            }
+        }
+        JsonValue::Array(items) => {
+            for item in items {
+                collect_font_sources_from_serialized_json(item, seen, collected);
+            }
+        }
+        JsonValue::Null | JsonValue::Bool(_) | JsonValue::Number(_) | JsonValue::String(_) => {}
+    }
+}
+
+fn parse_font_web_source(value: &JsonValue) -> Option<WebFontSource> {
+    let JsonValue::Array(parts) = value else {
+        return None;
+    };
+    if parts.len() != 3 {
+        return None;
+    }
+
+    let name = parts.first()?.as_str()?;
+    let enum_variant = parts.get(1)?.as_str()?;
+    if name != "Font" || enum_variant != "Web" {
+        return None;
+    }
+
+    let JsonValue::Array(args) = parts.get(2)? else {
+        return None;
+    };
+    if args.len() < 2 {
+        return None;
+    }
+
+    let family = extract_string_literal(&args[0])?;
+    let url = extract_string_literal(&args[1])?;
+
+    Some(WebFontSource { family, url })
+}
+
+fn extract_string_literal(value: &JsonValue) -> Option<String> {
+    match value {
+        JsonValue::String(value) => Some(value.clone()),
+        JsonValue::Object(map) => {
+            if let Some(string_value) = map.get("String") {
+                return string_value.as_str().map(ToString::to_string);
+            }
+            if let Some(primary) = map.get("Primary") {
+                return extract_string_literal(primary);
+            }
+            if let Some(literal) = map.get("Literal") {
+                return literal.as_str().map(ToString::to_string);
+            }
+            None
+        }
+        JsonValue::Array(items) => items.iter().find_map(extract_string_literal),
+        JsonValue::Null | JsonValue::Bool(_) | JsonValue::Number(_) => None,
+    }
+}
+
+fn vendor_web_font_source(
+    client: &Client,
+    font_source: &WebFontSource,
+    resources_dir: &Path,
+    vendored_assets: &mut HashSet<String>,
+    vendored_count: &mut usize,
+) -> eyre::Result<(), Report> {
+    let url = Url::parse(&font_source.url)?;
+    if url.as_str().contains("fonts.googleapis.com/css") {
+        let css = client
+            .get(url.clone())
+            .header(reqwest::header::USER_AGENT, "curl/8.7.1")
+            .send()?
+            .error_for_status()?
+            .text()?;
+        let asset_urls = parse_css_font_urls(&css, &url);
+        for asset_url in asset_urls {
+            vendor_font_asset(
+                client,
+                &font_source.family,
+                &asset_url,
+                resources_dir,
+                vendored_assets,
+                vendored_count,
+            )?;
+        }
+    } else {
+        vendor_font_asset(
+            client,
+            &font_source.family,
+            &url,
+            resources_dir,
+            vendored_assets,
+            vendored_count,
+        )?;
+    }
+
+    Ok(())
+}
+
+fn parse_css_font_urls(css: &str, base_url: &Url) -> Vec<Url> {
+    let mut urls = Vec::new();
+    let mut seen = HashSet::new();
+
+    let mut remaining = css;
+    while let Some(start) = remaining.find("url(") {
+        let after_prefix = &remaining[start + 4..];
+        let Some(end) = after_prefix.find(')') else {
+            break;
+        };
+        let raw_value = after_prefix[..end]
+            .trim()
+            .trim_matches(|character| matches!(character, '"' | '\''));
+
+        if let Ok(resolved_url) = base_url.join(raw_value) {
+            if seen.insert(resolved_url.as_str().to_string()) {
+                urls.push(resolved_url);
+            }
+        }
+
+        remaining = &after_prefix[end + 1..];
+    }
+
+    urls
+}
+
+fn vendor_font_asset(
+    client: &Client,
+    family: &str,
+    asset_url: &Url,
+    resources_dir: &Path,
+    vendored_assets: &mut HashSet<String>,
+    vendored_count: &mut usize,
+) -> eyre::Result<(), Report> {
+    if !vendored_assets.insert(asset_url.as_str().to_string()) {
+        return Ok(());
+    }
+
+    let response = client.get(asset_url.clone()).send()?.error_for_status()?;
+    let bytes = response.bytes()?;
+    let extension = asset_url
+        .path_segments()
+        .and_then(|segments| segments.last())
+        .and_then(|segment| segment.rsplit_once('.').map(|(_, ext)| ext.to_ascii_lowercase()))
+        .filter(|ext| !ext.is_empty())
+        .unwrap_or_else(|| "font".to_string());
+
+    let file_name = format!(
+        "pax-font-{}-{}.{}",
+        sanitize_file_stem(family),
+        stable_hash(asset_url.as_str()),
+        extension
+    );
+    let destination = resources_dir.join(file_name);
+    fs::write(&destination, bytes)?;
+    *vendored_count += 1;
+
+    Ok(())
+}
+
+fn sanitize_file_stem(value: &str) -> String {
+    let sanitized = value
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+    sanitized.trim_matches('-').to_string()
+}
+
+fn stable_hash(value: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    value.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn parses_font_web_literal_enum_shape() {
+        let value = json!([
+            "Font",
+            "Web",
+            [
+                { "String": "Oxanium" },
+                { "String": "https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700;800&display=swap" },
+                { "Enum": ["FontStyle", "Normal", []] },
+                { "Enum": ["FontWeight", "Bold", []] }
+            ]
+        ]);
+
+        let source = parse_font_web_source(&value).expect("expected font source");
+        assert_eq!(source.family, "Oxanium");
+        assert_eq!(
+            source.url,
+            "https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700;800&display=swap"
+        );
+    }
+
+    #[test]
+    fn collects_font_web_sources_from_literal_value_json() {
+        let value = json!({
+            "LiteralValue": {
+                "Object": [
+                    [
+                        "font",
+                        {
+                            "Enum": [
+                                "Font",
+                                "Web",
+                                [
+                                    { "String": "Space Mono" },
+                                    { "String": "https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" }
+                                ]
+                            ]
+                        }
+                    ]
+                ]
+            }
+        });
+
+        let mut seen = HashSet::new();
+        let mut collected = Vec::new();
+        collect_font_sources_from_serialized_json(&value, &mut seen, &mut collected);
+
+        assert_eq!(collected.len(), 1);
+        assert_eq!(collected[0].family, "Space Mono");
+        assert_eq!(
+            collected[0].url,
+            "https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap"
+        );
+    }
+
+    #[test]
+    fn parses_css_font_urls_from_google_fonts_stylesheet() {
+        let css = "@font-face {\n  font-family: 'Oxanium';\n  src: url(https://fonts.gstatic.com/s/oxanium/v20/RrQQboN_4yJ0JmiMe2LE0Q.woff2) format('woff2');\n}\n@font-face {\n  src: url('https://fonts.gstatic.com/s/oxanium/v20/RrQQboN_4yJ0JmiMe2zE0Q.woff2') format('woff2');\n}";
+        let base_url = Url::parse(
+            "https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700;800&display=swap",
+        )
+        .expect("expected valid base url");
+
+        let urls = parse_css_font_urls(css, &base_url);
+        assert_eq!(urls.len(), 2);
+        assert_eq!(
+            urls[0].as_str(),
+            "https://fonts.gstatic.com/s/oxanium/v20/RrQQboN_4yJ0JmiMe2LE0Q.woff2"
+        );
+        assert_eq!(
+            urls[1].as_str(),
+            "https://fonts.gstatic.com/s/oxanium/v20/RrQQboN_4yJ0JmiMe2zE0Q.woff2"
+        );
     }
 }
 

@@ -20,6 +20,7 @@ pub struct Example {
     pub selected_mode: Property<u32>,
     pub spectrum_band: Property<u32>,
     pub beam_gain: Property<f64>,
+    pub scene_opacity: Property<f64>,
     pub engage_count: Property<usize>,
     pub stabilizers: Property<bool>,
     pub monolith_opacity: Property<f64>,
@@ -57,7 +58,7 @@ impl Example {
         self.callsign.set("LUX-17".to_string());
         self.selected_mode.set(0);
         self.spectrum_band.set(1);
-        self.beam_gain.set(0.68);
+        self.beam_gain.set(1.0);
         self.stabilizers.set(true);
         self.refresh_labels();
     }
@@ -67,17 +68,14 @@ impl Example {
         self.ticks.set(ticks);
 
         let t = ticks as f64 / 60.0;
+        let group_opacity = self.beam_gain.get().clamp(0.10, 1.0);
 
-        self.monolith_opacity
-            .set(0.67 + 0.16 * wave(t * 0.58 + 0.1));
-        self.inner_glass_opacity
-            .set(0.56 + 0.24 * wave(t * 1.08 + 0.8));
-        self.mask_panel_opacity
-            .set(0.58 + 0.24 * wave(t * 0.92 + 1.1));
-        self.lattice_left_opacity
-            .set(0.38 + 0.26 * wave(t * 0.76 + 0.2));
-        self.lattice_right_opacity
-            .set(0.34 + 0.30 * wave(t * 0.87 + 1.6));
+        self.scene_opacity.set(group_opacity);
+        self.monolith_opacity.set(group_opacity);
+        self.inner_glass_opacity.set(group_opacity);
+        self.mask_panel_opacity.set(group_opacity);
+        self.lattice_left_opacity.set(group_opacity);
+        self.lattice_right_opacity.set(group_opacity);
         self.halo_opacity
             .set(0.46 + 0.18 * wave(t * 0.43 + 2.0));
 
@@ -148,7 +146,7 @@ impl Example {
         self.mode_label.set(mode_label.to_string());
         self.spectrum_label.set(spectrum_label.to_string());
         self.beam_label
-            .set(format!("{:03.0}%", self.beam_gain.get() * 100.0));
+            .set(format!("{:03.0}%", self.scene_opacity.get() * 100.0));
         self.engage_label
             .set(format!("ENGAGE {}", self.engage_count.get()));
         self.stabilizer_label.set(

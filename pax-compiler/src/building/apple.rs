@@ -550,11 +550,15 @@ Note that the temporary directories mentioned above are subject to overwriting.\
         .join(target_str_lower);
     let executable_output_dir_path = build_dest_base.join("app");
     let executable_dot_app_path = executable_output_dir_path.join(&format!("{}.app", &scheme));
+    let executable_resources_bundle_path =
+        executable_output_dir_path.join("PaxSwiftCartridge_PaxCartridgeAssets.bundle");
     let derived_data_path = build_dest_base.join("derived-data");
     let source_packages_path = build_dest_base.join("source-packages");
     let _ = fs::create_dir_all(&executable_output_dir_path);
     let _ = fs::create_dir_all(&derived_data_path);
     let _ = fs::create_dir_all(&source_packages_path);
+    let _ = remove_path_if_exists(&executable_resources_bundle_path);
+    let _ = remove_path_if_exists(&executable_dot_app_path);
 
     let build_for_physical_device = matches!(
         resolved_ios_device.as_ref().map(|device| device.kind),

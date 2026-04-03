@@ -51,11 +51,15 @@ struct PaxViewMacos: View {
         
         let resourceURL = resourceBundle.resourceURL!
         
-        let fontFileExtensions = ["ttf", "otf"]
+        let fontFileExtensions: Set<String> = ["ttf", "otf"]
 
         do {
-            let resourceFiles = try FileManager.default.contentsOfDirectory(at: resourceURL, includingPropertiesForKeys: nil, options: [])
-            for fileURL in resourceFiles {
+            let enumerator = FileManager.default.enumerator(
+                at: resourceURL,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+            while let fileURL = enumerator?.nextObject() as? URL {
                 let fileExtension = fileURL.pathExtension.lowercased()
                 if fontFileExtensions.contains(fileExtension) {
                     let fontDescriptors = CTFontManagerCreateFontDescriptorsFromURL(fileURL as CFURL) as! [CTFontDescriptor]

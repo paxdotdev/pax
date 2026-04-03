@@ -911,6 +911,7 @@ public class PaxFont {
     #elseif os(iOS) || os(tvOS) || os(watchOS)
     private static var registeredFontCache: [String: Bool] = [:]
     #endif
+    private static var resolvedFontNameCache: [String: String] = [:]
     private static var fontRegistryGeneration: UInt64 = 0
 
     public init(type: PaxFontType) {
@@ -929,6 +930,219 @@ public class PaxFont {
     public static func makeDefault() -> PaxFont {
         let defaultSystemFont = SystemFont(family: "Helvetica", style: .normal, weight: .normal)
         return PaxFont(type: .system(defaultSystemFont))
+    }
+
+    private static func normalizedFontToken(_ value: String) -> String {
+        value
+            .lowercased()
+            .unicodeScalars
+            .filter { CharacterSet.alphanumerics.contains($0) }
+            .map(String.init)
+            .joined()
+    }
+
+    private static func weightKeywords(_ weight: FontWeight) -> [String] {
+        switch weight {
+        case .thin:
+            return ["thin"]
+        case .extraLight:
+            return ["extralight", "ultralight"]
+        case .light:
+            return ["light"]
+        case .normal:
+            return ["regular", "romanregular", "book", "normal"]
+        case .medium:
+            return ["medium"]
+        case .semiBold:
+            return ["semibold", "demibold"]
+        case .bold:
+            return ["bold"]
+        case .extraBold:
+            return ["extrabold", "ultrabold"]
+        case .black:
+            return ["black", "heavy"]
+        }
+    }
+
+    private static func inferredWeight(for normalizedCandidate: String) -> FontWeight? {
+        if normalizedCandidate.contains("extrabold") || normalizedCandidate.contains("ultrabold") {
+            return .extraBold
+        }
+        if normalizedCandidate.contains("semibold") || normalizedCandidate.contains("demibold") {
+            return .semiBold
+        }
+        if normalizedCandidate.contains("black") || normalizedCandidate.contains("heavy") {
+            return .black
+        }
+        if normalizedCandidate.contains("medium") {
+            return .medium
+        }
+        if normalizedCandidate.contains("extralight") || normalizedCandidate.contains("ultralight") {
+            return .extraLight
+        }
+        if normalizedCandidate.contains("light") {
+            return .light
+        }
+        if normalizedCandidate.contains("thin") {
+            return .thin
+        }
+        if normalizedCandidate.contains("regular")
+            || normalizedCandidate.contains("romanregular")
+            || normalizedCandidate.contains("book")
+            || normalizedCandidate.contains("normal")
+        {
+            return .normal
+        }
+        if normalizedCandidate.contains("bold") {
+            return .bold
+        }
+        return nil
+    }
+
+    private static func fontResolutionCacheKey(fontFamily: String, style: FontStyle, weight: FontWeight) -> String {
+        "\(normalizedFontToken(fontFamily))|\(style.rawValue)|\(weight.rawValue)"
+    }
+
+    private static func candidateScore(
+        candidateName: String,
+        requestedFamily: String,
+        style: FontStyle,
+        weight: FontWeight,
+        isFamilyName: Bool
+    ) -> Int {
+        let candidate = normalizedFontToken(candidateName)
+        let requested = normalizedFontToken(requestedFamily)
+        var score = 0
+
+        if candidate == requested {
+            score += 200
+        }
+        if candidate.hasPrefix(requested) || candidate.contains(requested) {
+            score += 100
+        }
+
+        let expectsItalic = style == .italic || style == .oblique
+        let isItalic = candidate.contains("italic") || candidate.contains("oblique")
+        if expectsItalic {
+            score += isItalic ? 60 : -20
+        } else if isItalic {
+            score -= 20
+        }
+
+        let keywords = weightKeywords(weight)
+        if let inferredWeight = inferredWeight(for: candidate) {
+            if inferredWeight == weight {
+                score += 120
+            } else {
+                score -= 40
+            }
+        } else if keywords.contains(where: { candidate.contains($0) }) {
+            score += 60
+        } else if weight == .normal && candidate.contains("regular") {
+            score += 40
+        } else if weight != .normal && candidate.contains("regular") {
+            score -= 10
+        }
+
+        if isFamilyName {
+            score -= 120
+        }
+
+        return score
+    }
+
+    private static func resolveFontName(fontFamily: String, style: FontStyle, weight: FontWeight) -> String? {
+        let cacheKey = fontResolutionCacheKey(fontFamily: fontFamily, style: style, weight: weight)
+        if let cached = resolvedFontNameCache[cacheKey] {
+            return cached.isEmpty ? nil : cached
+        }
+
+        let requested = normalizedFontToken(fontFamily)
+        var candidates: [(name: String, isFamily: Bool)] = []
+        var seen: Set<String> = []
+
+        for registeredName in registeredFontCache.keys {
+            let normalizedName = normalizedFontToken(registeredName)
+            guard normalizedName == requested
+                || normalizedName.contains(requested)
+                || requested.contains(normalizedName)
+            else {
+                continue
+            }
+            if seen.insert(registeredName).inserted {
+                candidates.append((registeredName, normalizedName == requested))
+            }
+        }
+
+        #if os(iOS) || os(tvOS) || os(watchOS)
+        for familyName in UIFont.familyNames {
+            let normalizedFamily = normalizedFontToken(familyName)
+            guard normalizedFamily == requested
+                || normalizedFamily.contains(requested)
+                || requested.contains(normalizedFamily)
+            else {
+                continue
+            }
+            if seen.insert(familyName).inserted {
+                candidates.append((familyName, true))
+            }
+            for fontName in UIFont.fontNames(forFamilyName: familyName) {
+                if seen.insert(fontName).inserted {
+                    candidates.append((fontName, false))
+                }
+            }
+        }
+        #elseif os(macOS)
+        for familyName in NSFontManager.shared.availableFontFamilies {
+            let normalizedFamily = normalizedFontToken(familyName)
+            guard normalizedFamily == requested
+                || normalizedFamily.contains(requested)
+                || requested.contains(normalizedFamily)
+            else {
+                continue
+            }
+            if seen.insert(familyName).inserted {
+                candidates.append((familyName, true))
+            }
+            if let members = NSFontManager.shared.availableMembers(ofFontFamily: familyName) {
+                for member in members {
+                    if let postscriptName = member.first as? String, seen.insert(postscriptName).inserted {
+                        candidates.append((postscriptName, false))
+                    }
+                }
+            }
+        }
+        #endif
+
+        let resolutionPool = candidates.contains(where: { !$0.isFamily })
+            ? candidates.filter { !$0.isFamily }
+            : candidates
+
+        let resolved = resolutionPool.max {
+            candidateScore(
+                candidateName: $0.name,
+                requestedFamily: fontFamily,
+                style: style,
+                weight: weight,
+                isFamilyName: $0.isFamily
+            ) < candidateScore(
+                candidateName: $1.name,
+                requestedFamily: fontFamily,
+                style: style,
+                weight: weight,
+                isFamilyName: $1.isFamily
+            )
+        }?.name
+
+        resolvedFontNameCache[cacheKey] = resolved ?? ""
+        return resolved
+    }
+
+    private static func isFontAvailable(fontFamily: String, style: FontStyle, weight: FontWeight) -> Bool {
+        if isFontRegistered(fontFamily: fontFamily) {
+            return true
+        }
+        return resolveFontName(fontFamily: fontFamily, style: style, weight: weight) != nil
     }
     
     public func getFont(size: CGFloat) -> Font {
@@ -957,11 +1171,15 @@ public class PaxFont {
             fontWeight = localFont.weight
         }
         
-        let isFontRegistered = PaxFont.isFontRegistered(fontFamily: fontFamily!)
-        
+        let resolvedFontName = PaxFont.resolveFontName(
+            fontFamily: fontFamily!,
+            style: fontStyle!,
+            weight: fontWeight!
+        )
+
         let baseFont: Font
-        if isFontRegistered {
-            baseFont = Font.custom(fontFamily!, size: size).weight(fontWeight!.fontWeight())
+        if let resolvedFontName {
+            baseFont = Font.custom(resolvedFontName, size: size).weight(fontWeight!.fontWeight())
         } else {
             baseFont = .system(size: size).weight(fontWeight!.fontWeight())
         }
@@ -1010,9 +1228,17 @@ public class PaxFont {
             fontWeight = localFont.weight
         }
 
+        let resolvedFontName = fontFamily.flatMap {
+            PaxFont.resolveFontName(
+                fontFamily: $0,
+                style: fontStyle ?? .normal,
+                weight: fontWeight ?? .normal
+            )
+        }
+
         let baseFont: UIFont
-        if let fontFamily, PaxFont.isFontRegistered(fontFamily: fontFamily) {
-            baseFont = UIFont(name: fontFamily, size: size) ?? UIFont.systemFont(ofSize: size, weight: fontWeight?.uiFontWeight() ?? .regular)
+        if let resolvedFontName {
+            baseFont = UIFont(name: resolvedFontName, size: size) ?? UIFont.systemFont(ofSize: size, weight: fontWeight?.uiFontWeight() ?? .regular)
         } else {
             baseFont = UIFont.systemFont(ofSize: size, weight: fontWeight?.uiFontWeight() ?? .regular)
         }
@@ -1062,9 +1288,17 @@ public class PaxFont {
             fontWeight = localFont.weight
         }
 
+        let resolvedFontName = fontFamily.flatMap {
+            PaxFont.resolveFontName(
+                fontFamily: $0,
+                style: fontStyle ?? .normal,
+                weight: fontWeight ?? .normal
+            )
+        }
+
         let baseFont: NSFont
-        if let fontFamily, PaxFont.isFontRegistered(fontFamily: fontFamily) {
-            baseFont = NSFont(name: fontFamily, size: size) ?? NSFont.systemFont(ofSize: size, weight: fontWeight?.nsFontWeight() ?? .regular)
+        if let resolvedFontName {
+            baseFont = NSFont(name: resolvedFontName, size: size) ?? NSFont.systemFont(ofSize: size, weight: fontWeight?.nsFontWeight() ?? .regular)
         } else {
             baseFont = NSFont.systemFont(ofSize: size, weight: fontWeight?.nsFontWeight() ?? .regular)
         }
@@ -1128,11 +1362,19 @@ public class PaxFont {
     private func ensureFontAvailabilityIfNeeded() {
         switch type {
         case .web(let webFont):
-            if !PaxFont.isFontRegistered(fontFamily: webFont.family) {
+            if !PaxFont.isFontAvailable(
+                fontFamily: webFont.family,
+                style: webFont.style,
+                weight: webFont.weight
+            ) {
                 PaxWebFontLoader.shared.ensureLoaded(font: webFont)
             }
         case .local(let localFont):
-            if !PaxFont.isFontRegistered(fontFamily: localFont.family) {
+            if !PaxFont.isFontAvailable(
+                fontFamily: localFont.family,
+                style: localFont.style,
+                weight: localFont.weight
+            ) {
                 var errorRef: Unmanaged<CFError>?
                 if CTFontManagerRegisterFontsForURL(localFont.path as CFURL, .process, &errorRef) {
                     PaxFont.markFontRegistered(fontFamily: localFont.family)
@@ -1180,6 +1422,7 @@ public class PaxFont {
             return false
         }
         registeredFontCache[fontFamily] = true
+        resolvedFontNameCache.removeAll(keepingCapacity: true)
         fontRegistryGeneration &+= 1
         return true
     }
@@ -1199,6 +1442,7 @@ public class PaxFont {
             return false
         }
         registeredFontCache[fontFamily] = true
+        resolvedFontNameCache.removeAll(keepingCapacity: true)
         fontRegistryGeneration &+= 1
         return true
     }
