@@ -757,6 +757,7 @@ fn inspect_template_identity(
 fn inspect_layer_name(layer: crate::api::Layer) -> &'static str {
     match layer {
         crate::api::Layer::Native => "native",
+        crate::api::Layer::NativeNonOccluding => "native-non-occluding",
         crate::api::Layer::Canvas => "canvas",
         crate::api::Layer::DontCare => "dont-care",
     }

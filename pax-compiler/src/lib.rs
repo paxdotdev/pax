@@ -125,21 +125,6 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     // Simple starting convention: first manifest is userland, second manifest is designer; other schemas are undefined
     let mut userland_manifest = manifests.remove(0);
 
-    if let Some(cargo_manifest_dir) = userland_manifest.cargo_manifest_dir.clone() {
-        let cargo_toml = fs::read_to_string(cargo_manifest_dir.clone() + "/Cargo.toml").unwrap();
-        let mut project_files: Vec<(String, String)> = vec![("Cargo.toml".to_string(), cargo_toml)];
-        let src_dir = cargo_manifest_dir.clone() + "/src";
-        let src_files = fs::read_dir(src_dir.clone()).unwrap();
-        for file in src_files {
-            let file = file.unwrap();
-            let file_name = file.file_name().into_string().unwrap();
-            let file_path = file.path();
-            let file_contents = fs::read_to_string(file_path).unwrap();
-            project_files.push(("src/".to_string() + &file_name, file_contents));
-        }
-        userland_manifest.project_files = project_files;
-    }
-
     let mut merged_manifest = userland_manifest.clone();
 
     //Hack: add a wrapper component so UniqueTemplateNodeIdentifier is a suitable uniqueid, even for root nodes

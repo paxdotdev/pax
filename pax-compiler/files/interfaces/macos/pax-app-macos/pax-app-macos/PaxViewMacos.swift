@@ -485,14 +485,9 @@ struct PaxViewMacos: View {
             } else {
                 attributed = AttributedString(textElement.content)
             }
-            guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
-                return
+            guard PaxEngineContainer.paxEngineContainer != nil else {
+                return .zero
             }
-
-            let nativeMessageQueue = pax_tick(engineContainer, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
-            processNativeMessageQueue(queue: nativeMessageQueue.unsafelyUnwrapped.pointee)
-            pax_dealloc_message_queue(nativeMessageQueue)
-            processDevRequestsIfNeeded()
 
             let nsAttributed = NSMutableAttributedString(attributedString: NSAttributedString(attributed))
             let paragraph = NSMutableParagraphStyle()
@@ -1177,57 +1172,6 @@ struct PaxViewMacos: View {
         }
 
 
-        func processNativeMessageQueue(queue: NativeMessageQueue) {
-
-            let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
-            let root = FlexBuffer.decode(data: Data.init(buffer: buffer))!
-
-            root["messages"]?.asVector?.makeIterator().forEach( { message in
-
-                let textCreateMessage = message["TextCreate"]
-                if textCreateMessage != nil {
-                    handleTextCreate(patch: AnyCreatePatch(fb: textCreateMessage!))
-                }
-
-                let textUpdateMessage = message["TextUpdate"]
-                if textUpdateMessage != nil {
-                    handleTextUpdate(patch: TextUpdatePatch(fb: textUpdateMessage!))
-                }
-
-                let textDeleteMessage = message["TextDelete"]
-                if textDeleteMessage != nil {
-                    handleTextDelete(patch: AnyDeletePatch(fb: textDeleteMessage!))
-                }
-
-                let frameCreateMessage = message["FrameCreate"]
-                if frameCreateMessage != nil {
-                    handleFrameCreate(patch: AnyCreatePatch(fb: frameCreateMessage!))
-                }
-
-                let frameUpdateMessage = message["FrameUpdate"]
-                if frameUpdateMessage != nil {
-                    handleFrameUpdate(patch: FrameUpdatePatch(fb: frameUpdateMessage!))
-                }
-
-                let frameDeleteMessage = message["FrameDelete"]
-                if frameDeleteMessage != nil {
-                    handleFrameDelete(patch: AnyDeletePatch(fb: frameDeleteMessage!))
-                }
-
-                let imageLoadMessage = message["ImageLoad"]
-                if imageLoadMessage != nil {
-                    handleImageLoad(patch: ImageLoadPatch(fb: imageLoadMessage!))
-                }
-
-                let screenshotMessage = message["Screenshot"]
-                if screenshotMessage != nil {
-                    handleScreenshot(patch: ScreenshotPatch(fb: screenshotMessage!))
-                }
-
-                //^ Add new message-receive handlers here ^
-            })
-
-        }
         override func scrollWheel(with event: NSEvent){
             let deltaX = event.scrollingDeltaX
             let deltaY = -event.scrollingDeltaY

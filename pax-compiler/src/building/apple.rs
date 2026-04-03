@@ -7,8 +7,7 @@ use crate::dev_session::{
     write_registered_session, DevSession,
 };
 use crate::helpers::{
-    get_host_crate_info, BUILD_DIR_NAME, DIR_IGNORE_LIST_MACOS, ERR_SPAWN, INTERFACE_DIR_NAME,
-    PAX_BADGE,
+    BUILD_DIR_NAME, DIR_IGNORE_LIST_MACOS, ERR_SPAWN, INTERFACE_DIR_NAME, PAX_BADGE,
 };
 use crate::{copy_dir_recursively, wait_with_output, RunContext, RunTarget};
 
@@ -1549,7 +1548,8 @@ fn create_symlink(target: &PathBuf, link: &PathBuf) -> Result<(), eyre::Report> 
             fs::remove_file(link)?;
         }
     }
-    symlink(target, link)?;
+    #[cfg(unix)]
+    unix_fs::symlink(target, link)?;
     Ok(())
 }
 

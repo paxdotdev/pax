@@ -1,6 +1,6 @@
 use crate::{
     messages::{
-        AgentMessage, ChangeType, ComponentSerializationRequest, DevClientResponse, LLMRequest,
+        AgentMessage, ComponentSerializationRequest, DevClientResponse, LLMRequest,
         LoadFileToStaticDirRequest,
     },
     orm::PaxManifestORM,
