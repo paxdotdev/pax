@@ -277,6 +277,22 @@ private func platformColor(_ color: Color) -> UIColor {
     UIColor(color)
 }
 
+private func alignedTextLayerFrame(containerSize: CGSize, measuredTextSize: CGSize, alignment: Alignment) -> CGRect {
+    let width = max(containerSize.width, 1)
+    let clampedTextHeight = max(measuredTextSize.height, 1)
+    let y: CGFloat
+    switch alignment.vertical {
+    case .center:
+        y = max((containerSize.height - clampedTextHeight) * 0.5, 0)
+    case .bottom:
+        y = max(containerSize.height - clampedTextHeight, 0)
+    default:
+        y = 0
+    }
+    let remainingHeight = max(containerSize.height - y, 1)
+    return CGRect(x: 0, y: y, width: width, height: min(clampedTextHeight, remainingHeight))
+}
+
 private func platformLayerTextAlignment(_ alignment: Alignment) -> CATextLayerAlignmentMode {
     switch alignment.horizontal {
     case .center:
@@ -312,6 +328,22 @@ private func platformTextAlignment(_ alignment: TextAlignment) -> NSTextAlignmen
 #elseif os(macOS)
 private func platformColor(_ color: Color) -> NSColor {
     NSColor(color)
+}
+
+private func alignedTextLayerFrame(containerSize: CGSize, measuredTextSize: CGSize, alignment: Alignment) -> CGRect {
+    let width = max(containerSize.width, 1)
+    let clampedTextHeight = max(measuredTextSize.height, 1)
+    let y: CGFloat
+    switch alignment.vertical {
+    case .center:
+        y = max((containerSize.height - clampedTextHeight) * 0.5, 0)
+    case .bottom:
+        y = max(containerSize.height - clampedTextHeight, 0)
+    default:
+        y = 0
+    }
+    let remainingHeight = max(containerSize.height - y, 1)
+    return CGRect(x: 0, y: y, width: width, height: min(clampedTextHeight, remainingHeight))
 }
 
 private func platformTextAlignment(_ alignment: TextAlignment) -> NSTextAlignment {
@@ -1602,7 +1634,6 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
         }
 
         let rect = CGRect(origin: .zero, size: size)
-        staticTextLayer.frame = rect
         staticTextLayer.contentsScale = UIScreen.main.scale
         selectableView.frame = rect
         selectableView.bounds = rect
@@ -1645,6 +1676,11 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
                 options: [.usesLineFragmentOrigin, .usesFontLeading],
                 context: nil
             ).integral.size
+            staticTextLayer.frame = alignedTextLayerFrame(
+                containerSize: size,
+                measuredTextSize: measured,
+                alignment: element.textStyle.alignment
+            )
             reportMeasuredTextSizeIfNeeded(measured, for: element)
         }
     }
@@ -2042,7 +2078,6 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
 
         let attr = NSAttributedString(nativeAttributedString(for: element))
         let rect = CGRect(origin: .zero, size: size)
-        staticTextLayer.frame = rect
         scrollView.frame = rect
         let measurementConstraint = CGSize(
             width: element.size_x >= 0 ? size.width : CGFloat.greatestFiniteMagnitude,
@@ -2061,14 +2096,32 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
             textView.frame = rect
             reportMeasuredTextSizeIfNeeded(textView.fittingSize, for: element)
         } else {
+            let mutable = NSMutableAttributedString(attributedString: attr)
+            let fullRange = NSRange(location: 0, length: mutable.length)
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.alignment = platformHorizontalTextAlignment(element.textStyle.alignment)
+            paragraphStyle.lineBreakMode = .byWordWrapping
+            mutable.addAttributes(
+                [
+                    .font: element.textStyle.font.getNSFont(size: element.textStyle.font_size),
+                    .foregroundColor: platformColor(element.textStyle.fill),
+                    .paragraphStyle: paragraphStyle
+                ],
+                range: fullRange
+            )
             staticTextLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1.0
             staticTextLayer.alignmentMode = platformLayerTextAlignment(element.textStyle.alignment)
-            staticTextLayer.string = attr
-            let measured = attr.boundingRect(
+            staticTextLayer.string = mutable
+            let measured = mutable.boundingRect(
                 with: measurementConstraint,
                 options: [.usesLineFragmentOrigin, .usesFontLeading],
                 context: nil
             ).integral.size
+            staticTextLayer.frame = alignedTextLayerFrame(
+                containerSize: size,
+                measuredTextSize: measured,
+                alignment: element.textStyle.alignment
+            )
             reportMeasuredTextSizeIfNeeded(measured, for: element)
         }
     }
