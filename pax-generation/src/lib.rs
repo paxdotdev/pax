@@ -1,3 +1,4 @@
+use futures::channel::mpsc;
 use pax_lang::parse_pax_err;
 use pax_lang::Rule;
 use pax_message::ScreenshotData;
@@ -11,7 +12,6 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use futures::channel::mpsc;
 
 const CLAUDE_API_URL: &str = "https://api.anthropic.com/v1/messages";
 const OPENAI_API_URL: &str = "https://api.openai.com/v1/chat/completions";
@@ -116,7 +116,8 @@ impl PaxAppGenerator {
                 let api_messages: Vec<Value> = user_messages
                     .iter()
                     .map(|m| {
-                        let content = m.content
+                        let content = m
+                            .content
                             .iter()
                             .map(|c| match c {
                                 ContentItem::Text { text, .. } => text.clone(),
@@ -125,7 +126,7 @@ impl PaxAppGenerator {
                             })
                             .collect::<Vec<String>>()
                             .join("\n");
-                        
+
                         json!({ "role": &m.role, "content": content })
                     })
                     .collect();
@@ -138,7 +139,8 @@ impl PaxAppGenerator {
                 });
 
                 if let Some(sys_msg) = system_message {
-                    let system_content = sys_msg.content
+                    let system_content = sys_msg
+                        .content
                         .iter()
                         .map(|c| match c {
                             ContentItem::Text { text, .. } => text.clone(),
@@ -163,10 +165,12 @@ impl PaxAppGenerator {
             AIModel::GPT4o | AIModel::GPT4oMini | AIModel::O1 | AIModel::O1Mini => {
                 let api_messages: Vec<Value> = messages
                     .iter()
-                    .map(|m| json!({
-                        "role": &m.role,
-                        "content": &m.content
-                    }))
+                    .map(|m| {
+                        json!({
+                            "role": &m.role,
+                            "content": &m.content
+                        })
+                    })
                     .collect();
 
                 let body = json!({
@@ -216,7 +220,11 @@ impl PaxAppGenerator {
                         .and_then(|arr| arr.first())
                         .and_then(|obj| obj["message"]["content"].as_str())
                         .ok_or_else(|| {
-                            format!("Unexpected response format for GPT-4o. Response: {:?}", response).into()
+                            format!(
+                                "Unexpected response format for GPT-4o. Response: {:?}",
+                                response
+                            )
+                            .into()
                         })
                         .map(String::from)
                 }
@@ -335,7 +343,6 @@ impl PaxAppGenerator {
 
         let mut retry_count = 0;
         const MAX_RETRIES: usize = 5;
-
         while retry_count < MAX_RETRIES {
             tx.unbounded_send((request_id, format!("--- Sent request to {} ---", self.model.as_str())))?;
             let response = self.send_prompt(&messages).await?;
@@ -599,7 +606,7 @@ impl PaxAppGenerator {
 
         for (filename, content) in pax_files {
             match parse_pax_err(Rule::pax_component_definition, content) {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(e) => parse_errors.push((filename.clone(), e.to_string())),
             }
         }
@@ -661,97 +668,4 @@ impl PaxAppGenerator {
         }
         Ok(files_content)
     }
-
-
-
-
-   
-// pub async fn update_pax_file(
-//     &self,
-//     pax_content: &str,
-//     prompt: &str,
-//     request_id: u64,
-//     tx: mpsc::UnboundedSender<(u64, String)>,
-//     screenshot: Option<ScreenshotData>
-// ) -> Result<(String, String), Box<dyn Error>> {
-
-// if let Some(screenshot) = screenshot {
-//     let screenshot_path = project_root!().join("screenshot.png");
-//     let img = image::ImageBuffer::<image::Rgba<u8>, Vec<u8>>::from_raw(
-//         screenshot.width as u32,
-//         screenshot.height as u32,
-//         screenshot.data
-//     ).expect("Failed to create image buffer");
-    
-//     img.save(&screenshot_path)?;
-// }
-
-
-//     let mut messages = vec![
-//         Message {
-//             role: "system".to_string(),
-//             content: SYSTEM_PROMPT.to_string(),
-//         },
-//         Message {
-//             role: "user".to_string(),
-//             content: format!(
-//                 "Here's the current PAX file content:\n\n```pax\n{}\n```\n\nPlease update this PAX file based on the following request:\n{}",
-//                 pax_content, prompt
-//             ),
-//         },
-//     ];
-
-//     let mut retry_count = 0;
-//     const MAX_RETRIES: usize = 5;
-
-//     while retry_count < MAX_RETRIES {
-//         tx.unbounded_send((request_id, "--- Sent request to OpenAI ---".to_string()))?;
-//         let response = self.send_prompt(&messages).await?;
-//         tx.unbounded_send((request_id, "Received response from OpenAI.".to_string()))?;
-
-//         messages.push(Message {
-//             role: "assistant".to_string(),
-//             content: response.clone(),
-//         });
-//         match self.parse_response(&response) {
-//             Ok(resp) => {
-//                 let (_, pax_files, resp) = resp;
-//                 let parse_errors = self.pre_parse_pax_files(&pax_files);
-//                 if parse_errors.is_empty() {
-//                     return Ok((pax_files[0].1.clone(), resp));
-//                 } else {
-//                     tx.unbounded_send((request_id,"PAX parsing errors detected:".to_string()))?;
-//                     let error_message = format!(
-//                         "The updated PAX file failed to parse. Error: {}. Please fix the PAX syntax errors and provide the corrected code.",
-//                         parse_errors[0].1
-//                     );
-//                     messages.push(Message {
-//                         role: "user".to_string(),
-//                         content: error_message,
-//                     });
-//                     tx.unbounded_send((request_id,"Sending error message to AI for correction.".to_string()))?;
-//                     retry_count += 1;
-//                 }
-//             }
-//             Err(e) => {
-//                 let error_message = format!(
-//                     "The previous response could not be parsed correctly. Error: {}. Please provide the updated PAX file again, ensuring that it's properly formatted within a PAX code block.",
-//                     e
-//                 );
-//                 messages.push(Message {
-//                     role: "user".to_string(),
-//                     content: error_message,
-//                 });
-//                 retry_count += 1;
-//             }
-//         }
-//     }
-
-//     Err(format!(
-//         "Maximum retries ({}) reached while updating PAX file.",
-//         MAX_RETRIES
-//     )
-//     .into())
-// }
-
 }

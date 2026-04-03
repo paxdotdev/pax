@@ -2,6 +2,10 @@ use crate::helpers::{
     wait_with_output, ASSETS_DIR_NAME, BUILD_DIR_NAME, DIR_IGNORE_LIST_WEB, INTERFACE_DIR_NAME,
     PAX_BADGE,
 };
+use crate::dev_session::{
+    self, now_ms, project_dev_dir, remove_project_active_session, write_project_active_session,
+    DevSession,
+};
 use crate::{copy_dir_recursively, RunContext, RunTarget};
 
 use color_eyre::eyre;
@@ -158,6 +162,8 @@ pub fn build_web_project_with_cartridge(
     }
     if ctx.should_run_designer {
         cmd.arg("--features").arg("designer");
+    } else if ctx.should_run_designtime {
+        cmd.arg("--features").arg("designtime");
     }
 
     #[cfg(unix)]
@@ -225,11 +231,31 @@ pub fn build_web_project_with_cartridge(
         if ctx.should_run_designer {
             println!("{} 🐇🎨 Running Pax Web with Pax Designer...", *PAX_BADGE);
             dotenv().ok();
+            let dev_session = prepare_web_dev_session(&ctx.project_path, pax_dir)?;
+            write_project_active_session(pax_dir, &dev_session)?;
             let _ = crate::design_server::start_server(
                 build_dest.to_str().unwrap(),
                 pax_dir.parent().unwrap().to_str().unwrap(),
                 manifest,
+                None,
+                None,
+                Some(dev_session.clone()),
             );
+            cleanup_web_dev_session(pax_dir, &dev_session)?;
+        } else if ctx.should_run_designtime {
+            println!("{} 🐇 Running Pax Web with designtime...", *PAX_BADGE);
+            dotenv().ok();
+            let dev_session = prepare_web_dev_session(&ctx.project_path, pax_dir)?;
+            write_project_active_session(pax_dir, &dev_session)?;
+            let _ = crate::design_server::start_server(
+                build_dest.to_str().unwrap(),
+                pax_dir.parent().unwrap().to_str().unwrap(),
+                manifest,
+                None,
+                None,
+                Some(dev_session.clone()),
+            );
+            cleanup_web_dev_session(pax_dir, &dev_session)?;
         } else {
             println!("{} 🐇 Running Pax Web...", *PAX_BADGE);
             let _ = crate::design_server::static_server::start_server(build_dest);
@@ -243,4 +269,39 @@ pub fn build_web_project_with_cartridge(
         );
     }
     Ok(build_src)
+}
+
+fn prepare_web_dev_session(
+    project_root: &PathBuf,
+    pax_dir: &PathBuf,
+) -> Result<DevSession, eyre::Report> {
+    let started_at_ms = now_ms();
+    let session_id = format!("web-{started_at_ms}-{}", std::process::id());
+    let session_dir = project_dev_dir(pax_dir).join("sessions").join(&session_id);
+    fs::create_dir_all(session_dir.join("requests"))?;
+    fs::create_dir_all(session_dir.join("responses"))?;
+    fs::create_dir_all(session_dir.join("captures"))?;
+
+    Ok(DevSession {
+        session_id,
+        platform: "web".to_string(),
+        designtime: true,
+        project_root: Some(fs::canonicalize(project_root).unwrap_or_else(|_| project_root.clone())),
+        session_dir: Some(session_dir),
+        app_pid: None,
+        design_server_addr: None,
+        control_kind: "filesystem".to_string(),
+        location: None,
+        started_at_ms,
+        last_seen_ms: started_at_ms,
+    })
+}
+
+fn cleanup_web_dev_session(
+    pax_dir: &PathBuf,
+    dev_session: &DevSession,
+) -> Result<(), eyre::Report> {
+    remove_project_active_session(pax_dir, &dev_session.session_id)?;
+    dev_session::remove_registered_session(&dev_session.session_id)?;
+    Ok(())
 }

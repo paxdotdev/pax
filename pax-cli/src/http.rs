@@ -1,43 +1,45 @@
 use std::sync::{Arc, Mutex};
 
 pub fn check_for_update(new_version_info: Arc<Mutex<Option<String>>>) {
-    let current_version = env!("CARGO_PKG_VERSION");
-    let url = match option_env!("PAX_UPDATE_SERVER") {
-        Some(server) => {
-            format!("{}/pax-cli/{}", server, current_version)
-        }
-        None => {
-            format!("https://update.pax.dev/pax-cli/{}", current_version)
-        }
-    };
-    let user_agent = get_user_agent();
-
-    let client = reqwest::blocking::Client::new();
-    if let Ok(response) = client
-        .get(&url)
-        .header(reqwest::header::USER_AGENT, user_agent)
-        .send()
-    {
-        if response.status().is_success() {
-            match response.text() {
-                Ok(body) => {
-                    if !body.is_empty() {
-                        // Store the new version info — this mutex is how the "nominal action"
-                        // will decide, upon completion, whether an update is available.
-                        let mut lock = new_version_info.lock().unwrap();
-                        *lock = Some(body);
-                    }
-                }
-                Err(e) => {
-                    panic!("{:?}", e);
-                }
+    let _ = std::panic::catch_unwind(|| {
+        let current_version = env!("CARGO_PKG_VERSION");
+        let url = match option_env!("PAX_UPDATE_SERVER") {
+            Some(server) => {
+                format!("{}/pax-cli/{}", server, current_version)
             }
-        } else {
-            //error returned by remote, e.g. by a malformed request.  Silently proceed as if no update is available.
+            None => {
+                format!("https://update.pax.dev/pax-cli/{}", current_version)
+            }
+        };
+        let user_agent = get_user_agent();
+
+        let Ok(client) = reqwest::blocking::Client::builder().no_proxy().build() else {
+            return;
+        };
+
+        let Ok(response) = client
+            .get(&url)
+            .header(reqwest::header::USER_AGENT, user_agent)
+            .send()
+        else {
+            // Error connecting to remote. Silently proceed as if no update is available.
+            return;
+        };
+
+        if response.status().is_success() {
+            let Ok(body) = response.text() else {
+                return;
+            };
+
+            if !body.is_empty() {
+                // Store the new version info — this mutex is how the "nominal action"
+                // will decide, upon completion, whether an update is available.
+                let mut lock = new_version_info.lock().unwrap();
+                *lock = Some(body);
+            }
         }
-    } else {
-        //error connecting to remote.  Silently proceed as if no update is available.
-    }
+        // Errors returned by remote, e.g. by a malformed request, are ignored.
+    });
 }
 
 const TOOL_NAME: &str = "pax-cli";

@@ -186,6 +186,51 @@ impl PaxEngine {
 
     #[cfg(feature = "designtime")]
     pub fn new_with_designtime(
+        userland_main_component_instance: Rc<ComponentInstance>,
+        viewport_size: (f64, f64),
+        designtime: Rc<RefCell<DesigntimeManager>>,
+        platform: Platform,
+        os: OS,
+        get_elapsed_millis: Box<dyn Fn() -> u128>,
+    ) -> Self {
+        use pax_runtime_api::{math::Transform2, properties, Functions};
+        Functions::register_all_functions();
+
+        let frames_elapsed = Property::new(0);
+        properties::register_time(&frames_elapsed);
+        let globals = Globals {
+            frames_elapsed,
+            viewport: Property::new(TransformAndBounds {
+                transform: Transform2::identity(),
+                bounds: viewport_size,
+            }),
+            platform,
+            os,
+            designtime: designtime.clone(),
+            get_elapsed_millis: Rc::from(get_elapsed_millis),
+        };
+
+        let mut runtime_context = Rc::new(RuntimeContext::new(
+            globals,
+            userland_main_component_instance.clone(),
+        ));
+
+        let root_expanded_node = ExpandedNode::initialize_root(
+            Rc::clone(&userland_main_component_instance),
+            &mut runtime_context,
+        );
+        *borrow_mut!(runtime_context.userland_root_expanded_node) =
+            Some(Rc::clone(&root_expanded_node));
+        runtime_context.register_root_expanded_node(&root_expanded_node);
+
+        PaxEngine {
+            runtime_context,
+            root_expanded_node,
+        }
+    }
+
+    #[cfg(feature = "designtime")]
+    pub fn new_with_designer(
         designer_main_component_instance: Rc<ComponentInstance>,
         userland_main_component_instance: Rc<ComponentInstance>,
         viewport_size: (f64, f64),

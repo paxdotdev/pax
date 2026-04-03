@@ -1082,6 +1082,7 @@ export class NativeElementPool {
                 useCORS: true,
                 allowTaint: false,
                 foreignObjectRendering: true,
+                scale: patch.scale ?? 1,
                 ignoreElements: (element) => {
                     // Ignore images to prevent
                     return element.tagName === 'IMG'

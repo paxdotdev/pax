@@ -12,6 +12,7 @@ use std::net::TcpListener;
 use env_logger;
 use std::io::Write;
 
+use crate::dev_session::{self, DevLookRequest, DevSession};
 use crate::helpers::PAX_BADGE;
 use crate::{RunContext, RunTarget};
 use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -19,6 +20,7 @@ use pax_manifest::PaxManifest;
 
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -36,6 +38,8 @@ pub struct AppState {
     request_id_counter: Mutex<usize>,
     manifest: Mutex<Option<PaxManifest>>,
     last_written_timestamp: Mutex<SystemTime>,
+    dev_session: Mutex<Option<DevSession>>,
+    pending_dev_look_requests: Mutex<HashMap<String, DevLookRequest>>,
 }
 
 impl AppState {
@@ -47,9 +51,16 @@ impl AppState {
             request_id_counter: Mutex::new(0),
             manifest: Mutex::new(None),
             last_written_timestamp: Mutex::new(UNIX_EPOCH),
+            dev_session: Mutex::new(None),
+            pending_dev_look_requests: Mutex::new(HashMap::new()),
         }
     }
-    pub fn new(serve_dir: PathBuf, project_root: PathBuf, manifest: PaxManifest) -> Self {
+    pub fn new(
+        serve_dir: PathBuf,
+        project_root: PathBuf,
+        manifest: PaxManifest,
+        dev_session: Option<DevSession>,
+    ) -> Self {
         AppState {
             serve_dir: Mutex::new(serve_dir),
             userland_project_root: Mutex::new(project_root),
@@ -57,6 +68,8 @@ impl AppState {
             request_id_counter: Mutex::new(0),
             manifest: Mutex::new(Some(manifest)),
             last_written_timestamp: Mutex::new(SystemTime::now()),
+            dev_session: Mutex::new(dev_session),
+            pending_dev_look_requests: Mutex::new(HashMap::new()),
         }
     }
 
@@ -88,6 +101,9 @@ pub fn start_server(
     static_file_path: &str,
     src_folder_to_watch: &str,
     manifest: PaxManifest,
+    requested_port: Option<u16>,
+    ready_file: Option<PathBuf>,
+    dev_session: Option<DevSession>,
 ) -> std::io::Result<()> {
     // Initialize logging
     std::env::set_var("RUST_LOG", "actix_web=info");
@@ -99,6 +115,7 @@ pub fn start_server(
         PathBuf::from(static_file_path),
         PathBuf::from_str(src_folder_to_watch).unwrap(),
         manifest,
+        dev_session,
     );
     let fs_path = initial_state.serve_dir.lock().unwrap().clone();
     let state = Data::new(initial_state);
@@ -107,35 +124,39 @@ pub fn start_server(
 
     // Create a Runtime
     let runtime = actix_web::rt::System::new().block_on(async {
-        let mut port = 8080;
-        let server = loop {
-            // Check if the port is available
-            if TcpListener::bind(("127.0.0.1", port)).is_ok() {
-                // Log the server details
-                println!(
-                    "{} 🗂️  Serving static files from {}",
-                    *PAX_BADGE,
-                    &fs_path.to_str().unwrap()
-                );
-                let address_msg = format!("http://127.0.0.1:{}", port).blue();
-                let server_running_at_msg = format!("Server running at {}", address_msg).bold();
-                println!("{} 📠 {}", *PAX_BADGE, server_running_at_msg);
-                break HttpServer::new(move || {
-                    App::new()
-                        .wrap(Logger::new("| %s | %U"))
-                        .app_data(state.clone())
-                        .service(web_socket)
-                        .service(
-                            actix_files::Files::new("/*", fs_path.clone()).index_file("index.html"),
-                        )
-                })
-                .bind(("127.0.0.1", port))
-                .expect("Error binding to address")
-                .workers(2);
-            } else {
-                port += 1; // Try the next port
+        let listener = TcpListener::bind(("127.0.0.1", requested_port.unwrap_or(0)))?;
+        let port = listener.local_addr()?.port();
+        if let Some(session) = state.dev_session.lock().unwrap().as_mut() {
+            session.design_server_addr = Some(format!("ws://127.0.0.1:{port}"));
+            session.location = Some(format!("http://127.0.0.1:{port}"));
+            session.last_seen_ms = dev_session::now_ms();
+        }
+
+        println!(
+            "{} 🗂️  Serving static files from {}",
+            *PAX_BADGE,
+            &fs_path.to_str().unwrap()
+        );
+        let address_msg = format!("http://127.0.0.1:{}", port).blue();
+        let server_running_at_msg = format!("Server running at {}", address_msg).bold();
+        println!("{} 📠 {}", *PAX_BADGE, server_running_at_msg);
+
+        if let Some(ready_file) = ready_file {
+            if let Some(parent) = ready_file.parent() {
+                fs::create_dir_all(parent)?;
             }
-        };
+            fs::write(&ready_file, format!("ws://127.0.0.1:{port}"))?;
+        }
+
+        let server = HttpServer::new(move || {
+            App::new()
+                .wrap(Logger::new("| %s | %U"))
+                .app_data(state.clone())
+                .service(web_socket)
+                .service(actix_files::Files::new("/*", fs_path.clone()).index_file("index.html"))
+        })
+        .listen(listener)?
+        .workers(2);
 
         server.run().await
     });
@@ -189,7 +210,6 @@ pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<Recommend
                                             path: path.to_str().unwrap().to_string(),
                                         };
                                         addr.do_send(msg);
-                                        state.update_last_written_timestamp();
                                     }
                                     Err(_) => (),
                                 }
@@ -230,6 +250,7 @@ fn create_designer_run_context() -> RunContext {
         verbose: false,
         should_also_run: false,
         is_libdev_mode: true,
+        should_run_designtime: true,
         should_run_designer: true,
         process_child_ids: Arc::new(Mutex::new(vec![])),
         is_release: false,

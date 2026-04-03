@@ -32,4 +32,7 @@ struct NativeMessageQueue *pax_tick(struct PaxEngineContainer *engine_container,
                                     float height,
                                     float dpr);
 
+struct NativeMessageQueue *pax_designtime_inspect_tree(struct PaxEngineContainer *engine_container,
+                                                       int64_t max_depth);
+
 void pax_dealloc_message_queue(struct NativeMessageQueue *queue);

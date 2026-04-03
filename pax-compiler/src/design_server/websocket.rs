@@ -1,4 +1,8 @@
 use crate::design_server::{AppState, FileContent, WatcherFileChanged};
+use crate::dev_session::{
+    self, session_request_dir, session_response_dir, write_registered_session, DevCapture,
+    DevInspectTreeResponse, DevLookRequest, DevLookResponse, DevRequestEnvelope,
+};
 
 use pax_manifest::{
     code_serialization::serialize_component_to_file, parsing::TemplateNodeParseContext,
@@ -7,13 +11,16 @@ use pax_manifest::{
 use actix::{Actor, AsyncContext, Handler, Running, StreamHandler};
 use actix_web::web::Data;
 use actix_web_actors::ws::{self};
+use image::codecs::jpeg::JpegEncoder;
+use image::codecs::png::PngEncoder;
+use image::{ColorType, ImageBuffer, ImageEncoder, Rgba};
 use pax_designtime::messages::{
-    AgentMessage, ComponentSerializationRequest, FileChangedNotification,
-    LoadFileToStaticDirRequest, LoadManifestResponse, ManifestSerializationRequest,
-    UpdateTemplateRequest,
+    AgentMessage, ComponentSerializationRequest, DevClientInspectTreeRequest,
+    DevClientLookRequest, DevClientResponse, FileChangedNotification, LoadFileToStaticDirRequest,
+    LoadManifestResponse, ManifestSerializationRequest, UpdateTemplateRequest,
 };
 use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
-use std::collections::HashMap;
+use std::{collections::HashMap, fs, io::BufWriter, path::Path, time::Duration};
 
 pub mod socket_message_accumulator;
 
@@ -31,6 +38,157 @@ impl PrivilegedAgentWebSocket {
             socket_msg_accum: SocketMessageAccumulator::new(),
         }
     }
+
+    fn refresh_dev_session_registration(&self) {
+        let mut dev_session = self.state.dev_session.lock().unwrap();
+        let Some(dev_session) = dev_session.as_mut() else {
+            return;
+        };
+        dev_session.last_seen_ms = dev_session::now_ms();
+        if let Err(err) = write_registered_session(dev_session) {
+            eprintln!(
+                "failed to refresh web dev session {}: {err}",
+                dev_session.session_id
+            );
+        }
+    }
+
+    fn poll_dev_requests(&self, ctx: &mut ws::WebsocketContext<Self>) {
+        let Some(dev_session) = self.state.dev_session.lock().unwrap().clone() else {
+            return;
+        };
+        let request_dir = match session_request_dir(&dev_session) {
+            Ok(request_dir) => request_dir,
+            Err(err) => {
+                eprintln!("failed to resolve web dev request directory: {err}");
+                return;
+            }
+        };
+
+        let request_files = match fs::read_dir(&request_dir) {
+            Ok(request_files) => request_files,
+            Err(err) => {
+                eprintln!("failed to read web dev request directory {request_dir:?}: {err}");
+                return;
+            }
+        };
+
+        for request_file in request_files.flatten() {
+            let path = request_file.path();
+            if path.extension().and_then(|extension| extension.to_str()) != Some("json") {
+                continue;
+            }
+
+            let request_id = path
+                .file_stem()
+                .and_then(|value| value.to_str())
+                .unwrap_or("unknown-request")
+                .to_string();
+            let request_bytes = match fs::read(&path) {
+                Ok(request_bytes) => request_bytes,
+                Err(err) => {
+                    let _ = write_dev_error_response(
+                        &dev_session,
+                        &request_id,
+                        format!("failed to read dev request: {err}"),
+                    );
+                    let _ = fs::remove_file(&path);
+                    continue;
+                }
+            };
+            let request_envelope: DevRequestEnvelope = match serde_json::from_slice(&request_bytes) {
+                Ok(request_envelope) => request_envelope,
+                Err(err) => {
+                    let _ = write_dev_error_response(
+                        &dev_session,
+                        &request_id,
+                        format!("failed to decode dev request envelope: {err}"),
+                    );
+                    let _ = fs::remove_file(&path);
+                    continue;
+                }
+            };
+
+            let forwarded_message = match request_envelope.kind.as_str() {
+                "look" => {
+                    let look_request: DevLookRequest = match serde_json::from_slice(&request_bytes) {
+                        Ok(look_request) => look_request,
+                        Err(err) => {
+                            let _ = write_dev_error_response(
+                                &dev_session,
+                                &request_envelope.request_id,
+                                format!("failed to decode look request: {err}"),
+                            );
+                            let _ = fs::remove_file(&path);
+                            continue;
+                        }
+                    };
+                    self.state
+                        .pending_dev_look_requests
+                        .lock()
+                        .unwrap()
+                        .insert(look_request.request_id.clone(), look_request.clone());
+                    AgentMessage::DevClientRequest(pax_designtime::messages::DevClientRequest::Look(
+                        DevClientLookRequest {
+                            request_id: look_request.request_id,
+                            scale: look_request.scale,
+                            period_ms: look_request.period_ms,
+                            duration_ms: look_request.duration_ms,
+                        },
+                    ))
+                }
+                "inspect-tree" => {
+                    let inspect_request = match serde_json::from_slice::<
+                        crate::dev_session::DevInspectTreeRequest,
+                    >(&request_bytes)
+                    {
+                        Ok(inspect_request) => inspect_request,
+                        Err(err) => {
+                            let _ = write_dev_error_response(
+                                &dev_session,
+                                &request_envelope.request_id,
+                                format!("failed to decode inspect-tree request: {err}"),
+                            );
+                            let _ = fs::remove_file(&path);
+                            continue;
+                        }
+                    };
+                    AgentMessage::DevClientRequest(
+                        pax_designtime::messages::DevClientRequest::InspectTree(
+                            DevClientInspectTreeRequest {
+                                request_id: inspect_request.request_id,
+                                max_depth: inspect_request.max_depth,
+                            },
+                        ),
+                    )
+                }
+                unsupported_kind => {
+                    let _ = write_dev_error_response(
+                        &dev_session,
+                        &request_envelope.request_id,
+                        format!("unsupported dev request kind: {unsupported_kind}"),
+                    );
+                    let _ = fs::remove_file(&path);
+                    continue;
+                }
+            };
+
+            match rmp_serde::to_vec(&forwarded_message) {
+                Ok(serialized_message) => {
+                    ctx.binary(serialized_message);
+                    let _ = fs::remove_file(&path);
+                }
+                Err(err) => {
+                    let _ = write_dev_error_response(
+                        &dev_session,
+                        &request_envelope.request_id,
+                        format!("failed to serialize forwarded dev request: {err}"),
+                    );
+                    let _ = fs::remove_file(&path);
+                }
+            }
+        }
+    }
 }
 
 impl Actor for PrivilegedAgentWebSocket {
@@ -39,11 +197,25 @@ impl Actor for PrivilegedAgentWebSocket {
     fn started(&mut self, ctx: &mut Self::Context) {
         let mut active_client = self.state.active_websocket_client.lock().unwrap();
         *active_client = Some(ctx.address());
+        drop(active_client);
+
+        self.refresh_dev_session_registration();
+        ctx.run_interval(Duration::from_millis(50), |actor, ctx| {
+            actor.poll_dev_requests(ctx);
+        });
+        ctx.run_interval(Duration::from_secs(2), |actor, _ctx| {
+            actor.refresh_dev_session_registration();
+        });
     }
 
     fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
         let mut active_client = self.state.active_websocket_client.lock().unwrap();
         *active_client = None;
+        drop(active_client);
+
+        if let Some(dev_session) = self.state.dev_session.lock().unwrap().as_ref() {
+            let _ = dev_session::remove_registered_session(&dev_session.session_id);
+        }
         Running::Stop
     }
 }
@@ -190,6 +362,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                         eprintln!("server couldn't write to served folder: {:?}", path);
                     };
                 }
+                Ok(AgentMessage::DevClientResponse(response)) => {
+                    if let Err(err) = handle_dev_client_response(&self.state, response) {
+                        eprintln!("failed to handle web dev response: {err}");
+                    }
+                }
                 Ok(_) => {}
                 Err(e) => {
                     eprintln!("Deserialization error: {:?}", e);
@@ -246,6 +423,187 @@ fn handle_manifest_serialization_request(
             }
         }
     }
+}
+
+fn handle_dev_client_response(
+    state: &Data<AppState>,
+    response: DevClientResponse,
+) -> std::io::Result<()> {
+    let dev_session = state
+        .dev_session
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "missing web dev session"))?;
+
+    match response {
+        DevClientResponse::Look(response) => {
+            let request_id = response.request_id.clone();
+            let pending_request = state
+                .pending_dev_look_requests
+                .lock()
+                .unwrap()
+                .remove(&request_id);
+            let pending_request = pending_request.ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!(
+                        "no pending web look request exists for {}",
+                        request_id
+                    ),
+                )
+            })?;
+
+            let captures = write_dev_look_capture_files(&pending_request, &response.captures)?;
+            write_dev_json_response(
+                &dev_session,
+                &request_id,
+                &DevLookResponse {
+                    request_id: request_id.clone(),
+                    status: response.status,
+                    captures,
+                    error: response.error,
+                },
+            )
+        }
+        DevClientResponse::InspectTree(response) => {
+            let request_id = response.request_id.clone();
+            write_dev_json_response(
+                &dev_session,
+                &request_id,
+                &DevInspectTreeResponse {
+                    request_id: request_id.clone(),
+                    status: response.status,
+                    node_count: response.node_count,
+                    tree_json: response.tree_json,
+                    error: response.error,
+                },
+            )
+        }
+    }
+}
+
+fn write_dev_look_capture_files(
+    request: &DevLookRequest,
+    raw_captures: &[pax_designtime::messages::DevClientRawCapture],
+) -> std::io::Result<Vec<DevCapture>> {
+    fs::create_dir_all(&request.output_dir)?;
+    let extension = if request.format.eq_ignore_ascii_case("jpeg") {
+        "jpg"
+    } else {
+        "png"
+    };
+
+    let mut captures = Vec::with_capacity(raw_captures.len());
+    for (capture_index, raw_capture) in raw_captures.iter().enumerate() {
+        let capture_path = request
+            .output_dir
+            .join(format!("{capture_index:04}.{extension}"));
+        write_encoded_capture_file(
+            &capture_path,
+            &raw_capture.rgba_bytes,
+            raw_capture.width,
+            raw_capture.height,
+            &request.format,
+            request.quality,
+        )?;
+        captures.push(DevCapture {
+            path: capture_path,
+            width: raw_capture.width,
+            height: raw_capture.height,
+            captured_at_ms: raw_capture.captured_at_ms,
+        });
+    }
+
+    Ok(captures)
+}
+
+fn write_encoded_capture_file(
+    path: &Path,
+    rgba_bytes: &[u8],
+    width: usize,
+    height: usize,
+    format: &str,
+    quality: Option<f64>,
+) -> std::io::Result<()> {
+    let width_u32 = u32::try_from(width).map_err(|_| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "capture width overflowed u32")
+    })?;
+    let height_u32 = u32::try_from(height).map_err(|_| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "capture height overflowed u32")
+    })?;
+    let file = fs::File::create(path)?;
+    let mut writer = BufWriter::new(file);
+
+    if format.eq_ignore_ascii_case("jpeg") {
+        let rgba_image = ImageBuffer::<Rgba<u8>, _>::from_raw(
+            width_u32,
+            height_u32,
+            rgba_bytes.to_vec(),
+        )
+        .ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "invalid RGBA buffer length for JPEG capture",
+            )
+        })?;
+        let rgb_image = image::DynamicImage::ImageRgba8(rgba_image).into_rgb8();
+        let jpeg_quality = (quality.unwrap_or(0.9).clamp(0.0, 1.0) * 100.0).round() as u8;
+        let mut encoder = JpegEncoder::new_with_quality(&mut writer, jpeg_quality.max(1));
+        encoder
+            .encode(
+                rgb_image.as_raw(),
+                width_u32,
+                height_u32,
+                ColorType::Rgb8,
+            )
+            .map_err(image_error_to_io)
+    } else {
+        let encoder = PngEncoder::new(&mut writer);
+        encoder
+            .write_image(rgba_bytes, width_u32, height_u32, ColorType::Rgba8)
+            .map_err(image_error_to_io)
+    }
+}
+
+fn write_dev_json_response<T: serde::Serialize>(
+    dev_session: &crate::dev_session::DevSession,
+    request_id: &str,
+    response: &T,
+) -> std::io::Result<()> {
+    let response_dir = session_response_dir(dev_session).map_err(report_to_io)?;
+    fs::create_dir_all(&response_dir)?;
+    let response_path = response_dir.join(format!("{request_id}.json"));
+    let response_bytes = serde_json::to_vec_pretty(response).map_err(json_error_to_io)?;
+    fs::write(response_path, response_bytes)
+}
+
+fn write_dev_error_response(
+    dev_session: &crate::dev_session::DevSession,
+    request_id: &str,
+    error: String,
+) -> std::io::Result<()> {
+    write_dev_json_response(
+        dev_session,
+        request_id,
+        &serde_json::json!({
+            "request_id": request_id,
+            "status": "error",
+            "error": error,
+        }),
+    )
+}
+
+fn image_error_to_io(err: image::ImageError) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::Other, err)
+}
+
+fn json_error_to_io(err: serde_json::Error) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::InvalidData, err)
+}
+
+fn report_to_io(err: color_eyre::eyre::Report) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::Other, err.to_string())
 }
 
 struct LLMRequestMessage {

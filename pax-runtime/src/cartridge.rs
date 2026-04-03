@@ -23,7 +23,7 @@ pub trait DefinitionToInstanceTraverser {
 
     fn get_manifest(&self) -> std::cell::Ref<'_, pax_manifest::PaxManifest>;
 
-    #[cfg(any(feature = "designer", feature = "designtime"))]
+    #[cfg(feature = "designtime")]
     fn get_designtime_manager(
         &self,
         project_query: String,

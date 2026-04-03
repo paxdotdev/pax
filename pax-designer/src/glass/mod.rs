@@ -49,7 +49,6 @@ use intent::Intent;
 use outline::PathOutline;
 use wireframe_editor::WireframeEditor;
 
-
 const DOUBLE_CLICK_MAX_MS: u64 = 400;
 
 #[pax]

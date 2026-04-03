@@ -135,7 +135,10 @@ impl NodeContext {
 
     pub fn screenshot(&self, id: u32) {
         self.runtime_context
-            .enqueue_native_message(NativeMessage::Screenshot(ScreenshotPatch { id }));
+            .enqueue_native_message(NativeMessage::Screenshot(ScreenshotPatch {
+                id,
+                scale: None,
+            }));
     }
 
     pub fn get_screenshot_map(&self) -> Rc<RefCell<HashMap<u32, ScreenshotData>>> {

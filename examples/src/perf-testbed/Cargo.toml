@@ -23,6 +23,7 @@ name = "run"
 path = "bin/run.rs"
 
 [features]
+designtime = ["pax-kit/designtime"]
 parser = ["pax-kit/parser"]
 web = ["pax-kit/web"]
 macos = ["pax-kit/macos"]

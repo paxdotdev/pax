@@ -3,6 +3,8 @@ pub mod cartridge;
 pub mod component;
 pub mod conditional;
 pub mod constants;
+#[cfg(feature = "designtime")]
+pub mod designtime_support;
 pub mod engine;
 pub mod form_event;
 pub mod layout;

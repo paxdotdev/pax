@@ -15,6 +15,7 @@ extern crate serde;
 extern crate core;
 mod building;
 mod cartridge_generation;
+pub mod dev_session;
 pub mod helpers;
 pub mod static_analysis;
 
@@ -47,6 +48,8 @@ use crate::cartridge_generation::generate_cartridge_partial_rs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::hash::{Hash, Hasher};
+use std::time::SystemTime;
+use walkdir::WalkDir;
 
 use crate::helpers::{
     get_or_create_pax_directory, update_pax_dependency_versions, INTERFACE_DIR_NAME, PAX_BADGE,
@@ -62,6 +65,7 @@ pub struct RunContext {
     pub should_also_run: bool,
     pub is_libdev_mode: bool,
     pub process_child_ids: Arc<Mutex<Vec<u64>>>,
+    pub should_run_designtime: bool,
     pub should_run_designer: bool,
     pub is_release: bool,
     pub ios_device: Option<String>,
@@ -87,33 +91,8 @@ pub enum RunTarget {
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
 pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<PathBuf>), Report> {
-    //Compile ts files if applicable (this needs to happen before copying to .pax)
-    if ctx.is_libdev_mode && ctx.target == RunTarget::Web {
-        if let Ok(root) = std::env::var("PAX_WORKSPACE_ROOT") {
-            let mut cmd = Command::new("bash");
-            cmd.arg("./build-interface.sh");
-            let web_interface_path = Path::new(&root)
-                .join("pax-compiler")
-                .join("files")
-                .join("interfaces")
-                .join("web");
-            cmd.current_dir(&web_interface_path);
-            if !cmd
-                .output()
-                .expect("failed to start process")
-                .status
-                .success()
-            {
-                panic!(
-                    "failed to build js files running ./build-interface.sh at {:?}",
-                    web_interface_path
-                );
-            };
-        } else {
-            panic!(
-                "FATAL: PAX_WORKSPACE_ROOT env variable not set - didn't compile typescript files"
-            );
-        }
+    if ctx.target == RunTarget::Web {
+        ensure_default_web_interface_bundle(ctx);
     }
 
     let pax_dir = get_or_create_pax_directory(&ctx.project_path);
@@ -145,6 +124,21 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
 
     // Simple starting convention: first manifest is userland, second manifest is designer; other schemas are undefined
     let mut userland_manifest = manifests.remove(0);
+
+    if let Some(cargo_manifest_dir) = userland_manifest.cargo_manifest_dir.clone() {
+        let cargo_toml = fs::read_to_string(cargo_manifest_dir.clone() + "/Cargo.toml").unwrap();
+        let mut project_files: Vec<(String, String)> = vec![("Cargo.toml".to_string(), cargo_toml)];
+        let src_dir = cargo_manifest_dir.clone() + "/src";
+        let src_files = fs::read_dir(src_dir.clone()).unwrap();
+        for file in src_files {
+            let file = file.unwrap();
+            let file_name = file.file_name().into_string().unwrap();
+            let file_path = file.path();
+            let file_contents = fs::read_to_string(file_path).unwrap();
+            project_files.push(("src/".to_string() + &file_name, file_contents));
+        }
+        userland_manifest.project_files = project_files;
+    }
 
     let mut merged_manifest = userland_manifest.clone();
 
@@ -214,6 +208,7 @@ fn run_and_parse_parser_binary(ctx: &RunContext) -> eyre::Result<Vec<PaxManifest
     let output = run_parser_binary(
         &ctx.project_path,
         Arc::clone(&ctx.process_child_ids),
+        ctx.should_run_designtime,
         ctx.should_run_designer,
     );
 
@@ -231,6 +226,86 @@ fn run_and_parse_parser_binary(ctx: &RunContext) -> eyre::Result<Vec<PaxManifest
     let manifests: Vec<PaxManifest> =
         serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
     Ok(manifests)
+}
+
+fn ensure_default_web_interface_bundle(ctx: &RunContext) {
+    let pax_compiler_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let web_interface_root = pax_compiler_root.join("files").join("interfaces").join("web");
+    if !web_interface_root.exists() {
+        return;
+    }
+    if !web_interface_bundle_needs_rebuild(&web_interface_root, ctx.is_libdev_mode) {
+        return;
+    }
+
+    let mut cmd = Command::new("bash");
+    cmd.arg("./build-interface.sh")
+        .current_dir(&web_interface_root)
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit());
+
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(pre_exec_hook);
+    }
+
+    let child = cmd
+        .spawn()
+        .expect("failed to start web interface bundle build");
+    let output = wait_with_output(&ctx.process_child_ids, child);
+    if !output.status.success() {
+        panic!(
+            "failed to build the default Pax web interface at {:?}",
+            web_interface_root
+        );
+    }
+}
+
+fn web_interface_bundle_needs_rebuild(web_interface_root: &Path, force_rebuild: bool) -> bool {
+    if force_rebuild {
+        return true;
+    }
+
+    let bundle_path = web_interface_root.join("public").join("pax-interface-web.js");
+    let bundle_modified_at = fs::metadata(&bundle_path)
+        .and_then(|metadata| metadata.modified())
+        .unwrap_or(SystemTime::UNIX_EPOCH);
+    if bundle_modified_at == SystemTime::UNIX_EPOCH {
+        return true;
+    }
+
+    latest_web_interface_source_mtime(web_interface_root)
+        .map(|source_modified_at| source_modified_at > bundle_modified_at)
+        .unwrap_or(true)
+}
+
+fn latest_web_interface_source_mtime(web_interface_root: &Path) -> Option<SystemTime> {
+    let mut latest_modified_at: Option<SystemTime> = None;
+    for path in [
+        web_interface_root.join("package.json"),
+        web_interface_root.join("tsconfig.json"),
+        web_interface_root.join("src"),
+    ] {
+        if path.is_dir() {
+            for entry in WalkDir::new(&path).into_iter().flatten() {
+                if !entry.file_type().is_file() {
+                    continue;
+                }
+                let modified_at = fs::metadata(entry.path()).ok()?.modified().ok()?;
+                latest_modified_at = Some(match latest_modified_at {
+                    Some(current_latest) => current_latest.max(modified_at),
+                    None => modified_at,
+                });
+            }
+        } else if path.is_file() {
+            let modified_at = fs::metadata(&path).ok()?.modified().ok()?;
+            latest_modified_at = Some(match latest_modified_at {
+                Some(current_latest) => current_latest.max(modified_at),
+                None => modified_at,
+            });
+        }
+    }
+    latest_modified_at
 }
 
 fn copy_interface_files_for_target(ctx: &RunContext, pax_dir: &PathBuf) {
@@ -268,26 +343,24 @@ fn copy_interface_files(src: &Path, dest: &Path) {
 }
 
 fn copy_default_interface_files(interface_path: &Path, ctx: &RunContext) {
-    if ctx.is_libdev_mode {
-        let pax_compiler_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let interface_src = match ctx.target {
-            RunTarget::Web => pax_compiler_root
-                .join("files")
-                .join("interfaces")
-                .join("web")
-                .join("public"),
-            RunTarget::macOS => pax_compiler_root
-                .join("files")
-                .join("interfaces")
-                .join("macos")
-                .join("pax-app-macos"),
-            RunTarget::iOS => pax_compiler_root
-                .join("files")
-                .join("interfaces")
-                .join("ios")
-                .join("pax-app-ios"),
-        };
+    let pax_compiler_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let interface_src = match ctx.target {
+        RunTarget::Web => pax_compiler_root
+            .join("files")
+            .join("interfaces")
+            .join("web")
+            .join("public"),
+        RunTarget::macOS => pax_compiler_root
+            .join("files")
+            .join("interfaces")
+            .join("macos"),
+        RunTarget::iOS => pax_compiler_root
+            .join("files")
+            .join("interfaces")
+            .join("ios"),
+    };
 
+    if ctx.is_libdev_mode || interface_src.exists() {
         copy_dir_recursively(&interface_src, interface_path, &[])
             .expect("Failed to copy interface files");
     } else {
@@ -309,34 +382,41 @@ fn copy_default_interface_files(interface_path: &Path, ctx: &RunContext) {
 fn copy_common_swift_files(ctx: &RunContext, common_dest: &Path) {
     let _ = std::fs::remove_dir_all(common_dest);
     std::fs::create_dir_all(common_dest).expect("Failed to create swift common destination");
-    if ctx.is_libdev_mode {
-        let pax_compiler_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let common_swift_cartridge_src = pax_compiler_root
-            .join("files")
-            .join("swift")
-            .join("pax-swift-cartridge");
-        let common_swift_common_src = pax_compiler_root
-            .join("files")
-            .join("swift")
-            .join("pax-swift-common");
+    let pax_compiler_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let common_swift_cartridge_src = pax_compiler_root
+        .join("files")
+        .join("swift")
+        .join("pax-swift-cartridge");
+    let common_swift_common_src = pax_compiler_root
+        .join("files")
+        .join("swift")
+        .join("pax-swift-common");
+
+    if ctx.is_libdev_mode
+        || (common_swift_cartridge_src.exists() && common_swift_common_src.exists())
+    {
         let common_swift_cartridge_dest = common_dest.join("pax-swift-cartridge");
         let common_swift_common_dest = common_dest.join("pax-swift-common");
 
         copy_dir_recursively(
             &common_swift_cartridge_src,
             &common_swift_cartridge_dest,
-            &[],
+            &[".build"],
         )
         .expect("Failed to copy swift cartridge files");
-        copy_dir_recursively(&common_swift_common_src, &common_swift_common_dest, &[])
-            .expect("Failed to copy swift common files");
+        copy_dir_recursively(
+            &common_swift_common_src,
+            &common_swift_common_dest,
+            &[".build"],
+        )
+        .expect("Failed to copy swift common files");
     } else {
         let common_swift_common_dest = common_dest.join("pax-swift-common");
         let common_swift_cartridge_dest = common_dest.join("pax-swift-cartridge");
-        std::fs::create_dir_all(&common_swift_common_dest)
-            .expect("Failed to create swift common template destination");
-        std::fs::create_dir_all(&common_swift_cartridge_dest)
-            .expect("Failed to create swift cartridge template destination");
+        fs::create_dir_all(&common_swift_common_dest)
+            .expect("Failed to create swift common destination");
+        fs::create_dir_all(&common_swift_cartridge_dest)
+            .expect("Failed to create swift cartridge destination");
         PAX_SWIFT_COMMON_TEMPLATE
             .extract(&common_swift_common_dest)
             .expect("Failed to extract swift common template files");
@@ -807,8 +887,8 @@ fn eject_interface_files(ctx: &RunContext, pax_dir: &PathBuf) {
 
     let _ = fs::create_dir_all(&target_custom_interface_dir);
 
-    if ctx.is_libdev_mode {
-        let src_path = get_libdev_interface_path(ctx);
+    let src_path = get_libdev_interface_path(ctx);
+    if ctx.is_libdev_mode || src_path.exists() {
         let _ = copy_dir_recursively(&src_path, &target_custom_interface_dir, &[]);
     } else {
         let _ = extract_interface_template(ctx, &target_custom_interface_dir);
@@ -950,6 +1030,7 @@ pub fn perform_create(ctx: &CreateContext) {
 pub fn run_parser_binary(
     project_path: &PathBuf,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
+    should_run_designtime: bool,
     should_run_designer: bool,
 ) -> Output {
     let mut cmd = Command::new("cargo");
@@ -968,6 +1049,8 @@ pub fn run_parser_binary(
 
     if should_run_designer {
         cmd.arg("--features").arg("designer");
+    } else if should_run_designtime {
+        cmd.arg("--features").arg("designtime");
     }
 
     #[cfg(unix)]

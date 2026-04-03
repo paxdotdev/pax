@@ -34,6 +34,13 @@ use piet::{InterpolationMode, RenderContext as PietRenderContext};
 use piet_coregraphics::CoreGraphicsContext;
 use serde::Serialize;
 
+#[cfg(feature = "designtime")]
+use pax_designtime::DesigntimeManager;
+use pax_runtime::DefinitionToInstanceTraverser;
+#[cfg(feature = "designtime")]
+use pax_runtime::designtime_support::{
+    apply_designtime_userland_reload, build_designtime_inspect_tree_payload,
+};
 //Re-export all native message types; used by Swift via FFI.
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`
 //in order to be visible to Swift
@@ -428,6 +435,19 @@ pub struct PaxEngineContainer {
     pub _render_context: *mut AppleRenderContext,
     #[cfg(any(target_os = "ios", target_os = "macos"))]
     pub _render_target: *mut c_void,
+    #[cfg(feature = "designtime")]
+    pub userland_definition_to_instance_traverser:
+        Box<dyn pax_runtime::cartridge::DefinitionToInstanceTraverser>,
+    #[cfg(feature = "designtime")]
+    pub designtime_manager: Rc<RefCell<DesigntimeManager>>,
+}
+
+#[derive(Serialize)]
+struct InspectTreePayload {
+    status: String,
+    node_count: Option<usize>,
+    tree_json: Option<String>,
+    error: Option<String>,
 }
 
 /// Destroy `engine` and clean up the `ManuallyDrop` container surround it.
@@ -458,7 +478,8 @@ pub extern "C" fn pax_interrupt(
     engine_container: *mut PaxEngineContainer,
     buffer: *const InterruptBuffer,
 ) {
-    let engine = unsafe { Box::from_raw((*engine_container)._engine) };
+    let mut engine_container = unsafe { Box::from_raw(engine_container) };
+    let engine = unsafe { Box::from_raw(engine_container._engine) };
 
     let length: u64 = unsafe { (*buffer).length.try_into().unwrap() };
 
@@ -641,10 +662,28 @@ pub extern "C" fn pax_interrupt(
             ImageLoadInterruptArgs::Data(_args) => {}
         },
         NativeInterrupt::AddedLayer(_args) => {}
+        NativeInterrupt::Screenshot(args) => match args {
+            ImageLoadInterruptArgs::Reference(ref_args) => {
+                let ptr = ref_args.image_data as *const u8;
+                let data =
+                    unsafe { std::slice::from_raw_parts(ptr, ref_args.image_data_length).to_vec() };
+                let screenshot_data = ScreenshotData {
+                    id: ref_args.id,
+                    data,
+                    width: ref_args.width,
+                    height: ref_args.height,
+                };
+                engine
+                    .runtime_context
+                    .load_screenshot(ref_args.id, screenshot_data);
+            }
+            ImageLoadInterruptArgs::Data(_data_args) => {}
+        },
         _ => {}
     }
 
     unsafe { (*engine_container)._engine = Box::into_raw(engine) };
+    let _ = Box::into_raw(engine_container);
 }
 
 /// Perform full tick of engine, including property computation, lifecycle event handling, and rendering side-effects.
@@ -658,7 +697,24 @@ pub extern "C" fn pax_tick(
     height: f32,
     _dpr: f32,
 ) -> *mut NativeMessageQueue {
-    let mut engine = unsafe { Box::from_raw((*engine_container)._engine) };
+    let mut engine_container = unsafe { Box::from_raw(engine_container) };
+    let mut engine = unsafe { Box::from_raw(engine_container._engine) };
+
+    #[cfg(feature = "designtime")]
+    {
+        engine_container
+            .designtime_manager
+            .borrow_mut()
+            .handle_recv(engine.runtime_context.get_screenshot_map())
+            .unwrap_or_else(|err| eprintln!("designtime receive failed: {err:?}"));
+        apply_designtime_userland_reload(
+            &mut engine,
+            engine_container
+                .userland_definition_to_instance_traverser
+                .as_ref(),
+            &engine_container.designtime_manager,
+        );
+    }
 
     engine.set_viewport_size((width as f64, height as f64));
     let messages = engine.tick();
@@ -720,9 +776,82 @@ pub extern "C" fn pax_tick(
     }
 
     let queue_container = serialize_message_queue(messages);
-    unsafe { (*engine_container)._engine = Box::into_raw(engine) };
-
+    engine_container._engine = Box::into_raw(engine);
+    let _ = Box::into_raw(engine_container);
     queue_container
+}
+
+#[no_mangle]
+pub extern "C" fn pax_designtime_inspect_tree(
+    engine_container: *mut PaxEngineContainer,
+    max_depth: i64,
+) -> *mut NativeMessageQueue {
+    let mut engine_container = unsafe { Box::from_raw(engine_container) };
+    let engine = unsafe { Box::from_raw(engine_container._engine) };
+
+    let payload = inspect_tree_payload(&engine_container, &engine, max_depth);
+    let payload_bytes = serde_json::to_vec(&payload).unwrap_or_else(|err| {
+        format!(
+            "{{\"status\":\"error\",\"node_count\":null,\"tree_json\":null,\"error\":\"failed to serialize inspect tree payload: {}\"}}",
+            err
+        )
+        .into_bytes()
+    });
+
+    engine_container._engine = Box::into_raw(engine);
+    let _ = Box::into_raw(engine_container);
+
+    bytes_to_native_message_queue(payload_bytes)
+}
+
+fn bytes_to_native_message_queue(data_buffer: Vec<u8>) -> *mut NativeMessageQueue {
+    let length = data_buffer.len();
+    let leaked_data: ManuallyDrop<Box<[u8]>> = ManuallyDrop::new(data_buffer.into_boxed_slice());
+
+    unsafe {
+        transmute(Box::new(NativeMessageQueue {
+            data_ptr: Box::into_raw(ManuallyDrop::into_inner(leaked_data)),
+            length: length as u64,
+        }))
+    }
+}
+
+fn inspect_tree_payload(
+    #[allow(unused_variables)] engine_container: &PaxEngineContainer,
+    #[allow(unused_variables)] engine: &PaxEngine,
+    #[allow(unused_variables)] max_depth: i64,
+) -> InspectTreePayload {
+    #[cfg(feature = "designtime")]
+    {
+        let payload = build_designtime_inspect_tree_payload(
+            engine,
+            engine_container
+                .userland_definition_to_instance_traverser
+                .as_ref(),
+            max_depth,
+        );
+        return InspectTreePayload {
+            status: payload.status,
+            node_count: payload.node_count,
+            tree_json: payload.tree_json,
+            error: payload.error,
+        };
+    }
+
+    #[cfg(not(feature = "designtime"))]
+    {
+        let _ = (engine_container, engine, max_depth);
+        inspect_tree_error("inspect tree requires a designtime-enabled build")
+    }
+}
+
+fn inspect_tree_error(error: impl Into<String>) -> InspectTreePayload {
+    InspectTreePayload {
+        status: "error".to_string(),
+        node_count: None,
+        tree_json: None,
+        error: Some(error.into()),
+    }
 }
 
 /// Required manual cleanup callback from Swift after reading a frame's message queue.

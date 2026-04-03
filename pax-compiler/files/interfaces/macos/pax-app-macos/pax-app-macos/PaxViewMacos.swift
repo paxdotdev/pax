@@ -14,6 +14,79 @@ import Rendering
 import PaxCartridgeAssets
 import PaxCartridge
 
+private struct PaxDevLookRequest: Codable {
+    let request_id: String
+    let kind: String
+    let output_dir: String
+    let scale: Double
+    let period_ms: UInt64
+    let duration_ms: UInt64
+    let format: String
+    let quality: Double?
+}
+
+private struct PaxDevRequestEnvelope: Codable {
+    let request_id: String
+    let kind: String
+}
+
+private struct PaxDevCapture: Codable {
+    let path: String
+    let width: Int
+    let height: Int
+    let captured_at_ms: UInt64
+}
+
+private struct PaxDevLookResponse: Codable {
+    let request_id: String
+    let status: String
+    let captures: [PaxDevCapture]
+    let error: String?
+}
+
+private struct PaxDevInspectTreeRequest: Codable {
+    let request_id: String
+    let kind: String
+    let max_depth: Int?
+}
+
+private struct PaxDevInspectTreePayload: Codable {
+    let status: String
+    let node_count: Int?
+    let tree_json: String?
+    let error: String?
+}
+
+private struct PaxDevInspectTreeResponse: Codable {
+    let request_id: String
+    let status: String
+    let node_count: Int?
+    let tree_json: String?
+    let error: String?
+}
+
+private struct PaxDevSessionRegistration: Codable {
+    let session_id: String
+    let platform: String
+    let designtime: Bool
+    let project_root: String?
+    let session_dir: String?
+    let app_pid: UInt32?
+    let design_server_addr: String?
+    let control_kind: String
+    let location: String?
+    let started_at_ms: UInt64
+    var last_seen_ms: UInt64
+}
+
+private struct PendingPaxDevLookRequest {
+    let request: PaxDevLookRequest
+    var captures: [PaxDevCapture]
+    var nextCaptureAt: Date
+    let deadline: Date
+    var captureScheduled: Bool
+}
+
 struct PaxViewMacos: View {
 
     var canvasView : some View = PaxCanvasViewRepresentable()
@@ -128,6 +201,16 @@ struct PaxViewMacos: View {
         private var metalLayer: CAMetalLayer {
             layer as! CAMetalLayer
         }
+
+        private let devSessionDir = ProcessInfo.processInfo.environment["PAX_DEV_SESSION_DIR"].map {
+            URL(fileURLWithPath: $0, isDirectory: true)
+        }
+        private let devRegistryFile = ProcessInfo.processInfo.environment["PAX_DEV_REGISTRY_FILE"].map {
+            URL(fileURLWithPath: $0, isDirectory: false)
+        }
+        private var pendingLookRequests: [String: PendingPaxDevLookRequest] = [:]
+        private var lastDevPoll: Date = .distantPast
+        private var lastDevHeartbeat: Date = .distantPast
 
         override init(frame frameRect: NSRect) {
             super.init(frame: frameRect)
@@ -312,6 +395,7 @@ struct PaxViewMacos: View {
             } else {
                 attributed = AttributedString(textElement.content)
             }
+            processDevRequestsIfNeeded()
 
             let nsAttributed = NSMutableAttributedString(attributedString: NSAttributedString(attributed))
             let paragraph = NSMutableParagraphStyle()
@@ -457,6 +541,448 @@ struct PaxViewMacos: View {
             } catch {
                 print("Failed to load image data: \(error)")
             }
+        }
+        func handleScreenshot(patch: ScreenshotPatch) {
+            DispatchQueue.main.async { [weak self] in
+                self?.sendScreenshotInterrupt(id: patch.id)
+            }
+        }
+
+        private func processDevRequestsIfNeeded() {
+            guard let devSessionDir = devSessionDir else {
+                return
+            }
+
+            let now = Date()
+            if now.timeIntervalSince(lastDevPoll) >= 0.1 {
+                loadPaxDevRequests(from: devSessionDir)
+                lastDevPoll = now
+            }
+            updateDevSessionHeartbeatIfNeeded(now: now)
+            scheduleDueLookCaptures()
+        }
+
+        private func updateDevSessionHeartbeatIfNeeded(now: Date) {
+            guard let devRegistryFile = devRegistryFile else {
+                return
+            }
+            if now.timeIntervalSince(lastDevHeartbeat) < 1.0 {
+                return
+            }
+
+            do {
+                let registryData = try Data(contentsOf: devRegistryFile)
+                var session = try JSONDecoder().decode(PaxDevSessionRegistration.self, from: registryData)
+                session.last_seen_ms = nowMs()
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                let encoded = try encoder.encode(session)
+                try atomicWrite(encoded, to: devRegistryFile)
+                lastDevHeartbeat = now
+            } catch {
+                print("Failed to update dev session heartbeat: \(error)")
+            }
+        }
+
+        private func loadPaxDevRequests(from sessionDir: URL) {
+            let requestsDir = sessionDir.appendingPathComponent("requests", isDirectory: true)
+            let responseDir = sessionDir.appendingPathComponent("responses", isDirectory: true)
+            do {
+                let requestFiles = try FileManager.default.contentsOfDirectory(
+                    at: requestsDir,
+                    includingPropertiesForKeys: nil,
+                    options: [.skipsHiddenFiles]
+                )
+                for requestFile in requestFiles where requestFile.pathExtension == "json" {
+                    let requestId = requestFile.deletingPathExtension().lastPathComponent
+                    if pendingLookRequests[requestId] != nil {
+                        try? FileManager.default.removeItem(at: requestFile)
+                        continue
+                    }
+
+                    do {
+                        let requestData = try Data(contentsOf: requestFile)
+                        let envelope = try JSONDecoder().decode(PaxDevRequestEnvelope.self, from: requestData)
+                        switch envelope.kind {
+                        case "look":
+                            let request = try JSONDecoder().decode(PaxDevLookRequest.self, from: requestData)
+                            let duration = TimeInterval(request.duration_ms) / 1000.0
+                            pendingLookRequests[request.request_id] = PendingPaxDevLookRequest(
+                                request: request,
+                                captures: [],
+                                nextCaptureAt: Date(),
+                                deadline: Date().addingTimeInterval(duration),
+                                captureScheduled: false
+                            )
+                        case "inspect-tree":
+                            let request = try JSONDecoder().decode(PaxDevInspectTreeRequest.self, from: requestData)
+                            try performInspectTree(request: request, responseDir: responseDir)
+                        default:
+                            try writePaxDevErrorResponse(
+                                requestId: envelope.request_id,
+                                error: "unsupported dev request kind: \(envelope.kind)",
+                                to: responseDir
+                            )
+                        }
+                        try? FileManager.default.removeItem(at: requestFile)
+                    } catch {
+                        try writePaxDevErrorResponse(
+                            requestId: requestId,
+                            error: "failed to decode dev request: \(error.localizedDescription)",
+                            to: responseDir
+                        )
+                        try? FileManager.default.removeItem(at: requestFile)
+                    }
+                }
+            } catch {
+                print("Failed to poll dev requests: \(error)")
+            }
+        }
+
+        private func scheduleDueLookCaptures() {
+            let now = Date()
+            let requestIds = Array(pendingLookRequests.keys)
+            for requestId in requestIds {
+                guard var pending = pendingLookRequests[requestId] else {
+                    continue
+                }
+                if pending.captureScheduled || pending.nextCaptureAt > now {
+                    continue
+                }
+                pending.captureScheduled = true
+                pendingLookRequests[requestId] = pending
+                DispatchQueue.main.async { [weak self] in
+                    self?.performLookCapture(requestId: requestId)
+                }
+            }
+        }
+
+        private func performLookCapture(requestId: String) {
+            guard var pending = pendingLookRequests[requestId] else {
+                return
+            }
+            pending.captureScheduled = false
+
+            do {
+                let capture = try capturePaxDevLookFrame(for: pending.request, captureIndex: pending.captures.count)
+                pending.captures.append(capture)
+                let now = Date()
+
+                if pending.request.period_ms == 0 || now >= pending.deadline {
+                    pendingLookRequests.removeValue(forKey: requestId)
+                    try writePaxDevResponse(
+                        PaxDevLookResponse(
+                            request_id: requestId,
+                            status: "ok",
+                            captures: pending.captures,
+                            error: nil
+                        ),
+                        requestId: requestId,
+                        to: devSessionDir!.appendingPathComponent("responses", isDirectory: true)
+                    )
+                } else {
+                    pending.nextCaptureAt = now.addingTimeInterval(TimeInterval(pending.request.period_ms) / 1000.0)
+                    pendingLookRequests[requestId] = pending
+                }
+            } catch {
+                pendingLookRequests.removeValue(forKey: requestId)
+                do {
+                    try writePaxDevResponse(
+                        PaxDevLookResponse(
+                            request_id: requestId,
+                            status: "error",
+                            captures: pending.captures,
+                            error: error.localizedDescription
+                        ),
+                        requestId: requestId,
+                        to: devSessionDir!.appendingPathComponent("responses", isDirectory: true)
+                    )
+                } catch {
+                    print("Failed to write dev error response: \(error)")
+                }
+            }
+        }
+
+        private func capturePaxDevLookFrame(for request: PaxDevLookRequest, captureIndex: Int) throws -> PaxDevCapture {
+            let bitmap = try captureWindowBitmap(scale: CGFloat(request.scale))
+            let outputDir = URL(fileURLWithPath: request.output_dir, isDirectory: true)
+            try FileManager.default.createDirectory(
+                at: outputDir,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+            let fileExtension = request.format.lowercased() == "jpeg" ? "jpg" : "png"
+            let filename = String(format: "%04d", captureIndex) + "." + fileExtension
+            let fileURL = outputDir.appendingPathComponent(filename)
+            try writeBitmap(bitmap, to: fileURL, format: request.format.lowercased(), quality: request.quality)
+            return PaxDevCapture(
+                path: fileURL.path,
+                width: bitmap.pixelsWide,
+                height: bitmap.pixelsHigh,
+                captured_at_ms: nowMs()
+            )
+        }
+
+        private func performInspectTree(request: PaxDevInspectTreeRequest, responseDir: URL) throws {
+            guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
+                throw NSError(domain: "", code: 208, userInfo: [NSLocalizedDescriptionKey: "Pax engine is not initialized"])
+            }
+
+            guard let payloadQueue = pax_designtime_inspect_tree(engineContainer, Int64(request.max_depth ?? -1)) else {
+                throw NSError(domain: "", code: 209, userInfo: [NSLocalizedDescriptionKey: "inspect tree returned no payload"])
+            }
+            defer { pax_dealloc_message_queue(payloadQueue) }
+
+            let queue = payloadQueue.pointee
+            let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
+            let payloadData = Data(buffer: buffer)
+            let payload = try JSONDecoder().decode(PaxDevInspectTreePayload.self, from: payloadData)
+            try writePaxDevResponse(
+                PaxDevInspectTreeResponse(
+                    request_id: request.request_id,
+                    status: payload.status,
+                    node_count: payload.node_count,
+                    tree_json: payload.tree_json,
+                    error: payload.error
+                ),
+                requestId: request.request_id,
+                to: responseDir
+            )
+        }
+
+        private func sendScreenshotInterrupt(id: UInt32) {
+            do {
+                let bitmap = try captureWindowBitmap(scale: 1.0)
+                let (rgbaData, width, height) = try rgbaData(from: bitmap)
+                try rgbaData.withUnsafeBytes { dataPtr in
+                    guard let baseAddress = dataPtr.baseAddress else {
+                        throw NSError(domain: "", code: 200, userInfo: [NSLocalizedDescriptionKey: "Could not access screenshot bytes"])
+                    }
+                    let rawPointerUInt = UInt(bitPattern: baseAddress)
+                    let buffer = try FlexBufferBuilder.encode(
+                        ["Screenshot": ["Reference": [
+                            "id": Int(id),
+                            "path": "",
+                            "image_data": rawPointerUInt,
+                            "image_data_length": rgbaData.count,
+                            "width": width,
+                            "height": height,
+                        ] as FlxbValueMap] as FlxbValueMap] as FlxbValueMap
+                    )
+                    buffer.data.withUnsafeBytes { ptr in
+                        var ffiContainer = InterruptBuffer(data_ptr: ptr.baseAddress!, length: UInt64(ptr.count))
+                        withUnsafePointer(to: &ffiContainer) { ffiContainerPtr in
+                            pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffiContainerPtr)
+                        }
+                    }
+                }
+            } catch {
+                print("Failed to capture screenshot: \(error)")
+            }
+        }
+
+        private func captureWindowBitmap(scale: CGFloat) throws -> NSBitmapImageRep {
+            guard let rootView = self.window?.contentView else {
+                throw NSError(domain: "", code: 201, userInfo: [NSLocalizedDescriptionKey: "Window content view is unavailable"])
+            }
+            rootView.layoutSubtreeIfNeeded()
+            rootView.displayIfNeededIgnoringOpacity()
+
+            let bounds = rootView.bounds
+            guard let baseBitmap = rootView.bitmapImageRepForCachingDisplay(in: bounds) else {
+                throw NSError(domain: "", code: 202, userInfo: [NSLocalizedDescriptionKey: "Could not allocate bitmap representation"])
+            }
+            guard let graphicsContext = NSGraphicsContext(bitmapImageRep: baseBitmap) else {
+                throw NSError(domain: "", code: 210, userInfo: [NSLocalizedDescriptionKey: "Could not create bitmap graphics context"])
+            }
+
+            NSGraphicsContext.saveGraphicsState()
+            defer { NSGraphicsContext.restoreGraphicsState() }
+            rootView.displayIgnoringOpacity(bounds, in: graphicsContext)
+
+            if abs(scale - 1.0) < 0.0001 {
+                return baseBitmap
+            }
+
+            let targetWidth = max(Int(CGFloat(baseBitmap.pixelsWide) * scale), 1)
+            let targetHeight = max(Int(CGFloat(baseBitmap.pixelsHigh) * scale), 1)
+            guard let scaledBitmap = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: targetWidth,
+                pixelsHigh: targetHeight,
+                bitsPerSample: 8,
+                samplesPerPixel: 4,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: .deviceRGB,
+                bytesPerRow: targetWidth * 4,
+                bitsPerPixel: 32
+            ) else {
+                throw NSError(domain: "", code: 203, userInfo: [NSLocalizedDescriptionKey: "Could not allocate scaled bitmap"])
+            }
+
+            let image = NSImage(size: NSSize(width: CGFloat(baseBitmap.pixelsWide), height: CGFloat(baseBitmap.pixelsHigh)))
+            image.addRepresentation(baseBitmap)
+
+            NSGraphicsContext.saveGraphicsState()
+            defer { NSGraphicsContext.restoreGraphicsState() }
+            guard let graphicsContext = NSGraphicsContext(bitmapImageRep: scaledBitmap) else {
+                throw NSError(domain: "", code: 204, userInfo: [NSLocalizedDescriptionKey: "Could not create bitmap graphics context"])
+            }
+            NSGraphicsContext.current = graphicsContext
+            graphicsContext.cgContext.interpolationQuality = .high
+            image.draw(
+                in: NSRect(x: 0, y: 0, width: CGFloat(targetWidth), height: CGFloat(targetHeight)),
+                from: NSRect(x: 0, y: 0, width: CGFloat(baseBitmap.pixelsWide), height: CGFloat(baseBitmap.pixelsHigh)),
+                operation: .copy,
+                fraction: 1.0
+            )
+            return scaledBitmap
+        }
+
+        private func rgbaData(from bitmap: NSBitmapImageRep) throws -> (Data, Int, Int) {
+            guard let cgImage = bitmap.cgImage else {
+                throw NSError(domain: "", code: 205, userInfo: [NSLocalizedDescriptionKey: "Could not create CGImage from bitmap"])
+            }
+
+            let width = cgImage.width
+            let height = cgImage.height
+            let bytesPerRow = width * 4
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+            let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+
+            var rgbaData = Data(count: height * bytesPerRow)
+            let rendered = rgbaData.withUnsafeMutableBytes { bytes in
+                guard let baseAddress = bytes.baseAddress else {
+                    return false
+                }
+                guard let context = CGContext(
+                    data: baseAddress,
+                    width: width,
+                    height: height,
+                    bitsPerComponent: 8,
+                    bytesPerRow: bytesPerRow,
+                    space: colorSpace,
+                    bitmapInfo: bitmapInfo
+                ) else {
+                    return false
+                }
+                context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+                return true
+            }
+
+            if !rendered {
+                throw NSError(domain: "", code: 206, userInfo: [NSLocalizedDescriptionKey: "Could not render RGBA pixel data"])
+            }
+            return (rgbaData, width, height)
+        }
+
+        private func writeBitmap(_ bitmap: NSBitmapImageRep, to url: URL, format: String, quality: Double?) throws {
+            let fileType: NSBitmapImageRep.FileType = format == "jpeg" ? .jpeg : .png
+            var properties: [NSBitmapImageRep.PropertyKey: Any] = [:]
+            if let quality = quality, fileType == .jpeg {
+                properties[.compressionFactor] = quality
+            }
+            guard let data = bitmap.representation(using: fileType, properties: properties) else {
+                throw NSError(domain: "", code: 207, userInfo: [NSLocalizedDescriptionKey: "Could not encode screenshot data"])
+            }
+            try atomicWrite(data, to: url)
+        }
+
+        private func writePaxDevResponse<T: Encodable>(_ response: T, requestId: String, to responseDir: URL) throws {
+            try FileManager.default.createDirectory(
+                at: responseDir,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(response)
+            try atomicWrite(data, to: responseDir.appendingPathComponent("\(requestId).json"))
+        }
+
+        private func writePaxDevErrorResponse(requestId: String, error: String, to responseDir: URL) throws {
+            let response = [
+                "request_id": requestId,
+                "status": "error",
+                "captures": [],
+                "node_count": NSNull(),
+                "tree_json": NSNull(),
+                "error": error
+            ] as [String : Any]
+            let data = try JSONSerialization.data(withJSONObject: response, options: [.prettyPrinted, .sortedKeys])
+            try FileManager.default.createDirectory(
+                at: responseDir,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+            try atomicWrite(data, to: responseDir.appendingPathComponent("\(requestId).json"))
+        }
+
+        private func atomicWrite(_ data: Data, to url: URL) throws {
+            let tempURL = url.deletingPathExtension().appendingPathExtension("tmp")
+            try data.write(to: tempURL, options: .atomic)
+            if FileManager.default.fileExists(atPath: url.path) {
+                try FileManager.default.removeItem(at: url)
+            }
+            try FileManager.default.moveItem(at: tempURL, to: url)
+        }
+
+        private func nowMs() -> UInt64 {
+            UInt64(Date().timeIntervalSince1970 * 1000.0)
+        }
+
+
+        func processNativeMessageQueue(queue: NativeMessageQueue) {
+
+            let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
+            let root = FlexBuffer.decode(data: Data.init(buffer: buffer))!
+
+            root["messages"]?.asVector?.makeIterator().forEach( { message in
+
+                let textCreateMessage = message["TextCreate"]
+                if textCreateMessage != nil {
+                    handleTextCreate(patch: AnyCreatePatch(fb: textCreateMessage!))
+                }
+
+                let textUpdateMessage = message["TextUpdate"]
+                if textUpdateMessage != nil {
+                    handleTextUpdate(patch: TextUpdatePatch(fb: textUpdateMessage!))
+                }
+
+                let textDeleteMessage = message["TextDelete"]
+                if textDeleteMessage != nil {
+                    handleTextDelete(patch: AnyDeletePatch(fb: textDeleteMessage!))
+                }
+
+                let frameCreateMessage = message["FrameCreate"]
+                if frameCreateMessage != nil {
+                    handleFrameCreate(patch: AnyCreatePatch(fb: frameCreateMessage!))
+                }
+
+                let frameUpdateMessage = message["FrameUpdate"]
+                if frameUpdateMessage != nil {
+                    handleFrameUpdate(patch: FrameUpdatePatch(fb: frameUpdateMessage!))
+                }
+
+                let frameDeleteMessage = message["FrameDelete"]
+                if frameDeleteMessage != nil {
+                    handleFrameDelete(patch: AnyDeletePatch(fb: frameDeleteMessage!))
+                }
+
+                let imageLoadMessage = message["ImageLoad"]
+                if imageLoadMessage != nil {
+                    handleImageLoad(patch: ImageLoadPatch(fb: imageLoadMessage!))
+                }
+
+                let screenshotMessage = message["Screenshot"]
+                if screenshotMessage != nil {
+                    handleScreenshot(patch: ScreenshotPatch(fb: screenshotMessage!))
+                }
+
+                //^ Add new message-receive handlers here ^
+            })
+
         }
         override func scrollWheel(with event: NSEvent){
             let deltaX = event.scrollingDeltaX

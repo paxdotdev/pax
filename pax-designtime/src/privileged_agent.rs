@@ -1,6 +1,7 @@
 use crate::{
     messages::{
-        AgentMessage, ComponentSerializationRequest, LLMRequest, LoadFileToStaticDirRequest,
+        AgentMessage, ChangeType, ComponentSerializationRequest, DevClientResponse, LLMRequest,
+        LoadFileToStaticDirRequest,
     },
     orm::PaxManifestORM,
 };
@@ -12,11 +13,16 @@ use url::Url;
 pub struct WebSocketConnection {
     sender: ewebsock::WsSender,
     recver: ewebsock::WsReceiver,
+    label: String,
     pub alive: bool,
 }
 
 impl WebSocketConnection {
-    pub fn new(addr: &str, versioning_prefix: Option<&str>) -> Result<Self> {
+    pub fn new(
+        addr: &str,
+        versioning_prefix: Option<&str>,
+        label: impl Into<String>,
+    ) -> Result<Self> {
         // Parse the address as a URL
         let mut url = Url::parse(addr).map_err(|e| anyhow!("Invalid URL: {}", e))?;
 
@@ -46,6 +52,7 @@ impl WebSocketConnection {
         Ok(Self {
             sender,
             recver,
+            label: label.into(),
             alive: true,
         })
     }
@@ -100,7 +107,20 @@ impl WebSocketConnection {
         }
     }
 
-    pub fn handle_recv(&mut self, manager: &mut PaxManifestORM) -> Result<()> {
+    pub fn send_dev_client_response(&mut self, response: DevClientResponse) -> Result<()> {
+        if self.alive {
+            let msg_bytes = rmp_serde::to_vec(&AgentMessage::DevClientResponse(response))?;
+            self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "couldn't send dev response: connection to design-server was lost"
+            ))
+        }
+    }
+
+    pub fn handle_recv(&mut self, manager: &mut PaxManifestORM) -> Result<Vec<AgentMessage>> {
+        let mut passthrough_messages = vec![];
         while let Some(event) = self.recver.try_recv() {
             match event {
                 WsEvent::Opened => {
@@ -133,17 +153,17 @@ impl WebSocketConnection {
                                     Some(final_response.component_definition),
                                 );
                             }
-                            _ => {}
+                            other => passthrough_messages.push(other),
                         }
                     }
                 }
-                WsEvent::Error(e) => log::warn!("web socket error: {e}"),
+                WsEvent::Error(e) => log::warn!("{} web socket error: {e}", self.label),
                 WsEvent::Closed => {
                     self.alive = false;
-                    log::warn!("web socket was closed")
+                    log::warn!("{} web socket was closed", self.label)
                 }
             }
         }
-        Ok(())
+        Ok(passthrough_messages)
     }
 }

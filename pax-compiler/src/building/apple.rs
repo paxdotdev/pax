@@ -1,20 +1,27 @@
 use cargo_metadata::MetadataCommand;
 use colored::Colorize;
-use serde_json::Value;
+use pax_manifest::PaxManifest;
 
+use crate::dev_session::{
+    self, now_ms, project_designtime_manifest_file, project_dev_dir, write_project_active_session,
+    write_registered_session, DevSession,
+};
 use crate::helpers::{
-    BUILD_DIR_NAME, DIR_IGNORE_LIST_MACOS, ERR_SPAWN, INTERFACE_DIR_NAME, PAX_BADGE,
+    get_host_crate_info, BUILD_DIR_NAME, DIR_IGNORE_LIST_MACOS, ERR_SPAWN, INTERFACE_DIR_NAME,
+    PAX_BADGE,
 };
 use crate::{copy_dir_recursively, wait_with_output, RunContext, RunTarget};
 
 use color_eyre::eyre;
 use eyre::eyre;
+use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Child, Command, Output};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::Duration;
 
 #[cfg(unix)]
 use std::os::unix::fs as unix_fs;
@@ -163,6 +170,7 @@ pub fn build_apple_project_with_cartridge(
     ctx: &RunContext,
     pax_dir: &PathBuf,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
+    manifest: PaxManifest,
 ) -> Result<(), eyre::Report> {
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
@@ -184,6 +192,8 @@ pub fn build_apple_project_with_cartridge(
     };
 
     let build_mode_name: &str = if is_release { "release" } else { "debug" };
+    let should_run_designtime = ctx.should_run_designtime;
+    let should_run_designer = ctx.should_run_designer;
 
     //0: Rust arch string, for passing to cargo
     //1: Apple arch string, for addressing xcframework
@@ -262,6 +272,12 @@ pub fn build_apple_project_with_cartridge(
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped());
 
+            if should_run_designer {
+                cmd.arg("--features").arg("designer");
+            } else if should_run_designtime {
+                cmd.arg("--features").arg("designtime");
+            }
+
             if is_release {
                 cmd.arg("--release");
             }
@@ -280,7 +296,7 @@ pub fn build_apple_project_with_cartridge(
                 .join("target")
                 .join(target_mapping.0)
                 .join(build_mode_name)
-                .join(dylib_file_name);
+                .join(&dylib_file_name);
 
             let new_val = (
                 target_mapping.1.to_string(),
@@ -505,6 +521,18 @@ pub fn build_apple_project_with_cartridge(
         let _ = fs::copy(src, dest);
     }
 
+    if let RunTarget::macOS = target {
+        normalize_macos_framework_layout(
+            &pax_dir
+                .join(INTERFACE_DIR_NAME)
+                .join("common")
+                .join("pax-swift-cartridge")
+                .join("PaxCartridge.xcframework")
+                .join(MACOS_MULTIARCH_PACKAGE_ID)
+                .join("PaxCartridge.framework"),
+        )?;
+    }
+
     if is_release && is_ios {
         unimplemented!("\n\n\
 Release builds for Pax iOS are not yet supported because configuration has not been exposed for development teams or code-signing.\n
@@ -543,6 +571,8 @@ Note that the temporary directories mentioned above are subject to overwriting.\
     };
 
     let configuration = if is_release { "Release" } else { "Debug" };
+
+    normalize_apple_package_paths(&xcodeproj_path)?;
 
     let build_dest_base = pax_dir
         .join(BUILD_DIR_NAME)
@@ -721,7 +751,21 @@ Note that the temporary directories mentioned above are subject to overwriting.\
     // Start  `run` rather than a `build`
     let target_str: &str = target.into();
     if ctx.should_also_run {
-        println!("{} 🐇 Running Pax {}...", *PAX_BADGE, target_str);
+        if ctx.should_run_designtime && matches!(target, RunTarget::macOS) {
+            println!(
+                "{} 🐇{} Running Pax {}{}...",
+                *PAX_BADGE,
+                if ctx.should_run_designer { "🎨" } else { "" },
+                target_str,
+                if ctx.should_run_designer {
+                    " with Pax Designer"
+                } else {
+                    " with designtime"
+                }
+            );
+        } else {
+            println!("{} 🐇 Running Pax {}...", *PAX_BADGE, target_str);
+        }
 
         if let RunTarget::macOS = target {
             //
@@ -730,10 +774,83 @@ Note that the temporary directories mentioned above are subject to overwriting.\
 
             let system_binary_path =
                 executable_dot_app_path.join(&format!("Contents/MacOS/{}", scheme));
+            let mut dev_session = if ctx.should_run_designtime {
+                Some(prepare_dev_session(&project_path, &pax_dir)?)
+            } else {
+                None
+            };
+            let mut designtime_server = if let Some(session) = dev_session.as_mut() {
+                let ready_file = session
+                    .session_dir
+                    .as_ref()
+                    .unwrap()
+                    .join("design-server-url.txt");
+                let server = Some(spawn_designtime_server_process(
+                    &pax_dir,
+                    &project_path,
+                    &manifest,
+                    &ready_file,
+                    process_child_ids.clone(),
+                )?);
+                session.design_server_addr = Some(wait_for_designtime_ready(
+                    &ready_file,
+                    Duration::from_secs(5),
+                )?);
+                server
+            } else {
+                None
+            };
 
-            let status = Command::new(system_binary_path)
-                .status() // This will wait for the process to complete
-                .expect("failed to execute the app");
+            let mut cmd = Command::new(system_binary_path);
+            if let Some(session) = &dev_session {
+                cmd.env(
+                    "PAX_DEV_SESSION_DIR",
+                    session.session_dir.as_ref().unwrap().to_str().unwrap(),
+                )
+                .env(
+                    "PAX_DEV_REGISTRY_FILE",
+                    dev_session::global_session_registry_file(&session.session_id)?
+                        .to_str()
+                        .unwrap(),
+                )
+                .env(
+                    "PAX_DEV_PROJECT_ROOT",
+                    session.project_root.as_ref().unwrap().to_str().unwrap(),
+                )
+                .env(
+                    "PAX_DESIGN_SERVER_ADDR",
+                    session.design_server_addr.as_ref().unwrap(),
+                );
+            }
+
+            #[cfg(unix)]
+            unsafe {
+                cmd.pre_exec(crate::pre_exec_hook);
+            }
+
+            let mut child = cmd.spawn().expect("failed to execute the app");
+            let app_pid = child.id() as u64;
+            if let Some(session) = dev_session.as_mut() {
+                finalize_dev_session(&pax_dir, session, child.id())?;
+            }
+            process_child_ids.lock().unwrap().push(app_pid);
+            let status = child.wait().expect("failed to wait for the app");
+            process_child_ids
+                .lock()
+                .unwrap()
+                .retain(|&id| id != app_pid);
+            if let Some(session) = &dev_session {
+                cleanup_dev_session(&pax_dir, session)?;
+            }
+            if let Some(server) = designtime_server.as_mut() {
+                let server_pid = server.id() as u64;
+                let _ = server.kill();
+                let _ = server.wait();
+                process_child_ids
+                    .lock()
+                    .unwrap()
+                    .retain(|&id| id != server_pid);
+            }
 
             println!("App exited with: {:?}", status);
         } else {
@@ -1343,6 +1460,199 @@ fn parse_iphone_simulator_preference(name: &str) -> Option<(i32, SimulatorVarian
     Some((generation, rank))
 }
 
+fn normalize_apple_package_paths(xcodeproj_path: &PathBuf) -> Result<(), eyre::Report> {
+    let project_file = xcodeproj_path.join("project.pbxproj");
+    let contents = fs::read_to_string(&project_file)?;
+    let normalized = contents
+        .replace(
+            "../../interface/common/pax-swift-cartridge",
+            "../../common/pax-swift-cartridge",
+        )
+        .replace(
+            "../../interface/common/pax-swift-common",
+            "../../common/pax-swift-common",
+        );
+
+    if normalized != contents {
+        fs::write(project_file, normalized)?;
+    }
+
+    Ok(())
+}
+
+fn normalize_macos_framework_layout(framework_dir: &PathBuf) -> Result<(), eyre::Report> {
+    let versions_dir = framework_dir.join("Versions");
+    let current_link = versions_dir.join("Current");
+    if current_link.exists() {
+        return Ok(());
+    }
+
+    let version_dir = versions_dir.join("A");
+    let resources_dir = version_dir.join("Resources");
+    fs::create_dir_all(&resources_dir)?;
+
+    move_if_exists(&framework_dir.join("Headers"), &version_dir.join("Headers"))?;
+    move_if_exists(&framework_dir.join("Modules"), &version_dir.join("Modules"))?;
+    move_if_exists(
+        &framework_dir.join("Info.plist"),
+        &resources_dir.join("Info.plist"),
+    )?;
+    move_if_exists(
+        &framework_dir.join("PaxCartridge"),
+        &version_dir.join("PaxCartridge"),
+    )?;
+
+    create_symlink(&PathBuf::from("A"), &current_link)?;
+    create_symlink(
+        &PathBuf::from("Versions/Current/Headers"),
+        &framework_dir.join("Headers"),
+    )?;
+    create_symlink(
+        &PathBuf::from("Versions/Current/Modules"),
+        &framework_dir.join("Modules"),
+    )?;
+    create_symlink(
+        &PathBuf::from("Versions/Current/Resources"),
+        &framework_dir.join("Resources"),
+    )?;
+    create_symlink(
+        &PathBuf::from("Versions/Current/PaxCartridge"),
+        &framework_dir.join("PaxCartridge"),
+    )?;
+
+    Ok(())
+}
+
+fn move_if_exists(src: &PathBuf, dest: &PathBuf) -> Result<(), eyre::Report> {
+    if !src.exists() {
+        return Ok(());
+    }
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    if dest.exists() {
+        if dest.is_dir() {
+            fs::remove_dir_all(dest)?;
+        } else {
+            fs::remove_file(dest)?;
+        }
+    }
+    fs::rename(src, dest)?;
+    Ok(())
+}
+
+fn create_symlink(target: &PathBuf, link: &PathBuf) -> Result<(), eyre::Report> {
+    if link.exists() || link.symlink_metadata().is_ok() {
+        if link.is_dir() && !link.is_symlink() {
+            fs::remove_dir_all(link)?;
+        } else {
+            fs::remove_file(link)?;
+        }
+    }
+    symlink(target, link)?;
+    Ok(())
+}
+
+fn prepare_dev_session(
+    project_root: &PathBuf,
+    pax_dir: &PathBuf,
+) -> Result<DevSession, eyre::Report> {
+    let started_at_ms = now_ms();
+    let session_id = format!("macos-{started_at_ms}-{}", std::process::id());
+    let session_dir = project_dev_dir(pax_dir).join("sessions").join(&session_id);
+    fs::create_dir_all(session_dir.join("requests"))?;
+    fs::create_dir_all(session_dir.join("responses"))?;
+    fs::create_dir_all(session_dir.join("captures"))?;
+
+    Ok(DevSession {
+        session_id,
+        platform: "macos".to_string(),
+        designtime: true,
+        project_root: Some(fs::canonicalize(project_root).unwrap_or_else(|_| project_root.clone())),
+        session_dir: Some(session_dir),
+        app_pid: None,
+        design_server_addr: None,
+        control_kind: "filesystem".to_string(),
+        location: Some("local-window".to_string()),
+        started_at_ms,
+        last_seen_ms: started_at_ms,
+    })
+}
+
+fn finalize_dev_session(
+    pax_dir: &PathBuf,
+    session: &mut DevSession,
+    app_pid: u32,
+) -> Result<(), eyre::Report> {
+    session.app_pid = Some(app_pid);
+    session.location = Some(format!("local-window pid:{app_pid}"));
+    session.last_seen_ms = now_ms();
+    write_project_active_session(pax_dir, session)?;
+    write_registered_session(session)?;
+    Ok(())
+}
+
+fn cleanup_dev_session(pax_dir: &PathBuf, session: &DevSession) -> Result<(), eyre::Report> {
+    dev_session::remove_project_active_session(pax_dir, &session.session_id)?;
+    dev_session::remove_registered_session(&session.session_id)?;
+    Ok(())
+}
+
+fn spawn_designtime_server_process(
+    pax_dir: &PathBuf,
+    project_root: &PathBuf,
+    manifest: &PaxManifest,
+    ready_file: &PathBuf,
+    process_child_ids: Arc<Mutex<Vec<u64>>>,
+) -> Result<Child, eyre::Report> {
+    let manifest_path = project_designtime_manifest_file(pax_dir);
+    fs::create_dir_all(manifest_path.parent().unwrap())?;
+    fs::write(&manifest_path, serde_json::to_vec(manifest)?)?;
+
+    let current_exe = std::env::current_exe()?;
+    let mut cmd = Command::new(current_exe);
+    cmd.arg("designtime-server")
+        .arg("--serve-dir")
+        .arg(pax_dir)
+        .arg("--watch-dir")
+        .arg(project_root)
+        .arg("--manifest-path")
+        .arg(manifest_path)
+        .arg("--port")
+        .arg("0")
+        .arg("--ready-file")
+        .arg(ready_file)
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit());
+
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(crate::pre_exec_hook);
+    }
+
+    let child = cmd.spawn().expect(ERR_SPAWN);
+    process_child_ids.lock().unwrap().push(child.id() as u64);
+    Ok(child)
+}
+
+fn wait_for_designtime_ready(
+    ready_file: &PathBuf,
+    timeout: Duration,
+) -> Result<String, eyre::Report> {
+    let start = std::time::Instant::now();
+    while start.elapsed() < timeout {
+        if let Ok(contents) = fs::read_to_string(ready_file) {
+            let trimmed = contents.trim();
+            if !trimmed.is_empty() {
+                return Ok(trimmed.to_string());
+            }
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    Err(eyre!(
+        "timed out waiting for the local designtime server to become ready"
+    ))
+}
 // This function checks if the simulator with the given UDID is booted
 fn is_simulator_booted(device_udid: &str, process_child_ids: &Arc<Mutex<Vec<u64>>>) -> bool {
     let mut cmd = Command::new("xcrun");

@@ -1,8 +1,11 @@
 use dotenv::dotenv;
+use futures::channel::mpsc;
+use futures::StreamExt;
 use pax_generation::AIModel;
 use pax_generation::PaxAppGenerator;
 use std::env;
 use std::error::Error;
+use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -16,11 +19,36 @@ fn output_dir() -> PathBuf {
     project_root!().join("generated_project")
 }
 
+fn pax_file_path() -> PathBuf {
+    output_dir().join("src").join("lib.pax")
+}
+
+fn ensure_seed_pax_file(path: &Path) -> io::Result<()> {
+    if path.exists() {
+        return Ok(());
+    }
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    fs::write(
+        path,
+        r#"#[main]
+component Example {
+    <Text text="Hello Pax" />
+}
+"#,
+    )
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     dotenv().ok();
-    let claude_api_key = env::var("ANTHROPIC_API_KEY").expect("ANTHROPIC_API_KEY must be set in .env file");
-    let openai_api_key = env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY must be set in .env file");
+    let claude_api_key =
+        env::var("ANTHROPIC_API_KEY").expect("ANTHROPIC_API_KEY must be set in .env file");
+    let openai_api_key =
+        env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY must be set in .env file");
 
     println!("Choose AI model:");
     println!("1. Claude 3");
@@ -38,7 +66,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let api_key = match model {
         AIModel::Claude3 => claude_api_key,
-        AIModel::GPT4o => openai_api_key,
+        AIModel::GPT4o | AIModel::GPT4oMini | AIModel::O1 | AIModel::O1Mini => openai_api_key,
     };
 
     println!("Is this a designer project? (yes/no):");
@@ -48,6 +76,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     println!("Initializing PaxAppGenerator...");
     let generator = PaxAppGenerator::new(api_key, model);
+    let pax_file = pax_file_path();
+    ensure_seed_pax_file(&pax_file)?;
 
     loop {
         println!("\n=== New Session ===");
@@ -60,13 +90,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
             println!("Exiting program.");
             break;
         }
-        println!("output_dir: {:?}", output_dir());
-        let files = generator.generate_app(&prompt, Some(&output_dir().join("src")), is_designer_project).await?;
+        println!("pax_file: {:?}", pax_file);
+        let current_pax = fs::read_to_string(&pax_file)?;
+        let (tx, mut rx) = mpsc::unbounded();
+        let (updated_pax, response) = generator
+            .update_pax_file(&current_pax, &prompt, 0, tx, None, &model)
+            .await?;
+        fs::write(&pax_file, &updated_pax)?;
+
         println!("\n=== App Generation Complete ===");
-        println!("Files created:");
-        for (filename, _) in &files {
-            println!("- {}", filename);
+        println!("Updated file:");
+        println!("- {}", pax_file.display());
+        while let Some((_, message)) = rx.next().await {
+            println!("{}", message);
         }
+        println!("\nAssistant response:\n{}", response);
 
         loop {
             println!("\n--- Modification Session ---");
@@ -83,12 +121,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 return Ok(());
             }
 
-            let files = generator.generate_app(&modifications, Some(&output_dir().join("src")), is_designer_project).await?;
+            let current_pax = fs::read_to_string(&pax_file)?;
+            let (tx, mut rx) = mpsc::unbounded();
+            let (updated_pax, response) = generator
+                .update_pax_file(&current_pax, &modifications, 0, tx, None, &model)
+                .await?;
+            fs::write(&pax_file, &updated_pax)?;
             println!("\n=== App Modification Complete ===");
-            println!("Updated files:");
-            for (filename, _) in &files {
-                println!("- {}", filename);
+            println!("Updated file:");
+            println!("- {}", pax_file.display());
+            while let Some((_, message)) = rx.next().await {
+                println!("{}", message);
             }
+            println!("\nAssistant response:\n{}", response);
         }
     }
 

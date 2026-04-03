@@ -18,10 +18,63 @@ pub enum AgentMessage {
     ComponentSerializationRequest(ComponentSerializationRequest),
     UpdateTemplateRequest(Box<UpdateTemplateRequest>),
     LoadFileToStaticDirRequest(LoadFileToStaticDirRequest),
+    DevClientRequest(DevClientRequest),
+    DevClientResponse(DevClientResponse),
     // LLM Requests to pub.pax.dev
     LLMRequest(LLMRequest),
     LLMPartialResponse(LLMPartialResponse),
     LLMFinalResponse(LLMFinalResponse),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum DevClientRequest {
+    Look(DevClientLookRequest),
+    InspectTree(DevClientInspectTreeRequest),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum DevClientResponse {
+    Look(DevClientLookResponse),
+    InspectTree(DevClientInspectTreeResponse),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DevClientLookRequest {
+    pub request_id: String,
+    pub scale: f64,
+    pub period_ms: u64,
+    pub duration_ms: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DevClientRawCapture {
+    pub rgba_bytes: Vec<u8>,
+    pub width: usize,
+    pub height: usize,
+    pub captured_at_ms: u128,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DevClientLookResponse {
+    pub request_id: String,
+    pub status: String,
+    pub captures: Vec<DevClientRawCapture>,
+    pub error: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DevClientInspectTreeRequest {
+    pub request_id: String,
+    pub max_depth: Option<usize>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DevClientInspectTreeResponse {
+    pub request_id: String,
+    pub status: String,
+    pub node_count: Option<usize>,
+    pub tree_json: Option<String>,
+    pub error: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]

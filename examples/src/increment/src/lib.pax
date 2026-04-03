@@ -5,6 +5,7 @@
 
 @settings {
     @pre_render: handle_pre_render
+
     #text {
         style: {
             font: Font::Web("Roboto", "https://fonts.googleapis.com/css2?family=Roboto:wght@300&display=swap", FontStyle::Normal, FontWeight::Light)

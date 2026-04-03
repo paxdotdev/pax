@@ -24,7 +24,8 @@ name = "run"
 path = "bin/run.rs"
 
 [features]
-designer = ["pax-kit/designer", "fireworks/designer"]
+designtime = ["pax-kit/designtime", "fireworks/designtime"]
+designer = ["designtime", "pax-kit/designer", "fireworks/designer"]
 parser = ["pax-kit/parser", "fireworks/parser"]
 web = ["pax-kit/web"]
 macos = ["pax-kit/macos"]

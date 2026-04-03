@@ -10,6 +10,7 @@ pub mod messages;
 pub mod serde_pax;
 
 use messages::LLMRequest;
+use messages::{DevClientRequest, DevClientResponse};
 use orm::{MessageType, ReloadType};
 use pax_manifest::pax_runtime_api::Property;
 use pax_message::ScreenshotData;
@@ -32,10 +33,11 @@ use crate::orm::PaxManifestORM;
 pub struct DesigntimeManager {
     orm: PaxManifestORM,
     factories: Factories,
-    priv_agent_connection: Rc<RefCell<WebSocketConnection>>,
-    pub_pax_connection: Rc<RefCell<WebSocketConnection>>,
+    privileged_agent_connection: Rc<RefCell<WebSocketConnection>>,
+    pub_pax_connection: Option<Rc<RefCell<WebSocketConnection>>>,
     project_query: Option<String>,
     response_queue: Rc<RefCell<Vec<DesigntimeResponseMessage>>>,
+    pending_dev_client_requests: Rc<RefCell<Vec<DevClientRequest>>>,
     last_rendered_manifest_version: Property<usize>,
     pub publish_state: Property<Option<PublishResponse>>,
     enqueued_llm_request: Option<LLMRequest>,
@@ -78,14 +80,8 @@ impl DesigntimeManager {
     }
 
     pub fn new_with_local_addr(manifest: PaxManifest, local_addr: &str) -> Self {
-        let priv_agent = Rc::new(RefCell::new(
-            WebSocketConnection::new(local_addr, None)
-                .expect("couldn't connect to privileged agent"),
-        ));
-
-        let address: String = get_server_base_url();
-        let pub_pax = Rc::new(RefCell::new(
-            WebSocketConnection::new(&address, Some(VERSION_PREFIX))
+        let privileged_agent = Rc::new(RefCell::new(
+            WebSocketConnection::new(local_addr, None, "privileged-agent")
                 .expect("couldn't connect to privileged agent"),
         ));
 
@@ -94,17 +90,22 @@ impl DesigntimeManager {
         DesigntimeManager {
             orm,
             factories,
-            priv_agent_connection: priv_agent,
-            pub_pax_connection: pub_pax,
+            privileged_agent_connection: privileged_agent,
+            pub_pax_connection: None,
             project_query: None,
             response_queue: Rc::new(RefCell::new(Vec::new())),
+            pending_dev_client_requests: Rc::new(RefCell::new(Vec::new())),
             last_rendered_manifest_version: Property::new(0),
             publish_state: Default::default(),
             enqueued_llm_request: None,
         }
     }
     pub fn new(manifest: PaxManifest) -> Self {
-        Self::new_with_local_addr(manifest, "ws://localhost:8080")
+        let local_addr = std::env::var("PAX_DESIGN_SERVER_ADDR")
+            .ok()
+            .or_else(resolve_default_local_addr)
+            .unwrap_or_else(|| "ws://localhost:8080".to_string());
+        Self::new_with_local_addr(manifest, &local_addr)
     }
 
     pub fn set_project(&mut self, project_query: String) {
@@ -112,7 +113,7 @@ impl DesigntimeManager {
     }
 
     pub fn send_file_to_static_dir(&self, name: &str, data: Vec<u8>) -> anyhow::Result<()> {
-        self.priv_agent_connection
+        self.privileged_agent_connection
             .borrow_mut()
             .send_file_to_static_dir(name, data)?;
         Ok(())
@@ -129,7 +130,7 @@ impl DesigntimeManager {
     pub fn send_component_update(&mut self, type_id: &TypeId) -> anyhow::Result<()> {
         self.orm.send_component_update(type_id);
         let component = self.orm.get_component(type_id)?;
-        self.priv_agent_connection
+        self.privileged_agent_connection
             .borrow_mut()
             .send_component_update(component)?;
 
@@ -225,6 +226,17 @@ impl DesigntimeManager {
         self.orm.get_manifest_version()
     }
 
+    pub fn take_dev_client_requests(&mut self) -> Vec<DevClientRequest> {
+        let mut pending_requests = self.pending_dev_client_requests.borrow_mut();
+        pending_requests.drain(..).collect()
+    }
+
+    pub fn send_dev_client_response(&mut self, response: DevClientResponse) -> anyhow::Result<()> {
+        self.privileged_agent_connection
+            .borrow_mut()
+            .send_dev_client_response(response)
+    }
+
     pub fn get_orm(&self) -> &PaxManifestORM {
         &self.orm
     }
@@ -237,11 +249,16 @@ impl DesigntimeManager {
         &mut self,
         screenshot_map: Rc<RefCell<HashMap<u32, ScreenshotData>>>,
     ) -> anyhow::Result<()> {
+        if let Some(files) = self.orm.get_updated_project_files() {
+            self.privileged_agent_connection
+                .borrow_mut()
+                .send_updated_files(files)?;
+        }
         if let Some(mut llm_request) = self.enqueued_llm_request.take() {
             let mut screenshot_map = screenshot_map.borrow_mut();
             if let Some(screenshot) = screenshot_map.remove(&(llm_request.request_id as u32)) {
                 llm_request.screenshot = Some(screenshot);
-                self.pub_pax_connection
+                self.pub_pax_connection()?
                     .borrow_mut()
                     .send_llm_request(llm_request)?;
             } else {
@@ -249,13 +266,21 @@ impl DesigntimeManager {
             }
         }
 
-        self.priv_agent_connection
+        let privileged_agent_messages = self
+            .privileged_agent_connection
             .borrow_mut()
             .handle_recv(&mut self.orm)?;
+        for message in privileged_agent_messages {
+            if let crate::messages::AgentMessage::DevClientRequest(request) = message {
+                self.pending_dev_client_requests
+                    .borrow_mut()
+                    .push(request);
+            }
+        }
 
-        self.pub_pax_connection
-            .borrow_mut()
-            .handle_recv(&mut self.orm)?;
+        if let Some(pub_pax_connection) = &self.pub_pax_connection {
+            let _ = pub_pax_connection.borrow_mut().handle_recv(&mut self.orm)?;
+        }
 
         let response_queue = {
             let mut queue = self.response_queue.borrow_mut();
@@ -265,6 +290,21 @@ impl DesigntimeManager {
             self.handle_response(response);
         }
         Ok(())
+    }
+
+    fn pub_pax_connection(&mut self) -> anyhow::Result<Rc<RefCell<WebSocketConnection>>> {
+        if let Some(connection) = &self.pub_pax_connection {
+            return Ok(connection.clone());
+        }
+
+        let address = get_server_base_url();
+        let connection = Rc::new(RefCell::new(WebSocketConnection::new(
+            &address,
+            Some(VERSION_PREFIX),
+            "pub-pax",
+        )?));
+        self.pub_pax_connection = Some(connection.clone());
+        Ok(connection)
     }
 
     pub fn handle_response(&mut self, response: DesigntimeResponseMessage) {
@@ -280,6 +320,18 @@ impl DesigntimeManager {
                 self.publish_state.set(Some(response));
             }
         }
+    }
+}
+
+fn resolve_default_local_addr() -> Option<String> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        web_sys::window()?.location().origin().ok()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        None
     }
 }
 

@@ -99,7 +99,11 @@ impl Action for Zoom {
         if ctx.app_state.modifiers.get().contains(&ModifierKey::Meta) {
             let scale = if self.closer { 1.0 / 1.4 } else { 1.4 };
             let old_transform = ctx.app_state.glass_to_world_transform.get();
-            ctx.app_state.glass_to_world_transform.ease_to(old_transform * Transform2::scale(scale), 20, pax_engine::api::EasingCurve::OutQuad);
+            ctx.app_state.glass_to_world_transform.ease_to(
+                old_transform * Transform2::scale(scale),
+                20,
+                pax_engine::api::EasingCurve::OutQuad,
+            );
         }
         Ok(())
     }

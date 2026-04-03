@@ -834,6 +834,8 @@ pub struct LayerAddPatch {
 #[repr(C)]
 pub struct ScreenshotPatch {
     pub id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scale: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize)]

@@ -28,4 +28,4 @@ flexbuffers = "2.0.0"
 
 
 [features]
-designtime = []
+designtime = ["pax-chassis-common/designtime"]

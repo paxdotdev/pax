@@ -10,8 +10,10 @@ use std::{process, thread};
 use pax_compiler::{CreateContext, RunContext, RunTarget};
 extern crate pax_language_server;
 
+mod dev;
 mod http;
 
+use color_eyre::eyre::eyre;
 use color_eyre::eyre::Report;
 use color_eyre::eyre::Result;
 use ctrlc;
@@ -83,8 +85,9 @@ fn main() -> Result<(), Report> {
     #[allow(non_snake_case)]
     let ARG_DESIGNER = Arg::with_name("designer")
         .long("designer")
-        .takes_value(false)
-        .help("Builds project with designer & designtime.");
+        .takes_value(true)
+        .possible_values(&["true", "false"])
+        .help("Controls designer host behavior. `--designer` or `--designer=true` enables designer; `--designer=false` enables designtime without designer.");
 
     #[allow(non_snake_case)]
     let ARG_LIBDEV = Arg::with_name("libdev")
@@ -120,6 +123,7 @@ fn main() -> Result<(), Report> {
                 .arg( ARG_IOS_DEVICE.clone() )
                 .arg( ARG_IOS_DEVELOPMENT_TEAM.clone() )
                 .arg( ARG_DESIGNER.clone() )
+                .arg( ARG_NO_DESIGNER.clone() )
                 .arg( ARG_VERBOSE.clone() )
                 .arg( ARG_LIBDEV.clone() )
                 .arg( ARG_RELEASE.clone() )
@@ -165,7 +169,41 @@ fn main() -> Result<(), Report> {
                 .arg( ARG_TARGET.clone())
                 .arg( ARG_LIBDEV.clone())
         )
-        .get_matches();
+        .subcommand(
+            App::new("designtime-server")
+                .setting(AppSettings::Hidden)
+                .arg(
+                    Arg::with_name("serve-dir")
+                        .long("serve-dir")
+                        .takes_value(true)
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("watch-dir")
+                        .long("watch-dir")
+                        .takes_value(true)
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("manifest-path")
+                        .long("manifest-path")
+                        .takes_value(true)
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("port")
+                        .long("port")
+                        .takes_value(true)
+                        .default_value("0"),
+                )
+                .arg(
+                    Arg::with_name("ready-file")
+                        .long("ready-file")
+                        .takes_value(true),
+                ),
+        )
+        .subcommand(dev::command())
+        .get_matches_from(normalize_designer_args(std::env::args().collect())?);
 
     // Clap doesn't easily let us check a "global" arg without performing individual `match`es.
     // Since we want to know at this top level whether `--libdev` is present, we will parse it manually.
@@ -202,11 +240,11 @@ fn perform_nominal_action(
             let path = args.value_of("path").unwrap().to_string(); //default value "."
             let verbose = args.is_present("verbose");
             let is_libdev_mode = args.is_present("libdev");
-            let should_run_designer = args.is_present("designer");
             let ios_device = args.value_of("ios-device").map(str::to_string);
             let ios_development_team = args
                 .value_of("ios-development-team")
                 .map(str::to_string);
+            let (should_run_designtime, should_run_designer) = resolve_dev_options(args, true)?;
 
             let _ = pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
@@ -215,6 +253,7 @@ fn perform_nominal_action(
                 should_also_run: true,
                 is_libdev_mode,
                 process_child_ids,
+                should_run_designtime,
                 should_run_designer,
                 is_release: false,
                 ios_device,
@@ -227,18 +266,20 @@ fn perform_nominal_action(
             let target = args.value_of("target").unwrap().to_lowercase();
             let path = args.value_of("path").unwrap().to_string(); //default value "."
             let verbose = args.is_present("verbose");
-            let should_run_designer = args.is_present("designer");
             let is_libdev_mode = args.is_present("libdev");
             let is_release = args.is_present("release");
             let ios_device = args.value_of("ios-device").map(str::to_string);
             let ios_development_team = args
                 .value_of("ios-development-team")
                 .map(str::to_string);
+            let (should_run_designtime, should_run_designer) =
+                resolve_dev_options(args, !is_release)?;
 
             let _ = pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
                 project_path: PathBuf::from(path),
                 should_also_run: false,
+                should_run_designtime,
                 should_run_designer,
                 verbose,
                 is_libdev_mode,
@@ -280,6 +321,7 @@ fn perform_nominal_action(
                 target: RunTarget::from(target.as_str()),
                 project_path: PathBuf::from("."),
                 should_also_run: false,
+                should_run_designtime: false,
                 should_run_designer: false,
                 verbose: false,
                 is_libdev_mode,
@@ -298,6 +340,7 @@ fn perform_nominal_action(
                     let output = &pax_compiler::run_parser_binary(
                         &PathBuf::from(path),
                         process_child_ids,
+                        false,
                         false,
                     );
 
@@ -331,7 +374,98 @@ fn perform_nominal_action(
             pax_lang::formatting::format_file(file_path.to_str().unwrap())?;
             Ok(())
         }
+        ("designtime-server", Some(args)) => {
+            let serve_dir = args.value_of("serve-dir").unwrap();
+            let watch_dir = args.value_of("watch-dir").unwrap();
+            let manifest_path = PathBuf::from(args.value_of("manifest-path").unwrap());
+            let manifest_bytes = std::fs::read(manifest_path)?;
+            let manifest: pax_manifest::PaxManifest = serde_json::from_slice(&manifest_bytes)?;
+            let port = args
+                .value_of("port")
+                .unwrap()
+                .parse::<u16>()
+                .map_err(|_| eyre!("--port must be an unsigned 16-bit integer"))?;
+            let ready_file = args.value_of("ready-file").map(PathBuf::from);
+            pax_compiler::design_server::start_server(
+                serve_dir,
+                watch_dir,
+                manifest,
+                Some(port),
+                ready_file,
+                None,
+            )?;
+            Ok(())
+        }
+        ("dev", Some(args)) => dev::handle(args, process_child_ids),
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable
+    }
+}
+
+fn normalize_designer_args(args: Vec<String>) -> Result<Vec<String>, Report> {
+    let mut normalized = Vec::with_capacity(args.len());
+    let mut iter = args.into_iter().peekable();
+
+    while let Some(arg) = iter.next() {
+        if arg == "--designer" {
+            match iter.peek().map(String::as_str) {
+                Some("true") | Some("false") => {
+                    let value = iter.next().unwrap();
+                    normalized.push(format!("--designer={value}"));
+                }
+                Some(next) if !next.starts_with('-') => {
+                    return Err(eyre!(
+                        "`--designer` only accepts `true` or `false`, got `{}`",
+                        next
+                    ));
+                }
+                _ => normalized.push("--designer=true".to_string()),
+            }
+        } else if let Some(value) = arg.strip_prefix("--designer=") {
+            if value == "true" || value == "false" {
+                normalized.push(arg);
+            } else {
+                return Err(eyre!(
+                    "`--designer` only accepts `true` or `false`, got `{}`",
+                    value
+                ));
+            }
+        } else {
+            normalized.push(arg);
+        }
+    }
+
+    Ok(normalized)
+}
+
+fn resolve_dev_options(
+    args: &ArgMatches<'_>,
+    default_designtime: bool,
+) -> Result<(bool, bool), Report> {
+    let explicit_designer = match args.value_of("designer") {
+        Some("true") => Some(true),
+        Some("false") => Some(false),
+        Some(value) => {
+            return Err(eyre!(
+                "`--designer` only accepts `true` or `false`, got `{}`",
+                value
+            ));
+        }
+        None => None,
+    };
+    let no_designer = args.is_present("no-designer");
+
+    if explicit_designer == Some(true) && no_designer {
+        return Err(eyre!(
+            "`--designer=true` and `--no-designer` cannot be used together"
+        ));
+    }
+
+    if explicit_designer == Some(true) {
+        Ok((true, true))
+    } else if explicit_designer == Some(false) || no_designer {
+        Ok((true, false))
+    } else {
+        Ok((default_designtime, false))
     }
 }
 

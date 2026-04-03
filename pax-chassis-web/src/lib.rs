@@ -24,6 +24,7 @@ pub mod web_render_contexts;
 
 use pax_runtime::PaxEngine;
 use std::rc::Rc;
+use std::{collections::HashMap};
 use wasm_bindgen::prelude::*;
 use web_sys::window;
 
@@ -37,12 +38,15 @@ use pax_runtime::api::{
 };
 use serde_json;
 
-#[cfg(any(feature = "designtime", feature = "designer"))]
-use {pax_designtime::orm::ReloadType, pax_designtime::DesigntimeManager};
+#[cfg(feature = "designtime")]
+use pax_designtime::DesigntimeManager;
 
 const USERLAND_COMPONENT_ROOT: &str = "USERLAND_COMPONENT_ROOT";
-#[cfg(any(feature = "designtime", feature = "designer"))]
+#[cfg(feature = "designtime")]
 const DESIGNER_COMPONENT_ROOT: &str = "DESIGNER_COMPONENT_ROOT";
+
+#[cfg(feature = "designtime")]
+mod dev;
 
 #[wasm_bindgen]
 pub fn wasm_memory() -> JsValue {
@@ -53,11 +57,15 @@ pub fn wasm_memory() -> JsValue {
 pub struct PaxChassisWeb {
     render_context: Box<dyn RenderContext>,
     engine: Rc<RefCell<PaxEngine>>,
-    #[cfg(any(feature = "designtime", feature = "designer"))]
+    #[cfg(feature = "designtime")]
     userland_definition_to_instance_traverser:
         Box<dyn pax_runtime::cartridge::DefinitionToInstanceTraverser>,
-    #[cfg(any(feature = "designtime", feature = "designer"))]
+    #[cfg(feature = "designtime")]
     designtime_manager: Rc<RefCell<DesigntimeManager>>,
+    #[cfg(feature = "designtime")]
+    pending_dev_look_requests: HashMap<String, dev::PendingWebDevLookRequest>,
+    #[cfg(feature = "designtime")]
+    next_dev_capture_id: u32,
 }
 
 #[wasm_bindgen]
@@ -69,8 +77,8 @@ pub struct InterruptResult {
 //                  the second for FFI-exposed functions
 
 impl PaxChassisWeb {
-    #[cfg(any(feature = "designtime", feature = "designer"))]
-    pub async fn new(
+    #[cfg(feature = "designtime")]
+    pub async fn new_designer(
         userland_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
         designer_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
@@ -89,7 +97,7 @@ impl PaxChassisWeb {
         let designtime_manager = userland_definition_to_instance_traverser
             .get_designtime_manager(query_string)
             .unwrap();
-        let engine = pax_runtime::PaxEngine::new_with_designtime(
+        let engine = pax_runtime::PaxEngine::new_with_designer(
             main_component_instance,
             userland_main_component_instance,
             (width, height),
@@ -104,10 +112,49 @@ impl PaxChassisWeb {
             render_context: renderer,
             userland_definition_to_instance_traverser,
             designtime_manager,
+            pending_dev_look_requests: HashMap::new(),
+            next_dev_capture_id: 1_000_000,
         }
     }
 
-    #[cfg(not(any(feature = "designtime", feature = "designer")))]
+    #[cfg(feature = "designtime")]
+    pub async fn new_designtime(
+        userland_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
+    ) -> Self {
+        let (width, height, os_info, get_time, renderer) = Self::init_common();
+        let query_string = window()
+            .unwrap()
+            .location()
+            .search()
+            .expect("no search exists");
+
+        let userland_main_component_instance =
+            userland_definition_to_instance_traverser.get_main_component(USERLAND_COMPONENT_ROOT);
+        let designtime_manager = userland_definition_to_instance_traverser
+            .get_designtime_manager(query_string)
+            .unwrap();
+        let engine = pax_runtime::PaxEngine::new_with_designtime(
+            userland_main_component_instance,
+            (width, height),
+            designtime_manager.clone(),
+            Platform::Web,
+            os_info,
+            get_time,
+        );
+
+        let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
+
+        Self {
+            engine: engine_container,
+            render_context: renderer,
+            userland_definition_to_instance_traverser,
+            designtime_manager,
+            pending_dev_look_requests: HashMap::new(),
+            next_dev_capture_id: 1_000_000,
+        }
+    }
+
+    #[cfg(not(feature = "designtime"))]
     pub async fn new(
         definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
@@ -146,17 +193,21 @@ impl PaxChassisWeb {
         (width, height, os_info, get_time, Box::new(renderer))
     }
 
-    #[cfg(any(feature = "designtime", feature = "designer"))]
+    #[cfg(feature = "designtime")]
     pub fn handle_recv_designtime(&mut self) {
-        borrow_mut!(self.designtime_manager)
+        self.designtime_manager
+            .borrow_mut()
             .handle_recv(self.engine.borrow().runtime_context.get_screenshot_map())
             .expect("couldn't handle recv");
     }
 
-    #[cfg(any(feature = "designtime", feature = "designer"))]
+    #[cfg(feature = "designtime")]
     pub fn designtime_tick(&mut self) {
         self.handle_recv_designtime();
+        self.collect_completed_dev_look_captures();
         self.update_userland_component();
+        self.process_pending_dev_client_requests();
+        self.schedule_due_dev_look_captures();
     }
 }
 
@@ -598,87 +649,8 @@ impl PaxChassisWeb {
         }
     }
 
-    #[cfg(any(feature = "designtime", feature = "designer"))]
-    pub fn update_userland_component(&mut self) {
-        let current_manifest_version =
-            borrow!(self.designtime_manager).get_last_written_manifest_version();
-        let reload_queue = borrow_mut!(self.designtime_manager).take_reload_queue();
-
-        if current_manifest_version.get()
-            != self
-                .designtime_manager
-                .borrow()
-                .get_last_rendered_manifest_version()
-                .get()
-        {
-            for reload_type in reload_queue {
-                match reload_type {
-                    // This and FullPlay are now the same: TODO join?
-                    ReloadType::Tree => {
-                        let mut engine = borrow_mut!(self.engine);
-                        let root = self
-                            .userland_definition_to_instance_traverser
-                            .get_main_component(USERLAND_COMPONENT_ROOT)
-                            as Rc<dyn pax_runtime::InstanceNode>;
-                        engine.full_reload_userland(root);
-                    }
-                    ReloadType::Node(uni, _) => {
-                        let manifest = self
-                            .userland_definition_to_instance_traverser
-                            .get_manifest();
-                        let containing_component = manifest
-                            .components
-                            .get(&uni.get_containing_component_type_id())
-                            .unwrap();
-                        let containing_template = containing_component.template.as_ref().unwrap();
-                        let tnd = containing_template
-                            .get_node(&uni.get_template_node_id())
-                            .unwrap();
-
-                        let nodes = self
-                            .engine
-                            .borrow()
-                            .runtime_context
-                            .get_expanded_nodes_by_global_ids(&uni);
-
-                        let prior_instance_node = nodes.get(0).map(|x| {
-                            pax_runtime::ReusableInstanceNodeArgs::new(
-                                x.instance_node.borrow().base(),
-                            )
-                        });
-
-                        let pax_type = tnd.type_id.get_pax_type();
-                        let instance_node = match pax_type {
-                            pax_manifest::PaxType::If
-                            | pax_manifest::PaxType::Slot
-                            | pax_manifest::PaxType::Repeat => self
-                                .userland_definition_to_instance_traverser
-                                .build_control_flow(
-                                    &uni.get_containing_component_type_id(),
-                                    &uni.get_template_node_id(),
-                                    prior_instance_node,
-                                ),
-                            _ => self
-                                .userland_definition_to_instance_traverser
-                                .build_template_node(
-                                    &uni.get_containing_component_type_id(),
-                                    &uni.get_template_node_id(),
-                                    prior_instance_node,
-                                ),
-                        };
-                        let mut engine = borrow_mut!(self.engine);
-                        engine.partial_update_expanded_node(Rc::clone(&instance_node));
-                    }
-                }
-            }
-            self.designtime_manager
-                .borrow_mut()
-                .set_last_rendered_manifest_version(current_manifest_version.get());
-        }
-    }
-
     pub fn tick(&mut self) -> MemorySlice {
-        #[cfg(any(feature = "designtime", feature = "designer"))]
+        #[cfg(feature = "designtime")]
         self.designtime_tick();
 
         let message_queue = borrow_mut!(self.engine).tick();

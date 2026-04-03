@@ -16,6 +16,41 @@ import AppKit
 
 public typealias PaxNodeId = UInt32
 
+private func decodeId(_ fb: FlxbReference) -> UInt32? {
+    if let id = fb["id"]?.asUInt64 {
+        return UInt32(id)
+    }
+    if let id = fb.asUInt64 {
+        return UInt32(id)
+    }
+    if let idChain = fb["id_chain"]?.asVector {
+        let values = idChain.makeIterator().compactMap { $0.asUInt64 }
+        if values.count == 1, let id = values.first {
+            return UInt32(id)
+        }
+    }
+    return nil
+}
+
+private func decodeIdChain(_ fb: FlxbReference) -> [UInt64] {
+    if let idChain = fb["id_chain"]?.asVector {
+        return idChain.makeIterator().compactMap { $0.asUInt64 }
+    }
+    if let id = decodeId(fb) {
+        return [UInt64(id)]
+    }
+    return []
+}
+
+private func decodeClippingIds(_ fb: FlxbReference) -> [[UInt64]] {
+    guard let clippingIds = fb["clipping_ids"]?.asVector else {
+        return []
+    }
+    return clippingIds.makeIterator().map { clippingId in
+        clippingId.asVector?.makeIterator().compactMap { $0.asUInt64 } ?? []
+    }
+}
+
 public extension Notification.Name {
     static let paxFontRegistered = Notification.Name("PaxFontRegistered")
 }
@@ -346,11 +381,16 @@ private func readDouble(_ fb: FlxbReference?) -> Double? {
 /// Agnostic of the type of element, this patch contains only create-time metadata.
 public class AnyCreatePatch {
     public var id: PaxNodeId
+    public var id_chain: [UInt64]
+    /// Used for clipping -- each `[UInt64]` is an `id_chain` for an associated clipping mask (`Frame`)
+    public var clipping_ids: [[UInt64]]
     public var parentFrame: PaxNodeId?
     public var occlusionLayerId: UInt32
     
     public init(fb:FlxbReference) {
-        self.id = readNodeId(fb["id"]) ?? 0
+        self.id = readNodeId(fb["id"]) ?? decodeId(fb) ?? 0
+        self.id_chain = decodeIdChain(fb)
+        self.clipping_ids = decodeClippingIds(fb)
         self.parentFrame = readNodeId(fb["parent_frame"])
         self.occlusionLayerId = UInt32(truncatingIfNeeded: fb["occlusion_layer_id"]?.asUInt64 ?? 0)
     }
@@ -359,9 +399,11 @@ public class AnyCreatePatch {
 
 public class AnyDeletePatch {
     public var id: PaxNodeId
+    public var id_chain: [UInt64]
     
     public init(fb:FlxbReference) {
-        self.id = readNodeId(fb) ?? 0
+        self.id = readNodeId(fb) ?? decodeId(fb) ?? 0
+        self.id_chain = decodeIdChain(fb)
     }
 }
 
@@ -586,11 +628,23 @@ public func toAlignment(horizontalAlignment: TextAlignHorizontal, verticalAlignm
 /// A patch representing an image load request from a given id_chain
 public class ImageLoadPatch {
     public var id: PaxNodeId
+    public var id_chain: [UInt64]
     public var path: String?
     
     public init(fb:FlxbReference) {
-        self.id = readNodeId(fb["id"]) ?? 0
+        self.id = readNodeId(fb["id"]) ?? decodeId(fb) ?? 0
+        self.id_chain = decodeIdChain(fb)
         self.path = fb["path"]?.asString
+    }
+}
+
+public class ScreenshotPatch {
+    public var id: UInt32
+    public var scale: CGFloat?
+
+    public init(fb: FlxbReference) {
+        self.id = UInt32(fb["id"]!.asUInt64!)
+        self.scale = fb["scale"]?.asFloat.map { CGFloat($0) }
     }
 }
 
@@ -658,6 +712,7 @@ public class TextStyleMessage {
 
 public class TextUpdatePatch {
     public var id: PaxNodeId
+    public var id_chain: [UInt64]
     public var content: String?
     public var transform: [Float]?
     public var size_x: Float?
@@ -670,7 +725,8 @@ public class TextUpdatePatch {
     public var style_link: TextStyleMessage?
 
     public init(fb: FlxbReference) {
-        self.id = readNodeId(fb["id"]) ?? 0
+        self.id = readNodeId(fb["id"]) ?? decodeId(fb) ?? 0
+        self.id_chain = decodeIdChain(fb)
         self.content = fb["content"]?.asString
         self.transform = readFloatArray(fb["transform"])
         self.size_x = fb["size_x"]?.asFloat
@@ -1562,6 +1618,7 @@ public class FrameElement {
 /// A patch containing optional fields, representing an update action for the NativeElement of the given id_chain
 public class FrameUpdatePatch {
     public var id: PaxNodeId
+    public var id_chain: [UInt64]
     public var transform: [Float]?
     public var size_x: Float?
     public var size_y: Float?
@@ -1570,7 +1627,8 @@ public class FrameUpdatePatch {
     public var opacity: Double?
     
     public init(fb: FlxbReference) {
-        self.id = readNodeId(fb["id"]) ?? 0
+        self.id = readNodeId(fb["id"]) ?? decodeId(fb) ?? 0
+        self.id_chain = decodeIdChain(fb)
         self.transform = readFloatArray(fb["transform"])
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
