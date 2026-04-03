@@ -1,7 +1,8 @@
 use crate::design_server::{AppState, FileContent, WatcherFileChanged};
 use crate::dev_session::{
     self, session_request_dir, session_response_dir, write_registered_session, DevCapture,
-    DevInspectTreeResponse, DevLookRequest, DevLookResponse, DevRequestEnvelope,
+    DevInspectTreeResponse, DevLookRequest, DevLookResponse, DevReplaceNodeRequest,
+    DevReplaceNodeResponse, DevRequestEnvelope,
 };
 
 use pax_manifest::{
@@ -16,8 +17,9 @@ use image::codecs::png::PngEncoder;
 use image::{ColorType, ImageBuffer, ImageEncoder, Rgba};
 use pax_designtime::messages::{
     AgentMessage, ComponentSerializationRequest, DevClientInspectTreeRequest,
-    DevClientLookRequest, DevClientResponse, FileChangedNotification, LoadFileToStaticDirRequest,
-    LoadManifestResponse, ManifestSerializationRequest, UpdateTemplateRequest,
+    DevClientLookRequest, DevClientReplaceNodeRequest, DevClientResponse,
+    FileChangedNotification, LoadFileToStaticDirRequest, LoadManifestResponse,
+    ManifestSerializationRequest, UpdateTemplateRequest,
 };
 use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
 use std::{collections::HashMap, fs, io::BufWriter, path::Path, time::Duration};
@@ -158,6 +160,31 @@ impl PrivilegedAgentWebSocket {
                             DevClientInspectTreeRequest {
                                 request_id: inspect_request.request_id,
                                 max_depth: inspect_request.max_depth,
+                            },
+                        ),
+                    )
+                }
+                "replace-node" => {
+                    let replace_request =
+                        match serde_json::from_slice::<DevReplaceNodeRequest>(&request_bytes) {
+                            Ok(replace_request) => replace_request,
+                            Err(err) => {
+                                let _ = write_dev_error_response(
+                                    &dev_session,
+                                    &request_envelope.request_id,
+                                    format!("failed to decode replace-node request: {err}"),
+                                );
+                                let _ = fs::remove_file(&path);
+                                continue;
+                            }
+                        };
+                    AgentMessage::DevClientRequest(
+                        pax_designtime::messages::DevClientRequest::ReplaceNode(
+                            DevClientReplaceNodeRequest {
+                                request_id: replace_request.request_id,
+                                component_type_id: replace_request.component_type_id,
+                                template_node_id: replace_request.template_node_id,
+                                subtemplate: replace_request.subtemplate,
                             },
                         ),
                     )
@@ -476,6 +503,23 @@ fn handle_dev_client_response(
                     status: response.status,
                     node_count: response.node_count,
                     tree_json: response.tree_json,
+                    error: response.error,
+                },
+            )
+        }
+        DevClientResponse::ReplaceNode(response) => {
+            let request_id = response.request_id.clone();
+            write_dev_json_response(
+                &dev_session,
+                &request_id,
+                &DevReplaceNodeResponse {
+                    request_id: request_id.clone(),
+                    status: response.status,
+                    component_type_id: response.component_type_id,
+                    template_node_id: response.template_node_id,
+                    reload_scope: response.reload_scope,
+                    reloaded_template_node_id: response.reloaded_template_node_id,
+                    source_path: response.source_path,
                     error: response.error,
                 },
             )

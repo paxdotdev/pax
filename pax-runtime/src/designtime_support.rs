@@ -4,9 +4,14 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 #[cfg(feature = "designtime")]
-use pax_designtime::{orm::ReloadType, DesigntimeManager};
+use pax_designtime::{
+    orm::{template::SerializedTemplateNodeSubtree, ReloadType},
+    DesigntimeManager,
+};
 #[cfg(feature = "designtime")]
-use pax_manifest::{PaxManifest, UniqueTemplateNodeIdentifier};
+use pax_manifest::{ComponentTemplate, PaxManifest, TypeId, UniqueTemplateNodeIdentifier};
+#[cfg(feature = "designtime")]
+use pax_lang::{parse_pax_str, Rule};
 #[cfg(feature = "designtime")]
 use serde::Serialize;
 
@@ -26,6 +31,18 @@ pub struct DesigntimeInspectTreePayload {
     pub status: String,
     pub node_count: Option<usize>,
     pub tree_json: Option<String>,
+    pub error: Option<String>,
+}
+
+#[cfg(feature = "designtime")]
+#[derive(Serialize)]
+pub struct DesigntimeReplaceNodePayload {
+    pub status: String,
+    pub component_type_id: String,
+    pub template_node_id: usize,
+    pub reload_scope: String,
+    pub reloaded_template_node_id: Option<usize>,
+    pub source_path: Option<String>,
     pub error: Option<String>,
 }
 
@@ -133,6 +150,148 @@ pub fn build_designtime_inspect_tree_payload(
 }
 
 #[cfg(feature = "designtime")]
+pub fn apply_designtime_replace_node_subtemplate(
+    definition_to_instance_traverser: &dyn DefinitionToInstanceTraverser,
+    designtime_manager: &Rc<RefCell<DesigntimeManager>>,
+    component_type_id_str: &str,
+    template_node_id: usize,
+    subtemplate: &str,
+) -> DesigntimeReplaceNodePayload {
+    let component_type_id = {
+        let manifest = definition_to_instance_traverser.get_manifest();
+        match resolve_designtime_component_type_id(&manifest, component_type_id_str) {
+            Ok(component_type_id) => component_type_id,
+            Err(error) => {
+                return designtime_replace_node_error(
+                    component_type_id_str,
+                    template_node_id,
+                    "error",
+                    None,
+                    error,
+                );
+            }
+        }
+    };
+
+    let target_uni = UniqueTemplateNodeIdentifier::build(
+        component_type_id.clone(),
+        pax_manifest::TemplateNodeId::build(template_node_id),
+    );
+
+    let (new_subtree, reload_uni, reload_scope) = {
+        let manifest = definition_to_instance_traverser.get_manifest();
+        let Some(component) = manifest.components.get(&component_type_id) else {
+            return designtime_replace_node_error(
+                component_type_id.to_string(),
+                template_node_id,
+                "error",
+                None,
+                "target component is not present in the current manifest",
+            );
+        };
+        let Some(template) = component.template.as_ref() else {
+            return designtime_replace_node_error(
+                component_type_id.to_string(),
+                template_node_id,
+                "error",
+                None,
+                "target component does not have a template",
+            );
+        };
+        if template.get_node(&target_uni.get_template_node_id()).is_none() {
+            return designtime_replace_node_error(
+                component_type_id.to_string(),
+                template_node_id,
+                "error",
+                None,
+                "target template node does not exist",
+            );
+        }
+
+        if subtemplate.trim().is_empty() {
+            let parent_uni = template
+                .get_parent(&target_uni.get_template_node_id())
+                .map(|parent_id| {
+                    UniqueTemplateNodeIdentifier::build(component_type_id.clone(), parent_id)
+                });
+            let reload_scope = if parent_uni.is_some() {
+                "parent-subtree".to_string()
+            } else {
+                "tree".to_string()
+            };
+            (None, parent_uni, reload_scope)
+        } else {
+            match parse_designtime_subtemplate(
+                &manifest,
+                &component_type_id,
+                subtemplate,
+            ) {
+                Ok(parsed_subtree) => {
+                    (Some(parsed_subtree), Some(target_uni.clone()), "subtree".to_string())
+                }
+                Err(error) => {
+                    return designtime_replace_node_error(
+                        component_type_id.to_string(),
+                        template_node_id,
+                        "error",
+                        None,
+                        error,
+                    );
+                }
+            }
+        }
+    };
+
+    let source_path = {
+        let manifest = definition_to_instance_traverser.get_manifest();
+        manifest
+            .components
+            .get(&component_type_id)
+            .and_then(|component| component.template.as_ref())
+            .and_then(ComponentTemplate::get_file_path)
+    };
+
+    if let Err(error) = designtime_manager.borrow_mut().get_orm_mut().replace_node_subtree(
+        target_uni,
+        new_subtree,
+        reload_uni.clone(),
+    ) {
+        return designtime_replace_node_error(
+            component_type_id.to_string(),
+            template_node_id,
+            &reload_scope,
+            reload_uni.as_ref().map(|uni| uni.get_template_node_id().as_usize()),
+            error,
+        );
+    }
+
+    if let Err(error) = designtime_manager
+        .borrow_mut()
+        .send_component_update(&component_type_id)
+    {
+        return designtime_replace_node_error(
+            component_type_id.to_string(),
+            template_node_id,
+            &reload_scope,
+            reload_uni.as_ref().map(|uni| uni.get_template_node_id().as_usize()),
+            format!("failed to serialize updated component: {error}"),
+        );
+    }
+
+    DesigntimeReplaceNodePayload {
+        status: "ok".to_string(),
+        component_type_id: component_type_id.to_string(),
+        template_node_id,
+        reload_scope,
+        reloaded_template_node_id: reload_uni
+            .as_ref()
+            .map(|uni| uni.get_template_node_id().as_usize()),
+        source_path,
+        error: None,
+    }
+}
+
+#[cfg(feature = "designtime")]
 pub fn apply_designtime_userland_reload(
     engine: &mut PaxEngine,
     definition_to_instance_traverser: &dyn DefinitionToInstanceTraverser,
@@ -157,6 +316,42 @@ pub fn apply_designtime_userland_reload(
                 let root = definition_to_instance_traverser.get_main_component(USERLAND_COMPONENT_ROOT)
                     as Rc<dyn InstanceNode>;
                 engine.full_reload_userland(root);
+            }
+            ReloadType::Subtree(uni) => {
+                let manifest = definition_to_instance_traverser.get_manifest();
+                let containing_component = manifest
+                    .components
+                    .get(&uni.get_containing_component_type_id())
+                    .unwrap();
+                let containing_template = containing_component.template.as_ref().unwrap();
+                let template_node = containing_template
+                    .get_node(&uni.get_template_node_id())
+                    .unwrap();
+
+                let nodes = engine
+                    .runtime_context
+                    .get_expanded_nodes_by_global_ids(&uni);
+
+                let pax_type = template_node.type_id.get_pax_type();
+                let instance_node = match pax_type {
+                    pax_manifest::PaxType::If
+                    | pax_manifest::PaxType::Slot
+                    | pax_manifest::PaxType::Repeat => definition_to_instance_traverser
+                        .build_control_flow(
+                            &uni.get_containing_component_type_id(),
+                            &uni.get_template_node_id(),
+                            None,
+                        ),
+                    _ => definition_to_instance_traverser.build_template_node(
+                        &uni.get_containing_component_type_id(),
+                        &uni.get_template_node_id(),
+                        None,
+                    ),
+                };
+
+                for node in nodes {
+                    node.fully_recreate_with_new_data(Rc::clone(&instance_node), &engine.runtime_context);
+                }
             }
             ReloadType::Node(uni, _) => {
                 let manifest = definition_to_instance_traverser.get_manifest();
@@ -211,6 +406,101 @@ fn designtime_inspect_tree_error(error: impl Into<String>) -> DesigntimeInspectT
         tree_json: None,
         error: Some(error.into()),
     }
+}
+
+#[cfg(feature = "designtime")]
+fn designtime_replace_node_error(
+    component_type_id: impl Into<String>,
+    template_node_id: usize,
+    reload_scope: impl Into<String>,
+    reloaded_template_node_id: Option<usize>,
+    error: impl Into<String>,
+) -> DesigntimeReplaceNodePayload {
+    DesigntimeReplaceNodePayload {
+        status: "error".to_string(),
+        component_type_id: component_type_id.into(),
+        template_node_id,
+        reload_scope: reload_scope.into(),
+        reloaded_template_node_id,
+        source_path: None,
+        error: Some(error.into()),
+    }
+}
+
+#[cfg(feature = "designtime")]
+fn resolve_designtime_component_type_id(
+    manifest: &PaxManifest,
+    component_type_id_str: &str,
+) -> Result<TypeId, String> {
+    manifest
+        .components
+        .keys()
+        .find(|type_id| {
+            type_id.to_string() == component_type_id_str
+                || type_id.get_pascal_identifier().as_deref() == Some(component_type_id_str)
+        })
+        .cloned()
+        .ok_or_else(|| format!("component {component_type_id_str} is not present in the current manifest"))
+}
+
+#[cfg(feature = "designtime")]
+fn parse_designtime_subtemplate(
+    manifest: &PaxManifest,
+    containing_component_type_id: &TypeId,
+    subtemplate: &str,
+) -> Result<SerializedTemplateNodeSubtree, String> {
+    let ast = parse_pax_str(Rule::pax_component_definition, subtemplate)
+        .map_err(|error| format!("subtemplate failed to parse: {error}"))?;
+    let settings = pax_manifest::parsing::parse_settings_from_component_definition_string(ast.clone());
+    if !settings.is_empty() {
+        return Err("node subtemplates cannot contain a component-level @settings block".to_string());
+    }
+
+    let mut parse_context = pax_manifest::parsing::TemplateNodeParseContext {
+        template: ComponentTemplate::new(containing_component_type_id.clone(), None),
+        pascal_identifier_to_type_id_map: manifest
+            .components
+            .iter()
+            .filter_map(|(type_id, _)| {
+                type_id
+                    .get_pascal_identifier()
+                    .map(|identifier| (identifier, type_id.clone()))
+            })
+            .collect(),
+    };
+    pax_manifest::parsing::parse_template_from_component_definition_string(
+        &mut parse_context,
+        subtemplate,
+        ast,
+    );
+
+    let root_ids = parse_context.template.get_root();
+    if root_ids.len() != 1 {
+        return Err(format!(
+            "node subtemplate must produce exactly one root node, found {}",
+            root_ids.len()
+        ));
+    }
+
+    serialize_template_subtree(&parse_context.template, &root_ids[0])
+}
+
+#[cfg(feature = "designtime")]
+fn serialize_template_subtree(
+    template: &ComponentTemplate,
+    node_id: &pax_manifest::TemplateNodeId,
+) -> Result<SerializedTemplateNodeSubtree, String> {
+    let node = template
+        .get_node(node_id)
+        .cloned()
+        .ok_or_else(|| format!("template node {node_id} is missing from parsed subtemplate"))?;
+    let children = template
+        .get_children(node_id)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|child_id| serialize_template_subtree(template, &child_id))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(SerializedTemplateNodeSubtree { node, children })
 }
 
 #[cfg(feature = "designtime")]

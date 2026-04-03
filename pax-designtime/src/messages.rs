@@ -30,12 +30,14 @@ pub enum AgentMessage {
 pub enum DevClientRequest {
     Look(DevClientLookRequest),
     InspectTree(DevClientInspectTreeRequest),
+    ReplaceNode(DevClientReplaceNodeRequest),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum DevClientResponse {
     Look(DevClientLookResponse),
     InspectTree(DevClientInspectTreeResponse),
+    ReplaceNode(DevClientReplaceNodeResponse),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -74,6 +76,26 @@ pub struct DevClientInspectTreeResponse {
     pub status: String,
     pub node_count: Option<usize>,
     pub tree_json: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DevClientReplaceNodeRequest {
+    pub request_id: String,
+    pub component_type_id: String,
+    pub template_node_id: usize,
+    pub subtemplate: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DevClientReplaceNodeResponse {
+    pub request_id: String,
+    pub status: String,
+    pub component_type_id: String,
+    pub template_node_id: usize,
+    pub reload_scope: String,
+    pub reloaded_template_node_id: Option<usize>,
+    pub source_path: Option<String>,
     pub error: Option<String>,
 }
 

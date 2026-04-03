@@ -59,6 +59,27 @@ pub struct DevInspectTreeResponse {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DevReplaceNodeRequest {
+    pub request_id: String,
+    pub kind: String,
+    pub component_type_id: String,
+    pub template_node_id: usize,
+    pub subtemplate: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DevReplaceNodeResponse {
+    pub request_id: String,
+    pub status: String,
+    pub component_type_id: String,
+    pub template_node_id: usize,
+    pub reload_scope: String,
+    pub reloaded_template_node_id: Option<usize>,
+    pub source_path: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DevSession {
     pub session_id: String,
     pub platform: String,

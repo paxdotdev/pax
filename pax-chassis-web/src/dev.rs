@@ -1,13 +1,12 @@
-use std::collections::HashMap;
-
 use js_sys::Date;
 use pax_designtime::messages::{
-    DevClientInspectTreeResponse, DevClientLookRequest, DevClientLookResponse, DevClientRawCapture,
-    DevClientRequest, DevClientResponse,
+    DevClientInspectTreeResponse, DevClientLookRequest, DevClientLookResponse,
+    DevClientRawCapture, DevClientReplaceNodeResponse, DevClientRequest, DevClientResponse,
 };
 use pax_message::{NativeMessage, ScreenshotPatch};
 use pax_runtime::designtime_support::{
-    apply_designtime_userland_reload, build_designtime_inspect_tree_payload,
+    apply_designtime_replace_node_subtemplate, apply_designtime_userland_reload,
+    build_designtime_inspect_tree_payload,
 };
 
 use crate::PaxChassisWeb;
@@ -79,6 +78,32 @@ impl PaxChassisWeb {
                         .send_dev_client_response(response)
                     {
                         log::warn!("failed to send web inspect-tree response: {err}");
+                    }
+                }
+                DevClientRequest::ReplaceNode(request) => {
+                    let payload = apply_designtime_replace_node_subtemplate(
+                        self.userland_definition_to_instance_traverser.as_ref(),
+                        &self.designtime_manager,
+                        &request.component_type_id,
+                        request.template_node_id,
+                        &request.subtemplate,
+                    );
+                    let response = DevClientResponse::ReplaceNode(DevClientReplaceNodeResponse {
+                        request_id: request.request_id,
+                        status: payload.status,
+                        component_type_id: payload.component_type_id,
+                        template_node_id: payload.template_node_id,
+                        reload_scope: payload.reload_scope,
+                        reloaded_template_node_id: payload.reloaded_template_node_id,
+                        source_path: payload.source_path,
+                        error: payload.error,
+                    });
+                    if let Err(err) = self
+                        .designtime_manager
+                        .borrow_mut()
+                        .send_dev_client_response(response)
+                    {
+                        log::warn!("failed to send web replace-node response: {err}");
                     }
                 }
             }

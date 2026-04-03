@@ -869,6 +869,170 @@ impl Undo for ReplaceTemplateRequest {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SerializedTemplateNodeSubtree {
+    pub node: TemplateNodeDefinition,
+    pub children: Vec<SerializedTemplateNodeSubtree>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ReplaceNodeSubtreeRequest {
+    uni: UniqueTemplateNodeIdentifier,
+    new_subtree: Option<SerializedTemplateNodeSubtree>,
+    reload_uni: Option<UniqueTemplateNodeIdentifier>,
+    _cached_template: Option<ComponentTemplate>,
+}
+
+impl ReplaceNodeSubtreeRequest {
+    pub fn new(
+        uni: UniqueTemplateNodeIdentifier,
+        new_subtree: Option<SerializedTemplateNodeSubtree>,
+        reload_uni: Option<UniqueTemplateNodeIdentifier>,
+    ) -> Self {
+        Self {
+            uni,
+            new_subtree,
+            reload_uni,
+            _cached_template: None,
+        }
+    }
+}
+
+pub struct ReplaceNodeSubtreeResponse {
+    command_id: Option<usize>,
+    _affected_component_type_id: TypeId,
+    reload_type: ReloadType,
+}
+
+impl Request for ReplaceNodeSubtreeRequest {
+    type Response = ReplaceNodeSubtreeResponse;
+}
+
+impl Response for ReplaceNodeSubtreeResponse {
+    fn set_id(&mut self, id: usize) {
+        self.command_id = Some(id);
+    }
+
+    fn get_id(&self) -> usize {
+        self.command_id.unwrap()
+    }
+
+    fn get_reload_type(&self) -> Option<ReloadType> {
+        Some(self.reload_type.clone())
+    }
+}
+
+impl Command<ReplaceNodeSubtreeRequest> for ReplaceNodeSubtreeRequest {
+    fn execute(
+        &mut self,
+        manifest: &mut PaxManifest,
+    ) -> Result<ReplaceNodeSubtreeResponse, String> {
+        let component = manifest
+            .components
+            .get_mut(&self.uni.get_containing_component_type_id())
+            .ok_or_else(|| {
+                format!(
+                    "Component {} not found",
+                    self.uni.get_containing_component_type_id()
+                )
+            })?;
+        if component.is_primitive || component.is_struct_only_component {
+            return Err("Component doesn't accept template nodes.".to_string());
+        }
+
+        let template = component
+            .template
+            .as_mut()
+            .ok_or_else(|| "Component has no template".to_string())?;
+        self._cached_template = Some(template.clone());
+
+        match &self.new_subtree {
+            Some(new_subtree) => {
+                replace_template_node_subtree(
+                    template,
+                    self.uni.get_template_node_id(),
+                    new_subtree,
+                )?;
+            }
+            None => {
+                template.remove_node(self.uni.get_template_node_id());
+            }
+        }
+
+        Ok(ReplaceNodeSubtreeResponse {
+            command_id: None,
+            _affected_component_type_id: self.uni.get_containing_component_type_id(),
+            reload_type: self
+                .reload_uni
+                .clone()
+                .map(ReloadType::Subtree)
+                .unwrap_or(ReloadType::Tree),
+        })
+    }
+
+    fn as_undo_redo(&mut self) -> Option<UndoRedoCommand> {
+        Some(UndoRedoCommand::ReplaceNodeSubtreeRequest(Box::new(
+            self.clone(),
+        )))
+    }
+}
+
+impl Undo for ReplaceNodeSubtreeRequest {
+    fn undo(&mut self, manifest: &mut PaxManifest) -> Result<(), String> {
+        let component = manifest
+            .components
+            .get_mut(&self.uni.get_containing_component_type_id())
+            .ok_or_else(|| {
+                format!(
+                    "Component {} not found",
+                    self.uni.get_containing_component_type_id()
+                )
+            })?;
+        let template = component
+            .template
+            .as_mut()
+            .ok_or_else(|| "Component has no template".to_string())?;
+        if let Some(cached_template) = &self._cached_template {
+            *template = cached_template.clone();
+        }
+        Ok(())
+    }
+}
+
+fn replace_template_node_subtree(
+    template: &mut ComponentTemplate,
+    target_id: TemplateNodeId,
+    new_subtree: &SerializedTemplateNodeSubtree,
+) -> Result<(), String> {
+    if template.get_node(&target_id).is_none() {
+        return Err(format!("Template node {} does not exist", target_id));
+    }
+
+    let existing_children = template.get_children(&target_id).unwrap_or_default();
+    for child in existing_children {
+        template.remove_node(child);
+    }
+
+    template.set_node(target_id.clone(), new_subtree.node.clone());
+    append_template_subtree_children(template, &target_id, &new_subtree.children);
+    Ok(())
+}
+
+fn append_template_subtree_children(
+    template: &mut ComponentTemplate,
+    parent_id: &TemplateNodeId,
+    children: &[SerializedTemplateNodeSubtree],
+) {
+    for child in children {
+        let child_uni = template.add_child_back(parent_id.clone(), child.node.clone());
+        append_template_subtree_children(
+            template,
+            &child_uni.get_template_node_id(),
+            &child.children,
+        );
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ConvertToComponentRequest {
     // These subtrees (roots) must be at the same TreeLocation
     subtrees_roots: Vec<MoveToComponentEntry>,

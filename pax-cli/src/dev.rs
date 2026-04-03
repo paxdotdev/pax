@@ -10,7 +10,8 @@ use color_eyre::eyre::{eyre, Report, Result};
 use pax_compiler::dev_session::{
     self, list_registered_sessions, project_dev_dir, read_project_active_session,
     remove_registered_session, session_request_dir, session_response_dir, DevInspectTreeRequest,
-    DevInspectTreeResponse, DevLookRequest, DevLookResponse, DevSession,
+    DevInspectTreeResponse, DevLookRequest, DevLookResponse, DevReplaceNodeRequest,
+    DevReplaceNodeResponse, DevSession,
 };
 use pax_manifest::PaxManifest;
 use serde::de::DeserializeOwned;
@@ -65,6 +66,46 @@ fn touch_command() -> App<'static, 'static> {
                         .takes_value(true)
                         .conflicts_with("source")
                         .help("Path to a file containing the replacement source, or - for stdin"),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("replace-node")
+                .about("Replace a single live template node with a Pax subtemplate string")
+                .arg(arg_path())
+                .arg(arg_session())
+                .arg(
+                    Arg::with_name("component")
+                        .long("component")
+                        .takes_value(true)
+                        .required(true)
+                        .help("Containing component type id from `pax dev inspect tree`, for example `crate::Example`"),
+                )
+                .arg(
+                    Arg::with_name("template-node-id")
+                        .long("template-node-id")
+                        .takes_value(true)
+                        .required(true)
+                        .help("Template node id from `pax dev inspect tree`"),
+                )
+                .arg(
+                    Arg::with_name("source")
+                        .long("source")
+                        .takes_value(true)
+                        .conflicts_with("source-file")
+                        .help("Inline Pax subtemplate string; empty string deletes the node"),
+                )
+                .arg(
+                    Arg::with_name("source-file")
+                        .long("source-file")
+                        .takes_value(true)
+                        .conflicts_with("source")
+                        .help("Path to a file containing the replacement subtemplate, or - for stdin"),
+                )
+                .arg(
+                    Arg::with_name("timeout-ms")
+                        .long("timeout-ms")
+                        .takes_value(true)
+                        .help("How long to wait for the running app to fulfill the request"),
                 ),
         )
 }
@@ -339,6 +380,7 @@ fn handle_touch(
         ("apply-component-source", Some(sub_args)) => {
             handle_apply_component_source(sub_args, process_child_ids)
         }
+        ("replace-node", Some(sub_args)) => handle_replace_node(sub_args),
         _ => Err(eyre!("unknown dev touch subcommand")),
     }
 }
@@ -391,6 +433,46 @@ fn handle_apply_component_source(
         "component": component_name,
         "path": component_path,
     }))
+}
+
+fn handle_replace_node(args: &ArgMatches<'_>) -> Result<(), Report> {
+    let session = resolve_session(args)?;
+    let request_id = format!("replace-node-{}", dev_session::now_ms());
+    let component_type_id = args.value_of("component").unwrap().to_string();
+    let template_node_id = parse_usize(args, "template-node-id")?;
+    let subtemplate = read_component_source(args)?;
+
+    if !subtemplate.trim().is_empty() {
+        pax_lang::parse_pax_str(pax_lang::Rule::pax_component_definition, &subtemplate)
+            .map_err(|err| eyre!("replacement subtemplate failed to parse: {err}"))?;
+    }
+
+    let request = DevReplaceNodeRequest {
+        request_id: request_id.clone(),
+        kind: "replace-node".to_string(),
+        component_type_id,
+        template_node_id,
+        subtemplate,
+    };
+
+    write_request(&session, &request_id, &request)?;
+    let timeout_ms = args
+        .value_of("timeout-ms")
+        .map(|_| parse_u64(args, "timeout-ms"))
+        .transpose()?
+        .unwrap_or(10_000);
+    let response: DevReplaceNodeResponse =
+        wait_for_response(&session, &request_id, Duration::from_millis(timeout_ms))?;
+    if response.status != "ok" {
+        return Err(eyre!(
+            "{}",
+            response
+                .error
+                .unwrap_or_else(|| "replace-node request failed".to_string())
+        ));
+    }
+
+    print_json(&response)
 }
 
 fn parse_manifests(

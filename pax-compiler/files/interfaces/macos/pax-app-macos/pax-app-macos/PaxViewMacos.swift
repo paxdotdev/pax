@@ -65,6 +65,41 @@ private struct PaxDevInspectTreeResponse: Codable {
     let error: String?
 }
 
+private struct PaxDevReplaceNodeRequest: Codable {
+    let request_id: String
+    let kind: String
+    let component_type_id: String
+    let template_node_id: Int
+    let subtemplate: String
+}
+
+private struct PaxDevReplaceNodeBridgeRequest: Codable {
+    let component_type_id: String
+    let template_node_id: Int
+    let subtemplate: String
+}
+
+private struct PaxDevReplaceNodeBridgeResponse: Codable {
+    let status: String
+    let component_type_id: String
+    let template_node_id: Int
+    let reload_scope: String
+    let reloaded_template_node_id: Int?
+    let source_path: String?
+    let error: String?
+}
+
+private struct PaxDevReplaceNodeResponse: Codable {
+    let request_id: String
+    let status: String
+    let component_type_id: String
+    let template_node_id: Int
+    let reload_scope: String
+    let reloaded_template_node_id: Int?
+    let source_path: String?
+    let error: String?
+}
+
 private struct PaxDevSessionRegistration: Codable {
     let session_id: String
     let platform: String
@@ -617,6 +652,9 @@ struct PaxViewMacos: View {
                         case "inspect-tree":
                             let request = try JSONDecoder().decode(PaxDevInspectTreeRequest.self, from: requestData)
                             try performInspectTree(request: request, responseDir: responseDir)
+                        case "replace-node":
+                            let request = try JSONDecoder().decode(PaxDevReplaceNodeRequest.self, from: requestData)
+                            try performReplaceNode(request: request, responseDir: responseDir)
                         default:
                             try writePaxDevErrorResponse(
                                 requestId: envelope.request_id,
@@ -743,6 +781,53 @@ struct PaxViewMacos: View {
                     status: payload.status,
                     node_count: payload.node_count,
                     tree_json: payload.tree_json,
+                    error: payload.error
+                ),
+                requestId: request.request_id,
+                to: responseDir
+            )
+        }
+
+        private func performReplaceNode(request: PaxDevReplaceNodeRequest, responseDir: URL) throws {
+            guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
+                throw NSError(domain: "", code: 210, userInfo: [NSLocalizedDescriptionKey: "Pax engine is not initialized"])
+            }
+
+            let bridgeRequest = PaxDevReplaceNodeBridgeRequest(
+                component_type_id: request.component_type_id,
+                template_node_id: request.template_node_id,
+                subtemplate: request.subtemplate
+            )
+            let bridgeRequestData = try JSONEncoder().encode(bridgeRequest)
+
+            let responseQueue: UnsafeMutablePointer<NativeMessageQueue>? = try bridgeRequestData.withUnsafeBytes { rawBuffer in
+                guard let baseAddress = rawBuffer.baseAddress else {
+                    throw NSError(domain: "", code: 211, userInfo: [NSLocalizedDescriptionKey: "replace-node request payload was empty"])
+                }
+                var ffiBuffer = InterruptBuffer(data_ptr: baseAddress, length: UInt64(rawBuffer.count))
+                return withUnsafePointer(to: &ffiBuffer) { ffiBufferPtr in
+                    pax_designtime_replace_node(engineContainer, ffiBufferPtr)
+                }
+            }
+
+            guard let responseQueue else {
+                throw NSError(domain: "", code: 212, userInfo: [NSLocalizedDescriptionKey: "replace-node returned no payload"])
+            }
+            defer { pax_dealloc_message_queue(responseQueue) }
+
+            let queue = responseQueue.pointee
+            let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
+            let payloadData = Data(buffer: buffer)
+            let payload = try JSONDecoder().decode(PaxDevReplaceNodeBridgeResponse.self, from: payloadData)
+            try writePaxDevResponse(
+                PaxDevReplaceNodeResponse(
+                    request_id: request.request_id,
+                    status: payload.status,
+                    component_type_id: payload.component_type_id,
+                    template_node_id: payload.template_node_id,
+                    reload_scope: payload.reload_scope,
+                    reloaded_template_node_id: payload.reloaded_template_node_id,
+                    source_path: payload.source_path,
                     error: payload.error
                 ),
                 requestId: request.request_id,

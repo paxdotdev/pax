@@ -511,7 +511,9 @@ impl PaxManifestORM {
         self.next_command_id += 1;
         if let Some(reload_type) = response.get_reload_type() {
             match &reload_type {
-                ReloadType::Tree => self.manifest_modification_data.tree_modified = true,
+                ReloadType::Tree | ReloadType::Subtree(_) => {
+                    self.manifest_modification_data.tree_modified = true
+                }
                 ReloadType::Node(_, props) => self
                     .manifest_modification_data
                     .modified_properties
@@ -580,6 +582,17 @@ impl PaxManifestORM {
         Ok(resp.get_id())
     }
 
+    pub fn replace_node_subtree(
+        &mut self,
+        uni: UniqueTemplateNodeIdentifier,
+        new_subtree: Option<template::SerializedTemplateNodeSubtree>,
+        reload_uni: Option<UniqueTemplateNodeIdentifier>,
+    ) -> Result<usize, String> {
+        let command = template::ReplaceNodeSubtreeRequest::new(uni, new_subtree, reload_uni);
+        let resp = self.execute_command(command)?;
+        Ok(resp.get_id())
+    }
+
     pub fn component_has_slots(&self, type_id: &TypeId) -> bool {
         let Some(component) = self.manifest.components.get(type_id) else {
             return false;
@@ -604,6 +617,7 @@ pub enum UndoRedoCommand {
     UpdateClassRequest(Box<template::UpdateClassRequest>),
     PasteSubTreeRequest(Box<template::PasteSubTreeRequest>),
     ReplaceTemplateRequest(Box<template::ReplaceTemplateRequest>),
+    ReplaceNodeSubtreeRequest(Box<template::ReplaceNodeSubtreeRequest>),
     ConvertToComponentRequest(Box<template::ConvertToComponentRequest>),
     SwapMainComponentRequest(Box<template::SwapMainComponentRequest>),
 }
@@ -618,6 +632,7 @@ impl UndoRedoCommand {
             UndoRedoCommand::UpdateClassRequest(command) => command.undo(manifest),
             UndoRedoCommand::PasteSubTreeRequest(command) => command.undo(manifest),
             UndoRedoCommand::ReplaceTemplateRequest(command) => command.undo(manifest),
+            UndoRedoCommand::ReplaceNodeSubtreeRequest(command) => command.undo(manifest),
             UndoRedoCommand::ConvertToComponentRequest(command) => command.undo(manifest),
             UndoRedoCommand::SwapMainComponentRequest(command) => command.undo(manifest),
         }
@@ -646,6 +661,9 @@ impl UndoRedoCommand {
             UndoRedoCommand::ReplaceTemplateRequest(command) => {
                 let _ = command.execute(manifest);
             }
+            UndoRedoCommand::ReplaceNodeSubtreeRequest(command) => {
+                let _ = command.execute(manifest);
+            }
             UndoRedoCommand::ConvertToComponentRequest(command) => {
                 let _ = command.execute(manifest);
             }
@@ -669,6 +687,7 @@ pub struct MoveToComponentEntry {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Hash, Eq)]
 pub enum ReloadType {
     Tree,
+    Subtree(UniqueTemplateNodeIdentifier),
     Node(UniqueTemplateNodeIdentifier, Vec<String>),
     // might have both node and class updates in the same transaction, make struct instead?
     // Class(TypeId, String, Vec<String>),

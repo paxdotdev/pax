@@ -32,6 +32,7 @@ use piet::kurbo::Shape;
 use piet::{InterpolationMode, RenderContext as PietRenderContext};
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
 use piet_coregraphics::CoreGraphicsContext;
+use serde::Deserialize;
 use serde::Serialize;
 
 #[cfg(feature = "designtime")]
@@ -39,7 +40,8 @@ use pax_designtime::DesigntimeManager;
 use pax_runtime::DefinitionToInstanceTraverser;
 #[cfg(feature = "designtime")]
 use pax_runtime::designtime_support::{
-    apply_designtime_userland_reload, build_designtime_inspect_tree_payload,
+    apply_designtime_replace_node_subtemplate, apply_designtime_userland_reload,
+    build_designtime_inspect_tree_payload,
 };
 //Re-export all native message types; used by Swift via FFI.
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`
@@ -450,6 +452,13 @@ struct InspectTreePayload {
     error: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct ReplaceNodeRequestPayload {
+    component_type_id: String,
+    template_node_id: usize,
+    subtemplate: String,
+}
+
 /// Destroy `engine` and clean up the `ManuallyDrop` container surround it.
 #[no_mangle]
 pub extern "C" fn pax_dealloc_engine(container: *mut PaxEngineContainer) {
@@ -804,6 +813,22 @@ pub extern "C" fn pax_designtime_inspect_tree(
     bytes_to_native_message_queue(payload_bytes)
 }
 
+#[no_mangle]
+pub extern "C" fn pax_designtime_replace_node(
+    engine_container: *mut PaxEngineContainer,
+    request_buffer: *const InterruptBuffer,
+) -> *mut NativeMessageQueue {
+    let mut engine_container = unsafe { Box::from_raw(engine_container) };
+    let engine = unsafe { Box::from_raw(engine_container._engine) };
+
+    let payload_bytes = replace_node_payload_bytes(&engine_container, request_buffer);
+
+    engine_container._engine = Box::into_raw(engine);
+    let _ = Box::into_raw(engine_container);
+
+    bytes_to_native_message_queue(payload_bytes)
+}
+
 fn bytes_to_native_message_queue(data_buffer: Vec<u8>) -> *mut NativeMessageQueue {
     let length = data_buffer.len();
     let leaked_data: ManuallyDrop<Box<[u8]>> = ManuallyDrop::new(data_buffer.into_boxed_slice());
@@ -851,6 +876,79 @@ fn inspect_tree_error(error: impl Into<String>) -> InspectTreePayload {
         node_count: None,
         tree_json: None,
         error: Some(error.into()),
+    }
+}
+
+fn replace_node_payload_bytes(
+    #[allow(unused_variables)] engine_container: &PaxEngineContainer,
+    #[allow(unused_variables)] request_buffer: *const InterruptBuffer,
+) -> Vec<u8> {
+    #[cfg(feature = "designtime")]
+    {
+        let length: u64 = unsafe { (*request_buffer).length.try_into().unwrap_or_default() };
+        let slice = unsafe {
+            if (*request_buffer).data_ptr.is_null() {
+                &[]
+            } else {
+                std::slice::from_raw_parts((*request_buffer).data_ptr as *const u8, length as usize)
+            }
+        };
+
+        let payload = match serde_json::from_slice::<ReplaceNodeRequestPayload>(slice) {
+            Ok(payload) => payload,
+            Err(error) => {
+                return serde_json::to_vec(&serde_json::json!({
+                    "status": "error",
+                    "component_type_id": "",
+                    "template_node_id": 0,
+                    "reload_scope": "error",
+                    "reloaded_template_node_id": null,
+                    "source_path": null,
+                    "error": format!("failed to decode replace-node payload: {error}"),
+                }))
+                .unwrap_or_else(|serialization_error| {
+                    format!(
+                        "{{\"status\":\"error\",\"component_type_id\":\"\",\"template_node_id\":0,\"reload_scope\":\"error\",\"reloaded_template_node_id\":null,\"source_path\":null,\"error\":\"failed to decode replace-node payload and failed to serialize fallback: {}\"}}",
+                        serialization_error
+                    )
+                    .into_bytes()
+                });
+            }
+        };
+
+        let response_payload = apply_designtime_replace_node_subtemplate(
+            engine_container
+                .userland_definition_to_instance_traverser
+                .as_ref(),
+            &engine_container.designtime_manager,
+            &payload.component_type_id,
+            payload.template_node_id,
+            &payload.subtemplate,
+        );
+        serde_json::to_vec(&response_payload).unwrap_or_else(|error| {
+            format!(
+                "{{\"status\":\"error\",\"component_type_id\":\"{}\",\"template_node_id\":{},\"reload_scope\":\"error\",\"reloaded_template_node_id\":null,\"source_path\":null,\"error\":\"failed to serialize replace-node payload: {}\"}}",
+                payload.component_type_id,
+                payload.template_node_id,
+                error
+            )
+            .into_bytes()
+        })
+    }
+
+    #[cfg(not(feature = "designtime"))]
+    {
+        let _ = (engine_container, request_buffer);
+        serde_json::to_vec(&serde_json::json!({
+            "status": "error",
+            "component_type_id": "",
+            "template_node_id": 0,
+            "reload_scope": "error",
+            "reloaded_template_node_id": null,
+            "source_path": null,
+            "error": "replace-node requires a designtime-enabled build",
+        }))
+        .unwrap()
     }
 }
 
