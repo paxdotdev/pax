@@ -200,6 +200,12 @@ fn main() -> Result<(), Report> {
                     Arg::with_name("ready-file")
                         .long("ready-file")
                         .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("suppress-address-log")
+                        .long("suppress-address-log")
+                        .takes_value(false)
+                        .hidden(true),
                 ),
         )
         .subcommand(dev::command())
@@ -386,12 +392,14 @@ fn perform_nominal_action(
                 .parse::<u16>()
                 .map_err(|_| eyre!("--port must be an unsigned 16-bit integer"))?;
             let ready_file = args.value_of("ready-file").map(PathBuf::from);
+            let show_address_log = !args.is_present("suppress-address-log");
             pax_compiler::design_server::start_server(
                 serve_dir,
                 watch_dir,
                 manifest,
                 Some(port),
                 ready_file,
+                show_address_log,
                 None,
             )?;
             Ok(())

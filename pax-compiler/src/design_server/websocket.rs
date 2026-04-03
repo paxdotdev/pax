@@ -1,8 +1,9 @@
 use crate::design_server::{AppState, FileContent, WatcherFileChanged};
 use crate::dev_session::{
     self, session_request_dir, session_response_dir, write_registered_session, DevCapture,
-    DevInspectTreeResponse, DevLookRequest, DevLookResponse, DevReplaceNodeRequest,
-    DevReplaceNodeResponse, DevRequestEnvelope,
+    DevInspectTreeResponse, DevLookRequest, DevLookResponse, DevRayCastRequest, DevRayCastResponse,
+    DevReplaceNodeRequest, DevReplaceNodeResponse, DevRequestEnvelope, DevSelectorQueryRequest,
+    DevSelectorQueryResponse,
 };
 
 use pax_manifest::{
@@ -16,10 +17,10 @@ use image::codecs::jpeg::JpegEncoder;
 use image::codecs::png::PngEncoder;
 use image::{ColorType, ImageBuffer, ImageEncoder, Rgba};
 use pax_designtime::messages::{
-    AgentMessage, ComponentSerializationRequest, DevClientInspectTreeRequest,
-    DevClientLookRequest, DevClientReplaceNodeRequest, DevClientResponse,
-    FileChangedNotification, LoadFileToStaticDirRequest, LoadManifestResponse,
-    ManifestSerializationRequest, UpdateTemplateRequest,
+    AgentMessage, ComponentSerializationRequest, DevClientInspectTreeRequest, DevClientLookRequest,
+    DevClientRayCastRequest, DevClientReplaceNodeRequest, DevClientResponse,
+    DevClientSelectorQueryRequest, FileChangedNotification, LoadFileToStaticDirRequest,
+    LoadManifestResponse, ManifestSerializationRequest, UpdateTemplateRequest,
 };
 use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
 use std::{collections::HashMap, fs, io::BufWriter, path::Path, time::Duration};
@@ -98,7 +99,8 @@ impl PrivilegedAgentWebSocket {
                     continue;
                 }
             };
-            let request_envelope: DevRequestEnvelope = match serde_json::from_slice(&request_bytes) {
+            let request_envelope: DevRequestEnvelope = match serde_json::from_slice(&request_bytes)
+            {
                 Ok(request_envelope) => request_envelope,
                 Err(err) => {
                     let _ = write_dev_error_response(
@@ -113,7 +115,8 @@ impl PrivilegedAgentWebSocket {
 
             let forwarded_message = match request_envelope.kind.as_str() {
                 "look" => {
-                    let look_request: DevLookRequest = match serde_json::from_slice(&request_bytes) {
+                    let look_request: DevLookRequest = match serde_json::from_slice(&request_bytes)
+                    {
                         Ok(look_request) => look_request,
                         Err(err) => {
                             let _ = write_dev_error_response(
@@ -130,14 +133,14 @@ impl PrivilegedAgentWebSocket {
                         .lock()
                         .unwrap()
                         .insert(look_request.request_id.clone(), look_request.clone());
-                    AgentMessage::DevClientRequest(pax_designtime::messages::DevClientRequest::Look(
-                        DevClientLookRequest {
+                    AgentMessage::DevClientRequest(
+                        pax_designtime::messages::DevClientRequest::Look(DevClientLookRequest {
                             request_id: look_request.request_id,
                             scale: look_request.scale,
                             period_ms: look_request.period_ms,
                             duration_ms: look_request.duration_ms,
-                        },
-                    ))
+                        }),
+                    )
                 }
                 "inspect-tree" => {
                     let inspect_request = match serde_json::from_slice::<
@@ -160,6 +163,54 @@ impl PrivilegedAgentWebSocket {
                             DevClientInspectTreeRequest {
                                 request_id: inspect_request.request_id,
                                 max_depth: inspect_request.max_depth,
+                            },
+                        ),
+                    )
+                }
+                "ray-cast" => {
+                    let ray_cast_request =
+                        match serde_json::from_slice::<DevRayCastRequest>(&request_bytes) {
+                            Ok(ray_cast_request) => ray_cast_request,
+                            Err(err) => {
+                                let _ = write_dev_error_response(
+                                    &dev_session,
+                                    &request_envelope.request_id,
+                                    format!("failed to decode ray-cast request: {err}"),
+                                );
+                                let _ = fs::remove_file(&path);
+                                continue;
+                            }
+                        };
+                    AgentMessage::DevClientRequest(
+                        pax_designtime::messages::DevClientRequest::RayCast(
+                            DevClientRayCastRequest {
+                                request_id: ray_cast_request.request_id,
+                                x: ray_cast_request.x,
+                                y: ray_cast_request.y,
+                                hit_invisible: ray_cast_request.hit_invisible,
+                            },
+                        ),
+                    )
+                }
+                "selector-query" => {
+                    let selector_request =
+                        match serde_json::from_slice::<DevSelectorQueryRequest>(&request_bytes) {
+                            Ok(selector_request) => selector_request,
+                            Err(err) => {
+                                let _ = write_dev_error_response(
+                                    &dev_session,
+                                    &request_envelope.request_id,
+                                    format!("failed to decode selector request: {err}"),
+                                );
+                                let _ = fs::remove_file(&path);
+                                continue;
+                            }
+                        };
+                    AgentMessage::DevClientRequest(
+                        pax_designtime::messages::DevClientRequest::SelectorQuery(
+                            DevClientSelectorQueryRequest {
+                                request_id: selector_request.request_id,
+                                selector: selector_request.selector,
                             },
                         ),
                     )
@@ -456,12 +507,9 @@ fn handle_dev_client_response(
     state: &Data<AppState>,
     response: DevClientResponse,
 ) -> std::io::Result<()> {
-    let dev_session = state
-        .dev_session
-        .lock()
-        .unwrap()
-        .clone()
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "missing web dev session"))?;
+    let dev_session = state.dev_session.lock().unwrap().clone().ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::NotFound, "missing web dev session")
+    })?;
 
     match response {
         DevClientResponse::Look(response) => {
@@ -474,10 +522,7 @@ fn handle_dev_client_response(
             let pending_request = pending_request.ok_or_else(|| {
                 std::io::Error::new(
                     std::io::ErrorKind::NotFound,
-                    format!(
-                        "no pending web look request exists for {}",
-                        request_id
-                    ),
+                    format!("no pending web look request exists for {}", request_id),
                 )
             })?;
 
@@ -503,6 +548,38 @@ fn handle_dev_client_response(
                     status: response.status,
                     node_count: response.node_count,
                     tree_json: response.tree_json,
+                    error: response.error,
+                },
+            )
+        }
+        DevClientResponse::RayCast(response) => {
+            let request_id = response.request_id.clone();
+            write_dev_json_response(
+                &dev_session,
+                &request_id,
+                &DevRayCastResponse {
+                    request_id: request_id.clone(),
+                    status: response.status,
+                    x: response.x,
+                    y: response.y,
+                    hit_invisible: response.hit_invisible,
+                    node_count: response.node_count,
+                    nodes_json: response.nodes_json,
+                    error: response.error,
+                },
+            )
+        }
+        DevClientResponse::SelectorQuery(response) => {
+            let request_id = response.request_id.clone();
+            write_dev_json_response(
+                &dev_session,
+                &request_id,
+                &DevSelectorQueryResponse {
+                    request_id: request_id.clone(),
+                    status: response.status,
+                    selector: response.selector,
+                    node_count: response.node_count,
+                    nodes_json: response.nodes_json,
                     error: response.error,
                 },
             )
@@ -571,36 +648,34 @@ fn write_encoded_capture_file(
     quality: Option<f64>,
 ) -> std::io::Result<()> {
     let width_u32 = u32::try_from(width).map_err(|_| {
-        std::io::Error::new(std::io::ErrorKind::InvalidInput, "capture width overflowed u32")
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "capture width overflowed u32",
+        )
     })?;
     let height_u32 = u32::try_from(height).map_err(|_| {
-        std::io::Error::new(std::io::ErrorKind::InvalidInput, "capture height overflowed u32")
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "capture height overflowed u32",
+        )
     })?;
     let file = fs::File::create(path)?;
     let mut writer = BufWriter::new(file);
 
     if format.eq_ignore_ascii_case("jpeg") {
-        let rgba_image = ImageBuffer::<Rgba<u8>, _>::from_raw(
-            width_u32,
-            height_u32,
-            rgba_bytes.to_vec(),
-        )
-        .ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "invalid RGBA buffer length for JPEG capture",
-            )
-        })?;
+        let rgba_image =
+            ImageBuffer::<Rgba<u8>, _>::from_raw(width_u32, height_u32, rgba_bytes.to_vec())
+                .ok_or_else(|| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "invalid RGBA buffer length for JPEG capture",
+                    )
+                })?;
         let rgb_image = image::DynamicImage::ImageRgba8(rgba_image).into_rgb8();
         let jpeg_quality = (quality.unwrap_or(0.9).clamp(0.0, 1.0) * 100.0).round() as u8;
         let mut encoder = JpegEncoder::new_with_quality(&mut writer, jpeg_quality.max(1));
         encoder
-            .encode(
-                rgb_image.as_raw(),
-                width_u32,
-                height_u32,
-                ColorType::Rgb8,
-            )
+            .encode(rgb_image.as_raw(), width_u32, height_u32, ColorType::Rgb8)
             .map_err(image_error_to_io)
     } else {
         let encoder = PngEncoder::new(&mut writer);

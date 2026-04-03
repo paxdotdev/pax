@@ -103,6 +103,7 @@ pub fn start_server(
     manifest: PaxManifest,
     requested_port: Option<u16>,
     ready_file: Option<PathBuf>,
+    show_address_log: bool,
     dev_session: Option<DevSession>,
 ) -> std::io::Result<()> {
     // Initialize logging
@@ -137,9 +138,11 @@ pub fn start_server(
             *PAX_BADGE,
             &fs_path.to_str().unwrap()
         );
-        let address_msg = format!("http://127.0.0.1:{}", port).blue();
-        let server_running_at_msg = format!("Server running at {}", address_msg).bold();
-        println!("{} 📠 {}", *PAX_BADGE, server_running_at_msg);
+        if show_address_log {
+            let address_msg = format!("http://127.0.0.1:{}", port).blue();
+            let server_running_at_msg = format!("Server running at {}", address_msg).bold();
+            println!("{} 📠 {}", *PAX_BADGE, server_running_at_msg);
+        }
 
         if let Some(ready_file) = ready_file {
             if let Some(parent) = ready_file.parent() {

@@ -1,12 +1,14 @@
 use js_sys::Date;
 use pax_designtime::messages::{
-    DevClientInspectTreeResponse, DevClientLookRequest, DevClientLookResponse,
-    DevClientRawCapture, DevClientReplaceNodeResponse, DevClientRequest, DevClientResponse,
+    DevClientInspectTreeResponse, DevClientLookRequest, DevClientLookResponse, DevClientRawCapture,
+    DevClientRayCastResponse, DevClientReplaceNodeResponse, DevClientRequest, DevClientResponse,
+    DevClientSelectorQueryResponse,
 };
 use pax_message::{NativeMessage, ScreenshotPatch};
 use pax_runtime::designtime_support::{
     apply_designtime_replace_node_subtemplate, apply_designtime_userland_reload,
-    build_designtime_inspect_tree_payload,
+    build_designtime_inspect_tree_payload, build_designtime_ray_cast_payload,
+    build_designtime_selector_query_payload,
 };
 
 use crate::PaxChassisWeb;
@@ -39,7 +41,10 @@ impl PaxChassisWeb {
     }
 
     pub(super) fn process_pending_dev_client_requests(&mut self) {
-        let requests = self.designtime_manager.borrow_mut().take_dev_client_requests();
+        let requests = self
+            .designtime_manager
+            .borrow_mut()
+            .take_dev_client_requests();
         for request in requests {
             match request {
                 DevClientRequest::Look(request) => {
@@ -64,12 +69,66 @@ impl PaxChassisWeb {
                             request.max_depth.map(|value| value as i64).unwrap_or(-1),
                         )
                     };
+                    let response = DevClientResponse::InspectTree(DevClientInspectTreeResponse {
+                        request_id: request.request_id,
+                        status: payload.status,
+                        node_count: payload.node_count,
+                        tree_json: payload.tree_json,
+                        error: payload.error,
+                    });
+                    if let Err(err) = self
+                        .designtime_manager
+                        .borrow_mut()
+                        .send_dev_client_response(response)
+                    {
+                        log::warn!("failed to send web inspect-tree response: {err}");
+                    }
+                }
+                DevClientRequest::RayCast(request) => {
+                    let payload = {
+                        let engine = self.engine.borrow();
+                        build_designtime_ray_cast_payload(
+                            &engine,
+                            self.userland_definition_to_instance_traverser.as_ref(),
+                            request.x,
+                            request.y,
+                            request.hit_invisible,
+                        )
+                    };
+                    let response = DevClientResponse::RayCast(DevClientRayCastResponse {
+                        request_id: request.request_id,
+                        status: payload.status,
+                        x: request.x,
+                        y: request.y,
+                        hit_invisible: request.hit_invisible,
+                        node_count: payload.node_count,
+                        nodes_json: payload.nodes_json,
+                        error: payload.error,
+                    });
+                    if let Err(err) = self
+                        .designtime_manager
+                        .borrow_mut()
+                        .send_dev_client_response(response)
+                    {
+                        log::warn!("failed to send web ray-cast response: {err}");
+                    }
+                }
+                DevClientRequest::SelectorQuery(request) => {
+                    let payload = {
+                        let engine = self.engine.borrow();
+                        build_designtime_selector_query_payload(
+                            &engine,
+                            self.userland_definition_to_instance_traverser.as_ref(),
+                            &request.selector,
+                        )
+                    };
                     let response =
-                        DevClientResponse::InspectTree(DevClientInspectTreeResponse {
+                        DevClientResponse::SelectorQuery(DevClientSelectorQueryResponse {
                             request_id: request.request_id,
                             status: payload.status,
+                            selector: request.selector,
                             node_count: payload.node_count,
-                            tree_json: payload.tree_json,
+                            nodes_json: payload.nodes_json,
                             error: payload.error,
                         });
                     if let Err(err) = self
@@ -77,7 +136,7 @@ impl PaxChassisWeb {
                         .borrow_mut()
                         .send_dev_client_response(response)
                     {
-                        log::warn!("failed to send web inspect-tree response: {err}");
+                        log::warn!("failed to send web selector response: {err}");
                     }
                 }
                 DevClientRequest::ReplaceNode(request) => {
@@ -133,7 +192,8 @@ impl PaxChassisWeb {
                 captured_at_ms,
             });
 
-            if pending_request.request.period_ms == 0 || captured_at_ms >= pending_request.deadline_ms
+            if pending_request.request.period_ms == 0
+                || captured_at_ms >= pending_request.deadline_ms
             {
                 completed_request_ids.push(request_id.clone());
                 responses.push(DevClientResponse::Look(DevClientLookResponse {
@@ -143,8 +203,8 @@ impl PaxChassisWeb {
                     error: None,
                 }));
             } else {
-                pending_request.next_capture_at_ms = captured_at_ms
-                    .saturating_add(pending_request.request.period_ms as u128);
+                pending_request.next_capture_at_ms =
+                    captured_at_ms.saturating_add(pending_request.request.period_ms as u128);
             }
         }
 

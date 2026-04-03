@@ -239,6 +239,7 @@ pub fn build_web_project_with_cartridge(
                 manifest,
                 None,
                 None,
+                true,
                 Some(dev_session.clone()),
             );
             cleanup_web_dev_session(pax_dir, &dev_session)?;
@@ -253,6 +254,7 @@ pub fn build_web_project_with_cartridge(
                 manifest,
                 None,
                 None,
+                true,
                 Some(dev_session.clone()),
             );
             cleanup_web_dev_session(pax_dir, &dev_session)?;

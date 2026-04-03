@@ -1622,6 +1622,7 @@ fn spawn_designtime_server_process(
         .arg("0")
         .arg("--ready-file")
         .arg(ready_file)
+        .arg("--suppress-address-log")
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
 

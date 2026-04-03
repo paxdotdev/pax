@@ -59,6 +59,44 @@ pub struct DevInspectTreeResponse {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DevRayCastRequest {
+    pub request_id: String,
+    pub kind: String,
+    pub x: f64,
+    pub y: f64,
+    pub hit_invisible: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DevRayCastResponse {
+    pub request_id: String,
+    pub status: String,
+    pub x: f64,
+    pub y: f64,
+    pub hit_invisible: bool,
+    pub node_count: Option<usize>,
+    pub nodes_json: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DevSelectorQueryRequest {
+    pub request_id: String,
+    pub kind: String,
+    pub selector: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DevSelectorQueryResponse {
+    pub request_id: String,
+    pub status: String,
+    pub selector: String,
+    pub node_count: Option<usize>,
+    pub nodes_json: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DevReplaceNodeRequest {
     pub request_id: String,
     pub kind: String,

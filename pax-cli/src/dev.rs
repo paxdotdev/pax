@@ -10,8 +10,9 @@ use color_eyre::eyre::{eyre, Report, Result};
 use pax_compiler::dev_session::{
     self, list_registered_sessions, project_dev_dir, read_project_active_session,
     remove_registered_session, session_request_dir, session_response_dir, DevInspectTreeRequest,
-    DevInspectTreeResponse, DevLookRequest, DevLookResponse, DevReplaceNodeRequest,
-    DevReplaceNodeResponse, DevSession,
+    DevInspectTreeResponse, DevLookRequest, DevLookResponse, DevRayCastRequest, DevRayCastResponse,
+    DevReplaceNodeRequest, DevReplaceNodeResponse, DevSelectorQueryRequest,
+    DevSelectorQueryResponse, DevSession,
 };
 use pax_manifest::PaxManifest;
 use serde::de::DeserializeOwned;
@@ -23,6 +24,8 @@ pub fn command() -> App<'static, 'static> {
         .subcommand(list_command())
         .subcommand(status_command())
         .subcommand(look_command())
+        .subcommand(ray_cast_command())
+        .subcommand(selector_command())
         .subcommand(inspect_command())
         .subcommand(touch_command())
 }
@@ -170,6 +173,57 @@ fn look_command() -> App<'static, 'static> {
         )
 }
 
+fn ray_cast_command() -> App<'static, 'static> {
+    SubCommand::with_name("ray-cast")
+        .about("Return the z-sorted stack of expanded nodes beneath a window-space point")
+        .arg(arg_path())
+        .arg(arg_session())
+        .arg(
+            Arg::with_name("x")
+                .long("x")
+                .takes_value(true)
+                .required(true)
+                .help("Window-space x coordinate in px"),
+        )
+        .arg(
+            Arg::with_name("y")
+                .long("y")
+                .takes_value(true)
+                .required(true)
+                .help("Window-space y coordinate in px"),
+        )
+        .arg(
+            Arg::with_name("hit-invisible")
+                .long("hit-invisible")
+                .takes_value(false)
+                .help("Include nodes that are normally invisible to ray-casting"),
+        )
+        .arg(
+            Arg::with_name("timeout-ms")
+                .long("timeout-ms")
+                .takes_value(true)
+                .help("How long to wait for the running app to fulfill the request"),
+        )
+}
+
+fn selector_command() -> App<'static, 'static> {
+    SubCommand::with_name("selector")
+        .about("Query the live expanded tree by selector")
+        .arg(arg_path())
+        .arg(arg_session())
+        .arg(
+            Arg::with_name("selector")
+                .required(true)
+                .help("Selector string: #id, .class, or a type name like Ellipse"),
+        )
+        .arg(
+            Arg::with_name("timeout-ms")
+                .long("timeout-ms")
+                .takes_value(true)
+                .help("How long to wait for the running app to fulfill the request"),
+        )
+}
+
 fn inspect_command() -> App<'static, 'static> {
     SubCommand::with_name("inspect")
         .about("Inspect a running Pax dev session")
@@ -201,6 +255,8 @@ pub fn handle(
         ("list", Some(sub_args)) => handle_list(sub_args),
         ("status", Some(sub_args)) => handle_status(sub_args),
         ("look", Some(sub_args)) => handle_look(sub_args),
+        ("ray-cast", Some(sub_args)) => handle_ray_cast(sub_args),
+        ("selector", Some(sub_args)) => handle_selector(sub_args),
         ("inspect", Some(sub_args)) => handle_inspect(sub_args),
         ("touch", Some(sub_args)) => handle_touch(sub_args, process_child_ids),
         _ => Err(eyre!("unknown dev subcommand")),
@@ -321,6 +377,92 @@ fn handle_look(args: &ArgMatches<'_>) -> Result<(), Report> {
     }
 
     print_json(&response)
+}
+
+fn handle_ray_cast(args: &ArgMatches<'_>) -> Result<(), Report> {
+    let session = resolve_session(args)?;
+    let request_id = format!("ray-cast-{}", dev_session::now_ms());
+    let x = parse_f64(args, "x")?;
+    let y = parse_f64(args, "y")?;
+    let hit_invisible = args.is_present("hit-invisible");
+
+    let request = DevRayCastRequest {
+        request_id: request_id.clone(),
+        kind: "ray-cast".to_string(),
+        x,
+        y,
+        hit_invisible,
+    };
+
+    write_request(&session, &request_id, &request)?;
+    let timeout_ms = args
+        .value_of("timeout-ms")
+        .map(|_| parse_u64(args, "timeout-ms"))
+        .transpose()?
+        .unwrap_or(5_000);
+    let response: DevRayCastResponse =
+        wait_for_response(&session, &request_id, Duration::from_millis(timeout_ms))?;
+    if response.status != "ok" {
+        return Err(eyre!(
+            "{}",
+            response
+                .error
+                .unwrap_or_else(|| "ray-cast request failed".to_string())
+        ));
+    }
+
+    let nodes = parse_dev_nodes_json(
+        response.nodes_json,
+        "ray-cast response did not include nodes_json",
+    )?;
+    print_json(&serde_json::json!({
+        "session_id": session.session_id,
+        "x": response.x,
+        "y": response.y,
+        "hit_invisible": response.hit_invisible,
+        "node_count": response.node_count,
+        "nodes": nodes,
+    }))
+}
+
+fn handle_selector(args: &ArgMatches<'_>) -> Result<(), Report> {
+    let session = resolve_session(args)?;
+    let request_id = format!("selector-query-{}", dev_session::now_ms());
+    let selector = args.value_of("selector").unwrap().to_string();
+
+    let request = DevSelectorQueryRequest {
+        request_id: request_id.clone(),
+        kind: "selector-query".to_string(),
+        selector,
+    };
+
+    write_request(&session, &request_id, &request)?;
+    let timeout_ms = args
+        .value_of("timeout-ms")
+        .map(|_| parse_u64(args, "timeout-ms"))
+        .transpose()?
+        .unwrap_or(5_000);
+    let response: DevSelectorQueryResponse =
+        wait_for_response(&session, &request_id, Duration::from_millis(timeout_ms))?;
+    if response.status != "ok" {
+        return Err(eyre!(
+            "{}",
+            response
+                .error
+                .unwrap_or_else(|| "selector request failed".to_string())
+        ));
+    }
+
+    let nodes = parse_dev_nodes_json(
+        response.nodes_json,
+        "selector response did not include nodes_json",
+    )?;
+    print_json(&serde_json::json!({
+        "session_id": session.session_id,
+        "selector": response.selector,
+        "node_count": response.node_count,
+        "nodes": nodes,
+    }))
 }
 
 fn handle_inspect(args: &ArgMatches<'_>) -> Result<(), Report> {
@@ -681,6 +823,14 @@ fn print_json<T: Serialize>(value: &T) -> Result<(), Report> {
     serde_json::to_writer_pretty(&mut lock, value)?;
     lock.write_all(b"\n")?;
     Ok(())
+}
+
+fn parse_dev_nodes_json(
+    nodes_json: Option<String>,
+    missing_message: &str,
+) -> Result<serde_json::Value, Report> {
+    let nodes_json = nodes_json.ok_or_else(|| eyre!(missing_message.to_string()))?;
+    Ok(serde_json::from_str(&nodes_json)?)
 }
 
 fn print_table(rows: Vec<Vec<String>>) -> Result<(), Report> {

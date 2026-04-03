@@ -30,6 +30,8 @@ pub enum AgentMessage {
 pub enum DevClientRequest {
     Look(DevClientLookRequest),
     InspectTree(DevClientInspectTreeRequest),
+    RayCast(DevClientRayCastRequest),
+    SelectorQuery(DevClientSelectorQueryRequest),
     ReplaceNode(DevClientReplaceNodeRequest),
 }
 
@@ -37,6 +39,8 @@ pub enum DevClientRequest {
 pub enum DevClientResponse {
     Look(DevClientLookResponse),
     InspectTree(DevClientInspectTreeResponse),
+    RayCast(DevClientRayCastResponse),
+    SelectorQuery(DevClientSelectorQueryResponse),
     ReplaceNode(DevClientReplaceNodeResponse),
 }
 
@@ -76,6 +80,42 @@ pub struct DevClientInspectTreeResponse {
     pub status: String,
     pub node_count: Option<usize>,
     pub tree_json: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DevClientRayCastRequest {
+    pub request_id: String,
+    pub x: f64,
+    pub y: f64,
+    pub hit_invisible: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DevClientRayCastResponse {
+    pub request_id: String,
+    pub status: String,
+    pub x: f64,
+    pub y: f64,
+    pub hit_invisible: bool,
+    pub node_count: Option<usize>,
+    pub nodes_json: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DevClientSelectorQueryRequest {
+    pub request_id: String,
+    pub selector: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DevClientSelectorQueryResponse {
+    pub request_id: String,
+    pub status: String,
+    pub selector: String,
+    pub node_count: Option<usize>,
+    pub nodes_json: Option<String>,
     pub error: Option<String>,
 }
 

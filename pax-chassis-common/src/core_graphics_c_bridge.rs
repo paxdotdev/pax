@@ -41,7 +41,8 @@ use pax_runtime::DefinitionToInstanceTraverser;
 #[cfg(feature = "designtime")]
 use pax_runtime::designtime_support::{
     apply_designtime_replace_node_subtemplate, apply_designtime_userland_reload,
-    build_designtime_inspect_tree_payload,
+    build_designtime_inspect_tree_payload, build_designtime_ray_cast_payload,
+    build_designtime_selector_query_payload,
 };
 //Re-export all native message types; used by Swift via FFI.
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`
@@ -453,6 +454,26 @@ struct InspectTreePayload {
 }
 
 #[derive(Deserialize)]
+struct RayCastRequestPayload {
+    x: f64,
+    y: f64,
+    hit_invisible: bool,
+}
+
+#[derive(Serialize)]
+struct InspectNodeListPayload {
+    status: String,
+    node_count: Option<usize>,
+    nodes_json: Option<String>,
+    error: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct SelectorQueryRequestPayload {
+    selector: String,
+}
+
+#[derive(Deserialize)]
 struct ReplaceNodeRequestPayload {
     component_type_id: String,
     template_node_id: usize,
@@ -829,6 +850,38 @@ pub extern "C" fn pax_designtime_replace_node(
     bytes_to_native_message_queue(payload_bytes)
 }
 
+#[no_mangle]
+pub extern "C" fn pax_designtime_ray_cast(
+    engine_container: *mut PaxEngineContainer,
+    request_buffer: *const InterruptBuffer,
+) -> *mut NativeMessageQueue {
+    let mut engine_container = unsafe { Box::from_raw(engine_container) };
+    let engine = unsafe { Box::from_raw(engine_container._engine) };
+
+    let payload_bytes = ray_cast_payload_bytes(&engine_container, &engine, request_buffer);
+
+    engine_container._engine = Box::into_raw(engine);
+    let _ = Box::into_raw(engine_container);
+
+    bytes_to_native_message_queue(payload_bytes)
+}
+
+#[no_mangle]
+pub extern "C" fn pax_designtime_selector_query(
+    engine_container: *mut PaxEngineContainer,
+    request_buffer: *const InterruptBuffer,
+) -> *mut NativeMessageQueue {
+    let mut engine_container = unsafe { Box::from_raw(engine_container) };
+    let engine = unsafe { Box::from_raw(engine_container._engine) };
+
+    let payload_bytes = selector_query_payload_bytes(&engine_container, &engine, request_buffer);
+
+    engine_container._engine = Box::into_raw(engine);
+    let _ = Box::into_raw(engine_container);
+
+    bytes_to_native_message_queue(payload_bytes)
+}
+
 fn bytes_to_native_message_queue(data_buffer: Vec<u8>) -> *mut NativeMessageQueue {
     let length = data_buffer.len();
     let leaked_data: ManuallyDrop<Box<[u8]>> = ManuallyDrop::new(data_buffer.into_boxed_slice());
@@ -870,6 +923,7 @@ fn inspect_tree_payload(
     }
 }
 
+#[cfg(not(feature = "designtime"))]
 fn inspect_tree_error(error: impl Into<String>) -> InspectTreePayload {
     InspectTreePayload {
         status: "error".to_string(),
@@ -879,20 +933,33 @@ fn inspect_tree_error(error: impl Into<String>) -> InspectTreePayload {
     }
 }
 
+fn inspect_node_list_error(error: impl Into<String>) -> InspectNodeListPayload {
+    InspectNodeListPayload {
+        status: "error".to_string(),
+        node_count: None,
+        nodes_json: None,
+        error: Some(error.into()),
+    }
+}
+
+fn request_slice<'a>(request_buffer: *const InterruptBuffer) -> &'a [u8] {
+    let length: u64 = unsafe { (*request_buffer).length.try_into().unwrap_or_default() };
+    unsafe {
+        if (*request_buffer).data_ptr.is_null() {
+            &[]
+        } else {
+            std::slice::from_raw_parts((*request_buffer).data_ptr as *const u8, length as usize)
+        }
+    }
+}
+
 fn replace_node_payload_bytes(
     #[allow(unused_variables)] engine_container: &PaxEngineContainer,
     #[allow(unused_variables)] request_buffer: *const InterruptBuffer,
 ) -> Vec<u8> {
     #[cfg(feature = "designtime")]
     {
-        let length: u64 = unsafe { (*request_buffer).length.try_into().unwrap_or_default() };
-        let slice = unsafe {
-            if (*request_buffer).data_ptr.is_null() {
-                &[]
-            } else {
-                std::slice::from_raw_parts((*request_buffer).data_ptr as *const u8, length as usize)
-            }
-        };
+        let slice = request_slice(request_buffer);
 
         let payload = match serde_json::from_slice::<ReplaceNodeRequestPayload>(slice) {
             Ok(payload) => payload,
@@ -948,6 +1015,106 @@ fn replace_node_payload_bytes(
             "source_path": null,
             "error": "replace-node requires a designtime-enabled build",
         }))
+        .unwrap()
+    }
+}
+
+fn ray_cast_payload_bytes(
+    #[allow(unused_variables)] engine_container: &PaxEngineContainer,
+    #[allow(unused_variables)] engine: &PaxEngine,
+    #[allow(unused_variables)] request_buffer: *const InterruptBuffer,
+) -> Vec<u8> {
+    #[cfg(feature = "designtime")]
+    {
+        let slice = request_slice(request_buffer);
+        let payload = match serde_json::from_slice::<RayCastRequestPayload>(slice) {
+            Ok(payload) => payload,
+            Err(error) => {
+                return serde_json::to_vec(&inspect_node_list_error(format!(
+                    "failed to decode ray-cast payload: {error}"
+                )))
+                .unwrap();
+            }
+        };
+
+        let payload = build_designtime_ray_cast_payload(
+            engine,
+            engine_container
+                .userland_definition_to_instance_traverser
+                .as_ref(),
+            payload.x,
+            payload.y,
+            payload.hit_invisible,
+        );
+        serde_json::to_vec(&InspectNodeListPayload {
+            status: payload.status,
+            node_count: payload.node_count,
+            nodes_json: payload.nodes_json,
+            error: payload.error,
+        })
+        .unwrap_or_else(|error| {
+            serde_json::to_vec(&inspect_node_list_error(format!(
+                "failed to serialize ray-cast payload: {error}"
+            )))
+            .unwrap()
+        })
+    }
+
+    #[cfg(not(feature = "designtime"))]
+    {
+        let _ = (engine_container, engine, request_buffer);
+        serde_json::to_vec(&inspect_node_list_error(
+            "ray-cast requires a designtime-enabled build",
+        ))
+        .unwrap()
+    }
+}
+
+fn selector_query_payload_bytes(
+    #[allow(unused_variables)] engine_container: &PaxEngineContainer,
+    #[allow(unused_variables)] engine: &PaxEngine,
+    #[allow(unused_variables)] request_buffer: *const InterruptBuffer,
+) -> Vec<u8> {
+    #[cfg(feature = "designtime")]
+    {
+        let slice = request_slice(request_buffer);
+        let payload = match serde_json::from_slice::<SelectorQueryRequestPayload>(slice) {
+            Ok(payload) => payload,
+            Err(error) => {
+                return serde_json::to_vec(&inspect_node_list_error(format!(
+                    "failed to decode selector payload: {error}"
+                )))
+                .unwrap();
+            }
+        };
+
+        let payload = build_designtime_selector_query_payload(
+            engine,
+            engine_container
+                .userland_definition_to_instance_traverser
+                .as_ref(),
+            &payload.selector,
+        );
+        serde_json::to_vec(&InspectNodeListPayload {
+            status: payload.status,
+            node_count: payload.node_count,
+            nodes_json: payload.nodes_json,
+            error: payload.error,
+        })
+        .unwrap_or_else(|error| {
+            serde_json::to_vec(&inspect_node_list_error(format!(
+                "failed to serialize selector payload: {error}"
+            )))
+            .unwrap()
+        })
+    }
+
+    #[cfg(not(feature = "designtime"))]
+    {
+        let _ = (engine_container, engine, request_buffer);
+        serde_json::to_vec(&inspect_node_list_error(
+            "selector requires a designtime-enabled build",
+        ))
         .unwrap()
     }
 }

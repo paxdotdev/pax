@@ -35,6 +35,12 @@ struct NativeMessageQueue *pax_tick(struct PaxEngineContainer *engine_container,
 struct NativeMessageQueue *pax_designtime_inspect_tree(struct PaxEngineContainer *engine_container,
                                                        int64_t max_depth);
 
+struct NativeMessageQueue *pax_designtime_ray_cast(struct PaxEngineContainer *engine_container,
+                                                   const struct InterruptBuffer *request_buffer);
+
+struct NativeMessageQueue *pax_designtime_selector_query(struct PaxEngineContainer *engine_container,
+                                                         const struct InterruptBuffer *request_buffer);
+
 struct NativeMessageQueue *pax_designtime_replace_node(struct PaxEngineContainer *engine_container,
                                                        const struct InterruptBuffer *request_buffer);
 

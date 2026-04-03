@@ -23,7 +23,10 @@ impl Clone for UntypedProperty {
 
 impl Drop for UntypedProperty {
     fn drop(&mut self) {
-        PROPERTY_TABLE.with(|t| {
+        // Process shutdown can drop properties while the thread-local property table
+        // itself is being destroyed. In that phase, bookkeeping is no longer useful
+        // and re-entering the TLS would panic.
+        let _ = PROPERTY_TABLE.try_with(|t| {
             let ref_count = t.decrease_ref_count(self.id);
             if ref_count == 0 {
                 t.remove_entry(self.id);

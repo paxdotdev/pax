@@ -65,6 +65,57 @@ private struct PaxDevInspectTreeResponse: Codable {
     let error: String?
 }
 
+private struct PaxDevRayCastRequest: Codable {
+    let request_id: String
+    let kind: String
+    let x: Double
+    let y: Double
+    let hit_invisible: Bool
+}
+
+private struct PaxDevRayCastBridgeRequest: Codable {
+    let x: Double
+    let y: Double
+    let hit_invisible: Bool
+}
+
+private struct PaxDevNodeListPayload: Codable {
+    let status: String
+    let node_count: Int?
+    let nodes_json: String?
+    let error: String?
+}
+
+private struct PaxDevRayCastResponse: Codable {
+    let request_id: String
+    let status: String
+    let x: Double
+    let y: Double
+    let hit_invisible: Bool
+    let node_count: Int?
+    let nodes_json: String?
+    let error: String?
+}
+
+private struct PaxDevSelectorQueryRequest: Codable {
+    let request_id: String
+    let kind: String
+    let selector: String
+}
+
+private struct PaxDevSelectorQueryBridgeRequest: Codable {
+    let selector: String
+}
+
+private struct PaxDevSelectorQueryResponse: Codable {
+    let request_id: String
+    let status: String
+    let selector: String
+    let node_count: Int?
+    let nodes_json: String?
+    let error: String?
+}
+
 private struct PaxDevReplaceNodeRequest: Codable {
     let request_id: String
     let kind: String
@@ -143,8 +194,12 @@ struct PaxViewMacos: View {
             buffer.data.withUnsafeBytes({ptr in
                 var ffi_container = InterruptBuffer( data_ptr: ptr.baseAddress!, length: UInt64(ptr.count) )
 
+                guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
+                    return
+                }
+
                 withUnsafePointer(to: &ffi_container) {ffi_container_ptr in
-                    pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
+                    pax_interrupt(engineContainer, ffi_container_ptr)
                 }
             })
         })
@@ -430,6 +485,13 @@ struct PaxViewMacos: View {
             } else {
                 attributed = AttributedString(textElement.content)
             }
+            guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
+                return
+            }
+
+            let nativeMessageQueue = pax_tick(engineContainer, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
+            processNativeMessageQueue(queue: nativeMessageQueue.unsafelyUnwrapped.pointee)
+            pax_dealloc_message_queue(nativeMessageQueue)
             processDevRequestsIfNeeded()
 
             let nsAttributed = NSMutableAttributedString(attributedString: NSAttributedString(attributed))
@@ -652,6 +714,12 @@ struct PaxViewMacos: View {
                         case "inspect-tree":
                             let request = try JSONDecoder().decode(PaxDevInspectTreeRequest.self, from: requestData)
                             try performInspectTree(request: request, responseDir: responseDir)
+                        case "ray-cast":
+                            let request = try JSONDecoder().decode(PaxDevRayCastRequest.self, from: requestData)
+                            try performRayCast(request: request, responseDir: responseDir)
+                        case "selector-query":
+                            let request = try JSONDecoder().decode(PaxDevSelectorQueryRequest.self, from: requestData)
+                            try performSelectorQuery(request: request, responseDir: responseDir)
                         case "replace-node":
                             let request = try JSONDecoder().decode(PaxDevReplaceNodeRequest.self, from: requestData)
                             try performReplaceNode(request: request, responseDir: responseDir)
@@ -788,6 +856,94 @@ struct PaxViewMacos: View {
             )
         }
 
+        private func performRayCast(request: PaxDevRayCastRequest, responseDir: URL) throws {
+            guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
+                throw NSError(domain: "", code: 213, userInfo: [NSLocalizedDescriptionKey: "Pax engine is not initialized"])
+            }
+
+            let bridgeRequest = PaxDevRayCastBridgeRequest(
+                x: request.x,
+                y: request.y,
+                hit_invisible: request.hit_invisible
+            )
+            let bridgeRequestData = try JSONEncoder().encode(bridgeRequest)
+
+            let responseQueue: UnsafeMutablePointer<NativeMessageQueue>? = try bridgeRequestData.withUnsafeBytes { rawBuffer in
+                guard let baseAddress = rawBuffer.baseAddress else {
+                    throw NSError(domain: "", code: 214, userInfo: [NSLocalizedDescriptionKey: "ray-cast request payload was empty"])
+                }
+                var ffiBuffer = InterruptBuffer(data_ptr: baseAddress, length: UInt64(rawBuffer.count))
+                return withUnsafePointer(to: &ffiBuffer) { ffiBufferPtr in
+                    pax_designtime_ray_cast(engineContainer, ffiBufferPtr)
+                }
+            }
+
+            guard let responseQueue else {
+                throw NSError(domain: "", code: 215, userInfo: [NSLocalizedDescriptionKey: "ray-cast returned no payload"])
+            }
+            defer { pax_dealloc_message_queue(responseQueue) }
+
+            let queue = responseQueue.pointee
+            let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
+            let payloadData = Data(buffer: buffer)
+            let payload = try JSONDecoder().decode(PaxDevNodeListPayload.self, from: payloadData)
+            try writePaxDevResponse(
+                PaxDevRayCastResponse(
+                    request_id: request.request_id,
+                    status: payload.status,
+                    x: request.x,
+                    y: request.y,
+                    hit_invisible: request.hit_invisible,
+                    node_count: payload.node_count,
+                    nodes_json: payload.nodes_json,
+                    error: payload.error
+                ),
+                requestId: request.request_id,
+                to: responseDir
+            )
+        }
+
+        private func performSelectorQuery(request: PaxDevSelectorQueryRequest, responseDir: URL) throws {
+            guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
+                throw NSError(domain: "", code: 216, userInfo: [NSLocalizedDescriptionKey: "Pax engine is not initialized"])
+            }
+
+            let bridgeRequest = PaxDevSelectorQueryBridgeRequest(selector: request.selector)
+            let bridgeRequestData = try JSONEncoder().encode(bridgeRequest)
+
+            let responseQueue: UnsafeMutablePointer<NativeMessageQueue>? = try bridgeRequestData.withUnsafeBytes { rawBuffer in
+                guard let baseAddress = rawBuffer.baseAddress else {
+                    throw NSError(domain: "", code: 217, userInfo: [NSLocalizedDescriptionKey: "selector request payload was empty"])
+                }
+                var ffiBuffer = InterruptBuffer(data_ptr: baseAddress, length: UInt64(rawBuffer.count))
+                return withUnsafePointer(to: &ffiBuffer) { ffiBufferPtr in
+                    pax_designtime_selector_query(engineContainer, ffiBufferPtr)
+                }
+            }
+
+            guard let responseQueue else {
+                throw NSError(domain: "", code: 218, userInfo: [NSLocalizedDescriptionKey: "selector returned no payload"])
+            }
+            defer { pax_dealloc_message_queue(responseQueue) }
+
+            let queue = responseQueue.pointee
+            let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
+            let payloadData = Data(buffer: buffer)
+            let payload = try JSONDecoder().decode(PaxDevNodeListPayload.self, from: payloadData)
+            try writePaxDevResponse(
+                PaxDevSelectorQueryResponse(
+                    request_id: request.request_id,
+                    status: payload.status,
+                    selector: request.selector,
+                    node_count: payload.node_count,
+                    nodes_json: payload.nodes_json,
+                    error: payload.error
+                ),
+                requestId: request.request_id,
+                to: responseDir
+            )
+        }
+
         private func performReplaceNode(request: PaxDevReplaceNodeRequest, responseDir: URL) throws {
             guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
                 throw NSError(domain: "", code: 210, userInfo: [NSLocalizedDescriptionKey: "Pax engine is not initialized"])
@@ -856,8 +1012,11 @@ struct PaxViewMacos: View {
                     )
                     buffer.data.withUnsafeBytes { ptr in
                         var ffiContainer = InterruptBuffer(data_ptr: ptr.baseAddress!, length: UInt64(ptr.count))
+                        guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
+                            return
+                        }
                         withUnsafePointer(to: &ffiContainer) { ffiContainerPtr in
-                            pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffiContainerPtr)
+                            pax_interrupt(engineContainer, ffiContainerPtr)
                         }
                     }
                 }
@@ -1080,8 +1239,11 @@ struct PaxViewMacos: View {
             //Send `Scroll` interrupt
             buffer.data.withUnsafeBytes({ptr in
                 var ffi_container = InterruptBuffer( data_ptr: ptr.baseAddress!, length: UInt64(ptr.count) )
+                guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
+                    return
+                }
                 withUnsafePointer(to: &ffi_container) {ffi_container_ptr in
-                    pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
+                    pax_interrupt(engineContainer, ffi_container_ptr)
                 }
             })
         }

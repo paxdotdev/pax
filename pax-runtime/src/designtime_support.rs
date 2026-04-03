@@ -9,17 +9,21 @@ use pax_designtime::{
     DesigntimeManager,
 };
 #[cfg(feature = "designtime")]
-use pax_manifest::{ComponentTemplate, PaxManifest, TypeId, UniqueTemplateNodeIdentifier};
-#[cfg(feature = "designtime")]
 use pax_lang::{parse_pax_str, Rule};
+#[cfg(feature = "designtime")]
+use pax_manifest::{
+    ComponentTemplate, PaxManifest, SettingElement, TypeId, UniqueTemplateNodeIdentifier,
+    ValueDefinition,
+};
 #[cfg(feature = "designtime")]
 use serde::Serialize;
 
 #[cfg(feature = "designtime")]
-use crate::api::math::TransformParts;
+use crate::api::math::{Point2, TransformParts};
 #[cfg(feature = "designtime")]
 use crate::{
-    DefinitionToInstanceTraverser, ExpandedNode, InstanceNode, PaxEngine, ReusableInstanceNodeArgs,
+    api::Window, DefinitionToInstanceTraverser, ExpandedNode, InstanceNode, PaxEngine,
+    ReusableInstanceNodeArgs,
 };
 
 #[cfg(feature = "designtime")]
@@ -31,6 +35,15 @@ pub struct DesigntimeInspectTreePayload {
     pub status: String,
     pub node_count: Option<usize>,
     pub tree_json: Option<String>,
+    pub error: Option<String>,
+}
+
+#[cfg(feature = "designtime")]
+#[derive(Serialize)]
+pub struct DesigntimeInspectNodeListPayload {
+    pub status: String,
+    pub node_count: Option<usize>,
+    pub nodes_json: Option<String>,
     pub error: Option<String>,
 }
 
@@ -110,6 +123,13 @@ struct DesigntimeInspectNodeOcclusion {
 }
 
 #[cfg(feature = "designtime")]
+enum DesigntimeSelectorQuery {
+    Id(String),
+    Class(String),
+    Type(String),
+}
+
+#[cfg(feature = "designtime")]
 pub fn build_designtime_inspect_tree_payload(
     engine: &PaxEngine,
     definition_to_instance_traverser: &dyn DefinitionToInstanceTraverser,
@@ -147,6 +167,58 @@ pub fn build_designtime_inspect_tree_payload(
         tree_json: Some(tree_json),
         error: None,
     }
+}
+
+#[cfg(feature = "designtime")]
+pub fn build_designtime_ray_cast_payload(
+    engine: &PaxEngine,
+    definition_to_instance_traverser: &dyn DefinitionToInstanceTraverser,
+    x: f64,
+    y: f64,
+    hit_invisible: bool,
+) -> DesigntimeInspectNodeListPayload {
+    let root = engine
+        .runtime_context
+        .get_userland_root_expanded_node()
+        .or_else(|| engine.runtime_context.get_root_expanded_node());
+    let Some(root) = root else {
+        return designtime_inspect_nodes_error("no expanded node is available to inspect");
+    };
+
+    let manifest = definition_to_instance_traverser.get_manifest();
+    let nodes = engine.runtime_context.get_elements_beneath_ray(
+        Some(root),
+        Point2::<Window>::new(x, y),
+        false,
+        vec![],
+        hit_invisible,
+    );
+    build_designtime_inspect_node_list_payload(nodes, Some(&*manifest))
+}
+
+#[cfg(feature = "designtime")]
+pub fn build_designtime_selector_query_payload(
+    engine: &PaxEngine,
+    definition_to_instance_traverser: &dyn DefinitionToInstanceTraverser,
+    selector: &str,
+) -> DesigntimeInspectNodeListPayload {
+    let selector = match parse_designtime_selector_query(selector) {
+        Ok(selector) => selector,
+        Err(error) => return designtime_inspect_nodes_error(error),
+    };
+
+    let root = engine
+        .runtime_context
+        .get_userland_root_expanded_node()
+        .or_else(|| engine.runtime_context.get_root_expanded_node());
+    let Some(root) = root else {
+        return designtime_inspect_nodes_error("no expanded node is available to inspect");
+    };
+
+    let manifest = definition_to_instance_traverser.get_manifest();
+    let mut matches = vec![];
+    collect_designtime_selector_matches(&root, &manifest, &selector, &mut matches);
+    build_designtime_inspect_node_list_payload(matches, Some(&*manifest))
 }
 
 #[cfg(feature = "designtime")]
@@ -198,7 +270,10 @@ pub fn apply_designtime_replace_node_subtemplate(
                 "target component does not have a template",
             );
         };
-        if template.get_node(&target_uni.get_template_node_id()).is_none() {
+        if template
+            .get_node(&target_uni.get_template_node_id())
+            .is_none()
+        {
             return designtime_replace_node_error(
                 component_type_id.to_string(),
                 template_node_id,
@@ -209,11 +284,12 @@ pub fn apply_designtime_replace_node_subtemplate(
         }
 
         if subtemplate.trim().is_empty() {
-            let parent_uni = template
-                .get_parent(&target_uni.get_template_node_id())
-                .map(|parent_id| {
-                    UniqueTemplateNodeIdentifier::build(component_type_id.clone(), parent_id)
-                });
+            let parent_uni =
+                template
+                    .get_parent(&target_uni.get_template_node_id())
+                    .map(|parent_id| {
+                        UniqueTemplateNodeIdentifier::build(component_type_id.clone(), parent_id)
+                    });
             let reload_scope = if parent_uni.is_some() {
                 "parent-subtree".to_string()
             } else {
@@ -221,14 +297,12 @@ pub fn apply_designtime_replace_node_subtemplate(
             };
             (None, parent_uni, reload_scope)
         } else {
-            match parse_designtime_subtemplate(
-                &manifest,
-                &component_type_id,
-                subtemplate,
-            ) {
-                Ok(parsed_subtree) => {
-                    (Some(parsed_subtree), Some(target_uni.clone()), "subtree".to_string())
-                }
+            match parse_designtime_subtemplate(&manifest, &component_type_id, subtemplate) {
+                Ok(parsed_subtree) => (
+                    Some(parsed_subtree),
+                    Some(target_uni.clone()),
+                    "subtree".to_string(),
+                ),
                 Err(error) => {
                     return designtime_replace_node_error(
                         component_type_id.to_string(),
@@ -251,16 +325,18 @@ pub fn apply_designtime_replace_node_subtemplate(
             .and_then(ComponentTemplate::get_file_path)
     };
 
-    if let Err(error) = designtime_manager.borrow_mut().get_orm_mut().replace_node_subtree(
-        target_uni,
-        new_subtree,
-        reload_uni.clone(),
-    ) {
+    if let Err(error) = designtime_manager
+        .borrow_mut()
+        .get_orm_mut()
+        .replace_node_subtree(target_uni, new_subtree, reload_uni.clone())
+    {
         return designtime_replace_node_error(
             component_type_id.to_string(),
             template_node_id,
             &reload_scope,
-            reload_uni.as_ref().map(|uni| uni.get_template_node_id().as_usize()),
+            reload_uni
+                .as_ref()
+                .map(|uni| uni.get_template_node_id().as_usize()),
             error,
         );
     }
@@ -273,7 +349,9 @@ pub fn apply_designtime_replace_node_subtemplate(
             component_type_id.to_string(),
             template_node_id,
             &reload_scope,
-            reload_uni.as_ref().map(|uni| uni.get_template_node_id().as_usize()),
+            reload_uni
+                .as_ref()
+                .map(|uni| uni.get_template_node_id().as_usize()),
             format!("failed to serialize updated component: {error}"),
         );
     }
@@ -313,7 +391,8 @@ pub fn apply_designtime_userland_reload(
     for reload_type in reload_queue {
         match reload_type {
             ReloadType::Tree => {
-                let root = definition_to_instance_traverser.get_main_component(USERLAND_COMPONENT_ROOT)
+                let root = definition_to_instance_traverser
+                    .get_main_component(USERLAND_COMPONENT_ROOT)
                     as Rc<dyn InstanceNode>;
                 engine.full_reload_userland(root);
             }
@@ -350,7 +429,10 @@ pub fn apply_designtime_userland_reload(
                 };
 
                 for node in nodes {
-                    node.fully_recreate_with_new_data(Rc::clone(&instance_node), &engine.runtime_context);
+                    node.fully_recreate_with_new_data(
+                        Rc::clone(&instance_node),
+                        &engine.runtime_context,
+                    );
                 }
             }
             ReloadType::Node(uni, _) => {
@@ -409,6 +491,16 @@ fn designtime_inspect_tree_error(error: impl Into<String>) -> DesigntimeInspectT
 }
 
 #[cfg(feature = "designtime")]
+fn designtime_inspect_nodes_error(error: impl Into<String>) -> DesigntimeInspectNodeListPayload {
+    DesigntimeInspectNodeListPayload {
+        status: "error".to_string(),
+        node_count: None,
+        nodes_json: None,
+        error: Some(error.into()),
+    }
+}
+
+#[cfg(feature = "designtime")]
 fn designtime_replace_node_error(
     component_type_id: impl Into<String>,
     template_node_id: usize,
@@ -440,7 +532,9 @@ fn resolve_designtime_component_type_id(
                 || type_id.get_pascal_identifier().as_deref() == Some(component_type_id_str)
         })
         .cloned()
-        .ok_or_else(|| format!("component {component_type_id_str} is not present in the current manifest"))
+        .ok_or_else(|| {
+            format!("component {component_type_id_str} is not present in the current manifest")
+        })
 }
 
 #[cfg(feature = "designtime")]
@@ -451,9 +545,12 @@ fn parse_designtime_subtemplate(
 ) -> Result<SerializedTemplateNodeSubtree, String> {
     let ast = parse_pax_str(Rule::pax_component_definition, subtemplate)
         .map_err(|error| format!("subtemplate failed to parse: {error}"))?;
-    let settings = pax_manifest::parsing::parse_settings_from_component_definition_string(ast.clone());
+    let settings =
+        pax_manifest::parsing::parse_settings_from_component_definition_string(ast.clone());
     if !settings.is_empty() {
-        return Err("node subtemplates cannot contain a component-level @settings block".to_string());
+        return Err(
+            "node subtemplates cannot contain a component-level @settings block".to_string(),
+        );
     }
 
     let mut parse_context = pax_manifest::parsing::TemplateNodeParseContext {
@@ -509,6 +606,35 @@ fn normalize_designtime_max_depth(max_depth: i64) -> Option<usize> {
         None
     } else {
         Some(max_depth as usize)
+    }
+}
+
+#[cfg(feature = "designtime")]
+fn build_designtime_inspect_node_list_payload(
+    nodes: Vec<Rc<ExpandedNode>>,
+    manifest: Option<&PaxManifest>,
+) -> DesigntimeInspectNodeListPayload {
+    let mut node_count = 0;
+    let serialized_nodes = nodes
+        .iter()
+        .map(|node| {
+            serialize_designtime_inspect_tree_node(node, manifest, 0, Some(0), &mut node_count)
+        })
+        .collect::<Vec<_>>();
+    let nodes_json = match serde_json::to_string(&serialized_nodes) {
+        Ok(nodes_json) => nodes_json,
+        Err(err) => {
+            return designtime_inspect_nodes_error(format!(
+                "failed to serialize inspect node list JSON: {err}"
+            ));
+        }
+    };
+
+    DesigntimeInspectNodeListPayload {
+        status: "ok".to_string(),
+        node_count: Some(serialized_nodes.len()),
+        nodes_json: Some(nodes_json),
+        error: None,
     }
 }
 
@@ -634,4 +760,143 @@ fn inspect_layer_name(layer: crate::api::Layer) -> &'static str {
         crate::api::Layer::Canvas => "canvas",
         crate::api::Layer::DontCare => "dont-care",
     }
+}
+
+#[cfg(feature = "designtime")]
+fn parse_designtime_selector_query(selector: &str) -> Result<DesigntimeSelectorQuery, String> {
+    let trimmed = selector.trim();
+    if trimmed.is_empty() {
+        return Err("selector cannot be empty".to_string());
+    }
+
+    if trimmed.starts_with('#') || trimmed.starts_with('.') {
+        parse_pax_str(Rule::selector, trimmed)
+            .map_err(|error| format!("selector failed to parse: {error}"))?;
+        let (prefix, value) = trimmed.split_at(1);
+        return match prefix {
+            "#" => Ok(DesigntimeSelectorQuery::Id(value.to_string())),
+            "." => Ok(DesigntimeSelectorQuery::Class(value.to_string())),
+            _ => unreachable!("validated selector must start with # or ."),
+        };
+    }
+
+    if trimmed
+        .split("::")
+        .all(|segment| !segment.is_empty() && is_designtime_identifier(segment))
+    {
+        return Ok(DesigntimeSelectorQuery::Type(trimmed.to_string()));
+    }
+
+    Err(
+        "selector must be an id (`#id`), class (`.class`), or element type (`Ellipse` or `crate::Example`)"
+            .to_string(),
+    )
+}
+
+#[cfg(feature = "designtime")]
+fn is_designtime_identifier(identifier: &str) -> bool {
+    let mut chars = identifier.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    (first.is_ascii_alphabetic() || first == '_')
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+}
+
+#[cfg(feature = "designtime")]
+fn collect_designtime_selector_matches(
+    node: &Rc<ExpandedNode>,
+    manifest: &PaxManifest,
+    selector: &DesigntimeSelectorQuery,
+    matches: &mut Vec<Rc<ExpandedNode>>,
+) {
+    node.compute_flattened_slot_children();
+    if designtime_selector_matches_node(node, manifest, selector) {
+        matches.push(Rc::clone(node));
+    }
+
+    let children = node
+        .mounted_children
+        .borrow()
+        .iter()
+        .cloned()
+        .collect::<Vec<_>>();
+    for child in children {
+        collect_designtime_selector_matches(&child, manifest, selector, matches);
+    }
+}
+
+#[cfg(feature = "designtime")]
+fn designtime_selector_matches_node(
+    node: &Rc<ExpandedNode>,
+    manifest: &PaxManifest,
+    selector: &DesigntimeSelectorQuery,
+) -> bool {
+    match selector {
+        DesigntimeSelectorQuery::Id(id) => {
+            let common_properties = Rc::clone(&*node.common_properties.borrow());
+            let common_properties = common_properties.borrow();
+            common_properties.id.get().as_deref() == Some(id.as_str())
+        }
+        DesigntimeSelectorQuery::Class(class_name) => {
+            designtime_node_template_classes(node, manifest)
+                .into_iter()
+                .any(|node_class| node_class == class_name.as_str())
+        }
+        DesigntimeSelectorQuery::Type(type_name) => {
+            designtime_node_matches_type(node, manifest, type_name)
+        }
+    }
+}
+
+#[cfg(feature = "designtime")]
+fn designtime_node_template_classes<'a>(
+    node: &Rc<ExpandedNode>,
+    manifest: &'a PaxManifest,
+) -> Vec<&'a str> {
+    let global_id = {
+        let instance_node = node.instance_node.borrow();
+        instance_node.base().template_node_identifier.clone()
+    };
+    let Some(global_id) = global_id else {
+        return vec![];
+    };
+    let Some(template_node) = manifest.get_template_node(&global_id) else {
+        return vec![];
+    };
+    let Some(settings) = template_node.settings.as_ref() else {
+        return vec![];
+    };
+
+    settings
+        .iter()
+        .filter_map(|setting| match setting {
+            SettingElement::Setting(token, ValueDefinition::Identifier(identifier))
+                if token.token_value == "class" =>
+            {
+                Some(identifier.name.as_str())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[cfg(feature = "designtime")]
+fn designtime_node_matches_type(
+    node: &Rc<ExpandedNode>,
+    manifest: &PaxManifest,
+    type_name: &str,
+) -> bool {
+    let global_id = {
+        let instance_node = node.instance_node.borrow();
+        instance_node.base().template_node_identifier.clone()
+    };
+    let Some(global_id) = global_id else {
+        return false;
+    };
+    let Some(template_node) = manifest.get_template_node(&global_id) else {
+        return false;
+    };
+    template_node.type_id.to_string() == type_name
+        || template_node.type_id.get_pascal_identifier().as_deref() == Some(type_name)
 }
