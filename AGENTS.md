@@ -24,8 +24,18 @@ New features are often proven on one "chassis" at a time (platform target.)  In 
 
 While Pax is designed to feel familiar and "HTML-like," there are some design decisions that may counter some expectations from working with other technologies.
 
-*Element order and z order* -- in Pax, elements "on top" of others in a file are "on top" in z-index.  That is, <Ellipse/><Rectangle/> will render the ellipse on top of the rectangle.  This keeps the file spatially arranged in the same way one might e.g. arrange elements in the tree view of a visual design tool.
+*Element order and z order* -- in Pax, elements "on top" of others in a file are "on top" in z-index.  E.g. `<Ellipse/><Rectangle/>` will render the ellipse on top of the rectangle in z-index.  This keeps the file spatially arranged in the same way one might e.g. arrange elements in the tree view of a visual design tool, or how one might imagine looking at a stack of cards on a table.
 
 *Units* -- Pax offers first-class unit support for declaring property values.  For example `25px`, `25%`, `25deg`, `25rad`, and even expression constructs like `50% + 25px` or `(some_value + 25)%` are valid.
 
-*Constrained reactivity* -- Pax templates are grammatically constrained to be 100% declarative.  Dynamic logic is encoded in PAXEL, an expression language that is demarcated by `{...}`.  Since the language is side-effect free, Pax is able to update properties in a "spreadsheet-like" fashion, offering many architectural and performance benefits.
+*Constrained reactivity* -- Pax templates are grammatically constrained to be 100% declarative.  Dynamic logic is encoded in PAXEL, an expression language that is demarcated by `{...}`.  Since the language is side-effect free, Pax is able to update properties in a "spreadsheet-like" fashion, offering many architectural and performance benefits. While powerful, this paradigm requires approaching some things differently than you might with other toolkits.
+
+## AI + Developer tools
+
+The pax-cli includes developer tools, designed for AI use, for improving automated feedback loops.
+
+For example, you can take screenshots, take screenshot sequences (approx. watching a video, e.g. for an animation or interaction), trigger userland events like clicks/touches, and inspect scenes. 
+
+Check `pax-cli dev --help` for a full rundown.
+
+Use these tools liberally to progress your tasks with your own "eyes" and "fingertips".
