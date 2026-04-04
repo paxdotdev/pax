@@ -8,20 +8,34 @@ use pax_manifest::parsing::{
 use pax_manifest::{
     PaxManifest, PropertyDefinition, PropertyDefinitionFlags, TypeDefinition, TypeId,
 };
-use proc_macro2::TokenTree;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use syn::parse::Parser;
+use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
 use syn::{
-    Attribute, Field, Fields, GenericArgument, Item, ItemEnum, ItemMod, ItemStruct, Lit, Meta,
-    NestedMeta, PathArguments, Type, UseTree,
+    Attribute, Expr, Field, Fields, GenericArgument, Item, ItemEnum, ItemMod, ItemStruct, Lit,
+    Meta, NestedMeta, PathArguments, Stmt, Token, Type, UseTree,
 };
 
 const DEFAULT_ENGINE_IMPORT_PATH: &str = "pax_kit::pax_engine";
 
+#[derive(Clone, Copy, Default)]
+pub struct BuildManifestOptions {
+    pub is_designtime: bool,
+}
+
 pub fn build_manifest(project_path: &Path) -> Result<PaxManifest> {
+    build_manifest_with_options(project_path, BuildManifestOptions::default())
+}
+
+pub fn build_manifest_with_options(
+    project_path: &Path,
+    options: BuildManifestOptions,
+) -> Result<PaxManifest> {
     let project_manifest_path = canonical_manifest_path(project_path)?;
     let project_dir = project_manifest_path
         .parent()
@@ -34,13 +48,17 @@ pub fn build_manifest(project_path: &Path) -> Result<PaxManifest> {
         .map_err(|err| eyre!("Failed to read cargo metadata: {err}"))?;
 
     let root_package = find_root_package(&metadata, &project_manifest_path)?;
-    let registry = build_registry(&metadata, root_package)?;
-    let main_item = registry.root_main_component()?;
+    let mut registry = build_registry(&metadata, root_package)?;
+    registry.ensure_root_package_scanned()?;
+    let main_item = registry.root_main_component()?.clone();
 
     let mut ctx = ParsingContext::default();
     ctx.main_component_type_id = main_item.type_id();
 
-    build_item_recursive(&mut ctx, &registry, &main_item.import_path)?;
+    build_item_recursive(&mut ctx, &mut registry, &main_item.import_path)?;
+    if options.is_designtime {
+        extend_designtime_manifest_with_pax_std_types(&mut ctx, &mut registry)?;
+    }
 
     let assets_dir = project_dir.join("assets");
     if let Ok(canonical_assets_dir) = assets_dir.canonicalize() {
@@ -58,14 +76,178 @@ pub fn build_manifest(project_path: &Path) -> Result<PaxManifest> {
     })
 }
 
+fn extend_designtime_manifest_with_pax_std_types(
+    ctx: &mut ParsingContext,
+    registry: &mut StaticRegistry,
+) -> Result<()> {
+    let seed_import_paths = pax_std_designtime_seed_import_paths(registry)?;
+    for import_path in seed_import_paths {
+        build_item_recursive(ctx, registry, &import_path)?;
+    }
+    Ok(())
+}
+
+fn pax_std_designtime_seed_import_paths(registry: &mut StaticRegistry) -> Result<Vec<String>> {
+    registry.ensure_package_scanned("pax_std")?;
+    let package_context = registry
+        .packages_by_import_root
+        .get("pax_std")
+        .cloned()
+        .ok_or_else(|| eyre!("Static analysis could not find the `pax_std` package"))?;
+    let source = fs::read_to_string(&package_context.entry_file).map_err(|err| {
+        eyre!(
+            "Failed to read `pax_std` entry file `{}`: {err}",
+            package_context.entry_file.display()
+        )
+    })?;
+    let parsed_file = syn::parse_file(&source).map_err(|err| {
+        eyre!(
+            "Failed to parse `pax_std` entry file `{}`: {err}",
+            package_context.entry_file.display()
+        )
+    })?;
+    let scope = collect_scope(
+        &parsed_file.items,
+        package_context.import_root.clone(),
+        package_context.import_root.clone(),
+    )?;
+    let mut seed_import_paths =
+        designtime_seed_import_paths_from_items(&parsed_file.items, &scope, registry)?;
+
+    // `InlineFrame` is conditionally added for designtime builds inside the helper body.
+    let inline_frame_import_path = "pax_std::core::inline_frame::InlineFrame";
+    if registry
+        .items_by_import_path
+        .contains_key(inline_frame_import_path)
+        && !seed_import_paths
+            .iter()
+            .any(|import_path| import_path == inline_frame_import_path)
+    {
+        seed_import_paths.push(inline_frame_import_path.to_string());
+    }
+
+    Ok(seed_import_paths)
+}
+
+fn designtime_seed_import_paths_from_items(
+    items: &[Item],
+    scope: &ScopeImports,
+    registry: &mut StaticRegistry,
+) -> Result<Vec<String>> {
+    let helper_fn = items
+        .iter()
+        .find_map(|item| match item {
+            Item::Fn(item_fn)
+                if item_fn.sig.ident == "extend_designtime_parsing_context_with_all_pax_std_types" =>
+            {
+                Some(item_fn)
+            }
+            _ => None,
+        })
+        .ok_or_else(|| {
+            eyre!(
+                "Static analysis could not find `extend_designtime_parsing_context_with_all_pax_std_types`"
+            )
+        })?;
+
+    let mut seed_import_paths = vec![];
+    for stmt in &helper_fn.block.stmts {
+        collect_designtime_seed_import_paths_from_stmt(
+            stmt,
+            scope,
+            registry,
+            &mut seed_import_paths,
+        )?;
+    }
+    Ok(seed_import_paths)
+}
+
+fn collect_designtime_seed_import_paths_from_stmt(
+    stmt: &Stmt,
+    scope: &ScopeImports,
+    registry: &mut StaticRegistry,
+    seed_import_paths: &mut Vec<String>,
+) -> Result<()> {
+    match stmt {
+        Stmt::Expr(expr) | Stmt::Semi(expr, _) => {
+            collect_designtime_seed_import_paths_from_expr(expr, scope, registry, seed_import_paths)
+        }
+        _ => Ok(()),
+    }
+}
+
+fn collect_designtime_seed_import_paths_from_expr(
+    expr: &Expr,
+    scope: &ScopeImports,
+    registry: &mut StaticRegistry,
+    seed_import_paths: &mut Vec<String>,
+) -> Result<()> {
+    match expr {
+        Expr::Macro(expr_macro) if expr_macro.mac.path.is_ident("parse_reflectables") => {
+            let parser = Punctuated::<syn::Path, Token![,]>::parse_terminated;
+            let paths = parser.parse2(expr_macro.mac.tokens.clone()).map_err(|err| {
+                eyre!(
+                    "Failed to parse `parse_reflectables!` seed list for static designtime analysis: {err}"
+                )
+            })?;
+
+            for path in paths {
+                let raw_path = syn_path_to_string(&path);
+                let import_path =
+                    resolve_seed_reference_to_import_path(&raw_path, scope, registry)?;
+                if !seed_import_paths.contains(&import_path) {
+                    seed_import_paths.push(import_path);
+                }
+            }
+            Ok(())
+        }
+        Expr::Block(expr_block) => {
+            for stmt in &expr_block.block.stmts {
+                collect_designtime_seed_import_paths_from_stmt(
+                    stmt,
+                    scope,
+                    registry,
+                    seed_import_paths,
+                )?;
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
+fn resolve_seed_reference_to_import_path(
+    raw_path: &str,
+    scope: &ScopeImports,
+    registry: &mut StaticRegistry,
+) -> Result<String> {
+    if raw_path.contains("::") {
+        let canonical_path = resolve_canonical_path(raw_path, scope, registry)?;
+        registry.ensure_import_path_scanned(&canonical_path)?;
+        return Ok(canonical_path);
+    }
+
+    resolve_identifier_to_import_path(raw_path, scope, registry)
+}
+
+fn syn_path_to_string(path: &syn::Path) -> String {
+    path.segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect::<Vec<_>>()
+        .join("::")
+}
+
 fn build_item_recursive(
     ctx: &mut ParsingContext,
-    registry: &StaticRegistry,
+    registry: &mut StaticRegistry,
     import_path: &str,
 ) -> Result<()> {
+    registry.ensure_import_path_scanned(import_path)?;
     let item = registry
         .items_by_import_path
         .get(import_path)
+        .cloned()
         .ok_or_else(|| eyre!("Static analysis could not find `{import_path}`"))?;
     let self_type_id = item.type_id();
 
@@ -115,8 +297,14 @@ fn build_item_recursive(
             associated_pax_file_path,
         } => {
             let mut template_dependencies =
-                parse_pascal_identifiers_from_component_definition_string(raw_pax)
-                    .map_err(|err| eyre!("Failed to statically parse template for `{}`: {err}", item.import_path))?;
+                parse_pascal_identifiers_from_component_definition_string(raw_pax).map_err(
+                    |err| {
+                        eyre!(
+                            "Failed to statically parse template for `{}`: {err}",
+                            item.import_path
+                        )
+                    },
+                )?;
 
             if *is_main_component {
                 template_dependencies.push("BlankComponent".to_string());
@@ -124,13 +312,18 @@ fn build_item_recursive(
 
             let mut template_map = HashMap::new();
             for dependency_identifier in template_dependencies {
-                let dependency_import_path =
-                    resolve_identifier_to_import_path(&dependency_identifier, &item.scope, registry)?;
+                let dependency_import_path = resolve_identifier_to_import_path(
+                    &dependency_identifier,
+                    &item.scope,
+                    registry,
+                )?;
                 build_item_recursive(ctx, registry, &dependency_import_path)?;
                 let dependency_item = registry
                     .items_by_import_path
                     .get(&dependency_import_path)
-                    .ok_or_else(|| eyre!("Resolved dependency `{dependency_import_path}` is not a Pax item"))?;
+                    .ok_or_else(|| {
+                        eyre!("Resolved dependency `{dependency_import_path}` is not a Pax item")
+                    })?;
                 template_map.insert(dependency_identifier, dependency_item.type_id());
             }
 
@@ -161,8 +354,11 @@ fn build_item_recursive(
         ),
         PaxItemKind::StructOnly => {
             let owned_ctx = std::mem::take(ctx);
-            let (new_ctx, component_definition) =
-                assemble_struct_only_component_definition(owned_ctx, &item.module_path, self_type_id.clone());
+            let (new_ctx, component_definition) = assemble_struct_only_component_definition(
+                owned_ctx,
+                &item.module_path,
+                self_type_id.clone(),
+            );
             *ctx = new_ctx;
             component_definition
         }
@@ -175,7 +371,7 @@ fn build_item_recursive(
 
 fn ensure_syn_type(
     ctx: &mut ParsingContext,
-    registry: &StaticRegistry,
+    registry: &mut StaticRegistry,
     ty: &Type,
     scope: &ScopeImports,
 ) -> Result<TypeId> {
@@ -227,7 +423,8 @@ fn ensure_syn_type(
                 let (key_ty, value_ty) = pair_generic_types(last_segment)?;
                 let key_type_id = ensure_syn_type(ctx, registry, key_ty, scope)?;
                 let value_type_id = ensure_syn_type(ctx, registry, value_ty, scope)?;
-                let type_id = TypeId::build_map(&key_type_id.to_string(), &value_type_id.to_string());
+                let type_id =
+                    TypeId::build_map(&key_type_id.to_string(), &value_type_id.to_string());
                 ctx.type_table
                     .entry(type_id.clone())
                     .or_insert_with(|| TypeDefinition {
@@ -240,13 +437,13 @@ fn ensure_syn_type(
 
             if segments.len() == 1 {
                 if let Some(primitive_type_id) = primitive_type_id_for_ident(&last_ident) {
-                    ctx.type_table.entry(primitive_type_id.clone()).or_insert_with(|| {
-                        TypeDefinition {
+                    ctx.type_table
+                        .entry(primitive_type_id.clone())
+                        .or_insert_with(|| TypeDefinition {
                             type_id: primitive_type_id.clone(),
                             inner_iterable_type_id: None,
                             property_definitions: vec![],
-                        }
-                    });
+                        });
                     return Ok(primitive_type_id);
                 }
 
@@ -259,7 +456,7 @@ fn ensure_syn_type(
             }
 
             let raw_path = segments.join("::");
-            let canonical_path = canonicalize_path(&raw_path, scope)?;
+            let canonical_path = resolve_canonical_path(&raw_path, scope, registry)?;
             if let Some(import_path) = canonical_special_import_path_for_path(&canonical_path) {
                 return ensure_known_type_definition(ctx, import_path);
             }
@@ -277,11 +474,13 @@ fn ensure_syn_type(
         }
         Type::Tuple(tuple) if tuple.elems.is_empty() => {
             let type_id = TypeId::build_primitive("()");
-            ctx.type_table.entry(type_id.clone()).or_insert_with(|| TypeDefinition {
-                type_id: type_id.clone(),
-                inner_iterable_type_id: None,
-                property_definitions: vec![],
-            });
+            ctx.type_table
+                .entry(type_id.clone())
+                .or_insert_with(|| TypeDefinition {
+                    type_id: type_id.clone(),
+                    inner_iterable_type_id: None,
+                    property_definitions: vec![],
+                });
             Ok(type_id)
         }
         other => Err(eyre!(
@@ -294,16 +493,30 @@ fn ensure_syn_type(
 
 fn ensure_import_path_type(
     ctx: &mut ParsingContext,
-    registry: &StaticRegistry,
+    registry: &mut StaticRegistry,
     import_path: &str,
 ) -> Result<TypeId> {
     if let Some(special_import_path) = canonical_special_import_path_for_path(import_path) {
         return ensure_known_type_definition(ctx, special_import_path);
     }
 
-    if let Some(item) = registry.items_by_import_path.get(import_path) {
+    registry.ensure_import_path_scanned(import_path)?;
+
+    if let Some(item) = registry.items_by_import_path.get(import_path).cloned() {
         build_item_recursive(ctx, registry, &item.import_path)?;
         return Ok(item.type_id());
+    }
+
+    if let Some((root, identifier)) = import_path.rsplit_once("::") {
+        if let Some(resolved_import_path) = registry.unique_item_below_root(root, identifier) {
+            let item = registry
+                .items_by_import_path
+                .get(&resolved_import_path)
+                .cloned()
+                .ok_or_else(|| eyre!("Resolved static type `{resolved_import_path}` is missing"))?;
+            build_item_recursive(ctx, registry, &item.import_path)?;
+            return Ok(item.type_id());
+        }
     }
 
     Err(eyre!("Unresolved static type `{import_path}`"))
@@ -313,7 +526,9 @@ fn ensure_known_type_definition(ctx: &mut ParsingContext, import_path: &str) -> 
     let type_id = match import_path {
         "std::string::String" => TypeId::build_singleton(import_path, Some("String")),
         "pax_manifest::TypeId" => TypeId::build_singleton(import_path, Some("TypeId")),
-        "pax_manifest::TemplateNodeId" => TypeId::build_singleton(import_path, Some("TemplateNodeId")),
+        "pax_manifest::TemplateNodeId" => {
+            TypeId::build_singleton(import_path, Some("TemplateNodeId"))
+        }
         "pax_engine::api::Fill" => TypeId::build_singleton(import_path, Some("Fill")),
         "pax_engine::api::Stroke" => TypeId::build_singleton(import_path, Some("Stroke")),
         "pax_engine::api::Size" => TypeId::build_singleton(import_path, Some("Size")),
@@ -324,9 +539,7 @@ fn ensure_known_type_definition(ctx: &mut ParsingContext, import_path: &str) -> 
         }
         "pax_engine::api::Rotation" => TypeId::build_singleton(import_path, Some("Rotation")),
         "pax_engine::api::Numeric" => TypeId::build_singleton(import_path, Some("Numeric")),
-        "pax_engine::api::Transform2D" => {
-            TypeId::build_singleton(import_path, Some("Transform2D"))
-        }
+        "pax_engine::api::Transform2D" => TypeId::build_singleton(import_path, Some("Transform2D")),
         "kurbo::Point" => TypeId::build_singleton(import_path, Some("Point")),
         other => return Err(eyre!("Unsupported canonical static type `{other}`")),
     };
@@ -378,21 +591,37 @@ fn ensure_known_type_definition(ctx: &mut ParsingContext, import_path: &str) -> 
 fn resolve_identifier_to_import_path(
     identifier: &str,
     scope: &ScopeImports,
-    registry: &StaticRegistry,
+    registry: &mut StaticRegistry,
 ) -> Result<String> {
     let same_module_candidate = format!("{}::{}", scope.module_path, identifier);
-    if registry.items_by_import_path.contains_key(&same_module_candidate) {
+    if registry
+        .items_by_import_path
+        .contains_key(&same_module_candidate)
+    {
         return Ok(same_module_candidate);
     }
 
     if let Some(import_path) = scope.explicit.get(identifier) {
-        let canonical_import_path = canonicalize_path(import_path, scope)?;
-        if let Some(special_import_path) = canonical_special_import_path_for_path(&canonical_import_path)
+        let canonical_import_path = resolve_canonical_path(import_path, scope, registry)?;
+        if let Some(special_import_path) =
+            canonical_special_import_path_for_path(&canonical_import_path)
         {
             return Ok(special_import_path.to_string());
         }
         if let Some(special_import_path) = canonical_special_import_path_for_ident(identifier) {
             return Ok(special_import_path.to_string());
+        }
+        registry.ensure_import_path_scanned(&canonical_import_path)?;
+        if registry
+            .items_by_import_path
+            .contains_key(&canonical_import_path)
+        {
+            return Ok(canonical_import_path);
+        }
+        if let Some((root, ident)) = canonical_import_path.rsplit_once("::") {
+            if let Some(resolved_import_path) = registry.unique_item_below_root(root, ident) {
+                return Ok(resolved_import_path);
+            }
         }
         return Ok(canonical_import_path);
     }
@@ -409,6 +638,7 @@ fn resolve_identifier_to_import_path(
 
     for glob_root in &scope.glob_roots {
         if glob_root == "pax_kit" {
+            registry.ensure_package_scanned("pax_std")?;
             if let Some(import_path) = registry.unique_item_below_root("pax_std", identifier) {
                 return Ok(import_path);
             }
@@ -418,9 +648,13 @@ fn resolve_identifier_to_import_path(
             continue;
         }
 
-        let canonical_root = canonicalize_path(glob_root, scope)?;
+        let canonical_root = resolve_canonical_path(glob_root, scope, registry)?;
+        registry.ensure_import_path_scanned(&canonical_root)?;
         let direct_candidate = format!("{}::{}", canonical_root, identifier);
-        if registry.items_by_import_path.contains_key(&direct_candidate) {
+        if registry
+            .items_by_import_path
+            .contains_key(&direct_candidate)
+        {
             return Ok(direct_candidate);
         }
 
@@ -454,44 +688,60 @@ fn resolve_identifier_to_import_path(
 fn build_registry(metadata: &Metadata, root_package: &Package) -> Result<StaticRegistry> {
     let mut registry = StaticRegistry::default();
 
-    for package in metadata.packages.iter().filter(|package| package.source.is_none()) {
+    let mut packages = metadata.packages.iter().collect::<Vec<_>>();
+    packages.sort_by_key(|package| package.source.is_some());
+
+    for package in packages {
         let manifest_path = package.manifest_path.as_std_path();
         let manifest_dir = manifest_path
             .parent()
             .ok_or_else(|| eyre!("Package manifest has no parent directory"))?
             .to_path_buf();
-        let src_dir = manifest_dir.join("src");
-        if !src_dir.exists() {
-            continue;
-        }
-
-        let entry_file = if src_dir.join("lib.rs").exists() {
-            src_dir.join("lib.rs")
-        } else if src_dir.join("main.rs").exists() {
-            src_dir.join("main.rs")
-        } else {
+        let Some(entry_file) = entry_file_for_package(package) else {
             continue;
         };
 
         let import_root = if package.name == root_package.name {
             "crate".to_string()
         } else {
-            package.name.replace('-', "_")
+            import_root_for_package(package)
         };
 
-        let package_context = PackageContext {
+        registry.register_package(PackageContext {
             manifest_dir,
             entry_file,
             package_name: package.name.clone(),
             import_root,
-        };
-
-        let mut seen_files = HashSet::new();
-        scan_module_file(&package_context, &package_context.entry_file, &package_context.import_root, &mut seen_files, &mut registry)?;
+        })?;
     }
 
     registry.root_package_name = root_package.name.clone();
     Ok(registry)
+}
+
+fn entry_file_for_package(package: &Package) -> Option<PathBuf> {
+    package
+        .targets
+        .iter()
+        .find(|target| {
+            target.kind.iter().any(|kind| {
+                matches!(
+                    kind.as_str(),
+                    "lib" | "rlib" | "cdylib" | "dylib" | "staticlib" | "proc-macro"
+                )
+            })
+        })
+        .or_else(|| {
+            package
+                .targets
+                .iter()
+                .find(|target| target.kind.iter().any(|kind| kind == "bin"))
+        })
+        .map(|target| target.src_path.as_std_path().to_path_buf())
+}
+
+fn import_root_for_package(package: &Package) -> String {
+    package.name.replace('-', "_")
 }
 
 fn scan_module_file(
@@ -535,6 +785,7 @@ fn scan_module_file(
                     package_context,
                     &scope,
                     &canonical_file_path,
+                    &file_contents,
                     item_struct,
                     registry,
                 )?;
@@ -544,6 +795,7 @@ fn scan_module_file(
                     package_context,
                     &scope,
                     &canonical_file_path,
+                    &file_contents,
                     item_enum,
                     registry,
                 )?;
@@ -552,6 +804,7 @@ fn scan_module_file(
                 scan_child_module(
                     package_context,
                     &canonical_file_path,
+                    &file_contents,
                     &child_module_dir,
                     &scope,
                     item_mod,
@@ -569,6 +822,7 @@ fn scan_module_file(
 fn scan_child_module(
     package_context: &PackageContext,
     source_file_path: &Path,
+    source_file_contents: &str,
     child_module_dir: &Path,
     parent_scope: &ScopeImports,
     item_mod: ItemMod,
@@ -577,7 +831,8 @@ fn scan_child_module(
 ) -> Result<()> {
     let child_module_path = format!("{}::{}", parent_scope.module_path, item_mod.ident);
     if let Some((_, items)) = item_mod.content {
-        let child_scope = collect_scope(&items, child_module_path, parent_scope.import_root.clone())?;
+        let child_scope =
+            collect_scope(&items, child_module_path, parent_scope.import_root.clone())?;
         for item in items {
             match item {
                 Item::Struct(item_struct) if has_pax_attr(&item_struct.attrs) => {
@@ -585,6 +840,7 @@ fn scan_child_module(
                         package_context,
                         &child_scope,
                         source_file_path,
+                        source_file_contents,
                         item_struct,
                         registry,
                     )?;
@@ -594,6 +850,7 @@ fn scan_child_module(
                         package_context,
                         &child_scope,
                         source_file_path,
+                        source_file_contents,
                         item_enum,
                         registry,
                     )?;
@@ -602,6 +859,7 @@ fn scan_child_module(
                     scan_child_module(
                         package_context,
                         source_file_path,
+                        source_file_contents,
                         child_module_dir,
                         &child_scope,
                         child_mod,
@@ -629,10 +887,11 @@ fn register_struct_item(
     package_context: &PackageContext,
     scope: &ScopeImports,
     source_file_path: &Path,
+    source_file_contents: &str,
     item_struct: ItemStruct,
     registry: &mut StaticRegistry,
 ) -> Result<()> {
-    let config = parse_pax_config(&item_struct.attrs)?;
+    let config = parse_pax_config(&item_struct.attrs, source_file_contents)?;
     let import_path = format!("{}::{}", scope.module_path, item_struct.ident);
     let kind = build_item_kind(package_context, source_file_path, &config)?;
     let data = build_struct_data_summary(&item_struct)?;
@@ -655,10 +914,11 @@ fn register_enum_item(
     package_context: &PackageContext,
     scope: &ScopeImports,
     source_file_path: &Path,
+    source_file_contents: &str,
     item_enum: ItemEnum,
     registry: &mut StaticRegistry,
 ) -> Result<()> {
-    let config = parse_pax_config(&item_enum.attrs)?;
+    let config = parse_pax_config(&item_enum.attrs, source_file_contents)?;
     let import_path = format!("{}::{}", scope.module_path, item_enum.ident);
     let kind = build_item_kind(package_context, source_file_path, &config)?;
     let data = build_enum_data_summary(&item_enum);
@@ -774,7 +1034,10 @@ fn build_enum_data_summary(item_enum: &ItemEnum) -> DataSummary {
     DataSummary::Enum(variants)
 }
 
-fn find_root_package<'a>(metadata: &'a Metadata, project_manifest_path: &Path) -> Result<&'a Package> {
+fn find_root_package<'a>(
+    metadata: &'a Metadata,
+    project_manifest_path: &Path,
+) -> Result<&'a Package> {
     metadata
         .packages
         .iter()
@@ -786,7 +1049,12 @@ fn find_root_package<'a>(metadata: &'a Metadata, project_manifest_path: &Path) -
                 .map(|path| path == project_manifest_path)
                 .unwrap_or(false)
         })
-        .ok_or_else(|| eyre!("Failed to resolve the package for `{}`", project_manifest_path.display()))
+        .ok_or_else(|| {
+            eyre!(
+                "Failed to resolve the package for `{}`",
+                project_manifest_path.display()
+            )
+        })
 }
 
 fn canonical_manifest_path(project_path: &Path) -> Result<PathBuf> {
@@ -795,12 +1063,15 @@ fn canonical_manifest_path(project_path: &Path) -> Result<PathBuf> {
     } else {
         project_path.to_path_buf()
     };
-    manifest_path
-        .canonicalize()
-        .map_err(|err| eyre!("Failed to canonicalize `{}`: {err}", manifest_path.display()))
+    manifest_path.canonicalize().map_err(|err| {
+        eyre!(
+            "Failed to canonicalize `{}`: {err}",
+            manifest_path.display()
+        )
+    })
 }
 
-fn parse_pax_config(attrs: &[Attribute]) -> Result<PaxConfig> {
+fn parse_pax_config(attrs: &[Attribute], source_file_contents: &str) -> Result<PaxConfig> {
     let mut config = PaxConfig::default();
 
     for attr in attrs {
@@ -828,16 +1099,10 @@ fn parse_pax_config(attrs: &[Attribute]) -> Result<PaxConfig> {
                 }
             }
             Some(ref ident) if ident == "inlined" => {
-                let mut content = proc_macro2::TokenStream::new();
-                for token in attr.tokens.clone() {
-                    if let TokenTree::Group(group) = token {
-                        if group.delimiter() == proc_macro2::Delimiter::Parenthesis {
-                            content.extend(group.stream());
-                        }
-                    }
-                }
-                if !content.is_empty() {
-                    config.inlined_contents = Some(content.to_string());
+                if let Some(inlined_contents) =
+                    extract_inlined_contents(attr, source_file_contents)?
+                {
+                    config.inlined_contents = Some(inlined_contents);
                 }
             }
             Some(ref ident) if ident == "pax" => {}
@@ -852,6 +1117,74 @@ fn parse_pax_config(attrs: &[Attribute]) -> Result<PaxConfig> {
     }
 
     Ok(config)
+}
+
+fn extract_inlined_contents(attr: &Attribute, source_file_contents: &str) -> Result<Option<String>> {
+    let attr_text = source_text_for_span(source_file_contents, attr.span())?;
+    let trimmed = attr_text.trim();
+    if !trimmed.starts_with("#[") || !trimmed.ends_with(']') {
+        return Ok(None);
+    }
+
+    let open_paren_index = trimmed.find('(').ok_or_else(|| {
+        eyre!("Encountered malformed `#[inlined(...)]` attribute during static analysis")
+    })?;
+    let close_paren_index = trimmed.rfind(')').ok_or_else(|| {
+        eyre!("Encountered malformed `#[inlined(...)]` attribute during static analysis")
+    })?;
+    if close_paren_index <= open_paren_index {
+        return Err(eyre!(
+            "Encountered malformed `#[inlined(...)]` attribute during static analysis"
+        ));
+    }
+
+    Ok(Some(
+        trimmed[open_paren_index + 1..close_paren_index]
+            .trim()
+            .to_string(),
+    ))
+}
+
+fn source_text_for_span(source: &str, span: proc_macro2::Span) -> Result<String> {
+    let start = line_column_to_offset(source, span.start())?;
+    let end = line_column_to_offset(source, span.end())?;
+    source
+        .get(start..end)
+        .map(|text| text.to_string())
+        .ok_or_else(|| eyre!("Failed to slice source text for an attribute span"))
+}
+
+fn line_column_to_offset(source: &str, line_column: proc_macro2::LineColumn) -> Result<usize> {
+    let mut current_line = 1usize;
+    let mut line_start = 0usize;
+
+    loop {
+        if current_line == line_column.line {
+            let line_end = source[line_start..]
+                .find('\n')
+                .map(|offset| line_start + offset)
+                .unwrap_or(source.len());
+            let line_text = &source[line_start..line_end];
+            let mut char_indices = line_text.char_indices();
+            let byte_offset = if line_column.column == line_text.chars().count() {
+                line_text.len()
+            } else {
+                char_indices
+                    .nth(line_column.column)
+                    .map(|(offset, _)| offset)
+                    .ok_or_else(|| eyre!("Attribute span column was out of bounds"))?
+            };
+            return Ok(line_start + byte_offset);
+        }
+
+        let Some(next_newline) = source[line_start..].find('\n') else {
+            break;
+        };
+        line_start += next_newline + 1;
+        current_line += 1;
+    }
+
+    Err(eyre!("Attribute span line was out of bounds"))
 }
 
 fn get_field_type(field: &Field) -> Result<(Type, bool)> {
@@ -916,10 +1249,8 @@ fn pair_generic_types(segment: &syn::PathSegment) -> Result<(&Type, &Type)> {
 
 fn primitive_type_id_for_ident(ident: &str) -> Option<TypeId> {
     match ident {
-        "u8" | "u16" | "u32" | "u64" | "u128" | "usize" | "i8" | "i16" | "i32" | "i64"
-        | "i128" | "isize" | "f64" | "f32" | "bool" | "char" | "()" => {
-            Some(TypeId::build_primitive(ident))
-        }
+        "u8" | "u16" | "u32" | "u64" | "u128" | "usize" | "i8" | "i16" | "i32" | "i64" | "i128"
+        | "isize" | "f64" | "f32" | "bool" | "char" | "()" => Some(TypeId::build_primitive(ident)),
         _ => None,
     }
 }
@@ -969,9 +1300,9 @@ fn canonical_special_import_path_for_path(path: &str) -> Option<&'static str> {
         "pax_engine::api::Rotation"
         | "pax_runtime::api::Rotation"
         | "pax_runtime_api::Rotation" => Some("pax_engine::api::Rotation"),
-        "pax_engine::api::Numeric"
-        | "pax_runtime::api::Numeric"
-        | "pax_runtime_api::Numeric" => Some("pax_engine::api::Numeric"),
+        "pax_engine::api::Numeric" | "pax_runtime::api::Numeric" | "pax_runtime_api::Numeric" => {
+            Some("pax_engine::api::Numeric")
+        }
         "pax_engine::api::Transform2D"
         | "pax_runtime::api::Transform2D"
         | "pax_runtime_api::Transform2D" => Some("pax_engine::api::Transform2D"),
@@ -1030,7 +1361,9 @@ fn canonicalize_path(raw_path: &str, scope: &ScopeImports) -> Result<String> {
                 .collect::<Vec<_>>();
             while remaining_index < parts.len() && parts[remaining_index] == "super" {
                 if segments.len() <= 1 {
-                    return Err(eyre!("Cannot resolve path `{raw_path}` above the crate root"));
+                    return Err(eyre!(
+                        "Cannot resolve path `{raw_path}` above the crate root"
+                    ));
                 }
                 segments.pop();
                 remaining_index += 1;
@@ -1048,11 +1381,25 @@ fn canonicalize_path(raw_path: &str, scope: &ScopeImports) -> Result<String> {
     Ok(resolved_segments.join("::"))
 }
 
-fn collect_scope(
-    items: &[Item],
-    module_path: String,
-    import_root: String,
-) -> Result<ScopeImports> {
+fn resolve_canonical_path(
+    raw_path: &str,
+    scope: &ScopeImports,
+    registry: &StaticRegistry,
+) -> Result<String> {
+    let canonical_path = canonicalize_path(raw_path, scope)?;
+    if canonical_path != raw_path {
+        return Ok(canonical_path);
+    }
+
+    let crate_relative_candidate = format!("{}::{}", scope.import_root, raw_path);
+    if registry.has_item_with_prefix(&crate_relative_candidate) {
+        return Ok(crate_relative_candidate);
+    }
+
+    Ok(canonical_path)
+}
+
+fn collect_scope(items: &[Item], module_path: String, import_root: String) -> Result<ScopeImports> {
     let mut scope = ScopeImports {
         module_path,
         import_root,
@@ -1078,7 +1425,9 @@ fn flatten_use_tree(tree: &UseTree, prefix: &str, scope: &mut ScopeImports) -> R
         UseTree::Name(name) => {
             let ident = name.ident.to_string();
             if ident == "self" {
-                scope.explicit.insert(scope_last_segment(prefix), prefix.to_string());
+                scope
+                    .explicit
+                    .insert(scope_last_segment(prefix), prefix.to_string());
             } else {
                 scope
                     .explicit
@@ -1115,21 +1464,25 @@ fn join_use_prefix(prefix: &str, segment: &str) -> String {
 }
 
 fn scope_last_segment(prefix: &str) -> String {
-    prefix
-        .split("::")
-        .last()
-        .unwrap_or(prefix)
-        .to_string()
+    prefix.split("::").last().unwrap_or(prefix).to_string()
 }
 
 fn child_module_dir_for_file(file_path: &Path) -> Result<PathBuf> {
-    let parent_dir = file_path
-        .parent()
-        .ok_or_else(|| eyre!("Source file `{}` has no parent directory", file_path.display()))?;
+    let parent_dir = file_path.parent().ok_or_else(|| {
+        eyre!(
+            "Source file `{}` has no parent directory",
+            file_path.display()
+        )
+    })?;
     let file_name = file_path
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or_else(|| eyre!("Source file `{}` has no valid file name", file_path.display()))?;
+        .ok_or_else(|| {
+            eyre!(
+                "Source file `{}` has no valid file name",
+                file_path.display()
+            )
+        })?;
 
     let child_dir = match file_name {
         "lib.rs" | "main.rs" | "mod.rs" => parent_dir.to_path_buf(),
@@ -1237,9 +1590,12 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(
 
             let prospective_inner_nodes = matched_tag.clone().into_inner().nth(1).unwrap();
             if prospective_inner_nodes.as_rule() == Rule::inner_nodes {
-                prospective_inner_nodes.into_inner().for_each(|sub_tag_pair| {
-                    match sub_tag_pair.as_rule() {
-                        Rule::matched_tag | Rule::self_closing_tag | Rule::statement_control_flow => {
+                prospective_inner_nodes
+                    .into_inner()
+                    .for_each(|sub_tag_pair| match sub_tag_pair.as_rule() {
+                        Rule::matched_tag
+                        | Rule::self_closing_tag
+                        | Rule::statement_control_flow => {
                             recurse_visit_tag_pairs_for_pascal_identifiers(
                                 sub_tag_pair,
                                 Rc::clone(&pascal_identifiers),
@@ -1247,8 +1603,7 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(
                         }
                         Rule::node_inner_content | Rule::comment => {}
                         _ => unreachable!(),
-                    }
-                });
+                    });
             }
         }
         Rule::self_closing_tag => {
@@ -1267,12 +1622,14 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(
             };
             let prospective_inner_nodes = matched_tag.into_inner().nth(inner_index).unwrap();
             if prospective_inner_nodes.as_rule() == Rule::inner_nodes {
-                prospective_inner_nodes.into_inner().for_each(|sub_tag_pair| {
-                    recurse_visit_tag_pairs_for_pascal_identifiers(
-                        sub_tag_pair,
-                        Rc::clone(&pascal_identifiers),
-                    );
-                });
+                prospective_inner_nodes
+                    .into_inner()
+                    .for_each(|sub_tag_pair| {
+                        recurse_visit_tag_pairs_for_pascal_identifiers(
+                            sub_tag_pair,
+                            Rc::clone(&pascal_identifiers),
+                        );
+                    });
             }
         }
         Rule::comment => {}
@@ -1284,10 +1641,24 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(
 struct StaticRegistry {
     items_by_import_path: HashMap<String, ScannedPaxItem>,
     items_by_identifier: HashMap<String, Vec<String>>,
+    packages_by_import_root: HashMap<String, PackageContext>,
+    scanned_import_roots: HashSet<String>,
     root_package_name: String,
 }
 
 impl StaticRegistry {
+    fn register_package(&mut self, package_context: PackageContext) -> Result<()> {
+        if self
+            .packages_by_import_root
+            .contains_key(&package_context.import_root)
+        {
+            return Ok(());
+        }
+        self.packages_by_import_root
+            .insert(package_context.import_root.clone(), package_context);
+        Ok(())
+    }
+
     fn insert(&mut self, item: ScannedPaxItem) -> Result<()> {
         if self.items_by_import_path.contains_key(&item.import_path) {
             return Err(eyre!(
@@ -1299,7 +1670,41 @@ impl StaticRegistry {
             .entry(item.ident.clone())
             .or_default()
             .push(item.import_path.clone());
-        self.items_by_import_path.insert(item.import_path.clone(), item);
+        self.items_by_import_path
+            .insert(item.import_path.clone(), item);
+        Ok(())
+    }
+
+    fn ensure_root_package_scanned(&mut self) -> Result<()> {
+        self.ensure_package_scanned("crate")
+    }
+
+    fn ensure_import_path_scanned(&mut self, import_path: &str) -> Result<()> {
+        if let Some(import_root) = import_path.split("::").next() {
+            self.ensure_package_scanned(import_root)?;
+        }
+        Ok(())
+    }
+
+    fn ensure_package_scanned(&mut self, import_root: &str) -> Result<()> {
+        if self.scanned_import_roots.contains(import_root) {
+            return Ok(());
+        }
+
+        let Some(package_context) = self.packages_by_import_root.get(import_root).cloned() else {
+            return Ok(());
+        };
+
+        // Scan a dependency crate only when name resolution actually reaches into it.
+        let mut seen_files = HashSet::new();
+        scan_module_file(
+            &package_context,
+            &package_context.entry_file,
+            &package_context.import_root,
+            &mut seen_files,
+            self,
+        )?;
+        self.scanned_import_roots.insert(import_root.to_string());
         Ok(())
     }
 
@@ -1314,6 +1719,14 @@ impl StaticRegistry {
             return None;
         }
         Some(first)
+    }
+
+    fn has_item_with_prefix(&self, path_prefix: &str) -> bool {
+        self.items_by_import_path.contains_key(path_prefix)
+            || self
+                .items_by_import_path
+                .keys()
+                .any(|candidate| candidate.starts_with(&format!("{path_prefix}::")))
     }
 
     fn root_main_component(&self) -> Result<&ScannedPaxItem> {
@@ -1401,6 +1814,7 @@ struct ScopeImports {
     glob_roots: Vec<String>,
 }
 
+#[derive(Clone)]
 struct PackageContext {
     manifest_dir: PathBuf,
     entry_file: PathBuf,
@@ -1426,13 +1840,112 @@ mod tests {
 
     #[test]
     fn increment_static_manifest_matches_parser_core() {
-        let project_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../examples/src/increment");
+        assert_static_manifest_matches_parser_core(
+            "../examples/src/increment",
+            BuildManifestOptions::default(),
+            false,
+            &[
+                "crate::Example",
+                "pax_std::core::group::Group",
+                "pax_std::core::text::Text",
+                "pax_std::drawing::rectangle::Rectangle",
+                "pax_std::drawing::rectangle::RectangleCornerRadii",
+                "pax_std::core::text::TextStyle",
+                "pax_std::core::text::Font",
+                "pax_std::core::text::FontStyle",
+                "pax_std::core::text::FontWeight",
+                "pax_std::core::text::TextAlignHorizontal",
+                "pax_std::core::text::TextAlignVertical",
+                "pax_engine::api::Fill",
+                "pax_engine::api::Stroke",
+                "pax_engine::api::Color",
+                "pax_engine::api::Size",
+                "pax_engine::api::Numeric",
+                "std::string::String",
+            ],
+        );
+    }
 
-        let static_manifest = build_manifest(&project_path).expect("static manifest should build");
+    #[test]
+    fn increment_static_manifest_matches_parser_designtime() {
+        assert_static_manifest_matches_parser_core(
+            "../examples/src/increment",
+            BuildManifestOptions {
+                is_designtime: true,
+            },
+            true,
+            &[
+                "crate::Example",
+                "pax_std::core::inline_frame::InlineFrame",
+                "pax_std::forms::button::Button",
+                "pax_std::layout::carousel::Carousel",
+                "pax_std::layout::table::Table",
+                "pax_std::drawing::image::ImageSource",
+                "pax_std::drawing::path::PathCurve",
+            ],
+        );
+    }
+
+    #[test]
+    fn resolve_canonical_path_prefers_scanned_local_modules() {
+        let mut registry = StaticRegistry::default();
+        registry.items_by_import_path.insert(
+            "crate::calculator::Calculator".to_string(),
+            dummy_scanned_item("crate::calculator::Calculator", "Calculator"),
+        );
+
+        let scope = ScopeImports {
+            module_path: "crate".to_string(),
+            import_root: "crate".to_string(),
+            explicit: HashMap::new(),
+            glob_roots: vec![],
+        };
+
+        assert_eq!(
+            resolve_canonical_path("calculator::Calculator", &scope, &registry).unwrap(),
+            "crate::calculator::Calculator"
+        );
+        assert_eq!(
+            resolve_canonical_path("pax_std::core::group::Group", &scope, &registry).unwrap(),
+            "pax_std::core::group::Group"
+        );
+    }
+
+    #[test]
+    fn ensure_import_path_type_uses_unique_item_below_requested_prefix() {
+        let mut registry = StaticRegistry::default();
+        registry
+            .insert(dummy_scanned_item(
+                "pax_std::core::text::TextStyle",
+                "TextStyle",
+            ))
+            .unwrap();
+
+        let mut ctx = ParsingContext::default();
+        let type_id = ensure_import_path_type(&mut ctx, &mut registry, "pax_std::TextStyle")
+            .expect("type should resolve through a unique descendant");
+
+        assert_eq!(
+            type_id.import_path().as_deref(),
+            Some("pax_std::core::text::TextStyle")
+        );
+    }
+
+    fn assert_static_manifest_matches_parser_core(
+        relative_project_path: &str,
+        build_options: BuildManifestOptions,
+        parser_designtime: bool,
+        property_import_paths: &[&str],
+    ) {
+        let project_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(relative_project_path);
+
+        let static_manifest = build_manifest_with_options(&project_path, build_options)
+            .expect("static manifest should build");
 
         let output = run_parser_binary(
             &project_path,
             Arc::new(Mutex::new(vec![])),
+            parser_designtime,
             false,
         );
         assert!(
@@ -1449,29 +1962,17 @@ mod tests {
             sorted_component_ids(&static_manifest),
             sorted_component_ids(&parser_manifest)
         );
-        assert_eq!(sorted_type_ids(&static_manifest), sorted_type_ids(&parser_manifest));
-        assert_eq!(static_manifest.engine_import_path, parser_manifest.engine_import_path);
+        assert_eq!(
+            sorted_type_ids(&static_manifest),
+            sorted_type_ids(&parser_manifest)
+        );
+        assert_eq!(
+            static_manifest.engine_import_path,
+            parser_manifest.engine_import_path
+        );
         assert_eq!(static_manifest.assets_dirs, parser_manifest.assets_dirs);
 
-        for import_path in [
-            "crate::Example",
-            "pax_std::core::group::Group",
-            "pax_std::core::text::Text",
-            "pax_std::drawing::rectangle::Rectangle",
-            "pax_std::drawing::rectangle::RectangleCornerRadii",
-            "pax_std::core::text::TextStyle",
-            "pax_std::core::text::Font",
-            "pax_std::core::text::FontStyle",
-            "pax_std::core::text::FontWeight",
-            "pax_std::core::text::TextAlignHorizontal",
-            "pax_std::core::text::TextAlignVertical",
-            "pax_engine::api::Fill",
-            "pax_engine::api::Stroke",
-            "pax_engine::api::Color",
-            "pax_engine::api::Size",
-            "pax_engine::api::Numeric",
-            "std::string::String",
-        ] {
+        for import_path in property_import_paths {
             assert_eq!(
                 property_signature(&static_manifest, import_path),
                 property_signature(&parser_manifest, import_path),
@@ -1500,7 +2001,10 @@ mod tests {
         ids
     }
 
-    fn property_signature(manifest: &PaxManifest, import_path: &str) -> Vec<(String, String, bool)> {
+    fn property_signature(
+        manifest: &PaxManifest,
+        import_path: &str,
+    ) -> Vec<(String, String, bool)> {
         let type_id = manifest
             .type_table
             .keys()
@@ -1522,5 +2026,36 @@ mod tests {
             .collect::<Vec<_>>();
         signature.sort();
         signature
+    }
+
+    fn dummy_scanned_item(import_path: &str, ident: &str) -> ScannedPaxItem {
+        let module_path = import_path
+            .rsplit_once("::")
+            .map(|(module_path, _)| module_path.to_string())
+            .unwrap_or_default();
+        ScannedPaxItem {
+            ident: ident.to_string(),
+            import_path: import_path.to_string(),
+            module_path: module_path.clone(),
+            source_path: PathBuf::new(),
+            scope: ScopeImports {
+                module_path,
+                import_root: import_path
+                    .split("::")
+                    .next()
+                    .unwrap_or_default()
+                    .to_string(),
+                explicit: HashMap::new(),
+                glob_roots: vec![],
+            },
+            kind: PaxItemKind::StructOnly,
+            data: DataSummary::Struct(vec![]),
+            engine_import_path: DEFAULT_ENGINE_IMPORT_PATH.to_string(),
+            package_name: import_path
+                .split("::")
+                .next()
+                .unwrap_or_default()
+                .to_string(),
+        }
     }
 }

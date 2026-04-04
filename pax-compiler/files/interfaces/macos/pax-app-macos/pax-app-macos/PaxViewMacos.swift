@@ -458,6 +458,7 @@ struct PaxViewMacos: View {
             let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
             processNativeMessageQueueData(Data(buffer: buffer))
             pax_dealloc_message_queue(nativeMessageQueue)
+            processDevRequestsIfNeeded()
         }
 
         func handleNavigate(patch: NavigationPatchMessage) {

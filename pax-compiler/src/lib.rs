@@ -107,7 +107,12 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
         );
         run_and_parse_parser_binary(ctx)?
     } else {
-        match static_analysis::build_manifest(&ctx.project_path) {
+        match static_analysis::build_manifest_with_options(
+            &ctx.project_path,
+            static_analysis::BuildManifestOptions {
+                is_designtime: ctx.should_run_designtime,
+            },
+        ) {
             Ok(manifest) => {
                 println!("{} 🔎 Built manifest via static analysis", *PAX_BADGE);
                 vec![manifest]
