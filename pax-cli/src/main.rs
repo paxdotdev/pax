@@ -247,9 +247,7 @@ fn perform_nominal_action(
             let verbose = args.is_present("verbose");
             let is_libdev_mode = args.is_present("libdev");
             let ios_device = args.value_of("ios-device").map(str::to_string);
-            let ios_development_team = args
-                .value_of("ios-development-team")
-                .map(str::to_string);
+            let ios_development_team = args.value_of("ios-development-team").map(str::to_string);
             let (should_run_designtime, should_run_designer) = resolve_dev_options(args, true)?;
 
             let _ = pax_compiler::perform_build(&RunContext {
@@ -275,9 +273,7 @@ fn perform_nominal_action(
             let is_libdev_mode = args.is_present("libdev");
             let is_release = args.is_present("release");
             let ios_device = args.value_of("ios-device").map(str::to_string);
-            let ios_development_team = args
-                .value_of("ios-development-team")
-                .map(str::to_string);
+            let ios_development_team = args.value_of("ios-development-team").map(str::to_string);
             let (should_run_designtime, should_run_designer) =
                 resolve_dev_options(args, !is_release)?;
 

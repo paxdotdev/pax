@@ -1398,7 +1398,6 @@ fn resolve_canonical_path(
 
     Ok(canonical_path)
 }
-
 fn collect_scope(items: &[Item], module_path: String, import_root: String) -> Result<ScopeImports> {
     let mut scope = ScopeImports {
         module_path,

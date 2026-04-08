@@ -634,6 +634,7 @@ pub struct TextPatch {
     pub content: Option<String>,
     pub editable: Option<bool>,
     pub selectable: Option<bool>,
+    pub clip: Option<bool>,
     pub markdown: Option<bool>,
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,

@@ -31,6 +31,7 @@ use crate::common::{native_surface_opacity, patch_if_needed};
 pub struct Text {
     pub editable: Property<bool>,
     pub selectable: Property<bool>,
+    pub clip: Property<bool>,
     pub text: Property<String>,
     pub style: Property<TextStyle>,
     pub _style_link: Property<TextStyle>,
@@ -42,6 +43,7 @@ impl Default for Text {
         Self {
             editable: Property::new(false),
             selectable: Property::new(true),
+            clip: Property::new(false),
             text: Property::new("".to_string()),
             style: Property::new(TextStyle::default()),
             _style_link: Property::new(TextStyle::default()),
@@ -186,6 +188,11 @@ impl InstanceNode for TextInstance {
                                 &mut old_state.selectable,
                                 &mut patch.selectable,
                                 properties.selectable.get(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.clip,
+                                &mut patch.clip,
+                                properties.clip.get(),
                             ),
                             // Transform and bounds
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),

@@ -91,6 +91,17 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::settings_block_declaration => vec![Box::new(SettingsBlockDeclarationDefaultRule)],
         Rule::settings_event_binding => vec![Box::new(SettingsEventBindingDefaultRule)],
         Rule::selector_block => vec![Box::new(SelectorBlockDefaultRule)],
+        Rule::timeline_block_declaration => vec![Box::new(TimelineBlockDeclarationDefaultRule)],
+        Rule::timeline_block_setting => vec![Box::new(TimelineBlockSettingDefaultRule)],
+        Rule::timeline_selector_block => vec![Box::new(TimelineSelectorBlockDefaultRule)],
+        Rule::timeline_selector_body | Rule::timeline_track => {
+            vec![Box::new(TimelineObjectDefaultRule)]
+        }
+        Rule::timeline_property_key_value_pair => {
+            vec![Box::new(TimelinePropertyKeyValuePairDefaultRule)]
+        }
+        Rule::timeline_inline_value => vec![Box::new(TimelineInlineValueDefaultRule)],
+        Rule::timeline_keyframe => vec![Box::new(TimelineKeyframeDefaultRule)],
         Rule::literal_object | Rule::xo_object => vec![Box::new(ObjectDefaultRule)],
         Rule::settings_key_value_pair => vec![Box::new(SettingsKeyValuePairDefaultRule)],
         Rule::literal_function => vec![Box::new(LiteralFunctionDefaultRule)],
@@ -129,12 +140,21 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::any_template_value | Rule::node_inner_content | Rule::settings_value => {
             vec![Box::new(WrapExpressionRule), Box::new(ForwardRule)]
         }
+        Rule::timeline_block_setting_value | Rule::timeline_keyframe_value => {
+            vec![Box::new(WrapExpressionRule), Box::new(ForwardRule)]
+        }
         Rule::root_tag_pair
         | Rule::xo_literal
         | Rule::literal_value
         | Rule::statement_control_flow => vec![Box::new(ForwardRule)],
 
         Rule::selector
+        | Rule::timeline_target
+        | Rule::timeline_local_target
+        | Rule::timeline_marker
+        | Rule::timeline_percent
+        | Rule::timeline_easing_curve
+        | Rule::timeline_symbol
         | Rule::settings_key
         | Rule::literal_number_with_unit
         | Rule::literal_number
@@ -226,6 +246,9 @@ impl FormattingRule for PaxComponentDefinitionDefaultRule {
         let settings = children
             .iter()
             .filter(|child| child.node_type == Rule::settings_block_declaration);
+        let timelines = children
+            .iter()
+            .filter(|child| child.node_type == Rule::timeline_block_declaration);
 
         let mut component = vec![];
 
@@ -251,6 +274,18 @@ impl FormattingRule for PaxComponentDefinitionDefaultRule {
 
         if formatted_settings.len() > 0 {
             component.push(formatted_settings)
+        }
+
+        let mut formatted_timelines = String::new();
+        for (i, timeline) in timelines.enumerate() {
+            if i > 0 {
+                formatted_timelines.push_str("\n");
+            }
+            formatted_timelines.push_str(&timeline.formatted_node);
+        }
+
+        if formatted_timelines.len() > 0 {
+            component.push(formatted_timelines)
         }
 
         let formatted_component = component.join("\n\n");
@@ -506,6 +541,112 @@ impl FormattingRule for crate::formatting::rules::SettingsEventBindingDefaultRul
         children.get(0).unwrap().formatted_node.clone()
             + ": "
             + &children.get(1).unwrap().formatted_node
+    }
+}
+
+#[derive(Clone)]
+struct TimelineBlockDeclarationDefaultRule;
+
+impl FormattingRule for TimelineBlockDeclarationDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        let (name, body_children) = if children
+            .first()
+            .map(|child| child.node_type == Rule::identifier)
+            .unwrap_or(false)
+        {
+            (Some(children[0].formatted_node.clone()), &children[1..])
+        } else {
+            (None, &children[..])
+        };
+
+        let body = body_children
+            .iter()
+            .map(|child| child.formatted_node.clone())
+            .collect::<Vec<String>>()
+            .join("\n");
+        let indented_body = indent_every_line_of_string(body);
+        if let Some(name) = name {
+            format!("@timeline {} {{\n{}\n}}", name, indented_body)
+        } else {
+            format!("@timeline {{\n{}\n}}", indented_body)
+        }
+    }
+}
+
+#[derive(Clone)]
+struct TimelineBlockSettingDefaultRule;
+
+impl FormattingRule for TimelineBlockSettingDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        children
+            .iter()
+            .map(|child| child.formatted_node.clone())
+            .collect::<Vec<String>>()
+            .join(" ")
+    }
+}
+
+#[derive(Clone)]
+struct TimelineSelectorBlockDefaultRule;
+
+impl FormattingRule for TimelineSelectorBlockDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        format!(
+            "{} {}",
+            children[0].formatted_node, children[1].formatted_node
+        )
+    }
+}
+
+#[derive(Clone)]
+struct TimelineObjectDefaultRule;
+
+impl FormattingRule for TimelineObjectDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        let body = children
+            .iter()
+            .map(|child| child.formatted_node.clone())
+            .collect::<Vec<String>>()
+            .join("\n");
+        let indented_body = indent_every_line_of_string(body);
+        format!("{{\n{}\n}}", indented_body)
+    }
+}
+
+#[derive(Clone)]
+struct TimelinePropertyKeyValuePairDefaultRule;
+
+impl FormattingRule for TimelinePropertyKeyValuePairDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        children
+            .iter()
+            .map(|child| child.formatted_node.clone())
+            .collect::<Vec<String>>()
+            .join(" ")
+    }
+}
+
+#[derive(Clone)]
+struct TimelineInlineValueDefaultRule;
+
+impl FormattingRule for TimelineInlineValueDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        format!("@timeline {}", children[0].formatted_node)
+    }
+}
+
+#[derive(Clone)]
+struct TimelineKeyframeDefaultRule;
+
+impl FormattingRule for TimelineKeyframeDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        let marker = children[0].formatted_node.clone();
+        let value = children[1].formatted_node.clone();
+        if children.len() > 2 {
+            format!("{}: {}, {},", marker, value, children[2].formatted_node)
+        } else {
+            format!("{}: {},", marker, value)
+        }
     }
 }
 

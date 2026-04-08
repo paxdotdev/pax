@@ -1,0 +1,1173 @@
+<Text id=title x=50% y=78px width=820px height=62px text="Timeline Jungle" />
+<Text
+    id=subtitle
+    x=50%
+    y=148px
+    width=980px
+    height=22px
+    text="DECLARATIVE TIMELINES · LAYERED CANOPY · ANIMATED FOREST VIGNETTE"
+    opacity=@timeline {
+        frames: 150,
+        0: 0.58, Linear,
+        50%: 1.0, OutQuad,
+        100%: 0.58,
+    }
+/>
+
+<Group id=firefly_one width=42px height=42px anchor_x=50% anchor_y=50%>
+    <Ellipse class=firefly_core x=50% y=50% width=8px height=8px anchor_x=50% anchor_y=50% />
+    <Ellipse
+        class=firefly_halo
+        x=50%
+        y=50%
+        width=100%
+        height=100%
+        anchor_x=50%
+        anchor_y=50%
+        opacity=@timeline {
+            frames: 96,
+            0: 0.12, Linear,
+            34%: 0.84, OutQuad,
+            64%: 0.2, Linear,
+            100%: 0.12,
+        }
+        scale_x=@timeline {
+            frames: 96,
+            0: 72%, Linear,
+            34%: 150%, OutBack,
+            100%: 72%,
+        }
+        scale_y=@timeline {
+            frames: 96,
+            0: 72%, Linear,
+            34%: 150%, OutBack,
+            100%: 72%,
+        }
+    />
+</Group>
+
+<Group id=firefly_two width=34px height=34px anchor_x=50% anchor_y=50%>
+    <Ellipse class=firefly_core x=50% y=50% width=7px height=7px anchor_x=50% anchor_y=50% />
+    <Ellipse
+        class=firefly_halo
+        x=50%
+        y=50%
+        width=100%
+        height=100%
+        anchor_x=50%
+        anchor_y=50%
+        opacity=@timeline {
+            frames: 120,
+            0: 0.08, Linear,
+            28%: 0.72, OutQuad,
+            74%: 0.14, Linear,
+            100%: 0.08,
+        }
+        scale_x=@timeline {
+            frames: 120,
+            0: 64%, Linear,
+            28%: 136%, OutBack,
+            100%: 64%,
+        }
+        scale_y=@timeline {
+            frames: 120,
+            0: 64%, Linear,
+            28%: 136%, OutBack,
+            100%: 64%,
+        }
+    />
+</Group>
+
+<Group id=firefly_three width=48px height=48px anchor_x=50% anchor_y=50%>
+    <Ellipse class=firefly_core x=50% y=50% width=9px height=9px anchor_x=50% anchor_y=50% />
+    <Ellipse
+        class=firefly_halo
+        x=50%
+        y=50%
+        width=100%
+        height=100%
+        anchor_x=50%
+        anchor_y=50%
+        opacity=@timeline {
+            frames: 84,
+            0: 0.14, Linear,
+            40%: 0.92, OutQuad,
+            70%: 0.24, Linear,
+            100%: 0.14,
+        }
+        scale_x=@timeline {
+            frames: 84,
+            0: 74%, Linear,
+            40%: 162%, OutBack,
+            100%: 74%,
+        }
+        scale_y=@timeline {
+            frames: 84,
+            0: 74%, Linear,
+            40%: 162%, OutBack,
+            100%: 74%,
+        }
+    />
+</Group>
+
+<Group id=firefly_four width=38px height=38px anchor_x=50% anchor_y=50%>
+    <Ellipse class=firefly_core x=50% y=50% width=7px height=7px anchor_x=50% anchor_y=50% />
+    <Ellipse
+        class=firefly_halo
+        x=50%
+        y=50%
+        width=100%
+        height=100%
+        anchor_x=50%
+        anchor_y=50%
+        opacity=@timeline {
+            frames: 108,
+            0: 0.1, Linear,
+            36%: 0.76, OutQuad,
+            70%: 0.18, Linear,
+            100%: 0.1,
+        }
+        scale_x=@timeline {
+            frames: 108,
+            0: 68%, Linear,
+            36%: 144%, OutBack,
+            100%: 68%,
+        }
+        scale_y=@timeline {
+            frames: 108,
+            0: 68%, Linear,
+            36%: 144%, OutBack,
+            100%: 68%,
+        }
+    />
+</Group>
+
+<Group x=13% y=102% width=248px height=780px anchor_x=50% anchor_y=100% rotate=-4deg>
+    <Group id=frond_left_motion class=frond_motion>
+        <Rectangle class=stem_near x=121px y=168px width=8px height=612px />
+
+        <Group x=124px y=716px width=58px height=158px anchor_x=50% anchor_y=100% rotate=-72deg>
+            <Group class=leaf_motion class=sway_a>
+                <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_near width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=124px y=646px width=56px height=146px anchor_x=50% anchor_y=100% rotate=58deg>
+            <Group class=leaf_motion class=sway_b>
+                <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_near width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=124px y=572px width=52px height=136px anchor_x=50% anchor_y=100% rotate=-64deg>
+            <Group class=leaf_motion class=sway_c>
+                <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_mid width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=124px y=500px width=48px height=124px anchor_x=50% anchor_y=100% rotate=50deg>
+            <Group class=leaf_motion class=sway_a>
+                <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_mid width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=124px y=424px width=46px height=112px anchor_x=50% anchor_y=100% rotate=-54deg>
+            <Group class=leaf_motion class=sway_b>
+                <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_mid width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=124px y=350px width=42px height=100px anchor_x=50% anchor_y=100% rotate=42deg>
+            <Group class=leaf_motion class=sway_c>
+                <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_back width=100% height=100% />
+            </Group>
+        </Group>
+    </Group>
+</Group>
+
+<Group x=52% y=103% width=224px height=700px anchor_x=50% anchor_y=100% rotate=2deg>
+    <Group id=frond_center_motion class=frond_motion>
+        <Rectangle class=stem_near x=108px y=138px width=8px height=562px />
+
+        <Group x=112px y=642px width=54px height=146px anchor_x=50% anchor_y=100% rotate=-62deg>
+            <Group class=leaf_motion class=sway_b>
+                <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_near width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=112px y=574px width=52px height=136px anchor_x=50% anchor_y=100% rotate=54deg>
+            <Group class=leaf_motion class=sway_c>
+                <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_near width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=112px y=504px width=48px height=126px anchor_x=50% anchor_y=100% rotate=-50deg>
+            <Group class=leaf_motion class=sway_a>
+                <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_mid width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=112px y=434px width=44px height=114px anchor_x=50% anchor_y=100% rotate=44deg>
+            <Group class=leaf_motion class=sway_b>
+                <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_mid width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=112px y=364px width=40px height=98px anchor_x=50% anchor_y=100% rotate=-38deg>
+            <Group class=leaf_motion class=sway_c>
+                <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_back width=100% height=100% />
+            </Group>
+        </Group>
+    </Group>
+</Group>
+
+<Group x=86% y=103% width=268px height=804px anchor_x=50% anchor_y=100% rotate=6deg>
+    <Group id=frond_right_motion class=frond_motion>
+        <Rectangle class=stem_near x=131px y=176px width=8px height=628px />
+
+        <Group x=134px y=736px width=60px height=164px anchor_x=50% anchor_y=100% rotate=72deg>
+            <Group class=leaf_motion class=sway_c>
+                <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_near width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=134px y=666px width=56px height=150px anchor_x=50% anchor_y=100% rotate=-58deg>
+            <Group class=leaf_motion class=sway_a>
+                <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_near width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=134px y=592px width=52px height=138px anchor_x=50% anchor_y=100% rotate=62deg>
+            <Group class=leaf_motion class=sway_b>
+                <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_mid width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=134px y=516px width=48px height=126px anchor_x=50% anchor_y=100% rotate=-48deg>
+            <Group class=leaf_motion class=sway_c>
+                <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_mid width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=134px y=438px width=44px height=114px anchor_x=50% anchor_y=100% rotate=52deg>
+            <Group class=leaf_motion class=sway_a>
+                <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_mid width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=134px y=362px width=40px height=98px anchor_x=50% anchor_y=100% rotate=-40deg>
+            <Group class=leaf_motion class=sway_b>
+                <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_back width=100% height=100% />
+            </Group>
+        </Group>
+    </Group>
+</Group>
+
+<Group x=34% y=98% width=184px height=560px anchor_x=50% anchor_y=100% rotate=-12deg opacity=0.82>
+    <Group id=frond_back_motion class=frond_motion>
+        <Rectangle class=stem_back x=88px y=122px width=6px height=438px />
+
+        <Group x=91px y=518px width=46px height=126px anchor_x=50% anchor_y=100% rotate=-58deg>
+            <Group class=leaf_motion class=sway_b>
+                <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_back width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=91px y=462px width=42px height=114px anchor_x=50% anchor_y=100% rotate=50deg>
+            <Group class=leaf_motion class=sway_c>
+                <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_back width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=91px y=402px width=38px height=102px anchor_x=50% anchor_y=100% rotate=-46deg>
+            <Group class=leaf_motion class=sway_a>
+                <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=91px y=344px width=34px height=90px anchor_x=50% anchor_y=100% rotate=38deg>
+            <Group class=leaf_motion class=sway_b>
+                <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_back class=leaf_slim_shape width=100% height=100% />
+            </Group>
+        </Group>
+    </Group>
+</Group>
+
+<Group x=24% y=100% width=172px height=548px anchor_x=50% anchor_y=100% rotate=-9deg opacity=0.56>
+    <Group id=frond_aux_left_motion class=frond_motion>
+        <Rectangle class=stem_far x=82px y=118px width=6px height=430px />
+
+        <Group x=85px y=506px width=42px height=118px anchor_x=50% anchor_y=100% rotate=-54deg>
+            <Group class=leaf_motion class=sway_a>
+                <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=85px y=450px width=38px height=106px anchor_x=50% anchor_y=100% rotate=48deg>
+            <Group class=leaf_motion class=sway_b>
+                <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=85px y=392px width=34px height=94px anchor_x=50% anchor_y=100% rotate=-42deg>
+            <Group class=leaf_motion class=sway_c>
+                <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=85px y=338px width=30px height=84px anchor_x=50% anchor_y=100% rotate=36deg>
+            <Group class=leaf_motion class=sway_b>
+                <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+            </Group>
+        </Group>
+    </Group>
+</Group>
+
+<Group x=67% y=100% width=176px height=566px anchor_x=50% anchor_y=100% rotate=11deg opacity=0.54>
+    <Group id=frond_aux_right_motion class=frond_motion>
+        <Rectangle class=stem_far x=84px y=128px width=6px height=438px />
+
+        <Group x=87px y=520px width=44px height=120px anchor_x=50% anchor_y=100% rotate=56deg>
+            <Group class=leaf_motion class=sway_c>
+                <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=87px y=462px width=40px height=110px anchor_x=50% anchor_y=100% rotate=-46deg>
+            <Group class=leaf_motion class=sway_a>
+                <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=87px y=402px width=36px height=98px anchor_x=50% anchor_y=100% rotate=40deg>
+            <Group class=leaf_motion class=sway_b>
+                <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_far class=leaf_round_shape width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=87px y=344px width=32px height=88px anchor_x=50% anchor_y=100% rotate=-34deg>
+            <Group class=leaf_motion class=sway_c>
+                <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
+                <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+            </Group>
+        </Group>
+    </Group>
+</Group>
+
+<Group class=vine_drift_a x=12% y=0% width=118px height=560px anchor_x=50% anchor_y=0% rotate=-6deg opacity=0.82>
+    <Rectangle class=vine_stem x=50% y=0% width=4px height=100% anchor_x=50% />
+    <Group x=74px y=124px width=34px height=92px anchor_x=50% anchor_y=18% rotate=54deg>
+        <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+    </Group>
+    <Group x=46px y=214px width=28px height=78px anchor_x=50% anchor_y=18% rotate=-42deg>
+        <Path class=leaf_path class=leaf_back class=leaf_slim_shape width=100% height=100% />
+    </Group>
+    <Group x=68px y=304px width=30px height=82px anchor_x=50% anchor_y=18% rotate=38deg>
+        <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+    </Group>
+    <Group x=48px y=438px width=88px height=112px anchor_x=0% anchor_y=0%>
+        <Path class=vine_tendril_left width=100% height=100% />
+        <Ellipse class=orchid_joint x=12px y=12px width=8px height=8px />
+        <Ellipse class=orchid_petal_hot x=42px y=28px width=22px height=14px rotate=-18deg />
+        <Ellipse class=orchid_petal_warm x=58px y=44px width=24px height=15px rotate=10deg />
+        <Ellipse class=orchid_petal_hot x=50px y=64px width=22px height=14px rotate=24deg />
+        <Ellipse class=orchid_center x=54px y=46px width=10px height=10px />
+    </Group>
+</Group>
+
+<Group class=vine_drift_b x=88% y=0% width=124px height=600px anchor_x=50% anchor_y=0% rotate=7deg opacity=0.84>
+    <Rectangle class=vine_stem x=50% y=0% width=4px height=100% anchor_x=50% />
+    <Group x=48px y=134px width=30px height=84px anchor_x=50% anchor_y=18% rotate=-46deg>
+        <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+    </Group>
+    <Group x=76px y=238px width=34px height=94px anchor_x=50% anchor_y=18% rotate=44deg>
+        <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+    </Group>
+    <Group x=52px y=348px width=28px height=80px anchor_x=50% anchor_y=18% rotate=-34deg>
+        <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+    </Group>
+    <Group x=4px y=488px width=84px height=108px anchor_x=0% anchor_y=0%>
+        <Path class=vine_tendril_right width=100% height=100% />
+        <Ellipse class=orchid_joint x=62px y=12px width=8px height=8px />
+        <Ellipse class=orchid_petal_cool x=28px y=30px width=20px height=12px rotate=-16deg />
+        <Ellipse class=orchid_petal_cool x=18px y=48px width=22px height=13px rotate=12deg />
+        <Ellipse class=orchid_petal_warm x=30px y=64px width=20px height=12px rotate=20deg />
+        <Ellipse class=orchid_center x=28px y=48px width=9px height=9px />
+    </Group>
+</Group>
+
+<Group x=24% y=100% width=220px height=208px anchor_x=50% anchor_y=100% opacity=0.54>
+    <Group x=58px y=188px width=94px height=126px anchor_x=50% anchor_y=100% rotate=-30deg>
+        <Rectangle class=leaf_vein_back x=50% y=18% width=2px height=68% anchor_x=50% />
+        <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+    </Group>
+    <Group x=126px y=182px width=106px height=138px anchor_x=50% anchor_y=100% rotate=18deg>
+        <Rectangle class=leaf_vein_back x=50% y=18% width=2px height=68% anchor_x=50% />
+        <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+    </Group>
+    <Group x=94px y=170px width=90px height=116px anchor_x=50% anchor_y=100% rotate=-4deg>
+        <Rectangle class=leaf_vein_back x=50% y=18% width=2px height=68% anchor_x=50% />
+        <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+    </Group>
+</Group>
+
+<Group x=77% y=100% width=234px height=224px anchor_x=50% anchor_y=100% opacity=0.52>
+    <Group x=70px y=198px width=100px height=130px anchor_x=50% anchor_y=100% rotate=-18deg>
+        <Rectangle class=leaf_vein_back x=50% y=18% width=2px height=68% anchor_x=50% />
+        <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+    </Group>
+    <Group x=146px y=188px width=108px height=140px anchor_x=50% anchor_y=100% rotate=26deg>
+        <Rectangle class=leaf_vein_back x=50% y=18% width=2px height=68% anchor_x=50% />
+        <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+    </Group>
+    <Group x=118px y=176px width=94px height=120px anchor_x=50% anchor_y=100% rotate=4deg>
+        <Rectangle class=leaf_vein_back x=50% y=18% width=2px height=68% anchor_x=50% />
+        <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+    </Group>
+</Group>
+
+<Group x=14% y=96% width=132px height=170px anchor_x=50% anchor_y=100% rotate=-8deg opacity=0.92>
+    <Rectangle class=flower_stem x=54px y=18px width=4px height=126px />
+    <Group x=54px y=28px width=60px height=102px anchor_x=50% anchor_y=0%>
+        <Ellipse class=orchid_petal_hot x=32px y=14px width=24px height=16px rotate=18deg />
+        <Ellipse class=orchid_petal_warm x=28px y=36px width=26px height=17px rotate=-10deg />
+        <Ellipse class=orchid_petal_hot x=34px y=58px width=24px height=16px rotate=12deg />
+        <Ellipse class=orchid_petal_warm x=30px y=80px width=22px height=14px rotate=-14deg />
+    </Group>
+    <Group x=84px y=108px width=72px height=94px anchor_x=50% anchor_y=100% rotate=34deg>
+        <Rectangle class=leaf_vein_back x=50% y=18% width=2px height=68% anchor_x=50% />
+        <Path class=leaf_path class=leaf_back class=leaf_slim_shape width=100% height=100% />
+    </Group>
+</Group>
+
+<Group x=84% y=97% width=146px height=178px anchor_x=50% anchor_y=100% rotate=7deg opacity=0.9>
+    <Rectangle class=flower_stem x=70px y=22px width=4px height=132px />
+    <Group x=68px y=32px width=66px height=108px anchor_x=50% anchor_y=0%>
+        <Ellipse class=orchid_petal_cool x=34px y=14px width=22px height=14px rotate=-16deg />
+        <Ellipse class=orchid_petal_warm x=30px y=38px width=24px height=15px rotate=12deg />
+        <Ellipse class=orchid_petal_cool x=34px y=60px width=22px height=14px rotate=-8deg />
+        <Ellipse class=orchid_petal_warm x=30px y=82px width=20px height=13px rotate=14deg />
+    </Group>
+    <Group x=34px y=118px width=76px height=98px anchor_x=50% anchor_y=100% rotate=-30deg>
+        <Rectangle class=leaf_vein_back x=50% y=18% width=2px height=68% anchor_x=50% />
+        <Path class=leaf_path class=leaf_back class=leaf_slim_shape width=100% height=100% />
+    </Group>
+</Group>
+
+<Group id=frog_perch x=64% y=90% width=212px height=126px anchor_x=50% anchor_y=100% rotate=-6deg opacity=0.98>
+    <Group x=106px y=116px width=170px height=92px anchor_x=50% anchor_y=100% rotate=-2deg>
+        <Rectangle class=leaf_vein x=50% y=18% width=2px height=68% anchor_x=50% />
+        <Path class=leaf_path class=leaf_near class=leaf_round_shape width=100% height=100% />
+    </Group>
+    <Group x=110px y=38px width=82px height=54px anchor_x=50% anchor_y=50%>
+        <Ellipse class=frog_body x=50% y=62% width=62px height=30px anchor_x=50% anchor_y=50% />
+        <Ellipse class=frog_belly x=50% y=66% width=32px height=16px anchor_x=50% anchor_y=50% />
+        <Ellipse class=frog_head x=50% y=28% width=38px height=26px anchor_x=50% anchor_y=50% />
+        <Ellipse class=frog_leg x=26% y=78% width=22px height=12px anchor_x=50% anchor_y=50% rotate=-18deg />
+        <Ellipse class=frog_leg x=74% y=78% width=22px height=12px anchor_x=50% anchor_y=50% rotate=18deg />
+        <Ellipse class=frog_eye x=38% y=16% width=10px height=10px anchor_x=50% anchor_y=50% />
+        <Ellipse class=frog_eye x=62% y=16% width=10px height=10px anchor_x=50% anchor_y=50% />
+        <Ellipse class=frog_pupil x=38% y=16% width=4px height=4px anchor_x=50% anchor_y=50% />
+        <Ellipse class=frog_pupil x=62% y=16% width=4px height=4px anchor_x=50% anchor_y=50% />
+    </Group>
+</Group>
+
+<Path
+    x=69%
+    y=2%
+    width=430px
+    height=1320px
+    anchor_x=50%
+    anchor_y=0%
+    rotate=9deg
+    fill={Fill::linearGradient(
+        (50%, 0%),
+        (50%, 100%),
+        [
+            GradientStop::get(Color::rgba(233, 255, 224, 0), 0%),
+            GradientStop::get(Color::rgba(231, 255, 224, 40), 18%),
+            GradientStop::get(Color::rgba(226, 249, 214, 78), 56%),
+            GradientStop::get(Color::rgba(211, 238, 200, 56), 84%),
+            GradientStop::get(Color::rgba(196, 227, 184, 14), 100%)
+        ]
+    )}
+    elements=[
+        PathElement::Point(44%, 0%),
+        PathElement::Line,
+        PathElement::Point(56%, 0%),
+        PathElement::Line,
+        PathElement::Point(94%, 82%),
+        PathElement::Quadratic(58%, 100%),
+        PathElement::Point(10%, 92%),
+        PathElement::Quadratic(18%, 80%),
+        PathElement::Point(44%, 0%),
+        PathElement::Close
+    ]
+/>
+
+<Group id=parallax_mid class=parallax_mid x=50% y=0% height=520px anchor_x=50% anchor_y=0% opacity=0.84>
+    <Path class=canopy_ridge_mid x=-4% y=0% width=108% height=82% />
+    <Path class=canopy_ridge_shadow x=4% y=10% width=94% height=72% />
+</Group>
+
+<Group id=parallax_far class=parallax_far x=50% y=0% height=430px anchor_x=50% anchor_y=0% opacity=0.62>
+    <Path class=canopy_ridge_far x=-2% y=0% width=104% height=74% />
+    <Path class=canopy_ridge_mid x=8% y=6% width=90% height=58% opacity=0.56 />
+</Group>
+
+<Group x=2% y=-6% width=92px height=1560px anchor_x=50% anchor_y=0% rotate=-4deg>
+    <Path class=trunk_shape class=trunk_deep width=100% height=100% />
+</Group>
+
+<Group x=11% y=-5% width=168px height=1600px anchor_x=50% anchor_y=0% rotate=2deg>
+    <Path class=trunk_shape class=trunk_mid width=100% height=100% />
+    <Rectangle class=trunk_highlight x=56% y=10% width=8% height=74% rotate=2deg />
+    <Rectangle class=trunk_moss x=18% y=40% width=18% height=16% rotate=-6deg />
+</Group>
+
+<Group x=24% y=-7% width=118px height=1520px anchor_x=50% anchor_y=0% rotate=-3deg>
+    <Path class=trunk_shape class=trunk_far width=100% height=100% />
+</Group>
+
+<Group x=36% y=-8% width=76px height=1480px anchor_x=50% anchor_y=0% rotate=-1deg>
+    <Path class=trunk_shape class=trunk_deep width=100% height=100% />
+</Group>
+
+<Group x=83% y=-6% width=104px height=1500px anchor_x=50% anchor_y=0% rotate=3deg>
+    <Path class=trunk_shape class=trunk_far width=100% height=100% />
+</Group>
+
+<Group x=92% y=-5% width=184px height=1620px anchor_x=50% anchor_y=0% rotate=5deg>
+    <Path class=trunk_shape class=trunk_near width=100% height=100% />
+    <Rectangle class=trunk_highlight x=30% y=12% width=8% height=72% rotate=-2deg />
+    <Rectangle class=trunk_moss x=56% y=38% width=16% height=18% rotate=8deg />
+</Group>
+
+<Group x=74% y=-7% width=84px height=1460px anchor_x=50% anchor_y=0% rotate=2deg>
+    <Path class=trunk_shape class=trunk_deep width=100% height=100% />
+</Group>
+
+<Group id=mist_near class=mist_near x=50% y=68% width=1160px height=340px anchor_x=50% anchor_y=50%>
+    <Ellipse class=mist_blob x=18% y=54% width=300px height=124px rotate=-12deg />
+    <Ellipse class=mist_blob x=52% y=46% width=388px height=150px rotate=8deg />
+    <Ellipse class=mist_blob x=84% y=58% width=276px height=116px rotate=-10deg />
+</Group>
+
+<Group id=mist_far class=mist_far x=49% y=36% width=1160px height=276px anchor_x=50% anchor_y=50% opacity=0.4>
+    <Ellipse class=mist_blob_far x=22% y=48% width=260px height=106px rotate=-8deg />
+    <Ellipse class=mist_blob_far x=54% y=42% width=300px height=112px rotate=7deg />
+    <Ellipse class=mist_blob_far x=80% y=52% width=250px height=98px rotate=-6deg />
+</Group>
+
+<Path class=ground_mound x=50% y=82% width=1360px height=360px anchor_x=50% anchor_y=0% />
+<Ellipse x=50% y=103% width=1320px height=520px anchor_x=50% anchor_y=100% fill=rgba(4, 16, 14, 220)/>
+<Rectangle
+    width=100%
+    height=100%
+    fill={Fill::linearGradient(
+        (50%, 0%),
+        (50%, 100%),
+        [
+            GradientStop::get(Color::rgba(9, 36, 34, 255), 0%),
+            GradientStop::get(Color::rgba(7, 27, 25, 255), 42%),
+            GradientStop::get(Color::rgba(3, 13, 12, 255), 100%)
+        ]
+    )}
+/>
+
+@settings {
+    #title {
+        style: TextStyle {
+            font: Font::Web(
+                "Cormorant Garamond",
+                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::SemiBold
+            )
+            font_size: 58px
+            fill: rgb(240, 235, 216)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+
+    #subtitle {
+        style: TextStyle {
+            font: Font::Web(
+                "Source Sans 3",
+                "https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 14px
+            fill: rgba(177, 196, 178, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+
+    .frond_motion {
+        x: 50%
+        y: 100%
+        width: 100%
+        height: 100%
+        anchor_x: 50%
+        anchor_y: 100%
+    }
+
+    .leaf_motion {
+        x: 50%
+        y: 100%
+        width: 100%
+        height: 100%
+        anchor_x: 50%
+        anchor_y: 100%
+    }
+
+    .leaf_path {
+        elements: [
+            PathElement::Point(50%, 0%),
+            PathElement::Quadratic(92%, 18%),
+            PathElement::Point(100%, 52%),
+            PathElement::Quadratic(88%, 86%),
+            PathElement::Point(50%, 100%),
+            PathElement::Quadratic(12%, 86%),
+            PathElement::Point(0%, 52%),
+            PathElement::Quadratic(8%, 18%),
+            PathElement::Point(50%, 0%),
+            PathElement::Close
+        ]
+        stroke: Stroke {
+            color: rgba(215, 255, 221, 24%)
+            width: 1px
+        }
+    }
+
+    .leaf_slim_shape {
+        elements: [
+            PathElement::Point(50%, 0%),
+            PathElement::Quadratic(78%, 16%),
+            PathElement::Point(86%, 52%),
+            PathElement::Quadratic(78%, 88%),
+            PathElement::Point(50%, 100%),
+            PathElement::Quadratic(22%, 88%),
+            PathElement::Point(14%, 52%),
+            PathElement::Quadratic(22%, 16%),
+            PathElement::Point(50%, 0%),
+            PathElement::Close
+        ]
+    }
+
+    .leaf_round_shape {
+        elements: [
+            PathElement::Point(50%, 0%),
+            PathElement::Quadratic(98%, 22%),
+            PathElement::Point(100%, 56%),
+            PathElement::Quadratic(84%, 90%),
+            PathElement::Point(50%, 100%),
+            PathElement::Quadratic(16%, 90%),
+            PathElement::Point(0%, 56%),
+            PathElement::Quadratic(2%, 22%),
+            PathElement::Point(50%, 0%),
+            PathElement::Close
+        ]
+    }
+
+    .leaf_near {
+        fill: rgb(47, 120, 83)
+    }
+
+    .leaf_mid {
+        fill: rgb(33, 96, 67)
+    }
+
+    .leaf_back {
+        fill: rgb(23, 71, 53)
+    }
+
+    .leaf_far {
+        fill: rgb(18, 56, 42)
+    }
+
+    .leaf_vein {
+        fill: rgba(222, 255, 225, 28%)
+    }
+
+    .leaf_vein_back {
+        fill: rgba(210, 245, 222, 16%)
+    }
+
+    .stem_near {
+        fill: rgb(20, 61, 47)
+    }
+
+    .stem_back {
+        fill: rgb(15, 43, 35)
+    }
+
+    .stem_far {
+        fill: rgb(12, 34, 29)
+    }
+
+    .trunk_shape {
+        elements: [
+            PathElement::Point(38%, 0%),
+            PathElement::Line,
+            PathElement::Point(68%, 0%),
+            PathElement::Quadratic(78%, 24%),
+            PathElement::Point(82%, 58%),
+            PathElement::Quadratic(94%, 86%),
+            PathElement::Point(92%, 100%),
+            PathElement::Line,
+            PathElement::Point(8%, 100%),
+            PathElement::Quadratic(4%, 82%),
+            PathElement::Point(10%, 54%),
+            PathElement::Quadratic(16%, 22%),
+            PathElement::Point(38%, 0%),
+            PathElement::Close
+        ]
+    }
+
+    .trunk_near {
+        fill: rgb(33, 29, 26)
+    }
+
+    .trunk_mid {
+        fill: rgb(25, 26, 24)
+    }
+
+    .trunk_far {
+        fill: rgb(17, 21, 20)
+    }
+
+    .trunk_deep {
+        fill: rgb(11, 14, 13)
+    }
+
+    .trunk_highlight {
+        fill: rgba(132, 122, 104, 20%)
+    }
+
+    .trunk_moss {
+        fill: rgba(43, 73, 49, 48%)
+    }
+
+    .vine_stem {
+        fill: rgba(44, 88, 64, 76%)
+    }
+
+    .flower_stem {
+        fill: rgba(78, 128, 84, 82%)
+    }
+
+    .vine_tendril_left {
+        elements: [
+            PathElement::Point(12%, 12%),
+            PathElement::Quadratic(28%, 14%),
+            PathElement::Point(44%, 28%),
+            PathElement::Quadratic(64%, 44%),
+            PathElement::Point(66%, 62%),
+            PathElement::Quadratic(66%, 82%),
+            PathElement::Point(48%, 86%),
+            PathElement::Quadratic(28%, 88%),
+            PathElement::Point(22%, 72%),
+            PathElement::Quadratic(18%, 56%),
+            PathElement::Point(34%, 48%),
+            PathElement::Quadratic(48%, 42%),
+            PathElement::Point(60%, 50%)
+        ]
+        fill: rgba(0, 0, 0, 0)
+        stroke: Stroke {
+            color: rgba(78, 128, 84, 68%)
+            width: 3px
+        }
+    }
+
+    .vine_tendril_right {
+        elements: [
+            PathElement::Point(76%, 12%),
+            PathElement::Quadratic(64%, 16%),
+            PathElement::Point(52%, 28%),
+            PathElement::Quadratic(34%, 42%),
+            PathElement::Point(28%, 56%),
+            PathElement::Quadratic(18%, 74%),
+            PathElement::Point(28%, 86%),
+            PathElement::Quadratic(40%, 96%),
+            PathElement::Point(54%, 84%),
+            PathElement::Quadratic(66%, 72%),
+            PathElement::Point(60%, 58%),
+            PathElement::Quadratic(54%, 46%),
+            PathElement::Point(42%, 44%)
+        ]
+        fill: rgba(0, 0, 0, 0)
+        stroke: Stroke {
+            color: rgba(78, 128, 84, 68%)
+            width: 3px
+        }
+    }
+
+    .orchid_joint {
+        fill: rgb(82, 124, 86)
+    }
+
+    .orchid_petal_hot {
+        fill: rgb(212, 92, 94)
+    }
+
+    .orchid_petal_warm {
+        fill: rgb(238, 156, 88)
+    }
+
+    .orchid_petal_cool {
+        fill: rgb(214, 191, 228)
+    }
+
+    .orchid_center {
+        fill: rgb(255, 233, 171)
+    }
+
+    .frog_body {
+        fill: rgb(112, 184, 96)
+    }
+
+    .frog_belly {
+        fill: rgb(188, 224, 158)
+    }
+
+    .frog_head {
+        fill: rgb(124, 196, 108)
+    }
+
+    .frog_leg {
+        fill: rgb(100, 166, 86)
+    }
+
+    .frog_eye {
+        fill: rgb(245, 240, 188)
+    }
+
+    .frog_pupil {
+        fill: rgb(28, 36, 22)
+    }
+
+    .canopy_ridge_far {
+        elements: [
+            PathElement::Point(0%, 0%),
+            PathElement::Line,
+            PathElement::Point(100%, 0%),
+            PathElement::Line,
+            PathElement::Point(100%, 42%),
+            PathElement::Quadratic(90%, 56%),
+            PathElement::Point(78%, 38%),
+            PathElement::Quadratic(66%, 20%),
+            PathElement::Point(54%, 48%),
+            PathElement::Quadratic(42%, 66%),
+            PathElement::Point(30%, 34%),
+            PathElement::Quadratic(18%, 16%),
+            PathElement::Point(10%, 42%),
+            PathElement::Quadratic(4%, 54%),
+            PathElement::Point(0%, 46%),
+            PathElement::Close
+        ]
+        fill: rgba(16, 47, 37, 255)
+        stroke: Stroke {
+            color: rgba(158, 214, 177, 8%)
+            width: 1px
+        }
+    }
+
+    .canopy_ridge_mid {
+        elements: [
+            PathElement::Point(0%, 0%),
+            PathElement::Line,
+            PathElement::Point(100%, 0%),
+            PathElement::Line,
+            PathElement::Point(100%, 56%),
+            PathElement::Quadratic(92%, 76%),
+            PathElement::Point(80%, 48%),
+            PathElement::Quadratic(70%, 22%),
+            PathElement::Point(58%, 58%),
+            PathElement::Quadratic(46%, 82%),
+            PathElement::Point(32%, 44%),
+            PathElement::Quadratic(20%, 18%),
+            PathElement::Point(12%, 52%),
+            PathElement::Quadratic(6%, 72%),
+            PathElement::Point(0%, 60%),
+            PathElement::Close
+        ]
+        fill: rgba(24, 67, 49, 255)
+        stroke: Stroke {
+            color: rgba(176, 228, 192, 10%)
+            width: 1px
+        }
+    }
+
+    .canopy_ridge_shadow {
+        elements: [
+            PathElement::Point(0%, 0%),
+            PathElement::Line,
+            PathElement::Point(100%, 0%),
+            PathElement::Line,
+            PathElement::Point(100%, 46%),
+            PathElement::Quadratic(92%, 62%),
+            PathElement::Point(82%, 36%),
+            PathElement::Quadratic(72%, 18%),
+            PathElement::Point(62%, 44%),
+            PathElement::Quadratic(50%, 62%),
+            PathElement::Point(38%, 34%),
+            PathElement::Quadratic(26%, 14%),
+            PathElement::Point(14%, 40%),
+            PathElement::Quadratic(6%, 58%),
+            PathElement::Point(0%, 50%),
+            PathElement::Close
+        ]
+        fill: rgba(14, 40, 32, 255)
+        stroke: Stroke {
+            color: rgba(158, 214, 177, 7%)
+            width: 1px
+        }
+    }
+
+    .ground_mound {
+        elements: [
+            PathElement::Point(0%, 46%),
+            PathElement::Quadratic(14%, 28%),
+            PathElement::Point(28%, 44%),
+            PathElement::Quadratic(46%, 62%),
+            PathElement::Point(58%, 40%),
+            PathElement::Quadratic(72%, 22%),
+            PathElement::Point(86%, 42%),
+            PathElement::Quadratic(94%, 52%),
+            PathElement::Point(100%, 38%),
+            PathElement::Line,
+            PathElement::Point(100%, 100%),
+            PathElement::Line,
+            PathElement::Point(0%, 100%),
+            PathElement::Close
+        ]
+        fill: rgba(7, 21, 19, 240)
+    }
+
+    .mist_blob {
+        fill: rgba(193, 228, 207, 24%)
+    }
+
+    .mist_blob_far {
+        fill: rgba(173, 214, 193, 16%)
+    }
+
+    .mist_near {
+        opacity: 0.18
+    }
+
+    .mist_far {
+        opacity: 0.14
+    }
+
+    .firefly_core {
+        fill: rgb(255, 238, 164)
+    }
+
+    .firefly_halo {
+        fill: rgba(250, 236, 157, 52%)
+    }
+}
+
+@timeline {
+    frames: 360,
+    loop: true,
+
+    .parallax_far {
+        x: {
+            0%: 48%, Linear,
+            50%: 52%, OutQuad,
+            100%: 48%,
+        },
+    }
+
+    .parallax_mid {
+        x: {
+            0%: 54%, Linear,
+            50%: 49%, OutQuad,
+            100%: 54%,
+        },
+    }
+
+    .mist_far {
+        x: {
+            0%: 45%, Linear,
+            50%: 50%, OutQuad,
+            100%: 45%,
+        },
+        opacity: {
+            0%: 0.12, Linear,
+            50%: 0.24, OutQuad,
+            100%: 0.12,
+        },
+    }
+
+    .mist_near {
+        x: {
+            0%: 53%, Linear,
+            50%: 49%, OutQuad,
+            100%: 53%,
+        },
+        opacity: {
+            0%: 0.2, Linear,
+            50%: 0.34, OutQuad,
+            100%: 0.2,
+        },
+    }
+
+    .vine_drift_a {
+        rotate: {
+            0%: -6deg, OutQuad,
+            50%: -2deg, InOutBack,
+            100%: -6deg,
+        },
+    }
+
+    .vine_drift_b {
+        rotate: {
+            0%: 7deg, OutQuad,
+            50%: 3deg, InOutBack,
+            100%: 7deg,
+        },
+    }
+
+    .sway_a {
+        rotate: {
+            0%: -4deg, OutQuad,
+            34%: 7deg, InOutBack,
+            68%: -5deg, OutQuad,
+            100%: -4deg,
+        },
+    }
+
+    .sway_b {
+        rotate: {
+            0%: 5deg, OutQuad,
+            42%: -7deg, InOutBack,
+            76%: 4deg, OutQuad,
+            100%: 5deg,
+        },
+    }
+
+    .sway_c {
+        rotate: {
+            0%: -3deg, OutQuad,
+            28%: 5deg, InOutBack,
+            56%: -6deg, OutQuad,
+            100%: -3deg,
+        },
+    }
+
+    #frond_left_motion {
+        rotate: {
+            0%: -5deg, OutQuad,
+            38%: 4deg, InOutBack,
+            70%: -3deg, OutQuad,
+            100%: -5deg,
+        },
+    }
+
+    #frond_center_motion {
+        rotate: {
+            0%: 4deg, OutQuad,
+            44%: -5deg, InOutBack,
+            74%: 3deg, OutQuad,
+            100%: 4deg,
+        },
+    }
+
+    #frond_right_motion {
+        rotate: {
+            0%: 6deg, OutQuad,
+            34%: -4deg, InOutBack,
+            66%: 5deg, OutQuad,
+            100%: 6deg,
+        },
+    }
+
+    #frond_back_motion {
+        rotate: {
+            0%: -3deg, OutQuad,
+            48%: 4deg, InOutBack,
+            100%: -3deg,
+        },
+    }
+
+    #frond_aux_left_motion {
+        rotate: {
+            0%: -2deg, OutQuad,
+            46%: 3deg, InOutBack,
+            100%: -2deg,
+        },
+    }
+
+    #frond_aux_right_motion {
+        rotate: {
+            0%: 3deg, OutQuad,
+            40%: -3deg, InOutBack,
+            100%: 3deg,
+        },
+    }
+
+    #firefly_one {
+        x: {
+            0%: 66%, Linear,
+            50%: 71%, OutQuad,
+            100%: 66%,
+        },
+        y: {
+            0%: 24%, Linear,
+            50%: 28%, OutQuad,
+            100%: 24%,
+        },
+    }
+
+    #firefly_two {
+        x: {
+            0%: 28%, Linear,
+            50%: 24%, OutQuad,
+            100%: 28%,
+        },
+        y: {
+            0%: 32%, Linear,
+            50%: 28%, OutQuad,
+            100%: 32%,
+        },
+    }
+
+    #firefly_three {
+        x: {
+            0%: 78%, Linear,
+            50%: 74%, OutQuad,
+            100%: 78%,
+        },
+        y: {
+            0%: 44%, Linear,
+            50%: 40%, OutQuad,
+            100%: 44%,
+        },
+    }
+
+    #firefly_four {
+        x: {
+            0%: 18%, Linear,
+            50%: 22%, OutQuad,
+            100%: 18%,
+        },
+        y: {
+            0%: 22%, Linear,
+            50%: 20%, OutQuad,
+            100%: 22%,
+        },
+    }
+}

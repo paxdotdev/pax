@@ -28,15 +28,15 @@ use fs_extra::dir::{self, CopyOptions};
 use helpers::{copy_dir_recursively, wait_with_output, ERR_SPAWN};
 use pax_manifest::{
     ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, PaxExpression, PaxManifest,
-    SettingsBlockElement, SettingElement, TemplateNodeDefinition, TypeId, ValueDefinition,
+    SettingElement, SettingsBlockElement, TemplateNodeDefinition, TypeId, ValueDefinition,
 };
 use reqwest::blocking::Client;
 use reqwest::Url;
 use serde_json::Value as JsonValue;
+use std::collections::hash_map::DefaultHasher;
+use std::collections::HashSet;
 use std::fs;
 use std::io::Write;
-use std::collections::HashSet;
-use std::collections::hash_map::DefaultHasher;
 use std::sync::{Arc, Mutex};
 
 #[cfg(unix)]
@@ -45,9 +45,9 @@ use std::os::unix::process::CommandExt;
 use crate::building::build_project_with_cartridge;
 
 use crate::cartridge_generation::generate_cartridge_partial_rs;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use std::hash::{Hash, Hasher};
 use std::time::SystemTime;
 use walkdir::WalkDir;
 
@@ -149,6 +149,7 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
             primitive_instance_import_path: None,
             template: Some(wrapper_component_template),
             settings: None,
+            timelines: vec![],
         },
     );
 
@@ -220,7 +221,10 @@ fn run_and_parse_parser_binary(ctx: &RunContext) -> eyre::Result<Vec<PaxManifest
 
 fn ensure_default_web_interface_bundle(ctx: &RunContext) {
     let pax_compiler_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let web_interface_root = pax_compiler_root.join("files").join("interfaces").join("web");
+    let web_interface_root = pax_compiler_root
+        .join("files")
+        .join("interfaces")
+        .join("web");
     if !web_interface_root.exists() {
         return;
     }
@@ -256,7 +260,9 @@ fn web_interface_bundle_needs_rebuild(web_interface_root: &Path, force_rebuild: 
         return true;
     }
 
-    let bundle_path = web_interface_root.join("public").join("pax-interface-web.js");
+    let bundle_path = web_interface_root
+        .join("public")
+        .join("pax-interface-web.js");
     let bundle_modified_at = fs::metadata(&bundle_path)
         .and_then(|metadata| metadata.modified())
         .unwrap_or(SystemTime::UNIX_EPOCH);
@@ -498,6 +504,39 @@ fn collect_web_font_sources(manifest: &PaxManifest) -> Vec<WebFontSource> {
         if let Some(settings) = &component.settings {
             collect_settings_block_elements(settings, &mut seen, &mut collected);
         }
+
+        for timeline in &component.timelines {
+            if let Some(playhead) = &timeline.playhead {
+                collect_value_definition(playhead, &mut seen, &mut collected);
+            }
+            for element in &timeline.elements {
+                if let pax_manifest::TimelineBlockElement::SelectorBlock(_, selector_block) =
+                    element
+                {
+                    for element in &selector_block.elements {
+                        if let pax_manifest::TimelineSelectorElement::Track(_, track) = element {
+                            if let Some(playhead) = &track.playhead {
+                                collect_value_definition(playhead, &mut seen, &mut collected);
+                            }
+                            if let Some(starting_value) = &track.starting_value {
+                                collect_value_definition(starting_value, &mut seen, &mut collected);
+                            }
+                            for element in &track.elements {
+                                if let pax_manifest::TimelineTrackElement::Keyframe(keyframe) =
+                                    element
+                                {
+                                    collect_value_definition(
+                                        &keyframe.value,
+                                        &mut seen,
+                                        &mut collected,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     collected
@@ -548,6 +587,16 @@ fn collect_value_definition(
 ) {
     match value {
         ValueDefinition::Block(block) => collect_literal_block_definition(block, seen, collected),
+        ValueDefinition::Timeline(track) => {
+            if let Some(starting_value) = &track.starting_value {
+                collect_value_definition(starting_value, seen, collected);
+            }
+            for element in &track.elements {
+                if let pax_manifest::TimelineTrackElement::Keyframe(keyframe) = element {
+                    collect_value_definition(&keyframe.value, seen, collected);
+                }
+            }
+        }
         ValueDefinition::Expression(expression_info) => {
             collect_font_sources_from_expression(&expression_info.expression, seen, collected);
         }
@@ -740,7 +789,11 @@ fn vendor_font_asset(
     let extension = asset_url
         .path_segments()
         .and_then(|segments| segments.last())
-        .and_then(|segment| segment.rsplit_once('.').map(|(_, ext)| ext.to_ascii_lowercase()))
+        .and_then(|segment| {
+            segment
+                .rsplit_once('.')
+                .map(|(_, ext)| ext.to_ascii_lowercase())
+        })
         .filter(|ext| !ext.is_empty())
         .unwrap_or_else(|| "font".to_string());
 

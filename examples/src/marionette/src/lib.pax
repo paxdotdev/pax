@@ -1,0 +1,922 @@
+<Text id=title x=50% y=70px width=760px height=54px text="Marionette Studio" />
+<Text
+    id=subtitle
+    x=50%
+    y=124px
+    width=820px
+    height=20px
+    text="NESTED TIMELINES · SHARED PLAYHEAD · JOINTED PUPPET RIG"
+/>
+
+<Group x=50% y=94% width=860px height=126px anchor_x=50% anchor_y=100%>
+    <Text class=panel_kicker x=32px y=16px width=160px height=18px text="SCENE CONTROL" />
+    <Text class=panel_label x=32px y=42px width=192px height=18px text="ACTION" />
+    if selected_action == 0 {
+        <Text class=panel_label x=292px y=42px width=216px height=18px text="GREETING WAVE" />
+    }
+    if selected_action == 1 {
+        <Text class=panel_label x=292px y=42px width=216px height=18px text="COURT BOW" />
+    }
+    if selected_action == 2 {
+        <Text class=panel_label x=292px y=42px width=216px height=18px text="IDLE SWAY" />
+    }
+    if selected_action == 3 {
+        <Text class=panel_label x=292px y=42px width=216px height=18px text="HEROIC POINT" />
+    }
+    if selected_action == 4 {
+        <Text class=panel_label x=292px y=42px width=216px height=18px text="SNEAK STEP" />
+    }
+    if selected_action == 5 {
+        <Text class=panel_label x=292px y=42px width=216px height=18px text="CAN-CAN KICK" />
+    }
+    <Text class=panel_label x=534px y=42px width=196px height=18px text={"PLAYHEAD " + master_playhead} />
+
+    <Dropdown
+        x=32px
+        y=64px
+        width=228px
+        height=38px
+        selected_id=bind:selected_action
+        options=["Greeting Wave", "Court Bow", "Idle Sway", "Heroic Point", "Sneak Step", "Can-Can Kick"]
+        background=rgb(241, 232, 214)
+        border_radius=12
+        stroke=Stroke {
+            color: rgb(88, 58, 43)
+            width: 2px
+        }
+    />
+
+    <Slider
+        x=292px
+        y=70px
+        width=370px
+        height=24px
+        value=bind:master_playhead
+        min=0.0
+        max=120.0
+        step=1.0
+        accent=rgb(208, 142, 64)
+        background=rgba(84, 47, 34, 255)
+        border_radius=10
+    />
+
+    <Text
+        class=panel_note
+        x=690px
+        y=52px
+        width=138px
+        height=42px
+        text="Scrub the master playhead to drive the active puppet."
+    />
+
+    <Rectangle class=control_panel />
+</Group>
+
+<Group x=50% y=53% width=920px height=700px anchor_x=50% anchor_y=50%>
+    <Rectangle class=stage_border x=0px y=0px width=100% height=100% />
+
+    <Group x=0px y=0px width=100% height=100%>
+        <Path class=left_curtain width=172px height=660px />
+        <Path class=right_curtain x=748px y=0px width=172px height=660px />
+        <Path class=top_valance x=60px y=0px width=800px height=196px />
+        <Rectangle class=proscenium_edge x=56px y=48px width=808px height=526px />
+    </Group>
+
+    if selected_action == 0 {
+        <MarionetteRig
+            x=50%
+            y=94px
+            width=420px
+            height=560px
+            anchor_x=50%
+            torso_rotate=wave_torso_rotate
+            torso_shift_y=wave_torso_shift_y
+            head_rotate=wave_head_rotate
+            head_shift_y=wave_head_shift_y
+            left_arm_t=wave_left_arm_t
+            right_arm_t=wave_right_arm_t
+            left_leg_t=wave_left_leg_t
+            right_leg_t=wave_right_leg_t
+        />
+    }
+    if selected_action == 1 {
+        <MarionetteRig
+            x=50%
+            y=94px
+            width=420px
+            height=560px
+            anchor_x=50%
+            torso_rotate=bow_torso_rotate
+            torso_shift_y=bow_torso_shift_y
+            head_rotate=bow_head_rotate
+            head_shift_y=bow_head_shift_y
+            left_arm_t=bow_left_arm_t
+            right_arm_t=bow_right_arm_t
+            left_leg_t=bow_left_leg_t
+            right_leg_t=bow_right_leg_t
+        />
+    }
+    if selected_action == 2 {
+        <MarionetteRig
+            x=50%
+            y=94px
+            width=420px
+            height=560px
+            anchor_x=50%
+            torso_rotate=idle_torso_rotate
+            torso_shift_y=idle_torso_shift_y
+            head_rotate=idle_head_rotate
+            head_shift_y=idle_head_shift_y
+            left_arm_t=idle_left_arm_t
+            right_arm_t=idle_right_arm_t
+            left_leg_t=idle_left_leg_t
+            right_leg_t=idle_right_leg_t
+        />
+    }
+    if selected_action == 3 {
+        <MarionetteRig
+            x=50%
+            y=94px
+            width=420px
+            height=560px
+            anchor_x=50%
+            torso_rotate=hero_torso_rotate
+            torso_shift_y=hero_torso_shift_y
+            head_rotate=hero_head_rotate
+            head_shift_y=hero_head_shift_y
+            left_arm_t=hero_left_arm_t
+            right_arm_t=hero_right_arm_t
+            left_leg_t=hero_left_leg_t
+            right_leg_t=hero_right_leg_t
+        />
+    }
+    if selected_action == 4 {
+        <MarionetteRig
+            x=50%
+            y=94px
+            width=420px
+            height=560px
+            anchor_x=50%
+            torso_rotate=sneak_torso_rotate
+            torso_shift_y=sneak_torso_shift_y
+            head_rotate=sneak_head_rotate
+            head_shift_y=sneak_head_shift_y
+            left_arm_t=sneak_left_arm_t
+            right_arm_t=sneak_right_arm_t
+            left_leg_t=sneak_left_leg_t
+            right_leg_t=sneak_right_leg_t
+        />
+    }
+    if selected_action == 5 {
+        <MarionetteRig
+            x=50%
+            y=94px
+            width=420px
+            height=560px
+            anchor_x=50%
+            torso_rotate=kick_torso_rotate
+            torso_shift_y=kick_torso_shift_y
+            head_rotate=kick_head_rotate
+            head_shift_y=kick_head_shift_y
+            left_arm_t=kick_left_arm_t
+            right_arm_t=kick_right_arm_t
+            left_leg_t=kick_left_leg_t
+            right_leg_t=kick_right_leg_t
+        />
+    }
+
+    <Path class=stage_apron x=60px y=542px width=800px height=78px />
+    <Rectangle class=floor_trim x=74px y=534px width=772px height=10px />
+    <Ellipse class=shadow_pool x=50% y=542px width=234px height=46px anchor_x=50% />
+    <Ellipse class=spotlight_pool x=50% y=560px width=330px height=108px anchor_x=50% />
+
+    <Group x=50% y=52px width=804px height=582px anchor_x=50%>
+        <Path class=stage_backdrop width=100% height=100% />
+        <Path class=curtain_fold x=68px y=0px width=132px height=420px />
+        <Path class=curtain_fold x=226px y=0px width=132px height=436px />
+        <Path class=curtain_fold x=384px y=0px width=132px height=446px />
+        <Path class=curtain_fold x=542px y=0px width=132px height=432px />
+        <Path class=curtain_fold x=682px y=0px width=92px height=404px />
+        <Path class=spotlight_beam x=322px y=22px width=160px height=482px />
+        <Path class=wood_floor x=0px y=430px width=100% height=152px />
+        <Rectangle class=stage_back_shadow x=0px y=404px width=100% height=32px />
+    </Group>
+
+    <Rectangle class=stage_shell x=0px y=0px width=100% height=100% />
+</Group>
+
+<Rectangle width=100% height=100% class=scene_background />
+
+@settings {
+    #title {
+        style: TextStyle {
+            font: Font::Web(
+                "Cormorant Garamond",
+                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::SemiBold
+            )
+            font_size: 56px
+            fill: rgb(245, 234, 214)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+
+    #subtitle {
+        style: TextStyle {
+            font: Font::Web(
+                "Source Sans 3",
+                "https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 13px
+            fill: rgb(194, 174, 145)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+
+    .panel_kicker {
+        style: TextStyle {
+            font: Font::Web(
+                "Source Sans 3",
+                "https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::SemiBold
+            )
+            font_size: 12px
+            fill: rgb(227, 197, 145)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .panel_label {
+        style: TextStyle {
+            font: Font::Web(
+                "Source Sans 3",
+                "https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 14px
+            fill: rgb(246, 234, 214)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .panel_note {
+        style: TextStyle {
+            font: Font::Web(
+                "Source Sans 3",
+                "https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 12px
+            fill: rgba(231, 216, 194, 214)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .scene_background {
+        fill: Fill::linearGradient(
+            (50%, 0%),
+            (50%, 100%),
+            [
+                GradientStop::get(Color::rgba(18, 10, 18, 255), 0%),
+                GradientStop::get(Color::rgba(36, 18, 24, 255), 46%),
+                GradientStop::get(Color::rgba(14, 8, 12, 255), 100%)
+            ]
+        )
+    }
+
+    .control_panel {
+        fill: Fill::linearGradient(
+            (0%, 0%),
+            (100%, 100%),
+            [
+                GradientStop::get(Color::rgba(70, 36, 28, 255), 0%),
+                GradientStop::get(Color::rgba(44, 20, 18, 255), 58%),
+                GradientStop::get(Color::rgba(24, 12, 16, 255), 100%)
+            ]
+        )
+        stroke: Stroke {
+            color: rgba(232, 194, 138, 96%)
+            width: 2px
+        }
+        corner_radii: {
+            top_left: 18,
+            top_right: 18,
+            bottom_left: 18,
+            bottom_right: 18,
+        }
+    }
+
+    .stage_shell {
+        fill: Fill::linearGradient(
+            (50%, 0%),
+            (50%, 100%),
+            [
+                GradientStop::get(Color::rgba(54, 28, 26, 255), 0%),
+                GradientStop::get(Color::rgba(22, 12, 12, 255), 100%)
+            ]
+        )
+        corner_radii: {
+            top_left: 26,
+            top_right: 26,
+            bottom_left: 26,
+            bottom_right: 26,
+        }
+    }
+
+    .stage_border {
+        fill: rgba(0, 0, 0, 0)
+        stroke: Stroke {
+            color: rgba(233, 201, 145, 52%)
+            width: 3px
+        }
+        corner_radii: {
+            top_left: 26,
+            top_right: 26,
+            bottom_left: 26,
+            bottom_right: 26,
+        }
+    }
+
+    .stage_backdrop {
+        elements: [
+            PathElement::Point(0%, 0%),
+            PathElement::Line,
+            PathElement::Point(100%, 0%),
+            PathElement::Line,
+            PathElement::Point(100%, 100%),
+            PathElement::Line,
+            PathElement::Point(0%, 100%),
+            PathElement::Close
+        ]
+        fill: Fill::linearGradient(
+            (50%, 0%),
+            (50%, 100%),
+            [
+                GradientStop::get(Color::rgba(96, 20, 32, 255), 0%),
+                GradientStop::get(Color::rgba(74, 14, 28, 255), 38%),
+                GradientStop::get(Color::rgba(46, 12, 24, 255), 100%)
+            ]
+        )
+    }
+
+    .curtain_fold {
+        elements: [
+            PathElement::Point(30%, 0%),
+            PathElement::Quadratic(54%, 6%),
+            PathElement::Point(70%, 0%),
+            PathElement::Quadratic(94%, 26%),
+            PathElement::Point(84%, 100%),
+            PathElement::Quadratic(48%, 88%),
+            PathElement::Point(18%, 100%),
+            PathElement::Quadratic(4%, 30%),
+            PathElement::Point(30%, 0%),
+            PathElement::Close
+        ]
+        fill: Fill::linearGradient(
+            (0%, 0%),
+            (100%, 0%),
+            [
+                GradientStop::get(Color::rgba(128, 28, 40, 26%), 0%),
+                GradientStop::get(Color::rgba(168, 54, 64, 32%), 48%),
+                GradientStop::get(Color::rgba(90, 20, 34, 26%), 100%)
+            ]
+        )
+    }
+
+    .spotlight_beam {
+        elements: [
+            PathElement::Point(38%, 0%),
+            PathElement::Line,
+            PathElement::Point(62%, 0%),
+            PathElement::Line,
+            PathElement::Point(100%, 100%),
+            PathElement::Line,
+            PathElement::Point(0%, 100%),
+            PathElement::Close
+        ]
+        fill: Fill::linearGradient(
+            (50%, 0%),
+            (50%, 100%),
+            [
+                GradientStop::get(Color::rgba(255, 238, 192, 80), 0%),
+                GradientStop::get(Color::rgba(255, 228, 176, 42), 54%),
+                GradientStop::get(Color::rgba(255, 220, 162, 0), 100%)
+            ]
+        )
+    }
+
+    .wood_floor {
+        elements: [
+            PathElement::Point(0%, 8%),
+            PathElement::Quadratic(18%, 0%),
+            PathElement::Point(36%, 10%),
+            PathElement::Quadratic(54%, 18%),
+            PathElement::Point(70%, 6%),
+            PathElement::Quadratic(86%, 0%),
+            PathElement::Point(100%, 10%),
+            PathElement::Line,
+            PathElement::Point(100%, 100%),
+            PathElement::Line,
+            PathElement::Point(0%, 100%),
+            PathElement::Close
+        ]
+        fill: Fill::linearGradient(
+            (50%, 0%),
+            (50%, 100%),
+            [
+                GradientStop::get(Color::rgba(134, 86, 48, 255), 0%),
+                GradientStop::get(Color::rgba(96, 58, 34, 255), 42%),
+                GradientStop::get(Color::rgba(62, 34, 20, 255), 100%)
+            ]
+        )
+    }
+
+    .stage_back_shadow {
+        fill: rgba(20, 10, 14, 48%)
+    }
+
+    .proscenium_edge {
+        fill: rgba(0, 0, 0, 0)
+        stroke: Stroke {
+            color: rgba(240, 205, 142, 20%)
+            width: 2px
+        }
+        corner_radii: {
+            top_left: 20,
+            top_right: 20,
+            bottom_left: 20,
+            bottom_right: 20,
+        }
+    }
+
+    .left_curtain {
+        elements: [
+            PathElement::Point(0%, 0%),
+            PathElement::Quadratic(34%, 4%),
+            PathElement::Point(58%, 0%),
+            PathElement::Quadratic(82%, 12%),
+            PathElement::Point(86%, 36%),
+            PathElement::Quadratic(76%, 58%),
+            PathElement::Point(94%, 84%),
+            PathElement::Quadratic(100%, 92%),
+            PathElement::Point(82%, 100%),
+            PathElement::Line,
+            PathElement::Point(0%, 100%),
+            PathElement::Close
+        ]
+        fill: Fill::linearGradient(
+            (0%, 0%),
+            (100%, 0%),
+            [
+                GradientStop::get(Color::rgba(92, 17, 28, 255), 0%),
+                GradientStop::get(Color::rgba(138, 28, 44, 255), 56%),
+                GradientStop::get(Color::rgba(74, 10, 18, 255), 100%)
+            ]
+        )
+    }
+
+    .right_curtain {
+        elements: [
+            PathElement::Point(100%, 0%),
+            PathElement::Quadratic(66%, 4%),
+            PathElement::Point(42%, 0%),
+            PathElement::Quadratic(18%, 12%),
+            PathElement::Point(14%, 36%),
+            PathElement::Quadratic(24%, 58%),
+            PathElement::Point(6%, 84%),
+            PathElement::Quadratic(0%, 92%),
+            PathElement::Point(18%, 100%),
+            PathElement::Line,
+            PathElement::Point(100%, 100%),
+            PathElement::Close
+        ]
+        fill: Fill::linearGradient(
+            (0%, 0%),
+            (100%, 0%),
+            [
+                GradientStop::get(Color::rgba(74, 10, 18, 255), 0%),
+                GradientStop::get(Color::rgba(138, 28, 44, 255), 44%),
+                GradientStop::get(Color::rgba(92, 17, 28, 255), 100%)
+            ]
+        )
+    }
+
+    .top_valance {
+        elements: [
+            PathElement::Point(0%, 0%),
+            PathElement::Line,
+            PathElement::Point(100%, 0%),
+            PathElement::Line,
+            PathElement::Point(100%, 56%),
+            PathElement::Quadratic(92%, 100%),
+            PathElement::Point(78%, 62%),
+            PathElement::Quadratic(64%, 24%),
+            PathElement::Point(50%, 78%),
+            PathElement::Quadratic(36%, 20%),
+            PathElement::Point(22%, 62%),
+            PathElement::Quadratic(8%, 100%),
+            PathElement::Point(0%, 56%),
+            PathElement::Close
+        ]
+        fill: Fill::linearGradient(
+            (50%, 0%),
+            (50%, 100%),
+            [
+                GradientStop::get(Color::rgba(120, 22, 38, 255), 0%),
+                GradientStop::get(Color::rgba(164, 38, 56, 255), 44%),
+                GradientStop::get(Color::rgba(86, 12, 24, 255), 100%)
+            ]
+        )
+        stroke: Stroke {
+            color: rgba(236, 208, 162, 18%)
+            width: 2px
+        }
+    }
+
+    .spotlight_pool {
+        fill: rgba(255, 221, 154, 22%)
+    }
+
+    .shadow_pool {
+        fill: rgba(4, 4, 8, 34%)
+    }
+
+    .floor_trim {
+        fill: rgba(150, 96, 56, 255)
+    }
+
+    .stage_apron {
+        elements: [
+            PathElement::Point(0%, 0%),
+            PathElement::Quadratic(18%, 16%),
+            PathElement::Point(36%, 10%),
+            PathElement::Quadratic(56%, 0%),
+            PathElement::Point(76%, 12%),
+            PathElement::Quadratic(90%, 18%),
+            PathElement::Point(100%, 8%),
+            PathElement::Line,
+            PathElement::Point(100%, 100%),
+            PathElement::Line,
+            PathElement::Point(0%, 100%),
+            PathElement::Close
+        ]
+        fill: Fill::linearGradient(
+            (50%, 0%),
+            (50%, 100%),
+            [
+                GradientStop::get(Color::rgba(96, 58, 36, 255), 0%),
+                GradientStop::get(Color::rgba(60, 34, 24, 255), 100%)
+            ]
+        )
+    }
+}
+
+@timeline greeting_wave {
+    playhead: self.master_playhead,
+    frames: 120,
+    loop: false,
+
+    self {
+        wave_torso_rotate: {
+            0: -1,
+            40: 6, OutQuad,
+            78: 4, InOutQuad,
+            120: -1,
+        },
+        wave_torso_shift_y: {
+            0: 0,
+            48: -10, OutQuad,
+            120: 0,
+        },
+        wave_head_rotate: {
+            0: 0,
+            50: 8, OutQuad,
+            96: -4, InOutQuad,
+            120: 0,
+        },
+        wave_head_shift_y: {
+            0: 0,
+            50: -6, OutQuad,
+            120: 0,
+        },
+        wave_left_arm_t: {
+            0: 34,
+            60: 46, InOutQuad,
+            120: 34,
+        },
+        wave_right_arm_t: {
+            0: 18,
+            20: 88, OutBack,
+            50: 74, InOutQuad,
+            82: 96, OutBack,
+            120: 18,
+        },
+        wave_left_leg_t: {
+            0: 22,
+            60: 32, InOutQuad,
+            120: 22,
+        },
+        wave_right_leg_t: {
+            0: 28,
+            60: 38, InOutQuad,
+            120: 28,
+        },
+    }
+}
+
+@timeline court_bow {
+    playhead: self.master_playhead,
+    frames: 120,
+    loop: false,
+
+    self {
+        bow_torso_rotate: {
+            0: 0,
+            50: -2, OutQuad,
+            80: -1, InOutQuad,
+            120: 0,
+        },
+        bow_torso_shift_y: {
+            0: 0,
+            36: 22, OutQuad,
+            78: 30, InOutQuad,
+            120: 0,
+        },
+        bow_head_rotate: {
+            0: 0,
+            46: -18, OutQuad,
+            92: -10, InOutQuad,
+            120: 0,
+        },
+        bow_head_shift_y: {
+            0: 0,
+            44: 12, OutQuad,
+            88: 16, InOutQuad,
+            120: 0,
+        },
+        bow_left_arm_t: {
+            0: 32,
+            46: 72, OutQuad,
+            92: 68, InOutQuad,
+            120: 32,
+        },
+        bow_right_arm_t: {
+            0: 24,
+            46: 72, OutQuad,
+            92: 68, InOutQuad,
+            120: 24,
+        },
+        bow_left_leg_t: {
+            0: 24,
+            46: 58, OutQuad,
+            120: 24,
+        },
+        bow_right_leg_t: {
+            0: 24,
+            46: 58, OutQuad,
+            120: 24,
+        },
+    }
+}
+
+@timeline idle_sway {
+    playhead: self.master_playhead,
+    frames: 120,
+    loop: false,
+
+    self {
+        idle_torso_rotate: {
+            0: -2,
+            40: 2, InOutQuad,
+            80: -3, InOutQuad,
+            120: -2,
+        },
+        idle_torso_shift_y: {
+            0: 0,
+            60: -7, InOutQuad,
+            120: 0,
+        },
+        idle_head_rotate: {
+            0: 4,
+            60: -4, InOutQuad,
+            120: 4,
+        },
+        idle_head_shift_y: {
+            0: 0,
+            60: -4, InOutQuad,
+            120: 0,
+        },
+        idle_left_arm_t: {
+            0: 26,
+            60: 40, InOutQuad,
+            120: 26,
+        },
+        idle_right_arm_t: {
+            0: 28,
+            60: 18, InOutQuad,
+            120: 28,
+        },
+        idle_left_leg_t: {
+            0: 30,
+            60: 18, InOutQuad,
+            120: 30,
+        },
+        idle_right_leg_t: {
+            0: 18,
+            60: 30, InOutQuad,
+            120: 18,
+        },
+    }
+}
+
+@timeline heroic_point {
+    playhead: self.master_playhead,
+    frames: 120,
+    loop: false,
+
+    self {
+        hero_torso_rotate: {
+            0: -2,
+            28: -8, OutQuad,
+            72: -6, InOutQuad,
+            120: -2,
+        },
+        hero_torso_shift_y: {
+            0: 0,
+            32: -12, OutQuad,
+            84: -8, InOutQuad,
+            120: 0,
+        },
+        hero_head_rotate: {
+            0: 0,
+            34: 10, OutQuad,
+            82: 6, InOutQuad,
+            120: 0,
+        },
+        hero_head_shift_y: {
+            0: 0,
+            30: -8, OutQuad,
+            120: 0,
+        },
+        hero_left_arm_t: {
+            0: 26,
+            36: 54, OutQuad,
+            78: 48, InOutQuad,
+            120: 26,
+        },
+        hero_right_arm_t: {
+            0: 22,
+            24: 94, OutBack,
+            60: 82, InOutQuad,
+            92: 96, OutBack,
+            120: 22,
+        },
+        hero_left_leg_t: {
+            0: 24,
+            44: 18, OutQuad,
+            88: 24, InOutQuad,
+            120: 24,
+        },
+        hero_right_leg_t: {
+            0: 24,
+            44: 46, OutQuad,
+            88: 40, InOutQuad,
+            120: 24,
+        },
+    }
+}
+
+@timeline sneak_step {
+    playhead: self.master_playhead,
+    frames: 120,
+    loop: false,
+
+    self {
+        sneak_torso_rotate: {
+            0: 0,
+            24: 8, OutQuad,
+            56: 12, InOutQuad,
+            88: 6, InOutQuad,
+            120: 0,
+        },
+        sneak_torso_shift_y: {
+            0: 0,
+            24: 10, OutQuad,
+            56: 18, InOutQuad,
+            88: 12, InOutQuad,
+            120: 0,
+        },
+        sneak_head_rotate: {
+            0: 0,
+            24: -14, OutQuad,
+            72: -10, InOutQuad,
+            120: 0,
+        },
+        sneak_head_shift_y: {
+            0: 0,
+            24: 8, OutQuad,
+            72: 12, InOutQuad,
+            120: 0,
+        },
+        sneak_left_arm_t: {
+            0: 26,
+            30: 18, OutQuad,
+            72: 24, InOutQuad,
+            120: 26,
+        },
+        sneak_right_arm_t: {
+            0: 22,
+            34: 56, OutQuad,
+            72: 48, InOutQuad,
+            120: 22,
+        },
+        sneak_left_leg_t: {
+            0: 24,
+            36: 60, OutQuad,
+            78: 50, InOutQuad,
+            120: 24,
+        },
+        sneak_right_leg_t: {
+            0: 24,
+            36: 12, OutQuad,
+            78: 16, InOutQuad,
+            120: 24,
+        },
+    }
+}
+
+@timeline can_can_kick {
+    playhead: self.master_playhead,
+    frames: 120,
+    loop: false,
+
+    self {
+        kick_torso_rotate: {
+            0: 0,
+            26: -4, OutQuad,
+            56: 4, InOutQuad,
+            92: -2, InOutQuad,
+            120: 0,
+        },
+        kick_torso_shift_y: {
+            0: 0,
+            26: -10, OutQuad,
+            56: -14, InOutQuad,
+            92: -6, InOutQuad,
+            120: 0,
+        },
+        kick_head_rotate: {
+            0: 0,
+            40: 12, OutQuad,
+            80: 2, InOutQuad,
+            120: 0,
+        },
+        kick_head_shift_y: {
+            0: 0,
+            36: -8, OutQuad,
+            120: 0,
+        },
+        kick_left_arm_t: {
+            0: 26,
+            30: 34, OutQuad,
+            72: 44, InOutQuad,
+            120: 26,
+        },
+        kick_right_arm_t: {
+            0: 24,
+            22: 90, OutBack,
+            58: 82, InOutQuad,
+            90: 96, OutBack,
+            120: 24,
+        },
+        kick_left_leg_t: {
+            0: 24,
+            24: 34, OutQuad,
+            46: 78, OutBack,
+            70: 58, InOutQuad,
+            120: 24,
+        },
+        kick_right_leg_t: {
+            0: 24,
+            30: 10, OutQuad,
+            78: 18, InOutQuad,
+            120: 24,
+        },
+    }
+}

@@ -24,6 +24,7 @@ mod tests {
                     Token::new_without_location("existing_selector".to_string()),
                     LiteralBlockDefinition::new(vec![]),
                 )]),
+                timelines: vec![],
             },
         );
 

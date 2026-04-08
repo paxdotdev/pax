@@ -5,7 +5,7 @@
     {% endfor %}
 {% endif %}
 
-{% if settings or handlers %}
+{% if settings %}
 @settings {
     {% for settings_block_element in settings %}
         {% if settings_block_element.SelectorBlock %}
@@ -26,4 +26,28 @@
         {% endif %}
     {% endfor %}
 }
+{% endif %}
+
+{% if timelines and timelines | length > 0 %}
+    {% for timeline in timelines %}
+@timeline{% if timeline.name %} {{ timeline.name.token_value }}{% endif %} {
+        {% if timeline.playhead %}
+            playhead: {{ macros::render_value_definition(vd=timeline.playhead) }},
+        {% endif %}
+        {% if timeline.frames %}
+            frames: {{ timeline.frames }},
+        {% endif %}
+        {% if not timeline.repeat %}
+            loop: false,
+        {% endif %}
+        {% for timeline_block_element in timeline.elements %}
+            {% if timeline_block_element.SelectorBlock %}
+                {{ timeline_block_element.SelectorBlock.0.token_value }}{{ macros::render_timeline_selector_block(block=timeline_block_element.SelectorBlock.1) }},
+            {% elif timeline_block_element.Comment %}
+                {{ timeline_block_element.Comment }}
+            {% endif %}
+        {% endfor %}
+}
+
+    {% endfor %}
 {% endif %}

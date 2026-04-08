@@ -770,6 +770,11 @@ export class NativeElementPool {
     textUpdate(patch: TextUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!) as HTMLElement;
         let textChild = leaf!.firstChild as HTMLElement;
+        const applyClip = (clip: boolean) => {
+            const overflow = clip ? "hidden" : "visible";
+            leaf.style.overflow = overflow;
+            textChild.style.overflow = overflow;
+        };
         // should be start listening to this elements size and
         // send interrupts to the engine, or not?
         let start_listening = false;
@@ -834,6 +839,10 @@ export class NativeElementPool {
 
         if (patch.selectable != null) {
             textChild.style.userSelect = patch.selectable ? "auto" : "none";
+        }
+
+        if (patch.clip != null) {
+            applyClip(patch.clip);
         }
 
         applyTextStyle(leaf, textChild, patch.style);

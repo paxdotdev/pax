@@ -185,7 +185,10 @@ pub fn build_apple_project_with_cartridge(
     };
 
     let resolved_ios_device = if is_ios && (ctx.should_also_run || ctx.ios_device.is_some()) {
-        Some(resolve_ios_device(ctx.ios_device.as_deref(), &process_child_ids)?)
+        Some(resolve_ios_device(
+            ctx.ios_device.as_deref(),
+            &process_child_ids,
+        )?)
     } else {
         None
     };
@@ -910,9 +913,15 @@ fn parse_ios_device_selector(selector: Option<&str>) -> (Option<IosDeviceKind>, 
         Some("device") => (Some(IosDeviceKind::Physical), None),
         Some(value) => {
             if let Some(query) = value.strip_prefix("simulator:") {
-                (Some(IosDeviceKind::Simulator), Some(query.trim().to_string()))
+                (
+                    Some(IosDeviceKind::Simulator),
+                    Some(query.trim().to_string()),
+                )
             } else if let Some(query) = value.strip_prefix("device:") {
-                (Some(IosDeviceKind::Physical), Some(query.trim().to_string()))
+                (
+                    Some(IosDeviceKind::Physical),
+                    Some(query.trim().to_string()),
+                )
             } else {
                 (None, Some(value.to_string()))
             }
@@ -940,10 +949,12 @@ fn choose_best_simulator(
         );
         if best_choice
             .as_ref()
-            .map(|best| candidate.0 > best.0
-                || (candidate.0 == best.0
-                    && (candidate.1 > best.1
-                        || (candidate.1 == best.1 && candidate.2 && !best.2))))
+            .map(|best| {
+                candidate.0 > best.0
+                    || (candidate.0 == best.0
+                        && (candidate.1 > best.1
+                            || (candidate.1 == best.1 && candidate.2 && !best.2)))
+            })
             .unwrap_or(true)
         {
             best_choice = Some(candidate);
@@ -1137,7 +1148,9 @@ fn list_connected_physical_devices(
     let child = cmd.spawn().expect(ERR_SPAWN);
     let output = wait_with_output(process_child_ids, child);
     if !output.status.success() {
-        return Err(eyre!("Failed to list connected iOS devices with xcrun xctrace."));
+        return Err(eyre!(
+            "Failed to list connected iOS devices with xcrun xctrace."
+        ));
     }
 
     let output_str = std::str::from_utf8(&output.stdout)
@@ -1362,7 +1375,9 @@ fn run_on_physical_device(
     let child = cmd.spawn().expect(ERR_SPAWN);
     let output = wait_with_output(process_child_ids, child);
     if !output.status.success() {
-        return Err(eyre!("Error installing app on physical iOS device. Aborting."));
+        return Err(eyre!(
+            "Error installing app on physical iOS device. Aborting."
+        ));
     }
 
     let mut cmd = Command::new("xcrun");
@@ -1385,7 +1400,9 @@ fn run_on_physical_device(
     let child = cmd.spawn().expect(ERR_SPAWN);
     let output = wait_with_output(process_child_ids, child);
     if !output.status.success() {
-        return Err(eyre!("Error launching app on physical iOS device. Aborting."));
+        return Err(eyre!(
+            "Error launching app on physical iOS device. Aborting."
+        ));
     }
 
     println!("{} 🚀 App launched on device {}.", *PAX_BADGE, device_name);
@@ -1416,7 +1433,13 @@ fn resolve_dylib_file_name(project_path: &PathBuf) -> Result<String, eyre::Repor
         .manifest_path(&manifest_path)
         .no_deps()
         .exec()
-        .map_err(|err| eyre!("Failed to read cargo metadata for {:?}: {}", manifest_path, err))?;
+        .map_err(|err| {
+            eyre!(
+                "Failed to read cargo metadata for {:?}: {}",
+                manifest_path,
+                err
+            )
+        })?;
 
     let root_package = metadata.root_package().ok_or_else(|| {
         eyre!(
@@ -1439,10 +1462,7 @@ fn resolve_dylib_file_name(project_path: &PathBuf) -> Result<String, eyre::Repor
             )
         })?;
 
-    Ok(format!(
-        "lib{}.dylib",
-        dylib_target.name.replace('-', "_")
-    ))
+    Ok(format!("lib{}.dylib", dylib_target.name.replace('-', "_")))
 }
 
 fn parse_iphone_simulator_preference(name: &str) -> Option<(i32, SimulatorVariantRank)> {

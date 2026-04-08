@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 use crate::{
     constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_TYPE},
     PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement, TemplateNodeDefinition,
-    TypeId, ValueDefinition,
+    TimelineBlockElement, TimelineDefinition, TimelineSelectorElement, TypeId, ValueDefinition,
 };
 
 #[derive(Serialize, Debug)]
@@ -177,6 +177,7 @@ impl PaxManifest {
                     match value {
                         ValueDefinition::LiteralValue(_)
                         | ValueDefinition::Block(_)
+                        | ValueDefinition::Timeline(_)
                         | ValueDefinition::Expression(_)
                         | ValueDefinition::Identifier(_)
                         | ValueDefinition::DoubleBinding(_) => {
@@ -187,6 +188,11 @@ impl PaxManifest {
                 }
             }
         }
+        Self::merge_inline_timelines_with_timeline_blocks(
+            &mut map,
+            &tnd.settings,
+            &component.timelines,
+        );
         map
     }
 
@@ -205,6 +211,7 @@ impl PaxManifest {
                     match value {
                         ValueDefinition::LiteralValue(_)
                         | ValueDefinition::Block(_)
+                        | ValueDefinition::Timeline(_)
                         | ValueDefinition::Expression(_)
                         | ValueDefinition::Identifier(_) => {
                             if CommonProperty::get_common_properties().contains(&key.token_value) {
@@ -216,6 +223,12 @@ impl PaxManifest {
                 }
             }
         }
+        Self::merge_inline_timelines_with_timeline_blocks(
+            &mut map,
+            &tnd.settings,
+            &component.timelines,
+        );
+        map.retain(|key, _| CommonProperty::get_common_properties().contains(key));
         map
     }
 
@@ -279,6 +292,158 @@ impl PaxManifest {
             }
             (!merged_setting.is_empty()).then(|| merged_setting)
         })
+    }
+
+    fn has_inline_property(
+        inline_settings: &Option<Vec<SettingElement>>,
+        property_name: &str,
+    ) -> bool {
+        inline_settings
+            .as_ref()
+            .map(|settings| {
+                settings.iter().any(|setting| match setting {
+                    SettingElement::Setting(token, _) => token.token_value == property_name,
+                    SettingElement::Comment(_) => false,
+                })
+            })
+            .unwrap_or(false)
+    }
+
+    fn timeline_target_matches_node(target: &str, classes: &[String], ids: &[String]) -> bool {
+        if let Some(class) = target.strip_prefix('.') {
+            return classes.iter().any(|candidate| candidate == class);
+        }
+        if let Some(id) = target.strip_prefix('#') {
+            return ids.iter().any(|candidate| candidate == id);
+        }
+        false
+    }
+
+    fn timeline_target_is_local(target: &str) -> bool {
+        matches!(target, "self" | "this")
+    }
+
+    fn timeline_label(timeline_definition: &TimelineDefinition, ordinal: usize) -> String {
+        timeline_definition
+            .name
+            .as_ref()
+            .map(|token| token.token_value.clone())
+            .unwrap_or_else(|| format!("#{}", ordinal + 1))
+    }
+
+    fn merge_timeline_track_into_map(
+        map: &mut BTreeMap<String, ValueDefinition>,
+        base_map: &BTreeMap<String, ValueDefinition>,
+        timeline_definition: &TimelineDefinition,
+        timeline_ordinal: usize,
+        property_name: &str,
+        track: &crate::TimelineTrackDefinition,
+        use_local_property_scope: bool,
+    ) {
+        let mut track = track.clone();
+        if track.frames.is_none() {
+            track.frames = timeline_definition.frames;
+        }
+        if track.repeat.is_none() {
+            track.repeat = Some(timeline_definition.repeat);
+        }
+        if track.playhead.is_none() {
+            track.playhead = timeline_definition.playhead.clone().map(Box::new);
+        }
+        if track.starting_value.is_none() {
+            track.starting_value = base_map.get(property_name).cloned().map(Box::new);
+        }
+        track.use_local_property_scope = use_local_property_scope;
+
+        if let Some(ValueDefinition::Timeline(existing_track)) = map.get(property_name) {
+            let winner = Self::timeline_label(timeline_definition, timeline_ordinal);
+            log::warn!(
+                "timeline conflict on property '{}'; later timeline '{}' overrides an earlier timeline",
+                property_name,
+                winner,
+            );
+            if existing_track.use_local_property_scope && !track.use_local_property_scope {
+                track.use_local_property_scope = false;
+            }
+        }
+
+        map.insert(property_name.to_string(), ValueDefinition::Timeline(track));
+    }
+
+    fn merge_inline_timelines_with_timeline_blocks(
+        map: &mut BTreeMap<String, ValueDefinition>,
+        inline_settings: &Option<Vec<SettingElement>>,
+        timelines: &[TimelineDefinition],
+    ) {
+        let base_map = map.clone();
+        let ids = Self::pull_matched_identifiers_from_inline(inline_settings, "id".to_string());
+        let classes =
+            Self::pull_matched_identifiers_from_inline(inline_settings, "class".to_string());
+        if ids.len() > 1 {
+            panic!("Specified more than one id inline!");
+        }
+
+        for (timeline_ordinal, timeline_definition) in timelines.iter().enumerate() {
+            for timeline_value in timeline_definition.elements.iter() {
+                if let TimelineBlockElement::SelectorBlock(token, value) = timeline_value {
+                    if !Self::timeline_target_matches_node(&token.token_value, &classes, &ids) {
+                        continue;
+                    }
+
+                    for element in value.elements.iter() {
+                        if let TimelineSelectorElement::Track(property, track) = element {
+                            if Self::has_inline_property(inline_settings, &property.token_value) {
+                                continue;
+                            }
+                            Self::merge_timeline_track_into_map(
+                                map,
+                                &base_map,
+                                timeline_definition,
+                                timeline_ordinal,
+                                &property.token_value,
+                                track,
+                                false,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn merge_component_self_timelines_with_properties(
+        &self,
+        component_type_id: &TypeId,
+        map: &mut BTreeMap<String, ValueDefinition>,
+    ) {
+        let Some(component) = self.components.get(component_type_id) else {
+            return;
+        };
+
+        let base_map = map.clone();
+        for (timeline_ordinal, timeline_definition) in component.timelines.iter().enumerate() {
+            for timeline_value in timeline_definition.elements.iter() {
+                if let TimelineBlockElement::SelectorBlock(token, value) = timeline_value {
+                    if !Self::timeline_target_is_local(&token.token_value) {
+                        continue;
+                    }
+
+                    for element in value.elements.iter() {
+                        if let TimelineSelectorElement::Track(property, track) = element {
+                            Self::merge_timeline_track_into_map(
+                                map,
+                                &base_map,
+                                timeline_definition,
+                                timeline_ordinal,
+                                &property.token_value,
+                                track,
+                                true,
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 
     pub fn merge_inline_settings_with_settings_block(

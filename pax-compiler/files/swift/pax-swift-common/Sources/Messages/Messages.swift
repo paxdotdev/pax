@@ -458,6 +458,7 @@ public class TextElement: NativeMaskableElement {
     public var zIndex: Int
     public var content: String
     public var editable: Bool
+    public var clip: Bool
     public var transform: [Float]
     public var size_x: Float
     public var size_y: Float
@@ -469,13 +470,14 @@ public class TextElement: NativeMaskableElement {
     public var lastMeasuredSize: CGSize?
     public var nativeMaskPatch: NativeMaskPatch? = nil
     
-    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, content: String, editable: Bool, transform: [Float], size_x: Float, size_y: Float, opacity: Double, textStyle: TextStyle, selectable: Bool, markdown: Bool, style_link: TextStyle?, lastMeasuredSize: CGSize? = nil) {
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, content: String, editable: Bool, clip: Bool, transform: [Float], size_x: Float, size_y: Float, opacity: Double, textStyle: TextStyle, selectable: Bool, markdown: Bool, style_link: TextStyle?, lastMeasuredSize: CGSize? = nil) {
         self.id = id
         self.parentFrame = parentFrame
         self.occlusionLayerId = occlusionLayerId
         self.zIndex = zIndex
         self.content = content
         self.editable = editable
+        self.clip = clip
         self.transform = transform
         self.size_x = size_x
         self.size_y = size_y
@@ -489,7 +491,7 @@ public class TextElement: NativeMaskableElement {
     
     public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> TextElement {
         let defaultTextStyle = TextStyle(font: PaxFont.makeDefault(), fill: Color(.black), alignmentMultiline: .leading, alignment: .topLeading, font_size: 5.0, underline: false)
-        return TextElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, content: "", editable: false, transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, opacity: 1.0, textStyle: defaultTextStyle, selectable: false, markdown: false, style_link: nil)
+        return TextElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, content: "", editable: false, clip: false, transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, opacity: 1.0, textStyle: defaultTextStyle, selectable: false, markdown: false, style_link: nil)
     }
     
     public func applyPatch(patch: TextUpdatePatch) {
@@ -500,6 +502,9 @@ public class TextElement: NativeMaskableElement {
         }
         if let editable = patch.editable {
             self.editable = editable
+        }
+        if let clip = patch.clip {
+            self.clip = clip
         }
         if let transform = patch.transform {
             self.transform = transform
@@ -720,6 +725,7 @@ public class TextUpdatePatch {
     public var opacity: Double?
     public var editable: Bool?
     public var selectable: Bool?
+    public var clip: Bool?
     public var markdown: Bool?
     public var style: TextStyleMessage?
     public var style_link: TextStyleMessage?
@@ -734,6 +740,7 @@ public class TextUpdatePatch {
         self.opacity = readDouble(fb["opacity"])
         self.editable = fb["editable"]?.asBool
         self.selectable = fb["selectable"]?.asBool
+        self.clip = fb["clip"]?.asBool
         self.markdown = fb["markdown"]?.asBool
         
         if let styleBuffer = fb["style"], !styleBuffer.isNull {

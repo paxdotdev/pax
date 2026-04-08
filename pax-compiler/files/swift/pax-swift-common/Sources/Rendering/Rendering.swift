@@ -277,20 +277,20 @@ private func platformColor(_ color: Color) -> UIColor {
     UIColor(color)
 }
 
-private func alignedTextLayerFrame(containerSize: CGSize, measuredTextSize: CGSize, alignment: Alignment) -> CGRect {
+private func alignedTextLayerFrame(containerSize: CGSize, measuredTextSize: CGSize, alignment: Alignment, clip: Bool) -> CGRect {
     let width = max(containerSize.width, 1)
     let clampedTextHeight = max(measuredTextSize.height, 1)
     let y: CGFloat
     switch alignment.vertical {
     case .center:
-        y = max((containerSize.height - clampedTextHeight) * 0.5, 0)
+        y = clip ? max((containerSize.height - clampedTextHeight) * 0.5, 0) : (containerSize.height - clampedTextHeight) * 0.5
     case .bottom:
-        y = max(containerSize.height - clampedTextHeight, 0)
+        y = clip ? max(containerSize.height - clampedTextHeight, 0) : containerSize.height - clampedTextHeight
     default:
         y = 0
     }
-    let remainingHeight = max(containerSize.height - y, 1)
-    return CGRect(x: 0, y: y, width: width, height: min(clampedTextHeight, remainingHeight))
+    let height = clip ? min(clampedTextHeight, max(containerSize.height - y, 1)) : clampedTextHeight
+    return CGRect(x: 0, y: y, width: width, height: height)
 }
 
 private func platformLayerTextAlignment(_ alignment: Alignment) -> CATextLayerAlignmentMode {
@@ -330,20 +330,20 @@ private func platformColor(_ color: Color) -> NSColor {
     NSColor(color)
 }
 
-private func alignedTextLayerFrame(containerSize: CGSize, measuredTextSize: CGSize, alignment: Alignment) -> CGRect {
+private func alignedTextLayerFrame(containerSize: CGSize, measuredTextSize: CGSize, alignment: Alignment, clip: Bool) -> CGRect {
     let width = max(containerSize.width, 1)
     let clampedTextHeight = max(measuredTextSize.height, 1)
     let y: CGFloat
     switch alignment.vertical {
     case .center:
-        y = max((containerSize.height - clampedTextHeight) * 0.5, 0)
+        y = clip ? max((containerSize.height - clampedTextHeight) * 0.5, 0) : (containerSize.height - clampedTextHeight) * 0.5
     case .bottom:
-        y = max(containerSize.height - clampedTextHeight, 0)
+        y = clip ? max(containerSize.height - clampedTextHeight, 0) : containerSize.height - clampedTextHeight
     default:
         y = 0
     }
-    let remainingHeight = max(containerSize.height - y, 1)
-    return CGRect(x: 0, y: y, width: width, height: min(clampedTextHeight, remainingHeight))
+    let height = clip ? min(clampedTextHeight, max(containerSize.height - y, 1)) : clampedTextHeight
+    return CGRect(x: 0, y: y, width: width, height: height)
 }
 
 private func platformTextAlignment(_ alignment: TextAlignment) -> NSTextAlignment {
@@ -415,7 +415,10 @@ public struct NativeRenderingLayer: View {
                 if element.editable {
                     return "text-editable"
                 }
-                if element.selectable {
+                // Unclipped selectable text stays on the static text layer. Native text views
+                // impose their own clip region, so we only switch view types when clipping or
+                // editing semantics require it.
+                if element.selectable && element.clip {
                     return "text-selectable"
                 }
                 return "text-static"
@@ -449,6 +452,7 @@ public struct NativeRenderingLayer: View {
                 hasher.combine(element.content)
                 hasher.combine(element.editable)
                 hasher.combine(element.selectable)
+                hasher.combine(element.clip)
                 hasher.combine(element.markdown)
                 combineTextStyle(element.textStyle, into: &hasher)
                 if let styleLink = element.style_link {
@@ -1599,10 +1603,13 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
         super.init(frame: frame)
         backgroundColor = .clear
         isOpaque = false
+        clipsToBounds = false
+        layer.masksToBounds = false
 
         staticTextLayer.frame = bounds
         staticTextLayer.isWrapped = true
         staticTextLayer.truncationMode = .none
+        staticTextLayer.masksToBounds = false
         staticTextLayer.contentsScale = UIScreen.main.scale
         layer.addSublayer(staticTextLayer)
 
@@ -1610,6 +1617,8 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
         selectableView.autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
         selectableView.backgroundColor = .clear
         selectableView.isScrollEnabled = false
+        selectableView.clipsToBounds = false
+        selectableView.layer.masksToBounds = false
         selectableView.textContainerInset = .zero
         selectableView.textContainer.lineFragmentPadding = 0
         selectableView.delegate = self
@@ -1621,7 +1630,14 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
     }
 
     func apply(element: TextElement, size: CGSize) {
-        let useSelectableView = element.selectable || element.editable
+        clipsToBounds = element.clip
+        layer.masksToBounds = element.clip
+        selectableView.clipsToBounds = element.clip
+        selectableView.layer.masksToBounds = element.clip
+        staticTextLayer.masksToBounds = element.clip
+        // When clip=false, prefer the static text layer even for selectable text so descenders and
+        // other overflow can render outside the frame. Editing still requires the native text view.
+        let useSelectableView = element.editable || (element.selectable && element.clip)
         if useSelectableView != usingSelectableView {
             if useSelectableView {
                 staticTextLayer.isHidden = true
@@ -1641,7 +1657,7 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
         let attr = NSAttributedString(nativeAttributedString(for: element))
         let measurementConstraint = CGSize(
             width: element.size_x >= 0 ? size.width : CGFloat.greatestFiniteMagnitude,
-            height: element.size_y >= 0 ? size.height : CGFloat.greatestFiniteMagnitude
+            height: (element.size_y >= 0 && element.clip) ? size.height : CGFloat.greatestFiniteMagnitude
         )
         if useSelectableView {
             editableNodeId = element.id
@@ -1653,8 +1669,20 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
             selectableView.textAlignment = platformTextAlignment(element.textStyle.alignmentMultiline)
             selectableView.isEditable = element.editable
             selectableView.isSelectable = element.selectable || element.editable
-            selectableView.textContainer.size = size
-            reportMeasuredTextSizeIfNeeded(selectableView.sizeThatFits(measurementConstraint), for: element)
+            selectableView.textContainer.size = CGSize(
+                width: size.width,
+                height: element.clip ? size.height : CGFloat.greatestFiniteMagnitude
+            )
+            let measured = selectableView.sizeThatFits(measurementConstraint)
+            let alignedFrame = alignedTextLayerFrame(
+                containerSize: size,
+                measuredTextSize: measured,
+                alignment: element.textStyle.alignment,
+                clip: element.clip
+            )
+            selectableView.frame = alignedFrame
+            selectableView.bounds = CGRect(origin: .zero, size: alignedFrame.size)
+            reportMeasuredTextSizeIfNeeded(measured, for: element)
         } else {
             let mutable = NSMutableAttributedString(attributedString: attr)
             let fullRange = NSRange(location: 0, length: mutable.length)
@@ -1679,7 +1707,8 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
             staticTextLayer.frame = alignedTextLayerFrame(
                 containerSize: size,
                 measuredTextSize: measured,
-                alignment: element.textStyle.alignment
+                alignment: element.textStyle.alignment,
+                clip: element.clip
             )
             reportMeasuredTextSizeIfNeeded(measured, for: element)
         }
@@ -2034,9 +2063,11 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
+        layer?.masksToBounds = false
         staticTextLayer.frame = bounds
         staticTextLayer.isWrapped = true
         staticTextLayer.truncationMode = .none
+        staticTextLayer.masksToBounds = false
         staticTextLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 1.0
         layer?.addSublayer(staticTextLayer)
 
@@ -2047,6 +2078,8 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
         scrollView.documentView = textView
+        scrollView.wantsLayer = true
+        scrollView.layer?.masksToBounds = false
 
         textView.drawsBackground = false
         textView.isEditable = false
@@ -2057,6 +2090,8 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
         textView.isVerticallyResizable = false
         textView.isHorizontallyResizable = false
         textView.textContainer?.widthTracksTextView = true
+        textView.wantsLayer = true
+        textView.layer?.masksToBounds = false
     }
 
     required init?(coder: NSCoder) {
@@ -2064,7 +2099,13 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
     }
 
     func apply(element: TextElement, size: CGSize) {
-        let useTextView = element.selectable || element.editable
+        layer?.masksToBounds = element.clip
+        scrollView.layer?.masksToBounds = element.clip
+        textView.layer?.masksToBounds = element.clip
+        staticTextLayer.masksToBounds = element.clip
+        // When clip=false, prefer the static text layer even for selectable text so descenders and
+        // other overflow can render outside the frame. Editing still requires the native text view.
+        let useTextView = element.editable || (element.selectable && element.clip)
         if useTextView != usingTextView {
             if useTextView {
                 staticTextLayer.isHidden = true
@@ -2078,10 +2119,9 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
 
         let attr = NSAttributedString(nativeAttributedString(for: element))
         let rect = CGRect(origin: .zero, size: size)
-        scrollView.frame = rect
         let measurementConstraint = CGSize(
             width: element.size_x >= 0 ? size.width : CGFloat.greatestFiniteMagnitude,
-            height: element.size_y >= 0 ? size.height : CGFloat.greatestFiniteMagnitude
+            height: (element.size_y >= 0 && element.clip) ? size.height : CGFloat.greatestFiniteMagnitude
         )
         if useTextView {
             editableNodeId = element.id
@@ -2093,8 +2133,22 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
             textView.alignment = platformTextAlignment(element.textStyle.alignmentMultiline)
             textView.isEditable = element.editable
             textView.isSelectable = element.selectable || element.editable
-            textView.frame = rect
-            reportMeasuredTextSizeIfNeeded(textView.fittingSize, for: element)
+            textView.textContainer?.containerSize = CGSize(
+                width: size.width,
+                height: element.clip ? size.height : CGFloat.greatestFiniteMagnitude
+            )
+            let measured = textView.fittingSize
+            let alignedFrame = alignedTextLayerFrame(
+                containerSize: size,
+                measuredTextSize: measured,
+                alignment: element.textStyle.alignment,
+                clip: element.clip
+            )
+            scrollView.frame = alignedFrame
+            scrollView.bounds = CGRect(origin: .zero, size: alignedFrame.size)
+            textView.frame = CGRect(origin: .zero, size: alignedFrame.size)
+            textView.bounds = CGRect(origin: .zero, size: alignedFrame.size)
+            reportMeasuredTextSizeIfNeeded(measured, for: element)
         } else {
             let mutable = NSMutableAttributedString(attributedString: attr)
             let fullRange = NSRange(location: 0, length: mutable.length)
@@ -2120,7 +2174,8 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
             staticTextLayer.frame = alignedTextLayerFrame(
                 containerSize: size,
                 measuredTextSize: measured,
-                alignment: element.textStyle.alignment
+                alignment: element.textStyle.alignment,
+                clip: element.clip
             )
             reportMeasuredTextSizeIfNeeded(measured, for: element)
         }
@@ -2244,9 +2299,29 @@ private final class PaxNativeDropdownView: NSPopUpButton {
             removeAllItems()
             addItems(withTitles: element.options)
         }
+        let resolvedFont = element.style.font.getNSFont(size: element.style.font_size)
+        let resolvedTextColor = platformColor(element.style.fill)
+        let titleAttributes: [NSAttributedString.Key: Any] = [
+            .font: resolvedFont,
+            .foregroundColor: resolvedTextColor,
+        ]
+        for (index, option) in element.options.enumerated() {
+            guard index < itemArray.count else {
+                continue
+            }
+            itemArray[index].attributedTitle = NSAttributedString(
+                string: option,
+                attributes: titleAttributes
+            )
+        }
         selectItem(at: min(max(Int(element.selectedId), 0), max(numberOfItems - 1, 0)))
-        font = element.style.font.getNSFont(size: element.style.font_size)
-        contentTintColor = platformColor(element.style.fill)
+        font = resolvedFont
+        attributedTitle = selectedItem?.attributedTitle ?? NSAttributedString(
+            string: titleOfSelectedItem ?? "",
+            attributes: titleAttributes
+        )
+        contentTintColor = resolvedTextColor
+        appearance = NSAppearance(named: .aqua)
         layer?.backgroundColor = platformColor(element.background).cgColor
         layer?.cornerRadius = CGFloat(element.borderRadius)
         layer?.borderWidth = CGFloat(element.strokeWidth)

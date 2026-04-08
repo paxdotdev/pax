@@ -1,10 +1,10 @@
-use crate::helpers::{
-    wait_with_output, ASSETS_DIR_NAME, BUILD_DIR_NAME, DIR_IGNORE_LIST_WEB, INTERFACE_DIR_NAME,
-    PAX_BADGE,
-};
 use crate::dev_session::{
     self, now_ms, project_dev_dir, remove_project_active_session, write_project_active_session,
     DevSession,
+};
+use crate::helpers::{
+    wait_with_output, ASSETS_DIR_NAME, BUILD_DIR_NAME, DIR_IGNORE_LIST_WEB, INTERFACE_DIR_NAME,
+    PAX_BADGE,
 };
 use crate::{copy_dir_recursively, RunContext, RunTarget};
 
@@ -67,16 +67,23 @@ fn collect_bundle_stat(
 }
 
 fn print_web_bundle_stats(build_dest: &std::path::Path, is_release: bool) {
-    let stats_result = ["pax-cartridge_bg.wasm", "pax-cartridge.js", "pax-interface-web.js"]
-        .into_iter()
-        .zip(["wasm", "cartridge js", "interface js"])
-        .filter_map(|(filename, label)| collect_bundle_stat(build_dest, label, filename).transpose())
-        .collect::<Result<Vec<_>, _>>();
+    let stats_result = [
+        "pax-cartridge_bg.wasm",
+        "pax-cartridge.js",
+        "pax-interface-web.js",
+    ]
+    .into_iter()
+    .zip(["wasm", "cartridge js", "interface js"])
+    .filter_map(|(filename, label)| collect_bundle_stat(build_dest, label, filename).transpose())
+    .collect::<Result<Vec<_>, _>>();
 
     let stats = match stats_result {
         Ok(stats) => stats,
         Err(err) => {
-            eprintln!("{} 📦 Failed to calculate web bundle stats: {}", *PAX_BADGE, err);
+            eprintln!(
+                "{} 📦 Failed to calculate web bundle stats: {}",
+                *PAX_BADGE, err
+            );
             return;
         }
     };

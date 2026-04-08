@@ -360,21 +360,48 @@ fn pax_full_component(
         template_dependencies.push("BlankComponent".to_string());
     }
 
-    let pax_dir: Option<PathBuf> = option_env!("PAX_DIR")
+    // `PAX_DIR` is injected by `pax-cli` per project build. Read it at macro-expansion time
+    // instead of `option_env!`, because proc-macro crates are compiled once and then reused.
+    let pax_dir: Option<PathBuf> = env::var("PAX_DIR")
+        .ok()
         // The \\?\ prefix in Windows paths is the Win32 file namespace prefix.
         // Needs to be removed to properly check if start matches below.
-        .map(|v| v.trim_start_matches("\\\\?\\"))
-        .map(|e| PathBuf::from(e));
+        .map(|v| v.trim_start_matches("\\\\?\\").to_string())
+        .map(PathBuf::from);
+    let current_manifest_dir = env::var("CARGO_MANIFEST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| ".".into());
+    let needs_runtime_cartridge = is_main_component && is_root_crate();
+    let missing_cartridge_snippet = |reason: String| {
+        format!(
+            r#"#[cfg(any(feature = "web", feature = "macos", feature = "ios"))]
+compile_error!({reason:?});"#
+        )
+    };
     let cartridge_snippet = if let Some(pax_dir) = pax_dir {
-        let current_manifest_dir = env::var("CARGO_MANIFEST_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| ".".into());
         if pax_dir.starts_with(&current_manifest_dir) {
             let cartridge_path = pax_dir.join("cartridge.partial.rs");
-            fs::read_to_string(&cartridge_path).unwrap()
+            fs::read_to_string(&cartridge_path).unwrap_or_else(|err| {
+                panic!(
+                    "failed to read generated Pax cartridge snippet at {}: {}",
+                    cartridge_path.display(),
+                    err
+                )
+            })
+        } else if needs_runtime_cartridge {
+            missing_cartridge_snippet(format!(
+                "PAX_DIR ({}) does not point at the active Pax project root ({}). Build Pax apps through pax-cli so the generated cartridge can be injected into #[pax].",
+                pax_dir.display(),
+                current_manifest_dir.display()
+            ))
         } else {
             "".to_string()
         }
+    } else if needs_runtime_cartridge {
+        missing_cartridge_snippet(format!(
+            "PAX_DIR was not set while expanding #[pax] for {}. Build Pax apps through pax-cli so the generated cartridge can be injected into #[pax].",
+            current_manifest_dir.display()
+        ))
     } else {
         "".to_string()
     };

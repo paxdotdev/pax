@@ -75,7 +75,8 @@ impl InstanceNode for ImageInstance {
             ..Default::default()
         }));
 
-        let source = expanded_node.with_properties_unwrapped(|props: &mut Image| props.source.clone());
+        let source =
+            expanded_node.with_properties_unwrapped(|props: &mut Image| props.source.clone());
 
         let tab = expanded_node.transform_and_bounds.clone();
         let deps = [tab.untyped()];
@@ -172,8 +173,11 @@ impl InstanceNode for ImageInstance {
             return;
         }
 
-        if !rc.begin_node(layer_id, expanded_node.id.to_u32(), expanded_node.occlusion.get().z_index)
-        {
+        if !rc.begin_node(
+            layer_id,
+            expanded_node.id.to_u32(),
+            expanded_node.occlusion.get().z_index,
+        ) {
             return;
         }
 

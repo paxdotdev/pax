@@ -267,9 +267,7 @@ impl DesigntimeManager {
             .handle_recv(&mut self.orm)?;
         for message in privileged_agent_messages {
             if let crate::messages::AgentMessage::DevClientRequest(request) = message {
-                self.pending_dev_client_requests
-                    .borrow_mut()
-                    .push(request);
+                self.pending_dev_client_requests.borrow_mut().push(request);
             }
         }
 

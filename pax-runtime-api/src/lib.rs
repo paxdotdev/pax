@@ -899,8 +899,10 @@ impl<T: Interpolatable> TransitionManager<T> {
 
 pub enum EasingCurve {
     Linear,
+    Hold,
     InQuad,
     OutQuad,
+    InOutQuad,
     InBack,
     OutBack,
     InOutBack,
@@ -925,6 +927,13 @@ impl EasingEvaluators {
     }
     fn out_quad(t: f64) -> f64 {
         1.0 - (1.0 - t) * (1.0 - t)
+    }
+    fn in_out_quad(t: f64) -> f64 {
+        if t < 0.5 {
+            2.0 * t * t
+        } else {
+            1.0 - (-2.0 * t + 2.0).powi(2) / 2.0
+        }
     }
     fn in_back(t: f64) -> f64 {
         const C1: f64 = 1.70158;
@@ -954,8 +963,10 @@ impl EasingCurve {
     pub fn interpolate<T: Interpolatable>(&self, v0: &T, v1: &T, t: f64) -> T /*vt*/ {
         let multiplier = match self {
             EasingCurve::Linear => EasingEvaluators::linear(t),
+            EasingCurve::Hold => EasingEvaluators::none(t),
             EasingCurve::InQuad => EasingEvaluators::in_quad(t),
             EasingCurve::OutQuad => EasingEvaluators::out_quad(t),
+            EasingCurve::InOutQuad => EasingEvaluators::in_out_quad(t),
             EasingCurve::InBack => EasingEvaluators::in_back(t),
             EasingCurve::OutBack => EasingEvaluators::out_back(t),
             EasingCurve::InOutBack => EasingEvaluators::in_out_back(t),
@@ -1027,7 +1038,9 @@ impl Interpolatable for f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{EasingCurve, TransitionManager, TransitionQueueEntry};
+    use super::{
+        EasingCurve, Interpolatable, Numeric, Rotation, TransitionManager, TransitionQueueEntry,
+    };
 
     #[test]
     fn zero_duration_transition_applies_immediately() {
@@ -1073,6 +1086,35 @@ mod tests {
         assert_eq!(tm.compute_eased_value(5), Some(15.0));
         assert_eq!(tm.compute_eased_value(10), Some(20.0));
         assert_eq!(tm.compute_eased_value(11), None);
+    }
+
+    #[test]
+    fn rotation_interpolates_linearly_in_degrees() {
+        let start = Rotation::Degrees(Numeric::F64(-4.0));
+        let end = Rotation::Degrees(Numeric::F64(8.0));
+
+        let midpoint = start.interpolate(&end, 0.5);
+        assert!((midpoint.get_as_degrees() - 2.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn rotation_percent_normalizes_to_unit_interval() {
+        let rotation = Rotation::Percent(Numeric::F64(100.0));
+        assert!((rotation.to_float_0_1() - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn in_out_quad_eases_symmetrically() {
+        let start = 0.0f64;
+        let end = 10.0f64;
+
+        let first_quarter = EasingCurve::InOutQuad.interpolate(&start, &end, 0.25);
+        let midpoint = EasingCurve::InOutQuad.interpolate(&start, &end, 0.5);
+        let third_quarter = EasingCurve::InOutQuad.interpolate(&start, &end, 0.75);
+
+        assert!((first_quarter - 1.25).abs() < 0.0001);
+        assert!((midpoint - 5.0).abs() < 0.0001);
+        assert!((third_quarter - 8.75).abs() < 0.0001);
     }
 }
 
@@ -1811,8 +1853,8 @@ impl Default for Rotation {
 
 impl Interpolatable for Rotation {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
-        Self::Percent(Numeric::F64(
-            other.to_float_0_1() - self.to_float_0_1() * t / 100.0,
+        Self::Degrees(Numeric::F64(
+            self.get_as_degrees() + (other.get_as_degrees() - self.get_as_degrees()) * t,
         ))
     }
 }
@@ -1829,7 +1871,7 @@ impl Rotation {
         match self {
             Self::Radians(rad) => rad.to_float() / (std::f64::consts::PI * 2.0),
             Self::Degrees(deg) => deg.to_float() / 360.0_f64,
-            Self::Percent(per) => per.to_float(),
+            Self::Percent(per) => per.to_float() / 100.0,
         }
     }
 
@@ -2046,7 +2088,11 @@ impl Fill {
 
         positioned_stops.sort_by(|lhs, rhs| lhs.0.total_cmp(&rhs.0));
 
-        if positioned_stops.first().map(|stop| stop.0 > 0.0).unwrap_or(false) {
+        if positioned_stops
+            .first()
+            .map(|stop| stop.0 > 0.0)
+            .unwrap_or(false)
+        {
             let alpha = positioned_stops[0].1;
             positioned_stops.insert(0, (0.0, alpha));
         }
@@ -2164,12 +2210,8 @@ impl Fill {
     pub fn coverage_alpha_0_1(&self) -> f64 {
         match self {
             Fill::Solid(color) => color.alpha_0_1(),
-            Fill::LinearGradient(gradient) => {
-                Self::integrated_gradient_alpha_0_1(&gradient.stops)
-            }
-            Fill::RadialGradient(gradient) => {
-                Self::integrated_gradient_alpha_0_1(&gradient.stops)
-            }
+            Fill::LinearGradient(gradient) => Self::integrated_gradient_alpha_0_1(&gradient.stops),
+            Fill::RadialGradient(gradient) => Self::integrated_gradient_alpha_0_1(&gradient.stops),
         }
     }
 }
@@ -2196,8 +2238,14 @@ mod fill_coverage_tests {
     #[test]
     fn coverage_alpha_integrates_gradient_stops() {
         let fill = Fill::LinearGradient(LinearGradient {
-            start: (Size::Percent(Numeric::F64(0.0)), Size::Percent(Numeric::F64(50.0))),
-            end: (Size::Percent(Numeric::F64(100.0)), Size::Percent(Numeric::F64(50.0))),
+            start: (
+                Size::Percent(Numeric::F64(0.0)),
+                Size::Percent(Numeric::F64(50.0)),
+            ),
+            end: (
+                Size::Percent(Numeric::F64(100.0)),
+                Size::Percent(Numeric::F64(50.0)),
+            ),
             stops: vec![
                 GradientStop::get(rgba_alpha(0), Size::Percent(Numeric::F64(0.0))),
                 GradientStop::get(rgba_alpha(255), Size::Percent(Numeric::F64(50.0))),

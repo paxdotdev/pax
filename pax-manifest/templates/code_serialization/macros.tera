@@ -26,6 +26,9 @@
     {% if vd.Block %}
         {{self::render_literal_block(lb=vd.Block)}}
     {% endif %}
+    {% if vd.Timeline %}
+        @timeline {{self::render_timeline_track(track=vd.Timeline)}}
+    {% endif %}
     {% if vd.Expression %}
         { {{to_pax_expression(value=vd.Expression)}} }
     {% endif %}
@@ -95,6 +98,39 @@
     }
 {% endmacro %}
 
+{% macro render_timeline_marker(marker) %}
+    {{ to_timeline_marker(value=marker) }}
+{% endmacro %}
 
+{% macro render_timeline_track(track) %}
+    {
+        {% if track.playhead %}
+            playhead: {{ self::render_value_definition(vd=track.playhead) }},
+        {% endif %}
+        {% if track.frames %}
+            frames: {{ track.frames }},
+        {% endif %}
+        {% if track.repeat == true or track.repeat == false %}
+            loop: {{ track.repeat }},
+        {% endif %}
+        {% for elem in track.elements %}
+            {% if elem.Keyframe %}
+                {{ self::render_timeline_marker(marker=elem.Keyframe.marker) }}: {{ self::render_value_definition(vd=elem.Keyframe.value) }}{% if elem.Keyframe.easing %}, {{ elem.Keyframe.easing.token_value }}{% endif %},
+            {% elif elem.Comment %}
+                {{ elem.Comment }}
+            {% endif %}
+        {% endfor %}
+    }
+{% endmacro %}
 
-
+{% macro render_timeline_selector_block(block) %}
+    {
+        {% for elem in block.elements %}
+            {% if elem.Track %}
+                {{ elem.Track.0.token_value }}: {{ self::render_timeline_track(track=elem.Track.1) }},
+            {% elif elem.Comment %}
+                {{ elem.Comment }}
+            {% endif %}
+        {% endfor %}
+    }
+{% endmacro %}

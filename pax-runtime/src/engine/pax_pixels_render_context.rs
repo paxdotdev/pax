@@ -3,7 +3,10 @@ use pax_pixels::{point, Box2D, Image, Path, Transform2D, WgpuRenderer};
 use pax_runtime_api::{Axis, RenderContext};
 use std::{cell::RefCell, collections::HashMap, future::Future, pin::Pin, rc::Rc};
 
-type LayerDef = (WgpuRenderer<'static>, Pin<Box<dyn Fn() -> LayerSurfaceSize>>);
+type LayerDef = (
+    WgpuRenderer<'static>,
+    Pin<Box<dyn Fn() -> LayerSurfaceSize>>,
+);
 
 pub struct LayerSurfaceSize {
     pub surface_width: u32,
@@ -130,7 +133,10 @@ impl RenderContext for PaxPixelsRenderer {
                 pixel_height: height as u32,
             },
         );
-        *self.image_versions.entry(identifier.to_string()).or_insert(0) += 1;
+        *self
+            .image_versions
+            .entry(identifier.to_string())
+            .or_insert(0) += 1;
     }
 
     fn draw_image(&mut self, layer: usize, image_path: &str, rect: kurbo::Rect) {
@@ -287,8 +293,10 @@ fn to_pax_pixels_fill(
             let start_y = gradient.start.1.evaluate(bounds, Axis::Y);
             let end_x = gradient.end.0.evaluate(bounds, Axis::X);
             let end_y = gradient.end.1.evaluate(bounds, Axis::Y);
-            let local_pos = pax_pixels::Point2D::new((orig.x + start_x) as f32, (orig.y + start_y) as f32);
-            let local_end = pax_pixels::Point2D::new((orig.x + end_x) as f32, (orig.y + end_y) as f32);
+            let local_pos =
+                pax_pixels::Point2D::new((orig.x + start_x) as f32, (orig.y + start_y) as f32);
+            let local_end =
+                pax_pixels::Point2D::new((orig.x + end_x) as f32, (orig.y + end_y) as f32);
             let world_pos = transform.transform_point(local_pos);
             let world_end = transform.transform_point(local_end);
             let main_axis = world_end - world_pos;
@@ -316,7 +324,8 @@ fn to_pax_pixels_fill(
             let end_x = gradient.end.0.evaluate(bounds, Axis::X);
             let end_y = gradient.end.1.evaluate(bounds, Axis::Y);
             let r = gradient.radius as f32;
-            let local_pos = pax_pixels::Point2D::new((orig.x + start_x) as f32, (orig.y + start_y) as f32);
+            let local_pos =
+                pax_pixels::Point2D::new((orig.x + start_x) as f32, (orig.y + start_y) as f32);
             let local_main_axis = pax_pixels::Vector2D::new(
                 r * (end_x - start_x) as f32,
                 r * (end_y - start_y) as f32,

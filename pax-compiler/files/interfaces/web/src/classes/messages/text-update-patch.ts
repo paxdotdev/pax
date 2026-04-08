@@ -14,6 +14,7 @@ export class TextUpdatePatch {
     public depth?: number;
     public editable?: boolean;
     public selectable?: boolean;
+    public clip?: boolean;
     public markdown?: boolean;
     objectManager: ObjectManager;
 
@@ -31,6 +32,7 @@ export class TextUpdatePatch {
         this.depth = jsonMessage["depth"];
         this.editable = jsonMessage["editable"];
         this.selectable = jsonMessage["selectable"];
+        this.clip = jsonMessage["clip"];
         this.markdown = jsonMessage["markdown"];
 
         const styleMessage = jsonMessage["style"];
@@ -59,6 +61,7 @@ export class TextUpdatePatch {
         this.style_link = undefined;
         this.editable = false;
         this.selectable = false;
+        this.clip = false;
         this.markdown = false;
     }
 }

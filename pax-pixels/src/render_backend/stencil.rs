@@ -401,7 +401,8 @@ impl StencilRenderer {
                         );
                         continue;
                     };
-                    let Some(instance_buffer) = self.cached_clip_instances.get(&entry.clip_id) else {
+                    let Some(instance_buffer) = self.cached_clip_instances.get(&entry.clip_id)
+                    else {
                         log::error!(
                             "missing cached stencil clip instance for clip {}",
                             entry.clip_id

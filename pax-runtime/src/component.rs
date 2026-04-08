@@ -22,7 +22,7 @@ use crate::{
 /// properties attached to each of Repeat's virtual nodes.
 pub struct ComponentInstance {
     pub template: InstanceNodePtrList,
-    pub timeline: Option<Rc<RefCell<Timeline>>>,
+    pub timelines: Vec<Rc<RefCell<Timeline>>>,
     base: BaseInstance,
 }
 
@@ -48,7 +48,7 @@ impl InstanceNode for ComponentInstance {
         Rc::new(ComponentInstance {
             base,
             template,
-            timeline: None,
+            timelines: vec![],
         })
     }
 

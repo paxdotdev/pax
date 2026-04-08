@@ -5,11 +5,16 @@ use crate::{
     ReusableInstanceNodeArgs, RuntimePropertiesStackFrame,
 };
 use pax_lang::Computable;
-use pax_manifest::{TypeId, ValueDefinition};
+use pax_manifest::{
+    LiteralBlockDefinition, SettingElement, TimelineKeyframe, TimelineMarker,
+    TimelineTrackDefinition, TimelineTrackElement, TypeId, ValueDefinition,
+};
 use pax_message::borrow;
 use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny};
-use pax_runtime_api::properties::PropertyValue;
-use pax_runtime_api::{use_RefCell, CommonProperties, Numeric, Property, Variable};
+use pax_runtime_api::properties::{PropertyValue, UntypedProperty};
+use pax_runtime_api::{
+    use_RefCell, CommonProperties, EasingCurve, Numeric, PaxValue, Property, Variable,
+};
 use serde::de::DeserializeOwned;
 use std::borrow::Borrow;
 use std::collections::{BTreeMap, HashMap};
@@ -75,7 +80,7 @@ pub trait DefinitionToInstanceTraverser {
             .get_component_factory(&type_id)
             .expect(&format!("No component factory for type: {}", type_id));
         let prototypical_common_properties_factory = factory.build_default_common_properties();
-        let prototypical_properties_factory = factory.build_default_properties();
+        let mut prototypical_properties_factory = factory.build_default_properties();
 
         // pull handlers for this component
         let handlers = manifest.get_component_handlers(type_id);
@@ -100,6 +105,16 @@ pub trait DefinitionToInstanceTraverser {
                 }
             }
             component_template = Some(RefCell::new(instances));
+        }
+
+        let mut component_self_timeline_properties = BTreeMap::new();
+        manifest.merge_component_self_timelines_with_properties(
+            type_id,
+            &mut component_self_timeline_properties,
+        );
+        if !component_self_timeline_properties.is_empty() {
+            prototypical_properties_factory =
+                factory.build_inline_properties(component_self_timeline_properties);
         }
 
         crate::rendering::InstantiationArgs {
@@ -531,7 +546,10 @@ pub trait DefinitionToInstanceTraverser {
         }
 
         // update properties from tnd
-        let inline_properties = manifest.get_inline_properties(containing_component_type_id, node);
+        let mut inline_properties =
+            manifest.get_inline_properties(containing_component_type_id, node);
+        manifest
+            .merge_component_self_timelines_with_properties(&node.type_id, &mut inline_properties);
         let updated_properties =
             node_component_factory.build_inline_properties(inline_properties.clone());
         args.prototypical_properties_factory = updated_properties;
@@ -633,6 +651,9 @@ fn resolve_property<T: CoercionRules + PropertyValue + DeserializeOwned>(
             });
             Property::new_with_name(Some(val), name)
         }
+        pax_manifest::ValueDefinition::Timeline(track) => {
+            build_timeline_property(name, &track, cloned_stack.clone())
+        }
         pax_manifest::ValueDefinition::DoubleBinding(identifier) => {
             let untyped_property =
                 if let Some(p) = stack.resolve_symbol_as_erased_property(&identifier.name) {
@@ -692,6 +713,465 @@ fn resolve_property<T: CoercionRules + PropertyValue + DeserializeOwned>(
         _ => unreachable!("Invalid value definition for {}", stringify!($prop_name)),
     };
     resolved_property
+}
+
+fn collect_value_definition_dependencies(
+    value_definition: &ValueDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+    dependents: &mut Vec<UntypedProperty>,
+) {
+    match value_definition {
+        ValueDefinition::Expression(info) => {
+            for dependency in &info.dependencies {
+                if let Some(property) = stack.resolve_symbol_as_erased_property(dependency) {
+                    dependents.push(property);
+                }
+            }
+        }
+        ValueDefinition::Identifier(identifier) | ValueDefinition::DoubleBinding(identifier) => {
+            if let Some(property) = stack.resolve_symbol_as_erased_property(&identifier.name) {
+                dependents.push(property);
+            }
+        }
+        ValueDefinition::Block(block) => {
+            for element in &block.elements {
+                if let SettingElement::Setting(_, value_definition) = element {
+                    collect_value_definition_dependencies(value_definition, stack, dependents);
+                }
+            }
+        }
+        ValueDefinition::Timeline(track) => {
+            if let Some(playhead) = &track.playhead {
+                collect_value_definition_dependencies(playhead, stack, dependents);
+            } else if let Some(property) =
+                stack.resolve_symbol_as_erased_property("$frames_elapsed")
+            {
+                dependents.push(property);
+            }
+            if let Some(starting_value) = &track.starting_value {
+                collect_value_definition_dependencies(starting_value, stack, dependents);
+            }
+            for element in &track.elements {
+                if let TimelineTrackElement::Keyframe(keyframe) = element {
+                    collect_value_definition_dependencies(&keyframe.value, stack, dependents);
+                }
+            }
+        }
+        ValueDefinition::LiteralValue(_)
+        | ValueDefinition::EventBindingTarget(_)
+        | ValueDefinition::Undefined => {}
+    }
+}
+
+fn evaluate_literal_block_to_pax_value(
+    block: &LiteralBlockDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+) -> Option<PaxValue> {
+    let mut values = Vec::new();
+    for element in &block.elements {
+        if let SettingElement::Setting(token, value_definition) = element {
+            let value = evaluate_value_definition_to_pax_value(value_definition, stack)?;
+            values.push((token.token_value.clone(), value));
+        }
+    }
+    Some(PaxValue::Object(values))
+}
+
+fn evaluate_value_definition_to_pax_value(
+    value_definition: &ValueDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+) -> Option<PaxValue> {
+    match value_definition {
+        ValueDefinition::LiteralValue(value) => Some(value.clone()),
+        ValueDefinition::Block(block) => evaluate_literal_block_to_pax_value(block, stack),
+        ValueDefinition::Expression(info) => info.expression.compute(stack.clone()).ok(),
+        ValueDefinition::Identifier(identifier) | ValueDefinition::DoubleBinding(identifier) => {
+            stack
+                .resolve_symbol_as_variable(&identifier.name)
+                .map(|variable| variable.get_as_pax_value())
+        }
+        ValueDefinition::Timeline(_) => None,
+        ValueDefinition::EventBindingTarget(_) | ValueDefinition::Undefined => None,
+    }
+}
+
+fn easing_curve_from_name(name: Option<&str>) -> EasingCurve {
+    match name {
+        Some("Linear") | None => EasingCurve::Linear,
+        Some("Hold") => EasingCurve::Hold,
+        Some("InQuad") => EasingCurve::InQuad,
+        Some("OutQuad") => EasingCurve::OutQuad,
+        Some("InOutQuad") => EasingCurve::InOutQuad,
+        Some("InBack") => EasingCurve::InBack,
+        Some("OutBack") => EasingCurve::OutBack,
+        Some("InOutBack") => EasingCurve::InOutBack,
+        Some(other) => {
+            log::warn!("Unknown easing curve '{}', defaulting to Linear", other);
+            EasingCurve::Linear
+        }
+    }
+}
+
+fn timeline_total_frames(track: &TimelineTrackDefinition) -> f64 {
+    let mut max_frame = track.frames.unwrap_or_default() as f64;
+    let mut uses_percent_markers = false;
+
+    for keyframe in track.keyframes() {
+        match keyframe.marker {
+            TimelineMarker::Frame(frame) => max_frame = max_frame.max(frame as f64),
+            TimelineMarker::Percent(_) => uses_percent_markers = true,
+        }
+    }
+
+    if uses_percent_markers {
+        max_frame.max(track.frames.unwrap_or(100) as f64)
+    } else {
+        max_frame
+    }
+}
+
+fn timeline_marker_to_frame(marker: &TimelineMarker, total_frames: f64) -> f64 {
+    match marker {
+        TimelineMarker::Frame(frame) => *frame as f64,
+        TimelineMarker::Percent(percent) => total_frames * (*percent / 100.0),
+    }
+}
+
+fn coerce_timeline_value<T: CoercionRules + PropertyValue>(
+    value_definition: &ValueDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+) -> Option<T> {
+    let value = evaluate_value_definition_to_pax_value(value_definition, stack)?;
+    T::try_coerce(value).ok()
+}
+
+fn loop_target_value<T: CoercionRules + PropertyValue>(
+    track: &TimelineTrackDefinition,
+    first_keyframe: &ResolvedTimelineKeyframe<T>,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+) -> T {
+    if first_keyframe.frame == 0.0 {
+        first_keyframe.value.clone()
+    } else {
+        track
+            .starting_value
+            .as_ref()
+            .and_then(|value| coerce_timeline_value(value, stack))
+            .unwrap_or_else(|| first_keyframe.value.clone())
+    }
+}
+
+struct ResolvedTimelineKeyframe<T> {
+    frame: f64,
+    value: T,
+    easing: Option<String>,
+}
+
+fn sample_timeline_playhead(
+    track: &TimelineTrackDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+    total_frames: f64,
+) -> f64 {
+    let raw_playhead = track
+        .playhead
+        .as_ref()
+        .and_then(|playhead| evaluate_value_definition_to_pax_value(playhead, stack))
+        .and_then(|value| Numeric::try_coerce(value).ok())
+        .map(|value| value.to_float())
+        .or_else(|| {
+            stack
+                .resolve_symbol_as_variable("$frames_elapsed")
+                .and_then(|variable| {
+                    Numeric::try_coerce(variable.get_as_pax_value())
+                        .ok()
+                        .map(|value| value.to_float())
+                })
+        })
+        .unwrap_or_default();
+
+    let repeat = track.repeat.unwrap_or(true);
+    if !repeat {
+        return raw_playhead.clamp(0.0, total_frames.max(0.0));
+    }
+
+    let cycle_len = (total_frames + 1.0).max(1.0);
+    raw_playhead.rem_euclid(cycle_len)
+}
+
+fn sample_timeline_track<T: CoercionRules + PropertyValue>(
+    track: &TimelineTrackDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+) -> Option<T> {
+    let total_frames = timeline_total_frames(track);
+    let repeat = track.repeat.unwrap_or(true);
+    let sample_frame = sample_timeline_playhead(track, stack, total_frames);
+
+    let mut resolved_keyframes: Vec<ResolvedTimelineKeyframe<T>> = track
+        .keyframes()
+        .filter_map(|keyframe: &TimelineKeyframe| {
+            Some(ResolvedTimelineKeyframe {
+                frame: timeline_marker_to_frame(&keyframe.marker, total_frames),
+                value: coerce_timeline_value(&keyframe.value, stack)?,
+                easing: keyframe
+                    .easing
+                    .as_ref()
+                    .map(|token| token.token_value.clone()),
+            })
+        })
+        .collect();
+
+    resolved_keyframes.sort_by(|lhs, rhs| {
+        lhs.frame
+            .partial_cmp(&rhs.frame)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let first_keyframe = resolved_keyframes.first()?;
+
+    if sample_frame < first_keyframe.frame {
+        return track
+            .starting_value
+            .as_ref()
+            .and_then(|value| coerce_timeline_value(value, stack))
+            .or_else(|| Some(first_keyframe.value.clone()));
+    }
+
+    for keyframes in resolved_keyframes.windows(2) {
+        let current = &keyframes[0];
+        let next = &keyframes[1];
+        if sample_frame <= next.frame {
+            if sample_frame <= current.frame {
+                return Some(current.value.clone());
+            }
+            let span = next.frame - current.frame;
+            if span <= f64::EPSILON {
+                return Some(next.value.clone());
+            }
+            let progress = (sample_frame - current.frame) / span;
+            let curve = easing_curve_from_name(current.easing.as_deref());
+            return Some(curve.interpolate(&current.value, &next.value, progress));
+        }
+    }
+
+    let last_keyframe = resolved_keyframes.last()?;
+    if sample_frame <= last_keyframe.frame || !repeat || total_frames <= last_keyframe.frame {
+        return Some(last_keyframe.value.clone());
+    }
+
+    let loop_target = loop_target_value(track, first_keyframe, stack);
+    let span = total_frames - last_keyframe.frame;
+    if span <= f64::EPSILON {
+        return Some(loop_target);
+    }
+    let progress = (sample_frame - last_keyframe.frame) / span;
+    let curve = easing_curve_from_name(last_keyframe.easing.as_deref());
+    Some(curve.interpolate(&last_keyframe.value, &loop_target, progress))
+}
+
+pub fn build_timeline_property<T: CoercionRules + PropertyValue>(
+    name: &str,
+    track: &TimelineTrackDefinition,
+    stack: Rc<RuntimePropertiesStackFrame>,
+) -> Property<T> {
+    let mut dependents = Vec::new();
+    if let Some(playhead) = &track.playhead {
+        collect_value_definition_dependencies(playhead, &stack, &mut dependents);
+    } else if let Some(property) = stack.resolve_symbol_as_erased_property("$frames_elapsed") {
+        dependents.push(property);
+    }
+    if let Some(starting_value) = &track.starting_value {
+        collect_value_definition_dependencies(starting_value, &stack, &mut dependents);
+    }
+    for element in &track.elements {
+        if let TimelineTrackElement::Keyframe(keyframe) = element {
+            collect_value_definition_dependencies(&keyframe.value, &stack, &mut dependents);
+        }
+    }
+
+    let cloned_stack = stack.clone();
+    let cloned_track = track.clone();
+    Property::computed_with_name(
+        move || sample_timeline_track(&cloned_track, &cloned_stack).unwrap_or_default(),
+        &dependents,
+        name,
+    )
+}
+
+#[cfg(test)]
+mod timeline_tests {
+    use super::build_timeline_property;
+    use crate::RuntimePropertiesStackFrame;
+    use pax_manifest::{
+        TimelineKeyframe, TimelineMarker, TimelineTrackDefinition, TimelineTrackElement, Token,
+        ValueDefinition,
+    };
+    use pax_runtime_api::{PaxValue, Property, Variable};
+    use std::collections::HashMap;
+    use std::rc::Rc;
+
+    fn build_stack(frames_elapsed: &Property<u64>) -> Rc<RuntimePropertiesStackFrame> {
+        let scope: HashMap<String, Variable> = vec![(
+            "$frames_elapsed".to_string(),
+            Variable::new_from_typed_property(frames_elapsed.clone()),
+        )]
+        .into_iter()
+        .collect();
+        RuntimePropertiesStackFrame::new(scope)
+    }
+
+    #[test]
+    fn timeline_property_loops_over_declared_frame_range() {
+        let frames_elapsed = Property::new(0_u64);
+        let stack = build_stack(&frames_elapsed);
+        let track = TimelineTrackDefinition {
+            elements: vec![
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(0),
+                    value: ValueDefinition::LiteralValue(PaxValue::Numeric(0.0.into())),
+                    easing: Some(Token::new_without_location("Linear".to_string())),
+                }),
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(100),
+                    value: ValueDefinition::LiteralValue(PaxValue::Numeric(100.0.into())),
+                    easing: None,
+                }),
+            ],
+            playhead: None,
+            frames: Some(100),
+            repeat: Some(true),
+            starting_value: None,
+            use_local_property_scope: false,
+        };
+        let property = build_timeline_property::<f64>("progress", &track, stack);
+
+        assert_eq!(property.get(), 0.0);
+        frames_elapsed.set(50);
+        assert_eq!(property.get(), 50.0);
+        frames_elapsed.set(100);
+        assert_eq!(property.get(), 100.0);
+        frames_elapsed.set(101);
+        assert_eq!(property.get(), 0.0);
+    }
+
+    #[test]
+    fn timeline_property_holds_starting_value_before_first_keyframe() {
+        let frames_elapsed = Property::new(0_u64);
+        let stack = build_stack(&frames_elapsed);
+        let track = TimelineTrackDefinition {
+            elements: vec![
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(50),
+                    value: ValueDefinition::LiteralValue(PaxValue::Numeric(10.0.into())),
+                    easing: Some(Token::new_without_location("Linear".to_string())),
+                }),
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(100),
+                    value: ValueDefinition::LiteralValue(PaxValue::Numeric(0.0.into())),
+                    easing: None,
+                }),
+            ],
+            playhead: None,
+            frames: Some(100),
+            repeat: Some(false),
+            starting_value: Some(Box::new(ValueDefinition::LiteralValue(PaxValue::Numeric(
+                5.0.into(),
+            )))),
+            use_local_property_scope: false,
+        };
+        let property = build_timeline_property::<f64>("progress", &track, stack);
+
+        assert_eq!(property.get(), 5.0);
+        frames_elapsed.set(25);
+        assert_eq!(property.get(), 5.0);
+        frames_elapsed.set(75);
+        assert_eq!(property.get(), 5.0);
+        frames_elapsed.set(100);
+        assert_eq!(property.get(), 0.0);
+    }
+
+    #[test]
+    fn timeline_property_interpolates_rotation_tracks() {
+        let frames_elapsed = Property::new(0_u64);
+        let stack = build_stack(&frames_elapsed);
+        let track = TimelineTrackDefinition {
+            elements: vec![
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(0),
+                    value: ValueDefinition::LiteralValue(PaxValue::Rotation(
+                        pax_runtime_api::Rotation::Degrees((-4.0).into()),
+                    )),
+                    easing: Some(Token::new_without_location("Linear".to_string())),
+                }),
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(100),
+                    value: ValueDefinition::LiteralValue(PaxValue::Rotation(
+                        pax_runtime_api::Rotation::Degrees(8.0.into()),
+                    )),
+                    easing: None,
+                }),
+            ],
+            playhead: None,
+            frames: Some(100),
+            repeat: Some(true),
+            starting_value: None,
+            use_local_property_scope: false,
+        };
+        let property =
+            build_timeline_property::<pax_runtime_api::Rotation>("rotate", &track, stack);
+
+        assert!((property.get().get_as_degrees() - (-4.0)).abs() < 0.0001);
+        frames_elapsed.set(50);
+        assert!((property.get().get_as_degrees() - 2.0).abs() < 0.0001);
+        frames_elapsed.set(100);
+        assert!((property.get().get_as_degrees() - 8.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn timeline_property_samples_from_bound_playhead_property() {
+        let frames_elapsed = Property::new(0_u64);
+        let playhead = Property::new(0.0_f64);
+        let scope: HashMap<String, Variable> = vec![
+            (
+                "$frames_elapsed".to_string(),
+                Variable::new_from_typed_property(frames_elapsed.clone()),
+            ),
+            (
+                "phase".to_string(),
+                Variable::new_from_typed_property(playhead.clone()),
+            ),
+        ]
+        .into_iter()
+        .collect();
+        let stack = RuntimePropertiesStackFrame::new(scope);
+        let track = TimelineTrackDefinition {
+            elements: vec![
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(0),
+                    value: ValueDefinition::LiteralValue(PaxValue::Numeric(0.0.into())),
+                    easing: Some(Token::new_without_location("Linear".to_string())),
+                }),
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(10),
+                    value: ValueDefinition::LiteralValue(PaxValue::Numeric(10.0.into())),
+                    easing: None,
+                }),
+            ],
+            playhead: Some(Box::new(ValueDefinition::Identifier(
+                pax_manifest::PaxIdentifier::new("self.phase"),
+            ))),
+            frames: Some(10),
+            repeat: Some(false),
+            starting_value: None,
+            use_local_property_scope: false,
+        };
+        let property = build_timeline_property::<f64>("progress", &track, stack);
+
+        assert_eq!(property.get(), 0.0);
+        playhead.set(2.5);
+        assert!((property.get() - 2.5).abs() < 0.0001);
+        playhead.set(10.0);
+        assert!((property.get() - 10.0).abs() < 0.0001);
+    }
 }
 
 pub trait ComponentFactory {

@@ -349,7 +349,8 @@ impl PaxEngine {
 
         for (layer, node_id) in self.runtime_context.take_canvas_node_removals() {
             if !rcs.remove_node(layer, node_id) {
-                self.runtime_context.enqueue_canvas_node_removal(layer, node_id);
+                self.runtime_context
+                    .enqueue_canvas_node_removal(layer, node_id);
             }
         }
 

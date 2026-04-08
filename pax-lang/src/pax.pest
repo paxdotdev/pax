@@ -12,7 +12,7 @@ comment = @{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NE
 
 //A component definition requires at least one element in its template; a `@settings` block may also be included, and any future relevant blocks like `@defaults`
 //The parser will willingly _parse_ multiple @settings/@template blocks per component definition, but the compiler won't presently support them
-pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration )* ~ EOI }
+pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration | timeline_block_declaration )* ~ EOI }
 root_tag_pair = { any_tag_pair }
 any_tag_pair = _{statement_control_flow | matched_tag | self_closing_tag | comment }
 
@@ -50,7 +50,7 @@ attribute_event_binding = {event_id ~ "=" ~ literal_function}
 double_binding = {identifier ~ "=" ~ "bind" ~ ":" ~ literal_function}
 
 //`...=5.0`, `...={...}`
-any_template_value = {literal_value | expression_wrapped | identifier}
+any_template_value = {timeline_inline_value | literal_value | expression_wrapped | identifier}
 
 //For example: <Text>"This is my inner content"</Text>
 //Presumably this content can be bare literal values other than strings like Color::hlca(...)
@@ -83,7 +83,28 @@ selector = {("." | "#") ~ identifier}
 settings_key_value_pair = { (settings_key ~ settings_value) ~ silent_comma? }
 settings_event_binding = {event_id ~ ":" ~ literal_function ~ silent_comma? }
 settings_key = { identifier ~ (":" | "=") } //Offer some grace here, since our borrowing of HTML/CSS semantics means we inherit the mismatch between xml-like `=` and json-like `:`.  Let's allow both and let linters deal with cleaning up mismatches.
-settings_value = { literal_value | expression_wrapped }
+settings_value = { timeline_inline_value | literal_value | expression_wrapped }
+
+////// ////// //////
+/// BEGIN TIMELINES
+//////
+
+timeline_block_declaration = {"@" ~ "timeline" ~ identifier? ~ "{" ~ (timeline_block_setting | timeline_selector_block | comment )* ~ "}"}
+timeline_block_setting = { (settings_key ~ timeline_block_setting_value) ~ silent_comma? }
+timeline_block_setting_value = { literal_value | expression_wrapped | timeline_symbol }
+timeline_selector_block = { timeline_target ~ timeline_selector_body ~ silent_comma? }
+timeline_selector_body = { "{" ~ (timeline_property_key_value_pair | comment )* ~ "}" }
+timeline_property_key_value_pair = { (settings_key ~ timeline_track) ~ silent_comma? }
+timeline_inline_value = { "@" ~ "timeline" ~ timeline_track }
+timeline_track = { "{" ~ (timeline_block_setting | timeline_keyframe | comment )* ~ "}" }
+timeline_keyframe = { timeline_marker ~ ":" ~ timeline_keyframe_value ~ (silent_comma ~ timeline_easing_curve)? ~ silent_comma? }
+timeline_keyframe_value = { literal_value | expression_wrapped | timeline_symbol }
+timeline_marker = { timeline_percent | literal_number_integer }
+timeline_percent = { literal_number ~ "%" ~ !"%"}
+timeline_easing_curve = { pascal_identifier }
+timeline_target = { selector | timeline_local_target }
+timeline_local_target = { "self" | "this" }
+timeline_symbol = { ("self." | "this.")? ~ identifier }
 
 literal_function = { ("self." | "this.")? ~ identifier }
 silent_comma = _{","}
@@ -296,4 +317,3 @@ statement_for_predicate_declaration = {
 // in this.some_symbol..25
 // in 25..some_symbol
 statement_for_source = { xo_range | xo_symbol }
-

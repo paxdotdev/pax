@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    env,
+    time::{Duration, Instant},
 };
 
 use actix_web::{web::Data, App};
@@ -8,19 +8,34 @@ use awc::Client;
 use futures_util::SinkExt as _;
 use pax_compiler::design_server::{web_socket, AppState};
 use pax_designtime::messages::{AgentMessage, ManifestSerializationRequest};
+use pax_manifest::pax_runtime_api::PaxValue;
 use pax_manifest::{
     ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, PaxManifest,
-    SettingsBlockElement, TemplateNodeDefinition, Token, TypeId,
+    SettingsBlockElement, TemplateNodeDefinition, TimelineBlockElement, TimelineDefinition,
+    TimelineKeyframe, TimelineMarker, TimelineSelectorBlockDefinition, TimelineSelectorElement,
+    TimelineTrackDefinition, TimelineTrackElement, Token, TypeId, ValueDefinition,
 };
 use rmp_serde::to_vec;
+use tempfile::tempdir;
 
 const EXPECTED_PAX: &str = "// Hello world
 <SpecialComponent />
 
 @settings {
-    @existing_handler: handler_action,
+    @existing_handler: handler_action
     #existing_selector {
     
+    }
+}
+
+@timeline existing_timeline {
+    playhead: self.phase
+    frames: 120
+    #existing_selector {
+        progress: {
+            0: 0, Linear,
+            100%: 1,
+        }
     }
 }";
 
@@ -70,10 +85,51 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
                     LiteralBlockDefinition::new(vec![]),
                 ),
                 SettingsBlockElement::Handler(
-                    Token::new_without_location("@existing_handler".to_string()),
+                    Token::new_without_location("existing_handler".to_string()),
                     vec![Token::new_without_location("handler_action".to_string())],
                 ),
             ]),
+            timelines: vec![TimelineDefinition {
+                name: Some(Token::new_without_location("existing_timeline".to_string())),
+                playhead: Some(ValueDefinition::Identifier(
+                    pax_manifest::PaxIdentifier::new("self.phase"),
+                )),
+                frames: Some(120),
+                repeat: true,
+                elements: vec![TimelineBlockElement::SelectorBlock(
+                    Token::new_without_location("#existing_selector".to_string()),
+                    TimelineSelectorBlockDefinition {
+                        elements: vec![TimelineSelectorElement::Track(
+                            Token::new_without_location("progress".to_string()),
+                            TimelineTrackDefinition {
+                                elements: vec![
+                                    TimelineTrackElement::Keyframe(TimelineKeyframe {
+                                        marker: TimelineMarker::Frame(0),
+                                        value: ValueDefinition::LiteralValue(PaxValue::Numeric(
+                                            0.into(),
+                                        )),
+                                        easing: Some(Token::new_without_location(
+                                            "Linear".to_string(),
+                                        )),
+                                    }),
+                                    TimelineTrackElement::Keyframe(TimelineKeyframe {
+                                        marker: TimelineMarker::Percent(100.0),
+                                        value: ValueDefinition::LiteralValue(PaxValue::Numeric(
+                                            1.into(),
+                                        )),
+                                        easing: None,
+                                    }),
+                                ],
+                                playhead: None,
+                                frames: None,
+                                repeat: None,
+                                starting_value: None,
+                                use_local_property_scope: false,
+                            },
+                        )],
+                    },
+                )],
+            }],
         },
     );
 
@@ -88,9 +144,8 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
 
 #[actix_web::test]
 async fn test_manifest_serialization_request() {
-    let current_dir = env::current_dir().expect("Failed to get current directory");
-    // Join the current directory with the relative path to the output file
-    let path = current_dir.join("tests/data/manifest_serialization_test.pax");
+    let dir = tempdir().expect("failed to create temp dir");
+    let path = dir.path().join("manifest_serialization_test.pax");
     let path_str = path.to_str().expect("Path is not a valid UTF-8 string");
 
     let srv = get_test_server();
@@ -109,10 +164,26 @@ async fn test_manifest_serialization_request() {
         .await
         .unwrap();
 
-    // Check that the output file contains the expected PAX
-    let output = std::fs::read_to_string(path_str).expect("Failed to read output file");
-    assert_eq!(output, EXPECTED_PAX);
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        if let Ok(output) = std::fs::read_to_string(path_str) {
+            if output == EXPECTED_PAX {
+                break;
+            }
+        }
+
+        if Instant::now() >= deadline {
+            let output = std::fs::read_to_string(path_str).unwrap_or_default();
+            panic!(
+                "timed out waiting for manifest serialization output.\nactual:\n{output}"
+            );
+        }
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
 
     // Close the WebSocket connection
     connection.close().await.expect("Failed to close WebSocket");
+
+    dir.close().expect("failed to clean up temp dir");
 }

@@ -1,0 +1,715 @@
+<Group x=50% y=18px width=220px height=70px anchor_x=50%>
+    <Rectangle class=controller_bar x=50% y=6px width=152px height=12px anchor_x=50% />
+    <Ellipse class=controller_cap x=42px y=6px width=11px height=11px />
+    <Ellipse class=controller_cap x=167px y=6px width=11px height=11px />
+    <Rectangle class=controller_cross x=50% y=28px width=86px height=8px anchor_x=50% rotate=14deg />
+    <Rectangle class=controller_cross x=50% y=31px width=100px height=8px anchor_x=50% rotate=-13deg />
+</Group>
+
+<Group
+    x=50%
+    y={(118.0 + self.torso_shift_y)px}
+    width=220px
+    height=414px
+    anchor_x=50%
+    anchor_y=0%
+    rotate={(self.torso_rotate)deg}
+>
+    <Rectangle class=string_line x=108px y=-20px width=2px height=108px />
+    <Rectangle class=string_line x=52px y=-8px width=2px height=138px rotate=6deg />
+    <Rectangle class=string_line x=164px y=-8px width=2px height=138px rotate=-6deg />
+    <Rectangle class=string_line x=78px y=84px width=2px height=152px rotate=10deg />
+    <Rectangle class=string_line x=140px y=84px width=2px height=152px rotate=-10deg />
+
+    <Group
+        x=110px
+        y={(106.0 + self.head_shift_y)px}
+        width=88px
+        height=92px
+        anchor_x=50%
+        anchor_y=100%
+        rotate={(self.head_rotate)deg}
+    >
+        <Ellipse class=head_shape x=50% y=40px width=76px height=84px anchor_x=50% anchor_y=50% />
+        <Path class=hair_shape x=13px y=7px width=62px height=28px />
+        <Path class=brow_mark x=22px y=35px width=14px height=7px />
+        <Path class=brow_mark x=52px y=35px width=14px height=7px />
+        <Ellipse class=eye_white x=25px y=39px width=9px height=12px />
+        <Ellipse class=eye_white x=54px y=39px width=9px height=12px />
+        <Ellipse class=eye_pupil x=28px y=42px width=4px height=6px />
+        <Ellipse class=eye_pupil x=57px y=42px width=4px height=6px />
+        <Ellipse class=head_blush x=20px y=57px width=12px height=8px />
+        <Ellipse class=head_blush x=56px y=57px width=12px height=8px />
+        <Path class=nose_mark x=40px y=52px width=8px height=9px />
+        <Path class=smile_mark x=33px y=66px width=20px height=9px />
+        <Rectangle class=neck_piece x=40px y=70px width=8px height=16px />
+    </Group>
+
+    <Path class=collar_piece x=72px y=114px width=76px height=18px />
+    <Rectangle class=throat_piece x=100px y=104px width=20px height=24px />
+
+    <Ellipse class=joint_pin x=42px y=136px width=18px height=18px />
+    <Ellipse class=joint_pin x=160px y=136px width=18px height=18px />
+    <Ellipse class=joint_pin x=88px y=246px width=18px height=18px />
+    <Ellipse class=joint_pin x=114px y=246px width=18px height=18px />
+
+    <Ellipse class=shoulder_cap x=30px y=122px width=36px height=28px />
+    <Ellipse class=shoulder_cap x=154px y=122px width=36px height=28px />
+    <Rectangle class=torso_piece x=54px y=128px width=112px height=104px />
+    <Path class=bodice_panel x=82px y=138px width=56px height=68px />
+    <Rectangle class=waist_piece x=64px y=226px width=92px height=22px />
+    <Path class=coat_tail x=42px y=238px width=136px height=72px />
+
+    <Group
+        x=48px
+        y=136px
+        width=34px
+        height=96px
+        anchor_x=50%
+        anchor_y=0%
+        rotate={(self.left_upper_arm_angle)deg}
+    >
+        <Ellipse class=joint_pin x=50% y=0px width=16px height=16px anchor_x=50% anchor_y=50% />
+        <Rectangle class=limb_segment x=50% y=8px width=26px height=70px anchor_x=50% />
+        <Ellipse class=cuff_piece x=50% y=72px width=20px height=12px anchor_x=50% />
+
+        <Group
+            x=50%
+            y=78px
+            width=30px
+            height=82px
+            anchor_x=50%
+            anchor_y=0%
+            rotate={(self.left_forearm_angle)deg}
+        >
+            <Ellipse class=joint_pin x=50% y=0px width=14px height=14px anchor_x=50% anchor_y=50% />
+            <Rectangle class=limb_segment_alt x=50% y=8px width=22px height=58px anchor_x=50% />
+            <Ellipse class=cuff_piece x=50% y=60px width=18px height=10px anchor_x=50% />
+
+            <Group
+                x=50%
+                y=66px
+                width=28px
+                height=32px
+                anchor_x=50%
+                anchor_y=0%
+                rotate={(self.left_hand_angle)deg}
+            >
+                <Ellipse class=joint_pin x=50% y=0px width=12px height=12px anchor_x=50% anchor_y=50% />
+                <Rectangle class=hand_piece x=50% y=6px width=22px height=18px anchor_x=50% />
+            </Group>
+        </Group>
+    </Group>
+
+    <Group
+        x=172px
+        y=136px
+        width=34px
+        height=96px
+        anchor_x=50%
+        anchor_y=0%
+        rotate={(self.right_upper_arm_angle)deg}
+    >
+        <Ellipse class=joint_pin x=50% y=0px width=16px height=16px anchor_x=50% anchor_y=50% />
+        <Rectangle class=limb_segment x=50% y=8px width=26px height=70px anchor_x=50% />
+        <Ellipse class=cuff_piece x=50% y=72px width=20px height=12px anchor_x=50% />
+
+        <Group
+            x=50%
+            y=78px
+            width=30px
+            height=82px
+            anchor_x=50%
+            anchor_y=0%
+            rotate={(self.right_forearm_angle)deg}
+        >
+            <Ellipse class=joint_pin x=50% y=0px width=14px height=14px anchor_x=50% anchor_y=50% />
+            <Rectangle class=limb_segment_alt x=50% y=8px width=22px height=58px anchor_x=50% />
+            <Ellipse class=cuff_piece x=50% y=60px width=18px height=10px anchor_x=50% />
+
+            <Group
+                x=50%
+                y=66px
+                width=28px
+                height=32px
+                anchor_x=50%
+                anchor_y=0%
+                rotate={(self.right_hand_angle)deg}
+            >
+                <Ellipse class=joint_pin x=50% y=0px width=12px height=12px anchor_x=50% anchor_y=50% />
+                <Rectangle class=hand_piece x=50% y=6px width=22px height=18px anchor_x=50% />
+            </Group>
+        </Group>
+    </Group>
+
+    <Group
+        x=90px
+        y=246px
+        width=38px
+        height=150px
+        anchor_x=50%
+        anchor_y=0%
+        rotate={(self.left_thigh_angle)deg}
+    >
+        <Ellipse class=joint_pin x=50% y=0px width=16px height=16px anchor_x=50% anchor_y=50% />
+        <Rectangle class=leg_segment x=50% y=8px width=28px height=88px anchor_x=50% />
+        <Ellipse class=stocking_band x=50% y=88px width=24px height=10px anchor_x=50% />
+
+        <Group
+            x=50%
+            y=94px
+            width=32px
+            height=108px
+            anchor_x=50%
+            anchor_y=0%
+            rotate={(self.left_shin_angle)deg}
+        >
+            <Ellipse class=joint_pin x=50% y=0px width=14px height=14px anchor_x=50% anchor_y=50% />
+            <Rectangle class=leg_segment_alt x=50% y=6px width=24px height=74px anchor_x=50% />
+            <Ellipse class=stocking_band x=50% y=76px width=22px height=10px anchor_x=50% />
+
+            <Group
+                x=50%
+                y=82px
+                width=54px
+                height=28px
+                anchor_x=50%
+                anchor_y=0%
+                rotate={(self.left_foot_angle)deg}
+            >
+                <Ellipse class=joint_pin x=50% y=0px width=12px height=12px anchor_x=50% anchor_y=50% />
+                <Rectangle class=shoe_piece x=6px y=6px width=42px height=18px />
+            </Group>
+        </Group>
+    </Group>
+
+    <Group
+        x=130px
+        y=246px
+        width=38px
+        height=150px
+        anchor_x=50%
+        anchor_y=0%
+        rotate={(self.right_thigh_angle)deg}
+    >
+        <Ellipse class=joint_pin x=50% y=0px width=16px height=16px anchor_x=50% anchor_y=50% />
+        <Rectangle class=leg_segment x=50% y=8px width=28px height=88px anchor_x=50% />
+        <Ellipse class=stocking_band x=50% y=88px width=24px height=10px anchor_x=50% />
+
+        <Group
+            x=50%
+            y=94px
+            width=32px
+            height=108px
+            anchor_x=50%
+            anchor_y=0%
+            rotate={(self.right_shin_angle)deg}
+        >
+            <Ellipse class=joint_pin x=50% y=0px width=14px height=14px anchor_x=50% anchor_y=50% />
+            <Rectangle class=leg_segment_alt x=50% y=6px width=24px height=74px anchor_x=50% />
+            <Ellipse class=stocking_band x=50% y=76px width=22px height=10px anchor_x=50% />
+
+            <Group
+                x=50%
+                y=82px
+                width=54px
+                height=28px
+                anchor_x=50%
+                anchor_y=0%
+                rotate={(self.right_foot_angle)deg}
+            >
+                <Ellipse class=joint_pin x=50% y=0px width=12px height=12px anchor_x=50% anchor_y=50% />
+                <Rectangle class=shoe_piece x=6px y=6px width=42px height=18px />
+            </Group>
+        </Group>
+    </Group>
+</Group>
+
+@settings {
+    .controller_bar {
+        fill: rgba(168, 116, 62, 255)
+        corner_radii: {
+            top_left: 10,
+            top_right: 10,
+            bottom_right: 10,
+            bottom_left: 10,
+        }
+    }
+
+    .controller_cap {
+        fill: rgba(242, 214, 168, 82%)
+    }
+
+    .controller_cross {
+        fill: rgba(202, 146, 76, 255)
+        corner_radii: {
+            top_left: 8,
+            top_right: 8,
+            bottom_right: 8,
+            bottom_left: 8,
+        }
+    }
+
+    .string_line {
+        fill: rgba(244, 236, 214, 56%)
+    }
+
+    .head_shape {
+        fill: rgba(238, 208, 182, 255)
+        stroke: Stroke {
+            color: rgba(112, 78, 56, 88%)
+            width: 2px
+        }
+    }
+
+    .hair_shape {
+        elements: [
+            PathElement::Point(0%, 54%),
+            PathElement::Quadratic(16%, 6%),
+            PathElement::Point(36%, 0%),
+            PathElement::Quadratic(56%, 2%),
+            PathElement::Point(72%, 14%),
+            PathElement::Quadratic(88%, 28%),
+            PathElement::Point(100%, 58%),
+            PathElement::Line,
+            PathElement::Point(100%, 86%),
+            PathElement::Quadratic(50%, 66%),
+            PathElement::Point(0%, 86%),
+            PathElement::Close
+        ]
+        fill: rgba(88, 48, 58, 255)
+    }
+
+    .eye_white {
+        fill: rgb(252, 248, 240)
+    }
+
+    .eye_pupil {
+        fill: rgb(40, 28, 30)
+    }
+
+    .brow_mark {
+        elements: [
+            PathElement::Point(0%, 100%),
+            PathElement::Quadratic(50%, 0%),
+            PathElement::Point(100%, 100%)
+        ]
+        fill: rgba(0, 0, 0, 0)
+        stroke: Stroke {
+            color: rgba(72, 42, 38, 88%)
+            width: 2px
+        }
+    }
+
+    .head_blush {
+        fill: rgba(210, 130, 112, 24%)
+    }
+
+    .nose_mark {
+        elements: [
+            PathElement::Point(50%, 0%),
+            PathElement::Quadratic(100%, 42%),
+            PathElement::Point(50%, 100%),
+            PathElement::Quadratic(0%, 42%),
+            PathElement::Point(50%, 0%)
+        ]
+        fill: rgba(198, 146, 124, 58%)
+    }
+
+    .smile_mark {
+        elements: [
+            PathElement::Point(0%, 0%),
+            PathElement::Quadratic(50%, 100%),
+            PathElement::Point(100%, 0%)
+        ]
+        fill: rgba(0, 0, 0, 0)
+        stroke: Stroke {
+            color: rgba(110, 56, 52, 82%)
+            width: 2px
+        }
+    }
+
+    .neck_piece {
+        fill: rgba(168, 118, 84, 255)
+        corner_radii: {
+            top_left: 6,
+            top_right: 6,
+            bottom_right: 6,
+            bottom_left: 6,
+        }
+    }
+
+    .throat_piece {
+        fill: rgba(176, 126, 92, 255)
+        corner_radii: {
+            top_left: 8,
+            top_right: 8,
+            bottom_right: 8,
+            bottom_left: 8,
+        }
+    }
+
+    .collar_piece {
+        elements: [
+            PathElement::Point(0%, 24%),
+            PathElement::Line,
+            PathElement::Point(24%, 0%),
+            PathElement::Line,
+            PathElement::Point(50%, 38%),
+            PathElement::Line,
+            PathElement::Point(76%, 0%),
+            PathElement::Line,
+            PathElement::Point(100%, 24%),
+            PathElement::Quadratic(78%, 100%),
+            PathElement::Point(50%, 52%),
+            PathElement::Quadratic(22%, 100%),
+            PathElement::Point(0%, 24%),
+            PathElement::Close
+        ]
+        fill: rgba(224, 210, 192, 255)
+    }
+
+    .shoulder_cap {
+        fill: rgba(184, 92, 74, 255)
+    }
+
+    .torso_piece {
+        fill: rgba(34, 92, 88, 255)
+        stroke: Stroke {
+            color: rgba(244, 226, 196, 36%)
+            width: 2px
+        }
+        corner_radii: {
+            top_left: 24,
+            top_right: 24,
+            bottom_right: 20,
+            bottom_left: 20,
+        }
+    }
+
+    .bodice_panel {
+        elements: [
+            PathElement::Point(24%, 0%),
+            PathElement::Line,
+            PathElement::Point(76%, 0%),
+            PathElement::Quadratic(88%, 18%),
+            PathElement::Point(78%, 100%),
+            PathElement::Line,
+            PathElement::Point(22%, 100%),
+            PathElement::Quadratic(12%, 18%),
+            PathElement::Point(24%, 0%),
+            PathElement::Close
+        ]
+        fill: rgba(196, 154, 82, 255)
+    }
+
+    .waist_piece {
+        fill: rgba(194, 124, 76, 255)
+        corner_radii: {
+            top_left: 14,
+            top_right: 14,
+            bottom_right: 14,
+            bottom_left: 14,
+        }
+    }
+
+    .coat_tail {
+        elements: [
+            PathElement::Point(8%, 0%),
+            PathElement::Quadratic(28%, 14%),
+            PathElement::Point(36%, 100%),
+            PathElement::Line,
+            PathElement::Point(50%, 72%),
+            PathElement::Line,
+            PathElement::Point(64%, 100%),
+            PathElement::Quadratic(72%, 16%),
+            PathElement::Point(92%, 0%),
+            PathElement::Close
+        ]
+        fill: rgba(98, 28, 48, 255)
+    }
+
+    .limb_segment {
+        fill: rgba(186, 134, 88, 255)
+        corner_radii: {
+            top_left: 16,
+            top_right: 16,
+            bottom_right: 16,
+            bottom_left: 16,
+        }
+    }
+
+    .limb_segment_alt {
+        fill: rgba(230, 216, 198, 255)
+        corner_radii: {
+            top_left: 16,
+            top_right: 16,
+            bottom_right: 16,
+            bottom_left: 16,
+        }
+    }
+
+    .leg_segment {
+        fill: rgba(72, 46, 84, 255)
+        corner_radii: {
+            top_left: 16,
+            top_right: 16,
+            bottom_right: 16,
+            bottom_left: 16,
+        }
+    }
+
+    .leg_segment_alt {
+        fill: rgba(228, 214, 198, 255)
+        corner_radii: {
+            top_left: 14,
+            top_right: 14,
+            bottom_right: 14,
+            bottom_left: 14,
+        }
+    }
+
+    .cuff_piece {
+        fill: rgba(238, 228, 208, 255)
+    }
+
+    .stocking_band {
+        fill: rgba(76, 48, 64, 255)
+    }
+
+    .hand_piece {
+        fill: rgba(236, 210, 184, 255)
+        corner_radii: {
+            top_left: 12,
+            top_right: 12,
+            bottom_right: 12,
+            bottom_left: 12,
+        }
+    }
+
+    .shoe_piece {
+        fill: rgba(82, 34, 42, 255)
+        corner_radii: {
+            top_left: 14,
+            top_right: 14,
+            bottom_right: 14,
+            bottom_left: 14,
+        }
+    }
+
+    .joint_pin {
+        fill: rgba(212, 154, 84, 255)
+        stroke: Stroke {
+            color: rgba(84, 48, 20, 60%)
+            width: 1px
+        }
+    }
+}
+
+@timeline left_arm_chain {
+    playhead: self.left_arm_t,
+    frames: 96,
+    loop: false,
+
+    self {
+        left_upper_arm_angle: {
+            0: -18,
+            48: 6, InOutQuad,
+            96: 34,
+        },
+        left_elbow_t: {
+            0: 10,
+            48: 24, InOutQuad,
+            96: 72,
+        },
+    }
+}
+
+@timeline left_elbow_chain {
+    playhead: self.left_elbow_t,
+    frames: 80,
+    loop: false,
+
+    self {
+        left_forearm_angle: {
+            0: 10,
+            36: -16, InOutQuad,
+            80: -58,
+        },
+        left_wrist_t: {
+            0: 8,
+            36: 18, InOutQuad,
+            80: 40,
+        },
+    }
+}
+
+@timeline left_wrist_chain {
+    playhead: self.left_wrist_t,
+    frames: 44,
+    loop: false,
+
+    self {
+        left_hand_angle: {
+            0: 4,
+            20: 10, OutQuad,
+            44: -12,
+        },
+    }
+}
+
+@timeline right_arm_chain {
+    playhead: self.right_arm_t,
+    frames: 96,
+    loop: false,
+
+    self {
+        right_upper_arm_angle: {
+            0: 18,
+            52: -34, InOutQuad,
+            96: -104,
+        },
+        right_elbow_t: {
+            0: 14,
+            52: 26, InOutQuad,
+            96: 56,
+        },
+    }
+}
+
+@timeline right_elbow_chain {
+    playhead: self.right_elbow_t,
+    frames: 80,
+    loop: false,
+
+    self {
+        right_forearm_angle: {
+            0: -8,
+            30: -38, InOutQuad,
+            80: -92,
+        },
+        right_wrist_t: {
+            0: 8,
+            30: 18, InOutQuad,
+            80: 42,
+        },
+    }
+}
+
+@timeline right_wrist_chain {
+    playhead: self.right_wrist_t,
+    frames: 44,
+    loop: false,
+
+    self {
+        right_hand_angle: {
+            0: -4,
+            18: 18, OutQuad,
+            44: 6,
+        },
+    }
+}
+
+@timeline left_leg_chain {
+    playhead: self.left_leg_t,
+    frames: 80,
+    loop: false,
+
+    self {
+        left_thigh_angle: {
+            0: 10,
+            36: -10, InOutQuad,
+            80: -32,
+        },
+        left_knee_t: {
+            0: 8,
+            36: 22, InOutQuad,
+            80: 64,
+        },
+    }
+}
+
+@timeline left_knee_chain {
+    playhead: self.left_knee_t,
+    frames: 72,
+    loop: false,
+
+    self {
+        left_shin_angle: {
+            0: 6,
+            32: 18, InOutQuad,
+            72: 50,
+        },
+        left_ankle_t: {
+            0: 6,
+            32: 18, InOutQuad,
+            72: 36,
+        },
+    }
+}
+
+@timeline left_ankle_chain {
+    playhead: self.left_ankle_t,
+    frames: 40,
+    loop: false,
+
+    self {
+        left_foot_angle: {
+            0: -4,
+            20: 10, OutQuad,
+            40: 20,
+        },
+    }
+}
+
+@timeline right_leg_chain {
+    playhead: self.right_leg_t,
+    frames: 80,
+    loop: false,
+
+    self {
+        right_thigh_angle: {
+            0: -10,
+            36: 8, InOutQuad,
+            80: 28,
+        },
+        right_knee_t: {
+            0: 8,
+            36: 22, InOutQuad,
+            80: 64,
+        },
+    }
+}
+
+@timeline right_knee_chain {
+    playhead: self.right_knee_t,
+    frames: 72,
+    loop: false,
+
+    self {
+        right_shin_angle: {
+            0: -6,
+            32: -18, InOutQuad,
+            72: -50,
+        },
+        right_ankle_t: {
+            0: 6,
+            32: 18, InOutQuad,
+            72: 36,
+        },
+    }
+}
+
+@timeline right_ankle_chain {
+    playhead: self.right_ankle_t,
+    frames: 40,
+    loop: false,
+
+    self {
+        right_foot_angle: {
+            0: 4,
+            20: -10, OutQuad,
+            40: -20,
+        },
+    }
+}

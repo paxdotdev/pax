@@ -185,6 +185,8 @@ pub struct ComponentDefinition {
     pub primitive_instance_import_path: Option<String>,
     pub template: Option<ComponentTemplate>,
     pub settings: Option<Vec<SettingsBlockElement>>,
+    #[serde(default)]
+    pub timelines: Vec<TimelineDefinition>,
 }
 
 impl ComponentDefinition {
@@ -199,6 +201,106 @@ pub enum SettingsBlockElement {
     SelectorBlock(Token, LiteralBlockDefinition),
     Handler(Token, Vec<Token>),
     Comment(String),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(crate = "pax_message::serde")]
+pub struct TimelineDefinition {
+    pub name: Option<Token>,
+    pub playhead: Option<ValueDefinition>,
+    pub frames: Option<u64>,
+    pub repeat: bool,
+    pub elements: Vec<TimelineBlockElement>,
+}
+
+impl Default for TimelineDefinition {
+    fn default() -> Self {
+        Self {
+            name: None,
+            playhead: None,
+            frames: None,
+            repeat: true,
+            elements: vec![],
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(crate = "pax_message::serde")]
+pub enum TimelineBlockElement {
+    SelectorBlock(Token, TimelineSelectorBlockDefinition),
+    Comment(String),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(crate = "pax_message::serde")]
+pub struct TimelineSelectorBlockDefinition {
+    pub elements: Vec<TimelineSelectorElement>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(crate = "pax_message::serde")]
+pub enum TimelineSelectorElement {
+    Track(Token, TimelineTrackDefinition),
+    Comment(String),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(crate = "pax_message::serde")]
+pub struct TimelineTrackDefinition {
+    pub elements: Vec<TimelineTrackElement>,
+    pub playhead: Option<Box<ValueDefinition>>,
+    pub frames: Option<u64>,
+    pub repeat: Option<bool>,
+    pub starting_value: Option<Box<ValueDefinition>>,
+    #[serde(default)]
+    pub use_local_property_scope: bool,
+}
+
+impl TimelineTrackDefinition {
+    pub fn keyframes(&self) -> impl Iterator<Item = &TimelineKeyframe> {
+        self.elements.iter().filter_map(|element| match element {
+            TimelineTrackElement::Keyframe(keyframe) => Some(keyframe),
+            TimelineTrackElement::Comment(_) => None,
+        })
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(crate = "pax_message::serde")]
+pub enum TimelineTrackElement {
+    Keyframe(TimelineKeyframe),
+    Comment(String),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(crate = "pax_message::serde")]
+pub struct TimelineKeyframe {
+    pub marker: TimelineMarker,
+    pub value: ValueDefinition,
+    pub easing: Option<Token>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(crate = "pax_message::serde")]
+pub enum TimelineMarker {
+    Frame(u64),
+    Percent(f64),
+}
+
+impl Display for TimelineMarker {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TimelineMarker::Frame(frame) => write!(f, "{}", frame),
+            TimelineMarker::Percent(percent) => {
+                if percent.fract() == 0.0 {
+                    write!(f, "{}%", *percent as i64)
+                } else {
+                    write!(f, "{}%", percent)
+                }
+            }
+        }
+    }
 }
 
 #[derive(Serialize, Default, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
@@ -1571,6 +1673,7 @@ pub enum ValueDefinition {
     Undefined, //Used for `Default`
     LiteralValue(PaxValue),
     Block(LiteralBlockDefinition),
+    Timeline(TimelineTrackDefinition),
     /// (Expression contents, vtable id binding)
     Expression(ExpressionInfo),
     /// (Expression contents, vtable id binding)
@@ -1586,6 +1689,7 @@ impl Display for ValueDefinition {
             ValueDefinition::Undefined => write!(f, "<undefined>"),
             ValueDefinition::LiteralValue(value) => write!(f, "{}", value),
             ValueDefinition::Block(block) => write!(f, "{}", block),
+            ValueDefinition::Timeline(track) => write!(f, "@timeline {}", track),
             ValueDefinition::Expression(e) => write!(f, "{{{}}}", e.expression),
             ValueDefinition::Identifier(i) => write!(f, "{}", i),
             ValueDefinition::DoubleBinding(ident) => {
@@ -1686,6 +1790,34 @@ impl Display for LiteralBlockDefinition {
         }
         write!(f, "}}")?;
         Ok(())
+    }
+}
+
+impl Display for TimelineTrackDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{{")?;
+        if let Some(playhead) = &self.playhead {
+            writeln!(f, "playhead: {},", playhead)?;
+        }
+        if let Some(frames) = self.frames {
+            writeln!(f, "frames: {},", frames)?;
+        }
+        if let Some(repeat) = self.repeat {
+            writeln!(f, "loop: {},", repeat)?;
+        }
+        for element in &self.elements {
+            match element {
+                TimelineTrackElement::Keyframe(keyframe) => {
+                    write!(f, "{}: {}", keyframe.marker, keyframe.value)?;
+                    if let Some(easing) = &keyframe.easing {
+                        write!(f, ", {}", easing.token_value)?;
+                    }
+                    writeln!(f, ",")?;
+                }
+                TimelineTrackElement::Comment(comment) => writeln!(f, "{}", comment)?,
+            }
+        }
+        write!(f, "}}")
     }
 }
 

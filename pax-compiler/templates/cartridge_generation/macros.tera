@@ -91,6 +91,25 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                                     "{{property.name}}",
                                 );
                             },
+                            {{ engine_import_path }}::pax_manifest::ValueDefinition::Timeline(track) => {
+                                let timeline_stack = if track.use_local_property_scope {
+                                    let mut scope = std::collections::HashMap::new();
+                                    {% for local_property in component.properties %}
+                                    scope.insert(
+                                        "{{local_property.name}}".to_string(),
+                                        {{ engine_import_path }}::api::Variable::new::<{{local_property.property_type.type_id._type_id}}>(properties.{{local_property.name}}.untyped()),
+                                    );
+                                    {% endfor %}
+                                    stack_frame.push(scope)
+                                } else {
+                                    stack_frame.clone()
+                                };
+                                properties.{{property.name}} = {{ engine_import_path }}::pax_runtime::build_timeline_property(
+                                    "{{property.name}}",
+                                    &track,
+                                    timeline_stack,
+                                );
+                            },
                             {{ engine_import_path }}::pax_manifest::ValueDefinition::Block(block) => {
                                 let cloned_stack = stack_frame.clone();
                                 properties.{{property.name}}.replace_with({{property.property_type.type_id._type_id_escaped}}TypeFactory{}.build_type(&block, cloned_stack.clone()));
@@ -169,6 +188,25 @@ impl {{ engine_import_path }}::pax_runtime::ComponentFactory for {{component.pas
                                         },
                                         &dependents,
                                         "{{property.name}}",
+                                    );
+                                },
+                                {{ engine_import_path }}::pax_manifest::ValueDefinition::Timeline(track) => {
+                                    let timeline_stack = if track.use_local_property_scope {
+                                        let mut scope = std::collections::HashMap::new();
+                                        {% for local_property in component.properties %}
+                                        scope.insert(
+                                            "{{local_property.name}}".to_string(),
+                                            {{ engine_import_path }}::api::Variable::new::<{{local_property.property_type.type_id._type_id}}>(properties.{{local_property.name}}.untyped()),
+                                        );
+                                        {% endfor %}
+                                        stack_frame.push(scope)
+                                    } else {
+                                        stack_frame.clone()
+                                    };
+                                    properties.{{property.name}} = {{ engine_import_path }}::pax_runtime::build_timeline_property(
+                                        "{{property.name}}",
+                                        &track,
+                                        timeline_stack,
                                     );
                                 },
                                 {{ engine_import_path }}::pax_manifest::ValueDefinition::Block(block) => {
@@ -357,6 +395,15 @@ impl TypeFactory for {{active_type.type_id._type_id_escaped}}TypeFactory {
                                             },
                                             &dependents,
                                             "{{prop.name}}",
+                                        );
+                                        deps.push(ret.untyped());
+                                        ret
+                                    },
+                                    {{ engine_import_path }}::pax_manifest::ValueDefinition::Timeline(track) => {
+                                        let ret = {{ engine_import_path }}::pax_runtime::build_timeline_property(
+                                            "{{prop.name}}",
+                                            &track,
+                                            stack_frame.clone(),
                                         );
                                         deps.push(ret.untyped());
                                         ret

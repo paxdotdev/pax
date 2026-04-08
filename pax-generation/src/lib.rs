@@ -65,9 +65,6 @@ struct ClaudeImageUrl {
     data: String,
 }
 
-
-
-
 #[derive(Clone, Debug, Serialize)]
 #[serde(untagged)]
 enum ContentItem {
@@ -122,7 +119,7 @@ impl PaxAppGenerator {
                             .map(|c| match c {
                                 ContentItem::Text { text, .. } => text.clone(),
                                 ContentItem::Image { .. } => String::new(),
-                                ContentItem::ClaudeImage { .. } => String::new(),//json!(c).to_string(),
+                                ContentItem::ClaudeImage { .. } => String::new(), //json!(c).to_string(),
                             })
                             .collect::<Vec<String>>()
                             .join("\n");
@@ -145,7 +142,7 @@ impl PaxAppGenerator {
                         .map(|c| match c {
                             ContentItem::Text { text, .. } => text.clone(),
                             ContentItem::Image { .. } => String::new(),
-                            ContentItem::ClaudeImage { .. } => String::new(),//json!(c).to_string(),
+                            ContentItem::ClaudeImage { .. } => String::new(), //json!(c).to_string(),
                         })
                         .collect::<Vec<String>>()
                         .join("\n");
@@ -253,79 +250,79 @@ impl PaxAppGenerator {
         // Create the initial message content vector with the text
         let mut message_content = vec![text_content];
 
-    // Add screenshot if available
-    if let Some(screenshot) = screenshot {
-        // Create image buffer
-        let img = image::ImageBuffer::<image::Rgba<u8>, Vec<u8>>::from_raw(
-            screenshot.width as u32,
-            screenshot.height as u32,
-            screenshot.data
-        ).expect("Failed to create image buffer");
+        // Add screenshot if available
+        if let Some(screenshot) = screenshot {
+            // Create image buffer
+            let img = image::ImageBuffer::<image::Rgba<u8>, Vec<u8>>::from_raw(
+                screenshot.width as u32,
+                screenshot.height as u32,
+                screenshot.data,
+            )
+            .expect("Failed to create image buffer");
 
-        // Calculate new dimensions maintaining aspect ratio
-        let max_dimension = 1440;
-        let (width, height) = (img.width(), img.height());
-        let ratio = width as f32 / height as f32;
-        let (new_width, new_height) = if width > height {
-            if width > max_dimension {
-                (max_dimension, (max_dimension as f32 / ratio) as u32)
+            // Calculate new dimensions maintaining aspect ratio
+            let max_dimension = 1440;
+            let (width, height) = (img.width(), img.height());
+            let ratio = width as f32 / height as f32;
+            let (new_width, new_height) = if width > height {
+                if width > max_dimension {
+                    (max_dimension, (max_dimension as f32 / ratio) as u32)
+                } else {
+                    (width, height)
+                }
             } else {
-                (width, height)
-            }
-        } else {
-            if height > max_dimension {
-                ((max_dimension as f32 * ratio) as u32, max_dimension)
-            } else {
-                (width, height)
-            }
-        };
+                if height > max_dimension {
+                    ((max_dimension as f32 * ratio) as u32, max_dimension)
+                } else {
+                    (width, height)
+                }
+            };
 
-        // Resize the image
-        let resized = image::imageops::resize(
-            &img,
-            new_width,
-            new_height,
-            image::imageops::FilterType::Lanczos3
-        );
+            // Resize the image
+            let resized = image::imageops::resize(
+                &img,
+                new_width,
+                new_height,
+                image::imageops::FilterType::Lanczos3,
+            );
 
-        // Create a cursor-based buffer
-        let mut buffer = std::io::Cursor::new(Vec::new());
-        resized.write_to(&mut buffer, image::ImageFormat::Jpeg)?;
+            // Create a cursor-based buffer
+            let mut buffer = std::io::Cursor::new(Vec::new());
+            resized.write_to(&mut buffer, image::ImageFormat::Jpeg)?;
 
-        // write the image to a file
-        resized.save("screenshot.jpeg")?;
+            // write the image to a file
+            resized.save("screenshot.jpeg")?;
 
-        // Get the bytes from the cursor
-        let bytes = buffer.into_inner();
-        
-        // Convert to base64 but utf8
-        let base64_image = base64::encode(&bytes);
-        let url = format!("data:image/jpeg;base64,{}", base64_image.clone());
-        // Add image content
+            // Get the bytes from the cursor
+            let bytes = buffer.into_inner();
 
-        match model {
-            AIModel::Claude3 => {
-                message_content.push(ContentItem::ClaudeImage {
-                    content_type: "image".to_string(),
-                    source: ClaudeImageUrl {
-                        content_type: "base64".to_string(),
-                        media_type: "image/jpeg".to_string(),
-                        data: base64_image,
-                    }
-                });
-            },
-            _ => {
-                message_content.push(ContentItem::Image {
-                    content_type: "image_url".to_string(),
-                    image_url: ImageUrl {
-                        url,
-                        detail: "high".to_string(),
-                    },
-                });
+            // Convert to base64 but utf8
+            let base64_image = base64::encode(&bytes);
+            let url = format!("data:image/jpeg;base64,{}", base64_image.clone());
+            // Add image content
+
+            match model {
+                AIModel::Claude3 => {
+                    message_content.push(ContentItem::ClaudeImage {
+                        content_type: "image".to_string(),
+                        source: ClaudeImageUrl {
+                            content_type: "base64".to_string(),
+                            media_type: "image/jpeg".to_string(),
+                            data: base64_image,
+                        },
+                    });
+                }
+                _ => {
+                    message_content.push(ContentItem::Image {
+                        content_type: "image_url".to_string(),
+                        image_url: ImageUrl {
+                            url,
+                            detail: "high".to_string(),
+                        },
+                    });
+                }
             }
         }
-    }
-
 
         let mut messages = vec![
             Message {
@@ -344,7 +341,10 @@ impl PaxAppGenerator {
         let mut retry_count = 0;
         const MAX_RETRIES: usize = 5;
         while retry_count < MAX_RETRIES {
-            tx.unbounded_send((request_id, format!("--- Sent request to {} ---", self.model.as_str())))?;
+            tx.unbounded_send((
+                request_id,
+                format!("--- Sent request to {} ---", self.model.as_str()),
+            ))?;
             let response = self.send_prompt(&messages).await?;
             tx.unbounded_send((request_id, "Received response.".to_string()))?;
 
@@ -364,7 +364,10 @@ impl PaxAppGenerator {
                     if parse_errors.is_empty() {
                         return Ok((pax_files[0].1.clone(), resp));
                     } else {
-                        tx.unbounded_send((request_id,"PAX parsing errors detected:".to_string()))?;
+                        tx.unbounded_send((
+                            request_id,
+                            "PAX parsing errors detected:".to_string(),
+                        ))?;
                         let error_message = format!(
                             "The updated PAX file failed to parse. Error: {}. Please fix the PAX syntax errors and provide the corrected code.",
                             parse_errors[0].1
@@ -376,7 +379,10 @@ impl PaxAppGenerator {
                                 text: error_message,
                             }],
                         });
-                        tx.unbounded_send((request_id,"Sending error message to AI for correction.".to_string()))?;
+                        tx.unbounded_send((
+                            request_id,
+                            "Sending error message to AI for correction.".to_string(),
+                        ))?;
                         retry_count += 1;
                     }
                 }

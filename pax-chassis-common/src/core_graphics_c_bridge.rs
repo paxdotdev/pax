@@ -13,8 +13,9 @@ use core_graphics::context::CGContext;
 use flexbuffers::DeserializationError;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use pax_pixels::{
+    point,
     render_backend::{RenderBackend, RenderConfig},
-    point, Box2D, Image as PaxPixelsImage, WgpuRenderer,
+    Box2D, Image as PaxPixelsImage, WgpuRenderer,
 };
 use pax_runtime::api::math::Point2;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -37,13 +38,13 @@ use serde::Serialize;
 
 #[cfg(feature = "designtime")]
 use pax_designtime::DesigntimeManager;
-use pax_runtime::DefinitionToInstanceTraverser;
 #[cfg(feature = "designtime")]
 use pax_runtime::designtime_support::{
     apply_designtime_replace_node_subtemplate, apply_designtime_userland_reload,
     build_designtime_inspect_tree_payload, build_designtime_ray_cast_payload,
     build_designtime_selector_query_payload,
 };
+use pax_runtime::DefinitionToInstanceTraverser;
 //Re-export all native message types; used by Swift via FFI.
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`
 //in order to be visible to Swift
@@ -74,8 +75,10 @@ impl<'a> AppleRenderContext<'a> {
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
 impl<'a> RenderContext for AppleRenderContext<'a> {
     fn fill(&mut self, _layer: usize, path: kurbo::BezPath, brush: &pax_runtime::api::Fill) {
-        self.backend
-            .fill(path.clone(), &fill_to_piet_brush(brush, path.bounding_box()));
+        self.backend.fill(
+            path.clone(),
+            &fill_to_piet_brush(brush, path.bounding_box()),
+        );
     }
 
     fn stroke(
@@ -85,8 +88,11 @@ impl<'a> RenderContext for AppleRenderContext<'a> {
         brush: &pax_runtime::api::Fill,
         width: f64,
     ) {
-        self.backend
-            .stroke(path.clone(), &fill_to_piet_brush(brush, path.bounding_box()), width);
+        self.backend.stroke(
+            path.clone(),
+            &fill_to_piet_brush(brush, path.bounding_box()),
+            width,
+        );
     }
 
     fn save(&mut self, _layer: usize) {
@@ -167,10 +173,12 @@ fn fill_to_piet_brush(fill: &pax_runtime::api::Fill, rect: kurbo::Rect) -> piet:
                 pax_runtime::api::Fill::to_unit_point(radial.start, (rect.width(), rect.height()));
             let center =
                 pax_runtime::api::Fill::to_unit_point(radial.end, (rect.width(), rect.height()));
-            let radial_gradient =
-                RadialGradient::new(radial.radius, pax_runtime::api::Fill::to_piet_gradient_stops(radial.stops.clone()))
-                    .with_center(center)
-                    .with_origin(origin);
+            let radial_gradient = RadialGradient::new(
+                radial.radius,
+                pax_runtime::api::Fill::to_piet_gradient_stops(radial.stops.clone()),
+            )
+            .with_center(center)
+            .with_origin(origin);
             radial_gradient.into()
         }
     }
@@ -190,12 +198,14 @@ impl AppleRenderContext {
     fn new(layer: *mut c_void, width: usize, height: usize, dpr: f32) -> Result<Self, String> {
         let dpr = dpr.round().max(1.0) as u32;
         let config = RenderConfig::new(false, width as u32, height as u32, dpr as f32);
-        let backend = unsafe {
-            pollster::block_on(RenderBackend::to_core_animation_layer(layer, config))
-        }
-        .map_err(|err| err.to_string())?;
+        let backend =
+            unsafe { pollster::block_on(RenderBackend::to_core_animation_layer(layer, config)) }
+                .map_err(|err| err.to_string())?;
         let mut backend = WgpuRenderer::new(backend);
-        backend.resize_surface((width as f32 * dpr as f32).max(1.0), (height as f32 * dpr as f32).max(1.0));
+        backend.resize_surface(
+            (width as f32 * dpr as f32).max(1.0),
+            (height as f32 * dpr as f32).max(1.0),
+        );
         backend.set_viewport(width as f32, height as f32, dpr as f32);
         Ok(Self {
             backend,
@@ -211,9 +221,12 @@ impl AppleRenderContext {
         if self.logical_size == (width, height) && self.dpr == dpr {
             return false;
         }
+        self.backend.resize_surface(
+            (width as f32 * dpr as f32).max(1.0),
+            (height as f32 * dpr as f32).max(1.0),
+        );
         self.backend
-            .resize_surface((width as f32 * dpr as f32).max(1.0), (height as f32 * dpr as f32).max(1.0));
-        self.backend.set_viewport(width as f32, height as f32, dpr as f32);
+            .set_viewport(width as f32, height as f32, dpr as f32);
         self.logical_size = (width, height);
         self.dpr = dpr;
         true
@@ -346,9 +359,7 @@ fn to_pax_pixels_fill(fill: &pax_runtime::api::Fill, rect: kurbo::Rect) -> pax_p
     let bounds = (rect.width(), rect.height());
     let origin = rect.origin();
     match fill {
-        pax_runtime::api::Fill::Solid(color) => {
-            pax_pixels::Fill::Solid(to_pax_pixels_color(color))
-        }
+        pax_runtime::api::Fill::Solid(color) => pax_pixels::Fill::Solid(to_pax_pixels_color(color)),
         pax_runtime::api::Fill::LinearGradient(gradient) => {
             let start_x = gradient.start.0.evaluate(bounds, Axis::X);
             let start_y = gradient.start.1.evaluate(bounds, Axis::Y);
@@ -521,7 +532,8 @@ pub extern "C" fn pax_interrupt(
         }
     };
 
-    let interrupt_wrapped: Result<NativeInterrupt, DeserializationError> = flexbuffers::from_slice(slice);
+    let interrupt_wrapped: Result<NativeInterrupt, DeserializationError> =
+        flexbuffers::from_slice(slice);
     let interrupt = interrupt_wrapped.unwrap();
     let globals = engine.runtime_context.globals();
 
@@ -544,11 +556,7 @@ pub extern "C" fn pax_interrupt(
             let topmost_node = engine
                 .runtime_context
                 .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-            let modifiers = args
-                .modifiers
-                .iter()
-                .map(ModifierKey::from)
-                .collect();
+            let modifiers = args.modifiers.iter().map(ModifierKey::from).collect();
             let args_click = Click {
                 mouse: MouseEventArgs {
                     x: args.x,
@@ -617,7 +625,8 @@ pub extern "C" fn pax_interrupt(
             }
         }
         NativeInterrupt::FormButtonClick(args) => {
-            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+            if let Some(node) =
+                engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
             {
                 node.dispatch_button_click(
                     Event::new(ButtonClick {}),
@@ -627,19 +636,22 @@ pub extern "C" fn pax_interrupt(
             }
         }
         NativeInterrupt::FormTextboxInput(args) => {
-            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+            if let Some(node) =
+                engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
             {
                 borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
             }
         }
         NativeInterrupt::TextInput(args) => {
-            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+            if let Some(node) =
+                engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
             {
                 borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
             }
         }
         NativeInterrupt::FormTextboxChange(args) => {
-            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+            if let Some(node) =
+                engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
             {
                 node.dispatch_textbox_change(
                     Event::new(TextboxChange {
@@ -651,7 +663,8 @@ pub extern "C" fn pax_interrupt(
             }
         }
         NativeInterrupt::FormCheckboxToggle(args) => {
-            if let Some(node) = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+            if let Some(node) =
+                engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
             {
                 borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
             }
@@ -663,7 +676,8 @@ pub extern "C" fn pax_interrupt(
                 #[cfg(any(target_os = "ios", target_os = "macos"))]
                 {
                     let ref_args = _ref_args;
-                    let Some(render_context) = (unsafe { (*engine_container)._render_context.as_mut() })
+                    let Some(render_context) =
+                        (unsafe { (*engine_container)._render_context.as_mut() })
                     else {
                         unsafe { (*engine_container)._engine = Box::into_raw(engine) };
                         return;
@@ -761,7 +775,8 @@ pub extern "C" fn pax_tick(
                     unsafe { drop(Box::from_raw(container._render_context)) };
                     container._render_context = std::ptr::null_mut();
                 }
-                match AppleRenderContext::new(render_target, width as usize, height as usize, _dpr) {
+                match AppleRenderContext::new(render_target, width as usize, height as usize, _dpr)
+                {
                     Ok(render_context) => {
                         container._render_context = Box::into_raw(Box::new(render_context));
                         container._render_target = render_target;

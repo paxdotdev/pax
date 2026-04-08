@@ -132,22 +132,20 @@ pub fn get_render_context(window: Window) -> impl RenderContext {
             canvas.set_width(1);
             canvas.set_height(1);
 
-            let backend = match RenderBackend::to_canvas(
-                canvas.clone(),
-                RenderConfig::new(false, 1, 1, 1.0),
-            )
-            .await
-            {
-                Ok(backend) => backend,
-                Err(err) => {
-                    log::warn!(
-                        "failed to create browser render backend for layer {}: {}",
-                        layer,
-                        err
-                    );
-                    return None;
-                }
-            };
+            let backend =
+                match RenderBackend::to_canvas(canvas.clone(), RenderConfig::new(false, 1, 1, 1.0))
+                    .await
+                {
+                    Ok(backend) => backend,
+                    Err(err) => {
+                        log::warn!(
+                            "failed to create browser render backend for layer {}: {}",
+                            layer,
+                            err
+                        );
+                        return None;
+                    }
+                };
 
             let mut res = WgpuRenderer::new(backend);
             let max_surface_dimension = res.max_surface_dimension();

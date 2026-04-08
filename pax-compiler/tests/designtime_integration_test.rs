@@ -61,6 +61,7 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
                     vec![Token::new_without_location("handler_action".to_string())],
                 ),
             ]),
+            timelines: vec![],
         },
     );
 

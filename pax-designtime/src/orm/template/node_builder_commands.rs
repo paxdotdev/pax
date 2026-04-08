@@ -1242,6 +1242,7 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
             primitive_instance_import_path: None,
             template: Some(new_template),
             settings: None,
+            timelines: vec![],
         };
 
         manifest

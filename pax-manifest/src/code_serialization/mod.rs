@@ -64,12 +64,42 @@ fn to_pax_expression(args: &HashMap<String, tera::Value>) -> tera::Result<tera::
     }
 }
 
+fn to_timeline_marker(args: &HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
+    let Some(val) = args.get("value") else {
+        return Err(tera::Error::msg(
+            "No value provided to to_timeline_marker function",
+        ));
+    };
+
+    let Some(object) = val.as_object() else {
+        return Err(tera::Error::msg(
+            "Timeline marker must serialize as an object",
+        ));
+    };
+
+    if let Some(frame) = object.get("Frame").and_then(|value| value.as_u64()) {
+        return Ok(tera::Value::String(frame.to_string()));
+    }
+
+    if let Some(percent) = object.get("Percent").and_then(|value| value.as_f64()) {
+        let formatted = if percent.fract() == 0.0 {
+            format!("{}%", percent as i64)
+        } else {
+            format!("{}%", percent)
+        };
+        return Ok(tera::Value::String(formatted));
+    }
+
+    Err(tera::Error::msg("Unknown timeline marker variant"))
+}
+
 /// Serialize a component to a string
 pub fn press_code_serialization_template(args: ComponentDefinition) -> Result<String, String> {
     let mut tera = Tera::default();
 
     tera.register_function("to_pax_value", to_pax_value);
     tera.register_function("to_pax_expression", to_pax_expression);
+    tera.register_function("to_timeline_marker", to_timeline_marker);
 
     // Add macros template
     let macros_file = TEMPLATE_DIR

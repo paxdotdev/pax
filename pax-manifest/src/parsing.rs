@@ -1,7 +1,7 @@
 use crate::*;
 use pax_lang::interpreter::parse_pax_expression_from_pair;
 use pax_lang::{from_pax, parse_pax_expression, parse_pax_str, Pair, Pairs, Rule, Span};
-use pax_runtime_api::{Color, Fill, Size, Stroke};
+use pax_runtime_api::{Color, Fill, PaxValue, Size, Stroke};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 pub fn parse_template_from_component_definition_string(
@@ -340,6 +340,14 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
 
 pub fn parse_value_definition(value: Pair<Rule>) -> ValueDefinition {
     match value.as_rule() {
+        Rule::timeline_keyframe_value | Rule::timeline_block_setting_value => {
+            parse_value_definition(value.into_inner().next().unwrap())
+        }
+        Rule::timeline_symbol => ValueDefinition::Identifier(PaxIdentifier::new(value.as_str())),
+        Rule::timeline_inline_value => {
+            let timeline_track = value.into_inner().next().unwrap();
+            ValueDefinition::Timeline(derive_timeline_track_definition(timeline_track))
+        }
         Rule::literal_value => {
             let inner = value.into_inner().next().unwrap();
             match inner.as_rule() {
@@ -375,6 +383,211 @@ pub fn parse_value_definition(value: Pair<Rule>) -> ValueDefinition {
             );
         }
     }
+}
+
+fn parse_timeline_marker(marker: Pair<Rule>) -> TimelineMarker {
+    match marker.as_rule() {
+        Rule::timeline_marker => parse_timeline_marker(marker.into_inner().next().unwrap()),
+        Rule::literal_number_integer => TimelineMarker::Frame(
+            marker
+                .as_str()
+                .parse()
+                .expect("timeline frame markers must be integers"),
+        ),
+        Rule::timeline_percent => {
+            let raw = marker.as_str().trim_end_matches('%');
+            TimelineMarker::Percent(
+                raw.parse()
+                    .expect("timeline percent markers must be numeric"),
+            )
+        }
+        _ => unreachable!("Unexpected timeline marker rule: {:?}", marker.as_rule()),
+    }
+}
+
+fn derive_timeline_keyframe_definition(timeline_keyframe: Pair<Rule>) -> TimelineKeyframe {
+    let mut pairs = timeline_keyframe.into_inner();
+    let marker = parse_timeline_marker(pairs.next().unwrap());
+    let value = parse_value_definition(pairs.next().unwrap());
+    let easing = pairs.next().map(|easing| {
+        let location = span_to_location(&easing.as_span());
+        Token::new(easing.as_str().to_string(), location)
+    });
+    TimelineKeyframe {
+        marker,
+        value,
+        easing,
+    }
+}
+
+fn apply_timeline_setting_to_track(track: &mut TimelineTrackDefinition, setting: Pair<Rule>) {
+    let mut pairs = setting.into_inner();
+    let key = pairs.next().unwrap().into_inner().next().unwrap();
+    let value = pairs.next().unwrap();
+    let parsed_value = parse_value_definition(value);
+
+    match key.as_str() {
+        "frames" => {
+            if let ValueDefinition::LiteralValue(PaxValue::Numeric(value)) = parsed_value {
+                track.frames = Some(value.to_int() as u64);
+            }
+        }
+        "loop" => {
+            if let ValueDefinition::LiteralValue(PaxValue::Bool(value)) = parsed_value {
+                track.repeat = Some(value);
+            }
+        }
+        "playhead" => {
+            track.playhead = Some(Box::new(parsed_value));
+        }
+        _ => {}
+    }
+}
+
+fn derive_timeline_track_definition(timeline_track: Pair<Rule>) -> TimelineTrackDefinition {
+    let mut track = TimelineTrackDefinition {
+        elements: vec![],
+        playhead: None,
+        frames: None,
+        repeat: None,
+        starting_value: None,
+        use_local_property_scope: false,
+    };
+
+    for pair in timeline_track.into_inner() {
+        match pair.as_rule() {
+            Rule::timeline_block_setting => apply_timeline_setting_to_track(&mut track, pair),
+            Rule::timeline_keyframe => track.elements.push(TimelineTrackElement::Keyframe(
+                derive_timeline_keyframe_definition(pair),
+            )),
+            Rule::comment => track
+                .elements
+                .push(TimelineTrackElement::Comment(pair.as_str().to_string())),
+            _ => unreachable!("Unexpected timeline track rule: {:?}", pair.as_rule()),
+        }
+    }
+
+    track
+}
+
+fn derive_timeline_selector_block_definition(
+    timeline_selector_body: Pair<Rule>,
+) -> TimelineSelectorBlockDefinition {
+    TimelineSelectorBlockDefinition {
+        elements: timeline_selector_body
+            .into_inner()
+            .map(|pair| match pair.as_rule() {
+                Rule::timeline_property_key_value_pair => {
+                    let mut pairs = pair.into_inner();
+                    let property_key = pairs.next().unwrap().into_inner().next().unwrap();
+                    let property_key_location = span_to_location(&property_key.as_span());
+                    let property_key_token =
+                        Token::new(property_key.as_str().to_string(), property_key_location);
+                    let track = derive_timeline_track_definition(pairs.next().unwrap());
+                    TimelineSelectorElement::Track(property_key_token, track)
+                }
+                Rule::comment => TimelineSelectorElement::Comment(pair.as_str().to_string()),
+                _ => unreachable!("Unexpected timeline selector rule: {:?}", pair.as_rule()),
+            })
+            .collect(),
+    }
+}
+
+pub fn parse_timeline_from_component_definition_string(
+    pax_component_definition: Pair<Rule>,
+) -> Vec<TimelineDefinition> {
+    let mut timelines = Vec::new();
+
+    pax_component_definition
+        .into_inner()
+        .for_each(|top_level_pair| {
+            if top_level_pair.as_rule() != Rule::timeline_block_declaration {
+                return;
+            }
+
+            let mut timeline = TimelineDefinition::default();
+            let mut pairs = top_level_pair.into_inner().peekable();
+
+            if matches!(
+                pairs.peek().map(|pair| pair.as_rule()),
+                Some(Rule::identifier)
+            ) {
+                let raw_name = pairs.next().unwrap();
+                timeline.name = Some(Token::new(
+                    raw_name.as_str().to_string(),
+                    span_to_location(&raw_name.as_span()),
+                ));
+            }
+
+            for timeline_entity in pairs {
+                match timeline_entity.as_rule() {
+                    Rule::timeline_block_setting => {
+                        let mut pairs = timeline_entity.into_inner();
+                        let key = pairs.next().unwrap().into_inner().next().unwrap();
+                        let value = pairs.next().unwrap();
+                        let parsed_value = parse_value_definition(value);
+                        match key.as_str() {
+                            "frames" => {
+                                if let ValueDefinition::LiteralValue(PaxValue::Numeric(value)) =
+                                    parsed_value
+                                {
+                                    timeline.frames = Some(value.to_int() as u64);
+                                }
+                            }
+                            "loop" => {
+                                if let ValueDefinition::LiteralValue(PaxValue::Bool(value)) =
+                                    parsed_value
+                                {
+                                    timeline.repeat = value;
+                                }
+                            }
+                            "playhead" => {
+                                timeline.playhead = Some(parsed_value);
+                            }
+                            _ => {}
+                        }
+                    }
+                    Rule::timeline_selector_block => {
+                        let mut selector_block_pairs = timeline_entity.into_inner();
+                        let raw_target = selector_block_pairs.next().unwrap();
+                        let raw_value_location = span_to_location(&raw_target.as_span());
+                        let target: String = raw_target
+                            .as_str()
+                            .chars()
+                            .filter(|c| !c.is_whitespace())
+                            .collect();
+                        let token = Token::new(target, raw_value_location);
+                        let selector_body = selector_block_pairs.next().unwrap();
+                        timeline.elements.push(TimelineBlockElement::SelectorBlock(
+                            token,
+                            derive_timeline_selector_block_definition(selector_body),
+                        ));
+                    }
+                    Rule::comment => {
+                        timeline.elements.push(TimelineBlockElement::Comment(
+                            timeline_entity.as_str().to_string(),
+                        ));
+                    }
+                    _ => {
+                        unreachable!(
+                            "Unexpected timeline block rule: {:?}",
+                            timeline_entity.as_rule()
+                        );
+                    }
+                }
+            }
+
+            if !timeline.elements.is_empty()
+                || timeline.frames.is_some()
+                || timeline.playhead.is_some()
+                || !timeline.repeat
+                || timeline.name.is_some()
+            {
+                timelines.push(timeline);
+            }
+        });
+
+    timelines
 }
 
 fn derive_value_definition_from_literal_object_pair(
@@ -577,7 +790,8 @@ pub fn assemble_component_definition(
     //populate template_node_definitions vec, needed for traversing node tree at codegen-time
     ctx.template_node_definitions = tpc.template.clone();
 
-    let settings = parse_settings_from_component_definition_string(ast);
+    let settings = parse_settings_from_component_definition_string(ast.clone());
+    let timelines = parse_timeline_from_component_definition_string(ast);
 
     let new_def = ComponentDefinition {
         is_primitive: false,
@@ -587,6 +801,7 @@ pub fn assemble_component_definition(
         type_id: self_type_id,
         template: Some(tpc.template),
         settings: Some(settings),
+        timelines,
         module_path: modified_module_path,
     };
 
@@ -617,6 +832,7 @@ pub fn assemble_struct_only_component_definition(
         primitive_instance_import_path: None,
         template: None,
         settings: None,
+        timelines: vec![],
     };
     (ctx, new_def)
 }
@@ -636,6 +852,7 @@ pub fn assemble_primitive_definition(
         type_id: self_type_id,
         template: None,
         settings: None,
+        timelines: vec![],
         module_path: modified_module_path,
     }
 }

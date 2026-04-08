@@ -14,6 +14,18 @@ import Rendering
 import PaxCartridgeAssets
 import PaxCartridge
 
+private func sendInterruptToEngine(data: Data) {
+    data.withUnsafeBytes { ptr in
+        var ffiContainer = InterruptBuffer(data_ptr: ptr.baseAddress!, length: UInt64(ptr.count))
+        guard let engineContainer = PaxViewMacos.PaxEngineContainer.paxEngineContainer else {
+            return
+        }
+        withUnsafePointer(to: &ffiContainer) { ffiContainerPtr in
+            pax_interrupt(engineContainer, ffiContainerPtr)
+        }
+    }
+}
+
 private struct PaxDevLookRequest: Codable {
     let request_id: String
     let kind: String
@@ -185,6 +197,9 @@ struct PaxViewMacos: View {
         }
         .onAppear {
             registerFonts()
+            // SwiftUI can recreate the view tree independently of the backing NSView. Install the
+            // interrupt bridge here so native controls always have a live path back into pax_interrupt.
+            NativeInterruptDispatcher.shared.sendData = sendInterruptToEngine
         }.gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global).onEnded { dragGesture in
                     //FUTURE: especially if parsing is a bottleneck, could use a different encoding than JSON
             let json = String(format: "{\"Click\": {\"x\": %f, \"y\": %f, \"button\": \"Left\", \"modifiers\":[] } }", dragGesture.location.x, dragGesture.location.y);
@@ -261,6 +276,9 @@ struct PaxViewMacos: View {
         typealias NSViewType = PaxCanvasViewMacos
 
         func makeNSView(context: Context) -> PaxCanvasViewMacos {
+            // Reinstall the dispatcher when the canvas NSView is rebuilt; dev tools and native
+            // widgets can outlive the previous SwiftUI wrapper instance.
+            NativeInterruptDispatcher.shared.sendData = sendInterruptToEngine
             let view = PaxCanvasViewMacos()
             return view
         }
@@ -1022,6 +1040,34 @@ struct PaxViewMacos: View {
         }
 
         private func captureWindowBitmap(scale: CGFloat) throws -> NSBitmapImageRep {
+            if let bitmap = try captureCompositedWindowBitmap(scale: scale) {
+                return bitmap
+            }
+            return try captureViewCachedBitmap(scale: scale)
+        }
+
+        private func captureCompositedWindowBitmap(scale: CGFloat) throws -> NSBitmapImageRep? {
+            guard let window else {
+                return nil
+            }
+
+            let windowNumber = CGWindowID(window.windowNumber)
+            let imageBounds = CGRect.null
+            let imageOptions: CGWindowImageOption = [.bestResolution, .boundsIgnoreFraming]
+
+            guard let cgImage = CGWindowListCreateImage(
+                imageBounds,
+                .optionIncludingWindow,
+                windowNumber,
+                imageOptions
+            ) else {
+                return nil
+            }
+
+            return try bitmapImageRep(from: cgImage, scale: scale)
+        }
+
+        private func captureViewCachedBitmap(scale: CGFloat) throws -> NSBitmapImageRep {
             guard let rootView = self.window?.contentView else {
                 throw NSError(domain: "", code: 201, userInfo: [NSLocalizedDescriptionKey: "Window content view is unavailable"])
             }
@@ -1040,6 +1086,41 @@ struct PaxViewMacos: View {
             defer { NSGraphicsContext.restoreGraphicsState() }
             rootView.displayIgnoringOpacity(bounds, in: graphicsContext)
 
+            return try scaleBitmap(baseBitmap, scale: scale)
+        }
+
+        private func bitmapImageRep(from cgImage: CGImage, scale: CGFloat) throws -> NSBitmapImageRep {
+            let width = cgImage.width
+            let height = cgImage.height
+            guard let bitmap = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: width,
+                pixelsHigh: height,
+                bitsPerSample: 8,
+                samplesPerPixel: 4,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: .deviceRGB,
+                bytesPerRow: width * 4,
+                bitsPerPixel: 32
+            ) else {
+                throw NSError(domain: "", code: 211, userInfo: [NSLocalizedDescriptionKey: "Could not allocate window bitmap representation"])
+            }
+
+            guard let graphicsContext = NSGraphicsContext(bitmapImageRep: bitmap) else {
+                throw NSError(domain: "", code: 212, userInfo: [NSLocalizedDescriptionKey: "Could not create window bitmap graphics context"])
+            }
+
+            NSGraphicsContext.saveGraphicsState()
+            defer { NSGraphicsContext.restoreGraphicsState() }
+            NSGraphicsContext.current = graphicsContext
+            graphicsContext.cgContext.interpolationQuality = .high
+            graphicsContext.cgContext.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+            return try scaleBitmap(bitmap, scale: scale)
+        }
+
+        private func scaleBitmap(_ baseBitmap: NSBitmapImageRep, scale: CGFloat) throws -> NSBitmapImageRep {
             if abs(scale - 1.0) < 0.0001 {
                 return baseBitmap
             }

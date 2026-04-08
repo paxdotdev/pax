@@ -84,6 +84,79 @@ impl CoercionRules for Color {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         match value {
             PaxValue::Color(color) => Ok(*color),
+            PaxValue::Enum(contents) => {
+                let (name, variant, mut args) = *contents;
+                if name != "Color" {
+                    return Err(format!("{:?} can't be coerced into a Color", PaxValue::Enum(Box::new((name, variant, args)))));
+                }
+                match variant.as_str() {
+                    "rgb" => Ok(Color::rgb(
+                        ColorChannel::try_coerce(
+                            args.remove(0),
+                        )?,
+                        ColorChannel::try_coerce(
+                            args.remove(0),
+                        )?,
+                        ColorChannel::try_coerce(
+                            args.remove(0),
+                        )?,
+                    )),
+                    "rgba" => Ok(Color::rgba(
+                        ColorChannel::try_coerce(args.remove(0))?,
+                        ColorChannel::try_coerce(args.remove(0))?,
+                        ColorChannel::try_coerce(args.remove(0))?,
+                        ColorChannel::try_coerce(args.remove(0))?,
+                    )),
+                    "hsl" => Ok(Color::hsl(
+                        Rotation::try_coerce(args.remove(0))?,
+                        ColorChannel::try_coerce(args.remove(0))?,
+                        ColorChannel::try_coerce(args.remove(0))?,
+                    )),
+                    "hsla" => Ok(Color::hsla(
+                        Rotation::try_coerce(args.remove(0))?,
+                        ColorChannel::try_coerce(args.remove(0))?,
+                        ColorChannel::try_coerce(args.remove(0))?,
+                        ColorChannel::try_coerce(args.remove(0))?,
+                    )),
+                    "SLATE" => Ok(Color::SLATE),
+                    "GRAY" => Ok(Color::GRAY),
+                    "ZINC" => Ok(Color::ZINC),
+                    "NEUTRAL" => Ok(Color::NEUTRAL),
+                    "STONE" => Ok(Color::STONE),
+                    "RED" => Ok(Color::RED),
+                    "ORANGE" => Ok(Color::ORANGE),
+                    "AMBER" => Ok(Color::AMBER),
+                    "YELLOW" => Ok(Color::YELLOW),
+                    "LIME" => Ok(Color::LIME),
+                    "GREEN" => Ok(Color::GREEN),
+                    "EMERALD" => Ok(Color::EMERALD),
+                    "TEAL" => Ok(Color::TEAL),
+                    "CYAN" => Ok(Color::CYAN),
+                    "SKY" => Ok(Color::SKY),
+                    "BLUE" => Ok(Color::BLUE),
+                    "INDIGO" => Ok(Color::INDIGO),
+                    "VIOLET" => Ok(Color::VIOLET),
+                    "PURPLE" => Ok(Color::PURPLE),
+                    "FUCHSIA" => Ok(Color::FUCHSIA),
+                    "PINK" => Ok(Color::PINK),
+                    "ROSE" => Ok(Color::ROSE),
+                    "BLACK" => Ok(Color::BLACK),
+                    "WHITE" => Ok(Color::WHITE),
+                    "TRANSPARENT" => Ok(Color::TRANSPARENT),
+                    "NONE" => Ok(Color::NONE),
+                    _ => Err(format!(
+                        "failed to convert to Color: unknown variant {:?}",
+                        variant
+                    )),
+                }
+            }
+            PaxValue::Option(o) => {
+                if let Some(o) = *o {
+                    Color::try_coerce(o)
+                } else {
+                    Err("failed to convert to Color".to_string())
+                }
+            }
             _ => return Err(format!("{:?} can't be coerced into a Color", value)),
         }
     }
@@ -399,6 +472,31 @@ mod tests {
 
     fn color(hex: &str) -> PaxValue {
         PaxValue::Color(Box::new(Color::from_hex(hex)))
+    }
+
+    #[test]
+    fn coerces_color_helper_syntax() {
+        let pax_value = PaxValue::Enum(Box::new((
+            "Color".to_string(),
+            "rgba".to_string(),
+            vec![
+                PaxValue::Numeric(255.into()),
+                PaxValue::Numeric(224.into()),
+                PaxValue::Numeric(162.into()),
+                PaxValue::Numeric(255.into()),
+            ],
+        )));
+
+        let color = Color::try_coerce(pax_value).expect("rgba helper syntax should coerce");
+        assert_eq!(
+            color,
+            Color::rgba(
+                ColorChannel::Integer(255),
+                ColorChannel::Integer(224),
+                ColorChannel::Integer(162),
+                ColorChannel::Integer(255),
+            )
+        );
     }
 
     #[test]

@@ -23,8 +23,8 @@ use_RefCell!();
 pub mod web_render_contexts;
 
 use pax_runtime::PaxEngine;
+use std::collections::HashMap;
 use std::rc::Rc;
-use std::{collections::HashMap};
 use wasm_bindgen::prelude::*;
 use web_sys::window;
 
