@@ -32,6 +32,24 @@ use pax_kit::*;
         }
     }
 }
+
+@timeline {
+    frames: 120,
+    #text {
+        x: {
+            0%: 50%, Linear,
+            50%: 52%, OutQuad,
+            100%: 50%,
+        }
+    }
+    .small {
+        rotate: {
+            0%: 0deg, Linear,
+            50%: 8deg, OutQuad,
+            100%: 0deg,
+        }
+    }
+}
 )]
 pub struct Example {
     pub ticks: Property<usize>,

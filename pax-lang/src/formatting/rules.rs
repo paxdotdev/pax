@@ -578,11 +578,12 @@ struct TimelineBlockSettingDefaultRule;
 
 impl FormattingRule for TimelineBlockSettingDefaultRule {
     fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
-        children
+        let setting = children
             .iter()
             .map(|child| child.formatted_node.clone())
             .collect::<Vec<String>>()
-            .join(" ")
+            .join(" ");
+        format!("{setting},")
     }
 }
 

@@ -29,8 +29,8 @@ const EXPECTED_PAX: &str = "// Hello world
 }
 
 @timeline existing_timeline {
-    playhead: self.phase
-    frames: 120
+    playhead: self.phase,
+    frames: 120,
     #existing_selector {
         progress: {
             0: 0, Linear,
