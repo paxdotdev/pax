@@ -25,6 +25,7 @@ use crate::RadialGradient;
 use crate::Rotation;
 use crate::Size;
 use crate::Stroke;
+use crate::StrokeCap;
 use crate::Transform2D;
 
 // Primitive types
@@ -186,10 +187,22 @@ impl ToPaxValue for Stroke {
             vec![
                 ("color".to_string(), self.color.get().to_pax_value()),
                 ("width".to_string(), self.width.to_pax_value()),
+                ("cap".to_string(), self.cap.get().to_pax_value()),
             ]
             .into_iter()
             .collect(),
         )
+    }
+}
+
+impl ToPaxValue for StrokeCap {
+    fn to_pax_value(self) -> PaxValue {
+        let variant = match self {
+            StrokeCap::Butt => "Butt",
+            StrokeCap::Round => "Round",
+            StrokeCap::Square => "Square",
+        };
+        PaxValue::Enum(Box::new(("StrokeCap".to_string(), variant.to_string(), vec![])))
     }
 }
 

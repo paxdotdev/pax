@@ -56,15 +56,14 @@ pub trait RenderContext {
         self.fill_with_opacity(layer, path, fill, 1.0);
     }
     fn fill_with_opacity(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill, opacity: f64);
-    fn stroke(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill, width: f64) {
-        self.stroke_with_opacity(layer, path, fill, width, 1.0);
+    fn stroke(&mut self, layer: usize, path: kurbo::BezPath, stroke: &Stroke) {
+        self.stroke_with_opacity(layer, path, stroke, 1.0);
     }
     fn stroke_with_opacity(
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        fill: &Fill,
-        width: f64,
+        stroke: &Stroke,
         opacity: f64,
     );
 
@@ -1935,11 +1934,41 @@ pub enum PathElement {
 impl Interpolatable for PathElement {}
 impl HelperFunctions for PathElement {}
 
+/// Controls how an open stroke terminates at the exposed endpoints of a path.
+///
+/// `StrokeCap` affects primitives such as `Line` and open `Path` subpaths.
+/// Closed geometry ignores cap style because it has no exposed endpoints.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
+#[serde(crate = "crate::serde")]
+pub enum StrokeCap {
+    /// Ends exactly at the path endpoint without extending past it.
+    #[default]
+    Butt,
+    /// Adds a semicircular cap whose radius is half the stroke width.
+    Round,
+    /// Adds a square cap that extends half the stroke width past the endpoint.
+    Square,
+}
+
+impl Interpolatable for StrokeCap {}
+
+/// Describes the outline drawn around vector geometry.
+///
+/// Pax currently renders strokes centered on the underlying path. For open
+/// geometry, `cap` controls how the stroke terminates at the start and end of
+/// the path.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "crate::serde")]
 pub struct Stroke {
+    /// The stroke color, including alpha.
     pub color: Property<Color>,
+    /// The stroke width.
+    ///
+    /// The type is [`Size`] for consistency with the wider property system, but
+    /// current vector renderers interpret this value in pixels.
     pub width: Property<Size>,
+    /// The cap style used for exposed endpoints on open paths.
+    pub cap: Property<StrokeCap>,
 }
 
 impl Default for Stroke {
@@ -1947,20 +1976,30 @@ impl Default for Stroke {
         Self {
             color: Default::default(),
             width: Property::new(Size::Pixels(Numeric::F64(0.0))),
+            cap: Property::new(StrokeCap::default()),
         }
     }
 }
 
 impl PartialEq for Stroke {
     fn eq(&self, other: &Self) -> bool {
-        self.color.get() == other.color.get() && self.width.get() == other.width.get()
+        self.color.get() == other.color.get()
+            && self.width.get() == other.width.get()
+            && self.cap.get() == other.cap.get()
     }
 }
 
 impl Interpolatable for Stroke {
-    fn interpolate(&self, _other: &Self, _t: f64) -> Self {
-        // TODO interpolation
-        self.clone()
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Self {
+            color: Property::new(self.color.get().interpolate(&other.color.get(), t)),
+            width: Property::new(self.width.get().interpolate(&other.width.get(), t)),
+            cap: Property::new(if t < 1.0 {
+                self.cap.get()
+            } else {
+                other.cap.get()
+            }),
+        }
     }
 }
 
@@ -2005,6 +2044,7 @@ impl Hash for Stroke {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.width.get().hash(state);
         self.color.get().hash(state);
+        self.cap.get().hash(state);
     }
 }
 

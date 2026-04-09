@@ -309,19 +309,14 @@ impl<'w> WgpuRenderer<'w> {
             .unwrap_or_else(Transform2D::identity)
     }
 
-    pub fn stroke_path(&mut self, path: Path, stroke_fill: Fill, stroke_width: f32) {
-        self.stroke_path_with_opacity(path, stroke_fill, stroke_width, 1.0);
+    pub fn stroke_path(&mut self, path: Path, stroke: Stroke) {
+        self.stroke_path_with_opacity(path, stroke, 1.0);
     }
 
-    pub fn stroke_path_with_opacity(
-        &mut self,
-        path: Path,
-        stroke_fill: Fill,
-        stroke_width: f32,
-        opacity: f32,
-    ) {
+    pub fn stroke_path_with_opacity(&mut self, path: Path, stroke: Stroke, opacity: f32) {
         let current_transform = self.current_transform();
-        let geometry_signature = hash_vector_path(&path, PendingVectorOpKind::Stroke(stroke_width));
+        let geometry_signature =
+            hash_vector_path(&path, PendingVectorOpKind::Stroke(stroke.weight, stroke.cap));
         let Some(PendingNode {
             kind: PendingNodeKind::Vector(buffers),
             ..
@@ -331,10 +326,10 @@ impl<'w> WgpuRenderer<'w> {
         };
         buffers.ops.push(PendingVectorOp {
             path,
-            fill: stroke_fill,
+            fill: stroke.fill,
             transform: current_transform,
             opacity,
-            kind: PendingVectorOpKind::Stroke(stroke_width),
+            kind: PendingVectorOpKind::Stroke(stroke.weight, stroke.cap),
             geometry_signature,
         });
     }
@@ -958,7 +953,7 @@ struct PendingVectorOp {
 #[derive(Clone, Copy)]
 enum PendingVectorOpKind {
     Fill,
-    Stroke(f32),
+    Stroke(f32, StrokeCap),
 }
 
 struct PendingImageNode {
@@ -1087,8 +1082,14 @@ fn rebuild_vector_buffers(
                     log::warn!("{:?}", err);
                 }
             }
-            PendingVectorOpKind::Stroke(stroke_width) => {
-                let options = StrokeOptions::tolerance(tolerance).with_line_width(stroke_width);
+            PendingVectorOpKind::Stroke(stroke_width, stroke_cap) => {
+                let options = StrokeOptions::tolerance(tolerance)
+                    .with_line_width(stroke_width)
+                    .with_line_cap(match stroke_cap {
+                        StrokeCap::Butt => lyon::tessellation::LineCap::Butt,
+                        StrokeCap::Round => lyon::tessellation::LineCap::Round,
+                        StrokeCap::Square => lyon::tessellation::LineCap::Square,
+                    });
                 let mut geometry_builder =
                     BuffersBuilder::new(&mut buffers.geometry, |vertex: StrokeVertex| GpuVertex {
                         position: vertex.position().to_array(),
@@ -1355,9 +1356,10 @@ fn hash_vector_path(path: &Path, kind: PendingVectorOpKind) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     match kind {
         PendingVectorOpKind::Fill => 0u8.hash(&mut hasher),
-        PendingVectorOpKind::Stroke(width) => {
+        PendingVectorOpKind::Stroke(width, cap) => {
             1u8.hash(&mut hasher);
             width.to_bits().hash(&mut hasher);
+            cap.hash(&mut hasher);
         }
     }
     for event in path.iter() {
@@ -1582,7 +1584,16 @@ pub enum Fill {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum StrokeCap {
+    Butt,
+    Round,
+    Square,
+}
+
+#[derive(Debug, Clone)]
 pub struct Stroke {
-    pub color: Color,
+    pub fill: Fill,
     pub weight: f32,
+    pub cap: StrokeCap,
 }

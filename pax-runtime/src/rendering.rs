@@ -3,14 +3,14 @@ use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
 use_RefCell!();
-use crate::api::{CommonProperties, RenderContext};
+use crate::api::{math::Point2, CommonProperties, RenderContext};
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeInterrupt;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::{borrow, use_RefCell, Variable};
 use piet::{Color, StrokeStyle};
 
-use crate::api::{Layer, Scroll};
+use crate::api::{Layer, Scroll, Window};
 
 use crate::{ExpandedNode, HandlerRegistry, RuntimeContext, RuntimePropertiesStackFrame};
 
@@ -189,6 +189,18 @@ pub trait InstanceNode {
     /// Used by frame to control content clipping
     fn clips_content(&self, _expanded_node: &ExpandedNode) -> bool {
         false
+    }
+
+    /// Override when a primitive needs a more precise hit region than its layout bounds.
+    fn ray_cast_test(&self, expanded_node: &ExpandedNode, ray: Point2<Window>) -> bool {
+        let t_and_b = expanded_node.transform_and_bounds.get();
+        let inverted_transform = t_and_b.transform.inverse();
+        let transformed_ray = inverted_transform * ray;
+        let (width, height) = t_and_b.bounds;
+        transformed_ray.x > 0.0
+            && transformed_ray.y > 0.0
+            && transformed_ray.x < width
+            && transformed_ray.y < height
     }
 
     fn handle_native_interrupt(

@@ -20,7 +20,7 @@ use anyhow::{anyhow, Result};
 use bezier_rs::{Bezier, Identifier, Subpath};
 use glam::DVec2;
 use pax_engine::{
-    api::{borrow, borrow_mut, Axis, Color, Interpolatable, PathElement, Stroke},
+    api::{borrow, borrow_mut, Axis, Color, Interpolatable, PathElement, Stroke, StrokeCap},
     log,
     math::{Point2, Space, Transform2, Vector2},
     pax_manifest::{TreeIndexPosition, UniqueTemplateNodeIdentifier},
@@ -88,6 +88,7 @@ impl PaintbrushTool {
                         Some(Stroke {
                             color: Property::new(settings.stroke_color.clone()),
                             width: Property::new(Size::Pixels(settings.stroke_width.into())),
+                            cap: Property::new(StrokeCap::default()),
                         }),
                     )?;
                     builder.set_property_from_typed("fill", Some(settings.fill_color.clone()))?;

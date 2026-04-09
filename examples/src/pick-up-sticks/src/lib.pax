@@ -1,0 +1,669 @@
+<Group width=100% height=100%>
+    if finished && collapsed {
+        <Group class=outcome_banner>
+            <Text id=banner_title x=50% y=32px width=360px height=30px text="TEE-PEE DOWN"/>
+            <Text
+                id=banner_copy
+                x=50%
+                y=66px
+                width=420px
+                height=28px
+                text="One bright stick too many. Tap Rebuild to stack another round."
+            />
+            <Rectangle
+                class=banner_surface
+                fill={Fill::linearGradient(
+                    (0%, 0%),
+                    (100%, 100%),
+                    [
+                        GradientStop::get(Color::rgba(88, 18, 36, 240), 0%),
+                        GradientStop::get(Color::rgba(42, 10, 20, 232), 100%)
+                    ]
+                )}
+                stroke={color: rgba(255, 210, 184, 180), width: 2px}
+            />
+        </Group>
+    }
+
+    if finished && !collapsed {
+        <Group class=outcome_banner>
+            <Text id=banner_title x=50% y=32px width=360px height=30px text="TABLE CLEARED"/>
+            <Text
+                id=banner_copy
+                x=50%
+                y=66px
+                width=420px
+                height=28px
+                text="Every stick slipped free without bringing the stack down."
+            />
+            <Rectangle
+                class=banner_surface
+                fill={Fill::linearGradient(
+                    (0%, 0%),
+                    (100%, 100%),
+                    [
+                        GradientStop::get(Color::rgba(20, 74, 64, 236), 0%),
+                        GradientStop::get(Color::rgba(10, 36, 31, 228), 100%)
+                    ]
+                )}
+                stroke={color: rgba(196, 250, 225, 160), width: 2px}
+            />
+        </Group>
+    }
+
+    <Group
+        x=50%
+        y=50%
+        width=980px
+        height=720px
+        anchor_x=50%
+        anchor_y=50%
+        scale_x={(board_scale * 100)%}
+        scale_y={(board_scale * 100)%}
+    >
+        <Group
+            class=reset_chip
+            scale_x={(100 + rebuild_pulse * 8)%}
+            scale_y={(100 + rebuild_pulse * 8)%}
+            rotate={(rebuild_pulse * -2.4)deg}
+        >
+            <Ellipse
+                class=reset_glow
+                fill=rgba(255, 208, 122, 72)
+                opacity={rebuild_pulse * 0.75}
+                _raycastable=false
+            />
+            <Rectangle class=reset_hit fill=TRANSPARENT @click=self.reset_game/>
+            <Text id=reset_caption x=92px y=14px width=76px height=12px text={rebuild_caption} _raycastable=false/>
+            <Text id=reset_label x=90px y=33px width=78px height=18px text="Rebuild" _raycastable=false/>
+            <Line
+                x1=26px
+                y1=28px
+                x2=60px
+                y2=28px
+                stroke={color: rgba(255, 236, 196, 255), width: 4px}
+                _raycastable=false
+            />
+            <Line
+                x1=26px
+                y1=28px
+                x2=42px
+                y2=14px
+                stroke={color: rgba(255, 236, 196, 255), width: 4px}
+                _raycastable=false
+            />
+            <Line
+                x1=26px
+                y1=28px
+                x2=42px
+                y2=42px
+                stroke={color: rgba(255, 236, 196, 255), width: 4px}
+                _raycastable=false
+            />
+            <Rectangle
+                class=chip_outline
+                fill=TRANSPARENT
+                stroke={color: rgba(255, 225, 168, 90), width: 2px}
+                _raycastable=false
+            />
+            <Rectangle
+                class=chip_surface
+                fill={Fill::linearGradient(
+                    (0%, 0%),
+                    (100%, 100%),
+                    [
+                        GradientStop::get(Color::rgba(54, 43, 92, 235), 0%),
+                        GradientStop::get(Color::rgba(25, 22, 52, 225), 100%)
+                    ]
+                )}
+                _raycastable=false
+            />
+        </Group>
+
+        <Group class=status_chip>
+            <Text class=chip_title x=24px y=22px width=296px height=20px text={status_text}/>
+            <Text class=chip_body x=24px y=50px width=296px height=22px text={chance_text}/>
+            <Rectangle
+                class=chip_outline
+                fill=TRANSPARENT
+                stroke={color: rgba(255, 225, 168, 88), width: 2px}
+            />
+            <Rectangle
+                class=chip_surface
+                fill={Fill::linearGradient(
+                    (0%, 0%),
+                    (100%, 100%),
+                    [
+                        GradientStop::get(Color::rgba(48, 34, 86, 230), 0%),
+                        GradientStop::get(Color::rgba(22, 18, 48, 220), 100%)
+                    ]
+                )}
+            />
+        </Group>
+
+        <Group class=progress_chip>
+            <Text class=chip_title x=24px y=22px width=216px height=20px text="Picks"/>
+            <Text class=chip_body x=24px y=50px width=216px height=22px text={progress_text}/>
+            <Rectangle
+                class=chip_outline
+                fill=TRANSPARENT
+                stroke={color: rgba(255, 225, 168, 88), width: 2px}
+            />
+            <Rectangle
+                class=chip_surface
+                fill={Fill::linearGradient(
+                    (0%, 0%),
+                    (100%, 100%),
+                    [
+                        GradientStop::get(Color::rgba(48, 34, 86, 230), 0%),
+                        GradientStop::get(Color::rgba(22, 18, 48, 220), 100%)
+                    ]
+                )}
+            />
+        </Group>
+
+        <Text id=title x=50% y=72px width=640px height=48px text="Pick-up Sticks"/>
+        <Text
+            id=subhead
+            x=50%
+            y=118px
+            width=620px
+            height=24px
+            text="Click a bright stick and hope the little tee-pee holds."
+        />
+
+        <Group class=playfield>
+            for (stick, i) in sticks {
+                <Group
+                    x={(stick.x)px}
+                    y={(stick.y)px}
+                    width={(stick.length)px}
+                    height=48px
+                    anchor_x=50%
+                    anchor_y=50%
+                    scale_x={(stick.scale * 100)%}
+                    rotate={(stick.rotation)deg}
+                    opacity={stick.opacity}
+                    _raycastable=false
+                >
+                    <Rectangle
+                        width=100%
+                        height=100%
+                        fill=TRANSPARENT
+                        _raycastable={stick.active && !locked && !finished}
+                        @click=self.remove_stick
+                    />
+                    <Line
+                        x1=12%
+                        y1=42%
+                        x2=88%
+                        y2=42%
+                        stroke={stick.highlight_stroke}
+                        _raycastable=false
+                    />
+                    <Line
+                        x1=8%
+                        y1=50%
+                        x2=92%
+                        y2=50%
+                        stroke={stick.main_stroke}
+                        _raycastable=false
+                    />
+                    <Line
+                        x1=8%
+                        y1=61%
+                        x2=92%
+                        y2=61%
+                        stroke={stick.shadow_stroke}
+                        _raycastable=false
+                    />
+                </Group>
+            }
+
+            <Text
+                id=field_quote
+                x=50%
+                y=56%
+                width=620px
+                height=96px
+                text="Breathe in, pull lightly, and let the tiny catastrophe clarify your priorities."
+                opacity=50%
+                _raycastable=false
+            />
+
+            <Ellipse
+                x=50%
+                y=31%
+                width=244px
+                height=164px
+                anchor_x=50%
+                anchor_y=50%
+                fill=rgba(255, 214, 114, 22)
+                _raycastable=false
+            />
+            <Line
+                x1=18%
+                y1=86%
+                x2=82%
+                y2=86%
+                stroke={color: rgba(255, 220, 152, 38), width: 2px}
+                _raycastable=false
+            />
+            <Ellipse
+                x=50%
+                y=82%
+                width=466px
+                height=92px
+                anchor_x=50%
+                anchor_y=50%
+                fill=rgba(6, 8, 18, 110)
+                _raycastable=false
+            />
+        </Group>
+
+        <Group class=corner_tl>
+            <Ellipse x=0px y=0px width=10px height=10px fill=rgba(255, 224, 156, 190)/>
+            <Line x1=0px y1=0px x2=56px y2=0px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
+            <Line x1=0px y1=0px x2=0px y2=56px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
+        </Group>
+
+        <Group class=corner_tr>
+            <Ellipse x=0px y=0px width=10px height=10px fill=rgba(255, 224, 156, 190)/>
+            <Line x1=0px y1=0px x2=-56px y2=0px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
+            <Line x1=0px y1=0px x2=0px y2=56px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
+        </Group>
+
+        <Group class=corner_bl>
+            <Ellipse x=0px y=0px width=10px height=10px fill=rgba(255, 224, 156, 190)/>
+            <Line x1=0px y1=0px x2=56px y2=0px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
+            <Line x1=0px y1=0px x2=0px y2=-56px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
+        </Group>
+
+        <Group class=corner_br>
+            <Ellipse x=0px y=0px width=10px height=10px fill=rgba(255, 224, 156, 190)/>
+            <Line x1=0px y1=0px x2=-56px y2=0px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
+            <Line x1=0px y1=0px x2=0px y2=-56px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
+        </Group>
+
+        <Group x=50% y=50% width=920px height=640px anchor_x=50% anchor_y=50% opacity=0.22>
+            for i in 0..20 {
+                <Group
+                    x=50%
+                    y=50%
+                    width=100%
+                    height=100%
+                    anchor_x=50%
+                    anchor_y=50%
+                    rotate={(i * 18)deg}
+                    opacity={0.14 + i / 140.0}
+                >
+                    <Line
+                        x1=50%
+                        y1=5%
+                        x2=50%
+                        y2=0%
+                        stroke={color: rgba(255, 236, 202, 110), width: 2px}
+                    />
+                </Group>
+            }
+        </Group>
+
+        <Rectangle
+            class=board_inset
+            fill=TRANSPARENT
+            stroke={color: rgba(255, 226, 173, 48), width: 2px}
+        />
+        <Rectangle
+            class=board_surface
+            fill={Fill::linearGradient(
+                (0%, 0%),
+                (0%, 100%),
+                [
+                    GradientStop::get(Color::rgba(40, 30, 77, 255), 0%),
+                    GradientStop::get(Color::rgba(24, 19, 58, 255), 48%),
+                    GradientStop::get(Color::rgba(16, 14, 38, 255), 100%)
+                ]
+            )}
+            stroke={color: rgba(255, 227, 176, 62), width: 2px}
+        />
+        <Rectangle
+            class=board_shadow
+            fill=rgba(4, 6, 14, 148)
+        />
+    </Group>
+
+    <Group x=50% y=50% width=1240px height=1240px anchor_x=50% anchor_y=50% opacity=0.24>
+        for i in 0..24 {
+            <Group
+                x=50%
+                y=50%
+                width=100%
+                height=100%
+                anchor_x=50%
+                anchor_y=50%
+                rotate={(i * 15)deg}
+                opacity={0.10 + i / 180.0}
+            >
+                <Line
+                    x1=50%
+                    y1=7%
+                    x2=50%
+                    y2=0%
+                    stroke={color: rgba(255, 236, 202, 90), width: 2px}
+                />
+            </Group>
+        }
+    </Group>
+
+    <Ellipse
+        x=14%
+        y=18%
+        width=380px
+        height=380px
+        anchor_x=50%
+        anchor_y=50%
+        fill=rgba(255, 127, 102, 38)
+    />
+    <Ellipse
+        x=86%
+        y=82%
+        width=440px
+        height=440px
+        anchor_x=50%
+        anchor_y=50%
+        fill=rgba(72, 214, 240, 28)
+    />
+    <Rectangle
+        width=100%
+        height=100%
+        fill={Fill::linearGradient(
+            (0%, 0%),
+            (0%, 100%),
+            [
+                GradientStop::get(Color::rgba(10, 11, 28, 255), 0%),
+                GradientStop::get(Color::rgba(18, 15, 40, 255), 54%),
+                GradientStop::get(Color::rgba(8, 10, 24, 255), 100%)
+            ]
+        )}
+    />
+</Group>
+
+@settings {
+    @mount: on_mount
+    @tick: tick
+
+    .board_shadow {
+        x: 16px,
+        y: 18px,
+        width: 100%,
+        height: 100%,
+        corner_radii: {RectangleCornerRadii::radii(32.0, 32.0, 32.0, 32.0)}
+    }
+
+    .board_surface {
+        width: 100%,
+        height: 100%,
+        corner_radii: {RectangleCornerRadii::radii(32.0, 32.0, 32.0, 32.0)}
+    }
+
+    .board_inset {
+        x: 24px,
+        y: 24px,
+        width={100% - 48px},
+        height={100% - 48px},
+        corner_radii: {RectangleCornerRadii::radii(26.0, 26.0, 26.0, 26.0)}
+    }
+
+    .playfield {
+        x: 50%,
+        y: 58%,
+        width: 760px,
+        height: 430px,
+        anchor_x: 50%,
+        anchor_y: 50%,
+    }
+
+    .status_chip {
+        x: 32px,
+        y: 164px,
+        width: 344px,
+        height: 84px,
+    }
+
+    .progress_chip {
+        x: 392px,
+        y: 164px,
+        width: 248px,
+        height: 84px,
+    }
+
+    .reset_chip {
+        x: 760px,
+        y: 166px,
+        width: 188px,
+        height: 58px,
+    }
+
+    .reset_hit {
+        width: 100%,
+        height: 100%,
+        corner_radii: {RectangleCornerRadii::radii(20.0, 20.0, 20.0, 20.0)}
+    }
+
+    .reset_glow {
+        x: 50%,
+        y: 50%,
+        width: {100% + 16px},
+        height: {100% + 16px},
+        anchor_x: 50%,
+        anchor_y: 50%,
+    }
+
+    .chip_surface {
+        width: 100%,
+        height: 100%,
+        corner_radii: {RectangleCornerRadii::radii(20.0, 20.0, 20.0, 20.0)}
+    }
+
+    .chip_outline {
+        width: 100%,
+        height: 100%,
+        corner_radii: {RectangleCornerRadii::radii(20.0, 20.0, 20.0, 20.0)}
+    }
+
+    .corner_tl {
+        x: 44px,
+        y: 44px,
+        width: 56px,
+        height: 56px,
+    }
+
+    .corner_tr {
+        x: 936px,
+        y: 44px,
+        width: 56px,
+        height: 56px,
+    }
+
+    .corner_bl {
+        x: 44px,
+        y: 676px,
+        width: 56px,
+        height: 56px,
+    }
+
+    .corner_br {
+        x: 936px,
+        y: 676px,
+        width: 56px,
+        height: 56px,
+    }
+
+    .outcome_banner {
+        x: 50%,
+        y: 90%,
+        width: 460px,
+        height: 104px,
+        anchor_x: 50%,
+        anchor_y: 100%,
+    }
+
+    .banner_surface {
+        width: 100%,
+        height: 100%,
+        corner_radii: {RectangleCornerRadii::radii(24.0, 24.0, 24.0, 24.0)}
+    }
+
+    .chip_title {
+        style: {
+            font: Font::Web(
+                "Space Grotesk",
+                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold
+            ),
+            font_size: 16px,
+            fill: rgba(255, 238, 206, 255),
+            align_horizontal: TextAlignHorizontal::Left,
+            align_vertical: TextAlignVertical::Center,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .chip_body {
+        style: {
+            font: Font::Web(
+                "Space Grotesk",
+                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal
+            ),
+            font_size: 14px,
+            fill: rgba(226, 226, 240, 255),
+            align_horizontal: TextAlignHorizontal::Left,
+            align_vertical: TextAlignVertical::Center,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    #title {
+        style: {
+            font: Font::Web(
+                "Cormorant Garamond",
+                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold
+            ),
+            font_size: 56px,
+            fill: rgba(255, 242, 220, 255),
+            align_horizontal: TextAlignHorizontal::Center,
+            align_vertical: TextAlignVertical::Center,
+            align_multiline: TextAlignHorizontal::Center,
+            underline: false,
+        }
+    }
+
+    #subhead {
+        style: {
+            font: Font::Web(
+                "Space Grotesk",
+                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal
+            ),
+            font_size: 16px,
+            fill: rgba(222, 223, 238, 255),
+            align_horizontal: TextAlignHorizontal::Center,
+            align_vertical: TextAlignVertical::Center,
+            align_multiline: TextAlignHorizontal::Center,
+            underline: false,
+        }
+    }
+
+    #reset_label {
+        style: {
+            font: Font::Web(
+                "Space Grotesk",
+                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold
+            ),
+            font_size: 15px,
+            fill: rgba(255, 238, 206, 255),
+            align_horizontal: TextAlignHorizontal::Center,
+            align_vertical: TextAlignVertical::Center,
+            align_multiline: TextAlignHorizontal::Center,
+            underline: false,
+        }
+    }
+
+    #reset_caption {
+        style: {
+            font: Font::Web(
+                "Space Grotesk",
+                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal
+            ),
+            font_size: 10px,
+            fill: rgba(240, 211, 164, 220),
+            align_horizontal: TextAlignHorizontal::Center,
+            align_vertical: TextAlignVertical::Center,
+            align_multiline: TextAlignHorizontal::Center,
+            underline: false,
+        }
+    }
+
+    #banner_title {
+        style: {
+            font: Font::Web(
+                "Cormorant Garamond",
+                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold
+            ),
+            font_size: 34px,
+            fill: rgba(255, 242, 220, 255),
+            align_horizontal: TextAlignHorizontal::Center,
+            align_vertical: TextAlignVertical::Center,
+            align_multiline: TextAlignHorizontal::Center,
+            underline: false,
+        }
+    }
+
+    #banner_copy {
+        style: {
+            font: Font::Web(
+                "Space Grotesk",
+                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal
+            ),
+            font_size: 14px,
+            fill: rgba(246, 240, 230, 255),
+            align_horizontal: TextAlignHorizontal::Center,
+            align_vertical: TextAlignVertical::Center,
+            align_multiline: TextAlignHorizontal::Center,
+            underline: false,
+        }
+    }
+
+    #field_quote {
+        style: {
+            font: Font::Web(
+                "Cormorant Garamond",
+                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap",
+                FontStyle::Italic,
+                FontWeight::Bold
+            ),
+            font_size: 34px,
+            fill: rgba(255, 236, 202, 255),
+            align_horizontal: TextAlignHorizontal::Center,
+            align_vertical: TextAlignVertical::Center,
+            align_multiline: TextAlignHorizontal::Center,
+            underline: false,
+        }
+    }
+}

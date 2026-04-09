@@ -8,6 +8,7 @@ use pax_runtime::{
 };
 
 use crate::common::Point;
+use crate::drawing::stroke_utils::{stroke_width_pixels, stroked_outline_path};
 use pax_engine::*;
 
 use_RefCell!();
@@ -15,28 +16,39 @@ use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
 
-/// A basic 2D vector path for arbitrary Bézier / line-segment chains
+/// A basic 2D vector path for arbitrary Bézier and line-segment chains.
+///
+/// `elements` describes the path in local coordinates. `fill` paints the
+/// interior of closed contours, while `stroke` paints the path itself; for
+/// open subpaths, the stroke cap controls the exposed endpoints.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::drawing::path::PathInstance")]
 pub struct Path {
+    /// The path commands and control points, expressed in local coordinates.
     pub elements: Property<Vec<PathElement>>,
+    /// The stroke applied along the path centerline.
     pub stroke: Property<Stroke>,
+    /// The fill applied to the interior of closed contours.
     pub fill: Property<Fill>,
 }
 
 impl Path {
+    /// Starts a new path at the provided point.
     pub fn start(x: Size, y: Size) -> Vec<PathElement> {
         let mut start: Vec<PathElement> = Vec::new();
         start.push(PathElement::Point(x, y));
         start
     }
+
+    /// Appends a straight line segment to the provided point.
     pub fn line_to(mut path: Vec<PathElement>, x: Size, y: Size) -> Vec<PathElement> {
         path.push(PathElement::Line);
         path.push(PathElement::Point(x, y));
         path
     }
 
+    /// Appends a quadratic Bézier curve with one control point.
     pub fn curve_to(
         mut path: Vec<PathElement>,
         h_x: Size,
@@ -141,69 +153,33 @@ impl InstanceNode for PathInstance {
     fn resolve_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
             let bounds = expanded_node.transform_and_bounds.get().bounds;
-            let mut bez_path = BezPath::new();
-            properties.elements.read(|elems| {
-                let mut itr_elems = elems.iter();
-
-                if let Some(elem) = itr_elems.next() {
-                    if let &PathElement::Point(x, y) = elem {
-                        bez_path.move_to(Point { x, y }.to_kurbo_point(bounds));
-                    } else {
-                        log::warn!("path must start with point");
-                        return;
-                    }
+            let elements = properties.elements.get();
+            let local_path = build_local_bez_path(&elements, bounds)?;
+            let fill = properties.fill.get();
+            let stroke = properties.stroke.get();
+            let mut coverage = BezPath::new();
+            if fill.coverage_alpha_0_1() > f64::EPSILON {
+                coverage.extend(local_path.elements().iter().copied());
+            }
+            if stroke.color.get().alpha_0_1() > f64::EPSILON {
+                if let Some(stroke_outline) = stroked_outline_path(&local_path, &stroke) {
+                    coverage.extend(stroke_outline.elements().iter().copied());
                 }
+            }
 
-                while let Some(elem) = itr_elems.next() {
-                    match elem {
-                        &PathElement::Point(x, y) => {
-                            bez_path.move_to(Point { x, y }.to_kurbo_point(bounds));
-                        }
-                        &PathElement::Line => {
-                            let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
-                                log::warn!("line expects to be followed by a point");
-                                return;
-                            };
-                            bez_path.line_to(Point { x, y }.to_kurbo_point(bounds));
-                        }
-                        &PathElement::Quadratic(h_x, h_y) => {
-                            let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
-                                log::warn!("curve expects to be followed by a point");
-                                return;
-                            };
-                            bez_path.quad_to(
-                                Point { x: h_x, y: h_y }.to_kurbo_point(bounds),
-                                Point { x, y }.to_kurbo_point(bounds),
-                            );
-                        }
-                        &PathElement::Cubic(v1, v2, v3, v4) => {
-                            let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
-                                log::warn!("curve expects to be followed by a point");
-                                return;
-                            };
-                            bez_path.curve_to(
-                                Point { x: v1, y: v2 }.to_kurbo_point(bounds),
-                                Point { x: v3, y: v4 }.to_kurbo_point(bounds),
-                                Point { x, y }.to_kurbo_point(bounds),
-                            );
-                        }
-                        &PathElement::Close => {
-                            bez_path.close_path();
-                        }
-                        PathElement::Empty => (),
-                    }
-                }
-            });
-
+            if coverage.elements().is_empty() {
+                return None;
+            }
             let tab = expanded_node.transform_and_bounds.get();
-            Some(Affine::from(tab.transform) * bez_path)
+            Some(Affine::from(tab.transform) * coverage)
         })
     }
 
     fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
-            (properties.fill.get().coverage_alpha_0_1() * expanded_node.computed_opacity.get())
-                .clamp(0.0, 1.0)
+            let fill_alpha = properties.fill.get().coverage_alpha_0_1();
+            let stroke_alpha = properties.stroke.get().color.get().alpha_0_1();
+            (fill_alpha.max(stroke_alpha) * expanded_node.computed_opacity.get()).clamp(0.0, 1.0)
         })
     }
 
@@ -229,102 +205,20 @@ impl InstanceNode for PathInstance {
 
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
             let bounds = expanded_node.transform_and_bounds.get().bounds;
-
-            // TODO make this only recompute if path changed since last frame
-            let mut bez_path = BezPath::new();
-            properties.elements.read(|elems| {
-                let mut itr_elems = elems.iter();
-
-                if let Some(elem) = itr_elems.next() {
-                    if let &PathElement::Point(x, y) = elem {
-                        bez_path.move_to(Point { x, y }.to_kurbo_point(bounds));
-                    } else {
-                        log::warn!("path must start with point");
-                        return;
-                    }
-                }
-
-                while let Some(elem) = itr_elems.next() {
-                    match elem {
-                        &PathElement::Point(x, y) => {
-                            bez_path.move_to(Point { x, y }.to_kurbo_point(bounds));
-                        }
-                        &PathElement::Line => {
-                            let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
-                                log::warn!("line expects to be followed by a point");
-                                return;
-                            };
-                            bez_path.line_to(Point { x, y }.to_kurbo_point(bounds));
-                        }
-                        &PathElement::Quadratic(h_x, h_y) => {
-                            let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
-                                log::warn!("curve expects to be followed by a point");
-                                return;
-                            };
-                            bez_path.quad_to(
-                                Point { x: h_x, y: h_y }.to_kurbo_point(bounds),
-                                Point { x, y }.to_kurbo_point(bounds),
-                            );
-                        }
-                        &PathElement::Cubic(v1, v2, v3, v4) => {
-                            let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
-                                log::warn!("curve expects to be followed by a point");
-                                return;
-                            };
-                            bez_path.curve_to(
-                                Point { x: v1, y: v2 }.to_kurbo_point(bounds),
-                                Point { x: v3, y: v4 }.to_kurbo_point(bounds),
-                                Point { x, y }.to_kurbo_point(bounds),
-                            );
-                        }
-                        &PathElement::Close => {
-                            bez_path.close_path();
-                        }
-                        PathElement::Empty => (), //no-op
-                    }
-                }
-            });
+            let elements = properties.elements.get();
+            let Some(bez_path) = build_local_bez_path(&elements, bounds) else {
+                return;
+            };
 
             let tab = expanded_node.transform_and_bounds.get();
-            let mut clip_path = BezPath::new();
-            let (width, height) = tab.bounds;
-            clip_path.move_to((0.0, 0.0));
-            clip_path.line_to((width, 0.0));
-            clip_path.line_to((width, height));
-            clip_path.line_to((0.0, height));
-            clip_path.line_to((0.0, 0.0));
-            clip_path.close_path();
-            //our "save point" before clipping — restored to in the post_render
-
             let opacity = expanded_node.computed_opacity.get();
             let fill = properties.fill.get();
-            let stroke_color = properties.stroke.get().color.get();
+            let stroke = properties.stroke.get();
             rc.save(layer_id);
             rc.transform(layer_id, tab.transform.into());
-            rc.clip(layer_id, clip_path.clone());
             rc.fill_with_opacity(layer_id, bez_path.clone(), &fill, opacity);
-            if properties
-                .stroke
-                .get()
-                .width
-                .get()
-                .expect_pixels()
-                .to_float()
-                > f64::EPSILON
-            {
-                rc.stroke_with_opacity(
-                    layer_id,
-                    bez_path,
-                    &Fill::Solid(stroke_color),
-                    properties
-                        .stroke
-                        .get()
-                        .width
-                        .get()
-                        .expect_pixels()
-                        .to_float(),
-                    opacity,
-                );
+            if stroke_width_pixels(&stroke) > f64::EPSILON {
+                rc.stroke_with_opacity(layer_id, bez_path, &stroke, opacity);
             }
             rc.restore(layer_id);
         });
@@ -344,6 +238,62 @@ impl InstanceNode for PathInstance {
     ) -> std::fmt::Result {
         f.debug_struct("Path").finish()
     }
+}
+
+fn build_local_bez_path(elements: &[PathElement], bounds: (f64, f64)) -> Option<BezPath> {
+    let mut bez_path = BezPath::new();
+    let mut itr_elems = elements.iter();
+
+    if let Some(elem) = itr_elems.next() {
+        if let &PathElement::Point(x, y) = elem {
+            bez_path.move_to(Point { x, y }.to_kurbo_point(bounds));
+        } else {
+            log::warn!("path must start with point");
+            return None;
+        }
+    }
+
+    while let Some(elem) = itr_elems.next() {
+        match elem {
+            &PathElement::Point(x, y) => {
+                bez_path.move_to(Point { x, y }.to_kurbo_point(bounds));
+            }
+            &PathElement::Line => {
+                let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
+                    log::warn!("line expects to be followed by a point");
+                    return None;
+                };
+                bez_path.line_to(Point { x, y }.to_kurbo_point(bounds));
+            }
+            &PathElement::Quadratic(h_x, h_y) => {
+                let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
+                    log::warn!("curve expects to be followed by a point");
+                    return None;
+                };
+                bez_path.quad_to(
+                    Point { x: h_x, y: h_y }.to_kurbo_point(bounds),
+                    Point { x, y }.to_kurbo_point(bounds),
+                );
+            }
+            &PathElement::Cubic(v1, v2, v3, v4) => {
+                let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
+                    log::warn!("curve expects to be followed by a point");
+                    return None;
+                };
+                bez_path.curve_to(
+                    Point { x: v1, y: v2 }.to_kurbo_point(bounds),
+                    Point { x: v3, y: v4 }.to_kurbo_point(bounds),
+                    Point { x, y }.to_kurbo_point(bounds),
+                );
+            }
+            &PathElement::Close => {
+                bez_path.close_path();
+            }
+            PathElement::Empty => (),
+        }
+    }
+
+    Some(bez_path)
 }
 
 use pax_engine::{

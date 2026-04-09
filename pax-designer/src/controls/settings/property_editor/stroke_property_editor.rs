@@ -96,6 +96,7 @@ impl StrokePropertyEditor {
 
         let stroke_width = self.stroke_width.clone();
         let deps = [color.untyped(), stroke_width.untyped()];
+        let stroke = self.stroke.clone();
         let external = self.external.clone();
         let data = self.data.clone();
         let ctxc = ctx.clone();
@@ -107,6 +108,7 @@ impl StrokePropertyEditor {
                     let stroke = Stroke {
                         color: Property::new(color),
                         width: Property::new(Size::Pixels(stroke_width.into())),
+                        cap: Property::new(stroke.get().cap.get()),
                     };
                     if let Err(e) = data.get().set_value_typed(&ctxc, stroke) {
                         log::warn!("failed to set stroke: {e}");

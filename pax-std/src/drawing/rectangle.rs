@@ -123,26 +123,14 @@ impl InstanceNode for RectangleInstance {
             let bez_path = rect.to_path(0.1);
             let opacity = expanded_node.computed_opacity.get();
             let fill = properties.fill.get();
-            let stroke_color = properties.stroke.get().color.get();
+            let stroke = properties.stroke.get();
             rc.save(layer_id);
             rc.transform(layer_id, tab.transform.into());
             rc.fill_with_opacity(layer_id, bez_path.clone(), &fill, opacity);
             //hack to address "phantom stroke" bug on Web
-            let width: f64 = properties
-                .stroke
-                .get()
-                .width
-                .get()
-                .expect_pixels()
-                .to_float();
+            let width: f64 = stroke.width.get().expect_pixels().to_float();
             if width > f64::EPSILON {
-                rc.stroke_with_opacity(
-                    layer_id,
-                    bez_path,
-                    &Fill::Solid(stroke_color),
-                    width,
-                    opacity,
-                );
+                rc.stroke_with_opacity(layer_id, bez_path, &stroke, opacity);
             }
             rc.restore(layer_id);
         });

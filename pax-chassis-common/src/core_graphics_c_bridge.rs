@@ -15,7 +15,8 @@ use flexbuffers::DeserializationError;
 use pax_pixels::{
     point,
     render_backend::{RenderBackend, RenderConfig},
-    Box2D, Image as PaxPixelsImage, WgpuRenderer,
+    Box2D, Image as PaxPixelsImage, Stroke as PixelStroke, StrokeCap as PixelStrokeCap,
+    WgpuRenderer,
 };
 use pax_runtime::api::math::Point2;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -30,7 +31,7 @@ use pax_runtime::PaxEngine;
 use piet::kurbo;
 use piet::kurbo::Shape;
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
-use piet::{InterpolationMode, RenderContext as PietRenderContext};
+use piet::{InterpolationMode, LineCap, RenderContext as PietRenderContext, StrokeStyle};
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
 use piet_coregraphics::CoreGraphicsContext;
 use serde::Deserialize;
@@ -74,24 +75,36 @@ impl<'a> AppleRenderContext<'a> {
 
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
 impl<'a> RenderContext for AppleRenderContext<'a> {
-    fn fill(&mut self, _layer: usize, path: kurbo::BezPath, brush: &pax_runtime::api::Fill) {
-        self.backend.fill(
-            path.clone(),
-            &fill_to_piet_brush(brush, path.bounding_box()),
-        );
-    }
-
-    fn stroke(
+    fn fill_with_opacity(
         &mut self,
         _layer: usize,
         path: kurbo::BezPath,
         brush: &pax_runtime::api::Fill,
-        width: f64,
+        opacity: f64,
     ) {
-        self.backend.stroke(
+        self.backend.fill(
             path.clone(),
-            &fill_to_piet_brush(brush, path.bounding_box()),
+            &fill_to_piet_brush(&brush.with_alpha_factor(opacity), path.bounding_box()),
+        );
+    }
+
+    fn stroke_with_opacity(
+        &mut self,
+        _layer: usize,
+        path: kurbo::BezPath,
+        stroke: &pax_runtime::api::Stroke,
+        opacity: f64,
+    ) {
+        let width = stroke.width.get().expect_pixels().to_float();
+        let brush = fill_to_piet_brush(
+            &pax_runtime::api::Fill::Solid(stroke.color.get()).with_alpha_factor(opacity),
+            path.bounding_box(),
+        );
+        self.backend.stroke_styled(
+            path.clone(),
+            &brush,
             width,
+            &stroke_to_piet_style(stroke.cap.get()),
         );
     }
 
@@ -184,6 +197,17 @@ fn fill_to_piet_brush(fill: &pax_runtime::api::Fill, rect: kurbo::Rect) -> piet:
     }
 }
 
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
+fn stroke_to_piet_style(cap: pax_runtime::api::StrokeCap) -> StrokeStyle {
+    let mut style = StrokeStyle::new();
+    style.set_line_cap(match cap {
+        pax_runtime::api::StrokeCap::Butt => LineCap::Butt,
+        pax_runtime::api::StrokeCap::Round => LineCap::Round,
+        pax_runtime::api::StrokeCap::Square => LineCap::Square,
+    });
+    style
+}
+
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 pub struct AppleRenderContext {
     backend: WgpuRenderer<'static>,
@@ -254,15 +278,21 @@ impl RenderContext for AppleRenderContext {
         &mut self,
         _layer: usize,
         path: kurbo::BezPath,
-        fill: &pax_runtime::api::Fill,
-        width: f64,
+        stroke: &pax_runtime::api::Stroke,
         opacity: f64,
     ) {
         let bounds = path.bounding_box();
         self.backend.stroke_path_with_opacity(
             convert_kurbo_to_lyon_path(&path),
-            to_pax_pixels_fill(fill, bounds),
-            width as f32,
+            PixelStroke {
+                fill: to_pax_pixels_fill(&pax_runtime::api::Fill::Solid(stroke.color.get()), bounds),
+                weight: stroke.width.get().expect_pixels().to_float() as f32,
+                cap: match stroke.cap.get() {
+                    pax_runtime::api::StrokeCap::Butt => PixelStrokeCap::Butt,
+                    pax_runtime::api::StrokeCap::Round => PixelStrokeCap::Round,
+                    pax_runtime::api::StrokeCap::Square => PixelStrokeCap::Square,
+                },
+            },
             opacity as f32,
         );
     }

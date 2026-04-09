@@ -787,17 +787,8 @@ impl ExpandedNode {
         if !borrow!(&*cp)._raycastable.get().unwrap_or(true) {
             return false;
         }
-        let t_and_b = self.transform_and_bounds.get();
-
-        let inverted_transform = t_and_b.transform.inverse();
-        let transformed_ray = inverted_transform * ray;
-        let (width, height) = t_and_b.bounds;
-        //Default implementation: rectilinear bounding hull
-        let res = transformed_ray.x > 0.0
-            && transformed_ray.y > 0.0
-            && transformed_ray.x < width
-            && transformed_ray.y < height;
-        res
+        drop(cp);
+        borrow!(self.instance_node).ray_cast_test(self, ray)
     }
 
     pub fn compute_flattened_slot_children(&self) {

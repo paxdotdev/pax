@@ -33,6 +33,7 @@ impl Default for Checkbox {
             outline: Property::new(Stroke {
                 color: Property::new(Color::rgb(209.into(), 213.into(), 219.into())),
                 width: Property::new(Size::Pixels(1.into())),
+                cap: Property::new(StrokeCap::default()),
             }),
             border_radius: Property::new(5.0),
             checked: Property::new(false),

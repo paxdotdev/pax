@@ -8,7 +8,7 @@ use crate::{
     impl_default_coercion_rule,
     math::{Transform2, Vector2},
     Color, ColorChannel, Fill, GradientStop, LinearGradient, Numeric, Opacity, PathElement,
-    PaxValue, Percent, Property, RadialGradient, Rotation, Size, Stroke, Transform2D,
+    PaxValue, Percent, Property, RadialGradient, Rotation, Size, Stroke, StrokeCap, Transform2D,
 };
 
 // Default coercion rules:
@@ -567,13 +567,28 @@ impl CoercionRules for Stroke {
             PaxValue::Color(color) => Stroke {
                 color: Property::new(*color),
                 width: Property::new(Size::Pixels(1.into())),
+                cap: Property::new(StrokeCap::default()),
             },
             PaxValue::Object(map) => {
-                let [color, width] = extract_options(["color", "width"], map)
-                    .map_err(|e| format!("failed to convert to Stroke: {e}"))?;
-                let color = Property::new(Color::try_coerce(color)?);
-                let width = Property::new(Size::try_coerce(width)?);
-                Stroke { color, width }
+                let mut color = None;
+                let mut width = None;
+                let mut cap = None;
+                for (key, value) in map {
+                    match key.as_str() {
+                        "color" => color = Some(Color::try_coerce(value)?),
+                        "width" => width = Some(Size::try_coerce(value)?),
+                        "cap" => cap = Some(StrokeCap::try_coerce(value)?),
+                        _ => {}
+                    }
+                }
+                let color = Property::new(color.ok_or_else(|| {
+                    "failed to convert to Stroke: missing `color`".to_string()
+                })?);
+                let width = Property::new(width.ok_or_else(|| {
+                    "failed to convert to Stroke: missing `width`".to_string()
+                })?);
+                let cap = Property::new(cap.unwrap_or_default());
+                Stroke { color, width, cap }
             }
             PaxValue::Option(o) => {
                 if let Some(o) = *o {
@@ -584,6 +599,39 @@ impl CoercionRules for Stroke {
             }
             _ => return Err(format!("failed to convert to Stroke")),
         })
+    }
+}
+
+impl CoercionRules for StrokeCap {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::Enum(contents) => {
+                let (_, variant, args) = *contents;
+                if !args.is_empty() {
+                    return Err(format!(
+                        "failed to coerce StrokeCap: expected no enum args, got {:?}",
+                        args
+                    ));
+                }
+                match variant.as_str() {
+                    "Butt" => Ok(StrokeCap::Butt),
+                    "Round" => Ok(StrokeCap::Round),
+                    "Square" => Ok(StrokeCap::Square),
+                    _ => Err(format!(
+                        "failed to coerce StrokeCap: unknown enum variant {:?}",
+                        variant
+                    )),
+                }
+            }
+            PaxValue::Option(o) => {
+                if let Some(o) = *o {
+                    StrokeCap::try_coerce(o)
+                } else {
+                    Err("failed to coerce StrokeCap".to_string())
+                }
+            }
+            _ => Err(format!("failed to coerce StrokeCap")),
+        }
     }
 }
 

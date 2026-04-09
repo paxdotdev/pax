@@ -14,4 +14,5 @@ pub use render_context::Fill;
 pub use render_context::GradientStop;
 pub use render_context::GradientType;
 pub use render_context::Stroke;
+pub use render_context::StrokeCap;
 pub use render_context::WgpuRenderer;

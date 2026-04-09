@@ -1,6 +1,9 @@
 use kurbo::{BezPath, PathEl, Shape};
-use pax_pixels::{point, Box2D, Image, Path, Transform2D, WgpuRenderer};
-use pax_runtime_api::{Axis, RenderContext};
+use pax_pixels::{
+    point, Box2D, Image, Path, Stroke as PixelStroke, StrokeCap as PixelStrokeCap, Transform2D,
+    WgpuRenderer,
+};
+use pax_runtime_api::{Axis, RenderContext, Stroke, StrokeCap};
 use std::{cell::RefCell, collections::HashMap, future::Future, pin::Pin, rc::Rc};
 
 type LayerDef = (
@@ -85,16 +88,26 @@ impl RenderContext for PaxPixelsRenderer {
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        fill: &pax_runtime_api::Fill,
-        width: f64,
+        stroke: &Stroke,
         opacity: f64,
     ) {
         self.with_layer_context(layer, |context| {
             let bounds = path.bounding_box();
             context.stroke_path_with_opacity(
                 convert_kurbo_to_lyon_path(&path),
-                to_pax_pixels_fill(fill, bounds, context.current_transform()),
-                width as f32,
+                PixelStroke {
+                    fill: to_pax_pixels_fill(
+                        &pax_runtime_api::Fill::Solid(stroke.color.get()),
+                        bounds,
+                        context.current_transform(),
+                    ),
+                    weight: stroke.width.get().expect_pixels().to_float() as f32,
+                    cap: match stroke.cap.get() {
+                        StrokeCap::Butt => PixelStrokeCap::Butt,
+                        StrokeCap::Round => PixelStrokeCap::Round,
+                        StrokeCap::Square => PixelStrokeCap::Square,
+                    },
+                },
                 opacity as f32,
             );
         });

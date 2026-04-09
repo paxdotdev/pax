@@ -1,7 +1,7 @@
-use pax_runtime_api::Fill;
+use pax_runtime_api::{Fill, Stroke, StrokeCap};
 use piet::{
     kurbo::{self, Affine, Shape},
-    InterpolationMode, LinearGradient, RadialGradient,
+    InterpolationMode, LineCap, LinearGradient, RadialGradient, StrokeStyle,
 };
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
@@ -44,14 +44,18 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        fill: &Fill,
-        width: f64,
+        stroke: &Stroke,
         opacity: f64,
     ) {
         let rect = path.bounding_box();
-        let brush = fill_to_piet_brush(&fill.with_alpha_factor(opacity), rect);
+        let brush = fill_to_piet_brush(
+            &Fill::Solid(stroke.color.get()).with_alpha_factor(opacity),
+            rect,
+        );
+        let width = stroke.width.get().expect_pixels().to_float();
+        let style = stroke_to_piet_style(stroke);
         if let Some((layer, _, _)) = self.backends.get_mut(layer) {
-            layer.stroke(path, &brush, width);
+            layer.stroke_styled(path, &brush, width, &style);
         }
     }
 
@@ -172,4 +176,14 @@ fn fill_to_piet_brush(fill: &Fill, rect: kurbo::Rect) -> piet::PaintBrush {
             radial_gradient.into()
         }
     }
+}
+
+fn stroke_to_piet_style(stroke: &Stroke) -> StrokeStyle {
+    let mut style = StrokeStyle::new();
+    style.set_line_cap(match stroke.cap.get() {
+        StrokeCap::Butt => LineCap::Butt,
+        StrokeCap::Round => LineCap::Round,
+        StrokeCap::Square => LineCap::Square,
+    });
+    style
 }

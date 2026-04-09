@@ -35,6 +35,7 @@ impl Default for RadioSet {
             outline: Property::new(Stroke {
                 color: Property::new(Color::rgb(209.into(), 213.into(), 219.into())),
                 width: Property::new(Size::Pixels(1.into())),
+                cap: Property::new(StrokeCap::default()),
             }),
             options: Property::new(vec!["option 1".to_string(), "option 2".to_string()]),
             selected_id: Property::new(0),
