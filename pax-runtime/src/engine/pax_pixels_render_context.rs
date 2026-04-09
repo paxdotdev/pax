@@ -3,7 +3,7 @@ use pax_pixels::{
     point, Box2D, Image, Path, Stroke as PixelStroke, StrokeCap as PixelStrokeCap, Transform2D,
     WgpuRenderer,
 };
-use pax_runtime_api::{Axis, RenderContext, Stroke, StrokeCap};
+use pax_runtime_api::{Axis, RenderContext, Stroke, StrokeCap, ScreenshotData};
 use std::{cell::RefCell, collections::HashMap, future::Future, pin::Pin, rc::Rc};
 
 type LayerDef = (
@@ -265,6 +265,28 @@ impl RenderContext for PaxPixelsRenderer {
                 }
             }
         }
+    }
+
+    fn request_layer_screenshot(&mut self, layer: usize, request_id: u32) {
+        self.with_layer_context(layer, |context| {
+            context.request_screenshot_capture(request_id);
+        });
+    }
+
+    fn take_layer_screenshot(&mut self, layer: usize, request_id: u32) -> Option<ScreenshotData> {
+        let mut screenshot = None;
+        self.with_layer_context(layer, |context| {
+            screenshot =
+                context
+                    .take_screenshot_capture(request_id)
+                    .map(|capture| ScreenshotData {
+                        id: request_id,
+                        data: capture.rgba,
+                        width: capture.width as usize,
+                        height: capture.height as usize,
+                    });
+        });
+        screenshot
     }
 
     fn begin_node(&mut self, layer: usize, node_id: u32, z_index: i32) -> bool {

@@ -31,10 +31,17 @@ mod llm;
 pub mod static_server;
 pub mod websocket;
 
+#[derive(Clone)]
+pub struct ActiveWebsocketClient {
+    pub connection_id: usize,
+    pub addr: Addr<PrivilegedAgentWebSocket>,
+}
+
 pub struct AppState {
     serve_dir: Mutex<PathBuf>,
     userland_project_root: Mutex<PathBuf>,
-    active_websocket_client: Mutex<Option<Addr<PrivilegedAgentWebSocket>>>,
+    active_websocket_client: Mutex<Option<ActiveWebsocketClient>>,
+    websocket_client_counter: Mutex<usize>,
     request_id_counter: Mutex<usize>,
     manifest: Mutex<Option<PaxManifest>>,
     last_written_timestamp: Mutex<SystemTime>,
@@ -48,6 +55,7 @@ impl AppState {
             serve_dir: Mutex::new(PathBuf::new()),
             userland_project_root: Mutex::new(PathBuf::new()),
             active_websocket_client: Mutex::new(None),
+            websocket_client_counter: Mutex::new(0),
             request_id_counter: Mutex::new(0),
             manifest: Mutex::new(None),
             last_written_timestamp: Mutex::new(UNIX_EPOCH),
@@ -65,6 +73,7 @@ impl AppState {
             serve_dir: Mutex::new(serve_dir),
             userland_project_root: Mutex::new(project_root),
             active_websocket_client: Mutex::new(None),
+            websocket_client_counter: Mutex::new(0),
             request_id_counter: Mutex::new(0),
             manifest: Mutex::new(Some(manifest)),
             last_written_timestamp: Mutex::new(SystemTime::now()),
@@ -75,6 +84,12 @@ impl AppState {
 
     fn generate_request_id(&self) -> usize {
         let mut counter = self.request_id_counter.lock().unwrap();
+        *counter += 1;
+        *counter
+    }
+
+    fn generate_websocket_client_id(&self) -> usize {
+        let mut counter = self.websocket_client_counter.lock().unwrap();
         *counter += 1;
         *counter
     }
@@ -212,7 +227,7 @@ pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<Recommend
                                             },
                                             path: path.to_str().unwrap().to_string(),
                                         };
-                                        addr.do_send(msg);
+                                        addr.addr.do_send(msg);
                                     }
                                     Err(_) => (),
                                 }

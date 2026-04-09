@@ -1,4 +1,4 @@
-use crate::design_server::{AppState, FileContent, WatcherFileChanged};
+use crate::design_server::{ActiveWebsocketClient, AppState, FileContent, WatcherFileChanged};
 use crate::dev_session::{
     self, session_request_dir, session_response_dir, write_registered_session, DevCapture,
     DevInspectTreeResponse, DevLookRequest, DevLookResponse, DevRayCastRequest, DevRayCastResponse,
@@ -10,7 +10,7 @@ use pax_manifest::{
     code_serialization::serialize_component_to_file, parsing::TemplateNodeParseContext,
 };
 
-use actix::{Actor, AsyncContext, Handler, Running, StreamHandler};
+use actix::{Actor, ActorContext, AsyncContext, Handler, Running, StreamHandler};
 use actix_web::web::Data;
 use actix_web_actors::ws::{self};
 use image::codecs::jpeg::JpegEncoder;
@@ -32,6 +32,13 @@ pub use socket_message_accumulator::SocketMessageAccumulator;
 pub struct PrivilegedAgentWebSocket {
     state: Data<AppState>,
     socket_msg_accum: SocketMessageAccumulator,
+    connection_id: Option<usize>,
+}
+
+struct DisconnectSuperseded;
+
+impl actix::Message for DisconnectSuperseded {
+    type Result = ();
 }
 
 impl PrivilegedAgentWebSocket {
@@ -39,10 +46,27 @@ impl PrivilegedAgentWebSocket {
         Self {
             state,
             socket_msg_accum: SocketMessageAccumulator::new(),
+            connection_id: None,
         }
     }
 
+    fn is_active_client(&self) -> bool {
+        let Some(connection_id) = self.connection_id else {
+            return false;
+        };
+
+        self.state
+            .active_websocket_client
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|active_client| active_client.connection_id == connection_id)
+    }
+
     fn refresh_dev_session_registration(&self) {
+        if !self.is_active_client() {
+            return;
+        }
         let mut dev_session = self.state.dev_session.lock().unwrap();
         let Some(dev_session) = dev_session.as_mut() else {
             return;
@@ -57,6 +81,9 @@ impl PrivilegedAgentWebSocket {
     }
 
     fn poll_dev_requests(&self, ctx: &mut ws::WebsocketContext<Self>) {
+        if !self.is_active_client() {
+            return;
+        }
         let Some(dev_session) = self.state.dev_session.lock().unwrap().clone() else {
             return;
         };
@@ -269,13 +296,35 @@ impl PrivilegedAgentWebSocket {
     }
 }
 
+impl Handler<DisconnectSuperseded> for PrivilegedAgentWebSocket {
+    type Result = ();
+
+    fn handle(&mut self, _msg: DisconnectSuperseded, ctx: &mut Self::Context) -> Self::Result {
+        ctx.close(Some(ws::CloseReason {
+            code: ws::CloseCode::Normal,
+            description: Some("Superseded by a newer Pax dev browser client".to_string()),
+        }));
+        ctx.stop();
+    }
+}
+
 impl Actor for PrivilegedAgentWebSocket {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
+        let connection_id = self.state.generate_websocket_client_id();
+        self.connection_id = Some(connection_id);
+
         let mut active_client = self.state.active_websocket_client.lock().unwrap();
-        *active_client = Some(ctx.address());
+        let previous_client = active_client.replace(ActiveWebsocketClient {
+            connection_id,
+            addr: ctx.address(),
+        });
         drop(active_client);
+
+        if let Some(previous_client) = previous_client {
+            previous_client.addr.do_send(DisconnectSuperseded);
+        }
 
         self.refresh_dev_session_registration();
         ctx.run_interval(Duration::from_millis(50), |actor, ctx| {
@@ -288,11 +337,19 @@ impl Actor for PrivilegedAgentWebSocket {
 
     fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
         let mut active_client = self.state.active_websocket_client.lock().unwrap();
-        *active_client = None;
+        let was_active_client = active_client
+            .as_ref()
+            .zip(self.connection_id)
+            .is_some_and(|(active_client, connection_id)| active_client.connection_id == connection_id);
+        if was_active_client {
+            *active_client = None;
+        }
         drop(active_client);
 
-        if let Some(dev_session) = self.state.dev_session.lock().unwrap().as_ref() {
-            let _ = dev_session::remove_registered_session(&dev_session.session_id);
+        if was_active_client {
+            if let Some(dev_session) = self.state.dev_session.lock().unwrap().as_ref() {
+                let _ = dev_session::remove_registered_session(&dev_session.session_id);
+            }
         }
         Running::Stop
     }
@@ -303,7 +360,7 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
 
     fn handle(&mut self, msg: WatcherFileChanged, ctx: &mut Self::Context) -> Self::Result {
         println!("File changed: {:?}", msg.path);
-        if self.state.active_websocket_client.lock().unwrap().is_some() {
+        if self.is_active_client() {
             if let FileContent::Pax(content) = msg.contents {
                 if let Some(manifest) = self.state.manifest.lock().unwrap().as_mut() {
                     let mut template_map: HashMap<String, TypeId> = HashMap::new();

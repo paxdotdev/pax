@@ -86,6 +86,12 @@ pub trait RenderContext {
     fn flush(&mut self, layer: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>);
     fn resize(&mut self, width: usize, height: usize);
 
+    fn request_layer_screenshot(&mut self, _layer: usize, _request_id: u32) {}
+
+    fn take_layer_screenshot(&mut self, _layer: usize, _request_id: u32) -> Option<ScreenshotData> {
+        None
+    }
+
     fn begin_node(&mut self, _layer: usize, _node_id: u32, _z_index: i32) -> bool {
         true
     }

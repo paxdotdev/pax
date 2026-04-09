@@ -61,6 +61,17 @@ export class PaxChassisWeb {
 */
   render(): void;
 /**
+* @param {number} layer
+* @param {number} request_id
+*/
+  request_layer_screenshot(layer: number, request_id: number): void;
+/**
+* @param {number} layer
+* @param {number} request_id
+* @returns {any}
+*/
+  take_layer_screenshot(layer: number, request_id: number): any;
+/**
 * @param {string} path
 * @returns {boolean}
 */
@@ -92,6 +103,8 @@ export interface InitOutput {
   readonly paxchassisweb_designtime_tick: (a: number) => void;
   readonly paxchassisweb_tick: (a: number) => number;
   readonly paxchassisweb_render: (a: number) => void;
+  readonly paxchassisweb_request_layer_screenshot: (a: number, b: number, c: number) => void;
+  readonly paxchassisweb_take_layer_screenshot: (a: number, b: number, c: number) => number;
   readonly paxchassisweb_image_loaded: (a: number, b: number, c: number) => number;
   readonly __wbg_memoryslice_free: (a: number, b: number) => void;
   readonly memoryslice_ptr: (a: number) => number;

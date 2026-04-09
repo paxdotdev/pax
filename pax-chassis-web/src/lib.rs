@@ -680,6 +680,18 @@ impl PaxChassisWeb {
         borrow_mut!(self.engine).render(self.render_context.as_mut());
     }
 
+    pub fn request_layer_screenshot(&mut self, layer: usize, request_id: u32) {
+        self.render_context
+            .request_layer_screenshot(layer, request_id);
+    }
+
+    pub fn take_layer_screenshot(&mut self, layer: usize, request_id: u32) -> JsValue {
+        self.render_context
+            .take_layer_screenshot(layer, request_id)
+            .and_then(|capture| serde_wasm_bindgen::to_value(&capture).ok())
+            .unwrap_or(JsValue::NULL)
+    }
+
     pub fn image_loaded(&mut self, path: &str) -> bool {
         self.render_context.image_loaded(path)
     }

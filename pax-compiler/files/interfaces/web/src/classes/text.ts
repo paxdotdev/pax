@@ -1,6 +1,175 @@
 import {ObjectManager} from "../pools/object-manager";
 import {FONT} from "../pools/supported-objects";
 
+type RegisteredFontDescriptor = {
+    family: string;
+    style: string;
+    weight: string;
+};
+
+const pendingFontLoads = new Map<string, Promise<void>>();
+const registeredFontCss = new Map<string, string>();
+const registeredFontDescriptors = new Map<string, RegisteredFontDescriptor>();
+const embeddedFontAssetUrls = new Map<string, Promise<string>>();
+const FONT_STYLE_DATA_ATTRIBUTE = "data-pax-font-key";
+
+function getDocumentFonts(targetDocument: Document): FontFaceSet | undefined {
+    return targetDocument.fonts as FontFaceSet | undefined;
+}
+
+function quoteFontFamily(family: string): string {
+    return `"${family.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+function buildFontShorthand(descriptor: RegisteredFontDescriptor): string {
+    return `${descriptor.style} ${descriptor.weight} 16px ${quoteFontFamily(descriptor.family)}`;
+}
+
+function appendFontCss(targetDocument: Document, fontKey: string, css: string) {
+    const existingStyles = Array.from(
+        targetDocument.head.querySelectorAll(`style[${FONT_STYLE_DATA_ATTRIBUTE}]`),
+    );
+    if (existingStyles.some((styleNode) => styleNode.getAttribute(FONT_STYLE_DATA_ATTRIBUTE) === fontKey)) {
+        return;
+    }
+
+    const style = targetDocument.createElement("style");
+    style.setAttribute(FONT_STYLE_DATA_ATTRIBUTE, fontKey);
+    style.textContent = css;
+    targetDocument.head.appendChild(style);
+}
+
+async function waitForDocumentFonts(targetDocument: Document): Promise<void> {
+    const fonts = getDocumentFonts(targetDocument);
+    if (!fonts?.ready) {
+        return;
+    }
+    await fonts.ready;
+}
+
+async function loadFontDescriptor(targetDocument: Document, descriptor: RegisteredFontDescriptor): Promise<void> {
+    const fonts = getDocumentFonts(targetDocument);
+    if (!fonts) {
+        return;
+    }
+
+    await fonts.load(buildFontShorthand(descriptor));
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 0x8000;
+    let binary = "";
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+        const chunk = bytes.subarray(index, index + chunkSize);
+        let chunkBinary = "";
+        chunk.forEach((value) => {
+            chunkBinary += String.fromCharCode(value);
+        });
+        binary += chunkBinary;
+    }
+    return btoa(binary);
+}
+
+function fetchAssetAsDataUrl(url: string): Promise<string> {
+    let existing = embeddedFontAssetUrls.get(url);
+    if (existing) {
+        return existing;
+    }
+
+    const request = fetch(url)
+        .then(async (response) => {
+            if (!response.ok) {
+                throw new Error(`Failed to fetch font asset ${url}: ${response.status}`);
+            }
+
+            const contentType = response.headers.get("content-type") || "font/woff2";
+            const buffer = await response.arrayBuffer();
+            return `data:${contentType};base64,${arrayBufferToBase64(buffer)}`;
+        });
+    embeddedFontAssetUrls.set(url, request);
+    return request;
+}
+
+async function inlineExternalFontUrls(css: string, baseUrl: string): Promise<string> {
+    const matches = Array.from(css.matchAll(/url\((['"]?)([^'")]+)\1\)/g));
+    if (matches.length === 0) {
+        return css;
+    }
+
+    let embeddedCss = css;
+    const replacements = await Promise.all(matches.map(async (match) => {
+        const original = match[0];
+        const rawUrl = match[2];
+        if (!original || !rawUrl || rawUrl.startsWith("data:")) {
+            return null;
+        }
+
+        const resolvedUrl = new URL(rawUrl, baseUrl).toString();
+        const dataUrl = await fetchAssetAsDataUrl(resolvedUrl);
+        return [original, `url("${dataUrl}")`] as const;
+    }));
+
+    replacements.forEach((replacement) => {
+        if (!replacement) {
+            return;
+        }
+        embeddedCss = embeddedCss.replaceAll(replacement[0], replacement[1]);
+    });
+
+    return embeddedCss;
+}
+
+function trackFontLoad(fontKey: string, loadPromise: Promise<void>) {
+    const trackedPromise = loadPromise.finally(() => {
+        pendingFontLoads.delete(fontKey);
+    });
+    pendingFontLoads.set(fontKey, trackedPromise);
+}
+
+export async function waitForRegisteredFonts(): Promise<void> {
+    const pendingLoads = Array.from(pendingFontLoads.values());
+    if (pendingLoads.length > 0) {
+        await Promise.allSettled(pendingLoads);
+    }
+
+    const descriptors = Array.from(registeredFontDescriptors.values());
+    await Promise.allSettled(
+        descriptors.map(async (descriptor) => {
+            try {
+                await loadFontDescriptor(document, descriptor);
+            } catch (err) {
+                console.warn(`Failed to load font ${descriptor.family}`, err);
+            }
+        }),
+    );
+
+    await waitForDocumentFonts(document);
+}
+
+export async function syncRegisteredFontsToDocument(targetDocument: Document): Promise<void> {
+    for (const [fontKey, css] of registeredFontCss.entries()) {
+        appendFontCss(targetDocument, fontKey, css);
+    }
+
+    const descriptors = Array.from(registeredFontDescriptors.values());
+    await Promise.allSettled(
+        descriptors.map(async (descriptor) => {
+            try {
+                await loadFontDescriptor(targetDocument, descriptor);
+            } catch (err) {
+                console.warn(`Failed to clone font ${descriptor.family}`, err);
+            }
+        }),
+    );
+
+    await waitForDocumentFonts(targetDocument);
+}
+
+export function getRegisteredFontCssText(): string {
+    return Array.from(registeredFontCss.values()).join("\n");
+}
+
 enum FontStyle {
     Normal,
     Italic,
@@ -107,35 +276,69 @@ export class Font {
         if (!registeredFontFaces.has(fontKey)) {
             registeredFontFaces.add(fontKey);
 
+            const style = this.style != undefined ? this.mapFontStyle(this.style) : 'normal';
+            const weight = this.weight != undefined ? String(this.mapFontWeight(this.weight)) : '400';
+            const descriptor = this.family ? {
+                family: this.family,
+                style,
+                weight,
+            } : undefined;
+
+            if (descriptor) {
+                registeredFontDescriptors.set(fontKey, descriptor);
+            }
+
             if (this.type === "Web" && this.url && this.family) {
                 if (this.url.includes("fonts.googleapis.com/css")) {
-                    // Fetch the Google Fonts CSS file and create a <style> element to insert its content
-                    fetch(this.url)
+                    trackFontLoad(fontKey, fetch(this.url)
                         .then(response => response.text())
-                        .then(css => {
-                            const style = document.createElement("style");
-                            style.textContent = css;
-                            document.head.appendChild(style);
-                        });
+                        .then(async css => {
+                            const embeddedCss = await inlineExternalFontUrls(css, this.url!);
+                            registeredFontCss.set(fontKey, embeddedCss);
+                            appendFontCss(document, fontKey, embeddedCss);
+                            if (descriptor) {
+                                await loadFontDescriptor(document, descriptor);
+                            }
+                            await waitForDocumentFonts(document);
+                        })
+                        .catch((err) => {
+                            console.warn(`Failed to load web font ${this.family}`, err);
+                        }));
                 } else {
                     const fontFace = new FontFace(this.family, `url(${this.url})`, {
-                        style: this.style ? FontStyle[this.style] : undefined,
-                        weight: this.weight ? FontWeight[this.weight] : undefined,
+                        style,
+                        weight,
                     });
 
-                    fontFace.load().then(loadedFontFace => {
-                        (document.fonts as any).add(loadedFontFace);
-                    });
+                    trackFontLoad(fontKey, fontFace.load()
+                        .then(async loadedFontFace => {
+                            (document.fonts as any).add(loadedFontFace);
+                            if (descriptor) {
+                                await loadFontDescriptor(document, descriptor);
+                            }
+                            await waitForDocumentFonts(document);
+                        })
+                        .catch((err) => {
+                            console.warn(`Failed to load web font ${this.family}`, err);
+                        }));
                 }
             } else if (this.type === "Local" && this.path && this.family) {
                 const fontFace = new FontFace(this.family, `url(${this.path})`, {
-                    style: this.style ? FontStyle[this.style] : undefined,
-                    weight: this.weight ? FontWeight[this.weight] : undefined,
+                    style,
+                    weight,
                 });
 
-                fontFace.load().then(loadedFontFace => {
-                    (document.fonts as any).add(loadedFontFace);
-                });
+                trackFontLoad(fontKey, fontFace.load()
+                    .then(async loadedFontFace => {
+                        (document.fonts as any).add(loadedFontFace);
+                        if (descriptor) {
+                            await loadFontDescriptor(document, descriptor);
+                        }
+                        await waitForDocumentFonts(document);
+                    })
+                    .catch((err) => {
+                        console.warn(`Failed to load local font ${this.family}`, err);
+                    }));
             }
         }
     }

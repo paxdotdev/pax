@@ -1,5 +1,6 @@
 import {BUTTON_CLASS, BUTTON_TEXT_CONTAINER_CLASS,
-    NATIVE_LEAF_CLASS, CHECKBOX_CLASS, RADIO_SET_CLASS,SCROLLER_CONTAINER} from "../utils/constants";
+    NATIVE_LEAF_CLASS, CHECKBOX_CLASS, RADIO_SET_CLASS, SCROLLER_CONTAINER,
+    CANVAS_CLASS, NATIVE_OVERLAY_CLASS} from "../utils/constants";
 import {AnyCreatePatch} from "./messages/any-create-patch";
 import {OcclusionUpdatePatch} from "./messages/occlusion-update-patch";
 import snarkdown from 'snarkdown';
@@ -21,7 +22,16 @@ import {
     YOUTUBE_VIDEO_UPDATE_PATCH
 } from "../pools/supported-objects";
 import {packAffineCoeffsIntoMatrix3DString, readImageToByteBuffer} from "../utils/helpers";
-import {ColorGroup, TextStyle, getAlignItems, getJustifyContent, getTextAlign} from "./text";
+import {
+    ColorGroup,
+    TextStyle,
+    getRegisteredFontCssText,
+    getAlignItems,
+    getJustifyContent,
+    getTextAlign,
+    syncRegisteredFontsToDocument,
+    waitForRegisteredFonts,
+} from "./text";
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
 import { CheckboxUpdatePatch } from "./messages/checkbox-update-patch";
 import { TextboxUpdatePatch } from "./messages/textbox-update-patch";
@@ -37,6 +47,8 @@ import { ScreenshotPatch } from "./messages/screenshot-patch";
 import { NativeMaskUpdatePatch } from "./messages/native-mask-update-patch";
 
 import html2canvas from 'html2canvas';
+
+const SCREENSHOT_FONT_STYLE_ATTRIBUTE = 'data-pax-screenshot-font-style';
 
 
 export class NativeElementPool {
@@ -1086,27 +1098,18 @@ export class NativeElementPool {
     }
 
     async screenshot(patch: ScreenshotPatch, chassis: PaxChassisWeb) {
-        try {
-            const canvas = await html2canvas(document.body, {
-                useCORS: true,
-                allowTaint: false,
-                foreignObjectRendering: true,
-                scale: patch.scale ?? 1,
-                ignoreElements: (element) => {
-                    // Ignore images to prevent
-                    return element.tagName === 'IMG'
-                },
-            });
-    
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                console.log('Could not get canvas context');
+        let canvas: HTMLCanvasElement | null = null;
+        let ctx: CanvasRenderingContext2D | null = null;
+        let responded = false;
+
+        const sendScreenshot = () => {
+            if (responded || !canvas || !ctx) {
                 return;
             }
-    
+
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const pixels = new Uint8Array(imageData.data.buffer);
-    
+
             const message = {
                 "Screenshot": {
                     "Data": {
@@ -1117,10 +1120,203 @@ export class NativeElementPool {
                     }
                 }
             };
-    
+
             chassis.interrupt(JSON.stringify(message), pixels);
+            responded = true;
+        };
+
+        try {
+            type ScreenshotLayer = {
+                element: HTMLCanvasElement | HTMLDivElement;
+                index: number;
+            };
+            type LayerScreenshotData = {
+                data: Uint8Array | number[];
+                height: number;
+                id: number;
+                width: number;
+            };
+
+            const mount = this.layers.parent;
+            if (!(mount instanceof HTMLElement)) {
+                console.warn('Could not resolve screenshot mount');
+                return;
+            }
+
+            const scale = patch.scale ?? 1;
+            canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(mount.clientWidth * scale));
+            canvas.height = Math.max(1, Math.round(mount.clientHeight * scale));
+
+            ctx = canvas.getContext('2d');
+            if (!ctx) {
+                console.log('Could not get canvas context');
+                return;
+            }
+
+            const layers = Array
+                .from(mount.children)
+                .reduce<ScreenshotLayer[]>((acc, element, index) => {
+                    if (element instanceof HTMLCanvasElement && element.classList.contains(CANVAS_CLASS)) {
+                        acc.push({ element, index });
+                    } else if (element instanceof HTMLDivElement && element.classList.contains(NATIVE_OVERLAY_CLASS)) {
+                        acc.push({ element, index });
+                    }
+                    return acc;
+                }, [])
+                .sort((left, right) => {
+                    const leftZIndex = Number.parseInt(window.getComputedStyle(left.element).zIndex || '0', 10);
+                    const rightZIndex = Number.parseInt(window.getComputedStyle(right.element).zIndex || '0', 10);
+                    const safeLeftZIndex = Number.isNaN(leftZIndex) ? 0 : leftZIndex;
+                    const safeRightZIndex = Number.isNaN(rightZIndex) ? 0 : rightZIndex;
+                    if (safeLeftZIndex !== safeRightZIndex) {
+                        return safeLeftZIndex - safeRightZIndex;
+                    }
+                    return left.index - right.index;
+                });
+
+            const requestId = patch.id!;
+            const canvasLayerIds = new Set<number>();
+            for (const { element } of layers) {
+                if (!(element instanceof HTMLCanvasElement)) {
+                    continue;
+                }
+                const layerId = Number.parseInt(element.id, 10);
+                if (Number.isNaN(layerId)) {
+                    continue;
+                }
+                canvasLayerIds.add(layerId);
+                chassis.request_layer_screenshot(layerId, requestId);
+            }
+
+            const nextAnimationFrame = () => new Promise<void>((resolve) => {
+                window.requestAnimationFrame(() => resolve());
+            });
+            const waitForPaint = async (frames: number = 1) => {
+                for (let frame = 0; frame < frames; frame += 1) {
+                    await nextAnimationFrame();
+                }
+            };
+
+            const drawLayerScreenshot = (
+                screenshot: LayerScreenshotData,
+            ) => {
+                const layerCanvas = document.createElement('canvas');
+                layerCanvas.width = screenshot.width;
+                layerCanvas.height = screenshot.height;
+                const layerContext = layerCanvas.getContext('2d');
+                if (!layerContext) {
+                    return;
+                }
+                const imageData = new ImageData(
+                    new Uint8ClampedArray(screenshot.data),
+                    screenshot.width,
+                    screenshot.height,
+                );
+                layerContext.putImageData(imageData, 0, 0);
+                ctx.drawImage(layerCanvas, 0, 0, canvas.width, canvas.height);
+            };
+
+            const waitForLayerScreenshot = async (layerId: number) => {
+                for (let attempt = 0; attempt < 10; attempt += 1) {
+                    const screenshot = chassis.take_layer_screenshot(layerId, requestId) as LayerScreenshotData | null;
+                    if (screenshot !== null) {
+                        return screenshot;
+                    }
+                    await nextAnimationFrame();
+                }
+                console.warn(`Timed out waiting for Pax canvas screenshot for layer ${layerId}`);
+                return null;
+            };
+
+            await waitForRegisteredFonts();
+            await waitForPaint(2);
+
+            const canvasScreenshots = new Map<number, LayerScreenshotData>();
+            for (const layerId of canvasLayerIds) {
+                const screenshot = await waitForLayerScreenshot(layerId);
+                if (screenshot !== null) {
+                    canvasScreenshots.set(layerId, screenshot);
+                }
+            }
+
+            let hasNativeOverlayContent = false;
+            for (const { element } of layers) {
+                if (element instanceof HTMLCanvasElement) {
+                    const layerId = Number.parseInt(element.id, 10);
+                    if (Number.isNaN(layerId)) {
+                        continue;
+                    }
+                    const screenshot = canvasScreenshots.get(layerId);
+                    if (screenshot === undefined) {
+                        continue;
+                    }
+                    drawLayerScreenshot(screenshot);
+                    continue;
+                }
+
+                if (element.childElementCount === 0) {
+                    continue;
+                }
+                hasNativeOverlayContent = true;
+            }
+
+            if (hasNativeOverlayContent) {
+                const overlayCanvas = await html2canvas(mount, {
+                    backgroundColor: null,
+                    useCORS: true,
+                    allowTaint: false,
+                    foreignObjectRendering: true,
+                    scale,
+                    width: mount.clientWidth,
+                    height: mount.clientHeight,
+                    windowWidth: mount.clientWidth,
+                    windowHeight: mount.clientHeight,
+                    onclone: (async (clonedDocument: Document, clonedMount: HTMLElement) => {
+                        await syncRegisteredFontsToDocument(clonedDocument);
+                        injectRegisteredFontCssIntoElement(clonedDocument, clonedMount);
+
+                        clonedDocument.documentElement.style.width = `${mount.clientWidth}px`;
+                        clonedDocument.documentElement.style.height = `${mount.clientHeight}px`;
+                        clonedDocument.body.style.width = `${mount.clientWidth}px`;
+                        clonedDocument.body.style.height = `${mount.clientHeight}px`;
+                        clonedMount.style.width = `${mount.clientWidth}px`;
+                        clonedMount.style.height = `${mount.clientHeight}px`;
+
+                        clonedMount
+                            .querySelectorAll(`.${NATIVE_OVERLAY_CLASS}`)
+                            .forEach((overlayNode) => {
+                                if (!(overlayNode instanceof HTMLElement)) {
+                                    return;
+                                }
+                                overlayNode.style.width = `${mount.clientWidth}px`;
+                                overlayNode.style.height = `${mount.clientHeight}px`;
+                            });
+
+                        clonedMount
+                            .querySelectorAll(`canvas.${CANVAS_CLASS}`)
+                            .forEach((canvasNode) => {
+                                if (!(canvasNode instanceof HTMLElement)) {
+                                    return;
+                                }
+                                canvasNode.style.display = 'none';
+                            });
+                    }) as unknown as (document: Document, element: HTMLElement) => void,
+                    ignoreElements: (overlayElement: Element) => isScreenshotIgnoredElement(overlayElement),
+                }).catch((err) => {
+                    console.warn('Proceeding without native overlay capture', err);
+                    return null;
+                });
+                if (overlayCanvas) {
+                    ctx.drawImage(overlayCanvas, 0, 0, canvas.width, canvas.height);
+                }
+                drawPlainTextNativeLeaves(ctx, mount, canvas.width, canvas.height);
+            }
+
+            sendScreenshot();
         } catch (err) {
             console.error('html2canvas error:', err);
+            sendScreenshot();
         }
     }
     
@@ -1171,6 +1367,210 @@ export class NativeElementPool {
     setCursor(patch: SetCursorPatch) {
         document.body.style.cursor = patch.cursor!;
     }
+}
+
+function isScreenshotIgnoredElement(element: Element): boolean {
+    if (element.tagName === 'IMG') {
+        return true;
+    }
+
+    if (isPlainTextNativeLeaf(element)) {
+        return true;
+    }
+
+    return element.tagName === 'CANVAS'
+        && element.classList.contains(CANVAS_CLASS);
+}
+
+function injectRegisteredFontCssIntoElement(targetDocument: Document, targetElement: HTMLElement) {
+    if (targetElement.querySelector(`style[${SCREENSHOT_FONT_STYLE_ATTRIBUTE}]`)) {
+        return;
+    }
+
+    const fontCss = getRegisteredFontCssText().trim();
+    if (fontCss.length === 0) {
+        return;
+    }
+
+    // html2canvas serializes the cloned mount subtree into the foreignObject image;
+    // styles injected only into clonedDocument.head are not carried into that snapshot.
+    const style = targetDocument.createElement('style');
+    style.setAttribute(SCREENSHOT_FONT_STYLE_ATTRIBUTE, 'true');
+    style.textContent = fontCss;
+    targetElement.prepend(style);
+}
+
+function getElementComputedStyle(element: Element): CSSStyleDeclaration | null {
+    const defaultView = element.ownerDocument?.defaultView;
+    if (!defaultView) {
+        return null;
+    }
+
+    return defaultView.getComputedStyle(element);
+}
+
+function isElementWithTextContent(element: Element): element is HTMLElement {
+    return element.nodeType === Node.ELEMENT_NODE && 'innerText' in element;
+}
+
+function isMaskedNativeLeaf(element: Element): boolean {
+    const computedStyle = getElementComputedStyle(element);
+    if (!computedStyle) {
+        return false;
+    }
+
+    const webkitMaskImage = (computedStyle as CSSStyleDeclaration & { webkitMaskImage?: string }).webkitMaskImage;
+    return computedStyle.maskImage !== 'none'
+        || (!!webkitMaskImage && webkitMaskImage !== 'none');
+}
+
+function isPlainTextNativeLeaf(element: Element): boolean {
+    if (element.nodeType !== Node.ELEMENT_NODE) {
+        return false;
+    }
+
+    if (!element.classList.contains(NATIVE_LEAF_CLASS)) {
+        return false;
+    }
+
+    if (element.querySelector('input, button, select, textarea, iframe, img, video, canvas')) {
+        return false;
+    }
+
+    const textChild = element.firstElementChild;
+    if (!(textChild instanceof HTMLElement)) {
+        return false;
+    }
+
+    if (isMaskedNativeLeaf(element)) {
+        return false;
+    }
+
+    return isElementWithTextContent(textChild)
+        && textChild.children.length === 0
+        && textChild.innerText.trim().length > 0;
+}
+
+function drawPlainTextNativeLeaves(
+    ctx: CanvasRenderingContext2D,
+    mount: HTMLElement,
+    outputWidth: number,
+    outputHeight: number,
+) {
+    const scaleX = outputWidth / Math.max(mount.clientWidth, 1);
+    const scaleY = outputHeight / Math.max(mount.clientHeight, 1);
+
+    mount.querySelectorAll(`.${NATIVE_LEAF_CLASS}`).forEach((leafNode) => {
+        if (!(leafNode instanceof HTMLElement) || !isPlainTextNativeLeaf(leafNode)) {
+            return;
+        }
+
+        const textChild = leafNode.firstElementChild;
+        if (!(textChild instanceof HTMLElement)) {
+            return;
+        }
+
+        const leafRect = leafNode.getBoundingClientRect();
+        const textStyle = window.getComputedStyle(textChild);
+        const leafStyle = window.getComputedStyle(leafNode);
+        const text = textChild.innerText;
+        if (text.length === 0) {
+            return;
+        }
+
+        ctx.save();
+        ctx.globalAlpha *= Number.parseFloat(leafStyle.opacity || '1') || 1;
+        ctx.fillStyle = textStyle.color;
+        ctx.font = textStyle.font;
+        ctx.textAlign = (textStyle.textAlign as CanvasTextAlign) || 'left';
+        ctx.textBaseline = 'middle';
+        ctx.direction = (textStyle.direction as CanvasDirection) || 'ltr';
+        applyCanvasTypography(ctx, textStyle);
+
+        const transform = leafStyle.transform !== 'none'
+            ? new DOMMatrixReadOnly(leafStyle.transform)
+            : new DOMMatrixReadOnly();
+        const fontSize = Number.parseFloat(textStyle.fontSize || '16');
+        const lineHeight = Number.parseFloat(textStyle.lineHeight || '') || fontSize * 1.2;
+        const localWidth = Number.parseFloat(leafStyle.width || '') || leafNode.offsetWidth || leafRect.width;
+        const localHeight = Number.parseFloat(leafStyle.height || '') || leafNode.offsetHeight || leafRect.height;
+        const lines = wrapPlainText(text, localWidth, ctx);
+        const totalTextHeight = lineHeight * lines.length;
+
+        ctx.setTransform(scaleX, 0, 0, scaleY, 0, 0);
+        ctx.transform(
+            transform.a,
+            transform.b,
+            transform.c,
+            transform.d,
+            transform.e,
+            transform.f,
+        );
+
+        let x = 0;
+        switch (ctx.textAlign) {
+            case 'center':
+                x = localWidth / 2;
+                break;
+            case 'right':
+            case 'end':
+                x = localWidth;
+                break;
+            default:
+                x = 0;
+        }
+
+        const startY = (localHeight - totalTextHeight) / 2 + lineHeight / 2;
+        lines.forEach((line, index) => {
+            ctx.fillText(line, x, startY + index * lineHeight, localWidth);
+        });
+        ctx.restore();
+    });
+}
+
+function applyCanvasTypography(ctx: CanvasRenderingContext2D, textStyle: CSSStyleDeclaration) {
+    const typographyContext = ctx as CanvasRenderingContext2D & {
+        fontKerning?: string;
+        fontStretch?: string;
+        fontVariantCaps?: string;
+        letterSpacing?: string;
+        wordSpacing?: string;
+        textRendering?: string;
+    };
+
+    typographyContext.fontKerning = textStyle.fontKerning;
+    typographyContext.fontStretch = textStyle.fontStretch;
+    typographyContext.fontVariantCaps = textStyle.fontVariantCaps;
+    typographyContext.letterSpacing = textStyle.letterSpacing;
+    typographyContext.wordSpacing = textStyle.wordSpacing;
+    typographyContext.textRendering = textStyle.textRendering;
+}
+
+function wrapPlainText(text: string, maxWidth: number, ctx: CanvasRenderingContext2D): string[] {
+    const paragraphs = text.split('\n');
+    const lines: string[] = [];
+
+    paragraphs.forEach((paragraph) => {
+        const words = paragraph.split(/\s+/).filter((word) => word.length > 0);
+        if (words.length === 0) {
+            lines.push('');
+            return;
+        }
+
+        let currentLine = words[0]!;
+        for (let index = 1; index < words.length; index += 1) {
+            const candidate = `${currentLine} ${words[index]}`;
+            if (ctx.measureText(candidate).width <= maxWidth) {
+                currentLine = candidate;
+            } else {
+                lines.push(currentLine);
+                currentLine = words[index]!;
+            }
+        }
+        lines.push(currentLine);
+    });
+
+    return lines;
 }
 
 function toCssColor(color: ColorGroup): string {

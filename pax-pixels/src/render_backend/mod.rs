@@ -1,8 +1,9 @@
 use anyhow::anyhow;
 use bytemuck::Pod;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use std::ffi::c_void;
+use std::sync::{Arc, Mutex};
 
 use lyon::lyon_tessellation::VertexBuffers;
 use wgpu::{
@@ -123,6 +124,8 @@ pub struct RenderBackend<'w> {
     sample_count: u32,
     active_frame: Option<ActiveFrame>,
     pending_clear: bool,
+    pending_capture_ids: Vec<u32>,
+    completed_captures: Arc<Mutex<HashMap<u32, CapturedFrame>>>,
 }
 
 struct ActiveFrame {
@@ -133,6 +136,13 @@ struct ActiveFrame {
 struct MultisampledTarget {
     _texture: Texture,
     view: TextureView,
+}
+
+#[derive(Clone)]
+pub struct CapturedFrame {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
 }
 
 pub(crate) struct RetainedVectorResource {
@@ -434,7 +444,7 @@ impl<'w> RenderBackend<'w> {
             .flags;
         let sample_count = select_sample_count(surface_format_features, stencil_format_features);
         let surface_config = SurfaceConfiguration {
-            usage: TextureUsages::RENDER_ATTACHMENT,
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC,
             format: surface_format,
             width: config.initial_width.max(1),
             height: config.initial_height.max(1),
@@ -648,6 +658,8 @@ impl<'w> RenderBackend<'w> {
             sample_count,
             active_frame: None,
             pending_clear: false,
+            pending_capture_ids: Vec::new(),
+            completed_captures: Arc::new(Mutex::new(HashMap::new())),
         };
         backend.globals.dpr = initial_dpr;
         backend.resize(initial_width, initial_height);
@@ -772,6 +784,14 @@ impl<'w> RenderBackend<'w> {
 
     pub fn max_surface_dimension(&self) -> u32 {
         self.max_surface_dimension
+    }
+
+    pub(crate) fn request_screenshot_capture(&mut self, request_id: u32) {
+        self.pending_capture_ids.push(request_id);
+    }
+
+    pub(crate) fn take_screenshot_capture(&mut self, request_id: u32) -> Option<CapturedFrame> {
+        self.completed_captures.lock().ok()?.remove(&request_id)
     }
 
     fn create_retained_bind_group(
@@ -1316,6 +1336,8 @@ impl<'w> RenderBackend<'w> {
             self.queue.submit(std::iter::once(encoder.finish()));
         }
 
+        self.capture_surface_for_pending_requests();
+
         if let Some(screen_surface) = self.active_frame.take() {
             screen_surface.surface.present();
         }
@@ -1332,6 +1354,109 @@ impl<'w> RenderBackend<'w> {
         } else {
             (surface_view, None)
         }
+    }
+
+    fn capture_surface_for_pending_requests(&mut self) {
+        let capture_ids = std::mem::take(&mut self.pending_capture_ids);
+        if capture_ids.is_empty() {
+            return;
+        }
+
+        let Some(active_frame) = self.active_frame.as_ref() else {
+            return;
+        };
+
+        let width = self.surface_config.width.max(1);
+        let height = self.surface_config.height.max(1);
+        let surface_format = self.surface_config.format;
+        let unpadded_bytes_per_row = width as usize * 4;
+        let padded_bytes_per_row =
+            unpadded_bytes_per_row.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize);
+        let readback_size = padded_bytes_per_row * height as usize;
+        let readback = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Surface Screenshot Readback"),
+            size: readback_size as u64,
+            usage: BufferUsages::COPY_DST | BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Surface Screenshot Encoder"),
+            });
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &active_frame.surface.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &readback,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(padded_bytes_per_row as u32),
+                    rows_per_image: Some(height),
+                },
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+        self.queue.submit(std::iter::once(encoder.finish()));
+        let _ = self.device.poll(wgpu::PollType::Poll);
+
+        let completed_captures = Arc::clone(&self.completed_captures);
+        let readback_for_callback = readback.clone();
+        readback
+            .slice(..)
+            .map_async(wgpu::MapMode::Read, move |result| {
+                if let Err(err) = result {
+                    log::warn!("failed to map surface screenshot readback buffer: {err}");
+                    return;
+                }
+
+                let mapped = readback_for_callback.slice(..).get_mapped_range();
+                let mut rgba = vec![0; unpadded_bytes_per_row * height as usize];
+                for row in 0..height as usize {
+                    let src_start = row * padded_bytes_per_row;
+                    let dst_start = row * unpadded_bytes_per_row;
+                    rgba[dst_start..dst_start + unpadded_bytes_per_row]
+                        .copy_from_slice(&mapped[src_start..src_start + unpadded_bytes_per_row]);
+                }
+                if matches!(
+                    surface_format,
+                    wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
+                ) {
+                    for pixel in rgba.chunks_exact_mut(4) {
+                        pixel.swap(0, 2);
+                    }
+                }
+                drop(mapped);
+                readback_for_callback.unmap();
+
+                let capture = CapturedFrame {
+                    width,
+                    height,
+                    rgba,
+                };
+                match completed_captures.lock() {
+                    Ok(mut completed) => {
+                        for request_id in capture_ids {
+                            completed.insert(request_id, capture.clone());
+                        }
+                    }
+                    Err(err) => {
+                        log::warn!(
+                            "failed to store surface screenshot readback result: {:?}",
+                            err
+                        );
+                    }
+                }
+            });
     }
 }
 

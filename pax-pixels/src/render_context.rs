@@ -31,6 +31,7 @@ use crate::render_backend::data::GpuPrimitive;
 use crate::render_backend::data::GpuTransform;
 use crate::render_backend::data::GpuVertex;
 use crate::render_backend::CachedTextureResource;
+use crate::render_backend::CapturedFrame;
 use crate::render_backend::RenderBackend;
 use crate::render_backend::VectorResourceDirty;
 use std::collections::hash_map::DefaultHasher;
@@ -573,6 +574,15 @@ impl<'w> WgpuRenderer<'w> {
     pub fn size(&self) -> (f32, f32) {
         let res = &self.render_backend.globals.resolution;
         (res[0], res[1])
+    }
+
+    pub fn request_screenshot_capture(&mut self, request_id: u32) {
+        self.scene_dirty = true;
+        self.render_backend.request_screenshot_capture(request_id);
+    }
+
+    pub fn take_screenshot_capture(&mut self, request_id: u32) -> Option<CapturedFrame> {
+        self.render_backend.take_screenshot_capture(request_id)
     }
 
     pub fn begin_node(&mut self, node_id: u32, z_index: i32) -> bool {
