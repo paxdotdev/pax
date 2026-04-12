@@ -103,8 +103,9 @@ impl InstanceNode for LineInstance {
         expanded_node: &ExpandedNode,
         ray: pax_runtime::api::math::Point2<pax_runtime::api::Window>,
     ) -> bool {
-        self.resolve_coverage_path(expanded_node)
-            .is_some_and(|path| path.contains(kurbo::Point::new(ray.x, ray.y)))
+        self.resolve_coverage_path(expanded_node).is_some_and(|path| {
+            path_contains_with_tolerance(&path, kurbo::Point::new(ray.x, ray.y))
+        })
     }
 
     fn resolve_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<BezPath> {
@@ -217,9 +218,25 @@ fn line_coverage_path(start: kurbo::Point, end: kurbo::Point, stroke: &Stroke) -
     stroked_outline_path(&centerline_path(start, end), stroke)
 }
 
+fn path_contains_with_tolerance(path: &BezPath, point: kurbo::Point) -> bool {
+    if path.contains(point) {
+        return true;
+    }
+
+    const HIT_TEST_EPSILON: f64 = 1e-3;
+    [
+        (HIT_TEST_EPSILON, 0.0),
+        (-HIT_TEST_EPSILON, 0.0),
+        (0.0, HIT_TEST_EPSILON),
+        (0.0, -HIT_TEST_EPSILON),
+    ]
+    .into_iter()
+    .any(|(dx, dy)| path.contains(kurbo::Point::new(point.x + dx, point.y + dy)))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::line_coverage_path;
+    use super::{line_coverage_path, path_contains_with_tolerance};
     use kurbo::{Point, Shape};
     use pax_runtime::api::{Property, Size, Stroke, StrokeCap};
 
@@ -273,7 +290,7 @@ mod tests {
             &test_stroke(6.0, StrokeCap::Round),
         )
         .unwrap();
-        assert!(path.contains(Point::new(-2.0, 0.0)));
-        assert!(path.contains(Point::new(22.0, 0.0)));
+        assert!(path_contains_with_tolerance(&path, Point::new(-2.0, 0.0)));
+        assert!(path_contains_with_tolerance(&path, Point::new(22.0, 0.0)));
     }
 }

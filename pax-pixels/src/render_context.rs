@@ -1347,7 +1347,7 @@ fn compute_vector_node_bounds(ops: &[PendingVectorOp]) -> Box2D {
             continue;
         };
         let mut op_bounds = transform_box(path_bounds, &op.transform);
-        if let PendingVectorOpKind::Stroke(width) = op.kind {
+        if let PendingVectorOpKind::Stroke(width, _) = op.kind {
             op_bounds = expand_box(op_bounds, width * 0.5);
         }
         bounds = Some(match bounds {

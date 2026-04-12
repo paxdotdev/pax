@@ -165,6 +165,8 @@ impl<'a> RenderContext for AppleRenderContext<'a> {
     fn flush(&mut self, _layer: usize, _dirty_canvases: Rc<RefCell<Vec<bool>>>) {}
 
     fn resize(&mut self, _width: usize, _height: usize) {}
+
+    fn refresh_layers(&mut self, _layers: &[usize]) {}
 }
 
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
@@ -221,7 +223,8 @@ pub struct AppleRenderContext {
 impl AppleRenderContext {
     fn new(layer: *mut c_void, width: usize, height: usize, dpr: f32) -> Result<Self, String> {
         let dpr = dpr.round().max(1.0) as u32;
-        let config = RenderConfig::new(false, width as u32, height as u32, dpr as f32);
+        let dpr_vec = [dpr as f32; 2];
+        let config = RenderConfig::new(false, width as u32, height as u32, dpr_vec);
         let backend =
             unsafe { pollster::block_on(RenderBackend::to_core_animation_layer(layer, config)) }
                 .map_err(|err| err.to_string())?;
@@ -230,7 +233,7 @@ impl AppleRenderContext {
             (width as f32 * dpr as f32).max(1.0),
             (height as f32 * dpr as f32).max(1.0),
         );
-        backend.set_viewport(width as f32, height as f32, dpr as f32);
+        backend.set_viewport(width as f32, height as f32, dpr_vec);
         Ok(Self {
             backend,
             image_map: HashMap::new(),
@@ -245,12 +248,13 @@ impl AppleRenderContext {
         if self.logical_size == (width, height) && self.dpr == dpr {
             return false;
         }
+        let dpr_vec = [dpr as f32; 2];
         self.backend.resize_surface(
             (width as f32 * dpr as f32).max(1.0),
             (height as f32 * dpr as f32).max(1.0),
         );
         self.backend
-            .set_viewport(width as f32, height as f32, dpr as f32);
+            .set_viewport(width as f32, height as f32, dpr_vec);
         self.logical_size = (width, height);
         self.dpr = dpr;
         true
@@ -370,6 +374,8 @@ impl RenderContext for AppleRenderContext {
     fn resize(&mut self, width: usize, height: usize) {
         self.backend.resize(width as f32, height as f32);
     }
+
+    fn refresh_layers(&mut self, _layers: &[usize]) {}
 
     fn begin_node(&mut self, _layer: usize, node_id: u32, z_index: i32) -> bool {
         self.backend.begin_node(node_id, z_index)
