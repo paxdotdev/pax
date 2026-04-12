@@ -121,7 +121,10 @@ impl InstanceNode for MaskInstance {
             ..Default::default()
         }));
 
-        let mut deps = vec![expanded_node.computed_opacity.untyped()];
+        let mut deps = vec![
+            expanded_node.computed_opacity.untyped(),
+            expanded_node.occlusion.untyped(),
+        ];
         if let Some(mask_child) = borrow!(expanded_node.sidecar_children).first() {
             deps.push(mask_child.transform_and_bounds.untyped());
             deps.extend(
@@ -137,7 +140,7 @@ impl InstanceNode for MaskInstance {
             .replace_with(Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
-                        unreachable!()
+                        return;
                     };
 
                     let clip_path = Self::resolve_mask_path(&expanded_node)
@@ -161,6 +164,16 @@ impl InstanceNode for MaskInstance {
                             &mut old_state.opacity,
                             &mut patch.opacity,
                             native_surface_opacity(&expanded_node, &context),
+                        ),
+                        patch_if_needed(
+                            &mut old_state.parent_frame,
+                            &mut patch.parent_frame,
+                            expanded_node.parent_frame.get().map(|v| v.to_u32()),
+                        ),
+                        patch_if_needed(
+                            &mut old_state.z_index,
+                            &mut patch.z_index,
+                            expanded_node.occlusion.get().z_index,
                         ),
                     ];
 

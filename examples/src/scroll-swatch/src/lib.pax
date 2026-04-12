@@ -1,0 +1,143 @@
+    <Group width=100% height=100%>
+        <Text
+            x=40px
+            y=34px
+            width={100% - 80px}
+            height=34px
+            text="Scroll Swatch"
+            selectable=false
+            style={
+                font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap", FontStyle::Normal, FontWeight::Bold)
+                font_size: 28px
+                fill: rgba(19, 23, 33, 255)
+                align_vertical: TextAlignVertical::Center
+                align_horizontal: TextAlignHorizontal::Left
+                align_multiline: TextAlignHorizontal::Left
+                underline: false
+            }/>
+
+        <Text
+            x=40px
+            y=76px
+            width={100% - 80px}
+            height=48px
+            text="Drag the card shell to sweep hue. Drag inside a card to pan saturation on x and luminance on y."
+            selectable=false
+            style={
+                font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap", FontStyle::Normal, FontWeight::Normal)
+                font_size: 16px
+                fill: rgba(101, 107, 120, 255)
+                align_vertical: TextAlignVertical::Top
+                align_horizontal: TextAlignHorizontal::Left
+                align_multiline: TextAlignHorizontal::Left
+                underline: false
+            }/>
+
+        <Scroller
+            x=0px
+            y=136px
+            width=100%
+            height={100% - 136px}
+            scroll_width=7256px
+        >
+            <Group>
+                for hue in 0..18 {
+                    <Group
+                        x={(48 + hue * 400)px}
+                        y={50% - 306px}
+                        width=360px
+                        height={100% - 30px}
+                    >
+                        <Text
+                            x=24px
+                            y=24px
+                            width=312px
+                            height=28px
+                            text={"Hue " + (hue * 20) + " deg"}
+                            selectable=false
+                            style={
+                                font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap", FontStyle::Normal, FontWeight::Bold)
+                                font_size: 20px
+                                fill: rgba(18, 22, 31, 255)
+                                align_vertical: TextAlignVertical::Center
+                                align_horizontal: TextAlignHorizontal::Left
+                                align_multiline: TextAlignHorizontal::Left
+                                underline: false
+                            }/>
+
+                        <Scroller
+                            x=24px
+                            y=96px
+                            width=312px
+                            height={100% - 150px}
+                            scroll_width=1248px
+                            scroll_height=1752px
+                        >
+                            <Group width=1248px>
+                                for row in 0..4 {
+                                    for col in 0..4 {
+                                        // Card for the inner scroller
+                                        <Group
+                                            x={(col * 312)px}
+                                            y={(72 + row * 420)px}
+                                            width=312px
+                                            height=420px
+                                        >
+                                            <Text
+                                                x=50%
+                                                y=32px
+                                                width=202px
+                                                height=24px
+                                                text={"H " + (hue * 20) + " S " + (24 + col * 18) + " L " + (84 - row * 16)}
+                                                selectable=false
+                                                style={
+                                                    font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap", FontStyle::Normal, FontWeight::Bold)
+                                                    font_size: 16px
+                                                    fill: rgba(17, 22, 32, 255)
+                                                    align_vertical: TextAlignVertical::Center
+                                                    align_horizontal: TextAlignHorizontal::Left
+                                                    align_multiline: TextAlignHorizontal::Left
+                                                    underline: false
+                                                }/>
+
+                                            <Rectangle
+                                                x=10px
+                                                y=20px
+                                                width=220px
+                                                height=40px
+                                                fill={rgba(255, 251, 246, 220)}
+                                                corner_radii={RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)}/>
+
+                                            <Rectangle
+                                                width=100%
+                                                height=100%
+                                                fill={hsl((hue * 20)deg, (24 + col * 18)%, (84 - row * 16)%)} />
+                                        </Group>
+                                    }
+                                }
+                            </Group>
+                        </Scroller>
+
+                        <Rectangle
+                            x=24px
+                            y={100% - 10px}
+                            width=312px
+                            height=14px
+                            fill={rgba(240, 233, 224, 255)}
+                            corner_radii={RectangleCornerRadii::radii(7.0, 7.0, 7.0, 7.0)}/>
+
+                        <Rectangle
+                            width=100%
+                            height=100%
+                            fill={rgba(255, 252, 248, 255)}
+                            corner_radii={RectangleCornerRadii::radii(36.0, 36.0, 36.0, 36.0)}/>
+                    </Group>
+                }
+            </Group>
+        </Scroller>
+
+        <Rectangle
+            width=100%
+            height=100%
+            fill={rgba(248, 242, 234, 255)}/>
+    </Group>

@@ -47,6 +47,26 @@ export function affineMultiply(point: number[], matrix: number[]) : number[] {
     return [xOut, yOut];
 }
 
+export function invertAffineCoeffs(coeffs: number[]): number[] | undefined {
+    if (coeffs.length < 6) {
+        return undefined;
+    }
+
+    const [a, b, c, d, e, f] = coeffs;
+    const determinant = a * d - b * c;
+    if (Math.abs(determinant) < 1e-8) {
+        return undefined;
+    }
+
+    const inverseDeterminant = 1 / determinant;
+    const na = d * inverseDeterminant;
+    const nb = -b * inverseDeterminant;
+    const nc = -c * inverseDeterminant;
+    const nd = a * inverseDeterminant;
+    const ne = -(na * e + nc * f);
+    const nf = -(nb * e + nd * f);
+    return [na, nb, nc, nd, ne, nf];
+}
 
 /// Our 2D affine transform comes across the wire as an array of
 /// floats in column-major order, (a,b,c,d,e,f) representing the

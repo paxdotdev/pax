@@ -7,7 +7,7 @@ import {
     CHECKBOX_UPDATE_PATCH,
     DROPDOWN_UPDATE_PATCH,
     FRAME_UPDATE_PATCH,
-    IMAGE_LOAD_PATCH, OCCLUSION_UPDATE_PATCH, SCROLLER_UPDATE_PATCH,
+    IMAGE_LOAD_PATCH, SCROLLER_UPDATE_PATCH,
     SUPPORTED_OBJECTS,
     TEXTBOX_UPDATE_PATCH,
     TEXT_UPDATE_PATCH,
@@ -30,7 +30,6 @@ import {ImageLoadPatch} from "./classes/messages/image-load-patch";
 import {ScrollerUpdatePatch} from "./classes/messages/scroller-update-patch";
 import {setupEventListeners} from "./events/listeners";
 import "./styles/pax-web.css";
-import { OcclusionUpdatePatch } from "./classes/messages/occlusion-update-patch";
 import { ButtonUpdatePatch } from "./classes/messages/button-update-patch";
 import { TextboxUpdatePatch } from "./classes/messages/textbox-update-patch";
 import { DropdownUpdatePatch } from "./classes/messages/dropdown-update-patch";
@@ -40,12 +39,33 @@ import { NativeImageUpdatePatch } from "./classes/messages/native-image-update-p
 import { YoutubeVideoUpdatePatch } from "./classes/messages/youtube-video-update-patch";
 import { ScreenshotPatch } from "./classes/messages/screenshot-patch";
 import { NativeMaskUpdatePatch } from "./classes/messages/native-mask-update-patch";
+import { isIOSWebKitBrowser } from "./classes/surface-host-policy";
 
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let messages : any[];
 let nativePool = new NativeElementPool(objectManager);
 let textDecoder = new TextDecoder();
 let initializedChassis = false;
+const perfTraceEnabled = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("pax_scroll_perf");
+let perfTraceSequence = 0;
+
+function withProfileMeasure<T>(name: string, fn: () => T): T {
+    if (!perfTraceEnabled || typeof performance === "undefined") {
+        return fn();
+    }
+    let sequence = perfTraceSequence += 1;
+    let startMark = `pax:${name}:${sequence}:start`;
+    let endMark = `pax:${name}:${sequence}:end`;
+    performance.mark(startMark);
+    try {
+        return fn();
+    } finally {
+        performance.mark(endMark);
+        performance.measure(`pax:${name}`, startMark, endMark);
+        performance.clearMarks(startMark);
+        performance.clearMarks(endMark);
+    }
+}
 
 export function mount(selector_or_element: string | Element, extensionlessUrl: string) {
 
@@ -76,7 +96,7 @@ async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxC
 
         const wasmBinary = await fetch(`${extensionlessUrl}_bg.wasm`);
         const wasmArrayBuffer = await wasmBinary.arrayBuffer();
-        await glueCodeModule.default(wasmArrayBuffer);
+        await glueCodeModule.default({module_or_path: wasmArrayBuffer});
 
         let chassis = await glueCodeModule.pax_init();
         window.chassis = chassis;
@@ -93,41 +113,89 @@ async function startRenderLoop(extensionlessUrl: string, mount: Element) {
     try {
         let {chassis, get_latest_memory} = await loadWasmModule(extensionlessUrl);
         nativePool.attach(chassis, mount);
+        initializeChassis(chassis, mount);
         requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, get_latest_memory));
     } catch (error) {
         console.error("Failed to load or instantiate Wasm module:", error);
     }
 }
 
-function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: ()=>any) {
-    const memorySliceSpec = chassis.tick();
-    const latestMemory : WebAssembly.Memory = get_latest_memory();
-    const memoryBuffer = new Uint8Array(latestMemory.buffer);
-
-    // Extract the serialized data directly from memory
-    const jsonString = textDecoder.decode(memoryBuffer.subarray(memorySliceSpec.ptr(), memorySliceSpec.ptr() + memorySliceSpec.len()));
-    messages = JSON.parse(jsonString);
-
-    if(!initializedChassis){
-        let resizeHandler = () => {
-            let width = mount.clientWidth;
-            let height = mount.clientHeight;
-            chassis.send_viewport_update(width, height);
-        };
-        window.addEventListener('resize', resizeHandler);
-        resizeHandler();//Fire once manually to init viewport size & occlusion context
-        setupEventListeners(chassis);
-        initializedChassis = true;
+function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
+    if (initializedChassis) {
+        return;
     }
+    chassis.interrupt(JSON.stringify({
+        "BrowserConfig": {
+            "allow_scroller_vector_layers": true,
+            "allow_nested_scroller_vector_layers": true,
+        },
+    }), []);
+    let lastViewportWidth = -1;
+    let lastViewportHeight = -1;
+    let resizeHandler = () => {
+        let root = document.documentElement;
+        // Use the layout viewport as the authoritative app size. Do not relayout the entire scene
+        // during iOS Safari toolbar collapse: delegated page scroll should reveal more of the page
+        // through the browser-owned visual viewport, not by continuously changing engine layout.
+        let width = window.innerWidth ?? root.clientWidth ?? mount.clientWidth;
+        let height = window.innerHeight ?? root.clientHeight ?? mount.clientHeight;
+        if (
+            nativePool.hasActivePageScrollDelegation()
+            && Math.abs(width - lastViewportWidth) <= 0.5
+            && Math.abs(height - lastViewportHeight) > 0.5
+        ) {
+            // iOS Safari reports toolbar collapse as a height-only resize. If we relay that into
+            // engine viewport changes while the root scroller is delegated to page scroll, the
+            // scene relayout snaps the scroller back to an earlier position mid-gesture.
+            return;
+        }
+        if (Math.abs(width - lastViewportWidth) <= 0.5 && Math.abs(height - lastViewportHeight) <= 0.5) {
+            return;
+        }
+        lastViewportWidth = width;
+        lastViewportHeight = height;
+        chassis.send_viewport_update(width, height);
+    };
+    window.addEventListener('resize', resizeHandler);
+    // Initialize viewport-dependent layout before the first engine tick so native/scroller hosts do
+    // not bootstrap against a transient 0x0 viewport.
+    resizeHandler();
+    setupEventListeners(chassis);
+    initializedChassis = true;
+}
 
-    processMessages(messages, chassis, objectManager);
-    //draw canvas elements
-    chassis.render();
+function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: ()=>any) {
+    initializeChassis(chassis, mount);
+    withProfileMeasure("renderLoopFrame", () => {
+        nativePool.sampleFrameInputs();
+        const memorySliceSpec = withProfileMeasure("tick", () => chassis.tick());
+        const latestMemory : WebAssembly.Memory = get_latest_memory();
+        const memoryBuffer = new Uint8Array(latestMemory.buffer);
 
-    //necessary manual cleanup
-    chassis.deallocate(memorySliceSpec);
+        // Extract the serialized data directly from memory
+        const jsonString = withProfileMeasure("decodeMessages", () =>
+            textDecoder.decode(memoryBuffer.subarray(memorySliceSpec.ptr(), memorySliceSpec.ptr() + memorySliceSpec.len())),
+        );
+        messages = withProfileMeasure("parseMessages", () => JSON.parse(jsonString));
 
-    requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, get_latest_memory))
+        withProfileMeasure("processMessages", () => {
+            processMessages(messages, chassis, objectManager);
+        });
+        withProfileMeasure("syncRenderSurfaceLayoutsPhase", () => {
+            nativePool.syncRenderSurfaceLayouts();
+        });
+        //draw canvas elements
+        withProfileMeasure("render", () => {
+            chassis.render();
+        });
+
+        //necessary manual cleanup
+        withProfileMeasure("deallocateMessages", () => {
+            chassis.deallocate(memorySliceSpec);
+        });
+    });
+
+    requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, get_latest_memory));
 }
 
 
@@ -139,11 +207,6 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
         if(unwrapped_msg["ShrinkLayersTo"] !== undefined) {
             let layers_needed = unwrapped_msg["ShrinkLayersTo"];
             nativePool.layers.shrinkTo(layers_needed);
-        } else if(unwrapped_msg["OcclusionUpdate"]) {
-            let msg = unwrapped_msg["OcclusionUpdate"]
-            let patch: OcclusionUpdatePatch = objectManager.getFromPool(OCCLUSION_UPDATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.occlusionUpdate(patch);
         } else if(unwrapped_msg["NativeMaskUpdate"]) {
             let msg = unwrapped_msg["NativeMaskUpdate"];
             let patch: NativeMaskUpdatePatch = objectManager.getFromPool(NATIVE_MASK_UPDATE_PATCH);

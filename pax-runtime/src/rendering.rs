@@ -203,6 +203,16 @@ pub trait InstanceNode {
             && transformed_ray.y < height
     }
 
+    /// Used by scroller-like primitives to allocate a browser-owned presentation layer.
+    fn scrolls_content(&self, _expanded_node: &ExpandedNode) -> bool {
+        false
+    }
+
+    /// Returns the current browser-owned scroll offset in local scroller coordinates.
+    fn resolve_scroll_offset(&self, _expanded_node: &ExpandedNode) -> Option<(f64, f64)> {
+        None
+    }
+
     fn handle_native_interrupt(
         &self,
         _expanded_node: &Rc<ExpandedNode>,

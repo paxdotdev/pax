@@ -1,5 +1,7 @@
 export class NativeImageUpdatePatch {
     public id?: number;
+    public parentFrame?: number;
+    public zIndex?: number;
     public url?: string;
     public fit?: string;
     public size_x?: number;
@@ -9,6 +11,8 @@ export class NativeImageUpdatePatch {
 
     fromPatch(jsonMessage: any) {
         this.id = jsonMessage["id"];
+        this.parentFrame = jsonMessage["parent_frame"];
+        this.zIndex = jsonMessage["z_index"];
         this.url = jsonMessage["url"];
         this.fit = jsonMessage["fit"];
         this.size_x = jsonMessage["size_x"];
@@ -19,6 +23,8 @@ export class NativeImageUpdatePatch {
 
     cleanUp(){
         this.id = undefined;
+        this.parentFrame = undefined;
+        this.zIndex = undefined;
         this.url = '';
         this.fit = '';
         this.size_x = 0;

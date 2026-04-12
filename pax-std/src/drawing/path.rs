@@ -7,7 +7,7 @@ use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 
-use crate::common::Point;
+use crate::common::{canvas_surface_transform, Point};
 use crate::drawing::stroke_utils::{stroke_width_pixels, stroked_outline_path};
 use pax_engine::*;
 
@@ -211,11 +211,22 @@ impl InstanceNode for PathInstance {
             };
 
             let tab = expanded_node.transform_and_bounds.get();
+            let surface_transform = canvas_surface_transform(expanded_node, rtc);
+            let mut clip_path = BezPath::new();
+            let (width, height) = tab.bounds;
+            clip_path.move_to((0.0, 0.0));
+            clip_path.line_to((width, 0.0));
+            clip_path.line_to((width, height));
+            clip_path.line_to((0.0, height));
+            clip_path.line_to((0.0, 0.0));
+            clip_path.close_path();
+            //our "save point" before clipping — restored to in the post_render
             let opacity = expanded_node.computed_opacity.get();
             let fill = properties.fill.get();
             let stroke = properties.stroke.get();
             rc.save(layer_id);
-            rc.transform(layer_id, tab.transform.into());
+            rc.transform(layer_id, surface_transform);
+            rc.clip(layer_id, clip_path.clone());
             rc.fill_with_opacity(layer_id, bez_path.clone(), &fill, opacity);
             if stroke_width_pixels(&stroke) > f64::EPSILON {
                 rc.stroke_with_opacity(layer_id, bez_path, &stroke, opacity);

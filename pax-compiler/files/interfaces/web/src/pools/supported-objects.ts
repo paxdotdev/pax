@@ -10,7 +10,6 @@ import { Layer } from "../classes/layer";
 import { OcclusionLayerManager } from "../classes/occlusion-context";
 import { Font, TextStyle } from "../classes/text";
 import { CheckboxUpdatePatch } from "../classes/messages/checkbox-update-patch";
-import { OcclusionUpdatePatch } from "../classes/messages/occlusion-update-patch";
 import { ButtonUpdatePatch } from "../classes/messages/button-update-patch";
 import { TextboxUpdatePatch } from "../classes/messages/textbox-update-patch";
 import { DropdownUpdatePatch } from "../classes/messages/dropdown-update-patch";
@@ -34,7 +33,6 @@ export const SELECT = "Select";
 export const BUTTON = "Button";
 export const CANVAS = "Canvas";
 export const ANY_CREATE_PATCH = "Any Create Patch";
-export const OCCLUSION_UPDATE_PATCH = "Occlusion Update Patch";
 export const FRAME_UPDATE_PATCH = "Frame Update Patch";
 export const EVENT_BLOCKER_UPDATE_PATCH = "Event Blocker Update Patch";
 export const IMAGE_LOAD_PATCH = "IMAGE LOAD PATCH";
@@ -131,13 +129,17 @@ export let SUPPORTED_OBJECTS = [{
         return canvas
     },
     cleanUp: (canvas: HTMLCanvasElement) => {
-        let ctx = canvas.getContext('2d');
-        ctx && ctx.clearRect(0, 0, canvas.width, canvas.height);
-        canvas.width = 0;
-        canvas.height = 0;
+        // Browser GPU contexts can remain bound to a canvas object even after it leaves the DOM.
+        // Reusing pooled canvases can therefore trip "canvas already in use" when a later layer
+        // tries to attach a fresh WebGPU/WebGL backend. Discard canvases instead of recycling
+        // them so each render surface gets a truly fresh DOM canvas.
+        // iOS WebKit is especially stubborn about releasing resources unless the canvas shrinks.
+        canvas.width = 1;
+        canvas.height = 1;
         canvas.id = '';
         canvas.removeAttribute('style');
     },
+    reusable: false,
 },
 {
     name: YOUTUBE_VIDEO,
@@ -153,13 +155,6 @@ export let SUPPORTED_OBJECTS = [{
     name: ANY_CREATE_PATCH,
     factory: () => new AnyCreatePatch(),
     cleanUp: (patch: AnyCreatePatch) => {
-        patch.cleanUp()
-    }
-},
-{
-    name: OCCLUSION_UPDATE_PATCH,
-    factory: () => new OcclusionUpdatePatch(),
-    cleanUp: (patch: OcclusionUpdatePatch) => {
         patch.cleanUp()
     }
 },

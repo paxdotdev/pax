@@ -6,6 +6,10 @@ html, body, #mount, canvas, .native-overlay{
     overflow: hidden;
 }
 
+html, body, #mount {
+    min-height: 100dvh;
+}
+
 #mount {
     position: relative;
 }
@@ -16,7 +20,6 @@ html, body, #mount, canvas, .native-overlay{
     top: 0;
     left: 0;
     pointer-events: none;
-    contain: layout style paint;
 }
 
 
@@ -34,6 +37,8 @@ html, body, #mount, canvas, .native-overlay{
 .scroller-container {
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.5) transparent;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: auto;
 }
 
 .inner-pane {

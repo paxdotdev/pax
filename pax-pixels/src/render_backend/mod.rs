@@ -34,6 +34,15 @@ use self::{
     stencil::StencilRenderer,
 };
 
+// Transparent white keeps alpha-capable browser surfaces composited cleanly, while browsers that
+// only expose opaque canvas alpha resolve the untouched background to white instead of black.
+pub(crate) const COMPAT_CLEAR_COLOR: wgpu::Color = wgpu::Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 0.0,
+};
+
 pub struct RenderConfig {
     pub debug: bool,
     index_buffer_size: u64,
@@ -45,18 +54,20 @@ pub struct RenderConfig {
     clip_transforms_buffer_size: u64,
     pub initial_width: u32,
     pub initial_height: u32,
-    pub initial_dpr: f32,
+    pub initial_dpr: [f32; 2],
 }
 
 pub(crate) const MAX_BATCH_PRIMITIVES: usize = 512;
 pub(crate) const MAX_BATCH_COLORS: usize = 512;
 pub(crate) const MAX_BATCH_GRADIENTS: usize = 64;
-pub(crate) const MAX_BATCH_TRANSFORMS: usize = 512;
-pub(crate) const MAX_SCENE_TRANSFORMS: usize = 1024;
-pub(crate) const MAX_SCENE_CLIPS: usize = 1024;
+pub(crate) const MAX_BATCH_TRANSFORMS: usize = 480;
+// WebGL/WebKit-class platforms can expose a 16 KiB max uniform binding size.
+// Keep the scene transform uniform arena under that ceiling.
+pub(crate) const MAX_SCENE_TRANSFORMS: usize = 480;
+pub(crate) const MAX_SCENE_CLIPS: usize = 480;
 
 impl RenderConfig {
-    pub fn new(_debug: bool, width: u32, height: u32, dpr: f32) -> Self {
+    pub fn new(_debug: bool, width: u32, height: u32, dpr: [f32; 2]) -> Self {
         Self {
             debug: false,
             index_buffer_size: 2 << 12,
@@ -299,17 +310,23 @@ impl<'w> RenderBackend<'w> {
         canvas: web_sys::HtmlCanvasElement,
         config: RenderConfig,
     ) -> Result<Self, anyhow::Error> {
-        let instance = wgpu::util::new_instance_with_webgpu_detection(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL,
-            flags: if config.debug {
-                wgpu::InstanceFlags::DEBUG
-            } else {
-                wgpu::InstanceFlags::default()
-            },
-            memory_budget_thresholds: Default::default(),
-            backend_options: Default::default(),
-        })
+        let instance = Self::new_browser_instance(
+            wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL,
+            config.debug,
+            true,
+        )
         .await;
+        let surface_target = wgpu::SurfaceTarget::Canvas(canvas);
+        let surface = instance.create_surface(surface_target)?;
+        Self::new(surface, instance, config).await
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub async fn to_canvas_gl(
+        canvas: web_sys::HtmlCanvasElement,
+        config: RenderConfig,
+    ) -> Result<Self, anyhow::Error> {
+        let instance = Self::new_browser_instance(wgpu::Backends::GL, config.debug, false).await;
         let surface_target = wgpu::SurfaceTarget::Canvas(canvas);
         let surface = instance.create_surface(surface_target)?;
         Self::new(surface, instance, config).await
@@ -322,6 +339,16 @@ impl<'w> RenderBackend<'w> {
     ) -> Result<Self, anyhow::Error> {
         Err(anyhow!(
             "canvas surfaces are only supported on wasm32 targets"
+        ))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async fn to_canvas_gl(
+        _canvas: web_sys::HtmlCanvasElement,
+        _config: RenderConfig,
+    ) -> Result<Self, anyhow::Error> {
+        Err(anyhow!(
+            "canvas GL surfaces are only supported on wasm32 targets"
         ))
     }
 
@@ -387,13 +414,6 @@ impl<'w> RenderBackend<'w> {
         );
 
         let surface_caps = surface.get_capabilities(&adapter);
-        #[cfg(target_arch = "wasm32")]
-        let surface_format = surface_caps
-            .formats
-            .first()
-            .copied()
-            .ok_or_else(|| anyhow!("surface reported no compatible texture formats"))?;
-        #[cfg(not(target_arch = "wasm32"))]
         let surface_format = surface_caps
             .formats
             .iter()
@@ -436,9 +456,21 @@ impl<'w> RenderBackend<'w> {
         .ok_or_else(|| anyhow!("surface reported no compatible alpha modes"))?;
         #[cfg(target_arch = "wasm32")]
         if alpha_mode == CompositeAlphaMode::Opaque {
-            log::warn!("render backend: browser surface only exposes opaque alpha");
+            log::debug!("render backend: browser surface only exposes opaque alpha");
         }
         let surface_format_features = adapter.get_texture_format_features(surface_format).flags;
+        #[cfg(target_arch = "wasm32")]
+        let stencil_format_features = {
+            let queried = adapter
+                .get_texture_format_features(wgpu::TextureFormat::Stencil8)
+                .flags;
+            if queried.is_empty() {
+                surface_format_features
+            } else {
+                queried
+            }
+        };
+        #[cfg(not(target_arch = "wasm32"))]
         let stencil_format_features = adapter
             .get_texture_format_features(wgpu::TextureFormat::Stencil8)
             .flags;
@@ -450,7 +482,7 @@ impl<'w> RenderBackend<'w> {
             height: config.initial_height.max(1),
             present_mode: PresentMode::Fifo,
             alpha_mode,
-            view_formats: vec![surface_format],
+            view_formats: vec![],
             desired_maximum_frame_latency: 2, //TODO 1 for lower latency?
         };
         surface.configure(&device, &surface_config);
@@ -476,7 +508,6 @@ impl<'w> RenderBackend<'w> {
                 config.initial_height.max(1) as f32,
             ],
             dpr: config.initial_dpr,
-            _pad2: 0.0,
         };
         let (_, globals_buffer) = create_buffer::<GpuGlobals>(
             &device,
@@ -666,6 +697,30 @@ impl<'w> RenderBackend<'w> {
         Ok(backend)
     }
 
+    #[cfg(target_arch = "wasm32")]
+    async fn new_browser_instance(
+        backends: wgpu::Backends,
+        debug: bool,
+        use_webgpu_detection: bool,
+    ) -> wgpu::Instance {
+        let descriptor = wgpu::InstanceDescriptor {
+            backends,
+            flags: if debug {
+                wgpu::InstanceFlags::DEBUG
+            } else {
+                wgpu::InstanceFlags::default()
+            },
+            memory_budget_thresholds: Default::default(),
+            backend_options: Default::default(),
+        };
+
+        if use_webgpu_detection {
+            wgpu::util::new_instance_with_webgpu_detection(&descriptor).await
+        } else {
+            wgpu::Instance::new(&descriptor)
+        }
+    }
+
     fn create_pipeline(
         device: &Device,
         format: TextureFormat,
@@ -772,7 +827,7 @@ impl<'w> RenderBackend<'w> {
         };
     }
 
-    pub fn set_viewport(&mut self, width: f32, height: f32, dpr: f32) {
+    pub fn set_viewport(&mut self, width: f32, height: f32, dpr: [f32; 2]) {
         self.globals.resolution = [width.max(1.0), height.max(1.0)];
         self.globals.dpr = dpr;
         self.queue.write_buffer(
@@ -1021,6 +1076,14 @@ impl<'w> RenderBackend<'w> {
 
         {
             let (stencil_texture, _) = self.stencil_renderer.get_stencil();
+            let depth_stencil_attachment = Some(wgpu::RenderPassDepthStencilAttachment {
+                view: stencil_texture,
+                depth_ops: None,
+                stencil_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
+            });
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Retained Batch Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -1032,14 +1095,7 @@ impl<'w> RenderBackend<'w> {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: stencil_texture,
-                    depth_ops: None,
-                    stencil_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    }),
-                }),
+                depth_stencil_attachment,
                 timestamp_writes: None,
                 occlusion_query_set: None,
                 multiview_mask: None,
@@ -1214,7 +1270,15 @@ impl<'w> RenderBackend<'w> {
             });
 
         {
-            let (stencil_texture, stencil_index) = self.stencil_renderer.get_stencil();
+            let (stencil_texture, stencil_reference) = self.stencil_renderer.get_stencil();
+            let depth_stencil_attachment = Some(wgpu::RenderPassDepthStencilAttachment {
+                view: stencil_texture,
+                depth_ops: None,
+                stencil_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
+            });
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -1226,14 +1290,7 @@ impl<'w> RenderBackend<'w> {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: stencil_texture,
-                    depth_ops: None,
-                    stencil_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    }),
-                }),
+                depth_stencil_attachment,
                 timestamp_writes: None,
                 occlusion_query_set: None,
                 multiview_mask: None,
@@ -1241,7 +1298,7 @@ impl<'w> RenderBackend<'w> {
             render_pass.set_pipeline(&self.pipeline);
             render_pass.set_bind_group(0, &self.bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_stencil_reference(stencil_index); //this needs to be dynamic?
+            render_pass.set_stencil_reference(stencil_reference);
             render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
             render_pass.draw_indexed(0..self.index_count as u32, 0, 0..1);
         }
@@ -1262,12 +1319,7 @@ impl<'w> RenderBackend<'w> {
 
     fn take_color_load_op(&mut self) -> wgpu::LoadOp<wgpu::Color> {
         if std::mem::take(&mut self.pending_clear) {
-            wgpu::LoadOp::Clear(wgpu::Color {
-                r: 0.0,
-                g: 0.0,
-                b: 0.0,
-                a: 0.0,
-            })
+            wgpu::LoadOp::Clear(COMPAT_CLEAR_COLOR)
         } else {
             wgpu::LoadOp::Load
         }

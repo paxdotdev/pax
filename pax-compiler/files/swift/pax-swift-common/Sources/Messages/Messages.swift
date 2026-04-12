@@ -330,6 +330,10 @@ private func readNodeId(_ fb: FlxbReference?) -> PaxNodeId? {
     return nil
 }
 
+private func fieldExists(_ fb: FlxbReference, _ key: String) -> Bool {
+    fb.get(key: key) != nil
+}
+
 private func readFloatArray(_ fb: FlxbReference?) -> [Float]? {
     guard let vector = fb?.asVector else {
         return nil
@@ -374,6 +378,19 @@ private func readDouble(_ fb: FlxbReference?) -> Double? {
     }
     if let value = fb?.asFloat {
         return Double(value)
+    }
+    return nil
+}
+
+private func readInt(_ fb: FlxbReference?) -> Int? {
+    if let value = fb?.asInt {
+        return Int(value)
+    }
+    if let value = fb?.asUInt64 {
+        return Int(truncatingIfNeeded: value)
+    }
+    if let value = fb?.asUInt {
+        return Int(truncatingIfNeeded: value)
     }
     return nil
 }
@@ -451,7 +468,7 @@ public class TextStyle {
     }
 }
 
-public class TextElement: NativeMaskableElement {
+public class TextElement: NativePositionElement {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
     public var occlusionLayerId: UInt32
@@ -546,11 +563,6 @@ public class TextElement: NativeMaskableElement {
         }
     }
 
-    public func applyOcclusionPatch(_ patch: OcclusionUpdatePatch) {
-        self.parentFrame = patch.parentFrame
-        self.occlusionLayerId = patch.occlusionLayerId
-        self.zIndex = patch.zIndex
-    }
 }
 
 public class MaskPathPatch {
@@ -715,9 +727,13 @@ public class TextStyleMessage {
 }
 
 
-public class TextUpdatePatch {
+public class TextUpdatePatch: ResolvedPlacementPatch {
     public var id: PaxNodeId
     public var id_chain: [UInt64]
+    public var parentFrameUpdated: Bool
+    public var parentFrame: PaxNodeId?
+    public var zIndexUpdated: Bool
+    public var zIndex: Int?
     public var content: String?
     public var transform: [Float]?
     public var size_x: Float?
@@ -733,6 +749,10 @@ public class TextUpdatePatch {
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? decodeId(fb) ?? 0
         self.id_chain = decodeIdChain(fb)
+        self.parentFrameUpdated = fieldExists(fb, "parent_frame")
+        self.parentFrame = readNodeId(fb["parent_frame"])
+        self.zIndexUpdated = fieldExists(fb, "z_index")
+        self.zIndex = readInt(fb["z_index"])
         self.content = fb["content"]?.asString
         self.transform = readFloatArray(fb["transform"])
         self.size_x = fb["size_x"]?.asFloat
@@ -1564,7 +1584,7 @@ public class PaxFont {
 
 
 
-public class FrameElement {
+public class FrameElement: ResolvedPlacementTarget {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
     public var clipContent: Bool
@@ -1614,18 +1634,18 @@ public class FrameElement {
         }
     }
 
-    public func applyOcclusionPatch(_ patch: OcclusionUpdatePatch) {
-        self.parentFrame = patch.parentFrame
-        self.zIndex = patch.zIndex
-    }
 }
 
 
 
 /// A patch containing optional fields, representing an update action for the NativeElement of the given id_chain
-public class FrameUpdatePatch {
+public class FrameUpdatePatch: ResolvedPlacementPatch {
     public var id: PaxNodeId
     public var id_chain: [UInt64]
+    public var parentFrameUpdated: Bool
+    public var parentFrame: PaxNodeId?
+    public var zIndexUpdated: Bool
+    public var zIndex: Int?
     public var transform: [Float]?
     public var size_x: Float?
     public var size_y: Float?
@@ -1636,26 +1656,16 @@ public class FrameUpdatePatch {
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? decodeId(fb) ?? 0
         self.id_chain = decodeIdChain(fb)
+        self.parentFrameUpdated = fieldExists(fb, "parent_frame")
+        self.parentFrame = readNodeId(fb["parent_frame"])
+        self.zIndexUpdated = fieldExists(fb, "z_index")
+        self.zIndex = readInt(fb["z_index"])
         self.transform = readFloatArray(fb["transform"])
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
         self.clipContent = fb["clip_content"]?.asBool
         self.clipPath = fb["clip_path"]?.asString
         self.opacity = readDouble(fb["opacity"])
-    }
-}
-
-public class OcclusionUpdatePatch {
-    public var id: PaxNodeId
-    public var occlusionLayerId: UInt32
-    public var zIndex: Int
-    public var parentFrame: PaxNodeId?
-
-    public init(fb: FlxbReference) {
-        self.id = readNodeId(fb["id"]) ?? 0
-        self.occlusionLayerId = UInt32(truncatingIfNeeded: fb["occlusion_layer_id"]?.asUInt64 ?? 0)
-        self.zIndex = Int(fb["z_index"]?.asInt ?? 0)
-        self.parentFrame = readNodeId(fb["parent_frame"])
     }
 }
 
@@ -1680,7 +1690,30 @@ public extension NativeMaskableElement {
     }
 }
 
-public protocol NativePositionElement: NativeMaskableElement {
+public protocol ResolvedPlacementPatch {
+    var parentFrameUpdated: Bool { get }
+    var parentFrame: PaxNodeId? { get }
+    var zIndexUpdated: Bool { get }
+    var zIndex: Int? { get }
+}
+
+public protocol ResolvedPlacementTarget: AnyObject {
+    var parentFrame: PaxNodeId? { get set }
+    var zIndex: Int { get set }
+}
+
+public extension ResolvedPlacementTarget {
+    func applyResolvedPlacement<P: ResolvedPlacementPatch>(_ patch: P) {
+        if patch.parentFrameUpdated {
+            self.parentFrame = patch.parentFrame
+        }
+        if patch.zIndexUpdated, let zIndex = patch.zIndex {
+            self.zIndex = zIndex
+        }
+    }
+}
+
+public protocol NativePositionElement: NativeMaskableElement, ResolvedPlacementTarget {
     var id: PaxNodeId { get }
     var parentFrame: PaxNodeId? { get set }
     var occlusionLayerId: UInt32 { get set }
@@ -1691,16 +1724,12 @@ public protocol NativePositionElement: NativeMaskableElement {
     var opacity: Double { get set }
 }
 
-public extension NativePositionElement {
-    func applyOcclusionPatch(_ patch: OcclusionUpdatePatch) {
-        self.parentFrame = patch.parentFrame
-        self.occlusionLayerId = patch.occlusionLayerId
-        self.zIndex = patch.zIndex
-    }
-}
-
-public class EventBlockerPatchMessage {
+public class EventBlockerPatchMessage: ResolvedPlacementPatch {
     public var id: PaxNodeId
+    public var parentFrameUpdated: Bool
+    public var parentFrame: PaxNodeId?
+    public var zIndexUpdated: Bool
+    public var zIndex: Int?
     public var transform: [Float]?
     public var size_x: Float?
     public var size_y: Float?
@@ -1708,6 +1737,10 @@ public class EventBlockerPatchMessage {
 
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? 0
+        self.parentFrameUpdated = fieldExists(fb, "parent_frame")
+        self.parentFrame = readNodeId(fb["parent_frame"])
+        self.zIndexUpdated = fieldExists(fb, "z_index")
+        self.zIndex = readInt(fb["z_index"])
         self.transform = readFloatArray(fb["transform"])
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
@@ -1749,8 +1782,12 @@ public class EventBlockerElement: NativePositionElement {
     }
 }
 
-public class ButtonUpdatePatch {
+public class ButtonUpdatePatch: ResolvedPlacementPatch {
     public var id: PaxNodeId
+    public var parentFrameUpdated: Bool
+    public var parentFrame: PaxNodeId?
+    public var zIndexUpdated: Bool
+    public var zIndex: Int?
     public var hoverColor: Color?
     public var outlineStrokeColor: Color?
     public var outlineStrokeWidth: Double?
@@ -1765,6 +1802,10 @@ public class ButtonUpdatePatch {
 
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? 0
+        self.parentFrameUpdated = fieldExists(fb, "parent_frame")
+        self.parentFrame = readNodeId(fb["parent_frame"])
+        self.zIndexUpdated = fieldExists(fb, "z_index")
+        self.zIndex = readInt(fb["z_index"])
         self.outlineStrokeWidth = readDouble(fb["outline_stroke_width"])
         self.borderRadius = readDouble(fb["border_radius"])
         self.transform = readFloatArray(fb["transform"])
@@ -1858,8 +1899,12 @@ public class ButtonElement: NativePositionElement {
     }
 }
 
-public class CheckboxUpdatePatch {
+public class CheckboxUpdatePatch: ResolvedPlacementPatch {
     public var id: PaxNodeId
+    public var parentFrameUpdated: Bool
+    public var parentFrame: PaxNodeId?
+    public var zIndexUpdated: Bool
+    public var zIndex: Int?
     public var background: Color?
     public var backgroundChecked: Color?
     public var outlineColor: Color?
@@ -1873,6 +1918,10 @@ public class CheckboxUpdatePatch {
 
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? 0
+        self.parentFrameUpdated = fieldExists(fb, "parent_frame")
+        self.parentFrame = readNodeId(fb["parent_frame"])
+        self.zIndexUpdated = fieldExists(fb, "z_index")
+        self.zIndex = readInt(fb["z_index"])
         self.outlineWidth = readDouble(fb["outline_width"])
         self.borderRadius = readDouble(fb["border_radius"])
         self.transform = readFloatArray(fb["transform"])
@@ -1944,8 +1993,12 @@ public class CheckboxElement: NativePositionElement {
     }
 }
 
-public class NativeImageUpdatePatch {
+public class NativeImageUpdatePatch: ResolvedPlacementPatch {
     public var id: PaxNodeId
+    public var parentFrameUpdated: Bool
+    public var parentFrame: PaxNodeId?
+    public var zIndexUpdated: Bool
+    public var zIndex: Int?
     public var transform: [Float]?
     public var size_x: Float?
     public var size_y: Float?
@@ -1955,6 +2008,10 @@ public class NativeImageUpdatePatch {
 
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? 0
+        self.parentFrameUpdated = fieldExists(fb, "parent_frame")
+        self.parentFrame = readNodeId(fb["parent_frame"])
+        self.zIndexUpdated = fieldExists(fb, "z_index")
+        self.zIndex = readInt(fb["z_index"])
         self.transform = readFloatArray(fb["transform"])
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
@@ -2004,8 +2061,12 @@ public class NativeImageElement: NativePositionElement {
     }
 }
 
-public class YoutubeVideoUpdatePatch {
+public class YoutubeVideoUpdatePatch: ResolvedPlacementPatch {
     public var id: PaxNodeId
+    public var parentFrameUpdated: Bool
+    public var parentFrame: PaxNodeId?
+    public var zIndexUpdated: Bool
+    public var zIndex: Int?
     public var transform: [Float]?
     public var size_x: Float?
     public var size_y: Float?
@@ -2014,6 +2075,10 @@ public class YoutubeVideoUpdatePatch {
 
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? 0
+        self.parentFrameUpdated = fieldExists(fb, "parent_frame")
+        self.parentFrame = readNodeId(fb["parent_frame"])
+        self.zIndexUpdated = fieldExists(fb, "z_index")
+        self.zIndex = readInt(fb["z_index"])
         self.transform = readFloatArray(fb["transform"])
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
@@ -2059,8 +2124,12 @@ public class YoutubeVideoElement: NativePositionElement {
     }
 }
 
-public class DropdownUpdatePatch {
+public class DropdownUpdatePatch: ResolvedPlacementPatch {
     public var id: PaxNodeId
+    public var parentFrameUpdated: Bool
+    public var parentFrame: PaxNodeId?
+    public var zIndexUpdated: Bool
+    public var zIndex: Int?
     public var selectedId: UInt32?
     public var options: [String]?
     public var transform: [Float]?
@@ -2075,6 +2144,10 @@ public class DropdownUpdatePatch {
 
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? 0
+        self.parentFrameUpdated = fieldExists(fb, "parent_frame")
+        self.parentFrame = readNodeId(fb["parent_frame"])
+        self.zIndexUpdated = fieldExists(fb, "z_index")
+        self.zIndex = readInt(fb["z_index"])
         self.selectedId = readNodeId(fb["selected_id"])
         self.options = readStringArray(fb["options"])
         self.transform = readFloatArray(fb["transform"])
@@ -2150,8 +2223,12 @@ public class DropdownElement: NativePositionElement {
     }
 }
 
-public class RadioSetUpdatePatch {
+public class RadioSetUpdatePatch: ResolvedPlacementPatch {
     public var id: PaxNodeId
+    public var parentFrameUpdated: Bool
+    public var parentFrame: PaxNodeId?
+    public var zIndexUpdated: Bool
+    public var zIndex: Int?
     public var selectedId: UInt32?
     public var options: [String]?
     public var style: TextStyleMessage?
@@ -2166,6 +2243,10 @@ public class RadioSetUpdatePatch {
 
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? 0
+        self.parentFrameUpdated = fieldExists(fb, "parent_frame")
+        self.parentFrame = readNodeId(fb["parent_frame"])
+        self.zIndexUpdated = fieldExists(fb, "z_index")
+        self.zIndex = readInt(fb["z_index"])
         self.selectedId = readNodeId(fb["selected_id"])
         self.options = readStringArray(fb["options"])
         self.transform = readFloatArray(fb["transform"])
@@ -2243,8 +2324,12 @@ public class RadioSetElement: NativePositionElement {
     }
 }
 
-public class SliderUpdatePatch {
+public class SliderUpdatePatch: ResolvedPlacementPatch {
     public var id: PaxNodeId
+    public var parentFrameUpdated: Bool
+    public var parentFrame: PaxNodeId?
+    public var zIndexUpdated: Bool
+    public var zIndex: Int?
     public var value: Double?
     public var step: Double?
     public var min: Double?
@@ -2259,6 +2344,10 @@ public class SliderUpdatePatch {
 
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? 0
+        self.parentFrameUpdated = fieldExists(fb, "parent_frame")
+        self.parentFrame = readNodeId(fb["parent_frame"])
+        self.zIndexUpdated = fieldExists(fb, "z_index")
+        self.zIndex = readInt(fb["z_index"])
         self.value = readDouble(fb["value"])
         self.step = readDouble(fb["step"])
         self.min = readDouble(fb["min"])
@@ -2332,8 +2421,12 @@ public class SliderElement: NativePositionElement {
     }
 }
 
-public class TextboxUpdatePatch {
+public class TextboxUpdatePatch: ResolvedPlacementPatch {
     public var id: PaxNodeId
+    public var parentFrameUpdated: Bool
+    public var parentFrame: PaxNodeId?
+    public var zIndexUpdated: Bool
+    public var zIndex: Int?
     public var transform: [Float]?
     public var size_x: Float?
     public var size_y: Float?
@@ -2352,6 +2445,10 @@ public class TextboxUpdatePatch {
 
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? 0
+        self.parentFrameUpdated = fieldExists(fb, "parent_frame")
+        self.parentFrame = readNodeId(fb["parent_frame"])
+        self.zIndexUpdated = fieldExists(fb, "z_index")
+        self.zIndex = readInt(fb["z_index"])
         self.transform = readFloatArray(fb["transform"])
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat

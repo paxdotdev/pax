@@ -1,9 +1,9 @@
 use crate::design_server::{ActiveWebsocketClient, AppState, FileContent, WatcherFileChanged};
 use crate::dev_session::{
     self, session_request_dir, session_response_dir, write_registered_session, DevCapture,
-    DevInspectTreeResponse, DevLookRequest, DevLookResponse, DevRayCastRequest, DevRayCastResponse,
-    DevReplaceNodeRequest, DevReplaceNodeResponse, DevRequestEnvelope, DevSelectorQueryRequest,
-    DevSelectorQueryResponse,
+    DevInspectTreeResponse, DevLogsRequest, DevLogsResponse, DevLookRequest, DevLookResponse,
+    DevRayCastRequest, DevRayCastResponse, DevReplaceNodeRequest, DevReplaceNodeResponse,
+    DevRequestEnvelope, DevSelectorQueryRequest, DevSelectorQueryResponse,
 };
 
 use pax_manifest::{
@@ -17,8 +17,8 @@ use image::codecs::jpeg::JpegEncoder;
 use image::codecs::png::PngEncoder;
 use image::{ColorType, ImageBuffer, ImageEncoder, Rgba};
 use pax_designtime::messages::{
-    AgentMessage, ComponentSerializationRequest, DevClientInspectTreeRequest, DevClientLookRequest,
-    DevClientRayCastRequest, DevClientReplaceNodeRequest, DevClientResponse,
+    AgentMessage, ComponentSerializationRequest, DevClientInspectTreeRequest, DevClientLogsRequest,
+    DevClientLookRequest, DevClientRayCastRequest, DevClientReplaceNodeRequest, DevClientResponse,
     DevClientSelectorQueryRequest, FileChangedNotification, LoadFileToStaticDirRequest,
     LoadManifestResponse, ManifestSerializationRequest, UpdateTemplateRequest,
 };
@@ -265,6 +265,28 @@ impl PrivilegedAgentWebSocket {
                                 subtemplate: replace_request.subtemplate,
                             },
                         ),
+                    )
+                }
+                "logs" => {
+                    let logs_request =
+                        match serde_json::from_slice::<DevLogsRequest>(&request_bytes) {
+                            Ok(logs_request) => logs_request,
+                            Err(err) => {
+                                let _ = write_dev_error_response(
+                                    &dev_session,
+                                    &request_envelope.request_id,
+                                    format!("failed to decode logs request: {err}"),
+                                );
+                                let _ = fs::remove_file(&path);
+                                continue;
+                            }
+                        };
+                    AgentMessage::DevClientRequest(
+                        pax_designtime::messages::DevClientRequest::Logs(DevClientLogsRequest {
+                            request_id: logs_request.request_id,
+                            since_seq: logs_request.since_seq,
+                            limit: logs_request.limit,
+                        }),
                     )
                 }
                 unsupported_kind => {
@@ -654,6 +676,30 @@ fn handle_dev_client_response(
                     reload_scope: response.reload_scope,
                     reloaded_template_node_id: response.reloaded_template_node_id,
                     source_path: response.source_path,
+                    error: response.error,
+                },
+            )
+        }
+        DevClientResponse::Logs(response) => {
+            let request_id = response.request_id.clone();
+            write_dev_json_response(
+                &dev_session,
+                &request_id,
+                &DevLogsResponse {
+                    request_id: request_id.clone(),
+                    status: response.status,
+                    entries: response
+                        .entries
+                        .into_iter()
+                        .map(|entry| crate::dev_session::DevLogEntry {
+                            seq: entry.seq,
+                            level: entry.level,
+                            message: entry.message,
+                            timestamp_ms: entry.timestamp_ms,
+                        })
+                        .collect(),
+                    next_seq: response.next_seq,
+                    oldest_seq: response.oldest_seq,
                     error: response.error,
                 },
             )

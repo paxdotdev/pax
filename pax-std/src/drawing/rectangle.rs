@@ -2,6 +2,7 @@ use kurbo::{Affine, RoundedRect, RoundedRectRadii, Shape};
 use pax_runtime::{api::Fill, BaseInstance};
 use pax_runtime_api::use_RefCell;
 
+use crate::common::canvas_surface_transform;
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
 use pax_runtime::api as pax_runtime_api;
@@ -116,6 +117,7 @@ impl InstanceNode for RectangleInstance {
             return;
         }
         let tab = expanded_node.transform_and_bounds.get();
+        let surface_transform = canvas_surface_transform(expanded_node, rtc);
         let (width, height) = tab.bounds;
 
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
@@ -125,7 +127,7 @@ impl InstanceNode for RectangleInstance {
             let fill = properties.fill.get();
             let stroke = properties.stroke.get();
             rc.save(layer_id);
-            rc.transform(layer_id, tab.transform.into());
+            rc.transform(layer_id, surface_transform);
             rc.fill_with_opacity(layer_id, bez_path.clone(), &fill, opacity);
             //hack to address "phantom stroke" bug on Web
             let width: f64 = stroke.width.get().expect_pixels().to_float();

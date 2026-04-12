@@ -44,6 +44,7 @@ pub fn extend_designtime_parsing_context_with_all_pax_std_types(
         NativeImage,
         Scrollbar,
         Scroller,
+        ScrollerHost,
         PlatformSpecificScrollParams,
         Text,
         TextStyle,

@@ -1,5 +1,7 @@
 export class EventBlockerUpdatePatch {
     public id?: number;
+    public parentFrame?: number;
+    public zIndex?: number;
     public sizeX?: number;
     public sizeY?: number;
     public transform?: number[];
@@ -7,6 +9,8 @@ export class EventBlockerUpdatePatch {
     fromPatch(jsonMessage: any) {
         if(jsonMessage != null) {
             this.id = jsonMessage["id"];
+            this.parentFrame = jsonMessage["parent_frame"];
+            this.zIndex = jsonMessage["z_index"];
             this.sizeX = jsonMessage["size_x"];
             this.sizeY = jsonMessage["size_y"];
             this.transform = jsonMessage["transform"];
@@ -16,6 +20,8 @@ export class EventBlockerUpdatePatch {
 
     cleanUp(){
         this.id = undefined;
+        this.parentFrame = undefined;
+        this.zIndex = undefined;
         this.sizeX = 0;
         this.sizeX = 0;
         this.transform = [];

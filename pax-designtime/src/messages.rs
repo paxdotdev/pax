@@ -33,6 +33,7 @@ pub enum DevClientRequest {
     RayCast(DevClientRayCastRequest),
     SelectorQuery(DevClientSelectorQueryRequest),
     ReplaceNode(DevClientReplaceNodeRequest),
+    Logs(DevClientLogsRequest),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -42,6 +43,7 @@ pub enum DevClientResponse {
     RayCast(DevClientRayCastResponse),
     SelectorQuery(DevClientSelectorQueryResponse),
     ReplaceNode(DevClientReplaceNodeResponse),
+    Logs(DevClientLogsResponse),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -136,6 +138,31 @@ pub struct DevClientReplaceNodeResponse {
     pub reload_scope: String,
     pub reloaded_template_node_id: Option<usize>,
     pub source_path: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DevClientLogsRequest {
+    pub request_id: String,
+    pub since_seq: Option<u64>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DevClientLogEntry {
+    pub seq: u64,
+    pub level: String,
+    pub message: String,
+    pub timestamp_ms: u128,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DevClientLogsResponse {
+    pub request_id: String,
+    pub status: String,
+    pub entries: Vec<DevClientLogEntry>,
+    pub next_seq: u64,
+    pub oldest_seq: Option<u64>,
     pub error: Option<String>,
 }
 

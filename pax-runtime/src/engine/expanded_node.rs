@@ -125,6 +125,12 @@ pub struct ExpandedNode {
     /// Hash of the last native occlusion mask emitted for this node.
     pub native_mask_hash: Cell<u64>,
 
+    /// Last browser-owned descendant content layer published for scroller-style native hosts.
+    pub browser_content_layer_id: Cell<Option<u32>>,
+
+    /// Hash of the last presentation metadata emitted for clipping/scrolling chassis consumers.
+    pub presentation_cache_hash: Cell<u64>,
+
     /// A map of all properties available on this expanded node.
     /// Used by the RuntimePropertiesStackFrame to resolve symbols.
     pub properties_scope: RefCell<HashMap<String, Variable>>,
@@ -274,6 +280,8 @@ impl ExpandedNode {
             flattened_slot_children_count: Property::new(0),
             occlusion: Property::new(Occlusion::default()),
             native_mask_hash: Cell::new(0),
+            browser_content_layer_id: Cell::new(None),
+            presentation_cache_hash: Cell::new(0),
             properties_scope: RefCell::new(property_scope),
             slot_index: Property::default(),
             suspended: Property::new(false),
@@ -627,6 +635,7 @@ impl ExpandedNode {
 
             // Needed because occlusion updates are only sent on diffs so we reset it when unmounting
             self.occlusion.set(Default::default());
+            self.browser_content_layer_id.set(None);
         }
     }
 

@@ -2,10 +2,16 @@ export class ObjectPool<T> {
     private pool: T[] = [];
     private readonly factory: (args?: any) => T;
     private readonly cleanUp: (item: T) => void;
+    private readonly reusable: boolean;
 
-    constructor(factory: (args?: any) => T, cleanUp: (item: T) => void) {
+    constructor(
+        factory: (args?: any) => T,
+        cleanUp: (item: T) => void,
+        reusable: boolean = true,
+    ) {
         this.factory = factory;
         this.cleanUp = cleanUp;
+        this.reusable = reusable;
     }
 
     get(args?: any): T {
@@ -17,6 +23,8 @@ export class ObjectPool<T> {
 
     put(item: T) {
         this.cleanUp(item);
-        this.pool.push(item);
+        if (this.reusable) {
+            this.pool.push(item);
+        }
     }
 }

@@ -10,9 +10,9 @@ use color_eyre::eyre::{eyre, Report, Result};
 use pax_compiler::dev_session::{
     self, list_registered_sessions, project_dev_dir, read_project_active_session,
     remove_registered_session, session_request_dir, session_response_dir, DevInspectTreeRequest,
-    DevInspectTreeResponse, DevLookRequest, DevLookResponse, DevRayCastRequest, DevRayCastResponse,
-    DevReplaceNodeRequest, DevReplaceNodeResponse, DevSelectorQueryRequest,
-    DevSelectorQueryResponse, DevSession,
+    DevInspectTreeResponse, DevLogsRequest, DevLogsResponse, DevLookRequest, DevLookResponse,
+    DevRayCastRequest, DevRayCastResponse, DevReplaceNodeRequest, DevReplaceNodeResponse,
+    DevSelectorQueryRequest, DevSelectorQueryResponse, DevSession,
 };
 use pax_manifest::PaxManifest;
 use serde::de::DeserializeOwned;
@@ -24,6 +24,7 @@ pub fn command() -> App<'static, 'static> {
         .subcommand(list_command())
         .subcommand(status_command())
         .subcommand(look_command())
+        .subcommand(logs_command())
         .subcommand(ray_cast_command())
         .subcommand(selector_command())
         .subcommand(inspect_command())
@@ -173,6 +174,45 @@ fn look_command() -> App<'static, 'static> {
         )
 }
 
+fn logs_command() -> App<'static, 'static> {
+    SubCommand::with_name("logs")
+        .about("Print recent logs captured from a running web Pax dev session")
+        .arg(arg_path())
+        .arg(arg_session())
+        .arg(
+            Arg::with_name("follow")
+                .long("follow")
+                .takes_value(false)
+                .help("Poll for new log entries until interrupted"),
+        )
+        .arg(
+            Arg::with_name("limit")
+                .long("limit")
+                .takes_value(true)
+                .default_value("200")
+                .help("Maximum number of log entries to fetch per poll"),
+        )
+        .arg(
+            Arg::with_name("json")
+                .long("json")
+                .takes_value(false)
+                .help("Print raw JSON instead of human-readable lines"),
+        )
+        .arg(
+            Arg::with_name("poll-ms")
+                .long("poll-ms")
+                .takes_value(true)
+                .default_value("500")
+                .help("Milliseconds between polls when --follow is set"),
+        )
+        .arg(
+            Arg::with_name("timeout-ms")
+                .long("timeout-ms")
+                .takes_value(true)
+                .help("How long to wait for each running app response"),
+        )
+}
+
 fn ray_cast_command() -> App<'static, 'static> {
     SubCommand::with_name("ray-cast")
         .about("Return the z-sorted stack of expanded nodes beneath a window-space point")
@@ -255,6 +295,7 @@ pub fn handle(
         ("list", Some(sub_args)) => handle_list(sub_args),
         ("status", Some(sub_args)) => handle_status(sub_args),
         ("look", Some(sub_args)) => handle_look(sub_args),
+        ("logs", Some(sub_args)) => handle_logs(sub_args),
         ("ray-cast", Some(sub_args)) => handle_ray_cast(sub_args),
         ("selector", Some(sub_args)) => handle_selector(sub_args),
         ("inspect", Some(sub_args)) => handle_inspect(sub_args),
@@ -377,6 +418,56 @@ fn handle_look(args: &ArgMatches<'_>) -> Result<(), Report> {
     }
 
     print_json(&response)
+}
+
+fn handle_logs(args: &ArgMatches<'_>) -> Result<(), Report> {
+    let session = resolve_session(args)?;
+    if session.platform != "web" {
+        return Err(eyre!(
+            "pax dev logs is currently supported for web dev sessions only"
+        ));
+    }
+
+    let follow = args.is_present("follow");
+    let as_json = args.is_present("json");
+    let limit = parse_usize(args, "limit")?;
+    if limit == 0 {
+        return Err(eyre!("--limit must be greater than 0"));
+    }
+    let poll_ms = parse_u64(args, "poll-ms")?;
+    let timeout = Duration::from_millis(
+        args.value_of("timeout-ms")
+            .map(|_| parse_u64(args, "timeout-ms"))
+            .transpose()?
+            .unwrap_or(5_000),
+    );
+
+    let mut since_seq = None;
+    loop {
+        let response = request_logs(&session, since_seq, limit, timeout)?;
+        if response.status != "ok" {
+            return Err(eyre!(
+                "{}",
+                response
+                    .error
+                    .unwrap_or_else(|| "logs request failed".to_string())
+            ));
+        }
+
+        if as_json {
+            print_json(&response)?;
+        } else {
+            print_log_lines(&response)?;
+        }
+
+        since_seq = Some(response.next_seq.saturating_sub(1));
+        if !follow {
+            break;
+        }
+        thread::sleep(Duration::from_millis(poll_ms));
+    }
+
+    Ok(())
 }
 
 fn handle_ray_cast(args: &ArgMatches<'_>) -> Result<(), Report> {
@@ -617,6 +708,24 @@ fn handle_replace_node(args: &ArgMatches<'_>) -> Result<(), Report> {
     print_json(&response)
 }
 
+fn request_logs(
+    session: &DevSession,
+    since_seq: Option<u64>,
+    limit: usize,
+    timeout: Duration,
+) -> Result<DevLogsResponse, Report> {
+    let request_id = format!("logs-{}", dev_session::now_ms());
+    let request = DevLogsRequest {
+        request_id: request_id.clone(),
+        kind: "logs".to_string(),
+        since_seq,
+        limit: Some(limit),
+    };
+
+    write_request(session, &request_id, &request)?;
+    wait_for_response_and_cleanup(session, &request_id, timeout)
+}
+
 fn parse_manifests(
     project_root: &PathBuf,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
@@ -744,6 +853,17 @@ fn wait_for_response<T: DeserializeOwned>(
     ))
 }
 
+fn wait_for_response_and_cleanup<T: DeserializeOwned>(
+    session: &DevSession,
+    request_id: &str,
+    timeout: Duration,
+) -> Result<T, Report> {
+    let response_path = session_response_dir(session)?.join(format!("{request_id}.json"));
+    let response = wait_for_response(session, request_id, timeout)?;
+    let _ = fs::remove_file(response_path);
+    Ok(response)
+}
+
 fn project_root(args: &ArgMatches<'_>) -> Result<PathBuf, Report> {
     let path = PathBuf::from(args.value_of("path").unwrap_or("."));
     let joined = if path.is_absolute() {
@@ -822,6 +942,21 @@ fn print_json<T: Serialize>(value: &T) -> Result<(), Report> {
     let mut lock = stdout.lock();
     serde_json::to_writer_pretty(&mut lock, value)?;
     lock.write_all(b"\n")?;
+    Ok(())
+}
+
+fn print_log_lines(response: &DevLogsResponse) -> Result<(), Report> {
+    let stdout = std::io::stdout();
+    let mut lock = stdout.lock();
+    for entry in &response.entries {
+        writeln!(
+            lock,
+            "[{}] {} {}",
+            entry.seq,
+            entry.level.to_uppercase(),
+            entry.message
+        )?;
+    }
     Ok(())
 }
 

@@ -1,9 +1,10 @@
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 use kurbo::{Affine, BezPath, Shape};
-use pax_message::{borrow, MaskPathPatch, NativeMaskPatch, OcclusionPatch};
+use pax_message::{borrow, MaskPathPatch, NativeMaskPatch, ScrollerPatch};
 use pax_runtime_api::{bez_path_to_svg_path_data, Layer, Window};
 
 use crate::{node_interface::NodeLocal, ExpandedNode, RuntimeContext, TransformAndBounds};
@@ -29,13 +30,17 @@ impl OcclusionBox {
         true
     }
 
-    fn new_from_transform_and_bounds(t_and_b: TransformAndBounds<NodeLocal, Window>) -> Self {
+    fn new_from_transform_and_bounds_with_affine(
+        t_and_b: TransformAndBounds<NodeLocal, Window>,
+        affine: Affine,
+    ) -> Self {
         let corners = t_and_b.corners();
         let mut x1 = f64::MAX;
         let mut y1 = f64::MAX;
         let mut x2 = f64::MIN;
         let mut y2 = f64::MIN;
         for c in corners {
+            let c = affine * c;
             x1 = x1.min(c.x);
             y1 = y1.min(c.y);
             x2 = x2.max(c.x);
@@ -56,6 +61,30 @@ impl OcclusionBox {
             y2: bounds.y1,
         })
     }
+
+    fn from_viewport(width: f64, height: f64) -> Self {
+        Self {
+            x1: 0.0,
+            y1: 0.0,
+            x2: width,
+            y2: height,
+        }
+    }
+
+    fn intersect(&self, other: &Self) -> Option<Self> {
+        let intersection = Self {
+            x1: self.x1.max(other.x1),
+            y1: self.y1.max(other.y1),
+            x2: self.x2.min(other.x2),
+            y2: self.y2.min(other.y2),
+        };
+        (intersection.x2 > intersection.x1 && intersection.y2 > intersection.y1)
+            .then_some(intersection)
+    }
+
+    fn as_array(&self) -> [f64; 4] {
+        [self.x1, self.y1, self.x2, self.y2]
+    }
 }
 
 #[derive(Clone)]
@@ -67,21 +96,41 @@ struct CoverageEntry {
 }
 
 enum DrawableInfo {
-    Canvas(CoverageEntry),
+    Canvas {
+        layer_id: usize,
+        entry: CoverageEntry,
+    },
     Native {
         node: Rc<ExpandedNode>,
         layer: Layer,
+        layer_id: usize,
         bounds: OcclusionBox,
+        presentation_transform: Affine,
     },
 }
 
 pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
     let mut drawables = Vec::new();
     let mut z_index = 0;
-    update_node_occlusion_recursive(root_node, ctx, None, &[], &mut z_index, &mut drawables);
+    let mut next_layer_id = 1;
+    let viewport = ctx.globals().viewport.get();
+    let viewport_bounds = OcclusionBox::from_viewport(viewport.bounds.0, viewport.bounds.1);
+    update_node_occlusion_recursive(
+        root_node,
+        ctx,
+        0,
+        None,
+        &[],
+        viewport_bounds,
+        viewport_bounds,
+        Affine::IDENTITY,
+        &mut z_index,
+        &mut next_layer_id,
+        &mut drawables,
+    );
     update_native_masks(&drawables, ctx);
 
-    let new_layer_count = 1;
+    let new_layer_count = next_layer_id;
     if ctx.layer_count.get() != new_layer_count {
         ctx.layer_count.set(new_layer_count);
         ctx.enqueue_native_message(pax_message::NativeMessage::ShrinkLayersTo(
@@ -94,67 +143,160 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
 fn update_node_occlusion_recursive(
     node: &Rc<ExpandedNode>,
     ctx: &RuntimeContext,
+    current_layer_id: usize,
     active_container: Option<u32>,
     active_clips: &[BezPath],
+    viewport_bounds: OcclusionBox,
+    active_clip_bounds: OcclusionBox,
+    active_scroll_transform: Affine,
     z_index: &mut i32,
+    next_layer_id: &mut usize,
     drawables: &mut Vec<DrawableInfo>,
 ) {
-    let effect_clip_path = borrow!(node.instance_node).resolve_effect_clip_path(node);
+    let instance_node = borrow!(node.instance_node);
+    let effect_clip_path = instance_node
+        .resolve_effect_clip_path(node)
+        .map(|clip| active_scroll_transform * clip);
     let has_effect_clip = effect_clip_path.is_some();
+    let scrolls_content = instance_node.scrolls_content(node);
+    let scroll_transform = if scrolls_content {
+        let (scroll_x, scroll_y) = instance_node
+            .resolve_scroll_offset(node)
+            .unwrap_or((0.0, 0.0));
+        if scroll_x.abs() > f64::EPSILON || scroll_y.abs() > f64::EPSILON {
+            let world_transform = Affine::from(node.transform_and_bounds.get().transform);
+            let inverse_world = Affine::from(node.transform_and_bounds.get().transform.inverse());
+            world_transform * Affine::translate((-scroll_x, -scroll_y)) * inverse_world
+        } else {
+            Affine::IDENTITY
+        }
+    } else {
+        Affine::IDENTITY
+    };
+    let allow_scroller_vector_layers = ctx.globals().browser_allows_scroller_vector_layers.get()
+        && (ctx.globals().browser_allows_nested_scroller_vector_layers.get()
+            || active_container.is_none());
+    let layer = instance_node.base().flags().layer;
+    drop(instance_node);
 
-    let descendant_container = has_effect_clip
-        .then(|| node.id.to_u32())
-        .or(active_container);
+    let descendant_layer_id = if scrolls_content && allow_scroller_vector_layers {
+        let layer_id = *next_layer_id;
+        *next_layer_id += 1;
+        layer_id
+    } else {
+        current_layer_id
+    };
+    let descendant_container = if scrolls_content {
+        Some(node.id.to_u32())
+    } else {
+        has_effect_clip
+            .then(|| node.id.to_u32())
+            .or(active_container)
+    };
+    let descendant_scroll_transform = active_scroll_transform * scroll_transform;
+    let presented_bounds = OcclusionBox::new_from_transform_and_bounds_with_affine(
+        node.transform_and_bounds.get(),
+        active_scroll_transform,
+    );
+    let mut descendant_clip_bounds = active_clip_bounds;
+    if scrolls_content {
+        descendant_clip_bounds = descendant_clip_bounds
+            .intersect(&presented_bounds)
+            .unwrap_or(descendant_clip_bounds);
+    }
+    if let Some(effect_clip_bounds) = effect_clip_path.as_ref().and_then(OcclusionBox::new_from_path)
+    {
+        descendant_clip_bounds = descendant_clip_bounds
+            .intersect(&effect_clip_bounds)
+            .unwrap_or(descendant_clip_bounds);
+    }
     let mut descendant_clips = active_clips.to_vec();
     if let Some(clip_path) = effect_clip_path.clone() {
         descendant_clips.push(clip_path);
     }
 
+    let presented_clip_bounds = if has_effect_clip || scrolls_content {
+        Some(descendant_clip_bounds)
+    } else {
+        Some(active_clip_bounds)
+    };
+
     for child in node.children.get().iter().rev() {
         let cp = child.get_common_properties();
         let cp = borrow!(cp);
         let unclippable = cp.unclippable.get().unwrap_or(false);
-        let (child_container, child_clips) = if unclippable {
-            (None, Vec::new())
+        let (child_container, child_clips, child_clip_bounds) = if unclippable {
+            (None, Vec::new(), viewport_bounds)
         } else {
-            (descendant_container, descendant_clips.clone())
+            (
+                descendant_container,
+                descendant_clips.clone(),
+                descendant_clip_bounds,
+            )
         };
 
         update_node_occlusion_recursive(
             child,
             ctx,
+            descendant_layer_id,
             child_container,
             &child_clips,
+            viewport_bounds,
+            child_clip_bounds,
+            descendant_scroll_transform,
             z_index,
+            next_layer_id,
             drawables,
         );
     }
 
-    let layer = borrow!(node.instance_node).base().flags().layer;
     if layer == Layer::DontCare && !has_effect_clip {
         return;
     }
 
     let new_occlusion = Occlusion {
-        occlusion_layer_id: 0,
+        occlusion_layer_id: current_layer_id,
         z_index: *z_index,
         parent_frame: active_container,
     };
 
-    if (matches!(layer, Layer::Native | Layer::NativeNonOccluding) || has_effect_clip)
-        && node.occlusion.get() != new_occlusion
-    {
-        let occlusion_patch = OcclusionPatch {
-            id: node.id.to_u32(),
-            z_index: new_occlusion.z_index,
-            occlusion_layer_id: new_occlusion.occlusion_layer_id,
-            parent_frame: new_occlusion.parent_frame,
-        };
-        ctx.enqueue_native_message(pax_message::NativeMessage::OcclusionUpdate(occlusion_patch));
+    if scrolls_content {
+        let content_layer_id = allow_scroller_vector_layers.then_some(descendant_layer_id as u32);
+        let presentation_hash =
+            hash_presentation_bounds(Some(presented_bounds), presented_clip_bounds);
+        let presentation_changed = node.presentation_cache_hash.get() != presentation_hash;
+        if node.browser_content_layer_id.get() != content_layer_id || presentation_changed {
+            ctx.enqueue_native_message(pax_message::NativeMessage::ScrollerUpdate(ScrollerPatch {
+                id: node.id.to_u32(),
+                content_layer_id,
+                presented_bounds: Some(presented_bounds.as_array()),
+                presented_clip_bounds: presented_clip_bounds.map(|bounds| bounds.as_array()),
+                ..Default::default()
+            }));
+            node.browser_content_layer_id.set(content_layer_id);
+            node.presentation_cache_hash.set(presentation_hash);
+        }
+    }
+
+    if has_effect_clip {
+        let presentation_hash =
+            hash_presentation_bounds(Some(presented_bounds), presented_clip_bounds);
+        if node.presentation_cache_hash.get() != presentation_hash {
+            ctx.enqueue_native_message(pax_message::NativeMessage::FrameUpdate(
+                pax_message::FramePatch {
+                    id: node.id.to_u32(),
+                    presented_bounds: Some(presented_bounds.as_array()),
+                    presented_clip_bounds: presented_clip_bounds.map(|bounds| bounds.as_array()),
+                    ..Default::default()
+                },
+            ));
+            node.presentation_cache_hash.set(presentation_hash);
+        }
     }
 
     if new_occlusion != node.occlusion.get() {
-        let prev_layer = node.occlusion.get().occlusion_layer_id;
+        let previous_occlusion = node.occlusion.get();
+        let prev_layer = previous_occlusion.occlusion_layer_id;
         if layer == Layer::Canvas && prev_layer != new_occlusion.occlusion_layer_id {
             ctx.enqueue_canvas_node_removal(prev_layer, node.id.to_u32());
         }
@@ -169,15 +311,19 @@ fn update_node_occlusion_recursive(
     match layer {
         Layer::Canvas => {
             if let Some(coverage_path) = borrow!(node.instance_node).resolve_coverage_path(node) {
+                let coverage_path = active_scroll_transform * coverage_path;
                 if let Some(bounds) = OcclusionBox::new_from_path(&coverage_path) {
                     let opacity = borrow!(node.instance_node).resolve_coverage_opacity(node);
                     if opacity > f64::EPSILON {
-                        drawables.push(DrawableInfo::Canvas(CoverageEntry {
-                            bounds,
-                            path: coverage_path,
-                            clips: active_clips.to_vec(),
-                            opacity,
-                        }));
+                        drawables.push(DrawableInfo::Canvas {
+                            layer_id: current_layer_id,
+                            entry: CoverageEntry {
+                                bounds,
+                                path: coverage_path,
+                                clips: active_clips.to_vec(),
+                                opacity,
+                            },
+                        });
                     }
                 }
             }
@@ -186,9 +332,9 @@ fn update_node_occlusion_recursive(
             drawables.push(DrawableInfo::Native {
                 node: Rc::clone(node),
                 layer,
-                bounds: OcclusionBox::new_from_transform_and_bounds(
-                    node.transform_and_bounds.get(),
-                ),
+                layer_id: current_layer_id,
+                bounds: presented_bounds,
+                presentation_transform: active_scroll_transform,
             });
         }
         Layer::DontCare => {}
@@ -198,22 +344,32 @@ fn update_node_occlusion_recursive(
 }
 
 fn update_native_masks(drawables: &[DrawableInfo], ctx: &RuntimeContext) {
-    let mut vector_above = Vec::<CoverageEntry>::new();
+    let mut vector_above = HashMap::<usize, Vec<CoverageEntry>>::new();
 
     for drawable in drawables.iter().rev() {
         match drawable {
-            DrawableInfo::Canvas(entry) => vector_above.push(entry.clone()),
+            DrawableInfo::Canvas { layer_id, entry } => {
+                vector_above
+                    .entry(*layer_id)
+                    .or_default()
+                    .push(entry.clone());
+            }
             DrawableInfo::Native {
                 node,
                 layer,
+                layer_id,
                 bounds,
+                presentation_transform,
             } => {
                 let t_and_b = node.transform_and_bounds.get();
                 let size = t_and_b.bounds;
+                let layer_vectors = vector_above.get(layer_id);
                 let mut entries = if *layer == Layer::Native {
-                    let inverse = Affine::from(t_and_b.transform.inverse());
-                    vector_above
-                        .iter()
+                    let inverse = Affine::from(t_and_b.transform.inverse())
+                        * presentation_transform.inverse();
+                    layer_vectors
+                        .into_iter()
+                        .flat_map(|entries| entries.iter())
                         .filter(|entry| entry.bounds.intersects(bounds))
                         .map(|entry| MaskPathPatch {
                             path: bez_path_to_svg_path_data(&(inverse * entry.path.clone())),
@@ -266,5 +422,19 @@ fn hash_mask_entries(size: (f64, f64), entries: &[MaskPathPatch]) -> u64 {
     size.0.to_bits().hash(&mut hasher);
     size.1.to_bits().hash(&mut hasher);
     entries.hash(&mut hasher);
+    hasher.finish()
+}
+
+fn hash_presentation_bounds(
+    presented_bounds: Option<OcclusionBox>,
+    presented_clip_bounds: Option<OcclusionBox>,
+) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    presented_bounds
+        .map(|bounds| bounds.as_array().map(f64::to_bits))
+        .hash(&mut hasher);
+    presented_clip_bounds
+        .map(|bounds| bounds.as_array().map(f64::to_bits))
+        .hash(&mut hasher);
     hasher.finish()
 }

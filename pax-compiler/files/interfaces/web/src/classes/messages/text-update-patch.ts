@@ -4,6 +4,8 @@ import {TextStyle} from "../text";
 
 export class TextUpdatePatch {
     public id?: number;
+    public parentFrame?: number;
+    public zIndex?: number;
     public content?: string;
     public size_x?: number;
     public size_y?: number;
@@ -24,6 +26,8 @@ export class TextUpdatePatch {
 
     fromPatch(jsonMessage: any, registeredFontFaces: Set<string>) {
         this.id = jsonMessage["id"];
+        this.parentFrame = jsonMessage["parent_frame"];
+        this.zIndex = jsonMessage["z_index"];
         this.content = jsonMessage["content"];
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
@@ -50,6 +54,8 @@ export class TextUpdatePatch {
 
     cleanUp(){
         this.id = undefined;
+        this.parentFrame = undefined;
+        this.zIndex = undefined;
         this.content = '';
         this.size_x = 0;
         this.size_y = 0;

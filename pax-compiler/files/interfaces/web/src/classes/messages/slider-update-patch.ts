@@ -3,6 +3,8 @@ import { ColorGroup } from "../text";
 
 export class SliderUpdatePatch {
     public id?: number;
+    public parentFrame?: number;
+    public zIndex?: number;
     public size_x?: number;
     public size_y?: number;
     public accent?: ColorGroup;
@@ -22,6 +24,8 @@ export class SliderUpdatePatch {
 
     fromPatch(jsonMessage: any) {
         this.id = jsonMessage["id"];
+        this.parentFrame = jsonMessage["parent_frame"];
+        this.zIndex = jsonMessage["z_index"];
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
         this.transform = jsonMessage["transform"];
@@ -37,6 +41,8 @@ export class SliderUpdatePatch {
 
     cleanUp(){
         this.id = undefined;
+        this.parentFrame = undefined;
+        this.zIndex = undefined;
         this.size_x = 0;
         this.size_y = 0;
         this.value = 0;

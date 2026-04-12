@@ -192,6 +192,7 @@ impl InstanceNode for FrameInstance {
             .chain([
                 expanded_node.transform_and_bounds.untyped(),
                 expanded_node.computed_opacity.untyped(),
+                expanded_node.occlusion.untyped(),
             ])
             .collect();
 
@@ -200,7 +201,7 @@ impl InstanceNode for FrameInstance {
             .replace_with(Property::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
-                        unreachable!()
+                        return;
                     };
                     let id = expanded_node.id.to_u32();
                     let mut old_state = borrow_mut!(last_patch);
@@ -230,6 +231,16 @@ impl InstanceNode for FrameInstance {
                                 &mut old_state.opacity,
                                 &mut patch.opacity,
                                 native_surface_opacity(&expanded_node, &cloned_context),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.parent_frame,
+                                &mut patch.parent_frame,
+                                expanded_node.parent_frame.get().map(|v| v.to_u32()),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.z_index,
+                                &mut patch.z_index,
+                                expanded_node.occlusion.get().z_index,
                             ),
                         ];
 

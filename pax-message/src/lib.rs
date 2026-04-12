@@ -51,7 +51,6 @@ pub enum NativeMessage {
     ImageLoad(ImagePatch),
     LayerAdd(LayerAddPatch), //FUTURE: native form controls
     ShrinkLayersTo(u32),
-    OcclusionUpdate(OcclusionPatch),
     NativeMaskUpdate(NativeMaskPatch),
     Navigate(NavigationPatch),
     SetCursor(SetCursorPatch),
@@ -90,6 +89,7 @@ pub enum NativeInterrupt {
     FormTextboxInput(FormTextboxInputArgs),
     FormButtonClick(FormButtonClickArgs),
     Scrollbar(ScrollbarInterruptArgs),
+    BrowserConfig(BrowserConfigInterruptArgs),
     DropFile(DropFileArgs),
     Screenshot(ImageLoadInterruptArgs),
 }
@@ -185,6 +185,15 @@ pub struct ScrollbarInterruptArgs {
     pub id: u32,
     pub scroll_x: f64,
     pub scroll_y: f64,
+    pub presentation_scroll_x: Option<f64>,
+    pub presentation_scroll_y: Option<f64>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct BrowserConfigInterruptArgs {
+    pub allow_scroller_vector_layers: bool,
+    pub allow_nested_scroller_vector_layers: bool,
 }
 
 #[derive(Deserialize)]
@@ -396,6 +405,8 @@ pub struct MessageQueue {
 #[repr(C)]
 pub struct AddedLayerArgs {
     pub num_layers_added: u32,
+    #[serde(default)]
+    pub layer_id: Option<u32>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -403,12 +414,18 @@ pub struct AddedLayerArgs {
 #[repr(C)]
 pub struct FramePatch {
     pub id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_frame: Option<Option<u32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub z_index: Option<i32>,
     pub clip_content: Option<bool>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
     pub clip_path: Option<String>,
     pub opacity: Option<f64>,
+    pub presented_bounds: Option<[f64; 4]>,
+    pub presented_clip_bounds: Option<[f64; 4]>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -453,6 +470,10 @@ pub struct NativeMaskPatch {
 #[repr(C)]
 pub struct EventBlockerPatch {
     pub id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_frame: Option<Option<u32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub z_index: Option<i32>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
@@ -464,6 +485,10 @@ pub struct EventBlockerPatch {
 #[repr(C)]
 pub struct CheckboxPatch {
     pub id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_frame: Option<Option<u32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub z_index: Option<i32>,
     pub background: Option<ColorMessage>,
     pub background_checked: Option<ColorMessage>,
     pub outline_color: Option<ColorMessage>,
@@ -481,6 +506,10 @@ pub struct CheckboxPatch {
 #[repr(C)]
 pub struct NativeImagePatch {
     pub id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_frame: Option<Option<u32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub z_index: Option<i32>,
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
@@ -494,6 +523,10 @@ pub struct NativeImagePatch {
 #[repr(C)]
 pub struct YoutubeVideoPatch {
     pub id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_frame: Option<Option<u32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub z_index: Option<i32>,
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
@@ -506,6 +539,10 @@ pub struct YoutubeVideoPatch {
 #[repr(C)]
 pub struct DropdownPatch {
     pub id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_frame: Option<Option<u32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub z_index: Option<i32>,
     pub selected_id: Option<u32>,
     pub options: Option<Vec<String>>,
     pub transform: Option<Vec<f64>>,
@@ -524,6 +561,10 @@ pub struct DropdownPatch {
 #[repr(C)]
 pub struct RadioSetPatch {
     pub id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_frame: Option<Option<u32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub z_index: Option<i32>,
     pub selected_id: Option<u32>,
     pub options: Option<Vec<String>>,
     pub style: Option<TextStyleMessage>,
@@ -542,6 +583,10 @@ pub struct RadioSetPatch {
 #[repr(C)]
 pub struct SliderPatch {
     pub id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_frame: Option<Option<u32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub z_index: Option<i32>,
     pub value: Option<f64>,
     pub step: Option<f64>,
     pub min: Option<f64>,
@@ -560,6 +605,10 @@ pub struct SliderPatch {
 #[repr(C)]
 pub struct TextboxPatch {
     pub id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_frame: Option<Option<u32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub z_index: Option<i32>,
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
@@ -582,6 +631,10 @@ pub struct TextboxPatch {
 #[repr(C)]
 pub struct ButtonPatch {
     pub id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_frame: Option<Option<u32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub z_index: Option<i32>,
     pub hover_color: Option<ColorMessage>,
     pub outline_stroke_color: Option<ColorMessage>,
     pub outline_stroke_width: Option<f64>,
@@ -604,16 +657,6 @@ pub struct CheckboxStyleMessage {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize)]
 #[repr(C)]
-pub struct OcclusionPatch {
-    pub id: u32,
-    pub occlusion_layer_id: usize,
-    pub z_index: i32,
-    pub parent_frame: Option<u32>,
-}
-
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Default, Serialize)]
-#[repr(C)]
 pub struct NavigationPatch {
     pub url: String,
     pub target: String,
@@ -631,6 +674,10 @@ pub struct SetCursorPatch {
 #[repr(C)]
 pub struct TextPatch {
     pub id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_frame: Option<Option<u32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub z_index: Option<i32>,
     pub content: Option<String>,
     pub editable: Option<bool>,
     pub selectable: Option<bool>,
@@ -713,16 +760,28 @@ pub struct LinkStyleMessage {
 #[repr(C)]
 pub struct ScrollerPatch {
     pub id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_frame: Option<Option<u32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub z_index: Option<i32>,
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub opacity: Option<f64>,
+    pub clip_content: Option<bool>,
     pub size_inner_pane_x: Option<f64>,
     pub size_inner_pane_y: Option<f64>,
     pub scroll_x: Option<f64>,
     pub scroll_y: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub presentation_scroll_x: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub presentation_scroll_y: Option<f64>,
     pub scroll_enabled_x: Option<bool>,
     pub scroll_enabled_y: Option<bool>,
+    pub content_layer_id: Option<u32>,
+    pub presented_bounds: Option<[f64; 4]>,
+    pub presented_clip_bounds: Option<[f64; 4]>,
     pub subtree_depth: u32,
 }
 

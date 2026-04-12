@@ -189,6 +189,7 @@ public extension NativeMessageHandling {
             let previousSizeX = textElement.size_x
             let previousSizeY = textElement.size_y
             textElement.applyPatch(patch: patch)
+            textElement.applyResolvedPlacement(patch)
             if textGeometryChanged(
                 textElement,
                 previousTransform: previousTransform,
@@ -216,6 +217,7 @@ public extension NativeMessageHandling {
     func handleFrameUpdate(patch: FrameUpdatePatch, dirty: inout DirtyCollections, masks _: inout DirtyResolvedMasks) {
         if let frame = frameElements.elements[patch.id] {
             frame.applyPatch(patch: patch)
+            frame.applyResolvedPlacement(patch)
         }
         dirty.frame = true
     }
@@ -237,6 +239,7 @@ public extension NativeMessageHandling {
             let previousSizeX = element.size_x
             let previousSizeY = element.size_y
             element.applyPatch(patch)
+            element.applyResolvedPlacement(patch)
             if geometryChanged(
                 element,
                 previousTransform: previousTransform,
@@ -267,6 +270,7 @@ public extension NativeMessageHandling {
             let previousSizeX = element.size_x
             let previousSizeY = element.size_y
             element.applyPatch(patch)
+            element.applyResolvedPlacement(patch)
             if geometryChanged(
                 element,
                 previousTransform: previousTransform,
@@ -297,6 +301,7 @@ public extension NativeMessageHandling {
             let previousSizeX = element.size_x
             let previousSizeY = element.size_y
             element.applyPatch(patch)
+            element.applyResolvedPlacement(patch)
             if geometryChanged(
                 element,
                 previousTransform: previousTransform,
@@ -327,6 +332,7 @@ public extension NativeMessageHandling {
             let previousSizeX = element.size_x
             let previousSizeY = element.size_y
             element.applyPatch(patch)
+            element.applyResolvedPlacement(patch)
             if geometryChanged(
                 element,
                 previousTransform: previousTransform,
@@ -357,6 +363,7 @@ public extension NativeMessageHandling {
             let previousSizeX = element.size_x
             let previousSizeY = element.size_y
             element.applyPatch(patch)
+            element.applyResolvedPlacement(patch)
             if geometryChanged(
                 element,
                 previousTransform: previousTransform,
@@ -387,6 +394,7 @@ public extension NativeMessageHandling {
             let previousSizeX = element.size_x
             let previousSizeY = element.size_y
             element.applyPatch(patch)
+            element.applyResolvedPlacement(patch)
             if geometryChanged(
                 element,
                 previousTransform: previousTransform,
@@ -417,6 +425,7 @@ public extension NativeMessageHandling {
             let previousSizeX = element.size_x
             let previousSizeY = element.size_y
             element.applyPatch(patch)
+            element.applyResolvedPlacement(patch)
             if geometryChanged(
                 element,
                 previousTransform: previousTransform,
@@ -447,6 +456,7 @@ public extension NativeMessageHandling {
             let previousSizeX = element.size_x
             let previousSizeY = element.size_y
             element.applyPatch(patch)
+            element.applyResolvedPlacement(patch)
             if geometryChanged(
                 element,
                 previousTransform: previousTransform,
@@ -477,6 +487,7 @@ public extension NativeMessageHandling {
             let previousSizeX = element.size_x
             let previousSizeY = element.size_y
             element.applyPatch(patch)
+            element.applyResolvedPlacement(patch)
             if geometryChanged(
                 element,
                 previousTransform: previousTransform,
@@ -493,63 +504,6 @@ public extension NativeMessageHandling {
         eventBlockerElements.remove(id: patch.id)
         removeResolvedNativeMask(id: patch.id)
         dirty.eventBlocker = true
-    }
-
-    func handleOcclusionUpdate(patch: OcclusionUpdatePatch, dirty: inout DirtyCollections, masks _: inout DirtyResolvedMasks) {
-        if let textElement = textElements.elements[patch.id] {
-            textElement.applyOcclusionPatch(patch)
-            dirty.text = true
-            return
-        }
-        if let frameElement = frameElements.elements[patch.id] {
-            frameElement.applyOcclusionPatch(patch)
-            dirty.frame = true
-            return
-        }
-        if let buttonElement = buttonElements.elements[patch.id] {
-            buttonElement.applyOcclusionPatch(patch)
-            dirty.button = true
-            return
-        }
-        if let checkboxElement = checkboxElements.elements[patch.id] {
-            checkboxElement.applyOcclusionPatch(patch)
-            dirty.checkbox = true
-            return
-        }
-        if let nativeImageElement = nativeImageElements.elements[patch.id] {
-            nativeImageElement.applyOcclusionPatch(patch)
-            dirty.nativeImage = true
-            return
-        }
-        if let youtubeVideoElement = youtubeVideoElements.elements[patch.id] {
-            youtubeVideoElement.applyOcclusionPatch(patch)
-            dirty.youtubeVideo = true
-            return
-        }
-        if let dropdownElement = dropdownElements.elements[patch.id] {
-            dropdownElement.applyOcclusionPatch(patch)
-            dirty.dropdown = true
-            return
-        }
-        if let radioSetElement = radioSetElements.elements[patch.id] {
-            radioSetElement.applyOcclusionPatch(patch)
-            dirty.radioSet = true
-            return
-        }
-        if let sliderElement = sliderElements.elements[patch.id] {
-            sliderElement.applyOcclusionPatch(patch)
-            dirty.slider = true
-            return
-        }
-        if let textboxElement = textboxElements.elements[patch.id] {
-            textboxElement.applyOcclusionPatch(patch)
-            dirty.textbox = true
-            return
-        }
-        if let eventBlockerElement = eventBlockerElements.elements[patch.id] {
-            eventBlockerElement.applyOcclusionPatch(patch)
-            dirty.eventBlocker = true
-        }
     }
 
     func handleNativeMaskUpdate(patch: NativeMaskPatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
@@ -732,9 +686,6 @@ public extension NativeMessageHandling {
                 handleEventBlockerDelete(patch: AnyDeletePatch(fb: eventBlockerDeleteMessage), dirty: &dirty)
             }
 
-            if let occlusionUpdateMessage = message["OcclusionUpdate"] {
-                handleOcclusionUpdate(patch: OcclusionUpdatePatch(fb: occlusionUpdateMessage), dirty: &dirty, masks: &masks)
-            }
             if let nativeMaskUpdateMessage = message["NativeMaskUpdate"] {
                 handleNativeMaskUpdate(patch: NativeMaskPatch(fb: nativeMaskUpdateMessage), dirty: &dirty, masks: &masks)
             }

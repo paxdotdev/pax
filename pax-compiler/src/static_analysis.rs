@@ -1119,7 +1119,10 @@ fn parse_pax_config(attrs: &[Attribute], source_file_contents: &str) -> Result<P
     Ok(config)
 }
 
-fn extract_inlined_contents(attr: &Attribute, source_file_contents: &str) -> Result<Option<String>> {
+fn extract_inlined_contents(
+    attr: &Attribute,
+    source_file_contents: &str,
+) -> Result<Option<String>> {
     let attr_text = source_text_for_span(source_file_contents, attr.span())?;
     let trimmed = attr_text.trim();
     if !trimmed.starts_with("#[") || !trimmed.ends_with(']') {

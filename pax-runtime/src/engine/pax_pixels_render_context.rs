@@ -3,18 +3,260 @@ use pax_pixels::{
     point, Box2D, Image, Path, Stroke as PixelStroke, StrokeCap as PixelStrokeCap, Transform2D,
     WgpuRenderer,
 };
-use pax_runtime_api::{Axis, RenderContext, Stroke, StrokeCap, ScreenshotData};
-use std::{cell::RefCell, collections::HashMap, future::Future, pin::Pin, rc::Rc};
+use pax_runtime_api::{Axis, RenderContext, ScreenshotData, Stroke, StrokeCap};
+use std::{
+    cell::{Cell, RefCell},
+    collections::{HashMap, HashSet, VecDeque},
+    future::Future,
+    pin::Pin,
+    rc::Rc,
+};
 
-type LayerDef = (
-    WgpuRenderer<'static>,
-    Pin<Box<dyn Fn() -> LayerSurfaceSize>>,
-);
+pub struct LayerRenderer {
+    key: String,
+    host_signature: String,
+    renderer: WgpuRenderer<'static>,
+    origin_x: f32,
+    origin_y: f32,
+    logical_width: f32,
+    logical_height: f32,
+    surface_width: u32,
+    surface_height: u32,
+    dpr: [f32; 2],
+}
 
+pub struct LayerTarget {
+    renderers: Vec<LayerRenderer>,
+    active: bool,
+    needs_replay: bool,
+}
+
+pub struct LayerSurfaceEntry {
+    pub key: String,
+    pub host_signature: String,
+    pub origin_x: f32,
+    pub origin_y: f32,
+    pub surface: LayerSurfaceSize,
+}
+
+pub struct LayerSurfaceLayout {
+    pub surfaces: Vec<LayerSurfaceEntry>,
+    pub active: bool,
+}
+
+type LayerDef = (LayerTarget, Pin<Box<dyn Fn() -> LayerSurfaceLayout>>);
+
+#[derive(Clone, Copy, Debug, Default)]
+enum LayoutChangeKind {
+    #[default]
+    Unchanged,
+    OriginOnly,
+    Resized,
+}
+
+impl LayerRenderer {
+    pub fn new(
+        key: String,
+        host_signature: String,
+        renderer: WgpuRenderer<'static>,
+        origin_x: f32,
+        origin_y: f32,
+        logical_width: f32,
+        logical_height: f32,
+        surface_width: u32,
+        surface_height: u32,
+        dpr: [f32; 2],
+    ) -> Self {
+        Self {
+            key,
+            host_signature,
+            renderer,
+            origin_x,
+            origin_y,
+            logical_width,
+            logical_height,
+            surface_width,
+            surface_height,
+            dpr,
+        }
+    }
+
+    pub fn renderer_mut(&mut self) -> &mut WgpuRenderer<'static> {
+        &mut self.renderer
+    }
+
+    fn update_layout(&mut self, surface: &LayerSurfaceEntry) -> LayoutChangeKind {
+        let origin_changed = (self.origin_x - surface.origin_x).abs() > f32::EPSILON
+            || (self.origin_y - surface.origin_y).abs() > f32::EPSILON;
+        let size_changed = self.logical_width != surface.surface.logical_width
+            || self.logical_height != surface.surface.logical_height
+            || self.surface_width != surface.surface.surface_width
+            || self.surface_height != surface.surface.surface_height
+            || self.dpr != surface.surface.dpr;
+
+        self.origin_x = surface.origin_x;
+        self.origin_y = surface.origin_y;
+        self.logical_width = surface.surface.logical_width;
+        self.logical_height = surface.surface.logical_height;
+        self.surface_width = surface.surface.surface_width;
+        self.surface_height = surface.surface.surface_height;
+        self.dpr = surface.surface.dpr;
+
+        if size_changed {
+            LayoutChangeKind::Resized
+        } else if origin_changed {
+            LayoutChangeKind::OriginOnly
+        } else {
+            LayoutChangeKind::Unchanged
+        }
+    }
+}
+
+impl LayerTarget {
+    pub fn new(renderers: Vec<LayerRenderer>, active: bool) -> Self {
+        // The first tiled pass keeps node drawing opaque by replaying the same retained scene into
+        // each active physical surface. That duplicates retained scene state per tile, but it keeps
+        // tiling below the RenderContext seam so primitives stay unaware of browser-surface
+        // partitioning.
+        Self {
+            renderers,
+            active,
+            needs_replay: false,
+        }
+    }
+
+    pub fn renderers_mut(&mut self) -> &mut [LayerRenderer] {
+        &mut self.renderers
+    }
+
+    fn activate(&mut self) {
+        if !self.active {
+            self.active = true;
+            self.needs_replay = true;
+        }
+    }
+
+    fn deactivate(&mut self) {
+        self.active = false;
+    }
+
+    fn prepare_for_render(&mut self) {
+        if !self.needs_replay {
+            return;
+        }
+        for renderer in &mut self.renderers {
+            renderer.renderer.reset_retained_scene();
+        }
+        self.needs_replay = false;
+    }
+}
+
+fn layer_layout_matches_target(target: &LayerTarget, layout: &LayerSurfaceLayout) -> bool {
+    // `host_signature` identifies the DOM surface host that currently owns a layer tile. It is
+    // intentionally separate from node identity: the same expanded node can be rebound to a new
+    // browser surface host when scroller islands are recreated.
+    layout.surfaces.len() == target.renderers.len()
+        && layout
+            .surfaces
+            .iter()
+            .zip(target.renderers.iter())
+            .all(|(surface, renderer)| {
+                surface.key == renderer.key && surface.host_signature == renderer.host_signature
+            })
+}
+
+const MAX_CONCURRENT_LAYER_INITIALIZATIONS: usize = 4;
+
+fn pump_layer_initialization_queue(
+    factory: Rc<dyn Fn(usize) -> Pin<Box<dyn Future<Output = Option<LayerDef>>>>>,
+    backends: Rc<RefCell<Vec<RenderLayerState>>>,
+    queue: Rc<RefCell<VecDeque<usize>>>,
+    scheduled: Rc<RefCell<HashSet<usize>>>,
+    in_flight: Rc<Cell<usize>>,
+    ready_layers: Rc<RefCell<Vec<usize>>>,
+) {
+    while in_flight.get() < MAX_CONCURRENT_LAYER_INITIALIZATIONS {
+        let next_layer = queue.borrow_mut().pop_front();
+        let Some(layer_index) = next_layer else {
+            break;
+        };
+
+        in_flight.set(in_flight.get() + 1);
+        let factory = Rc::clone(&factory);
+        let backends = Rc::clone(&backends);
+        let queue = Rc::clone(&queue);
+        let scheduled = Rc::clone(&scheduled);
+        let in_flight_count = Rc::clone(&in_flight);
+        let ready_layers = Rc::clone(&ready_layers);
+
+        wasm_bindgen_futures::spawn_local(async move {
+            let backend = (factory)(layer_index).await;
+            let mut should_requeue = false;
+            match backend {
+                Some(layer_def) => {
+                    let current_layout = layer_def.1();
+                    let layout_matches =
+                        layer_layout_matches_target(&layer_def.0, &current_layout);
+                    let mut backend_states = backends.borrow_mut();
+                    match backend_states.get_mut(layer_index) {
+                        Some(change) if layout_matches => {
+                            *change = RenderLayerState::Ready(layer_def);
+                            ready_layers.borrow_mut().push(layer_index);
+                        }
+                        Some(change) => {
+                            // Layer initialization is async relative to host ownership on the
+                            // web. If the DOM host changes while this backend is bootstrapping,
+                            // discard it and retry against the latest layout instead of
+                            // publishing a stale renderer.
+                            *change = RenderLayerState::Pending;
+                            should_requeue = true;
+                        }
+                        None => {
+                            log::warn!(
+                                "failed to set poll state to ready: layer {} doesn't exist anymore",
+                                layer_index
+                            );
+                        }
+                    }
+                }
+                None => match backends.borrow_mut().get_mut(layer_index) {
+                    Some(change) => {
+                        *change = RenderLayerState::Failed;
+                        log::warn!(
+                            "failed to initialize render backend for layer {}",
+                            layer_index
+                        );
+                    }
+                    None => log::warn!(
+                        "failed to set poll state to ready: layer {} doesn't exist and backend failed to initialize",
+                        layer_index
+                    ),
+                },
+            }
+
+            scheduled.borrow_mut().remove(&layer_index);
+            if should_requeue && scheduled.borrow_mut().insert(layer_index) {
+                queue.borrow_mut().push_back(layer_index);
+            }
+
+            in_flight_count.set(in_flight_count.get().saturating_sub(1));
+            pump_layer_initialization_queue(
+                factory,
+                backends,
+                queue,
+                scheduled,
+                in_flight_count,
+                ready_layers,
+            );
+        });
+    }
+}
 pub struct LayerSurfaceSize {
+    pub logical_width: f32,
+    pub logical_height: f32,
     pub surface_width: u32,
     pub surface_height: u32,
-    pub dpr: f32,
+    pub dpr: [f32; 2],
 }
 
 pub struct PaxPixelsRenderer {
@@ -23,6 +265,11 @@ pub struct PaxPixelsRenderer {
     image_map: HashMap<String, Image>,
     image_versions: HashMap<String, u64>,
     failed_context_gets: RefCell<Vec<bool>>,
+    ready_layers: Rc<RefCell<Vec<usize>>>,
+    replay_layers: Rc<RefCell<Vec<usize>>>,
+    pending_layer_initializations: Rc<RefCell<VecDeque<usize>>>,
+    scheduled_layer_initializations: Rc<RefCell<HashSet<usize>>>,
+    layer_initializations_in_flight: Rc<Cell<usize>>,
 }
 
 pub enum RenderLayerState {
@@ -41,12 +288,30 @@ impl PaxPixelsRenderer {
             image_map: Default::default(),
             image_versions: Default::default(),
             failed_context_gets: RefCell::new(vec![]),
+            ready_layers: Default::default(),
+            replay_layers: Default::default(),
+            pending_layer_initializations: Rc::new(RefCell::new(VecDeque::new())),
+            scheduled_layer_initializations: Rc::new(RefCell::new(HashSet::new())),
+            layer_initializations_in_flight: Rc::new(Cell::new(0)),
         }
     }
 }
 
 impl PaxPixelsRenderer {
-    fn with_layer_context(&self, layer: usize, f: impl FnOnce(&mut WgpuRenderer)) {
+    fn enqueue_layer_initialization(&self, layer_index: usize) {
+        if self
+            .scheduled_layer_initializations
+            .borrow_mut()
+            .insert(layer_index)
+        {
+            self.pending_layer_initializations
+                .borrow_mut()
+                .push_back(layer_index);
+        }
+        self.schedule_layer_initialization();
+    }
+
+    fn with_layer_context(&self, layer: usize, mut f: impl FnMut(&mut WgpuRenderer)) {
         let mut backends = self.backends.borrow_mut();
         match backends.get_mut(layer) {
             Some(layer_state) => match layer_state {
@@ -58,12 +323,119 @@ impl PaxPixelsRenderer {
                     failed_context_gets[layer] = true;
                 }
                 RenderLayerState::Failed => {}
-                RenderLayerState::Ready((renderer, _)) => f(renderer),
+                RenderLayerState::Ready((target, _)) => {
+                    if !target.active {
+                        return;
+                    }
+                    target.prepare_for_render();
+                    for renderer in &mut target.renderers {
+                        f(&mut renderer.renderer);
+                    }
+                }
             },
             None => log::warn!(
                 "tried to retrieve layer {} context for non-existent layer",
                 layer
             ),
+        }
+    }
+
+    fn schedule_layer_initialization(&self) {
+        pump_layer_initialization_queue(
+            Rc::clone(&self.layer_factory),
+            Rc::clone(&self.backends),
+            Rc::clone(&self.pending_layer_initializations),
+            Rc::clone(&self.scheduled_layer_initializations),
+            Rc::clone(&self.layer_initializations_in_flight),
+            Rc::clone(&self.ready_layers),
+        );
+    }
+
+    fn refresh_layer_layouts<I>(&mut self, layer_indices: I)
+    where
+        I: IntoIterator<Item = usize>,
+    {
+        let mut needs_reinitialization = false;
+        let mut backends = self.backends.borrow_mut();
+        for layer_index in layer_indices {
+            let Some(backend) = backends.get_mut(layer_index) else {
+                continue;
+            };
+            match backend {
+                RenderLayerState::Pending => {}
+                RenderLayerState::Failed => {}
+                RenderLayerState::Ready((target, layout_provider)) => {
+                    let layout = (layout_provider)();
+                    let layout_matches = layer_layout_matches_target(target, &layout);
+
+                    if layout.active {
+                        target.activate();
+                    } else {
+                        target.deactivate();
+                    }
+
+                    if !layout_matches {
+                        // A different keyed surface set means the DOM host really changed shape
+                        // underneath us. Stable slot keys let ordinary scroll slide tile origins in
+                        // place; reserve full reinitialization for real additions/removals.
+                        *backend = RenderLayerState::Pending;
+                        self.enqueue_layer_initialization(layer_index);
+                        needs_reinitialization = true;
+                        continue;
+                    }
+
+                    for (surface, renderer) in
+                        layout.surfaces.iter().zip(target.renderers.iter_mut())
+                    {
+                        let layout_change = renderer.update_layout(surface);
+                        match layout_change {
+                            LayoutChangeKind::Unchanged => {}
+                            LayoutChangeKind::OriginOnly => {
+                                // Reassigning a stable viewport slot to a new absolute tile origin
+                                // clears the retained scene for that physical surface. The chassis
+                                // must replay the logical layer contents into it on the next tick.
+                                renderer.renderer.reset_retained_scene();
+                                renderer
+                                    .renderer
+                                    .set_surface_transform(Transform2D::from_array([
+                                        1.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                        -surface.origin_x,
+                                        -surface.origin_y,
+                                    ]));
+                                self.replay_layers.borrow_mut().push(layer_index);
+                            }
+                            LayoutChangeKind::Resized => {
+                                renderer
+                                    .renderer
+                                    .set_surface_transform(Transform2D::from_array([
+                                        1.0,
+                                        0.0,
+                                        0.0,
+                                        1.0,
+                                        -surface.origin_x,
+                                        -surface.origin_y,
+                                    ]));
+                                renderer.renderer.resize_surface(
+                                    surface.surface.surface_width as f32,
+                                    surface.surface.surface_height as f32,
+                                );
+                                renderer.renderer.set_viewport(
+                                    surface.surface.logical_width,
+                                    surface.surface.logical_height,
+                                    surface.surface.dpr,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        drop(backends);
+        if needs_reinitialization {
+            self.schedule_layer_initialization();
         }
     }
 }
@@ -193,27 +565,7 @@ impl RenderContext for PaxPixelsRenderer {
             std::cmp::Ordering::Greater => {
                 for i in current_len..layer_count {
                     self.backends.borrow_mut().push(RenderLayerState::Pending);
-                    let factory = Rc::clone(&self.layer_factory);
-                    let backends = Rc::clone(&self.backends);
-                    wasm_bindgen_futures::spawn_local(async move {
-                        let backend = (factory)(i).await;
-                        match (backends.borrow_mut().get_mut(i), backend) {
-                            (Some(change), Some(layer_def)) => {
-                                *change = RenderLayerState::Ready(layer_def);
-                            }
-                            (Some(change), None) => {
-                                *change = RenderLayerState::Failed;
-                                log::warn!(
-                                    "failed to initialize render backend for layer {}",
-                                    i
-                                );
-                            }
-                            (None, Some(_)) => {
-                                log::warn!("failed to set poll state to ready: layer doesn't exist anymore")
-                            }
-                            (None, None) => log::warn!("failed to set poll state to ready: layer doesn't exist AND backend failed to initialize")
-                        }
-                    });
+                    self.enqueue_layer_initialization(i);
                 }
             }
         }
@@ -230,7 +582,10 @@ impl RenderContext for PaxPixelsRenderer {
         match backends.get_mut(layer) {
             Some(RenderLayerState::Pending) => {}
             Some(RenderLayerState::Failed) => {}
-            Some(RenderLayerState::Ready((context, _))) => {
+            Some(RenderLayerState::Ready((target, _))) => {
+                if !target.active {
+                    return;
+                }
                 if let Some(failed) = self.failed_context_gets.borrow_mut().get_mut(layer) {
                     if *failed {
                         if let Some(dirty_bit) = dirty_canvases.borrow_mut().get_mut(layer) {
@@ -241,7 +596,9 @@ impl RenderContext for PaxPixelsRenderer {
                         *failed = false;
                     }
                 }
-                context.flush();
+                for renderer in &mut target.renderers {
+                    renderer.renderer.flush();
+                }
             }
             None => log::warn!(
                 "tried to flush layer {} context for non-existent layer",
@@ -250,21 +607,29 @@ impl RenderContext for PaxPixelsRenderer {
         }
     }
 
-    fn resize(&mut self, width: usize, height: usize) {
-        for backend in &mut *self.backends.borrow_mut() {
-            match backend {
-                RenderLayerState::Pending => {}
-                RenderLayerState::Failed => {}
-                RenderLayerState::Ready((renderer, canvas_resizer)) => {
-                    let surface = (canvas_resizer)();
-                    renderer.resize_surface(
-                        surface.surface_width as f32,
-                        surface.surface_height as f32,
-                    );
-                    renderer.set_viewport(width as f32, height as f32, surface.dpr as f32);
-                }
-            }
-        }
+    fn resize(&mut self, _width: usize, _height: usize) {
+        let layer_count = self.backends.borrow().len();
+        self.refresh_layer_layouts(0..layer_count);
+    }
+
+    fn refresh_layers(&mut self, layers: &[usize]) {
+        self.refresh_layer_layouts(layers.iter().copied());
+    }
+
+    fn take_ready_canvas_layers(&mut self) -> Vec<usize> {
+        let mut ready_layers = self.ready_layers.borrow_mut();
+        let mut ready = std::mem::take(&mut *ready_layers);
+        ready.sort_unstable();
+        ready.dedup();
+        ready
+    }
+
+    fn take_replay_canvas_layers(&mut self) -> Vec<usize> {
+        let mut replay_layers = self.replay_layers.borrow_mut();
+        let mut replay = std::mem::take(&mut *replay_layers);
+        replay.sort_unstable();
+        replay.dedup();
+        replay
     }
 
     fn request_layer_screenshot(&mut self, layer: usize, request_id: u32) {

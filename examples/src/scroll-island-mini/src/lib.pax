@@ -1,0 +1,117 @@
+<Scroller width=100% height=100% scroll_height=1400px>
+    <Group width=100% height=1400px>
+        <Group x=20px y=24px width={100% - 40px} height=720px>
+            <Button
+                x=28px
+                y=28px
+                width=188px
+                height=52px
+                label="Native Button"
+                color=rgba(12, 18, 30, 255)
+                hover_color=rgba(35, 45, 72, 255)
+                style={
+                    font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+                    font_size: 16px
+                    fill: WHITE
+                    align_vertical: TextAlignVertical::Center
+                    align_horizontal: TextAlignHorizontal::Center
+                    align_multiline: TextAlignHorizontal::Center
+                    underline: false
+                }/>
+
+            <Text
+                x=28px
+                y=106px
+                width={100% - 56px}
+                height=54px
+                text="Mini Scroll Island"
+                selectable=false
+                style={
+                    font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+                    font_size: 40px
+                    fill: rgba(16, 20, 29, 255)
+                    align_vertical: TextAlignVertical::Center
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+
+            <Text
+                x=28px
+                y=174px
+                width={100% - 56px}
+                height=108px
+                text="This smaller scroller is meant to validate whether iOS Safari can render mixed vector and native content when the island surface stays compact."
+                selectable=false
+                style={
+                    font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+                    font_size: 22px
+                    fill: rgba(79, 86, 99, 255)
+                    align_vertical: TextAlignVertical::Top
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+
+            <Image
+                x=36px
+                y=338px
+                width=132px
+                height=132px
+                source=ImageSource::Url("assets/placeholder.jpg")
+                rotate=-5deg/>
+
+            <Rectangle
+                x=24px
+                y=326px
+                width=156px
+                height=156px
+                fill=rgba(216, 232, 249, 255)
+                corner_radii={RectangleCornerRadii::radii(28.0, 28.0, 28.0, 28.0)}
+                rotate=6deg/>
+
+            <Rectangle
+                x=204px
+                y=332px
+                width={100% - 236px}
+                height=150px
+                fill=rgba(12, 18, 30, 255)
+                corner_radii={RectangleCornerRadii::radii(28.0, 28.0, 28.0, 28.0)}/>
+
+            <Rectangle
+                x=0px
+                y=0px
+                width=100%
+                height=100%
+                fill=rgba(248, 242, 234, 255)
+                corner_radii={RectangleCornerRadii::radii(28.0, 28.0, 28.0, 28.0)}/>
+        </Group>
+
+        <Group x=20px y=804px width={100% - 40px} height=520px>
+            <Text
+                x=20px
+                y=18px
+                width={100% - 40px}
+                height=40px
+                text="Lower vector section"
+                selectable=false
+                style={
+                    font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+                    font_size: 32px
+                    fill: rgba(18, 22, 30, 255)
+                    align_vertical: TextAlignVertical::Center
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+
+            <Rectangle
+                x=20px
+                y=88px
+                width={100% - 40px}
+                height=340px
+                fill=rgba(22, 163, 74, 255)
+                corner_radii={RectangleCornerRadii::radii(32.0, 32.0, 32.0, 32.0)}/>
+        </Group>
+    </Group>
+</Scroller>

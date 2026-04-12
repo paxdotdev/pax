@@ -66,12 +66,7 @@
     pub async fn pax_init() -> JsValue {
         std::panic::set_hook(Box::new(<%= engine_import_path %>::pax_chassis_web::console_error_panic_hook::hook));
         // setup logging
-        #[cfg(debug_assertions)]
-        <%= engine_import_path %>::pax_chassis_web::console_log::init_with_level(<%= engine_import_path %>::log::Level::Debug)
-            .expect("console_log::init_with_level initialized correctly");
-        #[cfg(not(debug_assertions))]
-        <%= engine_import_path %>::pax_chassis_web::console_log::init_with_level(<%= engine_import_path %>::log::Level::Error)
-            .expect("console_log::init_with_level initialized correctly");
+        <%= engine_import_path %>::pax_chassis_web::init_console_logging();
 
 
 

@@ -11,6 +11,7 @@ use pax_runtime::{
 };
 use std::rc::Rc;
 
+use crate::common::canvas_surface_transform;
 use crate::common::patch_if_needed;
 
 /// An Image (decoded by chassis), drawn to the bounds specified
@@ -98,7 +99,7 @@ impl InstanceNode for ImageInstance {
         let source_changed = Property::computed(
             move || {
                 let Some(expanded_node) = weak_self_ref.upgrade() else {
-                    unreachable!()
+                    return;
                 };
                 let mut old_state = borrow_mut!(last_patch);
 
@@ -182,6 +183,7 @@ impl InstanceNode for ImageInstance {
         }
 
         let t_and_b = expanded_node.transform_and_bounds.get();
+        let surface_transform = canvas_surface_transform(expanded_node, rtc);
         let (container_width, container_height) = t_and_b.bounds;
         let mut did_draw = false;
 
@@ -233,7 +235,7 @@ impl InstanceNode for ImageInstance {
             let transformed_bounds = kurbo::Rect::new(x, y, x + width, y + height);
             let clip_path = kurbo::Rect::new(0.0, 0.0, container_width, container_height);
             rc.save(layer_id);
-            rc.transform(layer_id, t_and_b.transform.into());
+            rc.transform(layer_id, surface_transform);
             rc.clip(layer_id, clip_path.into_path(0.01));
             rc.draw_image(layer_id, &path, transformed_bounds);
             rc.restore(layer_id);

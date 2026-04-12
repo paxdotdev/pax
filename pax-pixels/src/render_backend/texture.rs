@@ -9,7 +9,7 @@ use crate::Transform2D;
 use wgpu::util::DeviceExt;
 use wgpu::TextureFormat;
 
-use super::stencil::StencilRenderer;
+use super::{stencil::StencilRenderer, COMPAT_CLEAR_COLOR};
 
 pub struct TextureRenderer {
     #[allow(dead_code)]
@@ -152,7 +152,10 @@ impl TextureRenderer {
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Nearest,
+            // UI images are commonly drawn smaller than their source asset size. Keep
+            // minification linear as well so browser-surface tiling does not reintroduce obvious
+            // nearest-neighbor aliasing when those assets land on a downsized tile.
+            min_filter: wgpu::FilterMode::Linear,
             mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             ..Default::default()
         });
@@ -269,12 +272,7 @@ impl TextureRenderer {
                     resolve_target,
                     ops: wgpu::Operations {
                         load: if clear_target {
-                            wgpu::LoadOp::Clear(wgpu::Color {
-                                r: 0.0,
-                                g: 0.0,
-                                b: 0.0,
-                                a: 0.0,
-                            })
+                            wgpu::LoadOp::Clear(COMPAT_CLEAR_COLOR)
                         } else {
                             wgpu::LoadOp::Load
                         },
@@ -425,12 +423,7 @@ impl TextureRenderer {
                     resolve_target,
                     ops: wgpu::Operations {
                         load: if clear_target {
-                            wgpu::LoadOp::Clear(wgpu::Color {
-                                r: 0.0,
-                                g: 0.0,
-                                b: 0.0,
-                                a: 0.0,
-                            })
+                            wgpu::LoadOp::Clear(COMPAT_CLEAR_COLOR)
                         } else {
                             wgpu::LoadOp::Load
                         },

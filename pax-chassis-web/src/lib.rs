@@ -1,7 +1,7 @@
 //! Basic example of rendering in the browser
 #![allow(non_snake_case)]
 
-use js_sys::Uint8Array;
+use js_sys::{Uint32Array, Uint8Array};
 use pax_message::ImageLoadInterruptArgs;
 use pax_message::ScreenshotData;
 use pax_runtime::api::borrow;
@@ -20,9 +20,11 @@ use pax_runtime::DefinitionToInstanceTraverser;
 use web_time::Instant;
 use_RefCell!();
 
+mod browser_surface_policy;
 pub mod web_render_contexts;
 
 use pax_runtime::PaxEngine;
+#[cfg(feature = "designtime")]
 use std::collections::HashMap;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
@@ -48,9 +50,144 @@ const DESIGNER_COMPONENT_ROOT: &str = "DESIGNER_COMPONENT_ROOT";
 #[cfg(feature = "designtime")]
 mod dev;
 
+#[wasm_bindgen(inline_js = r#"
+const PAX_DEV_CONSOLE_TAP_KEY = "__paxDevConsoleTap";
+
+function paxDevStringifyArg(value) {
+    try {
+        if (typeof value === "string") {
+            return value;
+        }
+        if (value instanceof Error) {
+            return value.stack || `${value.name}: ${value.message}`;
+        }
+        if (value === undefined || value === null) {
+            return String(value);
+        }
+        if (typeof value === "object") {
+            return JSON.stringify(value);
+        }
+        return String(value);
+    } catch (_err) {
+        return String(value);
+    }
+}
+
+export function install_dev_console_tap(maxEntries) {
+    const global = globalThis;
+    const existing = global[PAX_DEV_CONSOLE_TAP_KEY];
+    if (existing) {
+        if (typeof maxEntries === "number" && maxEntries > 0) {
+            existing.maxEntries = Math.max(existing.maxEntries, maxEntries);
+        }
+        return;
+    }
+
+    const methods = ["debug", "info", "log", "warn", "error"];
+    const originals = {};
+    const state = {
+        entries: [],
+        nextSeq: 1,
+        maxEntries: typeof maxEntries === "number" && maxEntries > 0 ? maxEntries : 2000,
+    };
+
+    const pushEntry = (level, args) => {
+        const message = args.map(paxDevStringifyArg).join(" ");
+        state.entries.push({
+            seq: state.nextSeq,
+            level,
+            message,
+            timestamp_ms: Date.now(),
+        });
+        state.nextSeq += 1;
+        if (state.entries.length > state.maxEntries) {
+            state.entries.splice(0, state.entries.length - state.maxEntries);
+        }
+    };
+
+    for (const level of methods) {
+        const original = typeof console[level] === "function"
+            ? console[level].bind(console)
+            : console.log.bind(console);
+        originals[level] = original;
+        console[level] = (...args) => {
+            pushEntry(level, args);
+            original(...args);
+        };
+    }
+
+    state.getEntries = (sinceSeq, limit) => {
+        const filtered = typeof sinceSeq === "number" && Number.isFinite(sinceSeq) && sinceSeq >= 0
+            ? state.entries.filter((entry) => entry.seq > sinceSeq)
+            : state.entries.slice();
+        const entries = typeof limit === "number" && limit > 0
+            ? filtered.slice(-limit)
+            : filtered;
+        return {
+            entries,
+            next_seq: state.nextSeq,
+            oldest_seq: state.entries.length > 0 ? state.entries[0].seq : null,
+        };
+    };
+
+    global[PAX_DEV_CONSOLE_TAP_KEY] = state;
+}
+
+export function get_dev_console_entries_json(sinceSeq, limit) {
+    const state = globalThis[PAX_DEV_CONSOLE_TAP_KEY];
+    if (!state || typeof state.getEntries !== "function") {
+        return JSON.stringify({
+            entries: [],
+            next_seq: 1,
+            oldest_seq: null,
+        });
+    }
+    return JSON.stringify(state.getEntries(sinceSeq, limit));
+}
+"#)]
+extern "C" {
+    fn install_dev_console_tap(max_entries: u32);
+    fn get_dev_console_entries_json(since_seq: f64, limit: u32) -> String;
+}
+
 #[wasm_bindgen]
 pub fn wasm_memory() -> JsValue {
     wasm_bindgen::memory()
+}
+
+fn window_location_search() -> String {
+    window()
+        .and_then(|window| window.location().search().ok())
+        .unwrap_or_default()
+}
+
+fn query_param_value(search: &str, name: &str) -> Option<String> {
+    search.trim_start_matches('?').split('&').find_map(|entry| {
+        let (key, value) = entry.split_once('=')?;
+        (key == name).then(|| value.to_ascii_lowercase())
+    })
+}
+
+#[wasm_bindgen]
+pub fn init_console_logging() {
+    install_dev_console_tap(2_000);
+    let search = window_location_search();
+    let level = match query_param_value(&search, "pax_log").as_deref() {
+        Some("trace") => log::Level::Trace,
+        Some("debug") => log::Level::Debug,
+        Some("info") => log::Level::Info,
+        Some("warn") => log::Level::Warn,
+        Some("error") => log::Level::Error,
+        _ if cfg!(debug_assertions) => log::Level::Warn,
+        _ => log::Level::Error,
+    };
+    console_log::init_with_level(level)
+        .expect("console_log::init_with_level initialized correctly");
+}
+
+pub(crate) fn read_dev_console_entries_json(since_seq: Option<u64>, limit: usize) -> String {
+    let since_seq = since_seq.map(|value| value as f64).unwrap_or(-1.0);
+    get_dev_console_entries_json(since_seq, limit as u32)
 }
 
 #[wasm_bindgen]
@@ -179,6 +316,8 @@ impl PaxChassisWeb {
     }
 
     fn init_common() -> (f64, f64, OS, Box<dyn Fn() -> u128>, Box<dyn RenderContext>) {
+        #[cfg(feature = "console_error_panic_hook")]
+        console_error_panic_hook::set_once();
         let window = window().unwrap();
         let user_agent_str = window.navigator().user_agent().ok();
         let os_info = user_agent_str
@@ -220,6 +359,32 @@ impl PaxChassisWeb {
             .set_all_canvases_dirty();
         self.render_context.resize(width as usize, height as usize);
         borrow_mut!(self.engine).set_viewport_size((width, height));
+    }
+
+    pub fn refresh_render_surfaces(&mut self) {
+        let window = window().unwrap();
+        let width = window.inner_width().unwrap().as_f64().unwrap_or(0.0);
+        let height = window.inner_height().unwrap().as_f64().unwrap_or(0.0);
+        {
+            let engine = self.engine.borrow();
+            engine.runtime_context.set_all_canvases_dirty();
+            engine.runtime_context.mark_all_canvas_nodes_dirty();
+        }
+        self.render_context.resize(width as usize, height as usize);
+    }
+
+    pub fn refresh_render_surfaces_for_layers(&mut self, layer_ids: Uint32Array) {
+        let mut layers = vec![0u32; layer_ids.length() as usize];
+        layer_ids.copy_to(&mut layers);
+        let layers: Vec<usize> = layers.into_iter().map(|layer| layer as usize).collect();
+        {
+            let engine = self.engine.borrow();
+            for layer in &layers {
+                engine.runtime_context.set_canvas_dirty(*layer);
+                engine.runtime_context.mark_canvas_nodes_on_layer_dirty(*layer);
+            }
+        }
+        self.render_context.refresh_layers(&layers);
     }
 
     pub fn interrupt(
@@ -361,7 +526,18 @@ impl PaxChassisWeb {
                 false
             }
 
-            NativeInterrupt::AddedLayer(_args) => false,
+            NativeInterrupt::AddedLayer(args) => {
+                if let Some(layer_id) = args.layer_id.map(|layer| layer as usize) {
+                    engine.runtime_context.set_canvas_dirty(layer_id);
+                    engine
+                        .runtime_context
+                        .mark_canvas_nodes_on_layer_dirty(layer_id);
+                } else {
+                    engine.runtime_context.set_all_canvases_dirty();
+                    engine.runtime_context.mark_all_canvas_nodes_dirty();
+                }
+                false
+            }
             NativeInterrupt::Click(args) => {
                 let topmost_node = engine
                     .runtime_context
@@ -389,6 +565,15 @@ impl PaxChassisWeb {
                 if let Some(node) = node {
                     borrow!(node.instance_node).handle_native_interrupt(&node, &x);
                 }
+                false
+            }
+            NativeInterrupt::BrowserConfig(args) => {
+                globals
+                    .browser_allows_scroller_vector_layers
+                    .set(args.allow_scroller_vector_layers);
+                globals
+                    .browser_allows_nested_scroller_vector_layers
+                    .set(args.allow_nested_scroller_vector_layers);
                 false
             }
             NativeInterrupt::Scroll(_) => false,
@@ -652,6 +837,28 @@ impl PaxChassisWeb {
     pub fn tick(&mut self) -> MemorySlice {
         #[cfg(feature = "designtime")]
         self.designtime_tick();
+
+        for layer_id in self.render_context.take_ready_canvas_layers() {
+            {
+                let engine = borrow!(self.engine);
+                engine
+                    .runtime_context
+                    .mark_canvas_nodes_on_layer_dirty(layer_id);
+                engine.runtime_context.set_canvas_dirty(layer_id);
+            }
+            let native_interrupt =
+                format!(r#"{{"AddedLayer":{{"num_layers_added":1,"layer_id":{layer_id}}}}}"#);
+            let _ = self.interrupt(native_interrupt, &JsValue::UNDEFINED);
+        }
+        for layer_id in self.render_context.take_replay_canvas_layers() {
+            // A retained surface was reused for a different tile origin; force the runtime to
+            // replay that layer's canvas nodes so the browser tile does not stay blank.
+            let engine = borrow!(self.engine);
+            engine
+                .runtime_context
+                .mark_canvas_nodes_on_layer_dirty(layer_id);
+            engine.runtime_context.set_canvas_dirty(layer_id);
+        }
 
         let message_queue = borrow_mut!(self.engine).tick();
 

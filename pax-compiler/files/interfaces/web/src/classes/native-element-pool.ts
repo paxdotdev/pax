@@ -1,8 +1,7 @@
 import {BUTTON_CLASS, BUTTON_TEXT_CONTAINER_CLASS,
     NATIVE_LEAF_CLASS, CHECKBOX_CLASS, RADIO_SET_CLASS, SCROLLER_CONTAINER,
-    CANVAS_CLASS, NATIVE_OVERLAY_CLASS} from "../utils/constants";
+    CANVAS_CLASS, NATIVE_OVERLAY_CLASS, INNER_PANE} from "../utils/constants";
 import {AnyCreatePatch} from "./messages/any-create-patch";
-import {OcclusionUpdatePatch} from "./messages/occlusion-update-patch";
 import snarkdown from 'snarkdown';
 import {TextUpdatePatch} from "./messages/text-update-patch";
 import {FrameUpdatePatch} from "./messages/frame-update-patch";
@@ -21,7 +20,12 @@ import {
     YOUTUBE_VIDEO,
     YOUTUBE_VIDEO_UPDATE_PATCH
 } from "../pools/supported-objects";
-import {packAffineCoeffsIntoMatrix3DString, readImageToByteBuffer} from "../utils/helpers";
+import {
+    affineMultiply,
+    invertAffineCoeffs,
+    packAffineCoeffsIntoMatrix3DString,
+    readImageToByteBuffer,
+} from "../utils/helpers";
 import {
     ColorGroup,
     TextStyle,
@@ -47,15 +51,38 @@ import { ScreenshotPatch } from "./messages/screenshot-patch";
 import { NativeMaskUpdatePatch } from "./messages/native-mask-update-patch";
 
 import html2canvas from 'html2canvas';
+import {
+    describeSurfaceHost,
+    estimateWarmLayerCanvasCount,
+    isIOSWebKitBrowser,
+} from "./surface-host-policy";
 
 const SCREENSHOT_FONT_STYLE_ATTRIBUTE = 'data-pax-screenshot-font-style';
 
 
 export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
+    private lastCanvasSurfaceSignatures = new Map<string, string>();
+    private lastCanvasTransformSignatures = new Map<string, string>();
+    private lastCanvasLayerCounts = new Map<number, number>();
     layers: OcclusionLayerManager;
     private nodesLookup = new Map<number, HTMLElement>();
+    private scrollerHosts = new Map<number, ScrollerDomHosts>();
+    private scrollerMeasurementStates = new Map<number, ScrollerMeasurementState>();
+    private presentationRecords = new Map<number, PresentationRecord>();
+    private pendingScrollerUpdates = new Map<number, PendingScrollerUpdate>();
+    private surfaceRefreshPending = false;
     private chassis?: PaxChassisWeb;
+    private mount?: HTMLElement;
+    private activePageScrollScrollerId?: number;
+    private pageScrollActivityListenersInstalled = false;
+    private readonly pageScrollActivityListener: () => void;
+    private perfTraceEnabled = false;
+    private perfTraceSequence = 0;
+    private lastPerfLifecycleSignature = "";
+    private lastPerfLifecycleLogAt = 0;
+    private lastPerfCanvasSignature = "";
+    private lastPerfCanvasLogAt = 0;
     private objectManager: ObjectManager;
     private resizeObserver: ResizeObserver;
     registeredFontFaces: Set<string>;
@@ -65,6 +92,12 @@ export class NativeElementPool {
         this.canvases = new Map();
         this.layers = objectManager.getFromPool(OCCLUSION_CONTEXT, objectManager);
         this.registeredFontFaces = new Set<string>();
+        this.pageScrollActivityListener = () => {
+            if (this.activePageScrollScrollerId == null) {
+                return;
+            }
+            this.activateScrollerMeasurement(this.activePageScrollScrollerId);
+        };
         this.resizeObserver = new ResizeObserver(entries => {
             let resize_requests = [];
             for (const entry of entries) {
@@ -87,21 +120,73 @@ export class NativeElementPool {
 
     attach(chassis: PaxChassisWeb, mount: Element){
         this.chassis = chassis;
-        this.layers.attach(mount, chassis, this.canvases);
+        this.mount = mount instanceof HTMLElement ? mount : undefined;
+        this.perfTraceEnabled = isScrollPerfTraceEnabled();
+        this.layers.attach(mount, this.canvases);
     }
 
-    occlusionUpdate(patch: OcclusionUpdatePatch) {
-        let node: HTMLElement = this.nodesLookup.get(patch.id!)!;
-        if (node){
-            this.layers.addElement(node, patch.parentFrame, patch.occlusionLayerId!);
-            node.style.zIndex = patch.zIndex!.toString();
-            const focusableElements = node.querySelectorAll('input, button, select, textarea, a[href]');
-            focusableElements.forEach((element, _index) => {
+    hasActivePageScrollDelegation() {
+        return this.activePageScrollScrollerId != null;
+    }
+
+    sampleFrameInputs() {
+        this.scrollerMeasurementStates.forEach((state, id) => {
+            let leaf = this.nodesLookup.get(id);
+            if (leaf == null) {
+                this.scrollerMeasurementStates.delete(id);
+                return;
+            }
+            if (!state.active && state.stableFrames >= 2 && !isIOSWebKitBrowser()) {
+                return;
+            }
+
+            let measurement = this.measureScrollerPosition(leaf, state);
+            let moved =
+                Math.abs(measurement.scrollX - state.lastMeasuredScrollX) > 0.1
+                || Math.abs(measurement.scrollY - state.lastMeasuredScrollY) > 0.1
+                || Math.abs(measurement.presentationScrollX - state.lastMeasuredPresentationScrollX) > 0.1
+                || Math.abs(measurement.presentationScrollY - state.lastMeasuredPresentationScrollY) > 0.1;
+
+            state.lastMeasuredScrollX = measurement.scrollX;
+            state.lastMeasuredScrollY = measurement.scrollY;
+            state.lastMeasuredPresentationScrollX = measurement.presentationScrollX;
+            state.lastMeasuredPresentationScrollY = measurement.presentationScrollY;
+
+            if (state.active || moved) {
+                this.emitScrollerPosition(id, measurement, state);
+            }
+
+            state.stableFrames = moved ? 0 : state.stableFrames + 1;
+            if (state.stableFrames >= 2) {
+                state.active = false;
+            }
+        });
+    }
+
+    private applyLeafPlacement(
+        leaf: HTMLElement,
+        patch: { parentFrame?: number | null; zIndex?: number | null },
+    ) {
+        if (patch.parentFrame !== undefined) {
+            if (this.layers.addElement(leaf, patch.parentFrame ?? undefined, 0)) {
+                this.surfaceRefreshPending = true;
+            }
+        }
+        if (patch.zIndex != null) {
+            leaf.style.zIndex = patch.zIndex.toString();
+            const focusableElements = leaf.querySelectorAll('input, button, select, textarea, a[href]');
+            focusableElements.forEach((element) => {
                 element.setAttribute('tabindex', (1000000 - patch.zIndex!).toString());
             });
-        } else {
-            // must be container
-            this.layers.updateContainerParent(patch.id!, patch.parentFrame);
+        }
+    }
+
+    private applyContainerPlacement(
+        id: number,
+        patch: { parentFrame?: number | null },
+    ) {
+        if (patch.parentFrame !== undefined) {
+            this.layers.updateContainerParent(id, patch.parentFrame ?? undefined);
         }
     }
 
@@ -149,7 +234,7 @@ export class NativeElementPool {
     checkboxUpdate(patch: CheckboxUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
         let checkbox = leaf!.firstChild as HTMLInputElement;
-
+        this.applyLeafPlacement(leaf!, patch);
         updateCommonProps(leaf!, patch);
 
         if (patch.checked !== null) {
@@ -207,6 +292,7 @@ export class NativeElementPool {
     nativeImageUpdate(patch: NativeImageUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
         let nativeImage = leaf!.firstChild as HTMLInputElement;
+        this.applyLeafPlacement(leaf!, patch);
         updateCommonProps(leaf!, patch);
         if (patch.url != null) {
             nativeImage.setAttribute("src", patch.url);
@@ -254,6 +340,7 @@ export class NativeElementPool {
         //retrieve the iframe; update its width, height, and src
         let leaf = this.nodesLookup.get(patch.id!);
         let youtubeVideo = leaf!.firstChild as HTMLIFrameElement;
+        this.applyLeafPlacement(leaf!, patch);
         updateCommonProps(leaf!, patch);
         if (patch.url != null) {
             youtubeVideo.src = patch.url;
@@ -321,6 +408,7 @@ export class NativeElementPool {
     
     textboxUpdate(patch: TextboxUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
+        this.applyLeafPlacement(leaf!, patch);
         updateCommonProps(leaf!, patch);
         // set to 10px less to give space for left-padding
         if (patch.size_x != null) {
@@ -441,6 +529,7 @@ export class NativeElementPool {
     
     radioSetUpdate(patch: RadioSetUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
+        this.applyLeafPlacement(leaf!, patch);
         updateCommonProps(leaf!, patch);
         if (patch.style != null) {
             applyTextStyle(leaf!, leaf!, patch.style);
@@ -537,6 +626,7 @@ export class NativeElementPool {
     
     sliderUpdate(patch: SliderUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
+        this.applyLeafPlacement(leaf!, patch);
         updateCommonProps(leaf!, patch);
         let slider = leaf!.firstChild as HTMLInputElement;
         slider.style.height = "";
@@ -608,6 +698,7 @@ export class NativeElementPool {
     
     dropdownUpdate(patch: DropdownUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
+        this.applyLeafPlacement(leaf!, patch);
         updateCommonProps(leaf!, patch);
         let dropdown = leaf!.firstChild as HTMLSelectElement;
         applyTextStyle(dropdown, dropdown, patch.style);
@@ -692,6 +783,7 @@ export class NativeElementPool {
     
     buttonUpdate(patch: ButtonUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
+        this.applyLeafPlacement(leaf!, patch);
         updateCommonProps(leaf!, patch);
         console.assert(leaf !== undefined);
         let button = leaf!.firstChild as HTMLElement;
@@ -782,6 +874,7 @@ export class NativeElementPool {
     textUpdate(patch: TextUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!) as HTMLElement;
         let textChild = leaf!.firstChild as HTMLElement;
+        this.applyLeafPlacement(leaf, patch);
         const applyClip = (clip: boolean) => {
             const overflow = clip ? "hidden" : "visible";
             leaf.style.overflow = overflow;
@@ -924,6 +1017,12 @@ export class NativeElementPool {
 
     frameUpdate(patch: FrameUpdatePatch) {
         console.assert(patch.id != null);
+        this.updatePresentationRecord(
+            patch.id!,
+            patch.presentedBounds,
+            patch.presentedClipBounds,
+        );
+        this.applyContainerPlacement(patch.id!, patch);
 
         let styles: Partial<ContainerStyle> = {};
          if (patch.sizeX != null) {
@@ -949,7 +1048,1000 @@ export class NativeElementPool {
     }
 
     frameDelete(id: number) {
+        this.presentationRecords.delete(id);
         this.layers.removeContainer(id);
+    }
+
+    private getScrollerIdFromLeaf(leaf: HTMLElement) {
+        let id = Number.parseInt(leaf.getAttribute("pax_id") ?? "", 10);
+        return Number.isFinite(id) ? id : undefined;
+    }
+
+    private getScrollerInnerPane(leaf: HTMLElement) {
+        let scrollerId = this.getScrollerIdFromLeaf(leaf);
+        let hosts = scrollerId != null ? this.scrollerHosts.get(scrollerId) : undefined;
+        return hosts?.innerPane
+            ?? (leaf.querySelector(`:scope > .${INNER_PANE}`) as HTMLElement | null);
+    }
+
+    private getScrollerCanvasHost(leaf: HTMLElement) {
+        let scrollerId = this.getScrollerIdFromLeaf(leaf);
+        let hosts = scrollerId != null ? this.scrollerHosts.get(scrollerId) : undefined;
+        return hosts?.canvasHost
+            ?? (leaf.querySelector(`:scope > .${INNER_PANE} > [data-role="scroller-canvas-host"]`) as HTMLElement | null);
+    }
+
+    private getScrollerContentHost(leaf: HTMLElement) {
+        let scrollerId = this.getScrollerIdFromLeaf(leaf);
+        let hosts = scrollerId != null ? this.scrollerHosts.get(scrollerId) : undefined;
+        return hosts?.contentHost
+            ?? (leaf.querySelector(`:scope > .${INNER_PANE} > [data-role="scroller-content-host"]`) as HTMLElement | null);
+    }
+
+    private shouldKeepScrollerHostsActive(leaf: HTMLElement, state: ScrollerMeasurementState) {
+        if (typeof window === "undefined") {
+            return true;
+        }
+        if (state.isRootScroller || state.delegatesToPageScroll) {
+            return true;
+        }
+        let scrollerId = this.getScrollerIdFromLeaf(leaf);
+        if (scrollerId == null) {
+            return true;
+        }
+        let record = this.getPresentationRecordForLeaf(scrollerId, leaf);
+        let horizontalScrollable = leaf.scrollWidth > leaf.clientWidth + 0.5;
+        let verticalScrollable = leaf.scrollHeight > leaf.clientHeight + 0.5;
+        let paddedClipBounds = expandRect(
+            record.presentedClipBounds,
+            horizontalScrollable
+                ? Math.max(
+                    leaf.clientWidth * ACTIVE_SCROLLABLE_PAD_X_MULTIPLIER,
+                    ACTIVE_SCROLLABLE_MIN_PAD_X,
+                )
+                : 120,
+            verticalScrollable
+                ? Math.max(
+                    leaf.clientHeight * ACTIVE_SCROLLABLE_PAD_Y_MULTIPLIER,
+                    ACTIVE_SCROLLABLE_MIN_PAD_Y,
+                )
+                : 120,
+        );
+        return rectsIntersect(record.presentedBounds, paddedClipBounds);
+    }
+
+    private getPresentationRecordForLeaf(
+        scrollerId: number,
+        leaf: HTMLElement,
+    ): { presentedBounds: AxisAlignedRect; presentedClipBounds: AxisAlignedRect } {
+        let record = this.presentationRecords.get(scrollerId);
+        if (record?.presentedBounds && record.presentedClipBounds) {
+            return {
+                presentedBounds: record.presentedBounds,
+                presentedClipBounds: record.presentedClipBounds,
+            };
+        }
+        let rect = leaf.getBoundingClientRect();
+        let viewport = {
+            left: 0,
+            top: 0,
+            right: window.innerWidth ?? rect.right,
+            bottom: window.innerHeight ?? rect.bottom,
+        };
+        let clipBounds = viewport;
+        if (isIOSWebKitBrowser()) {
+            let node: HTMLElement | null = leaf;
+            while (node != null) {
+                if (node.classList.contains(SCROLLER_CONTAINER)) {
+                    let nodeRect = node.getBoundingClientRect();
+                    clipBounds = intersectRects(clipBounds, {
+                        left: nodeRect.left,
+                        top: nodeRect.top,
+                        right: nodeRect.right,
+                        bottom: nodeRect.bottom,
+                    });
+                }
+                if (node === this.mount) {
+                    break;
+                }
+                node = node.parentElement;
+            }
+        }
+        return {
+            presentedBounds: {
+                left: rect.left,
+                top: rect.top,
+                right: rect.right,
+                bottom: rect.bottom,
+            },
+            presentedClipBounds: clipBounds,
+        };
+    }
+
+    private updatePresentationRecord(
+        id: number,
+        presentedBounds?: number[] | null,
+        presentedClipBounds?: number[] | null,
+    ) {
+        let record = this.presentationRecords.get(id) ?? {};
+        if (presentedBounds != null) {
+            record.presentedBounds = rectFromMessageBounds(presentedBounds);
+        }
+        if (presentedClipBounds != null) {
+            record.presentedClipBounds = rectFromMessageBounds(presentedClipBounds);
+        }
+        this.presentationRecords.set(id, record);
+    }
+
+    private parkScrollerHosts(hosts: ScrollerDomHosts) {
+        if (hosts.parked) {
+            return;
+        }
+        hosts.parked = true;
+        hosts.canvasHost.dataset.renderState = "parked";
+        hosts.contentHost.dataset.renderState = "parked";
+        hosts.canvasHost.style.visibility = "hidden";
+        hosts.contentHost.style.visibility = "hidden";
+        this.surfaceRefreshPending = true;
+        this.logScrollPerf(`park id=${hosts.id}`);
+    }
+
+    private unparkScrollerHosts(hosts: ScrollerDomHosts) {
+        if (!hosts.parked) {
+            return;
+        }
+        hosts.parked = false;
+        hosts.canvasHost.dataset.renderState = "active";
+        hosts.contentHost.dataset.renderState = "active";
+        hosts.canvasHost.style.visibility = "";
+        hosts.contentHost.style.visibility = "";
+        this.surfaceRefreshPending = true;
+        this.logScrollPerf(`unpark id=${hosts.id}`);
+    }
+
+    private promoteScrollerHosts(hosts: ScrollerDomHosts) {
+        if (hosts.warmed) {
+            return false;
+        }
+        hosts.warmed = true;
+        hosts.canvasHost.dataset.warmState = "warm";
+        this.surfaceRefreshPending = true;
+        return true;
+    }
+
+    private demoteScrollerHosts(hosts: ScrollerDomHosts) {
+        this.parkScrollerHosts(hosts);
+        if (!hosts.warmed) {
+            return false;
+        }
+        hosts.warmed = false;
+        hosts.canvasHost.dataset.warmState = "cold";
+        this.surfaceRefreshPending = true;
+        return true;
+    }
+
+    private estimateScrollerWarmSurfaceCost(hosts: ScrollerDomHosts, state: ScrollerMeasurementState) {
+        let layerIds = this.layers.estimateScrollerIslandOwnedLayers(
+            hosts.id,
+            state.contentLayerId,
+        );
+        if (layerIds.length === 0) {
+            return 1;
+        }
+        return Math.max(
+            1,
+            layerIds.reduce((total, layerId) => {
+                return total + Math.max(1, estimateWarmLayerCanvasCount(layerId, hosts.canvasHost));
+            }, 0),
+        );
+    }
+
+    private collectPrewarmCandidates() {
+        let candidates: Array<{ id: number; distance: number }> = [];
+        this.scrollerHosts.forEach((hosts, id) => {
+            if (hosts.warmed) {
+                return;
+            }
+            let state = this.scrollerMeasurementStates.get(id);
+            if (state == null || state.isRootScroller || state.delegatesToPageScroll) {
+                return;
+            }
+            let record = this.getPresentationRecordForLeaf(id, hosts.leaf);
+            let horizontalScrollable = hosts.leaf.scrollWidth > hosts.leaf.clientWidth + 0.5;
+            let verticalScrollable = hosts.leaf.scrollHeight > hosts.leaf.clientHeight + 0.5;
+        let prewarmClipBounds = expandRect(
+            record.presentedClipBounds,
+            horizontalScrollable
+                ? Math.max(
+                    hosts.leaf.clientWidth * PREWARM_SCROLLABLE_PAD_X_MULTIPLIER,
+                    PREWARM_SCROLLABLE_MIN_PAD_X,
+                )
+                : 240,
+            verticalScrollable
+                ? Math.max(
+                    hosts.leaf.clientHeight * PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER,
+                    PREWARM_SCROLLABLE_MIN_PAD_Y,
+                )
+                : 240,
+        );
+        candidates.push({
+            id,
+            distance: rectCenterDistance(record.presentedBounds, record.presentedClipBounds),
+        });
+    });
+        candidates.sort((left, right) => left.distance - right.distance || left.id - right.id);
+        return candidates;
+    }
+
+    private syncWarmScrollerHosts() {
+        let promotedIds: number[] = [];
+        let demotedIds: number[] = [];
+        let nestedSurfaceBudget = browserNestedScrollerSurfaceBudget();
+        let totalCanvasBudget = browserTotalCanvasBudget();
+        if (nestedSurfaceBudget != null) {
+            let candidates: Array<{
+                id: number;
+                hosts: ScrollerDomHosts;
+                shouldWarm: boolean;
+                distance: number;
+                surfaceCost: number;
+                mandatory: boolean;
+            }> = [];
+            let rootCanvasCost = 0;
+            if (totalCanvasBudget != null && this.mount != null) {
+                rootCanvasCost = Math.max(1, estimateWarmLayerCanvasCount(0, this.mount));
+            }
+            let mandatoryCost = 0;
+            this.scrollerHosts.forEach((hosts, id) => {
+                let state = this.scrollerMeasurementStates.get(id);
+                if (state == null) {
+                    this.unparkScrollerHosts(hosts);
+                    return;
+                }
+                if (!hosts.vectorIslandEnabled) {
+                    this.unparkScrollerHosts(hosts);
+                    return;
+                }
+                let mandatory = state.isRootScroller || state.delegatesToPageScroll;
+                let shouldWarm = mandatory
+                    ? true
+                    : this.shouldKeepScrollerHostsActive(hosts.leaf, state);
+                let record = this.getPresentationRecordForLeaf(id, hosts.leaf);
+                let horizontalScrollable = hosts.leaf.scrollWidth > hosts.leaf.clientWidth + 0.5;
+                let verticalScrollable = hosts.leaf.scrollHeight > hosts.leaf.clientHeight + 0.5;
+                let prewarmClipBounds = expandRect(
+                    record.presentedClipBounds,
+                    horizontalScrollable
+                        ? Math.max(
+                            hosts.leaf.clientWidth * PREWARM_SCROLLABLE_PAD_X_MULTIPLIER,
+                            PREWARM_SCROLLABLE_MIN_PAD_X,
+                        )
+                        : 240,
+                    verticalScrollable
+                        ? Math.max(
+                            hosts.leaf.clientHeight * PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER,
+                            PREWARM_SCROLLABLE_MIN_PAD_Y,
+                        )
+                        : 240,
+                );
+                let surfaceCost = this.estimateScrollerWarmSurfaceCost(hosts, state);
+                if (mandatory) {
+                    mandatoryCost += surfaceCost;
+                }
+                candidates.push({
+                    id,
+                    hosts,
+                    shouldWarm,
+                    distance: rectCenterDistance(record.presentedBounds, record.presentedClipBounds),
+                    surfaceCost,
+                    mandatory,
+                });
+            });
+            candidates.sort((left, right) => {
+                let rankDelta = Number(left.shouldWarm) - Number(right.shouldWarm);
+                if (rankDelta !== 0) {
+                    return -rankDelta;
+                }
+                // On iOS, keep the warm set tied to proximity so later scrollers can take over
+                // a limited surface budget as the user advances through a long list.
+                let distanceDelta = left.distance - right.distance;
+                if (distanceDelta !== 0) {
+                    return distanceDelta;
+                }
+                let warmedDelta = Number(left.hosts.warmed) - Number(right.hosts.warmed);
+                if (warmedDelta !== 0) {
+                    return -warmedDelta;
+                }
+                return left.id - right.id;
+            });
+            let selected = new Set<number>();
+            let remainingBudget = nestedSurfaceBudget;
+            if (totalCanvasBudget != null) {
+                remainingBudget = Math.min(
+                    remainingBudget,
+                    Math.max(0, totalCanvasBudget - rootCanvasCost),
+                );
+            }
+            remainingBudget = Math.max(0, remainingBudget - mandatoryCost);
+            for (let candidate of candidates) {
+                if (!candidate.mandatory) {
+                    continue;
+                }
+                selected.add(candidate.id);
+            }
+            for (let candidate of candidates) {
+                if (candidate.mandatory) {
+                    continue;
+                }
+                let cost = Math.max(1, candidate.surfaceCost);
+                let canAfford = remainingBudget >= cost;
+                let mustKeep = totalCanvasBudget == null
+                    && candidate.shouldWarm
+                    && selected.size === 0;
+                if (!canAfford && !mustKeep) {
+                    continue;
+                }
+                selected.add(candidate.id);
+                remainingBudget = Math.max(0, remainingBudget - cost);
+            }
+            for (let candidate of candidates) {
+                if (selected.has(candidate.id)) {
+                    if (this.promoteScrollerHosts(candidate.hosts)) {
+                        promotedIds.push(candidate.id);
+                    }
+                    if (candidate.shouldWarm || candidate.mandatory) {
+                        this.unparkScrollerHosts(candidate.hosts);
+                    } else {
+                        this.parkScrollerHosts(candidate.hosts);
+                    }
+                } else if (this.demoteScrollerHosts(candidate.hosts)) {
+                    demotedIds.push(candidate.id);
+                }
+            }
+            if (promotedIds.length > 0) {
+                this.logScrollPerf(`promote ids=${promotedIds.join(",")}`);
+            }
+            if (demotedIds.length > 0) {
+                this.logScrollPerf(`demote ids=${demotedIds.join(",")}`);
+            }
+            this.logWarmScrollerLifecycleSummary();
+            return;
+        }
+        this.scrollerHosts.forEach((hosts, id) => {
+            let state = this.scrollerMeasurementStates.get(id);
+            if (state == null) {
+                this.unparkScrollerHosts(hosts);
+                return;
+            }
+            if (!hosts.vectorIslandEnabled) {
+                this.unparkScrollerHosts(hosts);
+                return;
+            }
+            let shouldWarm = this.shouldKeepScrollerHostsActive(hosts.leaf, state);
+            if (state.isRootScroller) {
+                hosts.warmed = true;
+                hosts.canvasHost.dataset.warmState = "warm";
+            } else if (!hosts.warmed && shouldWarm) {
+                // Grow the warm island pool on demand: the first near-viewport visit upgrades a
+                // nested scroller from cold to warm, and we keep that warm state for the rest of
+                // the session instead of thrashing back to zero-target cold starts.
+                if (this.promoteScrollerHosts(hosts)) {
+                    promotedIds.push(id);
+                }
+            }
+            if (shouldWarm) {
+                this.unparkScrollerHosts(hosts);
+            } else {
+                this.parkScrollerHosts(hosts);
+            }
+        });
+        let coldCandidates = this.collectPrewarmCandidates();
+        let prewarmBudget =
+            coldCandidates.length <= EAGER_WARM_SCROLLER_LIMIT
+                ? coldCandidates.length
+                : Math.min(PREWARM_PROMOTION_BUDGET, coldCandidates.length);
+        for (let index = 0; index < prewarmBudget; index += 1) {
+            let candidate = coldCandidates[index];
+            let hosts = this.scrollerHosts.get(candidate.id);
+            if (hosts != null && this.promoteScrollerHosts(hosts)) {
+                promotedIds.push(candidate.id);
+            }
+        }
+        if (promotedIds.length > 0) {
+            this.logScrollPerf(`promote ids=${promotedIds.join(",")}`);
+        }
+        this.logWarmScrollerLifecycleSummary();
+    }
+
+    syncRenderSurfaceLayouts() {
+        this.syncDelegatedPageScrollViewport();
+        this.withProfileMeasure("syncWarmScrollerHosts", () => {
+            this.syncWarmScrollerHosts();
+        });
+        this.withProfileMeasure("syncLayerCanvasLayouts", () => {
+            this.layers.syncLayerCanvasLayouts();
+        });
+        this.logWarmCanvasSummary();
+        let surfaceChanged = this.surfaceRefreshPending;
+        let nextSurfaceSignatures = new Map<string, string>();
+        let nextTransformSignatures = new Map<string, string>();
+        let nextLayerCounts = new Map<number, number>();
+        let surfaceChangedLayers = new Set<number>();
+        let transformChangedLayers = new Set<number>();
+        let transformChanged = false;
+        this.withProfileMeasure("scanCanvasSurfaceSignatures", () => {
+            this.canvases.forEach((canvas, id) => {
+                let parent = canvas.parentElement;
+                if (parent == null) {
+                    return;
+                }
+                let hostSignature = describeSurfaceHost(parent);
+                let layerId = Number.parseInt(canvas.dataset.layerId ?? "", 10);
+                let surfaceSignature =
+                    `${canvas.dataset.surfaceSignature
+                        ?? `${canvas.clientWidth}x${canvas.clientHeight}@${hostSignature}`}#host=${hostSignature}`;
+                let transformSignature =
+                    canvas.dataset.transformSignature
+                    ?? `${canvas.dataset.tileOriginX ?? "0"},${canvas.dataset.tileOriginY ?? "0"}`;
+                nextSurfaceSignatures.set(id, surfaceSignature);
+                nextTransformSignatures.set(id, transformSignature);
+                if (Number.isFinite(layerId)) {
+                    nextLayerCounts.set(layerId, (nextLayerCounts.get(layerId) ?? 0) + 1);
+                }
+                if (this.lastCanvasSurfaceSignatures.get(id) !== surfaceSignature) {
+                    surfaceChanged = true;
+                    if (Number.isFinite(layerId)) {
+                        surfaceChangedLayers.add(layerId);
+                    }
+                }
+                if (this.lastCanvasTransformSignatures.get(id) !== transformSignature) {
+                    transformChanged = true;
+                    if (Number.isFinite(layerId)) {
+                        transformChangedLayers.add(layerId);
+                    }
+                }
+            });
+        });
+        if (nextSurfaceSignatures.size !== this.lastCanvasSurfaceSignatures.size) {
+            surfaceChanged = true;
+        }
+        if (nextTransformSignatures.size !== this.lastCanvasTransformSignatures.size) {
+            transformChanged = true;
+        }
+        let layerCountsChanged = false;
+        this.lastCanvasLayerCounts.forEach((count, layerId) => {
+            if ((nextLayerCounts.get(layerId) ?? 0) !== count) {
+                surfaceChangedLayers.add(layerId);
+                layerCountsChanged = true;
+            }
+        });
+        nextLayerCounts.forEach((count, layerId) => {
+            if ((this.lastCanvasLayerCounts.get(layerId) ?? 0) !== count) {
+                surfaceChangedLayers.add(layerId);
+                layerCountsChanged = true;
+            }
+        });
+        if (layerCountsChanged) {
+            surfaceChanged = true;
+        }
+        if (this.surfaceRefreshPending && surfaceChangedLayers.size === 0) {
+            nextLayerCounts.forEach((_count, layerId) => {
+                surfaceChangedLayers.add(layerId);
+            });
+        }
+        this.lastCanvasSurfaceSignatures = nextSurfaceSignatures;
+        this.lastCanvasTransformSignatures = nextTransformSignatures;
+        this.lastCanvasLayerCounts = nextLayerCounts;
+        if (surfaceChanged) {
+            // Browser-owned scroller hosts can resize independently of the retained scene. When
+            // that host signature changes, ask Rust to reconfigure the backing surfaces before the
+            // next render pass.
+            this.surfaceRefreshPending = false;
+            let start = performance.now();
+            let layers = Array.from(surfaceChangedLayers).sort((left, right) => left - right);
+            if (layers.length > 0) {
+                this.withProfileMeasure("refreshRenderSurfacesForLayers", () => {
+                    this.chassis?.refresh_render_surfaces_for_layers(new Uint32Array(layers));
+                });
+            } else {
+                this.withProfileMeasure("refreshRenderSurfaces", () => {
+                    this.chassis?.refresh_render_surfaces();
+                });
+            }
+            this.logScrollPerf(
+                `refresh reason=surface canvases=${nextSurfaceSignatures.size} duration_ms=${(performance.now() - start).toFixed(1)}`,
+            );
+        } else if (transformChanged) {
+            // Sliding a keyed tile slot onto a new origin reuses the same browser surface, but the
+            // retained vector scene currently bakes per-node transforms/bounds against the prior
+            // slot origin. Refresh only the affected logical layers so outer seam crossings do not
+            // force a full-scene dirty/reconfigure pass across every warmed scroller island.
+            let layers = Array.from(transformChangedLayers).sort((left, right) => left - right);
+            let start = performance.now();
+            if (layers.length > 0) {
+                this.withProfileMeasure("refreshRenderSurfacesForLayers", () => {
+                    this.chassis?.refresh_render_surfaces_for_layers(new Uint32Array(layers));
+                });
+            } else {
+                this.withProfileMeasure("refreshRenderSurfaces", () => {
+                    this.chassis?.refresh_render_surfaces();
+                });
+            }
+            this.logScrollPerf(
+                `refresh reason=transform layers=${layers.join(",")} canvases=${nextSurfaceSignatures.size} duration_ms=${(performance.now() - start).toFixed(1)}`,
+            );
+        }
+    }
+
+    private logWarmScrollerLifecycleSummary() {
+        if (!this.perfTraceEnabled || typeof performance === "undefined") {
+            return;
+        }
+        let cold = 0;
+        let warmActive = 0;
+        let warmParked = 0;
+        this.scrollerHosts.forEach(hosts => {
+            if (!hosts.warmed) {
+                cold += 1;
+            } else if (hosts.parked) {
+                warmParked += 1;
+            } else {
+                warmActive += 1;
+            }
+        });
+        let signature = `${cold}/${warmActive}/${warmParked}/${this.canvases.size}`;
+        let now = performance.now();
+        if (
+            signature === this.lastPerfLifecycleSignature
+            && now - this.lastPerfLifecycleLogAt < 250
+        ) {
+            return;
+        }
+        this.lastPerfLifecycleSignature = signature;
+        this.lastPerfLifecycleLogAt = now;
+        this.logScrollPerf(
+            `lifecycle cold=${cold} warm_active=${warmActive} warm_parked=${warmParked} canvases=${this.canvases.size}`,
+        );
+    }
+
+    private logWarmCanvasSummary() {
+        if (!this.perfTraceEnabled || typeof performance === "undefined") {
+            return;
+        }
+        let missing: Array<{ id: number; layer: number }> = [];
+        let warmCount = 0;
+        this.scrollerHosts.forEach((hosts, id) => {
+            let state = this.scrollerMeasurementStates.get(id);
+            if (!hosts.warmed || state?.contentLayerId == null) {
+                return;
+            }
+            warmCount += 1;
+            let count = this.countLayerCanvases(state.contentLayerId);
+            if (count === 0) {
+                missing.push({ id, layer: state.contentLayerId });
+            }
+        });
+        let signature = `${warmCount}/${missing.length}`;
+        let now = performance.now();
+        if (
+            signature === this.lastPerfCanvasSignature
+            && now - this.lastPerfCanvasLogAt < 250
+        ) {
+            return;
+        }
+        this.lastPerfCanvasSignature = signature;
+        this.lastPerfCanvasLogAt = now;
+        let details = missing.slice(0, 6).map(entry => `${entry.id}:${entry.layer}`).join(",");
+        this.logScrollPerf(
+            `warm-canvases warm=${warmCount} missing=${missing.length}${details.length ? ` ids=${details}` : ""}`,
+        );
+    }
+
+    private logScrollPerf(message: string) {
+        if (!this.perfTraceEnabled) {
+            return;
+        }
+        console.info(`[pax-scroll-perf] ${message}`);
+    }
+
+    private countLayerCanvases(layerId: number) {
+        let total = 0;
+        let layerMarker = String(layerId);
+        this.canvases.forEach((canvas) => {
+            if (canvas.dataset.layerId === layerMarker) {
+                total += 1;
+            }
+        });
+        return total;
+    }
+
+    private withProfileMeasure<T>(name: string, fn: () => T): T {
+        if (
+            !this.perfTraceEnabled
+            || typeof performance === "undefined"
+            || typeof performance.mark !== "function"
+            || typeof performance.measure !== "function"
+        ) {
+            return fn();
+        }
+        let token = `${name}:${this.perfTraceSequence++}`;
+        let startMark = `pax:${token}:start`;
+        let endMark = `pax:${token}:end`;
+        performance.mark(startMark);
+        try {
+            return fn();
+        } finally {
+            performance.mark(endMark);
+            performance.measure(`pax:${name}`, startMark, endMark);
+            performance.clearMarks(startMark);
+            performance.clearMarks(endMark);
+        }
+    }
+
+    private installPageScrollActivityListeners() {
+        if (this.pageScrollActivityListenersInstalled) {
+            return;
+        }
+        window.addEventListener("scroll", this.pageScrollActivityListener, { passive: true });
+        window.addEventListener("wheel", this.pageScrollActivityListener, { passive: true });
+        window.addEventListener("touchstart", this.pageScrollActivityListener, { passive: true });
+        window.addEventListener("touchmove", this.pageScrollActivityListener, { passive: true });
+        this.pageScrollActivityListenersInstalled = true;
+    }
+
+    private uninstallPageScrollActivityListeners() {
+        if (!this.pageScrollActivityListenersInstalled) {
+            return;
+        }
+        window.removeEventListener("scroll", this.pageScrollActivityListener);
+        window.removeEventListener("wheel", this.pageScrollActivityListener);
+        window.removeEventListener("touchstart", this.pageScrollActivityListener);
+        window.removeEventListener("touchmove", this.pageScrollActivityListener);
+        this.pageScrollActivityListenersInstalled = false;
+    }
+
+    private readPageScrollPosition() {
+        let scrollingElement = document.scrollingElement as HTMLElement | null;
+        return {
+            scrollX: scrollingElement?.scrollLeft ?? window.scrollX ?? 0,
+            scrollY: scrollingElement?.scrollTop ?? window.scrollY ?? 0,
+        };
+    }
+
+    private readVisiblePageViewport() {
+        let root = document.documentElement;
+        let visualViewport = window.visualViewport;
+        if (visualViewport != null) {
+            return {
+                width: visualViewport.width,
+                height: visualViewport.height,
+                offsetX: visualViewport.offsetLeft,
+                offsetY: visualViewport.offsetTop,
+            };
+        }
+        return {
+            width: window.innerWidth ?? root.clientWidth ?? this.mount?.clientWidth ?? 0,
+            height: window.innerHeight ?? root.clientHeight ?? this.mount?.clientHeight ?? 0,
+            offsetX: 0,
+            offsetY: 0,
+        };
+    }
+
+    private syncDelegatedPageScrollViewport() {
+        if (this.activePageScrollScrollerId == null) {
+            return;
+        }
+        let leaf = this.nodesLookup.get(this.activePageScrollScrollerId);
+        let canvasHost = leaf != null ? this.getScrollerCanvasHost(leaf) : null;
+        if (leaf == null || canvasHost == null) {
+            return;
+        }
+        // Root page-scroll delegation keeps layout pinned to the layout viewport, but the visible
+        // tile window on iOS Safari still follows the browser's visual viewport as toolbars move.
+        // Feed that live visible viewport into the tiled root surface host without relaying it
+        // through engine viewport updates, which would relayout the scene mid-gesture.
+        let visibleViewport = this.readVisiblePageViewport();
+        let pageScroll = this.readPageScrollPosition();
+        let approvedScrollX = pageScroll.scrollX + visibleViewport.offsetX;
+        let approvedScrollY = pageScroll.scrollY + visibleViewport.offsetY;
+
+        if (this.mount != null) {
+            this.mount.dataset.viewportWidth = String(visibleViewport.width);
+            this.mount.dataset.viewportHeight = String(visibleViewport.height);
+            this.mount.dataset.approvedScrollX = String(approvedScrollX);
+            this.mount.dataset.approvedScrollY = String(approvedScrollY);
+        }
+
+        canvasHost.dataset.viewportWidth = String(visibleViewport.width);
+        canvasHost.dataset.viewportHeight = String(visibleViewport.height);
+        canvasHost.dataset.approvedScrollX = String(approvedScrollX);
+        canvasHost.dataset.approvedScrollY = String(approvedScrollY);
+    }
+
+    private setPageScrollPosition(nextScrollX?: number, nextScrollY?: number) {
+        let current = this.readPageScrollPosition();
+        let targetX = nextScrollX ?? current.scrollX;
+        let targetY = nextScrollY ?? current.scrollY;
+        window.scrollTo(targetX, targetY);
+    }
+
+    private setDocumentPageScrollMode(
+        active: boolean,
+        viewportWidth?: number,
+        viewportHeight?: number,
+        contentHeight?: number,
+        scrollX?: number,
+        scrollY?: number,
+    ) {
+        let root = document.documentElement;
+        if (active) {
+            root.style.overflow = "auto";
+            root.style.height = "auto";
+            document.body.style.overflow = "auto";
+            document.body.style.height = "auto";
+            if (this.mount != null) {
+                this.mount.style.overflow = "visible";
+                this.mount.style.height = `${Math.max(contentHeight ?? 0, viewportHeight ?? 0)}px`;
+                this.mount.dataset.viewportWidth = String(viewportWidth ?? 0);
+                this.mount.dataset.viewportHeight = String(viewportHeight ?? 0);
+                this.mount.dataset.approvedScrollX = String(scrollX ?? 0);
+                this.mount.dataset.approvedScrollY = String(scrollY ?? 0);
+            }
+        } else {
+            root.style.overflow = "";
+            root.style.height = "";
+            document.body.style.overflow = "";
+            document.body.style.height = "";
+            if (this.mount != null) {
+                this.mount.style.overflow = "";
+                this.mount.style.height = "";
+                delete this.mount.dataset.viewportWidth;
+                delete this.mount.dataset.viewportHeight;
+                delete this.mount.dataset.approvedScrollX;
+                delete this.mount.dataset.approvedScrollY;
+            }
+        }
+        this.layers.setRootPageScrollMode(active);
+    }
+
+    private setLeafPageScrollMode(leaf: HTMLElement, active: boolean) {
+        if (active) {
+            leaf.dataset.pageScrollDelegated = "true";
+            leaf.style.overflowX = "visible";
+            leaf.style.overflowY = "visible";
+            // Root page-scroll delegation needs the browser to account for overflow outside the
+            // viewport-sized scroller host, so we intentionally relax paint containment here.
+            leaf.style.contain = "layout style";
+            leaf.style.willChange = "auto";
+        } else if (leaf.dataset.pageScrollDelegated === "true") {
+            delete leaf.dataset.pageScrollDelegated;
+            leaf.style.contain = "";
+            leaf.style.willChange = "";
+        }
+    }
+
+    private setPageScrollDelegation(
+        scrollerId: number,
+        leaf: HTMLElement,
+        state: ScrollerMeasurementState,
+        active: boolean,
+        viewportWidth: number,
+        viewportHeight: number,
+        contentHeight: number,
+        approvedScrollX: number,
+        approvedScrollY: number,
+    ) {
+        if (state.delegatesToPageScroll === active && this.activePageScrollScrollerId === (active ? scrollerId : undefined)) {
+            this.setLeafPageScrollMode(leaf, active);
+            if (active) {
+                this.setDocumentPageScrollMode(
+                    true,
+                    viewportWidth,
+                    viewportHeight,
+                    contentHeight,
+                    approvedScrollX,
+                    approvedScrollY,
+                );
+            }
+            return;
+        }
+
+        if (!active && this.activePageScrollScrollerId === scrollerId) {
+            let current = this.readPageScrollPosition();
+            leaf.scrollLeft = current.scrollX;
+            leaf.scrollTop = current.scrollY;
+            window.scrollTo(0, 0);
+        }
+
+        if (active) {
+            if (this.activePageScrollScrollerId != null && this.activePageScrollScrollerId !== scrollerId) {
+                let previousLeaf = this.nodesLookup.get(this.activePageScrollScrollerId);
+                let previousState = this.scrollerMeasurementStates.get(this.activePageScrollScrollerId);
+                if (previousLeaf != null && previousState != null) {
+                    previousState.delegatesToPageScroll = false;
+                    this.setLeafPageScrollMode(previousLeaf, false);
+                }
+            }
+            this.activePageScrollScrollerId = scrollerId;
+            this.installPageScrollActivityListeners();
+            this.setDocumentPageScrollMode(
+                true,
+                viewportWidth,
+                viewportHeight,
+                contentHeight,
+                approvedScrollX,
+                approvedScrollY,
+            );
+        } else if (this.activePageScrollScrollerId === scrollerId) {
+            this.activePageScrollScrollerId = undefined;
+            this.uninstallPageScrollActivityListeners();
+            this.setDocumentPageScrollMode(false);
+        }
+
+        state.delegatesToPageScroll = active;
+        this.setLeafPageScrollMode(leaf, active);
+        this.activateScrollerMeasurement(scrollerId);
+    }
+
+    private shouldDelegateToPageScroll(
+        leaf: HTMLElement,
+        patch: ScrollerUpdatePatch,
+        state: ScrollerMeasurementState,
+    ) {
+        if (!supportsPageScrollDelegation()) {
+            return false;
+        }
+        if (!state.isRootScroller) {
+            return false;
+        }
+        if (state.delegatesToPageScroll) {
+            // Scroller updates are delta-shaped, so fields like contentLayerId may be omitted on
+            // ordinary scroll ticks. Once the root scroller has been promoted to page-scroll
+            // delegation, keep that ownership stable unless the scroller is recreated.
+            return true;
+        }
+        if (state.contentLayerId == null) {
+            return false;
+        }
+        let shouldClip = patch.clipContent ?? true;
+        if (!shouldClip) {
+            return false;
+        }
+        let transform = patch.transform ?? state.transform;
+        if (!isViewportAnchoredTransform(transform)) {
+            return false;
+        }
+        let viewportWidth = (patch.sizeX ?? leaf.clientWidth) || 0;
+        let viewportHeight = (patch.sizeY ?? leaf.clientHeight) || 0;
+        let root = document.documentElement;
+        let targetWidth = window.innerWidth ?? root.clientWidth ?? this.mount?.clientWidth ?? 0;
+        let targetHeight = window.innerHeight ?? root.clientHeight ?? this.mount?.clientHeight ?? 0;
+        return nearlyEqual(viewportWidth, targetWidth) && nearlyEqual(viewportHeight, targetHeight);
+    }
+
+    private emitScrollerPosition(
+        id: number,
+        measurement: ScrollerMeasurement,
+        state?: ScrollerMeasurementState,
+    ) {
+        if (
+            state != null
+            && Math.abs(state.lastSentScrollX - measurement.scrollX) <= 0.1
+            && Math.abs(state.lastSentScrollY - measurement.scrollY) <= 0.1
+            && Math.abs(state.lastSentPresentationScrollX - measurement.presentationScrollX) <= 0.1
+            && Math.abs(state.lastSentPresentationScrollY - measurement.presentationScrollY) <= 0.1
+        ) {
+            return;
+        }
+        if (state != null) {
+            state.lastSentScrollX = measurement.scrollX;
+            state.lastSentScrollY = measurement.scrollY;
+            state.lastSentPresentationScrollX = measurement.presentationScrollX;
+            state.lastSentPresentationScrollY = measurement.presentationScrollY;
+        }
+        let message = {
+            "Scrollbar": {
+                "id": id,
+                "scroll_x": measurement.scrollX,
+                "scroll_y": measurement.scrollY,
+                "presentation_scroll_x": measurement.presentationScrollX,
+                "presentation_scroll_y": measurement.presentationScrollY,
+            }
+        };
+        this.chassis!.interrupt(JSON.stringify(message), undefined);
+    }
+
+    private activateScrollerMeasurement(id: number) {
+        let state = this.scrollerMeasurementStates.get(id);
+        if (state == null) {
+            return;
+        }
+        state.active = true;
+        state.stableFrames = 0;
+    }
+
+    private queueScrollerUpdate(patch: ScrollerUpdatePatch) {
+        if (patch.id == null) {
+            return;
+        }
+        let queued = this.pendingScrollerUpdates.get(patch.id) ?? { id: patch.id };
+        if (patch.sizeX != null) {
+            queued.sizeX = patch.sizeX;
+        }
+        if (patch.sizeY != null) {
+            queued.sizeY = patch.sizeY;
+        }
+        if (patch.clipContent != null) {
+            queued.clipContent = patch.clipContent;
+        }
+        if (patch.sizeInnerPaneX != null) {
+            queued.sizeInnerPaneX = patch.sizeInnerPaneX;
+        }
+        if (patch.sizeInnerPaneY != null) {
+            queued.sizeInnerPaneY = patch.sizeInnerPaneY;
+        }
+        if (patch.transform != null) {
+            queued.transform = [...patch.transform];
+        }
+        if (patch.opacity != null) {
+            queued.opacity = patch.opacity;
+        }
+        if (patch.scrollX != null) {
+            queued.scrollX = patch.scrollX;
+        }
+        if (patch.scrollY != null) {
+            queued.scrollY = patch.scrollY;
+        }
+        if (patch.presentationScrollX != null) {
+            queued.presentationScrollX = patch.presentationScrollX;
+        }
+        if (patch.presentationScrollY != null) {
+            queued.presentationScrollY = patch.presentationScrollY;
+        }
+        if (patch.contentLayerId != null) {
+            queued.contentLayerId = patch.contentLayerId;
+        }
+        if (patch.presentedBounds != null) {
+            queued.presentedBounds = [...patch.presentedBounds];
+        }
+        if (patch.presentedClipBounds != null) {
+            queued.presentedClipBounds = [...patch.presentedClipBounds];
+        }
+        this.pendingScrollerUpdates.set(patch.id, queued);
+    }
+
+    private replayPendingScrollerUpdate(id: number) {
+        let queued = this.pendingScrollerUpdates.get(id);
+        if (queued == null) {
+            return;
+        }
+        this.pendingScrollerUpdates.delete(id);
+        this.scrollerUpdate(queued);
+    }
+
+    private measureScrollerPosition(
+        leaf: HTMLElement,
+        state: ScrollerMeasurementState,
+    ): ScrollerMeasurement {
+        if (state.delegatesToPageScroll) {
+            let pageScroll = this.readPageScrollPosition();
+            return {
+                scrollX: pageScroll.scrollX,
+                scrollY: pageScroll.scrollY,
+                presentationScrollX: pageScroll.scrollX,
+                presentationScrollY: pageScroll.scrollY,
+            };
+        }
+        let scrollX = leaf.scrollLeft;
+        let scrollY = leaf.scrollTop;
+        let presentationScrollX = scrollX;
+        let presentationScrollY = scrollY;
+        return {
+            scrollX,
+            scrollY,
+            presentationScrollX,
+            presentationScrollY,
+        };
     }
 
     scrollerCreate(patch: AnyCreatePatch){
@@ -957,27 +2049,97 @@ export class NativeElementPool {
         console.assert(patch.occlusionLayerId != null);
 
         let scrollerDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
-        let scroller: HTMLDivElement = this.objectManager.getFromPool(DIV);
-        scroller.style.pointerEvents = "none";
-        scrollerDiv.addEventListener("scroll", (_event) => {
-            let message = {
-                "Scrollbar": {
-                    "id": patch.id!,
-                    "scroll_x": scrollerDiv.scrollLeft,
-                    "scroll_y": scrollerDiv.scrollTop
-                }
-            }
-            this.chassis!.interrupt(JSON.stringify(message), undefined);
-        });
+        let innerPane: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        let canvasHost: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        let contentHost: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        let scrollerId = patch.id!;
+        let vectorIslandEnabled = browserOwnedVectorScrollerIslandsEnabled();
+        innerPane.setAttribute("class", INNER_PANE);
+        canvasHost.dataset.role = "scroller-canvas-host";
+        canvasHost.dataset.scrollerId = String(scrollerId);
+        canvasHost.style.position = "absolute";
+        canvasHost.style.top = "0";
+        canvasHost.style.left = "0";
+        canvasHost.style.width = "100%";
+        canvasHost.style.height = "100%";
+        canvasHost.style.pointerEvents = "none";
+        canvasHost.style.overflow = "visible";
+        canvasHost.style.zIndex = "0";
+        canvasHost.dataset.viewportWidth = "0";
+        canvasHost.dataset.viewportHeight = "0";
+        canvasHost.dataset.approvedScrollX = "0";
+        canvasHost.dataset.approvedScrollY = "0";
+        canvasHost.dataset.warmState = patch.parentFrame == null ? "warm" : "cold";
+        canvasHost.dataset.renderState = "active";
+        contentHost.dataset.role = "scroller-content-host";
+        contentHost.dataset.scrollerId = String(scrollerId);
+        contentHost.dataset.renderState = "active";
+        contentHost.style.position = "absolute";
+        contentHost.style.top = "0";
+        contentHost.style.left = "0";
+        contentHost.style.width = "100%";
+        contentHost.style.height = "100%";
+        contentHost.style.transformOrigin = "top left";
+        contentHost.style.pointerEvents = "none";
+        // Keep the native overlay host above the canvas host inside browser-owned scroller
+        // islands. Individual layer canvases/native elements can still order locally within those
+        // hosts, but the hosts themselves should never invert.
+        contentHost.style.zIndex = "1";
+        let scheduleMeasurement = () => this.activateScrollerMeasurement(scrollerId);
+        scrollerDiv.addEventListener("scroll", scheduleMeasurement, { passive: true });
+        scrollerDiv.addEventListener("wheel", scheduleMeasurement, { passive: true });
+        scrollerDiv.addEventListener("touchmove", scheduleMeasurement, { passive: true });
+        scrollerDiv.addEventListener("touchstart", scheduleMeasurement, { passive: true });
 
-        scrollerDiv.appendChild(scroller);
+        innerPane.appendChild(canvasHost);
+        innerPane.appendChild(contentHost);
+        scrollerDiv.appendChild(innerPane);
         scrollerDiv.setAttribute("class", NATIVE_LEAF_CLASS + " " + SCROLLER_CONTAINER)
         scrollerDiv.setAttribute("pax_id", String(patch.id));
+        // Blink can cull descendant browser-owned canvases inside a paint-contained scrolling leaf
+        // even while the WebGPU/WebGL surfaces continue rendering. Scrollers that host island
+        // canvases still need layout containment, but relaxing paint containment keeps nested
+        // vector layers composited correctly in Chrome.
+        scrollerDiv.style.contain = "layout style";
 
 
         if(patch.id != undefined && patch.occlusionLayerId != undefined){
             this.layers.addElement(scrollerDiv, patch.parentFrame, patch.occlusionLayerId);
+            this.layers.registerParentFrameHost(patch.id, contentHost);
+            if (
+                vectorIslandEnabled
+                && this.layers.registerScrollerIslandHosts(patch.id, canvasHost, contentHost)
+            ) {
+                this.surfaceRefreshPending = true;
+            }
             this.nodesLookup.set(patch.id!, scrollerDiv);
+            this.scrollerHosts.set(patch.id, {
+                id: patch.id,
+                leaf: scrollerDiv,
+                innerPane,
+                canvasHost,
+                contentHost,
+                parked: false,
+                warmed: patch.parentFrame == null,
+                vectorIslandEnabled,
+            });
+            this.scrollerMeasurementStates.set(patch.id, {
+                active: true,
+                stableFrames: 0,
+                isRootScroller: patch.parentFrame == null,
+                delegatesToPageScroll: false,
+                contentLayerId: undefined,
+                transform: [1, 0, 0, 1, 0, 0],
+                lastMeasuredScrollX: scrollerDiv.scrollLeft,
+                lastMeasuredScrollY: scrollerDiv.scrollTop,
+                lastMeasuredPresentationScrollX: scrollerDiv.scrollLeft,
+                lastMeasuredPresentationScrollY: scrollerDiv.scrollTop,
+                lastSentScrollX: Number.NaN,
+                lastSentScrollY: Number.NaN,
+                lastSentPresentationScrollX: Number.NaN,
+                lastSentPresentationScrollY: Number.NaN,
+            });
+            this.replayPendingScrollerUpdate(patch.id);
         } else {
             throw new Error("undefined id or occlusionLayer");
         }
@@ -988,9 +2150,25 @@ export class NativeElementPool {
         // Ordering sometimes result in updates being sent after deletes.
         // could fix this ordering, but simply "skipping" this works for now.
         if (leaf == undefined) {
+            this.queueScrollerUpdate(patch);
             return;
         }
-        let scroller_inner = leaf.firstChild as HTMLElement;
+        let scrollerInner = this.getScrollerInnerPane(leaf);
+        let canvasHost = this.getScrollerCanvasHost(leaf);
+        let contentHost = this.getScrollerContentHost(leaf);
+        if (scrollerInner == null || canvasHost == null || contentHost == null) {
+            return;
+        }
+        this.updatePresentationRecord(
+            patch.id!,
+            patch.presentedBounds,
+            patch.presentedClipBounds,
+        );
+        this.applyLeafPlacement(leaf, patch);
+        // Scrollers expose a dedicated descendant host via `registerParentFrameHost(...)` rather
+        // than a layer-manager container record. Reparenting the scroller leaf is sufficient to
+        // move that host with it; trying to route scroller placement through container-parent
+        // updates trips the frame-only container API.
 
         // Handle size_x and size_y
         if (patch.sizeX != null) {
@@ -1001,39 +2179,141 @@ export class NativeElementPool {
         }
 
         if (patch.sizeInnerPaneX != null) {
-            if (patch.sizeInnerPaneX! <= parseFloat(leaf.style.width)) {
-                leaf.style.overflowX = "hidden";
-            } else {
-                leaf.style.overflowX = "auto";
-            }
-            scroller_inner.style.width = patch.sizeInnerPaneX + "px";
+            scrollerInner.style.width = patch.sizeInnerPaneX + "px";
+            canvasHost.style.width = patch.sizeInnerPaneX + "px";
+            contentHost.style.width = patch.sizeInnerPaneX + "px";
         }
         if (patch.sizeInnerPaneY != null) {
-            if (patch.sizeInnerPaneY! <= parseFloat(leaf.style.height)) {
-                leaf.style.overflowY = "hidden";
-            } else {
-                leaf.style.overflowY = "auto";
-            }
-            scroller_inner.style.height = patch.sizeInnerPaneY + "px";
+            scrollerInner.style.height = patch.sizeInnerPaneY + "px";
+            canvasHost.style.height = patch.sizeInnerPaneY + "px";
+            contentHost.style.height = patch.sizeInnerPaneY + "px";
         }
 
+        const shouldClip = patch.clipContent ?? true;
+        const viewportWidth = (patch.sizeX ?? parseFloat(leaf.style.width)) || 0;
+        const viewportHeight = (patch.sizeY ?? parseFloat(leaf.style.height)) || 0;
+        const contentWidth = (patch.sizeInnerPaneX ?? parseFloat(scrollerInner.style.width)) || 0;
+        const contentHeight = (patch.sizeInnerPaneY ?? parseFloat(scrollerInner.style.height)) || 0;
+        let state = this.scrollerMeasurementStates.get(patch.id!);
+        let hosts = this.scrollerHosts.get(patch.id!);
+        canvasHost.dataset.viewportWidth = String(viewportWidth);
+        canvasHost.dataset.viewportHeight = String(viewportHeight);
+        // Scroller patches are delta-shaped. Remember the resolved content layer once it arrives so
+        // later scroll-only updates can keep root page-scroll delegation active.
+        if (state != null && patch.contentLayerId != null) {
+            state.contentLayerId = patch.contentLayerId;
+        }
+        if (hosts?.vectorIslandEnabled && patch.contentLayerId != null) {
+            let claimed = this.layers.claimLayerForScrollerIsland(patch.contentLayerId, patch.id!);
+            if (claimed) {
+                this.surfaceRefreshPending = true;
+            }
+        }
+        let delegateToPageScroll = state != null && this.shouldDelegateToPageScroll(leaf, patch, state);
+        let approvedScrollX = patch.presentationScrollX
+            ?? patch.scrollX
+            ?? (state?.lastMeasuredPresentationScrollX ?? leaf.scrollLeft);
+        let approvedScrollY = patch.presentationScrollY
+            ?? patch.scrollY
+            ?? (state?.lastMeasuredPresentationScrollY ?? leaf.scrollTop);
+        if (state != null) {
+            this.setPageScrollDelegation(
+                patch.id!,
+                leaf,
+                state,
+                delegateToPageScroll,
+                viewportWidth,
+                viewportHeight,
+                contentHeight,
+                approvedScrollX,
+                approvedScrollY,
+            );
+        }
+        if (!delegateToPageScroll) {
+            leaf.style.overflowX = shouldClip
+                ? (contentWidth > viewportWidth ? "auto" : "hidden")
+                : "visible";
+            leaf.style.overflowY = shouldClip
+                ? (contentHeight > viewportHeight ? "auto" : "hidden")
+                : "visible";
+        }
+
+        const ignoreActiveScrollPatch =
+            isIOSWebKitBrowser() && !delegateToPageScroll && state?.active;
         if (patch.scrollX != null) {
-            leaf.scrollLeft = patch.scrollX;
+            if (!ignoreActiveScrollPatch) {
+                if (delegateToPageScroll) {
+                    let current = this.readPageScrollPosition();
+                    // During delegated root scrolling, engine scroll patches are usually an echo of the
+                    // browser's own page-scroll state from the previous frame. On iOS Safari, browser
+                    // chrome collapse can advance that page scroll asynchronously, so writing the stale
+                    // engine value back into `window.scrollTo` creates a visible tug-of-war. Only push
+                    // page scroll from the engine once the delegated scroller is idle again.
+                    if (!state?.active && Math.abs(current.scrollX - patch.scrollX) > 0.5) {
+                        this.setPageScrollPosition(patch.scrollX, undefined);
+                    }
+                    if (this.mount != null) {
+                        this.mount.dataset.approvedScrollX = String(approvedScrollX);
+                    }
+                } else if (Math.abs(leaf.scrollLeft - patch.scrollX) > 0.5) {
+                    leaf.scrollLeft = patch.scrollX;
+                }
+            }
+            canvasHost.dataset.approvedScrollX = String(approvedScrollX);
+            this.activateScrollerMeasurement(patch.id!);
         }
         if (patch.scrollY != null) {
-            leaf.scrollTop = patch.scrollY;
+            if (!ignoreActiveScrollPatch) {
+                if (delegateToPageScroll) {
+                    let current = this.readPageScrollPosition();
+                    // See scrollX note above: while Safari is animating browser chrome, keep the page
+                    // scroll browser-owned and only allow engine-originated corrections after motion
+                    // has settled.
+                    if (!state?.active && Math.abs(current.scrollY - patch.scrollY) > 0.5) {
+                        this.setPageScrollPosition(undefined, patch.scrollY);
+                    }
+                    if (this.mount != null) {
+                        this.mount.dataset.approvedScrollY = String(approvedScrollY);
+                    }
+                } else if (Math.abs(leaf.scrollTop - patch.scrollY) > 0.5) {
+                    leaf.scrollTop = patch.scrollY;
+                }
+            }
+            canvasHost.dataset.approvedScrollY = String(approvedScrollY);
+            this.activateScrollerMeasurement(patch.id!);
         }
-
+        if (patch.presentationScrollX != null && patch.scrollX == null) {
+            canvasHost.dataset.approvedScrollX = String(approvedScrollX);
+            if (delegateToPageScroll && this.mount != null) {
+                this.mount.dataset.approvedScrollX = String(approvedScrollX);
+            }
+            this.activateScrollerMeasurement(patch.id!);
+        }
+        if (patch.presentationScrollY != null && patch.scrollY == null) {
+            canvasHost.dataset.approvedScrollY = String(approvedScrollY);
+            if (delegateToPageScroll && this.mount != null) {
+                this.mount.dataset.approvedScrollY = String(approvedScrollY);
+            }
+            this.activateScrollerMeasurement(patch.id!);
+        }
         // Handle transform
         if (patch.transform != null) {
+            let state = this.scrollerMeasurementStates.get(patch.id!);
+            if (state != null) {
+                state.transform = [...patch.transform];
+            }
             leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+            const inverseTransform = invertAffineCoeffs(patch.transform);
+            if (inverseTransform != null) {
+                contentHost.style.transform = packAffineCoeffsIntoMatrix3DString(inverseTransform);
+            } else {
+                contentHost.style.transform = "";
+            }
+            this.activateScrollerMeasurement(patch.id!);
         }
-
         if (patch.opacity != null) {
             setLeafLocalOpacity(leaf, patch.opacity);
         }
-
-       
     }
 
     scrollerDelete(id: number){
@@ -1041,6 +2321,25 @@ export class NativeElementPool {
         if (oldNode == undefined) {
             throw new Error("tried to delete non-existent scroller");
         }
+        let state = this.scrollerMeasurementStates.get(id);
+        if (state?.delegatesToPageScroll) {
+            this.setPageScrollDelegation(id, oldNode, state, false);
+        }
+        this.scrollerMeasurementStates.delete(id);
+        this.pendingScrollerUpdates.delete(id);
+        this.presentationRecords.delete(id);
+        let hosts = this.scrollerHosts.get(id);
+        if (this.layers.unregisterScrollerIslandHosts(
+            id,
+            hosts?.canvasHost ?? this.getScrollerCanvasHost(oldNode) ?? undefined,
+            hosts?.contentHost ?? this.getScrollerContentHost(oldNode) ?? undefined,
+        )) {
+            this.surfaceRefreshPending = true;
+        }
+        this.layers.unregisterParentFrameHost(id, hosts?.contentHost ?? this.getScrollerContentHost(oldNode) ?? undefined);
+        hosts?.canvasHost.parentElement?.removeChild(hosts.canvasHost);
+        hosts?.contentHost.parentElement?.removeChild(hosts.contentHost);
+        this.scrollerHosts.delete(id);
         let parent = oldNode.parentElement!;
         parent.removeChild(oldNode);
         this.nodesLookup.delete(id);
@@ -1071,6 +2370,7 @@ export class NativeElementPool {
         if (leaf == undefined) {
             throw new Error("tried to update non-existent event blocker");
         }
+        this.applyLeafPlacement(leaf, patch);
         // Handle size_x and size_y
         if (patch.sizeX != null) {
             leaf.style.width = patch.sizeX + "px";
@@ -1571,6 +2871,198 @@ function wrapPlainText(text: string, maxWidth: number, ctx: CanvasRenderingConte
     });
 
     return lines;
+}
+
+type ScrollerMeasurement = {
+    scrollX: number;
+    scrollY: number;
+    presentationScrollX: number;
+    presentationScrollY: number;
+};
+
+type ScrollerMeasurementState = {
+    active: boolean;
+    stableFrames: number;
+    isRootScroller: boolean;
+    delegatesToPageScroll: boolean;
+    // `ScrollerUpdate` messages only include contentLayerId when it changes, but root page-scroll
+    // delegation needs to remember that layer identity across later scroll-only deltas.
+    contentLayerId?: number;
+    transform: number[];
+    lastMeasuredScrollX: number;
+    lastMeasuredScrollY: number;
+    lastMeasuredPresentationScrollX: number;
+    lastMeasuredPresentationScrollY: number;
+    lastSentScrollX: number;
+    lastSentScrollY: number;
+    lastSentPresentationScrollX: number;
+    lastSentPresentationScrollY: number;
+};
+
+type PendingScrollerUpdate = {
+    id: number;
+    sizeX?: number;
+    sizeY?: number;
+    clipContent?: boolean;
+    sizeInnerPaneX?: number;
+    sizeInnerPaneY?: number;
+    transform?: number[];
+    opacity?: number;
+    scrollX?: number;
+    scrollY?: number;
+    presentationScrollX?: number;
+    presentationScrollY?: number;
+    contentLayerId?: number;
+    presentedBounds?: number[];
+    presentedClipBounds?: number[];
+};
+
+type ScrollerDomHosts = {
+    id: number;
+    leaf: HTMLElement;
+    innerPane: HTMLDivElement;
+    canvasHost: HTMLDivElement;
+    contentHost: HTMLDivElement;
+    parked: boolean;
+    warmed: boolean;
+    vectorIslandEnabled: boolean;
+};
+
+type AxisAlignedRect = {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+};
+
+type PresentationRecord = {
+    presentedBounds?: AxisAlignedRect;
+    presentedClipBounds?: AxisAlignedRect;
+};
+
+const EAGER_WARM_SCROLLER_LIMIT = 24;
+const PREWARM_PROMOTION_BUDGET = 6;
+const ACTIVE_SCROLLABLE_PAD_X_MULTIPLIER = 4.0;
+const ACTIVE_SCROLLABLE_PAD_Y_MULTIPLIER = 2.0;
+const ACTIVE_SCROLLABLE_MIN_PAD_X = 960;
+const ACTIVE_SCROLLABLE_MIN_PAD_Y = 480;
+const PREWARM_SCROLLABLE_PAD_X_MULTIPLIER = 8.0;
+const PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER = 4.0;
+const PREWARM_SCROLLABLE_MIN_PAD_X = 1920;
+const PREWARM_SCROLLABLE_MIN_PAD_Y = 960;
+// WebKit's WebGL context cap is tight enough that we need a little headroom
+// beyond the nominal canvas budget to avoid eviction when layers churn.
+const IOS_NESTED_BROWSER_SURFACE_BUDGET = 6;
+const IOS_TOTAL_CANVAS_BUDGET = 6;
+
+function browserNestedScrollerSurfaceBudget() {
+    return isIOSWebKitBrowser() ? IOS_NESTED_BROWSER_SURFACE_BUDGET : undefined;
+}
+
+function browserTotalCanvasBudget() {
+    return isIOSWebKitBrowser() ? IOS_TOTAL_CANVAS_BUDGET : undefined;
+}
+
+function browserOwnedVectorScrollerIslandsEnabled() {
+    return true;
+}
+
+function rectFromMessageBounds(bounds: number[]): AxisAlignedRect {
+    return {
+        left: bounds[0] ?? 0,
+        top: bounds[1] ?? 0,
+        right: bounds[2] ?? 0,
+        bottom: bounds[3] ?? 0,
+    };
+}
+
+function expandRect(rect: AxisAlignedRect, expandX: number, expandY: number): AxisAlignedRect {
+    return {
+        left: rect.left - expandX,
+        top: rect.top - expandY,
+        right: rect.right + expandX,
+        bottom: rect.bottom + expandY,
+    };
+}
+
+function intersectRects(a: AxisAlignedRect, b: AxisAlignedRect): AxisAlignedRect {
+    return {
+        left: Math.max(a.left, b.left),
+        top: Math.max(a.top, b.top),
+        right: Math.min(a.right, b.right),
+        bottom: Math.min(a.bottom, b.bottom),
+    };
+}
+
+function rectsIntersect(a: AxisAlignedRect, b: AxisAlignedRect): boolean {
+    return !(
+        a.right < b.left
+        || a.bottom < b.top
+        || a.left > b.right
+        || a.top > b.bottom
+    );
+}
+
+function rectSeparationDistance(a: AxisAlignedRect, b: AxisAlignedRect): number {
+    let dx = 0;
+    if (a.right < b.left) {
+        dx = b.left - a.right;
+    } else if (b.right < a.left) {
+        dx = a.left - b.right;
+    }
+
+    let dy = 0;
+    if (a.bottom < b.top) {
+        dy = b.top - a.bottom;
+    } else if (b.bottom < a.top) {
+        dy = a.top - b.bottom;
+    }
+
+    return Math.hypot(dx, dy);
+}
+
+function rectCenterDistance(a: AxisAlignedRect, b: AxisAlignedRect): number {
+    let aCenterX = (a.left + a.right) * 0.5;
+    let aCenterY = (a.top + a.bottom) * 0.5;
+    let bCenterX = (b.left + b.right) * 0.5;
+    let bCenterY = (b.top + b.bottom) * 0.5;
+    return Math.hypot(aCenterX - bCenterX, aCenterY - bCenterY);
+}
+
+function isScrollPerfTraceEnabled() {
+    if (typeof window === "undefined") {
+        return false;
+    }
+    try {
+        let params = new URLSearchParams(window.location.search);
+        let value = params.get("pax_scroll_perf");
+        return value === "1" || value === "true";
+    } catch (_err) {
+        return false;
+    }
+}
+
+function isViewportAnchoredTransform(transform: number[]) {
+    return transform.length >= 6
+        && nearlyEqual(transform[0], 1)
+        && nearlyEqual(transform[1], 0)
+        && nearlyEqual(transform[2], 0)
+        && nearlyEqual(transform[3], 1)
+        && nearlyEqual(transform[4], 0)
+        && nearlyEqual(transform[5], 0);
+}
+
+function nearlyEqual(a: number, b: number, tolerance = 1.5) {
+    return Math.abs(a - b) <= tolerance;
+}
+
+function supportsPageScrollDelegation() {
+    if (typeof navigator === "undefined") {
+        return false;
+    }
+    let userAgent = navigator.userAgent;
+    let isiOS = /iPhone|iPad|iPod/i.test(userAgent);
+    return isiOS && /AppleWebKit/i.test(userAgent) && !/CriOS|FxiOS|EdgiOS/i.test(userAgent);
 }
 
 function toCssColor(color: ColorGroup): string {

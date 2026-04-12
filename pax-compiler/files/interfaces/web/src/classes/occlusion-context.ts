@@ -2,7 +2,6 @@ import {Layer} from "./layer";
 import {ObjectManager} from "../pools/object-manager";
 import {ARRAY, DIV, LAYER} from "../pools/supported-objects";
 
-import type {PaxChassisWeb} from "../types/pax-chassis-web";
 import { CLIPPING_CONTAINER, NATIVE_LEAF_CLASS } from "../utils/constants";
 import { affineMultiply } from "../utils/helpers";
 import type { NativeMaskEntry } from "./messages/native-mask-update-patch";
@@ -14,20 +13,26 @@ export class OcclusionLayerManager {
     private canvasMap?: Map<string, HTMLCanvasElement>;
     public parent?: Element;
     private objectManager: ObjectManager;
-    private chassis?: PaxChassisWeb;
     private containers: Map<number, Container>;
+    private parentFrameHosts: Map<number, Element>;
+    private scrollerIslandHosts: Map<number, ScrollerIslandHosts>;
+    private layerIslandOwners: Map<number, number>;
+    private pendingLayerIslandClaims: Map<number, number>;
     private effects: SvgEffectManager;
 
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
         this.containers = new Map();
+        this.parentFrameHosts = new Map();
+        this.scrollerIslandHosts = new Map();
+        this.layerIslandOwners = new Map();
+        this.pendingLayerIslandClaims = new Map();
         this.effects = new SvgEffectManager();
     }
 
-    attach(parent: Element, chassis: PaxChassisWeb, canvasMap: Map<string, HTMLCanvasElement>) {
+    attach(parent: Element, canvasMap: Map<string, HTMLCanvasElement>) {
         this.layers = this.objectManager.getFromPool(ARRAY);
         this.parent = parent;
-        this.chassis = chassis;
         this.canvasMap = canvasMap;
         this.effects.attach(parent);
         this.growTo(0);
@@ -38,31 +43,52 @@ export class OcclusionLayerManager {
         if(this.layers!.length < occlusionLayerCount) {
             for(let i = this.layers!.length; i < occlusionLayerCount; i++) {
                 let newLayer: Layer = this.objectManager.getFromPool(LAYER, this.objectManager);
-                newLayer.build(this.parent!, i, this.chassis!, this.canvasMap!);
+                newLayer.build(
+                    this.parent!,
+                    i,
+                    this.canvasMap!,
+                );
                 this.layers!.push(newLayer);
+                this.applyPendingLayerIslandClaim(i);
             }
         }
     }
 
-    shrinkTo(occlusionLayerId: number){
+    shrinkTo(layerCount: number){
         if(this.layers === undefined){
             return
         }
-        if(this.layers.length >= occlusionLayerId) {
-            for(let i = this.layers!.length - 1; i >= occlusionLayerId; i--){
-                this.objectManager.returnToPool(LAYER, this.layers[i]);
-                this.layers.pop();
-            }
+        // Rust publishes `ShrinkLayersTo` as the exact number of logical layers that should be
+        // alive, not the maximum retained layer id. Historically `OcclusionUpdate` calls also grew
+        // the layer stack as a side effect. Now layer sizing is driven by this message alone, so
+        // handle both growth and shrinkage here.
+        if (layerCount > 0) {
+            this.growTo(layerCount - 1);
+        }
+        while (this.layers.length > layerCount) {
+            let i = this.layers.length - 1;
+            this.layerIslandOwners.delete(i);
+            this.objectManager.returnToPool(LAYER, this.layers[i]);
+            this.layers.pop();
         }
     }
 
-    addElement(element: HTMLElement, parent_container: number | undefined, occlusionLayerId: number){
+    addElement(
+        element: HTMLElement,
+        parent_container: number | undefined,
+        occlusionLayerId: number,
+    ) {
         this.growTo(occlusionLayerId);
+        let ownershipChanged = false;
+        if (parent_container != null) {
+            ownershipChanged = this.claimLayerForParentFrame(occlusionLayerId, parent_container);
+        }
         let attach_point = this.getOrCreateContainer(parent_container, occlusionLayerId);
         if (!attach_point.contains(element)) {
             attach_point.appendChild(element);
         }
         refreshLeafOpacities(element);
+        return ownershipChanged;
     }
 
     updateElementMask(
@@ -94,6 +120,11 @@ export class OcclusionLayerManager {
             return layer;
         }
 
+        let host = this.parentFrameHosts.get(id);
+        if (host != null) {
+            return host;
+        }
+
         let elem = layer.querySelector(`[data-container-id="${id}"]`);
         if (elem != undefined) {
             return elem!;
@@ -119,6 +150,134 @@ export class OcclusionLayerManager {
 
     addContainer(id: number, parentId: number | undefined) {
         this.containers.set(id, new Container(id, parentId));
+    }
+
+    registerParentFrameHost(id: number, host: Element) {
+        this.parentFrameHosts.set(id, host);
+    }
+
+    registerScrollerIslandHosts(id: number, canvasHost: Element, nativeHost: Element) {
+        this.scrollerIslandHosts.set(id, { canvasHost, nativeHost });
+        let ownershipChanged = false;
+        this.pendingLayerIslandClaims.forEach((ownerId, layerId) => {
+            if (ownerId === id) {
+                ownershipChanged = this.applyPendingLayerIslandClaim(layerId) || ownershipChanged;
+            }
+        });
+        return ownershipChanged;
+    }
+
+    claimLayerForScrollerIsland(layerId: number, scrollerId: number) {
+        if (layerId === 0) {
+            // The root layer stays on the top-level surface stack. Reparenting it into a
+            // browser-owned scroller host couples the app viewport to that host and can create DOM
+            // cycles with the root native overlay.
+            return false;
+        }
+        this.pendingLayerIslandClaims.set(layerId, scrollerId);
+        const layer = this.layers?.[layerId];
+        if (layer) {
+            layer.setIslandOnly(true);
+            if (!this.scrollerIslandHosts.get(scrollerId)) {
+                layer.detachCanvases();
+            }
+        }
+        return this.applyPendingLayerIslandClaim(layerId);
+    }
+
+    private applyPendingLayerIslandClaim(layerId: number) {
+        let scrollerId = this.pendingLayerIslandClaims.get(layerId);
+        if (scrollerId == null) {
+            return false;
+        }
+        let island = this.scrollerIslandHosts.get(scrollerId);
+        let layer = this.layers?.[layerId];
+        if (layer) {
+            layer.setIslandOnly(true);
+        }
+        if (island == null || layer == null) {
+            layer?.detachCanvases();
+            return false;
+        }
+        let existingOwner = this.layerIslandOwners.get(layerId);
+        if (existingOwner === scrollerId) {
+            this.pendingLayerIslandClaims.delete(layerId);
+            return false;
+        }
+        // `content_layer_id` is published directly by Rust for browser-owned scroller islands.
+        // Treat that explicit claim as authoritative even if provisional parent-frame routing
+        // attached the layer elsewhere first; message ordering can otherwise leave nested canvas
+        // layers stranded outside their intended host.
+        layer.attachToParents(island.canvasHost, island.nativeHost);
+        layer.setCanvasZIndex("0");
+        if (layer.native) {
+            layer.native.style.zIndex = "1";
+        }
+        this.layerIslandOwners.set(layerId, scrollerId);
+        this.pendingLayerIslandClaims.delete(layerId);
+        return true;
+    }
+
+    unregisterParentFrameHost(id: number, host?: Element) {
+        let current = this.parentFrameHosts.get(id);
+        if (current == null) {
+            return;
+        }
+        if (host == null || current === host) {
+            this.parentFrameHosts.delete(id);
+        }
+    }
+
+    unregisterScrollerIslandHosts(
+        id: number,
+        canvasHost?: Element,
+        nativeHost?: Element,
+    ) {
+        let current = this.scrollerIslandHosts.get(id);
+        if (current == null) {
+            return false;
+        }
+        if (
+            (canvasHost != null && current.canvasHost !== canvasHost)
+            || (nativeHost != null && current.nativeHost !== nativeHost)
+        ) {
+            return false;
+        }
+        this.scrollerIslandHosts.delete(id);
+        let ownershipChanged = false;
+        this.layerIslandOwners.forEach((ownerId, layerId) => {
+            if (ownerId !== id) {
+                return;
+            }
+            let layer = this.layers?.[layerId];
+            if (layer == null || this.parent == null) {
+                this.layerIslandOwners.delete(layerId);
+                return;
+            }
+            layer.setIslandOnly(true);
+            layer.attachToParents(this.parent, this.parent);
+            layer.setCanvasZIndex(String(layerId * 2));
+            if (layer.native) {
+                layer.native.style.zIndex = String(layerId * 2 + 1);
+            }
+            this.layerIslandOwners.delete(layerId);
+            ownershipChanged = true;
+        });
+        return ownershipChanged;
+    }
+
+    estimateScrollerIslandOwnedLayers(id: number, fallbackLayerId?: number) {
+        let layerIds: number[] = [];
+        this.layerIslandOwners.forEach((ownerId, layerId) => {
+            if (ownerId === id) {
+                layerIds.push(layerId);
+            }
+        });
+        if (layerIds.length === 0 && fallbackLayerId != null) {
+            layerIds.push(fallbackLayerId);
+        }
+        layerIds.sort((left, right) => left - right);
+        return layerIds;
     }
 
     updateContainer(id: number, styles: Partial<ContainerStyle>) {
@@ -177,9 +336,33 @@ export class OcclusionLayerManager {
             });
         }
         this.containers.clear();
+        this.parentFrameHosts.clear();
+        this.scrollerIslandHosts.clear();
+        this.layerIslandOwners.clear();
+        this.pendingLayerIslandClaims.clear();
         this.effects.cleanUp();
         this.canvasMap = undefined;
         this.parent = undefined;
+    }
+
+    syncLayerCanvasLayouts() {
+        this.layers?.forEach((layer) => layer.syncCanvasLayout());
+    }
+
+    setRootPageScrollMode(active: boolean) {
+        let rootNative = this.layers?.[0]?.native;
+        if (rootNative == null) {
+            return;
+        }
+        if (active) {
+            // Root page-scroll delegation needs the browser to account for overflow that extends
+            // past the initial viewport-sized overlay. Relax paint containment only for the root
+            // native overlay while this mode is active so nested overlays keep their tighter
+            // containment defaults.
+            rootNative.style.overflow = "visible";
+        } else {
+            rootNative.style.overflow = "";
+        }
     }
 
     private applyContainerClipPath(id: number) {
@@ -201,7 +384,57 @@ export class OcclusionLayerManager {
                 },
             );
     }
+
+    private claimLayerForParentFrame(layerId: number, parentFrameId: number) {
+        if (layerId === 0) {
+            return false;
+        }
+        let layer = this.layers?.[layerId];
+        // Non-root layers are dedicated to browser-owned scroller islands. Avoid routing them to
+        // ancestor frame hosts; they should only attach once their owning scroller claims them.
+        if (layer?.isIslandOnly()) {
+            return false;
+        }
+        let ownerFrameId: number | undefined = parentFrameId;
+        let island: ScrollerIslandHosts | undefined;
+        while (ownerFrameId != null) {
+            island = this.scrollerIslandHosts.get(ownerFrameId);
+            if (island != null) {
+                break;
+            }
+            ownerFrameId = this.containers.get(ownerFrameId)?.parentFrame;
+        }
+        if (island == null) {
+            return false;
+        }
+        let existingOwner = this.layerIslandOwners.get(layerId);
+        if (existingOwner === ownerFrameId) {
+            return false;
+        }
+        if (existingOwner != null && existingOwner !== ownerFrameId) {
+            return false;
+        }
+        if (layer == null) {
+            return false;
+        }
+        layer.setIslandOnly(true);
+        // Keep layer ownership scoped to descendant content layers only. The root layer stays on
+        // the top-level surface stack, while nested island layers move into the browser-owned
+        // canvas/native hosts that correspond to their parent frame.
+        layer.attachToParents(island.canvasHost, island.nativeHost);
+        layer.setCanvasZIndex("0");
+        if (layer.native) {
+            layer.native.style.zIndex = "1";
+        }
+        this.layerIslandOwners.set(layerId, ownerFrameId!);
+        return true;
+    }
 }
+
+type ScrollerIslandHosts = {
+    canvasHost: Element;
+    nativeHost: Element;
+};
 
 class Container {
     id: number;
@@ -278,6 +511,12 @@ class SvgEffectManager {
 
     updateMask(id: number, entries: NativeMaskEntry[], sizeX: number, sizeY: number) {
         if (!this.defs) {
+            return;
+        }
+
+        if (!Number.isFinite(sizeX) || !Number.isFinite(sizeY) || sizeX <= 0 || sizeY <= 0) {
+            this.removeElement(nativeMaskId(id));
+            this.removeUnusedMaskClips(id, new Set());
             return;
         }
 

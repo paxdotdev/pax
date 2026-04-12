@@ -1,7 +1,8 @@
 use js_sys::Date;
 use pax_designtime::messages::{
-    DevClientInspectTreeResponse, DevClientLookRequest, DevClientLookResponse, DevClientRawCapture,
-    DevClientRayCastResponse, DevClientReplaceNodeResponse, DevClientRequest, DevClientResponse,
+    DevClientInspectTreeResponse, DevClientLogEntry, DevClientLogsResponse, DevClientLookRequest,
+    DevClientLookResponse, DevClientRawCapture, DevClientRayCastResponse,
+    DevClientReplaceNodeResponse, DevClientRequest, DevClientResponse,
     DevClientSelectorQueryResponse,
 };
 use pax_message::{NativeMessage, ScreenshotPatch};
@@ -11,6 +12,7 @@ use pax_runtime::designtime_support::{
     build_designtime_selector_query_payload,
 };
 
+use crate::read_dev_console_entries_json;
 use crate::PaxChassisWeb;
 
 pub(super) struct PendingWebDevLookRequest {
@@ -163,6 +165,53 @@ impl PaxChassisWeb {
                         .send_dev_client_response(response)
                     {
                         log::warn!("failed to send web replace-node response: {err}");
+                    }
+                }
+                DevClientRequest::Logs(request) => {
+                    let request_id = request.request_id;
+                    let since_seq = request.since_seq;
+                    let limit = request.limit.unwrap_or(200);
+                    let response = match serde_json::from_str::<serde_json::Value>(
+                        &read_dev_console_entries_json(since_seq, limit),
+                    ) {
+                        Ok(payload) => {
+                            let entries = payload
+                                .get("entries")
+                                .cloned()
+                                .and_then(|value| {
+                                    serde_json::from_value::<Vec<DevClientLogEntry>>(value).ok()
+                                })
+                                .unwrap_or_default();
+                            let next_seq = payload
+                                .get("next_seq")
+                                .and_then(|value| value.as_u64())
+                                .unwrap_or(1);
+                            let oldest_seq =
+                                payload.get("oldest_seq").and_then(|value| value.as_u64());
+                            DevClientResponse::Logs(DevClientLogsResponse {
+                                request_id,
+                                status: "ok".to_string(),
+                                entries,
+                                next_seq,
+                                oldest_seq,
+                                error: None,
+                            })
+                        }
+                        Err(err) => DevClientResponse::Logs(DevClientLogsResponse {
+                            request_id,
+                            status: "error".to_string(),
+                            entries: vec![],
+                            next_seq: 1,
+                            oldest_seq: None,
+                            error: Some(format!("failed to read console log buffer: {err}")),
+                        }),
+                    };
+                    if let Err(err) = self
+                        .designtime_manager
+                        .borrow_mut()
+                        .send_dev_client_response(response)
+                    {
+                        log::warn!("failed to send web logs response: {err}");
                     }
                 }
             }

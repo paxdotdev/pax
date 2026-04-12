@@ -276,7 +276,7 @@ impl StencilRenderer {
             sample_count,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Stencil8,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });
 

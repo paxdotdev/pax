@@ -1,5 +1,7 @@
 export class YoutubeVideoUpdatePatch {
     public id?: number;
+    public parentFrame?: number;
+    public zIndex?: number;
     public url?: string;
     public size_x?: number;
     public size_y?: number;
@@ -8,6 +10,8 @@ export class YoutubeVideoUpdatePatch {
 
     fromPatch(jsonMessage: any) {
         this.id = jsonMessage["id"];
+        this.parentFrame = jsonMessage["parent_frame"];
+        this.zIndex = jsonMessage["z_index"];
         this.url = jsonMessage["url"];
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
@@ -17,6 +21,8 @@ export class YoutubeVideoUpdatePatch {
 
     cleanUp(){
         this.id = undefined;
+        this.parentFrame = undefined;
+        this.zIndex = undefined;
         this.url = '';
         this.size_x = 0;
         this.size_y = 0;

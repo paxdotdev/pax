@@ -85,6 +85,14 @@ pub trait RenderContext {
     fn clear(&mut self, layer: usize);
     fn flush(&mut self, layer: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>);
     fn resize(&mut self, width: usize, height: usize);
+    fn refresh_layers(&mut self, layers: &[usize]);
+    fn take_ready_canvas_layers(&mut self) -> Vec<usize> {
+        vec![]
+    }
+
+    fn take_replay_canvas_layers(&mut self) -> Vec<usize> {
+        vec![]
+    }
 
     fn request_layer_screenshot(&mut self, _layer: usize, _request_id: u32) {}
 

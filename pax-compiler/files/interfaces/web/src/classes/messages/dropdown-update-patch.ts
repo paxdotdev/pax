@@ -4,6 +4,8 @@ import { ColorGroup, TextStyle } from "../text";
 
 export class DropdownUpdatePatch {
     public id?: number;
+    public parentFrame?: number;
+    public zIndex?: number;
     public size_x?: number;
     public size_y?: number;
     public stroke_width?: number;
@@ -23,6 +25,8 @@ export class DropdownUpdatePatch {
 
     fromPatch(jsonMessage: any, registeredFontFaces: Set<string>) {
         this.id = jsonMessage["id"];
+        this.parentFrame = jsonMessage["parent_frame"];
+        this.zIndex = jsonMessage["z_index"];
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
         this.transform = jsonMessage["transform"];
@@ -43,6 +47,8 @@ export class DropdownUpdatePatch {
 
     cleanUp(){
         this.id = undefined;
+        this.parentFrame = undefined;
+        this.zIndex = undefined;
         this.size_x = 0;
         this.size_y = 0;
         this.transform = [];

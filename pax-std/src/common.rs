@@ -1,3 +1,4 @@
+use kurbo::Affine;
 pub use pax_engine::api::Size;
 use pax_engine::*;
 use pax_runtime::{ExpandedNode, RuntimeContext};
@@ -50,4 +51,27 @@ pub fn native_surface_opacity(expanded_node: &ExpandedNode, context: &RuntimeCon
     } else {
         (opacity / parent_opacity).clamp(0.0, 1.0)
     }
+}
+
+pub fn canvas_surface_transform(expanded_node: &ExpandedNode, context: &RuntimeContext) -> Affine {
+    let transform = Affine::from(expanded_node.transform_and_bounds.get().transform);
+    let own_layer = expanded_node.occlusion.get().occlusion_layer_id;
+    let mut parent_frame_id = expanded_node.parent_frame.get();
+    while let Some(current_parent_frame_id) = parent_frame_id {
+        let Some(parent_frame) = context.get_expanded_node_by_eid(current_parent_frame_id) else {
+            break;
+        };
+        if parent_frame.occlusion.get().occlusion_layer_id != own_layer {
+            // Descendant canvas layers can be mounted into browser-owned scroller hosts whose DOM
+            // coordinate space is local to the owning ancestor frame, not to the root canvas. We
+            // originally tried compensating at the scroller traversal layer, but retained
+            // vector/image nodes still carried world-space transforms into those nested surfaces.
+            // Walk up to the nearest ancestor on a different occlusion layer so nested same-layer
+            // groups still localize into the browser-hosted canvas that actually owns them.
+            return Affine::from(parent_frame.transform_and_bounds.get().transform.inverse())
+                * transform;
+        }
+        parent_frame_id = parent_frame.parent_frame.get();
+    }
+    transform
 }

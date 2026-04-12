@@ -153,6 +153,10 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
             (resize_fn)();
         }
     }
+
+    fn refresh_layers(&mut self, _layers: &[usize]) {
+        self.resize(0, 0);
+    }
 }
 
 fn fill_to_piet_brush(fill: &Fill, rect: kurbo::Rect) -> piet::PaintBrush {

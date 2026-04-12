@@ -118,6 +118,32 @@ pub struct DevReplaceNodeResponse {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DevLogsRequest {
+    pub request_id: String,
+    pub kind: String,
+    pub since_seq: Option<u64>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DevLogEntry {
+    pub seq: u64,
+    pub level: String,
+    pub message: String,
+    pub timestamp_ms: u128,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DevLogsResponse {
+    pub request_id: String,
+    pub status: String,
+    pub entries: Vec<DevLogEntry>,
+    pub next_seq: u64,
+    pub oldest_seq: Option<u64>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DevSession {
     pub session_id: String,
     pub platform: String,

@@ -4,6 +4,8 @@ use pax_runtime::api::{use_RefCell, Stroke};
 use pax_runtime::api::{Fill, Layer, RenderContext};
 use pax_runtime::BaseInstance;
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
+
+use crate::common::canvas_surface_transform;
 use_RefCell!();
 use std::rc::Rc;
 
@@ -110,6 +112,7 @@ impl InstanceNode for EllipseInstance {
         }
 
         let tab = expanded_node.transform_and_bounds.get();
+        let surface_transform = canvas_surface_transform(expanded_node, rtc);
         let (width, height) = tab.bounds;
         expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
             let rect = Rect::from_points((0.0, 0.0), (width, height));
@@ -119,7 +122,7 @@ impl InstanceNode for EllipseInstance {
             let fill = properties.fill.get();
             let stroke = properties.stroke.get();
             rc.save(layer_id);
-            rc.transform(layer_id, tab.transform.into());
+            rc.transform(layer_id, surface_transform);
             rc.fill_with_opacity(layer_id, bez_path.clone(), &fill, opacity);
 
             //hack to address "phantom stroke" bug on Web

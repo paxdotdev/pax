@@ -25,6 +25,7 @@ use lyon::tessellation::StrokeOptions;
 use lyon::tessellation::StrokeTessellator;
 use lyon::tessellation::StrokeVertex;
 
+use crate::point;
 use crate::render_backend::data::GpuColor;
 use crate::render_backend::data::GpuGradient;
 use crate::render_backend::data::GpuPrimitive;
@@ -216,14 +217,15 @@ impl TransformArena {
     fn sync_node(
         &mut self,
         node_id: u32,
-        ops: &[PendingVectorOp],
+        local_transforms: &[GpuTransform],
     ) -> (Vec<TransformArenaKey>, Vec<u32>) {
-        let mut keys = Vec::with_capacity(ops.len());
-        let mut ids = Vec::with_capacity(ops.len());
-        for (op_index, op) in ops.iter().enumerate() {
+        let mut keys = Vec::with_capacity(local_transforms.len().saturating_sub(1));
+        let mut ids = Vec::with_capacity(local_transforms.len());
+        ids.push(0);
+        for (transform_index, transform) in local_transforms.iter().enumerate().skip(1) {
             let key = TransformArenaKey {
                 node_id,
-                op_index: op_index as u32,
+                op_index: (transform_index - 1) as u32,
             };
             let slot = self.entries.get(&key).copied().unwrap_or_else(|| {
                 let slot = self
@@ -247,15 +249,10 @@ impl TransformArena {
                 self.dirty = true;
                 slot
             });
-            let value = GpuTransform {
-                transform: op.transform.to_arrays(),
-                opacity: op.opacity,
-                ..GpuTransform::default()
-            };
-            if self.slots[slot as usize].transform != value.transform
-                || (self.slots[slot as usize].opacity - value.opacity).abs() > f32::EPSILON
+            if self.slots[slot as usize].transform != transform.transform
+                || (self.slots[slot as usize].opacity - transform.opacity).abs() > f32::EPSILON
             {
-                self.slots[slot as usize] = value;
+                self.slots[slot as usize] = *transform;
                 self.dirty = true;
             }
             keys.push(key);
@@ -308,6 +305,37 @@ impl<'w> WgpuRenderer<'w> {
             .last()
             .copied()
             .unwrap_or_else(Transform2D::identity)
+    }
+
+    pub fn set_surface_transform(&mut self, transform: Transform2D) {
+        // A logical Pax layer may fan out to multiple physical browser canvases. Keep the tile's
+        // content-space translation as the base transform so retained node transforms remain
+        // tile-agnostic and flush/reset preserves the per-surface coordinate space.
+        if let Some(base_transform) = self.transform_stack.first_mut() {
+            *base_transform = transform;
+        } else {
+            self.transform_stack.push(transform);
+        }
+        self.scene_dirty = true;
+        self.clip_stack.clear();
+        self.saves.clear();
+    }
+
+    pub fn reset_retained_scene(&mut self) {
+        // Reusing a physical browser surface for a different tile origin is only safe if the
+        // retained scene is truly origin-agnostic. The current retained vector path still caches
+        // per-node transforms/resources against the previous slot assignment, so drop that state
+        // and let the engine replay dirty canvas nodes into the reassigned surface.
+        self.scene.clear();
+        self.transform_arena = TransformArena::new();
+        self.clip_arena = ClipArena::new();
+        self.clip_owner_keys.clear();
+        self.sorted_nodes.clear();
+        self.order_dirty = false;
+        self.scene_dirty = true;
+        self.clip_stack.clear();
+        self.saves.clear();
+        self.current_node = None;
     }
 
     pub fn stroke_path(&mut self, path: Path, stroke: Stroke) {
@@ -385,13 +413,18 @@ impl<'w> WgpuRenderer<'w> {
         }
         let transform = self.current_transform();
         let clip_stack = self.clip_stack.clone();
+        let bounds = transform_box(rect, &transform);
         let draw = self
             .render_backend
             .create_image_draw(image_key.to_owned(), transform, rect);
         let Some(current_node) = self.current_node.as_mut() else {
             return;
         };
-        current_node.kind = PendingNodeKind::Image(PendingImageNode { draw, clip_stack });
+        current_node.kind = PendingNodeKind::Image(PendingImageNode {
+            draw,
+            clip_stack,
+            bounds,
+        });
     }
 
     pub fn flush(&mut self) {
@@ -425,6 +458,10 @@ impl<'w> WgpuRenderer<'w> {
         self.ensure_vector_resources_for_immediate_scene();
         self.transform_arena.flush_to_gpu(&self.render_backend);
         self.clip_arena.flush_to_gpu(&self.render_backend);
+        // Each retained renderer represents one physical surface tile. Cull retained nodes against
+        // that tile-local viewport before batching so newly revealed tiles do not replay the full
+        // layer scene.
+        let viewport_bounds = self.viewport_bounds();
         let mut current_clip_stack: Vec<u32> = Vec::new();
         let mut current_batch: Vec<RetainedDraw<'_>> = Vec::new();
         let mut current_batch_clip_stack: Option<Vec<ClipReference>> = None;
@@ -432,6 +469,9 @@ impl<'w> WgpuRenderer<'w> {
             let Some(node) = self.scene.get(node_id) else {
                 continue;
             };
+            if !node.intersects_bounds(&viewport_bounds) {
+                continue;
+            }
             if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
                 if !clip_stacks_match(batch_clip_stack, node.clip_stack()) {
                     sync_clip_stack(
@@ -561,14 +601,27 @@ impl<'w> WgpuRenderer<'w> {
             .resize_surface(width.round() as u32, height.round() as u32);
     }
 
-    pub fn set_viewport(&mut self, width: f32, height: f32, dpr: f32) {
+    pub fn set_viewport(&mut self, width: f32, height: f32, dpr: [f32; 2]) {
         self.scene_dirty = true;
-        self.render_backend
-            .set_viewport(width, height, dpr.max(1.0));
+        self.render_backend.set_viewport(width, height, dpr);
     }
 
     pub fn max_surface_dimension(&self) -> u32 {
         self.render_backend.max_surface_dimension()
+    }
+
+    pub fn scene_len(&self) -> usize {
+        self.scene.len()
+    }
+
+    pub fn visible_node_count(&self) -> usize {
+        // Resource uploads are per physical surface. Skip nodes outside this tile's viewport so a
+        // seam-crossing tile does not eagerly allocate buffers for the entire logical layer.
+        let viewport_bounds = self.viewport_bounds();
+        self.scene
+            .values()
+            .filter(|node| node.intersects_bounds(&viewport_bounds))
+            .count()
     }
 
     pub fn size(&self) -> (f32, f32) {
@@ -630,8 +683,9 @@ impl<'w> WgpuRenderer<'w> {
                     .collect::<Vec<_>>();
                 let fill_signature = hash_vector_fills(&buffers.ops);
                 let transform_signature = hash_vector_transforms(&buffers.ops);
+                let local_transforms = build_local_transform_table(&buffers.ops);
                 let (transform_keys, transform_ids) =
-                    self.transform_arena.sync_node(node_id, &buffers.ops);
+                    self.transform_arena.sync_node(node_id, &local_transforms);
                 let transform_layout_signature = hash_transform_ids(&transform_ids);
 
                 match previous {
@@ -676,6 +730,7 @@ impl<'w> WgpuRenderer<'w> {
                         existing.fill_signature = fill_signature;
                         existing.transform_signature = transform_signature;
                         existing.transform_layout_signature = transform_layout_signature;
+                        existing.bounds = compute_vector_node_bounds(&buffers.ops);
                         Some(RetainedNode::Vector(existing))
                     }
                     Some(RetainedNode::Image(_existing)) => {
@@ -696,6 +751,7 @@ impl<'w> WgpuRenderer<'w> {
                             transform_keys,
                             clip_stack: buffers.clip_stack,
                             z_index: pending_z_index,
+                            bounds: compute_vector_node_bounds(&buffers.ops),
                             resource_dirty: VectorResourceDirty {
                                 geometry: true,
                                 primitives: true,
@@ -726,6 +782,7 @@ impl<'w> WgpuRenderer<'w> {
                             transform_keys,
                             clip_stack: buffers.clip_stack,
                             z_index: pending_z_index,
+                            bounds: compute_vector_node_bounds(&buffers.ops),
                             resource_dirty: VectorResourceDirty {
                                 geometry: true,
                                 primitives: true,
@@ -748,6 +805,7 @@ impl<'w> WgpuRenderer<'w> {
                     draw: image_node.draw,
                     clip_stack: image_node.clip_stack,
                     z_index: pending_z_index,
+                    bounds: image_node.bounds,
                 }))
             }
         };
@@ -820,6 +878,9 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     fn ensure_vector_resources_for_immediate_scene(&mut self) {
+        // Vector-scene batching has the same per-tile duplication pressure as the immediate path,
+        // so apply the same viewport cull before appending geometry.
+        let viewport_bounds = self.viewport_bounds();
         let node_ids: Vec<u32> = self
             .sorted_nodes
             .iter()
@@ -829,6 +890,9 @@ impl<'w> WgpuRenderer<'w> {
             let Some(RetainedNode::Vector(node)) = self.scene.get_mut(&node_id) else {
                 continue;
             };
+            if !boxes_intersect(&node.bounds, &viewport_bounds) {
+                continue;
+            }
             if !node.resource_dirty.any() {
                 continue;
             }
@@ -862,15 +926,18 @@ impl<'w> WgpuRenderer<'w> {
     fn flush_vector_scene_batch(&mut self) {
         self.transform_arena.flush_to_gpu(&self.render_backend);
         self.clip_arena.flush_to_gpu(&self.render_backend);
+        let viewport_bounds = self.viewport_bounds();
         let mut current_clip_stack: Vec<u32> = Vec::new();
         let mut current_batch_clip_stack: Option<Vec<ClipReference>> = None;
         let mut current_buffers = new_cpu_buffers();
         let mut has_geometry = false;
-
         for (_, node_id) in &self.sorted_nodes {
             let Some(RetainedNode::Vector(node)) = self.scene.get(node_id) else {
                 continue;
             };
+            if !boxes_intersect(&node.bounds, &viewport_bounds) {
+                continue;
+            }
 
             if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
                 if !clip_stacks_match(batch_clip_stack, &node.clip_stack) {
@@ -926,6 +993,14 @@ impl<'w> WgpuRenderer<'w> {
             .retain_stencil_resources(&active_clip_signatures, &active_clip_ids);
         self.render_backend.present();
     }
+
+    fn viewport_bounds(&self) -> Box2D {
+        let (width, height) = self.size();
+        Box2D {
+            min: point(0.0, 0.0),
+            max: point(width.max(0.0), height.max(0.0)),
+        }
+    }
 }
 
 struct SceneStateSave {
@@ -969,6 +1044,7 @@ enum PendingVectorOpKind {
 struct PendingImageNode {
     draw: RetainedImageDraw,
     clip_stack: Vec<ClipReference>,
+    bounds: Box2D,
 }
 
 enum RetainedNode {
@@ -990,6 +1066,13 @@ impl RetainedNode {
             RetainedNode::Image(node) => &node.clip_stack,
         }
     }
+
+    fn intersects_bounds(&self, viewport_bounds: &Box2D) -> bool {
+        match self {
+            RetainedNode::Vector(node) => boxes_intersect(&node.bounds, viewport_bounds),
+            RetainedNode::Image(node) => boxes_intersect(&node.bounds, viewport_bounds),
+        }
+    }
 }
 
 struct RetainedVectorNode {
@@ -999,6 +1082,7 @@ struct RetainedVectorNode {
     transform_keys: Vec<TransformArenaKey>,
     clip_stack: Vec<ClipReference>,
     z_index: i32,
+    bounds: Box2D,
     resource_dirty: VectorResourceDirty,
     geometry_signatures: Vec<u64>,
     fill_signature: u64,
@@ -1010,6 +1094,7 @@ struct RetainedImageNode {
     draw: RetainedImageDraw,
     clip_stack: Vec<ClipReference>,
     z_index: i32,
+    bounds: Box2D,
 }
 
 fn new_cpu_buffers() -> CpuBuffers {
@@ -1028,12 +1113,38 @@ fn build_retained_primitives(
 ) -> Vec<GpuPrimitive> {
     local_primitives
         .iter()
-        .zip(transform_ids.iter().copied())
-        .map(|(primitive, transform_id)| GpuPrimitive {
-            transform_id,
+        .map(|primitive| GpuPrimitive {
+            transform_id: transform_ids
+                .get(primitive.transform_id as usize)
+                .copied()
+                .unwrap_or(0),
             ..*primitive
         })
         .collect()
+}
+
+fn build_local_transform_table(ops: &[PendingVectorOp]) -> Vec<GpuTransform> {
+    let mut transforms = vec![GpuTransform::default()];
+    for op in ops {
+        let transform = GpuTransform {
+            transform: op.transform.to_arrays(),
+            opacity: op.opacity,
+            ..GpuTransform::default()
+        };
+        if transform.transform == GpuTransform::default().transform
+            && (transform.opacity - GpuTransform::default().opacity).abs() <= f32::EPSILON
+        {
+            continue;
+        }
+        if transforms.iter().any(|existing| {
+            existing.transform == transform.transform
+                && (existing.opacity - transform.opacity).abs() <= f32::EPSILON
+        }) {
+            continue;
+        }
+        transforms.push(transform);
+    }
+    transforms
 }
 
 fn rebuild_vector_buffers(
@@ -1227,6 +1338,129 @@ fn hash_transform_ids(transform_ids: &[u32]) -> u64 {
         transform_id.hash(&mut hasher);
     }
     hasher.finish()
+}
+
+fn compute_vector_node_bounds(ops: &[PendingVectorOp]) -> Box2D {
+    let mut bounds: Option<Box2D> = None;
+    for op in ops {
+        let Some(path_bounds) = path_control_bounds(&op.path) else {
+            continue;
+        };
+        let mut op_bounds = transform_box(path_bounds, &op.transform);
+        if let PendingVectorOpKind::Stroke(width) = op.kind {
+            op_bounds = expand_box(op_bounds, width * 0.5);
+        }
+        bounds = Some(match bounds {
+            Some(existing) => union_boxes(existing, op_bounds),
+            None => op_bounds,
+        });
+    }
+    bounds.unwrap_or_else(empty_box)
+}
+
+fn path_control_bounds(path: &Path) -> Option<Box2D> {
+    let mut min_x = f32::INFINITY;
+    let mut min_y = f32::INFINITY;
+    let mut max_x = f32::NEG_INFINITY;
+    let mut max_y = f32::NEG_INFINITY;
+
+    let mut visit = |point: Point2D| {
+        min_x = min_x.min(point.x);
+        min_y = min_y.min(point.y);
+        max_x = max_x.max(point.x);
+        max_y = max_y.max(point.y);
+    };
+
+    for event in path.iter() {
+        match event {
+            PathEvent::Begin { at } => visit(at),
+            PathEvent::Line { from, to } => {
+                visit(from);
+                visit(to);
+            }
+            PathEvent::Quadratic { from, ctrl, to } => {
+                visit(from);
+                visit(ctrl);
+                visit(to);
+            }
+            PathEvent::Cubic {
+                from,
+                ctrl1,
+                ctrl2,
+                to,
+            } => {
+                visit(from);
+                visit(ctrl1);
+                visit(ctrl2);
+                visit(to);
+            }
+            PathEvent::End { first, last, .. } => {
+                visit(first);
+                visit(last);
+            }
+        }
+    }
+
+    if min_x.is_finite() && min_y.is_finite() && max_x.is_finite() && max_y.is_finite() {
+        Some(Box2D {
+            min: point(min_x, min_y),
+            max: point(max_x, max_y),
+        })
+    } else {
+        None
+    }
+}
+
+fn transform_box(bounds: Box2D, transform: &Transform2D) -> Box2D {
+    let corners = [
+        bounds.min,
+        point(bounds.max.x, bounds.min.y),
+        point(bounds.min.x, bounds.max.y),
+        bounds.max,
+    ];
+    let mut min_x = f32::INFINITY;
+    let mut min_y = f32::INFINITY;
+    let mut max_x = f32::NEG_INFINITY;
+    let mut max_y = f32::NEG_INFINITY;
+    for corner in corners {
+        let transformed = transform.transform_point(corner);
+        min_x = min_x.min(transformed.x);
+        min_y = min_y.min(transformed.y);
+        max_x = max_x.max(transformed.x);
+        max_y = max_y.max(transformed.y);
+    }
+    Box2D {
+        min: point(min_x, min_y),
+        max: point(max_x, max_y),
+    }
+}
+
+fn expand_box(bounds: Box2D, inset: f32) -> Box2D {
+    Box2D {
+        min: point(bounds.min.x - inset, bounds.min.y - inset),
+        max: point(bounds.max.x + inset, bounds.max.y + inset),
+    }
+}
+
+fn union_boxes(left: Box2D, right: Box2D) -> Box2D {
+    Box2D {
+        min: point(left.min.x.min(right.min.x), left.min.y.min(right.min.y)),
+        max: point(left.max.x.max(right.max.x), left.max.y.max(right.max.y)),
+    }
+}
+
+fn empty_box() -> Box2D {
+    Box2D {
+        min: point(0.0, 0.0),
+        max: point(0.0, 0.0),
+    }
+}
+
+fn boxes_intersect(left: &Box2D, right: &Box2D) -> bool {
+    left.min.x <= right.max.x
+        && left.max.x >= right.min.x
+        && left.min.y <= right.max.y
+        && left.max.y >= right.min.y
 }
 
 fn hash_transform_bits<H: Hasher>(transform: &Transform2D, opacity: f32, state: &mut H) {

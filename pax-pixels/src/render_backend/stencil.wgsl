@@ -1,7 +1,6 @@
 struct Globals {
     resolution: vec2<f32>,
-    dpr: f32,
-    _pad2: f32,
+    dpr: vec2<f32>,
 };
 
 struct StencilTransform {
@@ -16,7 +15,7 @@ struct StencilTransform {
 };
 
 struct StencilTransforms {
-    transforms: array<StencilTransform, 1024>,
+    transforms: array<StencilTransform, 480>,
 };
 
 @group(0) @binding(0) var<uniform> globals: Globals;

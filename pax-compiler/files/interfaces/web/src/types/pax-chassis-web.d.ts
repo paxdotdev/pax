@@ -31,6 +31,13 @@ export class PaxChassisWeb {
 */
   send_viewport_update(width: number, height: number): void;
 /**
+*/
+  refresh_render_surfaces(): void;
+/**
+* @param {Uint32Array} layer_ids
+*/
+  refresh_render_surfaces_for_layers(layer_ids: Uint32Array): void;
+/**
 * @returns {[number]}
 */
   get_dirty_canvases(): [number];
@@ -95,6 +102,8 @@ export interface InitOutput {
   readonly __wbg_set_interruptresult_prevent_default: (a: number, b: number) => void;
   readonly paxchassisweb_resize_layers_to: (a: number, b: number) => void;
   readonly paxchassisweb_send_viewport_update: (a: number, b: number, c: number) => void;
+  readonly paxchassisweb_refresh_render_surfaces: (a: number) => void;
+  readonly paxchassisweb_refresh_render_surfaces_for_layers: (a: number, b: number, c: number) => void;
   readonly paxchassisweb_get_dirty_canvases: (a: number, b: number) => void;
   readonly paxchassisweb_interrupt: (a: number, b: number, c: number, d: number) => number;
   readonly paxchassisweb_deallocate: (a: number, b: number) => void;
