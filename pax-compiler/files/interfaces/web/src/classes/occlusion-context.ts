@@ -1,16 +1,19 @@
 import {Layer} from "./layer";
+import type { CanvasPool } from "./canvas-pool";
 import {ObjectManager} from "../pools/object-manager";
 import {ARRAY, DIV, LAYER} from "../pools/supported-objects";
 
 import { CLIPPING_CONTAINER, NATIVE_LEAF_CLASS } from "../utils/constants";
 import { affineMultiply } from "../utils/helpers";
 import type { NativeMaskEntry } from "./messages/native-mask-update-patch";
+import type { LayerCanvasPlan } from "./surface-host-policy";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 export class OcclusionLayerManager {
     private layers?: Layer[];
     private canvasMap?: Map<string, HTMLCanvasElement>;
+    private canvasPool?: CanvasPool;
     public parent?: Element;
     private objectManager: ObjectManager;
     private containers: Map<number, Container>;
@@ -30,10 +33,15 @@ export class OcclusionLayerManager {
         this.effects = new SvgEffectManager();
     }
 
-    attach(parent: Element, canvasMap: Map<string, HTMLCanvasElement>) {
+    attach(
+        parent: Element,
+        canvasMap: Map<string, HTMLCanvasElement>,
+        canvasPool?: CanvasPool,
+    ) {
         this.layers = this.objectManager.getFromPool(ARRAY);
         this.parent = parent;
         this.canvasMap = canvasMap;
+        this.canvasPool = canvasPool;
         this.effects.attach(parent);
         this.growTo(0);
     }
@@ -47,6 +55,7 @@ export class OcclusionLayerManager {
                     this.parent!,
                     i,
                     this.canvasMap!,
+                    this.canvasPool,
                 );
                 this.layers!.push(newLayer);
                 this.applyPendingLayerIslandClaim(i);
@@ -344,8 +353,12 @@ export class OcclusionLayerManager {
         this.parent = undefined;
     }
 
-    syncLayerCanvasLayouts() {
-        this.layers?.forEach((layer) => layer.syncCanvasLayout());
+    syncLayerCanvasLayouts(planProvider?: (layerId: number) => LayerCanvasPlan | null | undefined) {
+        this.layers?.forEach((layer, layerId) => {
+            let plan = planProvider ? planProvider(layerId) ?? undefined : undefined;
+            layer.setCanvasPlan(plan);
+            layer.syncCanvasLayout();
+        });
     }
 
     setRootPageScrollMode(active: boolean) {

@@ -407,7 +407,7 @@ impl<'w> RenderBackend<'w> {
             })
             .await
             .expect("couldn't find device");
-        let max_surface_dimension = device.limits().max_texture_dimension_2d;
+        let max_surface_dimension = device.limits().max_texture_dimension_2d.max(1);
         log::info!(
             "render backend: max surface dimension {}",
             max_surface_dimension
@@ -475,11 +475,30 @@ impl<'w> RenderBackend<'w> {
             .get_texture_format_features(wgpu::TextureFormat::Stencil8)
             .flags;
         let sample_count = select_sample_count(surface_format_features, stencil_format_features);
+        let mut surface_usage = TextureUsages::RENDER_ATTACHMENT;
+        if surface_caps.usages.contains(TextureUsages::COPY_SRC) {
+            surface_usage |= TextureUsages::COPY_SRC;
+        } else {
+            #[cfg(target_arch = "wasm32")]
+            log::warn!("render backend: surface does not support COPY_SRC; disabling readback usage");
+        }
+        let initial_width = config.initial_width.max(1).min(max_surface_dimension);
+        let initial_height = config.initial_height.max(1).min(max_surface_dimension);
+        if initial_width != config.initial_width || initial_height != config.initial_height {
+            log::warn!(
+                "render backend: clamped initial surface size from {}x{} to {}x{} (max {})",
+                config.initial_width,
+                config.initial_height,
+                initial_width,
+                initial_height,
+                max_surface_dimension
+            );
+        }
         let surface_config = SurfaceConfiguration {
-            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC,
+            usage: surface_usage,
             format: surface_format,
-            width: config.initial_width.max(1),
-            height: config.initial_height.max(1),
+            width: initial_width,
+            height: initial_height,
             present_mode: PresentMode::Fifo,
             alpha_mode,
             view_formats: vec![],
@@ -503,10 +522,7 @@ impl<'w> RenderBackend<'w> {
         }
 
         let globals = GpuGlobals {
-            resolution: [
-                config.initial_width.max(1) as f32,
-                config.initial_height.max(1) as f32,
-            ],
+            resolution: [initial_width as f32, initial_height as f32],
             dpr: config.initial_dpr,
         };
         let (_, globals_buffer) = create_buffer::<GpuGlobals>(
@@ -652,15 +668,15 @@ impl<'w> RenderBackend<'w> {
         let texture_renderer = TextureRenderer::new(&device, surface_config.format, sample_count);
         let stencil_renderer = StencilRenderer::new(
             &device,
-            config.initial_width,
-            config.initial_height,
+            initial_width,
+            initial_height,
             sample_count,
             &globals_buffer,
             &clip_transforms_buffer,
         );
 
-        let initial_width = config.initial_width;
-        let initial_height = config.initial_height;
+        let initial_width = initial_width;
+        let initial_height = initial_height;
         let initial_dpr = config.initial_dpr;
         let mut backend = Self {
             texture_renderer,
@@ -804,8 +820,21 @@ impl<'w> RenderBackend<'w> {
     }
 
     pub fn resize_surface(&mut self, width: u32, height: u32) {
-        let width = width.max(1);
-        let height = height.max(1);
+        let max_dim = self.max_surface_dimension.max(1);
+        let requested_width = width.max(1);
+        let requested_height = height.max(1);
+        let width = requested_width.min(max_dim);
+        let height = requested_height.min(max_dim);
+        if width != requested_width || height != requested_height {
+            log::warn!(
+                "render backend: clamped surface resize from {}x{} to {}x{} (max {})",
+                requested_width,
+                requested_height,
+                width,
+                height,
+                max_dim
+            );
+        }
         self.active_frame = None;
         self.pending_clear = false;
         self.surface_config.width = width;

@@ -90,6 +90,7 @@ pub enum NativeInterrupt {
     FormButtonClick(FormButtonClickArgs),
     Scrollbar(ScrollbarInterruptArgs),
     BrowserConfig(BrowserConfigInterruptArgs),
+    VisualViewportUpdate(VisualViewportUpdateArgs),
     DropFile(DropFileArgs),
     Screenshot(ImageLoadInterruptArgs),
 }
@@ -194,6 +195,17 @@ pub struct ScrollbarInterruptArgs {
 pub struct BrowserConfigInterruptArgs {
     pub allow_scroller_vector_layers: bool,
     pub allow_nested_scroller_vector_layers: bool,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct VisualViewportUpdateArgs {
+    pub width: f64,
+    pub height: f64,
+    pub offset_x: f64,
+    pub offset_y: f64,
+    pub page_scroll_x: f64,
+    pub page_scroll_y: f64,
 }
 
 #[derive(Deserialize)]

@@ -11,7 +11,6 @@ use wasm_bindgen::{closure::Closure, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Document, HtmlCanvasElement, Window};
 #[cfg(not(feature = "piet"))]
-use web_time::Instant;
 
 struct SurfaceMetrics {
     logical_width: f32,
@@ -94,22 +93,6 @@ fn compute_surface_metrics(
     }
 }
 
-#[cfg(not(feature = "piet"))]
-fn scroll_perf_trace_enabled(window: &Window) -> bool {
-    window
-        .location()
-        .search()
-        .ok()
-        .map(|search| {
-            search
-                .trim_start_matches('?')
-                .split('&')
-                .filter_map(|entry| entry.split_once('='))
-                .any(|(key, value)| key == "pax_scroll_perf" && matches!(value, "1" | "true"))
-        })
-        .unwrap_or(false)
-}
-
 #[cfg(feature = "piet")]
 pub fn get_render_context(window: Window) -> impl RenderContext {
     use pax_runtime::piet_render_context::PietRenderer;
@@ -170,14 +153,11 @@ pub fn get_render_context(window: Window) -> impl RenderContext {
     };
     use pax_runtime::pax_pixels_render_context::{LayerRenderer, LayerTarget, PaxPixelsRenderer};
     let surface_policy = BrowserSurfacePolicy::detect(&window);
-    let perf_trace = scroll_perf_trace_enabled(&window);
     PaxPixelsRenderer::new(move |layer| {
         let window = window.clone();
         let surface_policy = surface_policy;
-        let perf_trace = perf_trace;
         Box::pin(async move {
             let document = window.document().unwrap();
-            let wait_started = Instant::now();
             let initial_targets = wait_for_layer_canvas_targets(
                 &window,
                 &document,
@@ -188,7 +168,6 @@ pub fn get_render_context(window: Window) -> impl RenderContext {
                 surface_policy.defer_transient_root_host_surfaces(layer),
             )
             .await;
-            let wait_ms = wait_started.elapsed().as_secs_f64() * 1000.0;
             if surface_policy.force_gl() {
                 log::info!(
                     "render backend: forcing GL canvas path for iOS WebKit browser surfaces"
@@ -197,7 +176,6 @@ pub fn get_render_context(window: Window) -> impl RenderContext {
 
             let mut renderers = Vec::with_capacity(initial_targets.len());
             let mut backend_limit = u32::MAX;
-            let init_started = Instant::now();
             for target in &initial_targets {
                 target.canvas.set_width(target.surface.surface_width);
                 target.canvas.set_height(target.surface.surface_height);
@@ -259,16 +237,6 @@ pub fn get_render_context(window: Window) -> impl RenderContext {
                     target.surface.surface_height,
                     target.surface.dpr,
                 ));
-            }
-            let init_ms = init_started.elapsed().as_secs_f64() * 1000.0;
-            if perf_trace {
-                log::warn!(
-                    "[pax-scroll-perf] layer-init layer={} targets={} wait_ms={:.1} init_ms={:.1}",
-                    layer,
-                    initial_targets.len(),
-                    wait_ms,
-                    init_ms,
-                );
             }
 
             let effective_max_surface_dimension =
@@ -573,6 +541,11 @@ fn canvas_render_state(canvas: &HtmlCanvasElement) -> String {
 
 #[cfg(not(feature = "piet"))]
 fn canvas_host_signature(canvas: &HtmlCanvasElement) -> String {
+    if let Some(signature) = canvas.get_attribute("data-host-signature") {
+        if !signature.is_empty() {
+            return signature;
+        }
+    }
     let parent = canvas.parent_element();
     let parent_role = parent
         .as_ref()

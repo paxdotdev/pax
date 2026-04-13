@@ -707,6 +707,7 @@ pub extern "C" fn pax_interrupt(
         }
         NativeInterrupt::Scrollbar(_args) => {}
         NativeInterrupt::Scroll(_args) => {}
+        NativeInterrupt::VisualViewportUpdate(_args) => {}
         NativeInterrupt::Image(args) => match args {
             ImageLoadInterruptArgs::Reference(_ref_args) => {
                 #[cfg(any(target_os = "ios", target_os = "macos"))]

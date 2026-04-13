@@ -17,6 +17,7 @@ use pax_runtime::api::SelectStart;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::OS;
 use pax_runtime::DefinitionToInstanceTraverser;
+use pax_runtime::engine::layer_tiling::scroller_canvas_plan;
 use web_time::Instant;
 use_RefCell!();
 
@@ -576,6 +577,19 @@ impl PaxChassisWeb {
                     .set(args.allow_nested_scroller_vector_layers);
                 false
             }
+            NativeInterrupt::VisualViewportUpdate(args) => {
+                engine.runtime_context.set_visual_viewport_state(
+                    pax_runtime::VisualViewportState {
+                        width: args.width,
+                        height: args.height,
+                        offset_x: args.offset_x,
+                        offset_y: args.offset_y,
+                        page_scroll_x: args.page_scroll_x,
+                        page_scroll_y: args.page_scroll_y,
+                    },
+                );
+                false
+            }
             NativeInterrupt::Scroll(_) => false,
             NativeInterrupt::Clap(args) => {
                 let topmost_node = engine
@@ -885,6 +899,62 @@ impl PaxChassisWeb {
 
     pub fn render(&mut self) {
         borrow_mut!(self.engine).render(self.render_context.as_mut());
+    }
+
+    pub fn get_layer_canvas_plan(&self, layer: usize) -> JsValue {
+        let engine = self.engine.borrow();
+        let ctx = &engine.runtime_context;
+        let window = window().unwrap();
+        let dpr = window.device_pixel_ratio().max(1.0);
+
+        let plan = if let Some(owner) = ctx.get_layer_scroller_owner(layer) {
+            let scroller_id = owner.to_u32();
+            let Some(state) = ctx.get_scroller_surface_state(scroller_id) else {
+                return JsValue::NULL;
+            };
+            let host_signature = format!("scroller:{scroller_id}");
+            let mut viewport_width = state.viewport_width;
+            let mut viewport_height = state.viewport_height;
+            let mut scroll_x = if state.presentation_scroll_x.is_finite() {
+                state.presentation_scroll_x
+            } else {
+                state.scroll_x
+            };
+            let mut scroll_y = if state.presentation_scroll_y.is_finite() {
+                state.presentation_scroll_y
+            } else {
+                state.scroll_y
+            };
+            if ctx.get_root_scroller_id() == Some(scroller_id) {
+                if let Some(visual) = ctx.get_visual_viewport_state() {
+                    viewport_width = visual.width;
+                    viewport_height = visual.height;
+                    scroll_x = visual.page_scroll_x;
+                    scroll_y = visual.page_scroll_y;
+                }
+            }
+            scroller_canvas_plan(
+                layer,
+                host_signature,
+                state.content_width,
+                state.content_height,
+                viewport_width,
+                viewport_height,
+                scroll_x,
+                scroll_y,
+                dpr,
+            )
+        } else if layer == 0 {
+            let viewport = ctx.globals().viewport.get();
+            let host_signature = "root".to_string();
+            let width = viewport.bounds.0;
+            let height = viewport.bounds.1;
+            scroller_canvas_plan(layer, host_signature, width, height, width, height, 0.0, 0.0, dpr)
+        } else {
+            return JsValue::NULL;
+        };
+
+        serde_wasm_bindgen::to_value(&plan).unwrap_or(JsValue::NULL)
     }
 
     pub fn request_layer_screenshot(&mut self, layer: usize, request_id: u32) {

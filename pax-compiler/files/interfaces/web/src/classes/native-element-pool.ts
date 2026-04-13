@@ -57,6 +57,7 @@ import {
     estimateWarmLayerCanvasCount,
     isIOSWebKitBrowser,
 } from "./surface-host-policy";
+import { CanvasPool } from "./canvas-pool";
 
 const SCREENSHOT_FONT_STYLE_ATTRIBUTE = 'data-pax-screenshot-font-style';
 
@@ -78,15 +79,10 @@ export class NativeElementPool {
     private activePageScrollScrollerId?: number;
     private pageScrollActivityListenersInstalled = false;
     private readonly pageScrollActivityListener: () => void;
-    private perfTraceEnabled = false;
-    private perfTraceSequence = 0;
-    private lastPerfLifecycleSignature = "";
-    private lastPerfLifecycleLogAt = 0;
-    private lastPerfCanvasSignature = "";
-    private lastPerfCanvasLogAt = 0;
     private objectManager: ObjectManager;
     private resizeObserver: ResizeObserver;
     registeredFontFaces: Set<string>;
+    private canvasPool?: CanvasPool;
 
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
@@ -122,8 +118,13 @@ export class NativeElementPool {
     attach(chassis: PaxChassisWeb, mount: Element){
         this.chassis = chassis;
         this.mount = mount instanceof HTMLElement ? mount : undefined;
-        this.perfTraceEnabled = isScrollPerfTraceEnabled();
-        this.layers.attach(mount, this.canvases);
+        this.canvasPool = new CanvasPool(
+            this.objectManager,
+            browserCanvasPoolBudget(),
+            browserCanvasPoolReuseCooldownMs(),
+        );
+        this.canvasPool.attach(mount);
+        this.layers.attach(mount, this.canvases, this.canvasPool);
     }
 
     hasActivePageScrollDelegation() {
@@ -131,6 +132,7 @@ export class NativeElementPool {
     }
 
     sampleFrameInputs() {
+        this.syncDelegatedPageScrollViewport();
         this.scrollerMeasurementStates.forEach((state, id) => {
             let leaf = this.nodesLookup.get(id);
             if (leaf == null) {
@@ -152,6 +154,16 @@ export class NativeElementPool {
             state.lastMeasuredScrollY = measurement.scrollY;
             state.lastMeasuredPresentationScrollX = measurement.presentationScrollX;
             state.lastMeasuredPresentationScrollY = measurement.presentationScrollY;
+
+            if (
+                isIOSWebKitBrowser()
+                && (state.active || moved)
+            ) {
+                state.lastWarmAt =
+                    typeof performance !== "undefined" && typeof performance.now === "function"
+                        ? performance.now()
+                        : Date.now();
+            }
 
             if (state.active || moved) {
                 this.emitScrollerPosition(id, measurement, state);
@@ -1087,32 +1099,39 @@ export class NativeElementPool {
         if (typeof window === "undefined") {
             return true;
         }
+        let now =
+            typeof performance !== "undefined" && typeof performance.now === "function"
+                ? performance.now()
+                : Date.now();
         if (state.isRootScroller || state.delegatesToPageScroll) {
+            state.lastWarmAt = now;
             return true;
         }
         let scrollerId = this.getScrollerIdFromLeaf(leaf);
         if (scrollerId == null) {
+            state.lastWarmAt = now;
             return true;
         }
-        let record = this.getPresentationRecordForLeaf(scrollerId, leaf);
+        let record = this.getWarmthPresentationRecord(scrollerId, leaf, state);
         let horizontalScrollable = leaf.scrollWidth > leaf.clientWidth + 0.5;
         let verticalScrollable = leaf.scrollHeight > leaf.clientHeight + 0.5;
         let paddedClipBounds = expandRect(
             record.presentedClipBounds,
             horizontalScrollable
-                ? Math.max(
-                    leaf.clientWidth * ACTIVE_SCROLLABLE_PAD_X_MULTIPLIER,
-                    ACTIVE_SCROLLABLE_MIN_PAD_X,
-                )
+                ? activeScrollablePadX(leaf.clientWidth)
                 : 120,
             verticalScrollable
-                ? Math.max(
-                    leaf.clientHeight * ACTIVE_SCROLLABLE_PAD_Y_MULTIPLIER,
-                    ACTIVE_SCROLLABLE_MIN_PAD_Y,
-                )
+                ? activeScrollablePadY(leaf.clientHeight)
                 : 120,
         );
-        return rectsIntersect(record.presentedBounds, paddedClipBounds);
+        if (rectsIntersect(record.presentedBounds, paddedClipBounds)) {
+            state.lastWarmAt = now;
+            return true;
+        }
+        if (isIOSWebKitBrowser() && now - state.lastWarmAt <= IOS_WARM_LINGER_MS) {
+            return true;
+        }
+        return false;
     }
 
     private getPresentationRecordForLeaf(
@@ -1163,6 +1182,41 @@ export class NativeElementPool {
         };
     }
 
+    private getWarmthPresentationRecord(
+        scrollerId: number,
+        leaf: HTMLElement,
+        state: ScrollerMeasurementState,
+    ): { presentedBounds: AxisAlignedRect; presentedClipBounds: AxisAlignedRect } {
+        if (isIOSWebKitBrowser() && this.activePageScrollScrollerId != null) {
+            let transform = state.transform ?? [1, 0, 0, 1, 0, 0];
+            let width = leaf.clientWidth || 0;
+            let height = leaf.clientHeight || 0;
+            let point0 = affineMultiply([0, 0], transform);
+            let point1 = affineMultiply([width, 0], transform);
+            let point2 = affineMultiply([width, height], transform);
+            let point3 = affineMultiply([0, height], transform);
+            let left = Math.min(point0[0], point1[0], point2[0], point3[0]);
+            let right = Math.max(point0[0], point1[0], point2[0], point3[0]);
+            let top = Math.min(point0[1], point1[1], point2[1], point3[1]);
+            let bottom = Math.max(point0[1], point1[1], point2[1], point3[1]);
+
+            let visibleViewport = this.readVisiblePageViewport();
+            let pageScroll = this.readPageScrollPosition();
+            let approvedScrollX = pageScroll.scrollX + visibleViewport.offsetX;
+            let approvedScrollY = pageScroll.scrollY + visibleViewport.offsetY;
+            return {
+                presentedBounds: { left, top, right, bottom },
+                presentedClipBounds: {
+                    left: approvedScrollX,
+                    top: approvedScrollY,
+                    right: approvedScrollX + visibleViewport.width,
+                    bottom: approvedScrollY + visibleViewport.height,
+                },
+            };
+        }
+        return this.getPresentationRecordForLeaf(scrollerId, leaf);
+    }
+
     private updatePresentationRecord(
         id: number,
         presentedBounds?: number[] | null,
@@ -1188,7 +1242,6 @@ export class NativeElementPool {
         hosts.canvasHost.style.visibility = "hidden";
         hosts.contentHost.style.visibility = "hidden";
         this.surfaceRefreshPending = true;
-        this.logScrollPerf(`park id=${hosts.id}`);
     }
 
     private unparkScrollerHosts(hosts: ScrollerDomHosts) {
@@ -1201,7 +1254,6 @@ export class NativeElementPool {
         hosts.canvasHost.style.visibility = "";
         hosts.contentHost.style.visibility = "";
         this.surfaceRefreshPending = true;
-        this.logScrollPerf(`unpark id=${hosts.id}`);
     }
 
     private promoteScrollerHosts(hosts: ScrollerDomHosts) {
@@ -1236,7 +1288,7 @@ export class NativeElementPool {
         return Math.max(
             1,
             layerIds.reduce((total, layerId) => {
-                return total + Math.max(1, estimateWarmLayerCanvasCount(layerId, hosts.canvasHost));
+                return total + Math.max(1, this.estimateWarmLayerCanvasCount(layerId, hosts.canvasHost));
             }, 0),
         );
     }
@@ -1251,22 +1303,16 @@ export class NativeElementPool {
             if (state == null || state.isRootScroller || state.delegatesToPageScroll) {
                 return;
             }
-            let record = this.getPresentationRecordForLeaf(id, hosts.leaf);
+            let record = this.getWarmthPresentationRecord(id, hosts.leaf, state);
             let horizontalScrollable = hosts.leaf.scrollWidth > hosts.leaf.clientWidth + 0.5;
             let verticalScrollable = hosts.leaf.scrollHeight > hosts.leaf.clientHeight + 0.5;
         let prewarmClipBounds = expandRect(
             record.presentedClipBounds,
             horizontalScrollable
-                ? Math.max(
-                    hosts.leaf.clientWidth * PREWARM_SCROLLABLE_PAD_X_MULTIPLIER,
-                    PREWARM_SCROLLABLE_MIN_PAD_X,
-                )
+                ? prewarmScrollablePadX(hosts.leaf.clientWidth)
                 : 240,
             verticalScrollable
-                ? Math.max(
-                    hosts.leaf.clientHeight * PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER,
-                    PREWARM_SCROLLABLE_MIN_PAD_Y,
-                )
+                ? prewarmScrollablePadY(hosts.leaf.clientHeight)
                 : 240,
         );
         candidates.push({
@@ -1279,8 +1325,6 @@ export class NativeElementPool {
     }
 
     private syncWarmScrollerHosts() {
-        let promotedIds: number[] = [];
-        let demotedIds: number[] = [];
         let nestedSurfaceBudget = browserNestedScrollerSurfaceBudget();
         let totalCanvasBudget = browserTotalCanvasBudget();
         if (nestedSurfaceBudget != null) {
@@ -1294,7 +1338,7 @@ export class NativeElementPool {
             }> = [];
             let rootCanvasCost = 0;
             if (totalCanvasBudget != null && this.mount != null) {
-                rootCanvasCost = Math.max(1, estimateWarmLayerCanvasCount(0, this.mount));
+                rootCanvasCost = Math.max(1, this.estimateWarmLayerCanvasCount(0, this.mount));
             }
             let mandatoryCost = 0;
             this.scrollerHosts.forEach((hosts, id) => {
@@ -1311,22 +1355,16 @@ export class NativeElementPool {
                 let shouldWarm = mandatory
                     ? true
                     : this.shouldKeepScrollerHostsActive(hosts.leaf, state);
-                let record = this.getPresentationRecordForLeaf(id, hosts.leaf);
+                let record = this.getWarmthPresentationRecord(id, hosts.leaf, state);
                 let horizontalScrollable = hosts.leaf.scrollWidth > hosts.leaf.clientWidth + 0.5;
                 let verticalScrollable = hosts.leaf.scrollHeight > hosts.leaf.clientHeight + 0.5;
                 let prewarmClipBounds = expandRect(
                     record.presentedClipBounds,
                     horizontalScrollable
-                        ? Math.max(
-                            hosts.leaf.clientWidth * PREWARM_SCROLLABLE_PAD_X_MULTIPLIER,
-                            PREWARM_SCROLLABLE_MIN_PAD_X,
-                        )
+                        ? prewarmScrollablePadX(hosts.leaf.clientWidth)
                         : 240,
                     verticalScrollable
-                        ? Math.max(
-                            hosts.leaf.clientHeight * PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER,
-                            PREWARM_SCROLLABLE_MIN_PAD_Y,
-                        )
+                        ? prewarmScrollablePadY(hosts.leaf.clientHeight)
                         : 240,
                 );
                 let surfaceCost = this.estimateScrollerWarmSurfaceCost(hosts, state);
@@ -1391,25 +1429,16 @@ export class NativeElementPool {
             }
             for (let candidate of candidates) {
                 if (selected.has(candidate.id)) {
-                    if (this.promoteScrollerHosts(candidate.hosts)) {
-                        promotedIds.push(candidate.id);
-                    }
+                    this.promoteScrollerHosts(candidate.hosts);
                     if (candidate.shouldWarm || candidate.mandatory) {
                         this.unparkScrollerHosts(candidate.hosts);
                     } else {
                         this.parkScrollerHosts(candidate.hosts);
                     }
-                } else if (this.demoteScrollerHosts(candidate.hosts)) {
-                    demotedIds.push(candidate.id);
+                } else {
+                    this.demoteScrollerHosts(candidate.hosts);
                 }
             }
-            if (promotedIds.length > 0) {
-                this.logScrollPerf(`promote ids=${promotedIds.join(",")}`);
-            }
-            if (demotedIds.length > 0) {
-                this.logScrollPerf(`demote ids=${demotedIds.join(",")}`);
-            }
-            this.logWarmScrollerLifecycleSummary();
             return;
         }
         this.scrollerHosts.forEach((hosts, id) => {
@@ -1430,9 +1459,7 @@ export class NativeElementPool {
                 // Grow the warm island pool on demand: the first near-viewport visit upgrades a
                 // nested scroller from cold to warm, and we keep that warm state for the rest of
                 // the session instead of thrashing back to zero-target cold starts.
-                if (this.promoteScrollerHosts(hosts)) {
-                    promotedIds.push(id);
-                }
+                this.promoteScrollerHosts(hosts);
             }
             if (shouldWarm) {
                 this.unparkScrollerHosts(hosts);
@@ -1441,32 +1468,40 @@ export class NativeElementPool {
             }
         });
         let coldCandidates = this.collectPrewarmCandidates();
+        let eagerWarmLimit = effectiveEagerWarmScrollerLimit();
+        let prewarmPromotionBudget = effectivePrewarmPromotionBudget();
         let prewarmBudget =
-            coldCandidates.length <= EAGER_WARM_SCROLLER_LIMIT
+            coldCandidates.length <= eagerWarmLimit
                 ? coldCandidates.length
-                : Math.min(PREWARM_PROMOTION_BUDGET, coldCandidates.length);
+                : Math.min(prewarmPromotionBudget, coldCandidates.length);
         for (let index = 0; index < prewarmBudget; index += 1) {
             let candidate = coldCandidates[index];
             let hosts = this.scrollerHosts.get(candidate.id);
-            if (hosts != null && this.promoteScrollerHosts(hosts)) {
-                promotedIds.push(candidate.id);
+            if (hosts != null) {
+                this.promoteScrollerHosts(hosts);
             }
         }
-        if (promotedIds.length > 0) {
-            this.logScrollPerf(`promote ids=${promotedIds.join(",")}`);
-        }
-        this.logWarmScrollerLifecycleSummary();
     }
 
     syncRenderSurfaceLayouts() {
-        this.syncDelegatedPageScrollViewport();
-        this.withProfileMeasure("syncWarmScrollerHosts", () => {
-            this.syncWarmScrollerHosts();
+        this.syncWarmScrollerHosts();
+        this.layers.syncLayerCanvasLayouts((layerId) => {
+            if (!this.chassis) {
+                return undefined;
+            }
+            let plan = this.chassis.get_layer_canvas_plan(layerId);
+            if (plan && layerId !== 0) {
+                let warmState = this.layerWarmState(layerId);
+                if (warmState === "cold") {
+                    return {
+                        layerId: plan.layerId ?? layerId,
+                        active: false,
+                        surfaces: [],
+                    };
+                }
+            }
+            return plan;
         });
-        this.withProfileMeasure("syncLayerCanvasLayouts", () => {
-            this.layers.syncLayerCanvasLayouts();
-        });
-        this.logWarmCanvasSummary();
         let surfaceChanged = this.surfaceRefreshPending;
         let nextSurfaceSignatures = new Map<string, string>();
         let nextTransformSignatures = new Map<string, string>();
@@ -1474,38 +1509,36 @@ export class NativeElementPool {
         let surfaceChangedLayers = new Set<number>();
         let transformChangedLayers = new Set<number>();
         let transformChanged = false;
-        this.withProfileMeasure("scanCanvasSurfaceSignatures", () => {
-            this.canvases.forEach((canvas, id) => {
-                let parent = canvas.parentElement;
-                if (parent == null) {
-                    return;
-                }
-                let hostSignature = describeSurfaceHost(parent);
-                let layerId = Number.parseInt(canvas.dataset.layerId ?? "", 10);
-                let surfaceSignature =
-                    `${canvas.dataset.surfaceSignature
-                        ?? `${canvas.clientWidth}x${canvas.clientHeight}@${hostSignature}`}#host=${hostSignature}`;
-                let transformSignature =
-                    canvas.dataset.transformSignature
-                    ?? `${canvas.dataset.tileOriginX ?? "0"},${canvas.dataset.tileOriginY ?? "0"}`;
-                nextSurfaceSignatures.set(id, surfaceSignature);
-                nextTransformSignatures.set(id, transformSignature);
+        this.canvases.forEach((canvas, id) => {
+            let parent = canvas.parentElement;
+            if (parent == null) {
+                return;
+            }
+            let hostSignature = canvas.dataset.hostSignature ?? describeSurfaceHost(parent);
+            let layerId = Number.parseInt(canvas.dataset.layerId ?? "", 10);
+            let surfaceSignature =
+                `${canvas.dataset.surfaceSignature
+                    ?? `${canvas.clientWidth}x${canvas.clientHeight}@${hostSignature}`}#host=${hostSignature}`;
+            let transformSignature =
+                canvas.dataset.transformSignature
+                ?? `${canvas.dataset.tileOriginX ?? "0"},${canvas.dataset.tileOriginY ?? "0"}`;
+            nextSurfaceSignatures.set(id, surfaceSignature);
+            nextTransformSignatures.set(id, transformSignature);
+            if (Number.isFinite(layerId)) {
+                nextLayerCounts.set(layerId, (nextLayerCounts.get(layerId) ?? 0) + 1);
+            }
+            if (this.lastCanvasSurfaceSignatures.get(id) !== surfaceSignature) {
+                surfaceChanged = true;
                 if (Number.isFinite(layerId)) {
-                    nextLayerCounts.set(layerId, (nextLayerCounts.get(layerId) ?? 0) + 1);
+                    surfaceChangedLayers.add(layerId);
                 }
-                if (this.lastCanvasSurfaceSignatures.get(id) !== surfaceSignature) {
-                    surfaceChanged = true;
-                    if (Number.isFinite(layerId)) {
-                        surfaceChangedLayers.add(layerId);
-                    }
+            }
+            if (this.lastCanvasTransformSignatures.get(id) !== transformSignature) {
+                transformChanged = true;
+                if (Number.isFinite(layerId)) {
+                    transformChangedLayers.add(layerId);
                 }
-                if (this.lastCanvasTransformSignatures.get(id) !== transformSignature) {
-                    transformChanged = true;
-                    if (Number.isFinite(layerId)) {
-                        transformChangedLayers.add(layerId);
-                    }
-                }
-            });
+            }
         });
         if (nextSurfaceSignatures.size !== this.lastCanvasSurfaceSignatures.size) {
             surfaceChanged = true;
@@ -1542,145 +1575,48 @@ export class NativeElementPool {
             // that host signature changes, ask Rust to reconfigure the backing surfaces before the
             // next render pass.
             this.surfaceRefreshPending = false;
-            let start = performance.now();
             let layers = Array.from(surfaceChangedLayers).sort((left, right) => left - right);
             if (layers.length > 0) {
-                this.withProfileMeasure("refreshRenderSurfacesForLayers", () => {
-                    this.chassis?.refresh_render_surfaces_for_layers(new Uint32Array(layers));
-                });
+                this.chassis?.refresh_render_surfaces_for_layers(new Uint32Array(layers));
             } else {
-                this.withProfileMeasure("refreshRenderSurfaces", () => {
-                    this.chassis?.refresh_render_surfaces();
-                });
+                this.chassis?.refresh_render_surfaces();
             }
-            this.logScrollPerf(
-                `refresh reason=surface canvases=${nextSurfaceSignatures.size} duration_ms=${(performance.now() - start).toFixed(1)}`,
-            );
         } else if (transformChanged) {
             // Sliding a keyed tile slot onto a new origin reuses the same browser surface, but the
             // retained vector scene currently bakes per-node transforms/bounds against the prior
             // slot origin. Refresh only the affected logical layers so outer seam crossings do not
             // force a full-scene dirty/reconfigure pass across every warmed scroller island.
             let layers = Array.from(transformChangedLayers).sort((left, right) => left - right);
-            let start = performance.now();
             if (layers.length > 0) {
-                this.withProfileMeasure("refreshRenderSurfacesForLayers", () => {
-                    this.chassis?.refresh_render_surfaces_for_layers(new Uint32Array(layers));
-                });
+                this.chassis?.refresh_render_surfaces_for_layers(new Uint32Array(layers));
             } else {
-                this.withProfileMeasure("refreshRenderSurfaces", () => {
-                    this.chassis?.refresh_render_surfaces();
-                });
+                this.chassis?.refresh_render_surfaces();
             }
-            this.logScrollPerf(
-                `refresh reason=transform layers=${layers.join(",")} canvases=${nextSurfaceSignatures.size} duration_ms=${(performance.now() - start).toFixed(1)}`,
-            );
         }
     }
 
-    private logWarmScrollerLifecycleSummary() {
-        if (!this.perfTraceEnabled || typeof performance === "undefined") {
-            return;
-        }
-        let cold = 0;
-        let warmActive = 0;
-        let warmParked = 0;
-        this.scrollerHosts.forEach(hosts => {
-            if (!hosts.warmed) {
-                cold += 1;
-            } else if (hosts.parked) {
-                warmParked += 1;
-            } else {
-                warmActive += 1;
-            }
-        });
-        let signature = `${cold}/${warmActive}/${warmParked}/${this.canvases.size}`;
-        let now = performance.now();
-        if (
-            signature === this.lastPerfLifecycleSignature
-            && now - this.lastPerfLifecycleLogAt < 250
-        ) {
-            return;
-        }
-        this.lastPerfLifecycleSignature = signature;
-        this.lastPerfLifecycleLogAt = now;
-        this.logScrollPerf(
-            `lifecycle cold=${cold} warm_active=${warmActive} warm_parked=${warmParked} canvases=${this.canvases.size}`,
-        );
-    }
-
-    private logWarmCanvasSummary() {
-        if (!this.perfTraceEnabled || typeof performance === "undefined") {
-            return;
-        }
-        let missing: Array<{ id: number; layer: number }> = [];
-        let warmCount = 0;
-        this.scrollerHosts.forEach((hosts, id) => {
+    private layerWarmState(layerId: number) {
+        for (let [id, hosts] of this.scrollerHosts) {
             let state = this.scrollerMeasurementStates.get(id);
-            if (!hosts.warmed || state?.contentLayerId == null) {
-                return;
+            if (state == null || state.contentLayerId == null) {
+                continue;
             }
-            warmCount += 1;
-            let count = this.countLayerCanvases(state.contentLayerId);
-            if (count === 0) {
-                missing.push({ id, layer: state.contentLayerId });
+            if (state.contentLayerId === layerId) {
+                return hosts.warmed ? "warm" : "cold";
             }
-        });
-        let signature = `${warmCount}/${missing.length}`;
-        let now = performance.now();
-        if (
-            signature === this.lastPerfCanvasSignature
-            && now - this.lastPerfCanvasLogAt < 250
-        ) {
-            return;
         }
-        this.lastPerfCanvasSignature = signature;
-        this.lastPerfCanvasLogAt = now;
-        let details = missing.slice(0, 6).map(entry => `${entry.id}:${entry.layer}`).join(",");
-        this.logScrollPerf(
-            `warm-canvases warm=${warmCount} missing=${missing.length}${details.length ? ` ids=${details}` : ""}`,
-        );
+        return "unknown";
     }
 
-    private logScrollPerf(message: string) {
-        if (!this.perfTraceEnabled) {
-            return;
-        }
-        console.info(`[pax-scroll-perf] ${message}`);
-    }
 
-    private countLayerCanvases(layerId: number) {
-        let total = 0;
-        let layerMarker = String(layerId);
-        this.canvases.forEach((canvas) => {
-            if (canvas.dataset.layerId === layerMarker) {
-                total += 1;
+    private estimateWarmLayerCanvasCount(layerId: number, host?: HTMLElement) {
+        if (this.chassis) {
+            let plan = this.chassis.get_layer_canvas_plan(layerId);
+            if (plan && Array.isArray(plan.surfaces)) {
+                return plan.surfaces.length;
             }
-        });
-        return total;
-    }
-
-    private withProfileMeasure<T>(name: string, fn: () => T): T {
-        if (
-            !this.perfTraceEnabled
-            || typeof performance === "undefined"
-            || typeof performance.mark !== "function"
-            || typeof performance.measure !== "function"
-        ) {
-            return fn();
         }
-        let token = `${name}:${this.perfTraceSequence++}`;
-        let startMark = `pax:${token}:start`;
-        let endMark = `pax:${token}:end`;
-        performance.mark(startMark);
-        try {
-            return fn();
-        } finally {
-            performance.mark(endMark);
-            performance.measure(`pax:${name}`, startMark, endMark);
-            performance.clearMarks(startMark);
-            performance.clearMarks(endMark);
-        }
+        return estimateWarmLayerCanvasCount(layerId, host);
     }
 
     private installPageScrollActivityListeners() {
@@ -1707,6 +1643,19 @@ export class NativeElementPool {
 
     private readPageScrollPosition() {
         let scrollingElement = document.scrollingElement as HTMLElement | null;
+        let visualViewport = window.visualViewport;
+        if (visualViewport != null) {
+            let pageTop = visualViewport.pageTop;
+            let pageLeft = visualViewport.pageLeft;
+            if (Number.isFinite(pageTop) && Number.isFinite(pageLeft)) {
+                let offsetX = visualViewport.offsetLeft;
+                let offsetY = visualViewport.offsetTop;
+                return {
+                    scrollX: pageLeft - offsetX,
+                    scrollY: pageTop - offsetY,
+                };
+            }
+        }
         return {
             scrollX: scrollingElement?.scrollLeft ?? window.scrollX ?? 0,
             scrollY: scrollingElement?.scrollTop ?? window.scrollY ?? 0,
@@ -1747,8 +1696,19 @@ export class NativeElementPool {
         // through engine viewport updates, which would relayout the scene mid-gesture.
         let visibleViewport = this.readVisiblePageViewport();
         let pageScroll = this.readPageScrollPosition();
-        let approvedScrollX = pageScroll.scrollX + visibleViewport.offsetX;
-        let approvedScrollY = pageScroll.scrollY + visibleViewport.offsetY;
+        let approvedScrollX = pageScroll.scrollX;
+        let approvedScrollY = pageScroll.scrollY;
+
+        this.chassis?.interrupt(JSON.stringify({
+            "VisualViewportUpdate": {
+                "width": visibleViewport.width,
+                "height": visibleViewport.height,
+                "offset_x": visibleViewport.offsetX,
+                "offset_y": visibleViewport.offsetY,
+                "page_scroll_x": pageScroll.scrollX,
+                "page_scroll_y": pageScroll.scrollY,
+            },
+        }), undefined);
 
         if (this.mount != null) {
             this.mount.dataset.viewportWidth = String(visibleViewport.width);
@@ -1881,6 +1841,18 @@ export class NativeElementPool {
             this.activePageScrollScrollerId = undefined;
             this.uninstallPageScrollActivityListeners();
             this.setDocumentPageScrollMode(false);
+            let visibleViewport = this.readVisiblePageViewport();
+            let pageScroll = this.readPageScrollPosition();
+            this.chassis?.interrupt(JSON.stringify({
+                "VisualViewportUpdate": {
+                    "width": visibleViewport.width,
+                    "height": visibleViewport.height,
+                    "offset_x": 0,
+                    "offset_y": 0,
+                    "page_scroll_x": pageScroll.scrollX,
+                    "page_scroll_y": pageScroll.scrollY,
+                },
+            }), undefined);
         }
 
         state.delegatesToPageScroll = active;
@@ -2146,6 +2118,10 @@ export class NativeElementPool {
                 lastSentScrollY: Number.NaN,
                 lastSentPresentationScrollX: Number.NaN,
                 lastSentPresentationScrollY: Number.NaN,
+                lastWarmAt:
+                    typeof performance !== "undefined" && typeof performance.now === "function"
+                        ? performance.now()
+                        : Date.now(),
             });
             this.replayPendingScrollerUpdate(patch.id);
         } else {
@@ -2218,12 +2194,24 @@ export class NativeElementPool {
             }
         }
         let delegateToPageScroll = state != null && this.shouldDelegateToPageScroll(leaf, patch, state);
+        const ignoreActiveScrollPatch =
+            isIOSWebKitBrowser() && !delegateToPageScroll && state?.active;
         let approvedScrollX = patch.presentationScrollX
             ?? patch.scrollX
             ?? (state?.lastMeasuredPresentationScrollX ?? leaf.scrollLeft);
         let approvedScrollY = patch.presentationScrollY
             ?? patch.scrollY
             ?? (state?.lastMeasuredPresentationScrollY ?? leaf.scrollTop);
+        if (ignoreActiveScrollPatch) {
+            if (delegateToPageScroll) {
+                let pageScroll = this.readPageScrollPosition();
+                approvedScrollX = pageScroll.scrollX;
+                approvedScrollY = pageScroll.scrollY;
+            } else {
+                approvedScrollX = state?.lastMeasuredPresentationScrollX ?? leaf.scrollLeft;
+                approvedScrollY = state?.lastMeasuredPresentationScrollY ?? leaf.scrollTop;
+            }
+        }
         if (state != null) {
             this.setPageScrollDelegation(
                 patch.id!,
@@ -2249,8 +2237,6 @@ export class NativeElementPool {
             leaf.style.borderRadius = `${patch.borderRadius}px`;
         }
 
-        const ignoreActiveScrollPatch =
-            isIOSWebKitBrowser() && !delegateToPageScroll && state?.active;
         if (patch.scrollX != null) {
             if (!ignoreActiveScrollPatch) {
                 if (delegateToPageScroll) {
@@ -2908,6 +2894,7 @@ type ScrollerMeasurementState = {
     lastSentScrollY: number;
     lastSentPresentationScrollX: number;
     lastSentPresentationScrollY: number;
+    lastWarmAt: number;
 };
 
 type PendingScrollerUpdate = {
@@ -2952,20 +2939,32 @@ type PresentationRecord = {
     presentedClipBounds?: AxisAlignedRect;
 };
 
-const EAGER_WARM_SCROLLER_LIMIT = 24;
-const PREWARM_PROMOTION_BUDGET = 6;
-const ACTIVE_SCROLLABLE_PAD_X_MULTIPLIER = 4.0;
-const ACTIVE_SCROLLABLE_PAD_Y_MULTIPLIER = 2.0;
-const ACTIVE_SCROLLABLE_MIN_PAD_X = 960;
-const ACTIVE_SCROLLABLE_MIN_PAD_Y = 480;
-const PREWARM_SCROLLABLE_PAD_X_MULTIPLIER = 8.0;
-const PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER = 4.0;
-const PREWARM_SCROLLABLE_MIN_PAD_X = 1920;
-const PREWARM_SCROLLABLE_MIN_PAD_Y = 960;
+const EAGER_WARM_SCROLLER_LIMIT = 16;
+const PREWARM_PROMOTION_BUDGET = 4;
+const IOS_EAGER_WARM_SCROLLER_LIMIT = 10;
+const IOS_PREWARM_PROMOTION_BUDGET = 4;
+const IOS_WARM_LINGER_MS = 1500;
+const DEFAULT_ACTIVE_SCROLLABLE_PAD_X_MULTIPLIER = 4.0;
+const DEFAULT_ACTIVE_SCROLLABLE_PAD_Y_MULTIPLIER = 2.0;
+const DEFAULT_ACTIVE_SCROLLABLE_MIN_PAD_X = 960;
+const DEFAULT_ACTIVE_SCROLLABLE_MIN_PAD_Y = 480;
+const DEFAULT_PREWARM_SCROLLABLE_PAD_X_MULTIPLIER = 8.0;
+const DEFAULT_PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER = 4.0;
+const DEFAULT_PREWARM_SCROLLABLE_MIN_PAD_X = 1920;
+const DEFAULT_PREWARM_SCROLLABLE_MIN_PAD_Y = 960;
+const IOS_ACTIVE_SCROLLABLE_PAD_X_MULTIPLIER = 6.0;
+const IOS_ACTIVE_SCROLLABLE_PAD_Y_MULTIPLIER = 3.0;
+const IOS_ACTIVE_SCROLLABLE_MIN_PAD_X = 1440;
+const IOS_ACTIVE_SCROLLABLE_MIN_PAD_Y = 720;
+const IOS_PREWARM_SCROLLABLE_PAD_X_MULTIPLIER = 12.0;
+const IOS_PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER = 6.0;
+const IOS_PREWARM_SCROLLABLE_MIN_PAD_X = 2880;
+const IOS_PREWARM_SCROLLABLE_MIN_PAD_Y = 1440;
 // WebKit's WebGL context cap is tight enough that we need a little headroom
 // beyond the nominal canvas budget to avoid eviction when layers churn.
-const IOS_NESTED_BROWSER_SURFACE_BUDGET = 6;
-const IOS_TOTAL_CANVAS_BUDGET = 6;
+const IOS_NESTED_BROWSER_SURFACE_BUDGET = 12;
+const IOS_TOTAL_CANVAS_BUDGET = 12;
+const DEFAULT_TOTAL_CANVAS_BUDGET = 64;
 
 function browserNestedScrollerSurfaceBudget() {
     return isIOSWebKitBrowser() ? IOS_NESTED_BROWSER_SURFACE_BUDGET : undefined;
@@ -2973,6 +2972,32 @@ function browserNestedScrollerSurfaceBudget() {
 
 function browserTotalCanvasBudget() {
     return isIOSWebKitBrowser() ? IOS_TOTAL_CANVAS_BUDGET : undefined;
+}
+
+function browserCanvasPoolBudget() {
+    let budget = browserTotalCanvasBudget();
+    if (budget != null) {
+        return budget;
+    }
+    return DEFAULT_TOTAL_CANVAS_BUDGET;
+}
+
+function browserCanvasPoolReuseCooldownMs() {
+    // WebGPU on desktop browsers can glitch if a canvas is rebound to a new device immediately
+    // after release. Add a small cooldown to reduce rapid reuse across layers.
+    return isIOSWebKitBrowser() ? 0 : 200;
+}
+
+function effectiveEagerWarmScrollerLimit() {
+    return isIOSWebKitBrowser()
+        ? IOS_EAGER_WARM_SCROLLER_LIMIT
+        : EAGER_WARM_SCROLLER_LIMIT;
+}
+
+function effectivePrewarmPromotionBudget() {
+    return isIOSWebKitBrowser()
+        ? IOS_PREWARM_PROMOTION_BUDGET
+        : PREWARM_PROMOTION_BUDGET;
 }
 
 function browserOwnedVectorScrollerIslandsEnabled() {
@@ -2986,6 +3011,46 @@ function rectFromMessageBounds(bounds: number[]): AxisAlignedRect {
         right: bounds[2] ?? 0,
         bottom: bounds[3] ?? 0,
     };
+}
+
+function activeScrollablePadX(viewportWidth: number) {
+    let multiplier = DEFAULT_ACTIVE_SCROLLABLE_PAD_X_MULTIPLIER;
+    let minPad = DEFAULT_ACTIVE_SCROLLABLE_MIN_PAD_X;
+    if (isIOSWebKitBrowser()) {
+        multiplier = IOS_ACTIVE_SCROLLABLE_PAD_X_MULTIPLIER;
+        minPad = IOS_ACTIVE_SCROLLABLE_MIN_PAD_X;
+    }
+    return Math.max(viewportWidth * multiplier, minPad);
+}
+
+function activeScrollablePadY(viewportHeight: number) {
+    let multiplier = DEFAULT_ACTIVE_SCROLLABLE_PAD_Y_MULTIPLIER;
+    let minPad = DEFAULT_ACTIVE_SCROLLABLE_MIN_PAD_Y;
+    if (isIOSWebKitBrowser()) {
+        multiplier = IOS_ACTIVE_SCROLLABLE_PAD_Y_MULTIPLIER;
+        minPad = IOS_ACTIVE_SCROLLABLE_MIN_PAD_Y;
+    }
+    return Math.max(viewportHeight * multiplier, minPad);
+}
+
+function prewarmScrollablePadX(viewportWidth: number) {
+    let multiplier = DEFAULT_PREWARM_SCROLLABLE_PAD_X_MULTIPLIER;
+    let minPad = DEFAULT_PREWARM_SCROLLABLE_MIN_PAD_X;
+    if (isIOSWebKitBrowser()) {
+        multiplier = IOS_PREWARM_SCROLLABLE_PAD_X_MULTIPLIER;
+        minPad = IOS_PREWARM_SCROLLABLE_MIN_PAD_X;
+    }
+    return Math.max(viewportWidth * multiplier, minPad);
+}
+
+function prewarmScrollablePadY(viewportHeight: number) {
+    let multiplier = DEFAULT_PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER;
+    let minPad = DEFAULT_PREWARM_SCROLLABLE_MIN_PAD_Y;
+    if (isIOSWebKitBrowser()) {
+        multiplier = IOS_PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER;
+        minPad = IOS_PREWARM_SCROLLABLE_MIN_PAD_Y;
+    }
+    return Math.max(viewportHeight * multiplier, minPad);
 }
 
 function expandRect(rect: AxisAlignedRect, expandX: number, expandY: number): AxisAlignedRect {
@@ -3039,19 +3104,6 @@ function rectCenterDistance(a: AxisAlignedRect, b: AxisAlignedRect): number {
     let bCenterX = (b.left + b.right) * 0.5;
     let bCenterY = (b.top + b.bottom) * 0.5;
     return Math.hypot(aCenterX - bCenterX, aCenterY - bCenterY);
-}
-
-function isScrollPerfTraceEnabled() {
-    if (typeof window === "undefined") {
-        return false;
-    }
-    try {
-        let params = new URLSearchParams(window.location.search);
-        let value = params.get("pax_scroll_perf");
-        return value === "1" || value === "true";
-    } catch (_err) {
-        return false;
-    }
 }
 
 function isViewportAnchoredTransform(transform: number[]) {

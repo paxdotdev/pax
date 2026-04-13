@@ -51,6 +51,33 @@ pub struct RuntimeContext {
     dirty_canvas_nodes: RefCell<HashSet<ExpandedNodeIdentifier>>,
     removed_canvas_nodes: RefCell<Vec<(usize, u32)>>,
     screenshot_map: Rc<RefCell<HashMap<u32, ScreenshotData>>>,
+    scroller_surface_states: RefCell<HashMap<u32, ScrollerSurfaceState>>,
+    layer_scroller_owners: RefCell<HashMap<usize, ExpandedNodeIdentifier>>,
+    root_scroller_id: Cell<Option<u32>>,
+    visual_viewport_state: Cell<Option<VisualViewportState>>,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ScrollerSurfaceState {
+    pub viewport_width: f64,
+    pub viewport_height: f64,
+    pub content_width: f64,
+    pub content_height: f64,
+    pub scroll_x: f64,
+    pub scroll_y: f64,
+    pub presentation_scroll_x: f64,
+    pub presentation_scroll_y: f64,
+    pub clip_content: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct VisualViewportState {
+    pub width: f64,
+    pub height: f64,
+    pub offset_x: f64,
+    pub offset_y: f64,
+    pub page_scroll_x: f64,
+    pub page_scroll_y: f64,
 }
 
 struct NodeCache {
@@ -107,6 +134,10 @@ impl RuntimeContext {
             dirty_canvas_nodes: Default::default(),
             removed_canvas_nodes: Default::default(),
             screenshot_map: Default::default(),
+            scroller_surface_states: Default::default(),
+            layer_scroller_owners: Default::default(),
+            root_scroller_id: Cell::new(None),
+            visual_viewport_state: Cell::new(None),
         }
     }
 
@@ -128,6 +159,10 @@ impl RuntimeContext {
             dirty_canvas_nodes: Default::default(),
             removed_canvas_nodes: Default::default(),
             screenshot_map: Default::default(),
+            scroller_surface_states: Default::default(),
+            layer_scroller_owners: Default::default(),
+            root_scroller_id: Cell::new(None),
+            visual_viewport_state: Cell::new(None),
         }
     }
 
@@ -154,6 +189,54 @@ impl RuntimeContext {
 
     pub fn get_screenshot_map(&self) -> Rc<RefCell<HashMap<u32, ScreenshotData>>> {
         Rc::clone(&self.screenshot_map)
+    }
+
+    pub fn set_scroller_surface_state(&self, id: u32, state: ScrollerSurfaceState) {
+        borrow_mut!(self.scroller_surface_states).insert(id, state);
+    }
+
+    pub fn remove_scroller_surface_state(&self, id: u32) {
+        borrow_mut!(self.scroller_surface_states).remove(&id);
+    }
+
+    pub fn get_scroller_surface_state(&self, id: u32) -> Option<ScrollerSurfaceState> {
+        borrow!(self.scroller_surface_states).get(&id).cloned()
+    }
+
+    pub fn clear_layer_scroller_owners(&self) {
+        borrow_mut!(self.layer_scroller_owners).clear();
+    }
+
+    pub fn register_layer_scroller_owner(
+        &self,
+        layer_id: usize,
+        scroller_id: ExpandedNodeIdentifier,
+    ) {
+        borrow_mut!(self.layer_scroller_owners).insert(layer_id, scroller_id);
+    }
+
+    pub fn get_layer_scroller_owner(&self, layer_id: usize) -> Option<ExpandedNodeIdentifier> {
+        borrow!(self.layer_scroller_owners).get(&layer_id).copied()
+    }
+
+    pub fn set_root_scroller_id(&self, id: Option<u32>) {
+        self.root_scroller_id.set(id);
+    }
+
+    pub fn get_root_scroller_id(&self) -> Option<u32> {
+        self.root_scroller_id.get()
+    }
+
+    pub fn set_visual_viewport_state(&self, state: VisualViewportState) {
+        self.visual_viewport_state.set(Some(state));
+    }
+
+    pub fn clear_visual_viewport_state(&self) {
+        self.visual_viewport_state.set(None);
+    }
+
+    pub fn get_visual_viewport_state(&self) -> Option<VisualViewportState> {
+        self.visual_viewport_state.get()
     }
 
     pub fn resize_canvas_layers_to(&self, id: usize) {

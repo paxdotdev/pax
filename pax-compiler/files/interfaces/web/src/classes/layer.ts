@@ -1,11 +1,8 @@
 import { NATIVE_OVERLAY_CLASS } from "../utils/constants";
 import { ObjectManager } from "../pools/object-manager";
 import { CANVAS, DIV } from "../pools/supported-objects";
-import {
-    computeLayerCanvasPlan,
-    describeSurfaceHost,
-    type SurfaceCanvasDescriptor,
-} from "./surface-host-policy";
+import type { CanvasPool } from "./canvas-pool";
+import type { LayerCanvasPlan, SurfaceCanvasDescriptor } from "./surface-host-policy";
 
 export class Layer {
     canvasMap?: Map<string, HTMLCanvasElement>;
@@ -16,6 +13,10 @@ export class Layer {
     private canvases: Map<string, HTMLCanvasElement>;
     private canvasZIndex: string;
     private islandOnly: boolean;
+    private canvasPlan?: LayerCanvasPlan;
+    private lastPlanSignature?: string;
+    private lastVisibleHost?: Element;
+    private canvasPool?: CanvasPool;
 
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
@@ -28,9 +29,11 @@ export class Layer {
         parent: Element,
         occlusionLayerId: number,
         canvasMap: Map<string, HTMLCanvasElement>,
+        canvasPool?: CanvasPool,
     ) {
         this.occlusionLayerId = occlusionLayerId;
         this.canvasMap = canvasMap;
+        this.canvasPool = canvasPool;
         // Non-root layers are currently reserved for browser-owned scroller islands. Avoid
         // creating root canvases for them until they are claimed by a scroller host.
         this.islandOnly = occlusionLayerId > 0;
@@ -64,19 +67,34 @@ export class Layer {
         return this.islandOnly;
     }
 
-    detachCanvases() {
+    detachCanvases(keepHost: boolean = false) {
         this.canvases.forEach((canvas, id) => {
             this.canvasMap?.delete(id);
             this.prepareCanvasForRelease(canvas);
-            canvas.parentElement?.removeChild(canvas);
-            this.objectManager.returnToPool(CANVAS, canvas);
+            if (this.canvasPool) {
+                this.canvasPool.release(canvas);
+            } else {
+                canvas.parentElement?.removeChild(canvas);
+                this.objectManager.returnToPool(CANVAS, canvas);
+            }
         });
         this.canvases.clear();
-        this.visibleCanvasParent = undefined;
+        if (!keepHost) {
+            this.visibleCanvasParent = undefined;
+        }
+        this.lastPlanSignature = undefined;
+        this.lastVisibleHost = undefined;
+    }
+
+    setCanvasPlan(plan?: LayerCanvasPlan) {
+        this.canvasPlan = plan;
     }
 
     syncCanvasLayout() {
         if (this.occlusionLayerId == null || this.canvasMap == null) {
+            return;
+        }
+        if (this.canvasPlan == null) {
             return;
         }
 
@@ -89,17 +107,33 @@ export class Layer {
             this.detachCanvases();
             return;
         }
-        let plan = computeLayerCanvasPlan(this.occlusionLayerId, visibleHost);
-        let expectedIds = new Set(plan.map((descriptor) => descriptor.id));
+        let plan = this.canvasPlan;
+        if (plan.surfaces.length === 0) {
+            this.detachCanvases(true);
+            return;
+        }
+        let planSignature = this.computePlanSignature(plan);
+        if (planSignature === this.lastPlanSignature && visibleHost === this.lastVisibleHost) {
+            return;
+        }
+        let expectedIds = new Set(plan.surfaces.map((descriptor) => descriptor.id));
+        let missingSurface = false;
 
-        plan.forEach((descriptor) => {
+        plan.surfaces.forEach((descriptor) => {
             let canvas = this.canvases.get(descriptor.id);
             if (canvas == null) {
-                canvas = this.objectManager.getFromPool(CANVAS);
+                if (this.canvasPool) {
+                    canvas = this.canvasPool.checkout();
+                    if (canvas == null) {
+                        missingSurface = true;
+                        return;
+                    }
+                } else {
+                    canvas = this.objectManager.getFromPool(CANVAS);
+                }
                 canvas.style.position = "absolute";
                 canvas.style.pointerEvents = "none";
                 canvas.style.backgroundColor = "transparent";
-                canvas.dataset.layerId = String(this.occlusionLayerId);
                 this.canvases.set(descriptor.id, canvas);
                 this.canvasMap!.set(descriptor.id, canvas);
             }
@@ -115,18 +149,21 @@ export class Layer {
             }
             this.canvasMap?.delete(id);
             this.prepareCanvasForRelease(canvas);
-            canvas.parentElement?.removeChild(canvas);
-            this.objectManager.returnToPool(CANVAS, canvas);
+            if (this.canvasPool) {
+                this.canvasPool.release(canvas);
+            } else {
+                canvas.parentElement?.removeChild(canvas);
+                this.objectManager.returnToPool(CANVAS, canvas);
+            }
             this.canvases.delete(id);
         });
 
-        if (visibleHost == null) {
-            this.canvases.forEach((canvas) => {
-                let parent = canvas.parentElement;
-                canvas.dataset.surfaceSignature =
-                    `${canvas.clientWidth}x${canvas.clientHeight}@${describeSurfaceHost(parent)}`;
-                canvas.dataset.transformSignature = "0,0";
-            });
+        if (missingSurface) {
+            this.lastPlanSignature = undefined;
+            this.lastVisibleHost = undefined;
+        } else {
+            this.lastPlanSignature = planSignature;
+            this.lastVisibleHost = visibleHost;
         }
     }
 
@@ -134,11 +171,17 @@ export class Layer {
         this.canvases.forEach((canvas, id) => {
             this.canvasMap?.delete(id);
             this.prepareCanvasForRelease(canvas);
-            canvas.parentElement?.removeChild(canvas);
-            this.objectManager.returnToPool(CANVAS, canvas);
+            if (this.canvasPool) {
+                this.canvasPool.release(canvas);
+            } else {
+                canvas.parentElement?.removeChild(canvas);
+                this.objectManager.returnToPool(CANVAS, canvas);
+            }
         });
         this.canvases.clear();
         this.islandOnly = false;
+        this.lastPlanSignature = undefined;
+        this.lastVisibleHost = undefined;
 
         if (this.native != undefined) {
             let parent = this.native.parentElement;
@@ -150,11 +193,15 @@ export class Layer {
 
     private configureCanvas(canvas: HTMLCanvasElement, descriptor: SurfaceCanvasDescriptor) {
         canvas.id = descriptor.id;
+        canvas.dataset.layerId = String(this.occlusionLayerId);
         canvas.dataset.tileKey = descriptor.key;
         canvas.dataset.tileOriginX = String(descriptor.left);
         canvas.dataset.tileOriginY = String(descriptor.top);
         canvas.dataset.surfaceSignature = descriptor.surfaceSignature;
         canvas.dataset.transformSignature = descriptor.transformSignature;
+        if (descriptor.hostSignature) {
+            canvas.dataset.hostSignature = descriptor.hostSignature;
+        }
         canvas.style.top = `${descriptor.top}px`;
         canvas.style.left = `${descriptor.left}px`;
         canvas.style.width = `${descriptor.width}px`;
@@ -172,5 +219,24 @@ export class Layer {
         canvas.height = 1;
         canvas.style.width = "1px";
         canvas.style.height = "1px";
+        canvas.id = "";
+        canvas.removeAttribute("data-layer-id");
+        canvas.removeAttribute("data-tile-key");
+        canvas.removeAttribute("data-tile-origin-x");
+        canvas.removeAttribute("data-tile-origin-y");
+        canvas.removeAttribute("data-surface-signature");
+        canvas.removeAttribute("data-transform-signature");
+        canvas.removeAttribute("data-host-signature");
+    }
+
+    private computePlanSignature(plan: LayerCanvasPlan): string {
+        let parts = [plan.layerId.toString(), plan.active ? "1" : "0", plan.surfaces.length.toString()];
+        plan.surfaces.forEach((descriptor) => {
+            parts.push(
+                `${descriptor.id}|${descriptor.left},${descriptor.top},${descriptor.width},${descriptor.height}`
+                + `|${descriptor.surfaceSignature}|${descriptor.transformSignature}|${descriptor.hostSignature ?? ""}`,
+            );
+        });
+        return parts.join(";");
     }
 }

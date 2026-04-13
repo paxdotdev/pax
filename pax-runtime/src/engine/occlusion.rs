@@ -115,6 +115,7 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
     let mut next_layer_id = 1;
     let viewport = ctx.globals().viewport.get();
     let viewport_bounds = OcclusionBox::from_viewport(viewport.bounds.0, viewport.bounds.1);
+    ctx.clear_layer_scroller_owners();
     update_node_occlusion_recursive(
         root_node,
         ctx,
@@ -153,6 +154,16 @@ fn update_node_occlusion_recursive(
     next_layer_id: &mut usize,
     drawables: &mut Vec<DrawableInfo>,
 ) {
+    fn clamp_offset(value: f64, content: f64, viewport: f64) -> f64 {
+        if content <= viewport {
+            return 0.0;
+        }
+        if !value.is_finite() {
+            return 0.0;
+        }
+        value.max(0.0).min((content - viewport).max(0.0))
+    }
+
     let instance_node = borrow!(node.instance_node);
     let effect_clip_path = instance_node
         .resolve_effect_clip_path(node)
@@ -160,15 +171,51 @@ fn update_node_occlusion_recursive(
     let has_effect_clip = effect_clip_path.is_some();
     let scrolls_content = instance_node.scrolls_content(node);
     let scroll_transform = if scrolls_content {
-        let (scroll_x, scroll_y) = instance_node
-            .resolve_scroll_offset(node)
-            .unwrap_or((0.0, 0.0));
+        let root_delegates_to_page_scroll =
+            ctx.get_root_scroller_id() == Some(node.id.to_u32())
+                && ctx.get_visual_viewport_state().is_some();
+        if root_delegates_to_page_scroll {
+            Affine::IDENTITY
+        } else {
+        let (scroll_x, scroll_y) = if ctx.get_root_scroller_id() == Some(node.id.to_u32()) {
+            if let Some(visual) = ctx.get_visual_viewport_state() {
+                let visual_x = visual.page_scroll_x + visual.offset_x;
+                let visual_y = visual.page_scroll_y + visual.offset_y;
+                if visual_x.is_finite() && visual_y.is_finite() {
+                    if let Some(state) = ctx.get_scroller_surface_state(node.id.to_u32()) {
+                        let viewport_width = if visual.width.is_finite() {
+                            visual.width
+                        } else {
+                            state.viewport_width
+                        };
+                        let viewport_height = if visual.height.is_finite() {
+                            visual.height
+                        } else {
+                            state.viewport_height
+                        };
+                        (
+                            clamp_offset(visual_x, state.content_width, viewport_width),
+                            clamp_offset(visual_y, state.content_height, viewport_height),
+                        )
+                    } else {
+                        (visual_x, visual_y)
+                    }
+                } else {
+                    instance_node.resolve_scroll_offset(node).unwrap_or((0.0, 0.0))
+                }
+            } else {
+                instance_node.resolve_scroll_offset(node).unwrap_or((0.0, 0.0))
+            }
+        } else {
+            instance_node.resolve_scroll_offset(node).unwrap_or((0.0, 0.0))
+        };
         if scroll_x.abs() > f64::EPSILON || scroll_y.abs() > f64::EPSILON {
             let world_transform = Affine::from(node.transform_and_bounds.get().transform);
             let inverse_world = Affine::from(node.transform_and_bounds.get().transform.inverse());
             world_transform * Affine::translate((-scroll_x, -scroll_y)) * inverse_world
         } else {
             Affine::IDENTITY
+        }
         }
     } else {
         Affine::IDENTITY
@@ -186,6 +233,9 @@ fn update_node_occlusion_recursive(
     } else {
         current_layer_id
     };
+    if scrolls_content && allow_scroller_vector_layers {
+        ctx.register_layer_scroller_owner(descendant_layer_id, node.id);
+    }
     let descendant_container = if scrolls_content {
         Some(node.id.to_u32())
     } else {

@@ -12,7 +12,7 @@ use pax_runtime::api::{
 };
 use pax_runtime::{
     BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
-    InstantiationArgs, RuntimeContext,
+    InstantiationArgs, RuntimeContext, ScrollerSurfaceState,
 };
 use std::collections::HashMap;
 use std::iter;
@@ -241,6 +241,69 @@ fn scroller_clip_path(
     Some(<Affine>::from(transform) * bez_path)
 }
 
+fn clamp_offset(value: f64, content: f64, viewport: f64) -> f64 {
+    if content <= viewport {
+        return 0.0;
+    }
+    if !value.is_finite() {
+        return 0.0;
+    }
+    value.max(0.0).min((content - viewport).max(0.0))
+}
+
+fn root_scroller_delegates_to_page_scroll(
+    expanded_node: &ExpandedNode,
+    context: &RuntimeContext,
+) -> bool {
+    context.get_root_scroller_id() == Some(expanded_node.id.to_u32())
+        && context.get_visual_viewport_state().is_some()
+}
+
+fn effective_presentation_scroll(
+    expanded_node: &ExpandedNode,
+    context: &RuntimeContext,
+) -> (f64, f64) {
+    let (scroll_x, scroll_y) =
+        expanded_node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
+            (
+                scroller._presentation_scroll_x.get(),
+                scroller._presentation_scroll_y.get(),
+            )
+        });
+    if context.get_root_scroller_id() == Some(expanded_node.id.to_u32()) {
+        if let Some(visual) = context.get_visual_viewport_state() {
+            let visual_x = visual.page_scroll_x + visual.offset_x;
+            let visual_y = visual.page_scroll_y + visual.offset_y;
+            if visual_x.is_finite() && visual_y.is_finite() {
+                let computed_tab = expanded_node.transform_and_bounds.get();
+                let (fallback_viewport_width, fallback_viewport_height) = computed_tab.bounds;
+                let viewport_width = if visual.width.is_finite() {
+                    visual.width
+                } else {
+                    fallback_viewport_width
+                };
+                let viewport_height = if visual.height.is_finite() {
+                    visual.height
+                } else {
+                    fallback_viewport_height
+                };
+                let (content_width, content_height) =
+                    expanded_node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
+                        (
+                            scroller.scroll_width.get().get_pixels(fallback_viewport_width),
+                            scroller.scroll_height.get().get_pixels(fallback_viewport_height),
+                        )
+                    });
+                return (
+                    clamp_offset(visual_x, content_width, viewport_width),
+                    clamp_offset(visual_y, content_height, viewport_height),
+                );
+            }
+        }
+    }
+    (scroll_x, scroll_y)
+}
+
 impl InstanceNode for ScrollerHostInstance {
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
@@ -266,6 +329,9 @@ impl InstanceNode for ScrollerHostInstance {
         context: &Rc<RuntimeContext>,
     ) {
         let id = expanded_node.id.to_u32();
+        if expanded_node.parent_frame.get().is_none() {
+            context.set_root_scroller_id(Some(id));
+        }
         context.enqueue_native_message(pax_message::NativeMessage::ScrollerCreate(
             AnyCreatePatch {
                 id,
@@ -332,6 +398,20 @@ impl InstanceNode for ScrollerHostInstance {
                                 || (presentation_scroll.1 - previous_presentation_scroll.1).abs()
                                     > 1e-4;
                         *previous_presentation_scroll = presentation_scroll;
+                        context.set_scroller_surface_state(
+                            id,
+                            ScrollerSurfaceState {
+                                viewport_width: width,
+                                viewport_height: height,
+                                content_width: scroll_width,
+                                content_height: scroll_height,
+                                scroll_x: properties.scroll_pos_x.get(),
+                                scroll_y: properties.scroll_pos_y.get(),
+                                presentation_scroll_x: presentation_scroll.0,
+                                presentation_scroll_y: presentation_scroll.1,
+                                clip_content: properties._clip_content.get(),
+                            },
+                        );
                         let updates = [
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
@@ -407,6 +487,7 @@ impl InstanceNode for ScrollerHostInstance {
                             || patch.transform.is_some()
                             || patch.opacity.is_some()
                             || patch.clip_content.is_some();
+                        let has_scroller_island = resolve_scroller_island_layer(&expanded_node).is_some();
                         if updates.into_iter().any(|updated| updated) {
                             context.enqueue_native_message(
                                 pax_message::NativeMessage::ScrollerUpdate(patch),
@@ -418,6 +499,10 @@ impl InstanceNode for ScrollerHostInstance {
                                 // for real visual/layout changes; tile-window shifts are handled by
                                 // the chassis surface-refresh path instead of rerendering every
                                 // canvas node on each scroll tick.
+                                mark_canvas_descendants_dirty(&expanded_node, &context);
+                            } else if scroll_updated && !has_scroller_island {
+                                // Root/non-island scrollers still render into a fixed surface; when
+                                // scroll changes, their vector content needs a redraw to stay aligned.
                                 mark_canvas_descendants_dirty(&expanded_node, &context);
                             }
                         } else if presentation_changed && !scroll_updated {
@@ -433,6 +518,10 @@ impl InstanceNode for ScrollerHostInstance {
         expanded_node
             .changed_listener
             .replace_with(Property::default());
+        if context.get_root_scroller_id() == Some(expanded_node.id.to_u32()) {
+            context.set_root_scroller_id(None);
+        }
+        context.remove_scroller_surface_state(expanded_node.id.to_u32());
         context.enqueue_native_message(pax_message::NativeMessage::ScrollerDelete(
             expanded_node.id.to_u32(),
         ));
@@ -486,18 +575,15 @@ impl InstanceNode for ScrollerHostInstance {
             return;
         }
 
-        if resolve_scroller_island_layer(expanded_node).is_some() {
+        if resolve_scroller_island_layer(expanded_node).is_some()
+            || root_scroller_delegates_to_page_scroll(expanded_node, rtc)
+        {
             return;
         }
 
-        let (clip_content, scroll_x, scroll_y) =
-            expanded_node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
-                (
-                    scroller._clip_content.get(),
-                    scroller._presentation_scroll_x.get(),
-                    scroller._presentation_scroll_y.get(),
-                )
-            });
+        let clip_content = expanded_node
+            .with_properties_unwrapped(|scroller: &mut ScrollerHost| scroller._clip_content.get());
+        let (scroll_x, scroll_y) = effective_presentation_scroll(expanded_node, rtc);
         let should_translate = scroll_x.abs() > f64::EPSILON || scroll_y.abs() > f64::EPSILON;
         if !clip_content && !should_translate {
             return;
@@ -532,18 +618,15 @@ impl InstanceNode for ScrollerHostInstance {
         rtc: &Rc<RuntimeContext>,
         rcs: &mut dyn pax_runtime::api::RenderContext,
     ) {
-        if resolve_scroller_island_layer(expanded_node).is_some() {
+        if resolve_scroller_island_layer(expanded_node).is_some()
+            || root_scroller_delegates_to_page_scroll(expanded_node, rtc)
+        {
             return;
         }
 
-        let (clip_content, scroll_x, scroll_y) =
-            expanded_node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
-                (
-                    scroller._clip_content.get(),
-                    scroller._presentation_scroll_x.get(),
-                    scroller._presentation_scroll_y.get(),
-                )
-            });
+        let clip_content = expanded_node
+            .with_properties_unwrapped(|scroller: &mut ScrollerHost| scroller._clip_content.get());
+        let (scroll_x, scroll_y) = effective_presentation_scroll(expanded_node, rtc);
         if !clip_content && scroll_x.abs() <= f64::EPSILON && scroll_y.abs() <= f64::EPSILON {
             return;
         }

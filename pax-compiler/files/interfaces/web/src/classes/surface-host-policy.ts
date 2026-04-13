@@ -7,6 +7,13 @@ type SurfaceCanvasDescriptor = {
     height: number;
     surfaceSignature: string;
     transformSignature: string;
+    hostSignature?: string;
+};
+
+type LayerCanvasPlan = {
+    layerId: number;
+    active: boolean;
+    surfaces: SurfaceCanvasDescriptor[];
 };
 
 const TARGET_TILE_BACKING_DIMENSION = 1664;
@@ -23,6 +30,10 @@ const MIN_LOGICAL_TILE_SIZE = 256;
 const TILE_OVERSCAN_COLUMNS = 1;
 const TILE_OVERSCAN_ROWS = 0;
 const MIN_UNTILED_RENDER_DPR = 1.0;
+const PREWARM_VIEWPORT_PAD_X_MULTIPLIER = 1.0;
+const PREWARM_VIEWPORT_PAD_Y_MULTIPLIER = 1.0;
+const PREWARM_VIEWPORT_PAD_MIN_X = 512;
+const PREWARM_VIEWPORT_PAD_MIN_Y = 512;
 // Keep tiling policy at the DOM-host layer instead of in nodes or renderer callsites. The current
 // opt-in is:
 // 1. any non-root browser-owned scroller surface in all browsers
@@ -118,6 +129,16 @@ function computeLayerCanvasPlanInternal(
     }
     let maxColumn = Math.max(0, Math.ceil(contentWidth / tileSize) - 1);
     let maxRow = Math.max(0, Math.ceil(contentHeight / tileSize) - 1);
+    let padX = horizontalScrollable
+        ? Math.max(viewportWidth * PREWARM_VIEWPORT_PAD_X_MULTIPLIER, PREWARM_VIEWPORT_PAD_MIN_X)
+        : 0;
+    let padY = verticalScrollable
+        ? Math.max(viewportHeight * PREWARM_VIEWPORT_PAD_Y_MULTIPLIER, PREWARM_VIEWPORT_PAD_MIN_Y)
+        : 0;
+    let paddedViewportWidth = viewportWidth + padX * 2;
+    let paddedViewportHeight = viewportHeight + padY * 2;
+    let paddedScrollX = clampOffset(scrollX - padX, contentWidth, paddedViewportWidth);
+    let paddedScrollY = clampOffset(scrollY - padY, contentHeight, paddedViewportHeight);
     // Until we have finer per-node/per-tile culling, every overscan tile multiplies the retained
     // scene replay cost. Keep the first shipping-biased tiled pass to the visible tile window and
     // only revisit overscan once tile pooling/culling is in place.
@@ -129,19 +150,19 @@ function computeLayerCanvasPlanInternal(
     }
     let activeColumns = Math.min(
         maxColumn + 1,
-        visibleTileSpan(viewportWidth, tileSize, !iosHost) + overscanColumns * 2,
+        visibleTileSpan(paddedViewportWidth, tileSize, true) + overscanColumns * 2,
     );
     let activeRows = Math.min(
         maxRow + 1,
-        visibleTileSpan(viewportHeight, tileSize, !iosHost) + overscanRows * 2,
+        visibleTileSpan(paddedViewportHeight, tileSize, true) + overscanRows * 2,
     );
     let startColumn = clampWindowStart(
-        Math.floor(scrollX / tileSize) - overscanColumns,
+        Math.floor(paddedScrollX / tileSize) - overscanColumns,
         maxColumn,
         activeColumns,
     );
     let startRow = clampWindowStart(
-        Math.floor(scrollY / tileSize) - overscanRows,
+        Math.floor(paddedScrollY / tileSize) - overscanRows,
         maxRow,
         activeRows,
     );
@@ -348,4 +369,4 @@ function clampWindowStart(value: number, maxIndex: number, windowSize: number) {
     return clampIndex(value, Math.max(0, maxIndex - windowSize + 1));
 }
 
-export type { SurfaceCanvasDescriptor };
+export type { SurfaceCanvasDescriptor, LayerCanvasPlan };

@@ -129,17 +129,14 @@ export let SUPPORTED_OBJECTS = [{
         return canvas
     },
     cleanUp: (canvas: HTMLCanvasElement) => {
-        // Browser GPU contexts can remain bound to a canvas object even after it leaves the DOM.
-        // Reusing pooled canvases can therefore trip "canvas already in use" when a later layer
-        // tries to attach a fresh WebGPU/WebGL backend. Discard canvases instead of recycling
-        // them so each render surface gets a truly fresh DOM canvas.
-        // iOS WebKit is especially stubborn about releasing resources unless the canvas shrinks.
+        // Keep canvases reusable so their GPU contexts stay hot. Shrink the backing store to
+        // reduce memory while a canvas is parked, but avoid discarding the element entirely.
         canvas.width = 1;
         canvas.height = 1;
         canvas.id = '';
         canvas.removeAttribute('style');
     },
-    reusable: false,
+    reusable: true,
 },
 {
     name: YOUTUBE_VIDEO,
