@@ -38,6 +38,7 @@ import {
 } from "./text";
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
 import { CheckboxUpdatePatch } from "./messages/checkbox-update-patch";
+
 import { TextboxUpdatePatch } from "./messages/textbox-update-patch";
 import { RadioSetUpdatePatch } from "./messages/radio-set-update-patch";
 import { DropdownUpdatePatch } from "./messages/dropdown-update-patch";
@@ -1022,6 +1023,7 @@ export class NativeElementPool {
             patch.presentedBounds,
             patch.presentedClipBounds,
         );
+        // defer debug overlay until after layout updates
         this.applyContainerPlacement(patch.id!, patch);
 
         let styles: Partial<ContainerStyle> = {};
@@ -1042,6 +1044,9 @@ export class NativeElementPool {
          }
          if (patch.opacity != null) {
              styles.opacity = patch.opacity;
+         }
+         if (patch.borderRadius != null) {
+             styles.borderRadius = patch.borderRadius;
          }
         
         this.layers.updateContainer(patch.id!, styles);
@@ -1974,6 +1979,9 @@ export class NativeElementPool {
         if (patch.clipContent != null) {
             queued.clipContent = patch.clipContent;
         }
+        if (patch.borderRadius != null) {
+            queued.borderRadius = patch.borderRadius;
+        }
         if (patch.sizeInnerPaneX != null) {
             queued.sizeInnerPaneX = patch.sizeInnerPaneX;
         }
@@ -2236,6 +2244,9 @@ export class NativeElementPool {
             leaf.style.overflowY = shouldClip
                 ? (contentHeight > viewportHeight ? "auto" : "hidden")
                 : "visible";
+        }
+        if (patch.borderRadius != null) {
+            leaf.style.borderRadius = `${patch.borderRadius}px`;
         }
 
         const ignoreActiveScrollPatch =
@@ -2904,6 +2915,7 @@ type PendingScrollerUpdate = {
     sizeX?: number;
     sizeY?: number;
     clipContent?: boolean;
+    borderRadius?: number;
     sizeInnerPaneX?: number;
     sizeInnerPaneY?: number;
     transform?: number[];

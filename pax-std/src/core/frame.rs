@@ -2,10 +2,10 @@ use std::iter;
 use std::rc::Rc;
 
 use crate::common::{native_surface_opacity, patch_if_needed};
-use kurbo::{Affine, BezPath};
+use kurbo::{Affine, BezPath, RoundedRect, Shape};
 use pax_engine::*;
 use pax_message::{AnyCreatePatch, FramePatch};
-use pax_runtime::api::{Layer, Property, RenderContext};
+use pax_runtime::api::{bez_path_to_svg_path_data, Layer, Property, RenderContext};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
@@ -35,12 +35,14 @@ fn mark_canvas_descendants_dirty(expanded_node: &ExpandedNode, context: &Rc<Runt
 #[custom(Default)]
 pub struct Frame {
     pub _clip_content: Property<bool>,
+    pub border_radius: Property<f64>,
 }
 
 impl Default for Frame {
     fn default() -> Self {
         Self {
             _clip_content: Property::new(true),
+            border_radius: Property::new(0.0),
         }
     }
 }
@@ -71,7 +73,10 @@ impl InstanceNode for FrameInstance {
     fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {}
 
     fn resolve_effect_clip_path(&self, expanded_node: &ExpandedNode) -> Option<BezPath> {
-        if !expanded_node.with_properties_unwrapped(|frame: &mut Frame| frame._clip_content.get()) {
+        let (clip_content, border_radius) = expanded_node.with_properties_unwrapped(
+            |frame: &mut Frame| (frame._clip_content.get(), frame.border_radius.get()),
+        );
+        if !clip_content {
             return None;
         }
 
@@ -79,13 +84,10 @@ impl InstanceNode for FrameInstance {
         let transform = t_and_b.transform;
         let (width, height) = t_and_b.bounds;
 
-        let mut bez_path = BezPath::new();
-        bez_path.move_to((0.0, 0.0));
-        bez_path.line_to((width, 0.0));
-        bez_path.line_to((width, height));
-        bez_path.line_to((0.0, height));
-        bez_path.line_to((0.0, 0.0));
-        bez_path.close_path();
+        let max_radius = 0.5 * width.min(height);
+        let radius = border_radius.clamp(0.0, max_radius);
+        let rect = RoundedRect::new(0.0, 0.0, width, height, radius);
+        let bez_path = rect.to_path(0.1);
 
         Some(<Affine>::from(transform) * bez_path)
     }
@@ -96,14 +98,12 @@ impl InstanceNode for FrameInstance {
         rtc: &Rc<RuntimeContext>,
         rcs: &mut dyn RenderContext,
     ) {
-        let total_layer_count = rtc.layer_count.get();
+        // Only clip the node's own occlusion layer; other layers can be hosted in different
+        // DOM coordinate spaces (browser-owned scroller islands), so cross-layer clipping
+        // can misalign and cull content.
+        let layer_id = expanded_node.occlusion.get().occlusion_layer_id;
 
-        let mut run_pre_render = false;
-        for i in 0..total_layer_count {
-            run_pre_render |= rtc.is_canvas_dirty(&i);
-        }
-
-        if !run_pre_render {
+        if !rtc.is_canvas_dirty(&layer_id) {
             return;
         }
 
@@ -111,20 +111,17 @@ impl InstanceNode for FrameInstance {
             return;
         };
 
-        let layers = rcs.layers();
-        for layer in 0..layers {
-            if !rcs.begin_node(
-                layer,
-                expanded_node.id.to_u32(),
-                expanded_node.occlusion.get().z_index,
-            ) {
-                continue;
-            }
-            //our "save point" before clipping — restored to in the post_render
-            rcs.save(layer);
-            rcs.clip(layer, transformed_bez_path.clone());
-            let _ = rcs.end_node(layer, expanded_node.id.to_u32());
+        if !rcs.begin_node(
+            layer_id,
+            expanded_node.id.to_u32(),
+            expanded_node.occlusion.get().z_index,
+        ) {
+            return;
         }
+        // our "save point" before clipping — restored to in the post_render
+        rcs.save(layer_id);
+        rcs.clip(layer_id, transformed_bez_path);
+        let _ = rcs.end_node(layer_id, expanded_node.id.to_u32());
     }
 
     fn handle_post_render(
@@ -137,21 +134,14 @@ impl InstanceNode for FrameInstance {
             return;
         }
 
-        let total_layer_count = rtc.layer_count.get();
+        let layer_id = expanded_node.occlusion.get().occlusion_layer_id;
 
-        let mut post_render = false;
-        for i in 0..total_layer_count {
-            post_render |= rtc.is_canvas_dirty(&i);
-        }
-        if !post_render {
+        if !rtc.is_canvas_dirty(&layer_id) {
             return;
         }
 
-        let layers = rcs.layers();
-        for layer in 0..layers {
-            //pop the clipping context from the stack
-            rcs.restore(layer);
-        }
+        // pop the clipping context from the stack
+        rcs.restore(layer_id);
     }
 
     fn handle_mount(
@@ -213,12 +203,31 @@ impl InstanceNode for FrameInstance {
                     expanded_node.with_properties_unwrapped(|properties: &mut Frame| {
                         let computed_tab = expanded_node.transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
+                        let border_radius = properties.border_radius.get();
+                        let max_radius = 0.5 * width.min(height);
+                        let clamped_radius = border_radius.clamp(0.0, max_radius);
+                        let clip_path = if properties._clip_content.get()
+                            && clamped_radius > f64::EPSILON
+                        {
+                            let rect =
+                                RoundedRect::new(0.0, 0.0, width, height, clamped_radius);
+                            let bez_path =
+                                Affine::from(computed_tab.transform) * rect.to_path(0.1);
+                            bez_path_to_svg_path_data(&bez_path)
+                        } else {
+                            String::new()
+                        };
 
                         let updates = [
                             patch_if_needed(
                                 &mut old_state.clip_content,
                                 &mut patch.clip_content,
                                 properties._clip_content.get(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.border_radius,
+                                &mut patch.border_radius,
+                                border_radius,
                             ),
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
@@ -227,6 +236,7 @@ impl InstanceNode for FrameInstance {
                                 &mut patch.transform,
                                 computed_tab.transform.coeffs().to_vec(),
                             ),
+                            patch_if_needed(&mut old_state.clip_path, &mut patch.clip_path, clip_path),
                             patch_if_needed(
                                 &mut old_state.opacity,
                                 &mut patch.opacity,

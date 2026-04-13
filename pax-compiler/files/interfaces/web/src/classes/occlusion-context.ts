@@ -317,7 +317,6 @@ export class OcclusionLayerManager {
         }
         this.containers.delete(id);
         this.effects.updateClipPath(container.clipPathId(), undefined);
-
         let existing_layer_instantiations = document.querySelectorAll(`[data-container-id="${id}"]`);
         existing_layer_instantiations.forEach((elem, _key, _parent) => {
             let parent = elem.parentElement;
@@ -471,6 +470,7 @@ class Container {
         }
         return getRectClipPathData(this.styles.width!, this.styles.height!, this.styles.transform!);
     }
+
 }
 
 class SvgEffectManager {
@@ -756,6 +756,7 @@ export class ContainerStyle {
     width: number;
     height: number;
     opacity: number;
+    borderRadius: number;
     clipPath?: string;
 
     constructor() {
@@ -764,6 +765,7 @@ export class ContainerStyle {
         this.width = 0;
         this.height = 0;
         this.opacity = 1;
+        this.borderRadius = 0;
         this.clipPath = undefined;
     }
 }

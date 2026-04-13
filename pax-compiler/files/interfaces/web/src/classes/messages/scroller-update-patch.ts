@@ -5,6 +5,7 @@ export class ScrollerUpdatePatch {
     public sizeX?: number;
     public sizeY?: number;
     public clipContent?: boolean;
+    public borderRadius?: number;
     public sizeInnerPaneX? : number;
     public sizeInnerPaneY? : number;
     public transform? : number[];
@@ -24,6 +25,7 @@ export class ScrollerUpdatePatch {
         this.sizeX = jsonMessage["size_x"];
         this.sizeY = jsonMessage["size_y"];
         this.clipContent = jsonMessage["clip_content"];
+        this.borderRadius = jsonMessage["border_radius"];
         this.sizeInnerPaneX = jsonMessage["size_inner_pane_x"];
         this.sizeInnerPaneY = jsonMessage["size_inner_pane_y"];
         this.transform = jsonMessage["transform"];
@@ -44,6 +46,7 @@ export class ScrollerUpdatePatch {
         this.sizeX = 0;
         this.sizeY = 0;
         this.clipContent = undefined;
+        this.borderRadius = undefined;
         this.sizeInnerPaneX = 0;
         this.sizeInnerPaneY = 0;
         this.transform = [];

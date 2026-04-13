@@ -1,7 +1,7 @@
 use crate::common::{native_surface_opacity, patch_if_needed};
 #[allow(unused)]
 use crate::*;
-use kurbo::{Affine, BezPath};
+use kurbo::{Affine, BezPath, RoundedRect, Shape};
 use pax_engine::api::{Event, Wheel};
 use pax_engine::api::{Property, Size};
 use pax_engine::*;
@@ -30,6 +30,7 @@ use_RefCell!();
             scroll_pos_y=bind:scroll_pos_y
             scroll_width={self.scroll_width}
             scroll_height={self.scroll_height}
+            border_radius={self.border_radius}
             _clip_content={!$suspended}
         >
             for i in 0..self._slot_children_count {
@@ -39,7 +40,7 @@ use_RefCell!();
     }
 
     if !self._native_scrolling {
-        <Frame _clip_content={!$suspended}>
+        <Frame _clip_content={!$suspended} border_radius={self.border_radius}>
             // WARNING: changing the ID of this group affects the designer
             <Group id=_scroller_inner_container x={(-self.scroll_pos_x)px} y={(-self.scroll_pos_y)px} width={self.scroll_width - 8px} height={self.scroll_height}>
                 for i in 0..self._slot_children_count {
@@ -81,6 +82,7 @@ pub struct Scroller {
     pub scroll_width: Property<Size>,
     pub scroll_height: Property<Size>,
     pub auto_size: Property<bool>,
+    pub border_radius: Property<f64>,
 
     // used by pax create (might want to just make public at some point)
     pub _clip_content: Property<bool>,
@@ -103,6 +105,7 @@ impl Default for Scroller {
             scroll_width: Default::default(),
             scroll_height: Default::default(),
             auto_size: Property::new(false),
+            border_radius: Property::new(0.0),
             _clip_content: Property::new(true),
             _native_scrolling: Property::new(false),
             _platform_params: Default::default(),
@@ -135,6 +138,7 @@ pub struct ScrollerHost {
     pub scroll_pos_y: Property<f64>,
     pub scroll_width: Property<Size>,
     pub scroll_height: Property<Size>,
+    pub border_radius: Property<f64>,
     pub _presentation_scroll_x: Property<f64>,
     pub _presentation_scroll_y: Property<f64>,
     pub _clip_content: Property<bool>,
@@ -147,6 +151,7 @@ impl Default for ScrollerHost {
             scroll_pos_y: Default::default(),
             scroll_width: Default::default(),
             scroll_height: Default::default(),
+            border_radius: Property::new(0.0),
             _presentation_scroll_x: Default::default(),
             _presentation_scroll_y: Default::default(),
             _clip_content: Property::new(true),
@@ -205,7 +210,11 @@ fn resolve_scroller_island_layer(expanded_node: &ExpandedNode) -> Option<usize> 
     find_descendant_layer(expanded_node, own_layer)
 }
 
-fn scroller_clip_path(expanded_node: &ExpandedNode, clip_content: bool) -> Option<BezPath> {
+fn scroller_clip_path(
+    expanded_node: &ExpandedNode,
+    clip_content: bool,
+    border_radius: f64,
+) -> Option<BezPath> {
     if !clip_content {
         return None;
     }
@@ -213,14 +222,21 @@ fn scroller_clip_path(expanded_node: &ExpandedNode, clip_content: bool) -> Optio
     let t_and_b = expanded_node.transform_and_bounds.get();
     let transform = t_and_b.transform;
     let (width, height) = t_and_b.bounds;
+    let max_radius = 0.5 * width.min(height);
+    let radius = border_radius.clamp(0.0, max_radius);
 
-    let mut bez_path = BezPath::new();
-    bez_path.move_to((0.0, 0.0));
-    bez_path.line_to((width, 0.0));
-    bez_path.line_to((width, height));
-    bez_path.line_to((0.0, height));
-    bez_path.line_to((0.0, 0.0));
-    bez_path.close_path();
+    let bez_path = if radius > f64::EPSILON {
+        RoundedRect::new(0.0, 0.0, width, height, radius).to_path(0.1)
+    } else {
+        let mut bez_path = BezPath::new();
+        bez_path.move_to((0.0, 0.0));
+        bez_path.line_to((width, 0.0));
+        bez_path.line_to((width, height));
+        bez_path.line_to((0.0, height));
+        bez_path.line_to((0.0, 0.0));
+        bez_path.close_path();
+        bez_path
+    };
 
     Some(<Affine>::from(transform) * bez_path)
 }
@@ -302,6 +318,9 @@ impl InstanceNode for ScrollerHostInstance {
                     expanded_node.with_properties_unwrapped(|properties: &mut ScrollerHost| {
                         let computed_tab = expanded_node.transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
+                        let border_radius = properties.border_radius.get();
+                        let max_radius = 0.5 * width.min(height);
+                        let clamped_radius = border_radius.clamp(0.0, max_radius);
                         let scroll_width = properties.scroll_width.get().get_pixels(width);
                         let scroll_height = properties.scroll_height.get().get_pixels(height);
                         let presentation_scroll = (
@@ -316,6 +335,11 @@ impl InstanceNode for ScrollerHostInstance {
                         let updates = [
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
+                            patch_if_needed(
+                                &mut old_state.border_radius,
+                                &mut patch.border_radius,
+                                clamped_radius,
+                            ),
                             patch_if_needed(
                                 &mut old_state.parent_frame,
                                 &mut patch.parent_frame,
@@ -440,12 +464,11 @@ impl InstanceNode for ScrollerHostInstance {
     }
 
     fn resolve_effect_clip_path(&self, expanded_node: &ExpandedNode) -> Option<BezPath> {
-        scroller_clip_path(
-            expanded_node,
+        let (clip_content, border_radius) =
             expanded_node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
-                scroller._clip_content.get()
-            }),
-        )
+                (scroller._clip_content.get(), scroller.border_radius.get())
+            });
+        scroller_clip_path(expanded_node, clip_content, border_radius)
     }
 
     fn handle_pre_render(

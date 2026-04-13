@@ -1594,8 +1594,9 @@ public class FrameElement: ResolvedPlacementTarget {
     public var size_x: Float
     public var size_y: Float
     public var clipPath: String?
+    public var borderRadius: Double
     
-    public init(id: PaxNodeId, parentFrame: PaxNodeId?, clipContent: Bool, opacity: Double, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, clipPath: String? = nil) {
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, clipContent: Bool, opacity: Double, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, clipPath: String? = nil, borderRadius: Double = 0.0) {
         self.id = id
         self.parentFrame = parentFrame
         self.clipContent = clipContent
@@ -1605,6 +1606,7 @@ public class FrameElement: ResolvedPlacementTarget {
         self.size_x = size_x
         self.size_y = size_y
         self.clipPath = clipPath
+        self.borderRadius = borderRadius
     }
     
     public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?) -> FrameElement {
@@ -1632,6 +1634,9 @@ public class FrameElement: ResolvedPlacementTarget {
         if let clipPath = patch.clipPath {
             self.clipPath = clipPath.isEmpty ? nil : clipPath
         }
+        if let borderRadius = patch.borderRadius {
+            self.borderRadius = borderRadius
+        }
     }
 
 }
@@ -1651,6 +1656,7 @@ public class FrameUpdatePatch: ResolvedPlacementPatch {
     public var size_y: Float?
     public var clipContent: Bool?
     public var clipPath: String?
+    public var borderRadius: Double?
     public var opacity: Double?
     
     public init(fb: FlxbReference) {
@@ -1665,6 +1671,7 @@ public class FrameUpdatePatch: ResolvedPlacementPatch {
         self.size_y = fb["size_y"]?.asFloat
         self.clipContent = fb["clip_content"]?.asBool
         self.clipPath = fb["clip_path"]?.asString
+        self.borderRadius = readDouble(fb["border_radius"])
         self.opacity = readDouble(fb["opacity"])
     }
 }

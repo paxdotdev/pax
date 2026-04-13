@@ -419,6 +419,7 @@ pub struct FramePatch {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub z_index: Option<i32>,
     pub clip_content: Option<bool>,
+    pub border_radius: Option<f64>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
@@ -769,6 +770,7 @@ pub struct ScrollerPatch {
     pub size_y: Option<f64>,
     pub opacity: Option<f64>,
     pub clip_content: Option<bool>,
+    pub border_radius: Option<f64>,
     pub size_inner_pane_x: Option<f64>,
     pub size_inner_pane_y: Option<f64>,
     pub scroll_x: Option<f64>,

@@ -541,6 +541,8 @@ public struct NativeRenderingLayer: View {
         let localTransform: CGAffineTransform
         let size: CGSize
         let opacity: Double
+        let clipContent: Bool
+        let borderRadius: CGFloat
         let clipPath: CGPath?
         let clipSignature: Int
         let children: [NativeRenderNode]
@@ -640,19 +642,31 @@ public struct NativeRenderingLayer: View {
 #endif
         }
 
-        func applyClip(path: CGPath?, signature: Int) {
+        func applyClip(path: CGPath?, signature: Int, borderRadius: CGFloat, clipContent: Bool) {
             if appliedClipSignature == signature {
                 return
             }
             CATransaction.begin()
             CATransaction.setDisableActions(true)
-            if let path {
+            if !clipContent {
+                backingLayer.mask = nil
+                backingLayer.cornerRadius = 0
+                backingLayer.masksToBounds = false
+            } else if borderRadius > 0 {
+                backingLayer.mask = nil
+                backingLayer.cornerRadius = borderRadius
+                backingLayer.masksToBounds = true
+            } else if let path {
                 clipMaskLayer.frame = CGRect(origin: .zero, size: bounds.size)
                 clipMaskLayer.path = path
                 clipMaskLayer.fillColor = platformColor(.white).cgColor
                 backingLayer.mask = clipMaskLayer
+                backingLayer.cornerRadius = 0
+                backingLayer.masksToBounds = false
             } else {
                 backingLayer.mask = nil
+                backingLayer.cornerRadius = 0
+                backingLayer.masksToBounds = false
             }
             CATransaction.commit()
             appliedClipSignature = signature
@@ -1089,7 +1103,12 @@ public struct NativeRenderingLayer: View {
                         zIndex: frame.zIndex,
                         opacity: frame.opacity
                     )
-                    frameView.applyClip(path: frame.clipPath, signature: frame.clipSignature)
+                    frameView.applyClip(
+                        path: frame.clipPath,
+                        signature: frame.clipSignature,
+                        borderRadius: frame.borderRadius,
+                        clipContent: frame.clipContent
+                    )
                     sync(
                         nodes: frame.children,
                         parentView: frameView,
@@ -1276,6 +1295,9 @@ public struct NativeRenderingLayer: View {
         guard frame.clipContent else {
             return nil
         }
+        if frame.borderRadius > 0 {
+            return nil
+        }
         let size = frameSize(frame)
         if let clipPath = frame.clipPath,
            !clipPath.isEmpty,
@@ -1291,7 +1313,10 @@ public struct NativeRenderingLayer: View {
         }
         var hasher = Hasher()
         hasher.combine(frame.clipContent)
-        hasher.combine(frame.clipPath)
+        hasher.combine(frame.borderRadius)
+        if frame.borderRadius <= 0 {
+            hasher.combine(frame.clipPath)
+        }
         combineCGSize(frameSize(frame), into: &hasher)
         return hasher.finalize()
     }
@@ -1336,6 +1361,8 @@ public struct NativeRenderingLayer: View {
                 localTransform: frameTransformInParentFrame(frame),
                 size: frameSize(frame),
                 opacity: clampOpacity(frame.opacity),
+                clipContent: frame.clipContent,
+                borderRadius: CGFloat(frame.borderRadius),
                 clipPath: localClipPath(for: frame)?.cgPath,
                 clipSignature: clipSignature(for: frame),
                 children: children
