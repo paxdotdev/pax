@@ -1,53 +1,92 @@
-<Group>
-    <Group width=40px x=0%  @click=decrement>
-        <Path id=left_triangle/>
-        <Rectangle corner_radii={RectangleCornerRadii::radii(15.0, 0.0, 0.0, 15.0)} fill=WHITE/>
-    </Group>
-    <Group width=40px x=100% @click=increment>
-        <Path id=right_triangle/>
-        <Rectangle corner_radii={RectangleCornerRadii::radii(0.0, 15.0, 15.0, 0.0)} fill=WHITE/>
-    </Group>
-    <Frame x=50% y=50% width={100%-80px}>
-    for (cell_spec, i) in self.cell_specs {
-        <Frame anchor_x=50% x={(cell_spec.x_percent)%} >
-            if cell_spec.is_active {
-                slot(i)
+<Group width=100% height=100%>
+    if self._show_dots {
+        <Group
+            class=carousel_dots
+            x={self._dots_pos_x}
+            y={self._dots_pos_y}
+            anchor_x=50%
+            anchor_y=50%
+            width={(self._dots_pill_width)px}
+            height={(self._dots_pill_height)px}
+            _raycastable=false
+        >
+            for dot in self._dots {
+                if dot.is_active {
+                    <Ellipse
+                        class=carousel_dot_active
+                        x={50% + (dot.x_px)px}
+                        y={50% + (dot.y_px)px}
+                        width=10px
+                        height=10px
+                        anchor_x=50%
+                        anchor_y=50%
+                    />
+                }
+                if !dot.is_active {
+                    <Ellipse
+                        class=carousel_dot
+                        x={50% + (dot.x_px)px}
+                        y={50% + (dot.y_px)px}
+                        width=10px
+                        height=10px
+                        anchor_x=50%
+                        anchor_y=50%
+                    />
+                }
             }
-        </Frame>
+            <Rectangle
+                class=carousel_dots_pill
+                x=50%
+                y=50%
+                width=100%
+                height=100%
+                anchor_x=50%
+                anchor_y=50%
+            />
+        </Group>
     }
-    </Frame>
+
+    <Scroller
+        width=100%
+        height=100%
+        scroll_width={self._scroll_width}
+        scroll_height={self._scroll_height}
+        scroll_pos_x=bind:scroll_pos_x
+        scroll_pos_y=bind:scroll_pos_y
+        snap_positions_x={self._snap_positions_x}
+        snap_positions_y={self._snap_positions_y}
+    >
+        for (page, i) in self._pages {
+            <Group
+                x={(page.x_px)px}
+                y={(page.y_px)px}
+                width={(self._page_width_px)px}
+                height={(self._page_height_px)px}
+            >
+                slot(i)
+            </Group>
+        }
+    </Scroller>
 </Group>
+
 @settings {
     @mount: on_mount
-    @pre_render: update
-    #right_triangle {
-        x: {50% - 8px}
-        elements: {[
-            PathElement::Point(50%, 50% - 12px),
-            PathElement::Line,
-            PathElement::Point(50% + 16px, 50%),
-            PathElement::Line,
-            PathElement::Point(50%, 50% + 12px),
-            PathElement::Close
-        ]},
-        stroke: {
-            width: 0px
-        }
-        fill: BLACK
+    @key_down: key_down
+
+    .carousel_dots {
+        opacity: 0.95,
     }
-    #left_triangle {
-        x: {50% + 8px},
-        elements: {[
-            PathElement::Point(50%, 50% - 12px),
-            PathElement::Line,
-            PathElement::Point(50% - 16px, 50%),
-            PathElement::Line,
-            PathElement::Point(50%, 50% + 12px),
-            PathElement::Close
-        ]},
-        stroke: {
-            width: 0px
-        }
-        fill: BLACK
+
+    .carousel_dots_pill {
+        fill: rgba(30, 30, 30, 180),
+        corner_radii: {RectangleCornerRadii::radii(13.0, 13.0, 13.0, 13.0)},
+    }
+
+    .carousel_dot {
+        fill: rgba(255, 255, 255, 110),
+    }
+
+    .carousel_dot_active {
+        fill: rgba(255, 255, 255, 240),
     }
 }

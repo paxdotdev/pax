@@ -8,6 +8,8 @@ export class ScrollerUpdatePatch {
     public borderRadius?: number;
     public sizeInnerPaneX? : number;
     public sizeInnerPaneY? : number;
+    public snapPointsX?: number[];
+    public snapPointsY?: number[];
     public transform? : number[];
     public opacity? : number;
     public scrollX? : number;
@@ -28,6 +30,8 @@ export class ScrollerUpdatePatch {
         this.borderRadius = jsonMessage["border_radius"];
         this.sizeInnerPaneX = jsonMessage["size_inner_pane_x"];
         this.sizeInnerPaneY = jsonMessage["size_inner_pane_y"];
+        this.snapPointsX = jsonMessage["snap_points_x"];
+        this.snapPointsY = jsonMessage["snap_points_y"];
         this.transform = jsonMessage["transform"];
         this.opacity = jsonMessage["opacity"];
         this.scrollX = jsonMessage["scroll_x"];
@@ -49,6 +53,8 @@ export class ScrollerUpdatePatch {
         this.borderRadius = undefined;
         this.sizeInnerPaneX = 0;
         this.sizeInnerPaneY = 0;
+        this.snapPointsX = undefined;
+        this.snapPointsY = undefined;
         this.transform = [];
         this.opacity = undefined;
         this.scrollX = 0;

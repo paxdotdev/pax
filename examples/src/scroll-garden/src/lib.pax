@@ -1,0 +1,570 @@
+// Pax z-order: earlier elements render above later ones, so slide backdrops stay last.
+<Carousel
+    width=100%
+    height=100%
+    axis=CarouselAxis::Vertical
+    page_size=150%
+    show_dots=true
+    scroll_pos_y=bind:scroll_y
+>
+    <Group class=slide width=100% height=100%>
+        <Group class=panel class=panel_one x={(self.panel_x_left)px} y=30% width={(self.panel_width)px} height=250px>
+            <Text class=panel_kicker_one x=32px y=26px width={100% - 64px} height=18px text="SCROLL GARDEN" selectable=false />
+            <Text class=panel_title_one x=32px y=54px width={100% - 64px} height=60px text="Jointed Tendrils" selectable=false />
+            <Rectangle class=panel_rule_one x=32px y=122px width=72px height=4px />
+            <Text
+                class=panel_body_one
+                x=32px
+                y=138px
+                width={100% - 64px}
+                height=88px
+                text="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
+                selectable=false
+            />
+            <Rectangle class=panel_back class=panel_back_one width=100% height=100% />
+        </Group>
+        <Group class=kalei_layer x=0% y=50% width=100% height=180% anchor_x=0% anchor_y=50%>
+            <KaleidoscopeStream
+                side=KaleidoscopeSide::Left
+                variant=KaleidoscopeVariant::Crimson
+                count=2
+                spacing=0.9
+                size=0.4
+                playhead={self.scroll_playhead}
+            />
+            <KaleidoscopeStream
+                side=KaleidoscopeSide::Right
+                variant=KaleidoscopeVariant::Crimson
+                count=2
+                spacing=0.9
+                size=0.4
+                playhead={self.scroll_playhead}
+            />
+        </Group>
+        <Rectangle class=backdrop class=backdrop_one width=100% height=100% />
+    </Group>
+
+    <Group class=slide width=100% height=100%>
+        <Group class=panel class=panel_two x={(self.panel_x_right)px} y=30% width={(self.panel_width)px} height=250px>
+            <Text class=panel_kicker_two x=32px y=26px width={100% - 64px} height=18px text="KALEIDOSCOPE EDGE" selectable=false />
+            <Text class=panel_title_two x=32px y=54px width={100% - 64px} height=60px text="Mirror Articulation" selectable=false />
+            <Rectangle class=panel_rule_two x=32px y=122px width=72px height=4px />
+            <Text
+                class=panel_body_two
+                x=32px
+                y=138px
+                width={100% - 64px}
+                height=88px
+                text="Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
+                selectable=false
+            />
+            <Rectangle class=panel_back class=panel_back_two width=100% height=100% />
+        </Group>
+        <Group class=kalei_layer x=0% y=50% width=100% height=180% anchor_x=0% anchor_y=50%>
+            <KaleidoscopeStream
+                side=KaleidoscopeSide::Left
+                variant=KaleidoscopeVariant::Nocturne
+                count=2
+                spacing=0.9
+                size=0.4
+                playhead={self.scroll_playhead}
+            />
+            <KaleidoscopeStream
+                side=KaleidoscopeSide::Right
+                variant=KaleidoscopeVariant::Nocturne
+                count=2
+                spacing=0.9
+                size=0.4
+                playhead={self.scroll_playhead}
+            />
+        </Group>
+        <Rectangle class=backdrop class=backdrop_two width=100% height=100% />
+    </Group>
+
+    <Group class=slide width=100% height=100%>
+        <Group class=panel class=panel_three x={(self.panel_x_left)px} y=30% width={(self.panel_width)px} height=250px>
+            <Text class=panel_kicker_three x=32px y=26px width={100% - 64px} height=18px text="GEM JOINTS" selectable=false />
+            <Text class=panel_title_three x=32px y=54px width={100% - 64px} height=60px text="Angular Variety" selectable=false />
+            <Rectangle class=panel_rule_three x=32px y=122px width=72px height=4px />
+            <Text
+                class=panel_body_three
+                x=32px
+                y=138px
+                width={100% - 64px}
+                height=88px
+                text="Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur."
+                selectable=false
+            />
+            <Rectangle class=panel_back class=panel_back_three width=100% height=100% />
+        </Group>
+        <Group class=kalei_layer x=0% y=50% width=100% height=180% anchor_x=0% anchor_y=50%>
+            <KaleidoscopeStream
+                side=KaleidoscopeSide::Left
+                variant=KaleidoscopeVariant::Lagoon
+                count=2
+                spacing=0.9
+                size=0.4
+                playhead={self.scroll_playhead}
+            />
+            <KaleidoscopeStream
+                side=KaleidoscopeSide::Right
+                variant=KaleidoscopeVariant::Lagoon
+                count=2
+                spacing=0.9
+                size=0.4
+                playhead={self.scroll_playhead}
+            />
+        </Group>
+        <Rectangle class=backdrop class=backdrop_three width=100% height=100% />
+    </Group>
+
+    <Group class=slide width=100% height=100%>
+        <Group class=panel class=panel_four x={(self.panel_x_right)px} y=30% width={(self.panel_width)px} height=250px>
+            <Text class=panel_kicker_four x=32px y=26px width={100% - 64px} height=18px text="SCROLL SCRUB" selectable=false />
+            <Text class=panel_title_four x=32px y=54px width={100% - 64px} height=60px text="Furl and Unfurl" selectable=false />
+            <Rectangle class=panel_rule_four x=32px y=122px width=72px height=4px />
+            <Text
+                class=panel_body_four
+                x=32px
+                y=138px
+                width={100% - 64px}
+                height=88px
+                text="Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+                selectable=false
+            />
+            <Rectangle class=panel_back class=panel_back_four width=100% height=100% />
+        </Group>
+        <Group class=kalei_layer x=0% y=50% width=100% height=180% anchor_x=0% anchor_y=50%>
+            <KaleidoscopeStream
+                side=KaleidoscopeSide::Left
+                variant=KaleidoscopeVariant::Fern
+                count=2
+                spacing=0.9
+                size=0.4
+                playhead={self.scroll_playhead}
+            />
+            <KaleidoscopeStream
+                side=KaleidoscopeSide::Right
+                variant=KaleidoscopeVariant::Fern
+                count=2
+                spacing=0.9
+                size=0.4
+                playhead={self.scroll_playhead}
+            />
+        </Group>
+        <Rectangle class=backdrop class=backdrop_four width=100% height=100% />
+    </Group>
+
+    <Group class=slide width=100% height=100%>
+        <Group class=panel class=panel_five x={(self.panel_x_left)px} y=30% width={(self.panel_width)px} height=250px>
+            <Text class=panel_kicker_five x=32px y=26px width={100% - 64px} height=18px text="TIMELINE FINALE" selectable=false />
+            <Text class=panel_title_five x=32px y=54px width={100% - 64px} height=60px text="Edge Bloom" selectable=false />
+            <Rectangle class=panel_rule_five x=32px y=122px width=72px height=4px />
+            <Text
+                class=panel_body_five
+                x=32px
+                y=138px
+                width={100% - 64px}
+                height=88px
+                text="Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos."
+                selectable=false
+            />
+            <Rectangle class=panel_back class=panel_back_five width=100% height=100% />
+        </Group>
+        <Group class=kalei_layer x=0% y=50% width=100% height=180% anchor_x=0% anchor_y=50%>
+            <KaleidoscopeStream
+                side=KaleidoscopeSide::Left
+                variant=KaleidoscopeVariant::Violet
+                count=2
+                spacing=0.9
+                size=0.4
+                playhead={self.scroll_playhead}
+            />
+            <KaleidoscopeStream
+                side=KaleidoscopeSide::Right
+                variant=KaleidoscopeVariant::Violet
+                count=2
+                spacing=0.9
+                size=0.4
+                playhead={self.scroll_playhead}
+            />
+        </Group>
+        <Rectangle class=backdrop class=backdrop_five width=100% height=100% />
+    </Group>
+</Carousel>
+@settings {
+    @mount: on_mount
+
+    .backdrop {
+        fill: Fill::linearGradient(
+            (50%, 0%),
+            (50%, 100%),
+            [
+                GradientStop::get(Color::rgba(201, 187, 122, 255), 0%),
+                GradientStop::get(Color::rgba(93, 111, 107, 255), 100%)
+            ]
+        ),
+    }
+
+    .backdrop_one {
+        fill: Fill::linearGradient(
+            (50%, 0%),
+            (50%, 100%),
+            [
+                GradientStop::get(Color::rgba(239, 202, 162, 255), 0%),
+                GradientStop::get(Color::rgba(92, 24, 36, 255), 100%)
+            ]
+        ),
+    }
+
+    .backdrop_two {
+        fill: Fill::linearGradient(
+            (50%, 0%),
+            (50%, 100%),
+            [
+                GradientStop::get(Color::rgba(242, 229, 143, 255), 0%),
+                GradientStop::get(Color::rgba(28, 29, 25, 255), 100%)
+            ]
+        ),
+    }
+
+    .backdrop_three {
+        fill: Fill::linearGradient(
+            (50%, 0%),
+            (50%, 100%),
+            [
+                GradientStop::get(Color::rgba(108, 133, 138, 255), 0%),
+                GradientStop::get(Color::rgba(204, 123, 58, 255), 100%)
+            ]
+        ),
+    }
+
+    .backdrop_four {
+        fill: Fill::linearGradient(
+            (50%, 0%),
+            (50%, 100%),
+            [
+                GradientStop::get(Color::rgba(27, 61, 42, 255), 0%),
+                GradientStop::get(Color::rgba(145, 160, 103, 255), 100%)
+            ]
+        ),
+    }
+
+    .backdrop_five {
+        fill: Fill::linearGradient(
+            (50%, 0%),
+            (50%, 100%),
+            [
+                GradientStop::get(Color::rgba(183, 181, 222, 255), 0%),
+                GradientStop::get(Color::rgba(227, 155, 122, 255), 100%)
+            ]
+        ),
+    }
+
+    .panel {
+        opacity: 0,
+    }
+
+    .panel_back {
+        fill: rgba(201, 187, 122, 235),
+        stroke: {
+            color: rgba(27, 26, 22, 180),
+            width: 1px,
+        },
+        corner_radii: {RectangleCornerRadii::radii(24.0, 24.0, 24.0, 24.0)},
+    }
+
+    .panel_back_one {
+        fill: rgba(242, 201, 170, 235),
+        stroke: {
+            color: rgba(79, 23, 34, 170),
+            width: 1px,
+        },
+    }
+
+    .panel_back_two {
+        fill: rgba(224, 196, 106, 235),
+        stroke: {
+            color: rgba(33, 30, 22, 170),
+            width: 1px,
+        },
+    }
+
+    .panel_back_three {
+        fill: rgba(242, 230, 184, 235),
+        stroke: {
+            color: rgba(34, 59, 63, 170),
+            width: 1px,
+        },
+    }
+
+    .panel_back_four {
+        fill: rgba(205, 214, 164, 235),
+        stroke: {
+            color: rgba(31, 45, 33, 170),
+            width: 1px,
+        },
+    }
+
+    .panel_back_five {
+        fill: rgba(220, 210, 234, 235),
+        stroke: {
+            color: rgba(58, 59, 91, 170),
+            width: 1px,
+        },
+    }
+
+    .panel_rule_one {
+        fill: rgba(79, 23, 34, 230),
+        corner_radii: {RectangleCornerRadii::radii(2.0, 2.0, 2.0, 2.0)},
+    }
+
+    .panel_rule_two {
+        fill: rgba(33, 30, 22, 230),
+        corner_radii: {RectangleCornerRadii::radii(2.0, 2.0, 2.0, 2.0)},
+    }
+
+    .panel_rule_three {
+        fill: rgba(34, 59, 63, 230),
+        corner_radii: {RectangleCornerRadii::radii(2.0, 2.0, 2.0, 2.0)},
+    }
+
+    .panel_rule_four {
+        fill: rgba(31, 45, 33, 230),
+        corner_radii: {RectangleCornerRadii::radii(2.0, 2.0, 2.0, 2.0)},
+    }
+
+    .panel_rule_five {
+        fill: rgba(58, 59, 91, 230),
+        corner_radii: {RectangleCornerRadii::radii(2.0, 2.0, 2.0, 2.0)},
+    }
+
+    .panel_kicker_one {
+        style: {
+            font: Font::Web("Work Sans", "https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::SemiBold),
+            font_size: 12px,
+            fill: rgba(79, 23, 34, 255),
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .panel_kicker_two {
+        style: {
+            font: Font::Web("Work Sans", "https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::SemiBold),
+            font_size: 12px,
+            fill: rgba(33, 30, 22, 255),
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .panel_kicker_three {
+        style: {
+            font: Font::Web("Work Sans", "https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::SemiBold),
+            font_size: 12px,
+            fill: rgba(34, 59, 63, 255),
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .panel_kicker_four {
+        style: {
+            font: Font::Web("Work Sans", "https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::SemiBold),
+            font_size: 12px,
+            fill: rgba(31, 45, 33, 255),
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .panel_kicker_five {
+        style: {
+            font: Font::Web("Work Sans", "https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::SemiBold),
+            font_size: 12px,
+            fill: rgba(58, 59, 91, 255),
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .panel_title_one {
+        style: {
+            font: Font::Web("Fraunces", "https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold),
+            font_size: 42px,
+            fill: rgba(79, 23, 34, 255),
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .panel_title_two {
+        style: {
+            font: Font::Web("Fraunces", "https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold),
+            font_size: 42px,
+            fill: rgba(33, 30, 22, 255),
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .panel_title_three {
+        style: {
+            font: Font::Web("Fraunces", "https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold),
+            font_size: 42px,
+            fill: rgba(34, 59, 63, 255),
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .panel_title_four {
+        style: {
+            font: Font::Web("Fraunces", "https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold),
+            font_size: 42px,
+            fill: rgba(31, 45, 33, 255),
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .panel_title_five {
+        style: {
+            font: Font::Web("Fraunces", "https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold),
+            font_size: 42px,
+            fill: rgba(58, 59, 91, 255),
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .panel_body_one {
+        style: {
+            font: Font::Web("Work Sans", "https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500&display=swap", FontStyle::Normal, FontWeight::Normal),
+            font_size: 18px,
+            fill: rgba(79, 23, 34, 255),
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .panel_body_two {
+        style: {
+            font: Font::Web("Work Sans", "https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500&display=swap", FontStyle::Normal, FontWeight::Normal),
+            font_size: 18px,
+            fill: rgba(33, 30, 22, 255),
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .panel_body_three {
+        style: {
+            font: Font::Web("Work Sans", "https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500&display=swap", FontStyle::Normal, FontWeight::Normal),
+            font_size: 18px,
+            fill: rgba(34, 59, 63, 255),
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .panel_body_four {
+        style: {
+            font: Font::Web("Work Sans", "https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500&display=swap", FontStyle::Normal, FontWeight::Normal),
+            font_size: 18px,
+            fill: rgba(31, 45, 33, 255),
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+
+    .panel_body_five {
+        style: {
+            font: Font::Web("Work Sans", "https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500&display=swap", FontStyle::Normal, FontWeight::Normal),
+            font_size: 18px,
+            fill: rgba(58, 59, 91, 255),
+            align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Left,
+            align_multiline: TextAlignHorizontal::Left,
+            underline: false,
+        }
+    }
+}
+
+@timeline scroll_scene {
+    playhead: self.scroll_playhead,
+    frames: 1000,
+    loop: false,
+
+    .panel_one {
+        opacity: {
+            0%: 1, Linear,
+            10%: 1,
+            12%: 0, InQuad,
+        },
+    }
+
+    .panel_two {
+        opacity: {
+            11.5%: 0, Linear,
+            16%: 1, OutQuad,
+            30%: 1,
+            34.6%: 0, InQuad,
+        },
+    }
+
+    .panel_three {
+        opacity: {
+            34.6%: 0, Linear,
+            39%: 1, OutQuad,
+            53%: 1,
+            57.7%: 0, InQuad,
+        },
+    }
+
+    .panel_four {
+        opacity: {
+            57.7%: 0, Linear,
+            62%: 1, OutQuad,
+            76%: 1,
+            80.8%: 0, InQuad,
+        },
+    }
+
+    .panel_five {
+        opacity: {
+            80.8%: 0, Linear,
+            86%: 1, OutQuad,
+            100%: 1,
+        },
+    }
+}

@@ -31,6 +31,8 @@ use_RefCell!();
             scroll_width={self.scroll_width}
             scroll_height={self.scroll_height}
             border_radius={self.border_radius}
+            snap_positions_x={self.snap_positions_x}
+            snap_positions_y={self.snap_positions_y}
             _clip_content={!$suspended}
         >
             for i in 0..self._slot_children_count {
@@ -83,6 +85,11 @@ pub struct Scroller {
     pub scroll_height: Property<Size>,
     pub auto_size: Property<bool>,
     pub border_radius: Property<f64>,
+    /// Scroll snap anchors expressed in px/% along each axis.
+    /// Web maps to CSS scroll-snap-type + scroll-snap-align; iOS/macOS should map
+    /// to UIScrollView/NSScrollView snapping APIs when those chassis land.
+    pub snap_positions_x: Property<Vec<Size>>,
+    pub snap_positions_y: Property<Vec<Size>>,
 
     // used by pax create (might want to just make public at some point)
     pub _clip_content: Property<bool>,
@@ -106,6 +113,8 @@ impl Default for Scroller {
             scroll_height: Default::default(),
             auto_size: Property::new(false),
             border_radius: Property::new(0.0),
+            snap_positions_x: Default::default(),
+            snap_positions_y: Default::default(),
             _clip_content: Property::new(true),
             _native_scrolling: Property::new(false),
             _platform_params: Default::default(),
@@ -139,6 +148,8 @@ pub struct ScrollerHost {
     pub scroll_width: Property<Size>,
     pub scroll_height: Property<Size>,
     pub border_radius: Property<f64>,
+    pub snap_positions_x: Property<Vec<Size>>,
+    pub snap_positions_y: Property<Vec<Size>>,
     pub _presentation_scroll_x: Property<f64>,
     pub _presentation_scroll_y: Property<f64>,
     pub _clip_content: Property<bool>,
@@ -152,6 +163,8 @@ impl Default for ScrollerHost {
             scroll_width: Default::default(),
             scroll_height: Default::default(),
             border_radius: Property::new(0.0),
+            snap_positions_x: Default::default(),
+            snap_positions_y: Default::default(),
             _presentation_scroll_x: Default::default(),
             _presentation_scroll_y: Default::default(),
             _clip_content: Property::new(true),
@@ -389,6 +402,18 @@ impl InstanceNode for ScrollerHostInstance {
                         let clamped_radius = border_radius.clamp(0.0, max_radius);
                         let scroll_width = properties.scroll_width.get().get_pixels(width);
                         let scroll_height = properties.scroll_height.get().get_pixels(height);
+                        let snap_points_x: Vec<f64> = properties
+                            .snap_positions_x
+                            .get()
+                            .iter()
+                            .map(|pos| pos.get_pixels(width))
+                            .collect();
+                        let snap_points_y: Vec<f64> = properties
+                            .snap_positions_y
+                            .get()
+                            .iter()
+                            .map(|pos| pos.get_pixels(height))
+                            .collect();
                         let presentation_scroll = (
                             properties._presentation_scroll_x.get(),
                             properties._presentation_scroll_y.get(),
@@ -439,6 +464,16 @@ impl InstanceNode for ScrollerHostInstance {
                                 &mut old_state.size_inner_pane_y,
                                 &mut patch.size_inner_pane_y,
                                 scroll_height,
+                            ),
+                            patch_if_needed(
+                                &mut old_state.snap_points_x,
+                                &mut patch.snap_points_x,
+                                snap_points_x,
+                            ),
+                            patch_if_needed(
+                                &mut old_state.snap_points_y,
+                                &mut patch.snap_points_y,
+                                snap_points_y,
                             ),
                             patch_if_needed(
                                 &mut old_state.scroll_x,

@@ -77,6 +77,8 @@ export class NativeElementPool {
     private chassis?: PaxChassisWeb;
     private mount?: HTMLElement;
     private activePageScrollScrollerId?: number;
+    private pageSnapHost?: HTMLDivElement;
+    private pageSnapOwnerScrollerId?: number;
     private pageScrollActivityListenersInstalled = false;
     private readonly pageScrollActivityListener: () => void;
     private objectManager: ObjectManager;
@@ -1095,6 +1097,34 @@ export class NativeElementPool {
             ?? (leaf.querySelector(`:scope > .${INNER_PANE} > [data-role="scroller-content-host"]`) as HTMLElement | null);
     }
 
+    private getScrollerSnapHost(leaf: HTMLElement) {
+        let scrollerId = this.getScrollerIdFromLeaf(leaf);
+        let hosts = scrollerId != null ? this.scrollerHosts.get(scrollerId) : undefined;
+        return hosts?.snapHost
+            ?? (leaf.querySelector(`:scope > .${INNER_PANE} > [data-role="scroller-snap-host"]`) as HTMLElement | null);
+    }
+
+    private ensurePageSnapHost(): HTMLDivElement | null {
+        if (this.mount == null) {
+            return null;
+        }
+        if (this.pageSnapHost != null) {
+            return this.pageSnapHost;
+        }
+        let host = document.createElement("div");
+        host.dataset.role = "page-scroll-snap-host";
+        host.style.position = "absolute";
+        host.style.top = "0";
+        host.style.left = "0";
+        host.style.width = "1px";
+        host.style.height = "1px";
+        host.style.pointerEvents = "none";
+        host.style.zIndex = "0";
+        this.mount.appendChild(host);
+        this.pageSnapHost = host;
+        return host;
+    }
+
     private shouldKeepScrollerHostsActive(leaf: HTMLElement, state: ScrollerMeasurementState) {
         if (typeof window === "undefined") {
             return true;
@@ -1860,6 +1890,130 @@ export class NativeElementPool {
         this.activateScrollerMeasurement(scrollerId);
     }
 
+    private syncScrollerSnap(
+        patch: { snapPointsX?: number[] | null; snapPointsY?: number[] | null },
+        state: ScrollerMeasurementState,
+        leaf: HTMLElement,
+        snapHost: HTMLElement,
+        delegateToPageScroll: boolean,
+    ) {
+        let scrollerId = Number.parseInt(leaf.getAttribute("pax_id") ?? "", 10);
+        if (!Number.isFinite(scrollerId)) {
+            scrollerId = -1;
+        }
+        let snapPointsChanged = false;
+        if (patch.snapPointsX != null) {
+            state.snapPointsX = [...patch.snapPointsX];
+            snapPointsChanged = true;
+        }
+        if (patch.snapPointsY != null) {
+            state.snapPointsY = [...patch.snapPointsY];
+            snapPointsChanged = true;
+        }
+        let snapHostChanged = state.snapHostDelegatesToPageScroll !== delegateToPageScroll;
+        state.snapHostDelegatesToPageScroll = delegateToPageScroll;
+        let snapPointsX = state.snapPointsX ?? [];
+        let snapPointsY = state.snapPointsY ?? [];
+        let hasX = snapPointsX.length > 0;
+        let hasY = snapPointsY.length > 0;
+        let snapType = "none";
+        if (hasX && hasY) {
+            snapType = "both mandatory";
+        } else if (hasY) {
+            snapType = "y mandatory";
+        } else if (hasX) {
+            snapType = "x mandatory";
+        }
+
+        let targetHost = snapHost;
+        if (delegateToPageScroll) {
+            this.applyScrollSnapType(leaf, "none");
+            this.applyPageScrollSnapType(snapType);
+            let pageHost = this.ensurePageSnapHost();
+            if (pageHost != null) {
+                targetHost = pageHost;
+            }
+            if (scrollerId >= 0) {
+                this.pageSnapOwnerScrollerId = scrollerId;
+            }
+        } else {
+            this.applyPageScrollSnapType("none");
+            this.applyScrollSnapType(leaf, snapType);
+            if (this.pageSnapHost != null && this.pageSnapOwnerScrollerId === scrollerId) {
+                while (this.pageSnapHost.firstChild) {
+                    this.pageSnapHost.removeChild(this.pageSnapHost.firstChild);
+                }
+                this.pageSnapOwnerScrollerId = undefined;
+            }
+        }
+        if (snapHostChanged && targetHost !== snapHost) {
+            this.renderSnapMarkers(snapHost, [], []);
+        }
+        if (snapPointsChanged || snapHostChanged) {
+            this.renderSnapMarkers(targetHost, snapPointsX, snapPointsY);
+        }
+    }
+
+    private applyScrollSnapType(target: HTMLElement, snapType: string) {
+        if (snapType === "none") {
+            target.style.scrollSnapType = "";
+            target.style.scrollSnapStop = "";
+            return;
+        }
+        target.style.scrollSnapType = snapType;
+        target.style.scrollSnapStop = "always";
+    }
+
+    private applyPageScrollSnapType(snapType: string) {
+        let root = document.documentElement;
+        let body = document.body;
+        if (snapType === "none") {
+            root.style.scrollSnapType = "";
+            root.style.scrollSnapStop = "";
+            body.style.scrollSnapType = "";
+            body.style.scrollSnapStop = "";
+            return;
+        }
+        root.style.scrollSnapType = snapType;
+        root.style.scrollSnapStop = "always";
+        body.style.scrollSnapType = snapType;
+        body.style.scrollSnapStop = "always";
+    }
+
+    private renderSnapMarkers(
+        snapHost: HTMLElement,
+        snapPointsX: number[],
+        snapPointsY: number[],
+    ) {
+        while (snapHost.firstChild) {
+            snapHost.removeChild(snapHost.firstChild);
+        }
+        let hasX = snapPointsX.length > 0;
+        let hasY = snapPointsY.length > 0;
+        if (!hasX && !hasY) {
+            return;
+        }
+
+        let pointsX = hasX ? snapPointsX : [0];
+        let pointsY = hasY ? snapPointsY : [0];
+        // CSS scroll snapping needs actual child boxes at each snap coordinate.
+        // The 1px markers are inert layout anchors for those browser snap targets.
+        for (let x of pointsX) {
+            for (let y of pointsY) {
+                let marker = document.createElement("div");
+                marker.dataset.role = "scroller-snap-point";
+                marker.style.position = "absolute";
+                marker.style.width = "1px";
+                marker.style.height = "1px";
+                marker.style.left = `${x}px`;
+                marker.style.top = `${y}px`;
+                marker.style.pointerEvents = "none";
+                marker.style.scrollSnapAlign = "start";
+                snapHost.appendChild(marker);
+            }
+        }
+    }
+
     private shouldDelegateToPageScroll(
         leaf: HTMLElement,
         patch: ScrollerUpdatePatch,
@@ -1890,6 +2044,16 @@ export class NativeElementPool {
         }
         let viewportWidth = (patch.sizeX ?? leaf.clientWidth) || 0;
         let viewportHeight = (patch.sizeY ?? leaf.clientHeight) || 0;
+        let contentWidth = patch.sizeInnerPaneX ?? leaf.scrollWidth;
+        let contentHeight = patch.sizeInnerPaneY ?? leaf.scrollHeight;
+        if (contentWidth > viewportWidth + 0.5) {
+            // Defer to the scroller when horizontal overflow is involved.
+            return false;
+        }
+        if (contentHeight <= viewportHeight + 0.5) {
+            // No vertical scroll area to delegate.
+            return false;
+        }
         let root = document.documentElement;
         let targetWidth = window.innerWidth ?? root.clientWidth ?? this.mount?.clientWidth ?? 0;
         let targetHeight = window.innerHeight ?? root.clientHeight ?? this.mount?.clientHeight ?? 0;
@@ -1959,6 +2123,12 @@ export class NativeElementPool {
         }
         if (patch.sizeInnerPaneY != null) {
             queued.sizeInnerPaneY = patch.sizeInnerPaneY;
+        }
+        if (patch.snapPointsX != null) {
+            queued.snapPointsX = [...patch.snapPointsX];
+        }
+        if (patch.snapPointsY != null) {
+            queued.snapPointsY = [...patch.snapPointsY];
         }
         if (patch.transform != null) {
             queued.transform = [...patch.transform];
@@ -2030,11 +2200,20 @@ export class NativeElementPool {
 
         let scrollerDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let innerPane: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        let snapHost: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let canvasHost: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let contentHost: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let scrollerId = patch.id!;
         let vectorIslandEnabled = browserOwnedVectorScrollerIslandsEnabled();
         innerPane.setAttribute("class", INNER_PANE);
+        snapHost.dataset.role = "scroller-snap-host";
+        snapHost.style.position = "absolute";
+        snapHost.style.top = "0";
+        snapHost.style.left = "0";
+        snapHost.style.width = "100%";
+        snapHost.style.height = "100%";
+        snapHost.style.pointerEvents = "none";
+        snapHost.style.zIndex = "0";
         canvasHost.dataset.role = "scroller-canvas-host";
         canvasHost.dataset.scrollerId = String(scrollerId);
         canvasHost.style.position = "absolute";
@@ -2071,6 +2250,7 @@ export class NativeElementPool {
         scrollerDiv.addEventListener("touchmove", scheduleMeasurement, { passive: true });
         scrollerDiv.addEventListener("touchstart", scheduleMeasurement, { passive: true });
 
+        innerPane.appendChild(snapHost);
         innerPane.appendChild(canvasHost);
         innerPane.appendChild(contentHost);
         scrollerDiv.appendChild(innerPane);
@@ -2097,6 +2277,7 @@ export class NativeElementPool {
                 id: patch.id,
                 leaf: scrollerDiv,
                 innerPane,
+                snapHost,
                 canvasHost,
                 contentHost,
                 parked: false,
@@ -2108,6 +2289,7 @@ export class NativeElementPool {
                 stableFrames: 0,
                 isRootScroller: patch.parentFrame == null,
                 delegatesToPageScroll: false,
+                snapHostDelegatesToPageScroll: false,
                 contentLayerId: undefined,
                 transform: [1, 0, 0, 1, 0, 0],
                 lastMeasuredScrollX: scrollerDiv.scrollLeft,
@@ -2122,6 +2304,8 @@ export class NativeElementPool {
                     typeof performance !== "undefined" && typeof performance.now === "function"
                         ? performance.now()
                         : Date.now(),
+                snapPointsX: undefined,
+                snapPointsY: undefined,
             });
             this.replayPendingScrollerUpdate(patch.id);
         } else {
@@ -2138,9 +2322,10 @@ export class NativeElementPool {
             return;
         }
         let scrollerInner = this.getScrollerInnerPane(leaf);
+        let snapHost = this.getScrollerSnapHost(leaf);
         let canvasHost = this.getScrollerCanvasHost(leaf);
         let contentHost = this.getScrollerContentHost(leaf);
-        if (scrollerInner == null || canvasHost == null || contentHost == null) {
+        if (scrollerInner == null || snapHost == null || canvasHost == null || contentHost == null) {
             return;
         }
         this.updatePresentationRecord(
@@ -2224,6 +2409,9 @@ export class NativeElementPool {
                 approvedScrollX,
                 approvedScrollY,
             );
+        }
+        if (state != null) {
+            this.syncScrollerSnap(patch, state, leaf, snapHost, delegateToPageScroll);
         }
         if (!delegateToPageScroll) {
             leaf.style.overflowX = shouldClip
@@ -2322,6 +2510,12 @@ export class NativeElementPool {
         if (state?.delegatesToPageScroll) {
             this.setPageScrollDelegation(id, oldNode, state, false);
         }
+        if (this.pageSnapOwnerScrollerId === id && this.pageSnapHost != null) {
+            while (this.pageSnapHost.firstChild) {
+                this.pageSnapHost.removeChild(this.pageSnapHost.firstChild);
+            }
+            this.pageSnapOwnerScrollerId = undefined;
+        }
         this.scrollerMeasurementStates.delete(id);
         this.pendingScrollerUpdates.delete(id);
         this.presentationRecords.delete(id);
@@ -2336,6 +2530,7 @@ export class NativeElementPool {
         this.layers.unregisterParentFrameHost(id, hosts?.contentHost ?? this.getScrollerContentHost(oldNode) ?? undefined);
         hosts?.canvasHost.parentElement?.removeChild(hosts.canvasHost);
         hosts?.contentHost.parentElement?.removeChild(hosts.contentHost);
+        hosts?.snapHost.parentElement?.removeChild(hosts.snapHost);
         this.scrollerHosts.delete(id);
         let parent = oldNode.parentElement!;
         parent.removeChild(oldNode);
@@ -2447,7 +2642,7 @@ export class NativeElementPool {
 
             ctx = canvas.getContext('2d');
             if (!ctx) {
-                console.log('Could not get canvas context');
+                console.warn('Could not get canvas context');
                 return;
             }
 
@@ -2882,6 +3077,7 @@ type ScrollerMeasurementState = {
     stableFrames: number;
     isRootScroller: boolean;
     delegatesToPageScroll: boolean;
+    snapHostDelegatesToPageScroll: boolean;
     // `ScrollerUpdate` messages only include contentLayerId when it changes, but root page-scroll
     // delegation needs to remember that layer identity across later scroll-only deltas.
     contentLayerId?: number;
@@ -2895,6 +3091,8 @@ type ScrollerMeasurementState = {
     lastSentPresentationScrollX: number;
     lastSentPresentationScrollY: number;
     lastWarmAt: number;
+    snapPointsX?: number[];
+    snapPointsY?: number[];
 };
 
 type PendingScrollerUpdate = {
@@ -2905,6 +3103,8 @@ type PendingScrollerUpdate = {
     borderRadius?: number;
     sizeInnerPaneX?: number;
     sizeInnerPaneY?: number;
+    snapPointsX?: number[];
+    snapPointsY?: number[];
     transform?: number[];
     opacity?: number;
     scrollX?: number;
@@ -2920,6 +3120,7 @@ type ScrollerDomHosts = {
     id: number;
     leaf: HTMLElement;
     innerPane: HTMLDivElement;
+    snapHost: HTMLDivElement;
     canvasHost: HTMLDivElement;
     contentHost: HTMLDivElement;
     parked: boolean;

@@ -1,0 +1,164 @@
+<Group width=100% height=100%>
+    <Group
+        x=50%
+        y=50%
+        width=100%
+        height=100%
+        anchor_x=50%
+        anchor_y=50%
+        rotate={self._twist}
+        scale_x={(self._growth * self._side_factor * 100)%}
+        scale_y={(self._growth * 100)%}
+    >
+        for layer in self._layers {
+            <Group
+                x=50%
+                y={50% + (self._drift + layer.drift)px}
+                width=100%
+                height=100%
+                anchor_x=50%
+                anchor_y=50%
+                rotate={(layer.rotation_deg)deg}
+                scale_x={(layer.scale * 100)%}
+                scale_y={(layer.scale * 100)%}
+                opacity={layer.opacity}
+            >
+                for angle in self._angles {
+                    <Group
+                        x=50%
+                        y=50%
+                        width=100%
+                        height=100%
+                        anchor_x=50%
+                        anchor_y=50%
+                        rotate={(angle + layer.rotation_deg * 0.4)deg}
+                    >
+                        if self.variant == KaleidoscopeVariant::Crimson {
+                            <Group
+                                class=kalei_tendril_group
+                                x=50%
+                                y=50%
+                                width=120%
+                                height=120%
+                                anchor_x=0%
+                                anchor_y=50%
+                                rotate={(layer.rotation_deg * 0.8)deg}
+                                scale_x={(self._fold * 100)%}
+                                scale_y={(self._coil * 100)%}
+                            >
+                                <Tendril
+                                    width=70%
+                                    height=30%
+                                    variant=KaleidoscopeVariant::Crimson
+                                    playhead={self.playhead + layer.index * 120.0 + angle}
+                                    seed={angle + (layer.index * 12.0)}
+                                    opacity={layer.opacity}
+                                />
+                            </Group>
+                        }
+                        if self.variant == KaleidoscopeVariant::Nocturne {
+                            <Group
+                                class=kalei_tendril_group
+                                x=50%
+                                y=50%
+                                width=120%
+                                height=120%
+                                anchor_x=0%
+                                anchor_y=50%
+                                rotate={(layer.rotation_deg * 0.8)deg}
+                                scale_x={(self._fold * 100)%}
+                                scale_y={(self._coil * 100)%}
+                            >
+                                <Tendril
+                                    width=70%
+                                    height=30%
+                                    variant=KaleidoscopeVariant::Nocturne
+                                    playhead={self.playhead + layer.index * 120.0 + angle}
+                                    seed={angle + (layer.index * 12.0)}
+                                    opacity={layer.opacity}
+                                />
+                            </Group>
+                        }
+                        if self.variant == KaleidoscopeVariant::Lagoon {
+                            <Group
+                                class=kalei_tendril_group
+                                x=50%
+                                y=50%
+                                width=120%
+                                height=120%
+                                anchor_x=0%
+                                anchor_y=50%
+                                rotate={(layer.rotation_deg * 0.8)deg}
+                                scale_x={(self._fold * 100)%}
+                                scale_y={(self._coil * 100)%}
+                            >
+                                <Tendril
+                                    width=70%
+                                    height=30%
+                                    variant=KaleidoscopeVariant::Lagoon
+                                    playhead={self.playhead + layer.index * 120.0 + angle}
+                                    seed={angle + (layer.index * 12.0)}
+                                    opacity={layer.opacity}
+                                />
+                            </Group>
+                        }
+                        if self.variant == KaleidoscopeVariant::Fern {
+                            <Group
+                                class=kalei_tendril_group
+                                x=50%
+                                y=50%
+                                width=120%
+                                height=120%
+                                anchor_x=0%
+                                anchor_y=50%
+                                rotate={(layer.rotation_deg * 0.8)deg}
+                                scale_x={(self._fold * 100)%}
+                                scale_y={(self._coil * 100)%}
+                            >
+                                <Tendril
+                                    width=70%
+                                    height=30%
+                                    variant=KaleidoscopeVariant::Fern
+                                    playhead={self.playhead + layer.index * 120.0 + angle}
+                                    seed={angle + (layer.index * 12.0)}
+                                    opacity={layer.opacity}
+                                />
+                            </Group>
+                        }
+                        if self.variant == KaleidoscopeVariant::Violet {
+                            <Group
+                                class=kalei_tendril_group
+                                x=50%
+                                y=50%
+                                width=120%
+                                height=120%
+                                anchor_x=0%
+                                anchor_y=50%
+                                rotate={(layer.rotation_deg * 0.8)deg}
+                                scale_x={(self._fold * 100)%}
+                                scale_y={(self._coil * 100)%}
+                            >
+                                <Tendril
+                                    width=70%
+                                    height=30%
+                                    variant=KaleidoscopeVariant::Violet
+                                    playhead={self.playhead + layer.index * 120.0 + angle}
+                                    seed={angle + (layer.index * 12.0)}
+                                    opacity={layer.opacity}
+                                />
+                            </Group>
+                        }
+                    </Group>
+                }
+            </Group>
+        }
+    </Group>
+</Group>
+
+@settings {
+    @mount: on_mount
+
+    .kalei_tendril_group {
+        opacity: 1.0,
+    }
+}

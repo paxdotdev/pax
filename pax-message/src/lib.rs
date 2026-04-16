@@ -785,6 +785,8 @@ pub struct ScrollerPatch {
     pub border_radius: Option<f64>,
     pub size_inner_pane_x: Option<f64>,
     pub size_inner_pane_y: Option<f64>,
+    pub snap_points_x: Option<Vec<f64>>,
+    pub snap_points_y: Option<Vec<f64>>,
     pub scroll_x: Option<f64>,
     pub scroll_y: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]

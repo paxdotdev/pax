@@ -26,6 +26,8 @@ While Pax is designed to feel familiar and "HTML-like," there are some design de
 
 *Element order and z order* -- in Pax, elements "on top" of others in a file are "on top" in z-index.  E.g. `<Ellipse/><Rectangle/>` will render the ellipse on top of the rectangle in z-index.  This keeps the file spatially arranged in the same way one might e.g. arrange elements in the tree view of a visual design tool, or how one might imagine looking at a stack of cards on a table.
 
+**Common pitfall (z-order callout)**: earlier elements render *above* later ones. If a background suddenly covers your content, it likely appears too early in the template. Put background/backdrop nodes last inside their parent group.
+
 *Units* -- Pax offers first-class unit support for declaring property values.  For example `25px`, `25%`, `25deg`, `25rad`, and even expression constructs like `50% + 25px` or `(some_value + 25)%` are valid.
 
 *Constrained reactivity* -- Pax templates are grammatically constrained to be 100% declarative.  Dynamic logic is encoded in PAXEL, an expression language that is demarcated by `{...}`.  Since the language is side-effect free, Pax is able to update properties in a "spreadsheet-like" fashion, offering many architectural and performance benefits. While powerful, this paradigm requires approaching some things differently than you might with other toolkits.

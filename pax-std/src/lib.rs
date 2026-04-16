@@ -77,6 +77,7 @@ pub fn extend_designtime_parsing_context_with_all_pax_std_types(
         Textbox,
         Toast,
         Carousel,
+        CarouselAxis,
         CarouselCell,
         Resizable,
         ResizableDirection,

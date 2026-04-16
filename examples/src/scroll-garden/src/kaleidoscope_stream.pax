@@ -1,0 +1,39 @@
+<Group width=100% height=100%>
+    if self.side == KaleidoscopeSide::Left {
+        for item in self._items {
+            <Kaleidoscope
+                x=0%
+                y={50% + (item.y)px}
+                width={(item.size)px}
+                height={(item.size)px}
+                anchor_x=50%
+                anchor_y=50%
+                side=KaleidoscopeSide::Left
+                variant={self.variant}
+                layers={item.layers}
+                playhead={self.playhead + item.offset}
+            />
+        }
+    }
+
+    if self.side == KaleidoscopeSide::Right {
+        for item in self._items {
+            <Kaleidoscope
+                x=100%
+                y={50% + (item.y)px}
+                width={(item.size)px}
+                height={(item.size)px}
+                anchor_x=50%
+                anchor_y=50%
+                side=KaleidoscopeSide::Right
+                variant={self.variant}
+                layers={item.layers}
+                playhead={self.playhead + item.offset}
+            />
+        }
+    }
+</Group>
+
+@settings {
+    @mount: on_mount
+}
