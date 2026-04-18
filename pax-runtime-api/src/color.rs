@@ -171,7 +171,6 @@ impl ColorChannel {
     }
 }
 
-
 /// Entrypoint for specifying and representing colors in Pax.
 #[allow(non_camel_case_types)]
 #[derive(Default, Clone, Serialize, Deserialize, Debug, PartialEq)]
