@@ -204,7 +204,7 @@ USE_ANCHORS = True
 @print_token_count
 @strip_output
 def get_paxel_grammar_definition() -> str:
-    with open(pax_root() / "pax-lang/src/pax.pest", mode="r") as f:
+    with open(pax_root() / "pax-language/src/pax.pest", mode="r") as f:
         return f.read()
 
 

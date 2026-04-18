@@ -2,7 +2,7 @@
 
 We're working on Pax, a user interface engine focused on: 1. language ergonomics, and 2. portable high performance
 
-Pax programs are authored in a highly declarative DSL, pax-lang, which is like React, if interpolated expressions were constrained to a spreadsheet-like "formula" functional DSL. ("expressions.")
+Pax programs are authored in a highly declarative DSL, pax-language, which is like React, if interpolated expressions were constrained to a spreadsheet-like "formula" functional DSL. ("expressions.")
 
 Also unlike React, Pax includes a rendering engine, a portable self-contained runtime, with a wgpu backend that renders on the GPU across web, desktop, and mobile targets -- as well as a compositing system that transforms, masks, and occludes "native elements" (like iOS form controls, or web browser UI controls) in the same coordinate space as vectors and multimedia.
 

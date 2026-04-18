@@ -20,7 +20,7 @@ pub mod layer_tiling;
 pub mod node_interface;
 pub mod occlusion;
 // TODO move these to not be in engine - make separate crates?
-pub mod pax_pixels_render_context;
+pub mod pax_gpu_render_context;
 pub mod piet_render_context;
 
 /// The atomic unit of rendering; also the container for each unique tuple of computed properties.

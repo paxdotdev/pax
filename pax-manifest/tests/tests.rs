@@ -3,7 +3,7 @@
 mod tests {
     use std::collections::HashMap;
 
-    use pax_lang::{parse_pax_str, Rule};
+    use pax_language::{parse_pax_str, Rule};
     use pax_manifest::pax_runtime_api::PaxValue;
     use pax_manifest::{
         code_serialization::press_code_serialization_template,

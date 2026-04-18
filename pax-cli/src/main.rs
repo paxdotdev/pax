@@ -375,7 +375,7 @@ fn perform_nominal_action(
             let path = std::env::current_dir().unwrap();
             let file_path = path.join(file);
 
-            pax_lang::formatting::format_file(file_path.to_str().unwrap())?;
+            pax_language::formatting::format_file(file_path.to_str().unwrap())?;
             Ok(())
         }
         ("designtime-server", Some(args)) => {

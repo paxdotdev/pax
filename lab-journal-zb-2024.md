@@ -372,7 +372,7 @@ Run 6: no changes
 
 ./pax run  340.34s user 20.21s system 309% cpu 1:56.60 total
 
-Run 7: set profile.dev => debug = false in pax-lang only
+Run 7: set profile.dev => debug = false in pax-language only
 
 ./pax run  331.71s user 19.82s system 297% cpu 1:58.32 total
 

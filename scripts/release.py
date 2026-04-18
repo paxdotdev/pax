@@ -59,7 +59,7 @@ os.chdir(WORKSPACE_DIR)
 
 
 PACKAGES = [
-    "pax-pixels",
+    "pax-gpu",
     "pax-chassis-common",
     "pax-chassis-ios",
     "pax-chassis-macos",
@@ -78,7 +78,7 @@ PACKAGES = [
     "pax-manifest",
     "pax-message",
     "pax-std",
-    "pax-lang",
+    "pax-language",
 ]
 
 

@@ -1,6 +1,6 @@
 use crate::*;
-use pax_lang::interpreter::parse_pax_expression_from_pair;
-use pax_lang::{from_pax, parse_pax_expression, parse_pax_str, Pair, Pairs, Rule, Span};
+use pax_language::interpreter::parse_pax_expression_from_pair;
+use pax_language::{from_pax, parse_pax_expression, parse_pax_str, Pair, Pairs, Rule, Span};
 use pax_runtime_api::{Color, Fill, PaxValue, Size, Stroke};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 

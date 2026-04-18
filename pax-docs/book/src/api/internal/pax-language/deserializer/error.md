@@ -1,6 +1,6 @@
 # deserializer::error
-<!-- summary: API docs for pax-lang::deserializer::error. -->
-<!-- tags: api, pax-lang -->
+<!-- summary: API docs for pax-language::deserializer::error. -->
+<!-- tags: api, pax-language -->
 
 ## Enums
 ### `Error`

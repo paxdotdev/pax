@@ -1,5 +1,5 @@
 use crate::{parsing::parse_value_definition, ValueDefinition};
-use pax_lang::{Parser, PaxParser, Rule};
+use pax_language::{Parser, PaxParser, Rule};
 
 pub fn parse_value(raw_value: &str) -> Result<Option<ValueDefinition>, &str> {
     if raw_value.is_empty() {

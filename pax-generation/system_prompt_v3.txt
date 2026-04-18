@@ -375,7 +375,7 @@ pub struct MyComponent {
 }
 ```
 
-Notice that `counter` is a member of a Pax-attached Rust struct, with a `pax_lang::api::Property<T>` wrapper around its type.
+Notice that `counter` is a member of a Pax-attached Rust struct, with a `pax_language::api::Property<T>` wrapper around its type.
 
 
 ## Settings

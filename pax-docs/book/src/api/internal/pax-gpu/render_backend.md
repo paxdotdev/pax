@@ -1,6 +1,6 @@
 # render_backend
-<!-- summary: API docs for pax-pixels::render_backend. -->
-<!-- tags: api, pax-pixels -->
+<!-- summary: API docs for pax-gpu::render_backend. -->
+<!-- tags: api, pax-gpu -->
 
 ## Submodules
 - [render_backend::stencil](render_backend/stencil.md)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the Pax docs highlighter from pax-lang's Pest grammar.
+"""Generate the Pax docs highlighter from pax-language's Pest grammar.
 
 The generated JS intentionally uses a tiny deterministic scanner instead of a
 highlight.js regex grammar. Pest is a parser grammar and highlight.js is a regex
@@ -17,7 +17,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_GRAMMAR = ROOT / "pax-lang" / "src" / "pax.pest"
+DEFAULT_GRAMMAR = ROOT / "pax-language" / "src" / "pax.pest"
 DEFAULT_OUTPUT = ROOT / "pax-docs" / "book" / "theme" / "highlight-pax.js"
 
 IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*$")

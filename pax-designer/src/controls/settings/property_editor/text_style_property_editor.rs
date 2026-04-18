@@ -190,7 +190,7 @@ impl TextStylePropertyEditor {
                 // was from "outside"
                 let (family, url) = font_options::FONT_FAMILIES[font_family_index.get() as usize];
                 let (_, ref weight) = font_options::FONT_WEIGHTS[font_weight_index.get() as usize];
-                let font_size_value = pax_engine::pax_lang::from_pax(&font_size.get());
+                let font_size_value = pax_engine::pax_language::from_pax(&font_size.get());
                 let mut font_size = Size::default();
                 if !font_size_value.is_err() {
                     font_size = Size::try_coerce(font_size_value.unwrap()).unwrap_or_default();

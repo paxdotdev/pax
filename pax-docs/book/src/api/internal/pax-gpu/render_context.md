@@ -1,6 +1,6 @@
 # render_context
-<!-- summary: API docs for pax-pixels::render_context. -->
-<!-- tags: api, pax-pixels -->
+<!-- summary: API docs for pax-gpu::render_context. -->
+<!-- tags: api, pax-gpu -->
 
 ## Structs
 ### `Color`
@@ -71,7 +71,7 @@ Queue a filled vector path into the current retained node.
 Queue a filled vector path with an extra opacity multiplier.
 
 ##### `new`
-<pre><code class="api-signature language-rust ignore">pub fn new(render_backend: <a href="/api/internal/pax-pixels/render_backend.md#renderbackend">RenderBackend</a>&lt;&#39;w&gt;) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn new(render_backend: <a href="/api/internal/pax-gpu/render_backend.md#renderbackend">RenderBackend</a>&lt;&#39;w&gt;) -&gt; Self</code></pre>
 
 Create a retained renderer around a low-level `RenderBackend`.
 
@@ -101,7 +101,7 @@ Fill style for a tessellated vector path.
 
 #### Variants
 ##### `Solid`([`Color`](/api/pax-runtime-api/color.md#color))
-##### `Gradient` { `gradient_type`: [`GradientType`](/api/internal/pax-pixels/render_context.md#gradienttype), `pos`: [`Point2D`](/api/internal/pax-pixels/index.md#point2d), `main_axis`: [`Vector2D`](/api/internal/pax-pixels/index.md#vector2d), `off_axis`: [`Vector2D`](/api/internal/pax-pixels/index.md#vector2d), `stops`: `Vec`<[`GradientStop`](/api/pax-runtime-api/drawing.md#gradientstop)> }
+##### `Gradient` { `gradient_type`: [`GradientType`](/api/internal/pax-gpu/render_context.md#gradienttype), `pos`: [`Point2D`](/api/internal/pax-gpu/index.md#point2d), `main_axis`: [`Vector2D`](/api/internal/pax-gpu/index.md#vector2d), `off_axis`: [`Vector2D`](/api/internal/pax-gpu/index.md#vector2d), `stops`: `Vec`<[`GradientStop`](/api/pax-runtime-api/drawing.md#gradientstop)> }
 ---
 
 ### `GradientType`

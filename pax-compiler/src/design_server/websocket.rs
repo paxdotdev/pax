@@ -412,8 +412,8 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
                             ),
                         };
 
-                        let ast = pax_lang::parse_pax_str(
-                            pax_lang::Rule::pax_component_definition,
+                        let ast = pax_language::parse_pax_str(
+                            pax_language::Rule::pax_component_definition,
                             &content,
                         )
                         .expect("Unsuccessful parse");

@@ -19,7 +19,7 @@ piet = "0.7.0"
 piet-coregraphics = "0.7.0"
 pax-runtime = { path = "../pax-runtime", version="0.38.3" }
 pax-message = {path = "../pax-message", version="0.38.3"}
-pax-pixels = { path = "../pax-pixels", version="0.38.3" }
+pax-gpu = { path = "../pax-gpu", version="0.38.3" }
 pax-designtime = { path = "../pax-designtime", version="0.38.3", optional = true }
 pax-manifest = { path = "../pax-manifest", version="0.38.3", optional = true }
 serde = { version = "1.0.196", features = ["derive"] }

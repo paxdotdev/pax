@@ -630,13 +630,13 @@ variants, populated at parse-time and used at compile-time
 ##### `Expression`([`ExpressionInfo`](/api/internal/pax-manifest/index.md#expressioninfo))
 (Expression contents, vtable id binding)
 
-##### `Identifier`([`PaxIdentifier`](/api/internal/pax-lang/interpreter.md#paxidentifier))
+##### `Identifier`([`PaxIdentifier`](/api/internal/pax-language/interpreter.md#paxidentifier))
 (Expression contents, vtable id binding)
 
-##### `DoubleBinding`([`PaxIdentifier`](/api/internal/pax-lang/interpreter.md#paxidentifier))
+##### `DoubleBinding`([`PaxIdentifier`](/api/internal/pax-language/interpreter.md#paxidentifier))
 (Expression contents, vtable id binding)
 
-##### `EventBindingTarget`([`PaxIdentifier`](/api/internal/pax-lang/interpreter.md#paxidentifier))
+##### `EventBindingTarget`([`PaxIdentifier`](/api/internal/pax-language/interpreter.md#paxidentifier))
 ## Functions
 ### `escape_identifier`
 <pre><code class="api-signature language-rust ignore">pub fn escape_identifier(input: String) -&gt; String</code></pre>

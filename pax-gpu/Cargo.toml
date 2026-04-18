@@ -1,11 +1,11 @@
 [package]
-name = "pax-pixels"
+name = "pax-gpu"
 version = "0.38.3"
 edition = "2021"
 authors = ["Samuel Selleck <sellecksamuel@gmail.com>"]
 license = "MIT OR Apache-2.0"
 homepage = "https://pax.dev/"
-repository = "https://www.github.com/pax-lang/pax"
+repository = "https://www.github.com/paxproject/pax"
 description = "WGPU rendering library for the pax framework"
 
 [dependencies]

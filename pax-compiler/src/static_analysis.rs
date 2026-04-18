@@ -1,6 +1,6 @@
 use cargo_metadata::{Metadata, MetadataCommand, Package};
 use color_eyre::eyre::{eyre, Result};
-use pax_lang::{parse_pax_str, Pair, Rule};
+use pax_language::{parse_pax_str, Pair, Rule};
 use pax_manifest::parsing::{
     assemble_component_definition, assemble_primitive_definition,
     assemble_struct_only_component_definition, ParsingContext,

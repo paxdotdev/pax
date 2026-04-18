@@ -17,7 +17,7 @@ members = [
     "pax-designtime",
     "pax-engine",
     "pax-kit",
-    "pax-lang",
+    "pax-language",
     "pax-language-server",
     "pax-macro",
     "pax-manifest",
@@ -25,7 +25,7 @@ members = [
     "pax-runtime",
     "pax-runtime-api",
     "pax-std",
-    "pax-pixels",
+    "pax-gpu",
 ]
 
 exclude = [

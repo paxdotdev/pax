@@ -14,9 +14,9 @@ use std::rc::Rc;
 use core_graphics::context::CGContext;
 use flexbuffers::DeserializationError;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
-use pax_pixels::render_backend::{RenderBackend, RenderConfig};
+use pax_gpu::render_backend::{RenderBackend, RenderConfig};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
-use pax_pixels::{Transform2D, WgpuRenderer};
+use pax_gpu::{Transform2D, WgpuRenderer};
 use pax_runtime::api::math::Point2;
 use pax_runtime::api::{
     ButtonClick, Click, Event, Focus, ModifierKey, MouseButton, MouseEventArgs, RenderContext,
@@ -24,9 +24,9 @@ use pax_runtime::api::{
 };
 use pax_runtime::engine::layer_tiling::{scroller_canvas_plan_with_policy, ScrollerTilingPolicy};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
-use pax_runtime::pax_pixels_render_context::{
+use pax_runtime::pax_gpu_render_context::{
     LayerRenderer, LayerSurfaceEntry, LayerSurfaceLayout, LayerSurfaceSize, LayerTarget,
-    PaxPixelsRenderer,
+    PaxGpuRenderer,
 };
 use pax_runtime::PaxEngine;
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
@@ -315,7 +315,7 @@ impl LayerSurfaceRegistry {
 
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 pub struct AppleRenderContext {
-    renderer: PaxPixelsRenderer,
+    renderer: PaxGpuRenderer,
     registry: Rc<RefCell<LayerSurfaceRegistry>>,
 }
 
@@ -324,7 +324,7 @@ impl AppleRenderContext {
     fn new() -> Self {
         let registry = Rc::new(RefCell::new(LayerSurfaceRegistry::default()));
         let registry_factory = Rc::clone(&registry);
-        let renderer = PaxPixelsRenderer::new(move |layer| {
+        let renderer = PaxGpuRenderer::new(move |layer| {
             let registry = Rc::clone(&registry_factory);
             Box::pin(async move {
                 let initial_layout = registry.borrow().layout_for_layer(layer);
@@ -436,7 +436,7 @@ impl AppleRenderContext {
         Rc::clone(&self.registry)
     }
 
-    fn renderer_mut(&mut self) -> &mut PaxPixelsRenderer {
+    fn renderer_mut(&mut self) -> &mut PaxGpuRenderer {
         &mut self.renderer
     }
 }

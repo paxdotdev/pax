@@ -6,7 +6,7 @@
 - [engine::layer_tiling](engine/layer_tiling.md)
 - [engine::node_interface](engine/node_interface.md)
 - [engine::occlusion](engine/occlusion.md)
-- [engine::pax_pixels_render_context](engine/pax_pixels_render_context.md)
+- [engine::pax_gpu_render_context](engine/pax_gpu_render_context.md)
 - [engine::piet_render_context](engine/piet_render_context.md)
 
 ## Structs

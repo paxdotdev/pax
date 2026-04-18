@@ -3,7 +3,7 @@ use std::pin::Pin;
 use crate::browser_surface_policy::BrowserSurfacePolicy;
 use pax_runtime::api::RenderContext;
 #[cfg(not(feature = "piet"))]
-use pax_runtime::pax_pixels_render_context::{
+use pax_runtime::pax_gpu_render_context::{
     LayerSurfaceEntry, LayerSurfaceLayout, LayerSurfaceSize,
 };
 use wasm_bindgen::JsCast;
@@ -154,12 +154,12 @@ pub(crate) fn get_render_context(
     window: Window,
     surface_policy: BrowserSurfacePolicy,
 ) -> impl RenderContext {
-    use pax_pixels::{
+    use pax_gpu::{
         render_backend::{RenderBackend, RenderConfig},
         Transform2D, WgpuRenderer,
     };
-    use pax_runtime::pax_pixels_render_context::{LayerRenderer, LayerTarget, PaxPixelsRenderer};
-    PaxPixelsRenderer::new(move |layer| {
+    use pax_runtime::pax_gpu_render_context::{LayerRenderer, LayerTarget, PaxGpuRenderer};
+    PaxGpuRenderer::new(move |layer| {
         let window = window.clone();
         let surface_policy = surface_policy;
         Box::pin(async move {

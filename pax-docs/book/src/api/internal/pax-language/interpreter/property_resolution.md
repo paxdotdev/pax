@@ -1,6 +1,6 @@
 # interpreter::property_resolution
-<!-- summary: API docs for pax-lang::interpreter::property_resolution. -->
-<!-- tags: api, pax-lang -->
+<!-- summary: API docs for pax-language::interpreter::property_resolution. -->
+<!-- tags: api, pax-language -->
 
 ## Traits
 ### `DependencyCollector`

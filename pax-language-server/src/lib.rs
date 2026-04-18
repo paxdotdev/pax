@@ -9,7 +9,7 @@ use completion::{get_event_completions, get_struct_completion};
 use core::panic;
 use dashmap::DashMap;
 use lsp_types::request::Request;
-use pax_lang::{parse_pax_err, Rule};
+use pax_language::{parse_pax_err, Rule};
 use pest::error::LineColLocation;
 use positional::is_inside_handlers_block;
 use positional::is_inside_selector_block;

@@ -1,4 +1,4 @@
-use pax_lang::{parse_pax_str, Pair, Rule};
+use pax_language::{parse_pax_str, Pair, Rule};
 
 use std::cell::RefCell;
 use std::collections::HashSet;

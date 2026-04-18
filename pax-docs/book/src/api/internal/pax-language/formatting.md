@@ -1,6 +1,6 @@
 # formatting
-<!-- summary: API docs for pax-lang::formatting. -->
-<!-- tags: api, pax-lang -->
+<!-- summary: API docs for pax-language::formatting. -->
+<!-- tags: api, pax-language -->
 
 ## Functions
 ### `format_file`

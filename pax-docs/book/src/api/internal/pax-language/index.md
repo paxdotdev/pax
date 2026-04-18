@@ -1,6 +1,6 @@
-# pax-lang
-<!-- summary: API reference for pax-lang. -->
-<!-- tags: api, pax-lang -->
+# pax-language
+<!-- summary: API reference for pax-language. -->
+<!-- tags: api, pax-language -->
 
 ## Submodules
 - [formatting](formatting.md)
@@ -154,20 +154,20 @@ BEGIN CONTROL FLOW
 ##### `statement_for_source`
 ## Functions
 ### `parse_pax_err`
-<pre><code class="api-signature language-rust ignore">pub fn parse_pax_err(expected_rule: <a href="/api/internal/pax-lang/index.md#rule">Rule</a>, input: &amp;str) -&gt; Result&lt;Pair&lt;&#39;_, <a href="/api/internal/pax-lang/index.md#rule">Rule</a>&gt;, <a href="/api/internal/pax-lang/deserializer/error.md#error">Error</a>&lt;<a href="/api/internal/pax-lang/index.md#rule">Rule</a>&gt;&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn parse_pax_err(expected_rule: <a href="/api/internal/pax-language/index.md#rule">Rule</a>, input: &amp;str) -&gt; Result&lt;Pair&lt;&#39;_, <a href="/api/internal/pax-language/index.md#rule">Rule</a>&gt;, <a href="/api/internal/pax-language/deserializer/error.md#error">Error</a>&lt;<a href="/api/internal/pax-language/index.md#rule">Rule</a>&gt;&gt;</code></pre>
 
 Parse a string against a Pax grammar rule, preserving the structured pest error.
 
 ---
 
 ### `parse_pax_pairs`
-<pre><code class="api-signature language-rust ignore">pub fn parse_pax_pairs(expected_rule: <a href="/api/internal/pax-lang/index.md#rule">Rule</a>, input: &amp;str) -&gt; Result&lt;Pairs&lt;&#39;_, <a href="/api/internal/pax-lang/index.md#rule">Rule</a>&gt;, <a href="/api/internal/pax-lang/deserializer/error.md#error">Error</a>&lt;<a href="/api/internal/pax-lang/index.md#rule">Rule</a>&gt;&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn parse_pax_pairs(expected_rule: <a href="/api/internal/pax-language/index.md#rule">Rule</a>, input: &amp;str) -&gt; Result&lt;Pairs&lt;&#39;_, <a href="/api/internal/pax-language/index.md#rule">Rule</a>&gt;, <a href="/api/internal/pax-language/deserializer/error.md#error">Error</a>&lt;<a href="/api/internal/pax-language/index.md#rule">Rule</a>&gt;&gt;</code></pre>
 
 Parse a string into pest pairs for a Pax grammar rule.
 
 ---
 
 ### `parse_pax_str`
-<pre><code class="api-signature language-rust ignore">pub fn parse_pax_str(expected_rule: <a href="/api/internal/pax-lang/index.md#rule">Rule</a>, input: &amp;str) -&gt; Result&lt;Pair&lt;&#39;_, <a href="/api/internal/pax-lang/index.md#rule">Rule</a>&gt;, String&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn parse_pax_str(expected_rule: <a href="/api/internal/pax-language/index.md#rule">Rule</a>, input: &amp;str) -&gt; Result&lt;Pair&lt;&#39;_, <a href="/api/internal/pax-language/index.md#rule">Rule</a>&gt;, String&gt;</code></pre>
 
 Parse a string against a single Pax grammar rule, returning a human-readable error string.

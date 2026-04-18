@@ -2,7 +2,7 @@ pub extern crate pax_macro;
 pub use pax_macro::*;
 
 pub use log;
-pub use pax_lang;
+pub use pax_language;
 pub use pax_manifest;
 pub use pax_message;
 pub use pax_runtime;

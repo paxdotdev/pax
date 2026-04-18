@@ -22,7 +22,7 @@ piet = []
 [dependencies]
 piet = "0.7.0"
 piet-web = "0.7.0"
-pax-pixels = {path = "../pax-pixels", version = "0.38.3"}
+pax-gpu = {path = "../pax-gpu", version = "0.38.3"}
 pax-runtime = { path = "../pax-runtime", version="0.38.3"}
 pax-message = {path = "../pax-message", version="0.38.3"}
 pax-manifest = {path="../pax-manifest", version="0.38.3"}

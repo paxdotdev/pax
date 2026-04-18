@@ -1,6 +1,6 @@
 # render_backend::stencil
-<!-- summary: API docs for pax-pixels::render_backend::stencil. -->
-<!-- tags: api, pax-pixels -->
+<!-- summary: API docs for pax-gpu::render_backend::stencil. -->
+<!-- tags: api, pax-gpu -->
 
 ## Structs
 ### `ClipDraw`
@@ -14,7 +14,7 @@ Type: `u32`
 Type: `u64`
 
 ##### `geometry`
-Type: &'`a` `VertexBuffers`<[`Vertex`](/api/internal/pax-pixels/render_backend/stencil.md#vertex), `u16`>
+Type: &'`a` `VertexBuffers`<[`Vertex`](/api/internal/pax-gpu/render_backend/stencil.md#vertex), `u16`>
 
 ---
 

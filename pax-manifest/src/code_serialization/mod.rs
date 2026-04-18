@@ -16,7 +16,7 @@ use tera::{Context, Tera};
 use include_dir::{include_dir, Dir};
 
 use crate::{pax_runtime_api::PaxValue, ComponentDefinition, ExpressionInfo, PaxManifest, PaxType};
-use pax_lang::{
+use pax_language::{
     formatting::format_pax_template,
     helpers::{replace_by_line_column, InlinedTemplateFinder},
 };

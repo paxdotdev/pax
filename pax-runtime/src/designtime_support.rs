@@ -9,7 +9,7 @@ use pax_designtime::{
     DesigntimeManager,
 };
 #[cfg(feature = "designtime")]
-use pax_lang::{parse_pax_str, Rule};
+use pax_language::{parse_pax_str, Rule};
 #[cfg(feature = "designtime")]
 use pax_manifest::{
     ComponentTemplate, PaxManifest, SettingElement, TypeId, UniqueTemplateNodeIdentifier,

@@ -1,6 +1,6 @@
-# pax-pixels
-<!-- summary: API reference for pax-pixels. -->
-<!-- tags: api, pax-pixels -->
+# pax-gpu
+<!-- summary: API reference for pax-gpu. -->
+<!-- tags: api, pax-gpu -->
 
 ## Submodules
 - [render_backend](render_backend.md)

@@ -5,8 +5,8 @@ use std::io::{self, Read};
 use std::sync::{Arc, Mutex};
 
 use pax_compiler::run_parser_binary;
-use pax_lang::formatting::format_file;
-use pax_lang::helpers::clear_inlined_template;
+use pax_language::formatting::format_file;
+use pax_language::helpers::clear_inlined_template;
 use pax_manifest::code_serialization::serialize_component_to_file;
 use pax_manifest::PaxManifest;
 

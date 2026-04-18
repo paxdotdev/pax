@@ -627,7 +627,7 @@ fn handle_apply_component_source(
     let component_name = args.value_of("component").unwrap();
     let source = read_component_source(args)?;
 
-    pax_lang::parse_pax_str(pax_lang::Rule::pax_component_definition, &source)
+    pax_language::parse_pax_str(pax_language::Rule::pax_component_definition, &source)
         .map_err(|err| eyre!("replacement source failed to parse: {err}"))?;
 
     let manifests = parse_manifests(&project_root, process_child_ids)?;
@@ -676,7 +676,7 @@ fn handle_replace_node(args: &ArgMatches<'_>) -> Result<(), Report> {
     let subtemplate = read_component_source(args)?;
 
     if !subtemplate.trim().is_empty() {
-        pax_lang::parse_pax_str(pax_lang::Rule::pax_component_definition, &subtemplate)
+        pax_language::parse_pax_str(pax_language::Rule::pax_component_definition, &subtemplate)
             .map_err(|err| eyre!("replacement subtemplate failed to parse: {err}"))?;
     }
 

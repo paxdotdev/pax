@@ -1,5 +1,5 @@
 use kurbo::{BezPath, PathEl, Rect, Shape};
-use pax_pixels::{
+use pax_gpu::{
     point, Box2D, Image, Path, Stroke as PixelStroke, StrokeCap as PixelStrokeCap, Transform2D,
     WgpuRenderer,
 };
@@ -100,7 +100,7 @@ impl LayerRenderer {
         }
     }
 
-    /// Access the underlying retained `pax-pixels` renderer.
+    /// Access the underlying retained `pax-gpu` renderer.
     pub fn renderer_mut(&mut self) -> &mut WgpuRenderer<'static> {
         &mut self.renderer
     }
@@ -364,8 +364,8 @@ pub struct LayerSurfaceSize {
     pub dpr: [f32; 2],
 }
 
-/// Runtime `RenderContext` implementation backed by `pax-pixels`/wgpu.
-pub struct PaxPixelsRenderer {
+/// Runtime `RenderContext` implementation backed by `pax-gpu`/wgpu.
+pub struct PaxGpuRenderer {
     backends: Rc<RefCell<Vec<RenderLayerState>>>,
     layer_factory: Rc<dyn Fn(usize) -> Pin<Box<dyn Future<Output = Option<LayerDef>>>>>,
     image_map: HashMap<String, Image>,
@@ -389,7 +389,7 @@ pub enum RenderLayerState {
     Ready(LayerDef),
 }
 
-impl PaxPixelsRenderer {
+impl PaxGpuRenderer {
     /// Create a renderer that lazily asks the chassis for layer backends.
     pub fn new(
         layer_factory: impl Fn(usize) -> Pin<Box<dyn Future<Output = Option<LayerDef>>>> + 'static,
@@ -413,7 +413,7 @@ impl PaxPixelsRenderer {
     }
 }
 
-impl PaxPixelsRenderer {
+impl PaxGpuRenderer {
     fn queue_layer_initialization(&self, layer_index: usize) {
         if self
             .scheduled_layer_initializations
@@ -712,7 +712,7 @@ impl PaxPixelsRenderer {
     }
 }
 
-impl RenderContext for PaxPixelsRenderer {
+impl RenderContext for PaxGpuRenderer {
     fn fill_with_opacity(
         &mut self,
         layer: usize,
@@ -723,7 +723,7 @@ impl RenderContext for PaxPixelsRenderer {
         self.with_layer_context(layer, |context| {
             let bounds = path.bounding_box();
             let path = convert_kurbo_to_lyon_path(&path);
-            let fill = to_pax_pixels_fill(fill, bounds, context.current_transform());
+            let fill = to_pax_gpu_fill(fill, bounds, context.current_transform());
             context.fill_path_with_opacity(path, fill, opacity as f32);
         });
     }
@@ -740,7 +740,7 @@ impl RenderContext for PaxPixelsRenderer {
             context.stroke_path_with_opacity(
                 convert_kurbo_to_lyon_path(&path),
                 PixelStroke {
-                    fill: to_pax_pixels_fill(
+                    fill: to_pax_gpu_fill(
                         &pax_runtime_api::Fill::Solid(stroke.color.get()),
                         bounds,
                         context.current_transform(),
@@ -1062,43 +1062,43 @@ impl RenderContext for PaxPixelsRenderer {
     }
 }
 
-fn to_pax_pixels_fill(
+fn to_pax_gpu_fill(
     fill: &pax_runtime_api::Fill,
     rect: kurbo::Rect,
-    transform: pax_pixels::Transform2D,
-) -> pax_pixels::Fill {
+    transform: pax_gpu::Transform2D,
+) -> pax_gpu::Fill {
     let bounds = (rect.width(), rect.height());
     let orig = rect.origin();
     match fill {
-        pax_runtime_api::Fill::Solid(color) => pax_pixels::Fill::Solid(to_pax_pixels_color(color)),
+        pax_runtime_api::Fill::Solid(color) => pax_gpu::Fill::Solid(to_pax_gpu_color(color)),
         pax_runtime_api::Fill::LinearGradient(gradient) => {
             let start_x = gradient.start.0.evaluate(bounds, Axis::X);
             let start_y = gradient.start.1.evaluate(bounds, Axis::Y);
             let end_x = gradient.end.0.evaluate(bounds, Axis::X);
             let end_y = gradient.end.1.evaluate(bounds, Axis::Y);
             let local_pos =
-                pax_pixels::Point2D::new((orig.x + start_x) as f32, (orig.y + start_y) as f32);
+                pax_gpu::Point2D::new((orig.x + start_x) as f32, (orig.y + start_y) as f32);
             let local_end =
-                pax_pixels::Point2D::new((orig.x + end_x) as f32, (orig.y + end_y) as f32);
+                pax_gpu::Point2D::new((orig.x + end_x) as f32, (orig.y + end_y) as f32);
             let world_pos = transform.transform_point(local_pos);
             let world_end = transform.transform_point(local_end);
             let main_axis = world_end - world_pos;
-            pax_pixels::Fill::Gradient {
+            pax_gpu::Fill::Gradient {
                 stops: gradient
                     .stops
                     .iter()
-                    .map(|g| pax_pixels::GradientStop {
-                        color: to_pax_pixels_color(&g.color),
+                    .map(|g| pax_gpu::GradientStop {
+                        color: to_pax_gpu_color(&g.color),
                         stop: g
                             .position
                             .evaluate((main_axis.length() as f64, 0.0), Axis::X)
                             as f32,
                     })
                     .collect(),
-                gradient_type: pax_pixels::GradientType::Linear,
+                gradient_type: pax_gpu::GradientType::Linear,
                 pos: world_pos,
                 main_axis,
-                off_axis: pax_pixels::Vector2D::zero(), //not used for linear
+                off_axis: pax_gpu::Vector2D::zero(), //not used for linear
             }
         }
         pax_runtime_api::Fill::RadialGradient(gradient) => {
@@ -1108,31 +1108,31 @@ fn to_pax_pixels_fill(
             let end_y = gradient.end.1.evaluate(bounds, Axis::Y);
             let r = gradient.radius as f32;
             let local_pos =
-                pax_pixels::Point2D::new((orig.x + start_x) as f32, (orig.y + start_y) as f32);
-            let local_main_axis = pax_pixels::Vector2D::new(
+                pax_gpu::Point2D::new((orig.x + start_x) as f32, (orig.y + start_y) as f32);
+            let local_main_axis = pax_gpu::Vector2D::new(
                 r * (end_x - start_x) as f32,
                 r * (end_y - start_y) as f32,
             );
-            let local_off_axis = pax_pixels::Vector2D::new(-local_main_axis.y, local_main_axis.x);
+            let local_off_axis = pax_gpu::Vector2D::new(-local_main_axis.y, local_main_axis.x);
             let world_pos = transform.transform_point(local_pos);
-            let world_main_axis = transform.transform_point(pax_pixels::Point2D::new(
+            let world_main_axis = transform.transform_point(pax_gpu::Point2D::new(
                 local_pos.x + local_main_axis.x,
                 local_pos.y + local_main_axis.y,
             )) - world_pos;
-            let world_off_axis = transform.transform_point(pax_pixels::Point2D::new(
+            let world_off_axis = transform.transform_point(pax_gpu::Point2D::new(
                 local_pos.x + local_off_axis.x,
                 local_pos.y + local_off_axis.y,
             )) - world_pos;
-            pax_pixels::Fill::Gradient {
-                gradient_type: pax_pixels::GradientType::Radial,
+            pax_gpu::Fill::Gradient {
+                gradient_type: pax_gpu::GradientType::Radial,
                 pos: world_pos,
                 main_axis: world_main_axis,
                 off_axis: world_off_axis,
                 stops: gradient
                     .stops
                     .iter()
-                    .map(|g| pax_pixels::GradientStop {
-                        color: to_pax_pixels_color(&g.color),
+                    .map(|g| pax_gpu::GradientStop {
+                        color: to_pax_gpu_color(&g.color),
                         stop: g
                             .position
                             .evaluate((world_main_axis.length() as f64, 0.0), Axis::X)
@@ -1144,13 +1144,13 @@ fn to_pax_pixels_fill(
     }
 }
 
-/// Convert a runtime API color into the `pax-pixels` render-context color.
-pub fn to_pax_pixels_color(color: &pax_runtime_api::Color) -> pax_pixels::Color {
+/// Convert a runtime API color into the `pax-gpu` render-context color.
+pub fn to_pax_gpu_color(color: &pax_runtime_api::Color) -> pax_gpu::Color {
     let [r, g, b, a] = color.to_rgba_0_1();
-    pax_pixels::Color::rgba(r as f32, g as f32, b as f32, a as f32)
+    pax_gpu::Color::rgba(r as f32, g as f32, b as f32, a as f32)
 }
 
-/// Convert a kurbo path emitted by primitives into a lyon path consumed by `pax-pixels`.
+/// Convert a kurbo path emitted by primitives into a lyon path consumed by `pax-gpu`.
 pub fn convert_kurbo_to_lyon_path(kurbo_path: &BezPath) -> Path {
     let mut builder = Path::builder();
     let mut closed = false;

@@ -4,7 +4,7 @@ use crate::{
     ConditionalProperties, ExpandedNode, HandlerRegistry, InstanceNode, InstantiationArgs,
     ReusableInstanceNodeArgs, RuntimePropertiesStackFrame,
 };
-use pax_lang::Computable;
+use pax_language::Computable;
 use pax_manifest::{
     LiteralBlockDefinition, SettingElement, TimelineKeyframe, TimelineMarker,
     TimelineTrackDefinition, TimelineTrackElement, TypeId, ValueDefinition,

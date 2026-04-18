@@ -2,8 +2,8 @@
 pax-runtime-api
 pax-std
 pax-kit
-pax-lang
+pax-language
 pax-runtime
 pax-manifest
 pax-message
-pax-pixels
+pax-gpu

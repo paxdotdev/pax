@@ -1,6 +1,6 @@
 use futures::channel::mpsc;
-use pax_lang::parse_pax_err;
-use pax_lang::Rule;
+use pax_language::parse_pax_err;
+use pax_language::Rule;
 use pax_message::ScreenshotData;
 use regex::Regex;
 use reqwest;

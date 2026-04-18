@@ -1,6 +1,6 @@
 # helpers
-<!-- summary: API docs for pax-lang::helpers. -->
-<!-- tags: api, pax-lang -->
+<!-- summary: API docs for pax-language::helpers. -->
+<!-- tags: api, pax-language -->
 
 ## Structs
 ### `InlinedTemplate`
@@ -29,7 +29,7 @@ AST visitor that extracts `#[inlined(...)]` templates from `#[pax]` structs.
 Type: `String`
 
 ##### `templates`
-Type: `Vec`<[`InlinedTemplate`](/api/internal/pax-lang/helpers.md#inlinedtemplate)>
+Type: `Vec`<[`InlinedTemplate`](/api/internal/pax-language/helpers.md#inlinedtemplate)>
 
 #### Implementations
 ##### `new`

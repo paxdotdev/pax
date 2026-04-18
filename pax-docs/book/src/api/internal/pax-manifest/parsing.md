@@ -108,6 +108,6 @@ Convert macro-parser module roots into crate-relative paths.
 ---
 
 ### `parse_template_from_component_definition_string`
-<pre><code class="api-signature language-rust ignore">pub fn parse_template_from_component_definition_string(ctx: &amp;mut <a href="/api/internal/pax-manifest/parsing.md#templatenodeparsecontext">TemplateNodeParseContext</a>, pax: &amp;str, pax_component_definition: Pair&lt;&#39;_, <a href="/api/internal/pax-lang/index.md#rule">Rule</a>&gt;)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn parse_template_from_component_definition_string(ctx: &amp;mut <a href="/api/internal/pax-manifest/parsing.md#templatenodeparsecontext">TemplateNodeParseContext</a>, pax: &amp;str, pax_component_definition: Pair&lt;&#39;_, <a href="/api/internal/pax-language/index.md#rule">Rule</a>&gt;)</code></pre>
 
 Parse template nodes out of a component-definition AST into a mutable template context.

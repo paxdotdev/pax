@@ -355,8 +355,8 @@ The atomic unit of Pax is a `component definition`. A component definition for `
 
 ```rust
 // src/lib.rs
-use pax_lang::*;
-use pax_lang::api::*;
+use pax_language::*;
+use pax_language::api::*;
 use pax_std::primitives::*;
 use pax_std::types::*;
 use pax_std::types::text::*;
@@ -432,7 +432,7 @@ Inside a component definition, there may be:
 A component definition centers around a _Rust struct_, to which a piece of Pax is attached to through the macro `derive(Pax)`. Pax can either be attached inline using the `inlined()` attribute or link to a `.pax` file using the `file()` attribute using a relative path. For example, the following defines an empty component called `EmptyComponent`:
 
 ```rust
-use pax_lang::api::*;
+use pax_language::api::*;
 use pax_std::primitives::Group;
 
 #[derive(Pax)]
@@ -445,7 +445,7 @@ pub struct EmptyComponent {
 Any component created in Pax can be used inside other components — for example, `EmptyComponent` can be imported and used in another component's template like:
 
 ```rust
-use pax_lang::api::*;
+use pax_language::api::*;
 use crate::EmptyComponent;
 
 #[derive(Pax)]
@@ -485,7 +485,7 @@ Templates are not just static -- they allow three kinds of control-flow, affecti
 
 
 ```rust
-use pax_lang::api::*;
+use pax_language::api::*;
 use crate::{DetailsView, SummaryView};
 
 ##[derive(Pax)]
@@ -514,7 +514,7 @@ For example:
 
 
 ```rust
-use pax_lang::api::*;
+use pax_language::api::*;
 use pax_std::layout::{Stacker, StackerDirection};
 use crate::DeviceRecord;
 
@@ -599,7 +599,7 @@ Properties are also used internally within a component as state containers, simi
 Properties are defined on Rust structs, such as `counter` below:
 
 ```rust
-use pax_lang::api::*;
+use pax_language::api::*;
 
 ##[derive(Pax)]
 ##[inlined(
@@ -610,7 +610,7 @@ pub struct MyComponent {
 }
 ```
 
-Notice that `counter` is a member of a Pax-attached Rust struct, with a `pax_lang::api::Property<T>` wrapper around its type.
+Notice that `counter` is a member of a Pax-attached Rust struct, with a `pax_language::api::Property<T>` wrapper around its type.
 
 <!-- appendix?:  In the above example, the component `MyComponent` will expose the property `counter`.  Note that the `Property<T>` wrapper type is not necessary for compilation, but `Property<T>` _is_ necessary for Pax to be able to access that property through Expressions, Settings, and Defaults.  In other words, you can make a struct property "private" from Pax by omitting the `Property<T>` wrapper. -->
 
@@ -621,7 +621,7 @@ TODO: !!Not yet implemented!! Defaults can be set for a component by declaring a
 
 
 ```rust
-use pax_lang::api::*;
+use pax_language::api::*;
 
 ##[pax(
     //... some content
@@ -646,7 +646,7 @@ Building off of the `Stacker` example above, any component that instantiates a `
 Let's use the above component inside a new component, `AnotherComponent`.
 
 ```rust
-use pax_lang::api::*;
+use pax_language::api::*;
 use crate::MyComponent;
 
 ##[pax(
