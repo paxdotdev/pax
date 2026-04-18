@@ -35,6 +35,9 @@ Type: `f32`
 ##### `origin_y`
 Type: `f32`
 
+##### `replay_priority`
+Type: `i32`
+
 ##### `surface`
 Type: [`LayerSurfaceSize`](/api/internal/pax-runtime/engine/pax_gpu_render_context.md#layersurfacesize)
 

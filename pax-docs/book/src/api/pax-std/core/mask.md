@@ -4,4 +4,4 @@
 
 ## Structs
 ### `Mask`
-Creates a mask effect by clipping its first child by the coverage path of its second child.
+Clips its first child by the unioned coverage path of its second child subtree.

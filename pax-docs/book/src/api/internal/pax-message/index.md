@@ -935,6 +935,12 @@ Type: `Option`<`f64`>
 ##### `presentation_scroll_y`
 Type: `Option`<`f64`>
 
+##### `scroll_enabled_x`
+Type: `Option`<`bool`>
+
+##### `scroll_enabled_y`
+Type: `Option`<`bool`>
+
 ##### `content_layer_id`
 Type: `Option`<`u32`>
 

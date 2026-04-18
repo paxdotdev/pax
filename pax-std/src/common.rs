@@ -75,7 +75,7 @@ fn canvas_surface_bounds_for_transform(transform: Affine, bounds: (f64, f64)) ->
         .inflate(TILE_CULL_BOUNDS_PAD, TILE_CULL_BOUNDS_PAD)
 }
 
-/// Values a primitive needs after the render context has selected live tile surfaces.
+// Values a primitive needs after the render context has selected live tile surfaces.
 pub struct CanvasNodeRenderScope {
     pub layer_id: usize,
     pub node_id: u32,
@@ -83,10 +83,10 @@ pub struct CanvasNodeRenderScope {
     pub bounds: (f64, f64),
 }
 
-/// Begin a bounded retained vector/image node.
-///
-/// The render context owns tile selection and stale-node removal, but `pax-std`
-/// owns deriving conservative canvas-space coverage from an expanded node.
+// Begin a bounded retained vector/image node.
+//
+// The render context owns tile selection and stale-node removal, but `pax-std`
+// owns deriving conservative canvas-space coverage from an expanded node.
 pub fn begin_bounded_canvas_node(
     rc: &mut dyn RenderContext,
     expanded_node: &ExpandedNode,

@@ -40,6 +40,9 @@ Type: `f64`
 ##### `height`
 Type: `f64`
 
+##### `replay_priority`
+Type: `i32`
+
 ##### `surface_signature`
 Type: `String`
 

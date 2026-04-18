@@ -85,6 +85,9 @@ Type: `Rc`<[`RuntimeContext`](/api/internal/pax-runtime/properties.md#runtimecon
 ##### `root_expanded_node`
 Type: `Rc`<`ExpandedNode`>
 
+##### `scroller_tiling_policy`
+Type: [`ScrollerTilingPolicy`](/api/internal/pax-runtime/engine/layer_tiling.md#scrollertilingpolicy)
+
 #### Implementations
 Central instance of the PaxEngine and runtime, intended to be created by a particular chassis.
 Contains all rendering and runtime logic.

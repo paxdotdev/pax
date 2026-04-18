@@ -41,9 +41,9 @@ Corner radius for the scroller clipping region, in pixels.
 ##### `snap_positions_x`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Vec`<[`Size`](/api/pax-runtime-api/layout.md#size)>>
 
-Horizontal scroll snap anchors expressed in px/%.
-Web maps to CSS scroll-snap-type + scroll-snap-align; iOS/macOS should map
-to UIScrollView/NSScrollView snapping APIs when those chassis land.
+Scroll snap anchors expressed in px/% along each axis.
+Web maps to CSS scroll-snap-type + scroll-snap-align; Apple chassis map these
+offsets to native scroll end-points while keeping engine scroll state authoritative.
 
 ##### `snap_positions_y`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Vec`<[`Size`](/api/pax-runtime-api/layout.md#size)>>
