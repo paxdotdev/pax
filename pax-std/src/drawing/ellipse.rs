@@ -5,7 +5,7 @@ use pax_runtime::api::{Fill, Layer, RenderContext};
 use pax_runtime::BaseInstance;
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
-use crate::common::canvas_surface_transform;
+use crate::common::begin_bounded_canvas_node;
 use_RefCell!();
 use std::rc::Rc;
 
@@ -97,23 +97,15 @@ impl InstanceNode for EllipseInstance {
         rtc: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
-        let layer_id = expanded_node.occlusion.get().occlusion_layer_id;
-
         if !rtc.is_canvas_node_dirty(&expanded_node.id) {
             return;
         }
 
-        if !rc.begin_node(
-            layer_id,
-            expanded_node.id.to_u32(),
-            expanded_node.occlusion.get().z_index,
-        ) {
+        let Some(scope) = begin_bounded_canvas_node(rc, expanded_node, rtc) else {
             return;
-        }
+        };
 
-        let tab = expanded_node.transform_and_bounds.get();
-        let surface_transform = canvas_surface_transform(expanded_node, rtc);
-        let (width, height) = tab.bounds;
+        let (width, height) = scope.bounds;
         expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
             let rect = Rect::from_points((0.0, 0.0), (width, height));
             let ellipse = kurbo::Ellipse::from_rect(rect);
@@ -121,19 +113,19 @@ impl InstanceNode for EllipseInstance {
             let opacity = expanded_node.computed_opacity.get();
             let fill = properties.fill.get();
             let stroke = properties.stroke.get();
-            rc.save(layer_id);
-            rc.transform(layer_id, surface_transform);
-            rc.fill_with_opacity(layer_id, bez_path.clone(), &fill, opacity);
+            rc.save(scope.layer_id);
+            rc.transform(scope.layer_id, scope.surface_transform);
+            rc.fill_with_opacity(scope.layer_id, bez_path.clone(), &fill, opacity);
 
             //hack to address "phantom stroke" bug on Web
             let width: f64 = stroke.width.get().expect_pixels().to_float();
 
             if width > f64::EPSILON {
-                rc.stroke_with_opacity(layer_id, bez_path, &stroke, opacity);
+                rc.stroke_with_opacity(scope.layer_id, bez_path, &stroke, opacity);
             }
-            rc.restore(layer_id);
+            rc.restore(scope.layer_id);
         });
-        if rc.end_node(layer_id, expanded_node.id.to_u32()) {
+        if rc.end_node(scope.layer_id, scope.node_id) {
             rtc.clear_canvas_node_dirty(&expanded_node.id);
         }
     }

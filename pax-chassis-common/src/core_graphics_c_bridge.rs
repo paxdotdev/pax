@@ -22,7 +22,7 @@ use pax_runtime::api::{
     ButtonClick, Click, Event, Focus, ModifierKey, MouseButton, MouseEventArgs, RenderContext,
     SelectStart, TextboxChange, Touch, TouchEnd, TouchMove, TouchStart,
 };
-use pax_runtime::engine::layer_tiling::scroller_canvas_plan;
+use pax_runtime::engine::layer_tiling::{scroller_canvas_plan_with_policy, ScrollerTilingPolicy};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use pax_runtime::pax_pixels_render_context::{
     LayerRenderer, LayerSurfaceEntry, LayerSurfaceLayout, LayerSurfaceSize, LayerTarget,
@@ -219,6 +219,7 @@ struct SurfaceRegistration {
     host_signature: String,
     origin_x: f32,
     origin_y: f32,
+    replay_priority: i32,
     logical_width: f32,
     logical_height: f32,
     surface_width: u32,
@@ -288,6 +289,7 @@ impl LayerSurfaceRegistry {
                 host_signature: surface.host_signature.clone(),
                 origin_x: surface.origin_x,
                 origin_y: surface.origin_y,
+                replay_priority: surface.replay_priority,
                 surface: LayerSurfaceSize {
                     logical_width: surface.logical_width,
                     logical_height: surface.logical_height,
@@ -437,6 +439,37 @@ impl AppleRenderContext {
     fn renderer_mut(&mut self) -> &mut PaxPixelsRenderer {
         &mut self.renderer
     }
+}
+
+#[cfg(target_os = "ios")]
+pub fn native_scroller_tiling_policy() -> ScrollerTilingPolicy {
+    let mut policy = ScrollerTilingPolicy::default();
+    // iOS has not shown WebGL-style uninit pressure on native Metal surfaces in the stress bed.
+    // Prefer fewer/larger surfaces and a tight warm band to reduce replay work on constrained
+    // mobile GPUs.
+    policy.target_tile_backing_dimension = 4096.0;
+    policy.prewarm_viewport_pad_x_multiplier = 0.5;
+    policy.prewarm_viewport_pad_y_multiplier = 0.5;
+    policy.prewarm_viewport_pad_min_x = 384.0;
+    policy.prewarm_viewport_pad_min_y = 384.0;
+    policy.max_surfaces_per_layer = Some(12);
+    policy
+}
+
+#[cfg(target_os = "macos")]
+pub fn native_scroller_tiling_policy() -> ScrollerTilingPolicy {
+    let mut policy = ScrollerTilingPolicy::default();
+    // Large native macOS windows at 2x DPR can become two-dimensional tile grids if the backing
+    // target is too small. That increases replay pressure and makes freshly-retargeted tiles
+    // visible before replay catches up, even on slow scrolls. Keep tiles large enough to cover
+    // common full-width windows with a single column.
+    policy.target_tile_backing_dimension = 4096.0;
+    policy.prewarm_viewport_pad_x_multiplier = 0.5;
+    policy.prewarm_viewport_pad_y_multiplier = 0.5;
+    policy.prewarm_viewport_pad_min_x = 384.0;
+    policy.prewarm_viewport_pad_min_y = 384.0;
+    policy.max_surfaces_per_layer = Some(12);
+    policy
 }
 
 fn serialize_message_queue(messages: Vec<NativeMessage>) -> *mut NativeMessageQueue {
@@ -866,7 +899,7 @@ pub extern "C" fn pax_get_layer_canvas_plan(
                     scroll_y = visual.page_scroll_y;
                 }
             }
-            Some(scroller_canvas_plan(
+            Some(scroller_canvas_plan_with_policy(
                 layer,
                 host_signature,
                 state.content_width,
@@ -876,6 +909,7 @@ pub extern "C" fn pax_get_layer_canvas_plan(
                 scroll_x,
                 scroll_y,
                 dpr,
+                engine.scroller_tiling_policy,
             ))
         } else {
             None
@@ -885,7 +919,7 @@ pub extern "C" fn pax_get_layer_canvas_plan(
         let host_signature = "root".to_string();
         let width = viewport.bounds.0;
         let height = viewport.bounds.1;
-        Some(scroller_canvas_plan(
+        Some(scroller_canvas_plan_with_policy(
             layer,
             host_signature,
             width,
@@ -895,6 +929,7 @@ pub extern "C" fn pax_get_layer_canvas_plan(
             0.0,
             0.0,
             dpr,
+            engine.scroller_tiling_policy,
         ))
     } else {
         None
@@ -956,6 +991,7 @@ pub extern "C" fn pax_surface_registry_register_surface(
     host_signature_ptr: *const std::os::raw::c_char,
     origin_x: f32,
     origin_y: f32,
+    replay_priority: i32,
     logical_width: f32,
     logical_height: f32,
     surface_width: u32,
@@ -985,6 +1021,7 @@ pub extern "C" fn pax_surface_registry_register_surface(
                 host_signature,
                 origin_x,
                 origin_y,
+                replay_priority,
                 logical_width,
                 logical_height,
                 surface_width,

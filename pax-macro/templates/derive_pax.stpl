@@ -128,7 +128,8 @@
                 OS::Mac,
                 #[cfg(feature="ios")]
                 OS::IPhone,
-                Box::new(move || start.elapsed().as_millis())
+                Box::new(move || start.elapsed().as_millis()),
+                <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::native_scroller_tiling_policy()
             )));
 
             let container = std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
@@ -169,6 +170,7 @@
                     #[cfg(feature="ios")]
                     OS::IPhone,
                     Box::new(move || start.elapsed().as_millis()),
+                    <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::native_scroller_tiling_policy()
                 )));
 
             let container =
@@ -219,6 +221,7 @@
                     #[cfg(feature="ios")]
                     OS::IPhone,
                     Box::new(move || start.elapsed().as_millis()),
+                    <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::native_scroller_tiling_policy()
                 )));
 
             let container =

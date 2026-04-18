@@ -12,6 +12,7 @@ private struct SurfaceCanvasDescriptor {
     let top: Double
     let width: Double
     let height: Double
+    let replayPriority: Int32
     let surfaceSignature: String
     let transformSignature: String
     let hostSignature: String
@@ -32,6 +33,7 @@ private struct SurfaceCanvasDescriptor {
         self.top = top
         self.width = width
         self.height = height
+        self.replayPriority = Int32(readDouble(fb["replayPriority"]) ?? 0)
         self.surfaceSignature = fb["surfaceSignature"]?.asString ?? ""
         self.transformSignature = fb["transformSignature"]?.asString ?? ""
         self.hostSignature = fb["hostSignature"]?.asString ?? "root"
@@ -207,6 +209,7 @@ final class SurfaceManager {
                             hostPtr,
                             Float(descriptor.left),
                             Float(descriptor.top),
+                            descriptor.replayPriority,
                             Float(descriptor.width),
                             Float(descriptor.height),
                             UInt32(pixelWidth),

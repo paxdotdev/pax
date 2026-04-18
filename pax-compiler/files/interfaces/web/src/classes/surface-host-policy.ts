@@ -5,6 +5,7 @@ type SurfaceCanvasDescriptor = {
     top: number;
     width: number;
     height: number;
+    replayPriority: number;
     surfaceSignature: string;
     transformSignature: string;
     hostSignature?: string;
@@ -27,13 +28,15 @@ const IOS_FALLBACK_MAX_BACKING_DIMENSION = 2048;
 const IOS_MAX_BACKING_DIMENSION_CAP = 2048;
 const IOS_SCROLLER_RENDER_DPR = 1.0;
 const MIN_LOGICAL_TILE_SIZE = 256;
-const TILE_OVERSCAN_COLUMNS = 1;
+const TILE_OVERSCAN_COLUMNS = 0;
 const TILE_OVERSCAN_ROWS = 0;
 const MIN_UNTILED_RENDER_DPR = 1.0;
 const PREWARM_VIEWPORT_PAD_X_MULTIPLIER = 1.0;
-const PREWARM_VIEWPORT_PAD_Y_MULTIPLIER = 1.0;
+const PREWARM_VIEWPORT_PAD_Y_MULTIPLIER = 1.5;
 const PREWARM_VIEWPORT_PAD_MIN_X = 512;
 const PREWARM_VIEWPORT_PAD_MIN_Y = 512;
+const FIREFOX_PREWARM_VIEWPORT_PAD_Y_MULTIPLIER = 3.0;
+const FIREFOX_PREWARM_VIEWPORT_PAD_MIN_Y = 1536;
 // Keep tiling policy at the DOM-host layer instead of in nodes or renderer callsites. The current
 // opt-in is:
 // 1. any non-root browser-owned scroller surface in all browsers
@@ -85,6 +88,7 @@ function computeLayerCanvasPlanInternal(
                 top: 0,
                 width,
                 height,
+                replayPriority: 0,
                 surfaceSignature: `single:${width}x${height}@${describeSurfaceHost(host)}`,
                 transformSignature: "0,0",
             },
@@ -122,6 +126,7 @@ function computeLayerCanvasPlanInternal(
                 top: 0,
                 width: contentWidth,
                 height: contentHeight,
+                replayPriority: 0,
                 surfaceSignature: `single:${contentWidth}x${contentHeight}@${describeSurfaceHost(host)}`,
                 transformSignature: "0,0",
             },
@@ -129,19 +134,24 @@ function computeLayerCanvasPlanInternal(
     }
     let maxColumn = Math.max(0, Math.ceil(contentWidth / tileSize) - 1);
     let maxRow = Math.max(0, Math.ceil(contentHeight / tileSize) - 1);
+    let prewarmPadYMultiplier = isFirefoxBrowser()
+        ? FIREFOX_PREWARM_VIEWPORT_PAD_Y_MULTIPLIER
+        : PREWARM_VIEWPORT_PAD_Y_MULTIPLIER;
+    let prewarmPadMinY = isFirefoxBrowser()
+        ? FIREFOX_PREWARM_VIEWPORT_PAD_MIN_Y
+        : PREWARM_VIEWPORT_PAD_MIN_Y;
     let padX = horizontalScrollable
         ? Math.max(viewportWidth * PREWARM_VIEWPORT_PAD_X_MULTIPLIER, PREWARM_VIEWPORT_PAD_MIN_X)
         : 0;
     let padY = verticalScrollable
-        ? Math.max(viewportHeight * PREWARM_VIEWPORT_PAD_Y_MULTIPLIER, PREWARM_VIEWPORT_PAD_MIN_Y)
+        ? Math.max(viewportHeight * prewarmPadYMultiplier, prewarmPadMinY)
         : 0;
     let paddedViewportWidth = viewportWidth + padX * 2;
     let paddedViewportHeight = viewportHeight + padY * 2;
     let paddedScrollX = clampOffset(scrollX - padX, contentWidth, paddedViewportWidth);
     let paddedScrollY = clampOffset(scrollY - padY, contentHeight, paddedViewportHeight);
-    // Until we have finer per-node/per-tile culling, every overscan tile multiplies the retained
-    // scene replay cost. Keep the first shipping-biased tiled pass to the visible tile window and
-    // only revisit overscan once tile pooling/culling is in place.
+    // Mirror the engine-side web defaults for budget estimation. Overscan remains axis-gated so a
+    // vertical scroller does not pay for horizontal warm columns, and vice versa.
     let overscanColumns = horizontalScrollable ? TILE_OVERSCAN_COLUMNS : 0;
     let overscanRows = verticalScrollable ? TILE_OVERSCAN_ROWS : 0;
     if (iosHost) {
@@ -172,15 +182,26 @@ function computeLayerCanvasPlanInternal(
     let descriptors: SurfaceCanvasDescriptor[] = [];
     for (let row = startRow; row <= endRow; row += 1) {
         for (let column = startColumn; column <= endColumn; column += 1) {
-            let slotColumn = column - startColumn;
-            let slotRow = row - startRow;
+            let slotColumn = positiveModulo(column, activeColumns);
+            let slotRow = positiveModulo(row, activeRows);
             let left = column * tileSize;
             let top = row * tileSize;
             let width = Math.max(1, Math.min(tileSize, contentWidth - left));
             let height = Math.max(1, Math.min(tileSize, contentHeight - top));
-            // Keep DOM ids and renderer keys stable by viewport slot instead of absolute tile
-            // index. Scroll should slide origins under an existing surface set rather than making
-            // Rust churn renderers every time the visible window crosses a tile boundary.
+            let replayPriority = tileReplayPriority(
+                left,
+                top,
+                width,
+                height,
+                scrollX,
+                scrollY,
+                viewportWidth,
+                viewportHeight,
+                tileSize,
+            );
+            // Keep DOM ids and renderer keys stable by physical ring slot. Overlapping content
+            // tiles retain their canvas/context across tile-window shifts; only the entering slot
+            // is reassigned to a new content origin.
             let key = `${slotColumn}:${slotRow}`;
             descriptors.push({
                 id: `layer-${layerId}-tile-${slotColumn}-${slotRow}`,
@@ -189,6 +210,7 @@ function computeLayerCanvasPlanInternal(
                 top,
                 width,
                 height,
+                replayPriority,
                 // Scroll can slide the active tile window without changing the keyed surface set.
                 // Keep the physical surface signature separate from the tile origin so the chassis
                 // can issue a cheap transform-only refresh for that case.
@@ -203,6 +225,14 @@ function computeLayerCanvasPlanInternal(
             });
         }
     }
+
+    descriptors.sort((left, right) => {
+        let keyOrder = left.key.localeCompare(right.key);
+        if (keyOrder !== 0) {
+            return keyOrder;
+        }
+        return left.transformSignature.localeCompare(right.transformSignature);
+    });
 
     return descriptors;
 }
@@ -319,6 +349,42 @@ function canRenderHostAsSingleSurface(host: HTMLElement) {
     return singleSurfaceDpr >= MIN_UNTILED_RENDER_DPR;
 }
 
+function tileReplayPriority(
+    tileLeft: number,
+    tileTop: number,
+    tileWidth: number,
+    tileHeight: number,
+    viewportLeft: number,
+    viewportTop: number,
+    viewportWidth: number,
+    viewportHeight: number,
+    tileSize: number,
+) {
+    let tileRight = tileLeft + tileWidth;
+    let tileBottom = tileTop + tileHeight;
+    let viewportRight = viewportLeft + viewportWidth;
+    let viewportBottom = viewportTop + viewportHeight;
+    if (
+        tileRight >= viewportLeft
+        && tileLeft <= viewportRight
+        && tileBottom >= viewportTop
+        && tileTop <= viewportBottom
+    ) {
+        return 0;
+    }
+    let dx = tileRight < viewportLeft
+        ? viewportLeft - tileRight
+        : tileLeft > viewportRight
+            ? tileLeft - viewportRight
+            : 0;
+    let dy = tileBottom < viewportTop
+        ? viewportTop - tileBottom
+        : tileTop > viewportBottom
+            ? tileTop - viewportBottom
+            : 0;
+    return Math.max(1, Math.ceil(Math.max(dx, dy) / Math.max(1, tileSize)) + 1);
+}
+
 export function isIOSWebKitBrowser() {
     if (typeof navigator === "undefined") {
         return false;
@@ -326,6 +392,13 @@ export function isIOSWebKitBrowser() {
     let userAgent = navigator.userAgent;
     let isiOS = /iPhone|iPad|iPod/i.test(userAgent);
     return isiOS && /AppleWebKit/i.test(userAgent) && !/CriOS|FxiOS|EdgiOS/i.test(userAgent);
+}
+
+function isFirefoxBrowser() {
+    if (typeof navigator === "undefined") {
+        return false;
+    }
+    return /Firefox\//i.test(navigator.userAgent) && !/FxiOS/i.test(navigator.userAgent);
 }
 
 function readFloat(value?: string) {
@@ -363,6 +436,10 @@ function visibleTileSpan(viewportSize: number, tileSize: number, includeExtraSlo
     let base = Math.ceil(Math.max(0, viewportSize) / tileSize);
     let extra = includeExtraSlot ? 1 : 0;
     return Math.max(1, base + extra);
+}
+
+function positiveModulo(value: number, modulus: number) {
+    return ((value % modulus) + modulus) % modulus;
 }
 
 function clampWindowStart(value: number, maxIndex: number, windowSize: number) {

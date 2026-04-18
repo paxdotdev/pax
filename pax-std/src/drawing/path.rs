@@ -7,7 +7,7 @@ use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 
-use crate::common::{canvas_surface_transform, Point};
+use crate::common::{begin_bounded_canvas_node, Point};
 use crate::drawing::stroke_utils::{stroke_width_pixels, stroked_outline_path};
 use pax_engine::*;
 
@@ -189,31 +189,23 @@ impl InstanceNode for PathInstance {
         rtc: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
-        let layer_id = expanded_node.occlusion.get().occlusion_layer_id;
-
         if !rtc.is_canvas_node_dirty(&expanded_node.id) {
             return;
         }
 
-        if !rc.begin_node(
-            layer_id,
-            expanded_node.id.to_u32(),
-            expanded_node.occlusion.get().z_index,
-        ) {
+        let Some(scope) = begin_bounded_canvas_node(rc, expanded_node, rtc) else {
             return;
-        }
+        };
 
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
-            let bounds = expanded_node.transform_and_bounds.get().bounds;
+            let bounds = scope.bounds;
             let elements = properties.elements.get();
             let Some(bez_path) = build_local_bez_path(&elements, bounds) else {
                 return;
             };
 
-            let tab = expanded_node.transform_and_bounds.get();
-            let surface_transform = canvas_surface_transform(expanded_node, rtc);
             let mut clip_path = BezPath::new();
-            let (width, height) = tab.bounds;
+            let (width, height) = scope.bounds;
             clip_path.move_to((0.0, 0.0));
             clip_path.line_to((width, 0.0));
             clip_path.line_to((width, height));
@@ -224,16 +216,16 @@ impl InstanceNode for PathInstance {
             let opacity = expanded_node.computed_opacity.get();
             let fill = properties.fill.get();
             let stroke = properties.stroke.get();
-            rc.save(layer_id);
-            rc.transform(layer_id, surface_transform);
-            rc.clip(layer_id, clip_path.clone());
-            rc.fill_with_opacity(layer_id, bez_path.clone(), &fill, opacity);
+            rc.save(scope.layer_id);
+            rc.transform(scope.layer_id, scope.surface_transform);
+            rc.clip(scope.layer_id, clip_path.clone());
+            rc.fill_with_opacity(scope.layer_id, bez_path.clone(), &fill, opacity);
             if stroke_width_pixels(&stroke) > f64::EPSILON {
-                rc.stroke_with_opacity(layer_id, bez_path, &stroke, opacity);
+                rc.stroke_with_opacity(scope.layer_id, bez_path, &stroke, opacity);
             }
-            rc.restore(layer_id);
+            rc.restore(scope.layer_id);
         });
-        if rc.end_node(layer_id, expanded_node.id.to_u32()) {
+        if rc.end_node(scope.layer_id, scope.node_id) {
             rtc.clear_canvas_node_dirty(&expanded_node.id);
         }
     }

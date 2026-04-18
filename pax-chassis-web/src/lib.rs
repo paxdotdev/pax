@@ -16,7 +16,7 @@ use pax_runtime::api::RenderContext;
 use pax_runtime::api::SelectStart;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::OS;
-use pax_runtime::engine::layer_tiling::scroller_canvas_plan;
+use pax_runtime::engine::layer_tiling::scroller_canvas_plan_with_policy;
 use pax_runtime::DefinitionToInstanceTraverser;
 use web_time::Instant;
 use_RefCell!();
@@ -24,6 +24,7 @@ use_RefCell!();
 mod browser_surface_policy;
 pub mod web_render_contexts;
 
+use crate::browser_surface_policy::BrowserSurfacePolicy;
 use pax_runtime::PaxEngine;
 #[cfg(feature = "designtime")]
 use std::collections::HashMap;
@@ -220,7 +221,8 @@ impl PaxChassisWeb {
         userland_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
         designer_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
-        let (width, height, os_info, get_elapsed_millis, renderer) = Self::init_common();
+        let (width, height, os_info, surface_policy, get_elapsed_millis, renderer) =
+            Self::init_common();
         let query_string = window()
             .unwrap()
             .location()
@@ -243,6 +245,7 @@ impl PaxChassisWeb {
             Platform::Web,
             os_info,
             get_elapsed_millis,
+            surface_policy.scroller_tiling_policy(),
         );
         let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
         Self {
@@ -259,7 +262,7 @@ impl PaxChassisWeb {
     pub async fn new_designtime(
         userland_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
-        let (width, height, os_info, get_time, renderer) = Self::init_common();
+        let (width, height, os_info, surface_policy, get_time, renderer) = Self::init_common();
         let query_string = window()
             .unwrap()
             .location()
@@ -278,6 +281,7 @@ impl PaxChassisWeb {
             Platform::Web,
             os_info,
             get_time,
+            surface_policy.scroller_tiling_policy(),
         );
 
         let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
@@ -296,7 +300,7 @@ impl PaxChassisWeb {
     pub async fn new(
         definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
-        let (width, height, os_info, get_time, renderer) = Self::init_common();
+        let (width, height, os_info, surface_policy, get_time, renderer) = Self::init_common();
 
         let main_component_instance =
             definition_to_instance_traverser.get_main_component(USERLAND_COMPONENT_ROOT);
@@ -306,6 +310,7 @@ impl PaxChassisWeb {
             Platform::Web,
             os_info,
             get_time,
+            surface_policy.scroller_tiling_policy(),
         );
 
         let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
@@ -316,7 +321,14 @@ impl PaxChassisWeb {
         }
     }
 
-    fn init_common() -> (f64, f64, OS, Box<dyn Fn() -> u128>, Box<dyn RenderContext>) {
+    fn init_common() -> (
+        f64,
+        f64,
+        OS,
+        BrowserSurfacePolicy,
+        Box<dyn Fn() -> u128>,
+        Box<dyn RenderContext>,
+    ) {
         #[cfg(feature = "console_error_panic_hook")]
         console_error_panic_hook::set_once();
         let window = window().unwrap();
@@ -327,10 +339,18 @@ impl PaxChassisWeb {
 
         let width = window.inner_width().unwrap().as_f64().unwrap();
         let height = window.inner_height().unwrap().as_f64().unwrap();
+        let surface_policy = BrowserSurfacePolicy::detect(&window);
         let start = Instant::now();
-        let renderer = web_render_contexts::get_render_context(window);
+        let renderer = web_render_contexts::get_render_context(window, surface_policy);
         let get_time = Box::new(move || start.elapsed().as_millis());
-        (width, height, os_info, get_time, Box::new(renderer))
+        (
+            width,
+            height,
+            os_info,
+            surface_policy,
+            get_time,
+            Box::new(renderer),
+        )
     }
 
     #[cfg(feature = "designtime")]
@@ -935,7 +955,7 @@ impl PaxChassisWeb {
                     scroll_y = visual.page_scroll_y;
                 }
             }
-            scroller_canvas_plan(
+            scroller_canvas_plan_with_policy(
                 layer,
                 host_signature,
                 state.content_width,
@@ -945,13 +965,14 @@ impl PaxChassisWeb {
                 scroll_x,
                 scroll_y,
                 dpr,
+                engine.scroller_tiling_policy,
             )
         } else if layer == 0 {
             let viewport = ctx.globals().viewport.get();
             let host_signature = "root".to_string();
             let width = viewport.bounds.0;
             let height = viewport.bounds.1;
-            scroller_canvas_plan(
+            scroller_canvas_plan_with_policy(
                 layer,
                 host_signature,
                 width,
@@ -961,6 +982,7 @@ impl PaxChassisWeb {
                 0.0,
                 0.0,
                 dpr,
+                engine.scroller_tiling_policy,
             )
         } else {
             return JsValue::NULL;

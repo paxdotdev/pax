@@ -104,6 +104,16 @@ pub trait RenderContext {
         true
     }
 
+    fn begin_node_with_bounds(
+        &mut self,
+        layer: usize,
+        node_id: u32,
+        z_index: i32,
+        _coverage_bounds: kurbo::Rect,
+    ) -> bool {
+        self.begin_node(layer, node_id, z_index)
+    }
+
     fn end_node(&mut self, _layer: usize, _node_id: u32) -> bool {
         true
     }

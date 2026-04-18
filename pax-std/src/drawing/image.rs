@@ -11,8 +11,7 @@ use pax_runtime::{
 };
 use std::rc::Rc;
 
-use crate::common::canvas_surface_transform;
-use crate::common::patch_if_needed;
+use crate::common::{begin_bounded_canvas_node, patch_if_needed};
 
 /// An Image (decoded by chassis), drawn to the bounds specified
 /// by `size`, transformed by `transform`
@@ -166,7 +165,6 @@ impl InstanceNode for ImageInstance {
         rtc: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
-        let layer_id = expanded_node.occlusion.get().occlusion_layer_id;
         let node_dirty = rtc.is_canvas_node_dirty(&expanded_node.id);
         let initial_load_complete = self.initial_load.borrow().contains(&expanded_node.id);
 
@@ -174,17 +172,11 @@ impl InstanceNode for ImageInstance {
             return;
         }
 
-        if !rc.begin_node(
-            layer_id,
-            expanded_node.id.to_u32(),
-            expanded_node.occlusion.get().z_index,
-        ) {
+        let Some(scope) = begin_bounded_canvas_node(rc, expanded_node, rtc) else {
             return;
-        }
+        };
 
-        let t_and_b = expanded_node.transform_and_bounds.get();
-        let surface_transform = canvas_surface_transform(expanded_node, rtc);
-        let (container_width, container_height) = t_and_b.bounds;
+        let (container_width, container_height) = scope.bounds;
         let mut did_draw = false;
 
         expanded_node.with_properties_unwrapped(|props: &mut Image| {
@@ -234,20 +226,20 @@ impl InstanceNode for ImageInstance {
             let y = (container_height - height) / 2.0;
             let transformed_bounds = kurbo::Rect::new(x, y, x + width, y + height);
             let clip_path = kurbo::Rect::new(0.0, 0.0, container_width, container_height);
-            rc.save(layer_id);
-            rc.transform(layer_id, surface_transform);
-            rc.clip(layer_id, clip_path.into_path(0.01));
-            rc.draw_image(layer_id, &path, transformed_bounds);
-            rc.restore(layer_id);
+            rc.save(scope.layer_id);
+            rc.transform(scope.layer_id, scope.surface_transform);
+            rc.clip(scope.layer_id, clip_path.into_path(0.01));
+            rc.draw_image(scope.layer_id, &path, transformed_bounds);
+            rc.restore(scope.layer_id);
             did_draw = true;
             self.initial_load
                 .borrow_mut()
                 .insert(expanded_node.id.clone());
         });
-        if did_draw && rc.end_node(layer_id, expanded_node.id.to_u32()) {
+        if did_draw && rc.end_node(scope.layer_id, scope.node_id) {
             rtc.clear_canvas_node_dirty(&expanded_node.id);
         } else {
-            let _ = rc.end_node(layer_id, expanded_node.id.to_u32());
+            let _ = rc.end_node(scope.layer_id, scope.node_id);
         }
     }
 

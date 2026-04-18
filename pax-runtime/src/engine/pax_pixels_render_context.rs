@@ -1,4 +1,4 @@
-use kurbo::{BezPath, PathEl, Shape};
+use kurbo::{BezPath, PathEl, Rect, Shape};
 use pax_pixels::{
     point, Box2D, Image, Path, Stroke as PixelStroke, StrokeCap as PixelStrokeCap, Transform2D,
     WgpuRenderer,
@@ -34,11 +34,22 @@ pub struct LayerTarget {
     needs_replay: bool,
 }
 
+#[cfg(debug_assertions)]
+#[derive(Clone, Copy, Default)]
+struct TileCullStats {
+    nodes_considered: u64,
+    selected_surfaces: u64,
+    skipped_surfaces: u64,
+    stale_surface_removal_attempts: u64,
+    origin_only_resets: u64,
+}
+
 pub struct LayerSurfaceEntry {
     pub key: String,
     pub host_signature: String,
     pub origin_x: f32,
     pub origin_y: f32,
+    pub replay_priority: i32,
     pub surface: LayerSurfaceSize,
 }
 
@@ -88,6 +99,16 @@ impl LayerRenderer {
         &mut self.renderer
     }
 
+    fn intersects_coverage_bounds(&self, bounds: &Rect) -> bool {
+        surface_intersects_coverage_bounds(
+            bounds,
+            self.origin_x as f64,
+            self.origin_y as f64,
+            self.logical_width as f64,
+            self.logical_height as f64,
+        )
+    }
+
     fn update_layout(&mut self, surface: &LayerSurfaceEntry) -> LayoutChangeKind {
         let origin_changed = (self.origin_x - surface.origin_x).abs() > f32::EPSILON
             || (self.origin_y - surface.origin_y).abs() > f32::EPSILON;
@@ -113,6 +134,26 @@ impl LayerRenderer {
             LayoutChangeKind::Unchanged
         }
     }
+}
+
+fn surface_intersects_coverage_bounds(
+    bounds: &Rect,
+    origin_x: f64,
+    origin_y: f64,
+    width: f64,
+    height: f64,
+) -> bool {
+    if !bounds.x0.is_finite()
+        || !bounds.y0.is_finite()
+        || !bounds.x1.is_finite()
+        || !bounds.y1.is_finite()
+    {
+        return true;
+    }
+
+    let x1 = origin_x + width;
+    let y1 = origin_y + height;
+    bounds.x1 >= origin_x && bounds.x0 <= x1 && bounds.y1 >= origin_y && bounds.y0 <= y1
 }
 
 impl LayerTarget {
@@ -166,6 +207,51 @@ fn layer_layout_matches_target(target: &LayerTarget, layout: &LayerSurfaceLayout
             .all(|(surface, renderer)| {
                 surface.key == renderer.key && surface.host_signature == renderer.host_signature
             })
+}
+
+fn replay_batches_by_priority(mut entries: Vec<(usize, i32)>) -> Vec<Vec<usize>> {
+    if entries.is_empty() {
+        return Vec::new();
+    }
+    entries.sort_by_key(|(index, priority)| (*priority, *index));
+
+    let first_priority = entries[0].1;
+    // A browser compositor can expose the first warm row before the next RAF reaches the second
+    // replay batch. Include the nearest off-viewport ring with the visible batch; farther warm
+    // tiles still defer to later frames and remain cancellable by newer scroll plans.
+    let urgent_cutoff = if first_priority == 0 {
+        2
+    } else {
+        first_priority
+    };
+    let mut urgent = Vec::new();
+    let mut remaining = Vec::new();
+    for (index, priority) in entries {
+        if priority <= urgent_cutoff {
+            urgent.push(index);
+        } else {
+            remaining.push(index);
+        }
+    }
+
+    if remaining.is_empty() {
+        vec![urgent]
+    } else {
+        vec![urgent, remaining]
+    }
+}
+
+#[cfg(test)]
+mod replay_priority_tests {
+    use super::replay_batches_by_priority;
+
+    #[test]
+    fn visible_batch_includes_nearest_warm_ring() {
+        let batches = replay_batches_by_priority(vec![(3, 4), (0, 0), (2, 2), (1, 0)]);
+
+        assert_eq!(batches[0], vec![0, 1, 2]);
+        assert_eq!(batches[1], vec![3]);
+    }
 }
 
 const MAX_CONCURRENT_LAYER_INITIALIZATIONS: usize = 4;
@@ -280,6 +366,10 @@ pub struct PaxPixelsRenderer {
     pending_layer_initializations: Rc<RefCell<VecDeque<usize>>>,
     scheduled_layer_initializations: Rc<RefCell<HashSet<usize>>>,
     layer_initializations_in_flight: Rc<Cell<usize>>,
+    active_render_scopes: RefCell<Vec<Vec<Vec<usize>>>>,
+    targeted_replay_queues: RefCell<Vec<VecDeque<Vec<usize>>>>,
+    #[cfg(debug_assertions)]
+    tile_cull_stats: RefCell<Vec<TileCullStats>>,
 }
 
 pub enum RenderLayerState {
@@ -303,6 +393,10 @@ impl PaxPixelsRenderer {
             pending_layer_initializations: Rc::new(RefCell::new(VecDeque::new())),
             scheduled_layer_initializations: Rc::new(RefCell::new(HashSet::new())),
             layer_initializations_in_flight: Rc::new(Cell::new(0)),
+            active_render_scopes: Default::default(),
+            targeted_replay_queues: Default::default(),
+            #[cfg(debug_assertions)]
+            tile_cull_stats: Default::default(),
         }
     }
 }
@@ -342,8 +436,21 @@ impl PaxPixelsRenderer {
                         return;
                     }
                     target.prepare_for_render();
-                    for renderer in &mut target.renderers {
-                        f(&mut renderer.renderer);
+                    let scoped_indices = self.active_render_scope(layer).or_else(|| {
+                        // Targeted replay is active outside a node scope during clear(), and then
+                        // nested into per-node scopes for actual draw operations.
+                        self.targeted_replay_scope(layer)
+                    });
+                    if let Some(indices) = scoped_indices {
+                        for index in indices {
+                            if let Some(renderer) = target.renderers.get_mut(index) {
+                                f(&mut renderer.renderer);
+                            }
+                        }
+                    } else {
+                        for renderer in &mut target.renderers {
+                            f(&mut renderer.renderer);
+                        }
                     }
                 }
             },
@@ -351,6 +458,121 @@ impl PaxPixelsRenderer {
                 "tried to retrieve layer {} context for non-existent layer",
                 layer
             ),
+        }
+    }
+
+    fn active_render_scope(&self, layer: usize) -> Option<Vec<usize>> {
+        self.active_render_scopes
+            .borrow()
+            .get(layer)
+            .and_then(|scopes| scopes.last().cloned())
+    }
+
+    fn push_render_scope(&self, layer: usize, renderer_indices: Vec<usize>) {
+        let mut scopes = self.active_render_scopes.borrow_mut();
+        if scopes.len() <= layer {
+            scopes.resize_with(layer + 1, Vec::new);
+        }
+        scopes[layer].push(renderer_indices);
+    }
+
+    fn pop_render_scope(&self, layer: usize) {
+        if let Some(scopes) = self.active_render_scopes.borrow_mut().get_mut(layer) {
+            scopes.pop();
+        }
+    }
+
+    fn targeted_replay_scope(&self, layer: usize) -> Option<Vec<usize>> {
+        self.targeted_replay_queues
+            .borrow()
+            .get(layer)
+            .and_then(|queue| queue.front().cloned())
+    }
+
+    fn set_targeted_replay_batches(&self, layer: usize, batches: Vec<Vec<usize>>) {
+        let mut queue = VecDeque::new();
+        for mut batch in batches {
+            batch.sort_unstable();
+            batch.dedup();
+            if !batch.is_empty() {
+                queue.push_back(batch);
+            }
+        }
+        if queue.is_empty() {
+            return;
+        }
+
+        let mut queues = self.targeted_replay_queues.borrow_mut();
+        if queues.len() <= layer {
+            queues.resize_with(layer + 1, VecDeque::new);
+        }
+        queues[layer] = queue;
+    }
+
+    fn advance_targeted_replay_queue(&self, layer: usize) -> bool {
+        let mut queues = self.targeted_replay_queues.borrow_mut();
+        let Some(queue) = queues.get_mut(layer) else {
+            return false;
+        };
+        queue.pop_front();
+        !queue.is_empty()
+    }
+
+    fn flush_targeted_or_all(&self, layer: usize, target: &mut LayerTarget) -> bool {
+        let Some(indices) = self.targeted_replay_scope(layer) else {
+            for renderer in &mut target.renderers {
+                renderer.renderer.flush();
+            }
+            return false;
+        };
+
+        for index in indices {
+            if let Some(renderer) = target.renderers.get_mut(index) {
+                renderer.renderer.flush();
+            }
+        }
+        true
+    }
+
+    fn clear_targeted_replay_scope(&self, layer: usize) {
+        if let Some(queue) = self.targeted_replay_queues.borrow_mut().get_mut(layer) {
+            queue.clear();
+        }
+    }
+
+    fn targeted_or_all_indices(&self, layer: usize, renderer_count: usize) -> Vec<usize> {
+        self.targeted_replay_scope(layer)
+            .unwrap_or_else(|| (0..renderer_count).collect())
+    }
+
+    #[cfg(debug_assertions)]
+    fn update_tile_cull_stats(&self, layer: usize, update: impl FnOnce(&mut TileCullStats)) {
+        let mut stats = self.tile_cull_stats.borrow_mut();
+        if stats.len() <= layer {
+            stats.resize_with(layer + 1, TileCullStats::default);
+        }
+        update(&mut stats[layer]);
+    }
+
+    #[cfg(debug_assertions)]
+    fn emit_tile_cull_stats(&self, layer: usize) {
+        let stats = self
+            .tile_cull_stats
+            .borrow_mut()
+            .get_mut(layer)
+            .map(std::mem::take);
+        if let Some(stats) = stats {
+            if stats.nodes_considered > 0 || stats.origin_only_resets > 0 {
+                log::trace!(
+                    "[pax-tile-cull] layer={} nodes={} selected_surfaces={} skipped_surfaces={} stale_removal_attempts={} origin_only_resets={}",
+                    layer,
+                    stats.nodes_considered,
+                    stats.selected_surfaces,
+                    stats.skipped_surfaces,
+                    stats.stale_surface_removal_attempts,
+                    stats.origin_only_resets
+                );
+            }
         }
     }
 
@@ -386,28 +608,36 @@ impl PaxPixelsRenderer {
                         target.activate();
                     } else {
                         target.deactivate();
+                        self.clear_targeted_replay_scope(layer_index);
                     }
 
                     if !layout_matches {
                         // A different keyed surface set means the DOM host really changed shape
                         // underneath us. Stable slot keys let ordinary scroll slide tile origins in
                         // place; reserve full reinitialization for real additions/removals.
+                        self.clear_targeted_replay_scope(layer_index);
                         *backend = RenderLayerState::Pending;
                         self.queue_layer_initialization(layer_index);
                         needs_reinitialization = true;
                         continue;
                     }
 
-                    for (surface, renderer) in
-                        layout.surfaces.iter().zip(target.renderers.iter_mut())
+                    let mut targeted_replay_entries = Vec::new();
+                    let mut needs_full_layer_replay = false;
+                    for (index, (surface, renderer)) in layout
+                        .surfaces
+                        .iter()
+                        .zip(target.renderers.iter_mut())
+                        .enumerate()
                     {
                         let layout_change = renderer.update_layout(surface);
                         match layout_change {
                             LayoutChangeKind::Unchanged => {}
                             LayoutChangeKind::OriginOnly => {
-                                // Reassigning a stable viewport slot to a new absolute tile origin
+                                // Reassigning a stable ring slot to a new absolute tile origin
                                 // clears the retained scene for that physical surface. The chassis
                                 // must replay the logical layer contents into it on the next tick.
+                                targeted_replay_entries.push((index, surface.replay_priority));
                                 renderer.renderer.reset_retained_scene();
                                 renderer
                                     .renderer
@@ -442,9 +672,23 @@ impl PaxPixelsRenderer {
                                     surface.surface.logical_height,
                                     surface.surface.dpr,
                                 );
-                                self.replay_layers.borrow_mut().push(layer_index);
+                                needs_full_layer_replay = true;
                             }
                         }
+                    }
+                    if needs_full_layer_replay {
+                        self.clear_targeted_replay_scope(layer_index);
+                        self.replay_layers.borrow_mut().push(layer_index);
+                    } else if !targeted_replay_entries.is_empty() {
+                        #[cfg(debug_assertions)]
+                        self.update_tile_cull_stats(layer_index, |stats| {
+                            stats.origin_only_resets += targeted_replay_entries.len() as u64;
+                        });
+                        self.set_targeted_replay_batches(
+                            layer_index,
+                            replay_batches_by_priority(targeted_replay_entries),
+                        );
+                        self.replay_layers.borrow_mut().push(layer_index);
                     }
                 }
             }
@@ -594,6 +838,10 @@ impl RenderContext for PaxPixelsRenderer {
     }
 
     fn flush(&mut self, layer: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>) {
+        #[cfg(debug_assertions)]
+        self.emit_tile_cull_stats(layer);
+
+        let mut flushed_targeted_batch = false;
         let mut backends = self.backends.borrow_mut();
         match backends.get_mut(layer) {
             Some(RenderLayerState::Pending) => {}
@@ -612,14 +860,17 @@ impl RenderContext for PaxPixelsRenderer {
                         *failed = false;
                     }
                 }
-                for renderer in &mut target.renderers {
-                    renderer.renderer.flush();
-                }
+                flushed_targeted_batch = self.flush_targeted_or_all(layer, target);
             }
             None => log::warn!(
                 "tried to flush layer {} context for non-existent layer",
                 layer
             ),
+        }
+        drop(backends);
+
+        if flushed_targeted_batch && self.advance_targeted_replay_queue(layer) {
+            self.replay_layers.borrow_mut().push(layer);
         }
     }
 
@@ -671,11 +922,114 @@ impl RenderContext for PaxPixelsRenderer {
     }
 
     fn begin_node(&mut self, layer: usize, node_id: u32, z_index: i32) -> bool {
-        let mut began = false;
-        self.with_layer_context(layer, |context| {
-            began = context.begin_node(node_id, z_index);
-        });
-        began
+        let mut backends = self.backends.borrow_mut();
+        match backends.get_mut(layer) {
+            Some(RenderLayerState::Pending) => {
+                let mut failed_context_gets = self.failed_context_gets.borrow_mut();
+                if failed_context_gets.len() <= layer {
+                    failed_context_gets.resize(layer + 1, false);
+                }
+                failed_context_gets[layer] = true;
+                false
+            }
+            Some(RenderLayerState::Failed) => false,
+            Some(RenderLayerState::Ready((target, _))) => {
+                if !target.active {
+                    return false;
+                }
+                target.prepare_for_render();
+                let candidate_indices = self.targeted_or_all_indices(layer, target.renderers.len());
+                let mut selected = Vec::new();
+                for index in candidate_indices {
+                    let Some(renderer) = target.renderers.get_mut(index) else {
+                        continue;
+                    };
+                    if renderer.renderer.begin_node(node_id, z_index) {
+                        selected.push(index);
+                    }
+                }
+                let began = !selected.is_empty();
+                if began {
+                    self.push_render_scope(layer, selected);
+                }
+                began
+            }
+            None => {
+                log::warn!(
+                    "tried to retrieve layer {} context for non-existent layer",
+                    layer
+                );
+                false
+            }
+        }
+    }
+
+    fn begin_node_with_bounds(
+        &mut self,
+        layer: usize,
+        node_id: u32,
+        z_index: i32,
+        coverage_bounds: Rect,
+    ) -> bool {
+        let mut backends = self.backends.borrow_mut();
+        match backends.get_mut(layer) {
+            Some(RenderLayerState::Pending) => {
+                let mut failed_context_gets = self.failed_context_gets.borrow_mut();
+                if failed_context_gets.len() <= layer {
+                    failed_context_gets.resize(layer + 1, false);
+                }
+                failed_context_gets[layer] = true;
+                false
+            }
+            Some(RenderLayerState::Failed) => false,
+            Some(RenderLayerState::Ready((target, _))) => {
+                if !target.active {
+                    return false;
+                }
+                target.prepare_for_render();
+                let candidate_indices = self.targeted_or_all_indices(layer, target.renderers.len());
+                let renderer_count = candidate_indices.len() as u64;
+                #[cfg(debug_assertions)]
+                self.update_tile_cull_stats(layer, |stats| {
+                    stats.nodes_considered += 1;
+                });
+                let mut selected = Vec::new();
+                for index in candidate_indices {
+                    let Some(renderer) = target.renderers.get_mut(index) else {
+                        continue;
+                    };
+                    if !renderer.intersects_coverage_bounds(&coverage_bounds) {
+                        // If a dirty node moved out of this tile, skipping begin_node is not
+                        // enough: the renderer may still retain that node from an earlier frame.
+                        renderer.renderer.remove_node(node_id);
+                        continue;
+                    }
+                    if renderer.renderer.begin_node(node_id, z_index) {
+                        selected.push(index);
+                    }
+                }
+                let began = !selected.is_empty();
+                #[cfg(debug_assertions)]
+                self.update_tile_cull_stats(layer, |stats| {
+                    let selected_count = selected.len() as u64;
+                    stats.selected_surfaces += selected_count;
+                    stats.skipped_surfaces += renderer_count.saturating_sub(selected_count);
+                    stats.stale_surface_removal_attempts +=
+                        renderer_count.saturating_sub(selected_count);
+                });
+                if began {
+                    self.push_render_scope(layer, selected);
+                }
+                began
+            }
+            None => {
+                log::warn!(
+                    "tried to retrieve layer {} context for non-existent layer",
+                    layer
+                );
+                false
+            }
+        }
     }
 
     fn end_node(&mut self, layer: usize, node_id: u32) -> bool {
@@ -683,6 +1037,7 @@ impl RenderContext for PaxPixelsRenderer {
         self.with_layer_context(layer, |context| {
             ended = context.end_node(node_id);
         });
+        self.pop_render_scope(layer);
         ended
     }
 
@@ -818,4 +1173,42 @@ pub fn convert_kurbo_to_lyon_path(kurbo_path: &BezPath) -> Path {
     }
 
     builder.build()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn surface_intersection_includes_edges() {
+        let bounds = Rect::new(100.0, 100.0, 200.0, 200.0);
+
+        assert!(surface_intersects_coverage_bounds(
+            &bounds, 200.0, 100.0, 100.0, 100.0
+        ));
+        assert!(surface_intersects_coverage_bounds(
+            &bounds, 0.0, 0.0, 100.0, 100.0
+        ));
+    }
+
+    #[test]
+    fn surface_intersection_rejects_disjoint_surfaces() {
+        let bounds = Rect::new(100.0, 100.0, 200.0, 200.0);
+
+        assert!(!surface_intersects_coverage_bounds(
+            &bounds, 201.0, 100.0, 100.0, 100.0
+        ));
+        assert!(!surface_intersects_coverage_bounds(
+            &bounds, 100.0, 201.0, 100.0, 100.0
+        ));
+    }
+
+    #[test]
+    fn surface_intersection_keeps_non_finite_bounds_conservative() {
+        let bounds = Rect::new(f64::NAN, 0.0, 100.0, 100.0);
+
+        assert!(surface_intersects_coverage_bounds(
+            &bounds, 500.0, 500.0, 100.0, 100.0
+        ));
+    }
 }

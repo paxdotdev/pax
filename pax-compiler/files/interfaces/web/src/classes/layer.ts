@@ -197,6 +197,7 @@ export class Layer {
         canvas.dataset.tileKey = descriptor.key;
         canvas.dataset.tileOriginX = String(descriptor.left);
         canvas.dataset.tileOriginY = String(descriptor.top);
+        canvas.dataset.replayPriority = String(descriptor.replayPriority);
         canvas.dataset.surfaceSignature = descriptor.surfaceSignature;
         canvas.dataset.transformSignature = descriptor.transformSignature;
         if (descriptor.hostSignature) {
@@ -224,6 +225,7 @@ export class Layer {
         canvas.removeAttribute("data-tile-key");
         canvas.removeAttribute("data-tile-origin-x");
         canvas.removeAttribute("data-tile-origin-y");
+        canvas.removeAttribute("data-replay-priority");
         canvas.removeAttribute("data-surface-signature");
         canvas.removeAttribute("data-transform-signature");
         canvas.removeAttribute("data-host-signature");

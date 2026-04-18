@@ -650,6 +650,8 @@ impl InstanceNode for ScrollerHostInstance {
 
         let layers = rcs.layers();
         for layer in 0..layers {
+            // Scroller clip/translation is inherited by descendants. Bounds-aware culling belongs
+            // to leaf draw nodes so the transform stack remains balanced on every active renderer.
             if !rcs.begin_node(
                 layer,
                 expanded_node.id.to_u32(),

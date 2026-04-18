@@ -1,0 +1,103 @@
+<Group width=100% height=100%>
+    <Text
+        x=40px
+        y=32px
+        width={100% - 80px}
+        height=34px
+        text="Scroll Cull Stress"
+        selectable=false
+        style={
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 28px
+            fill: rgba(19, 23, 33, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }/>
+
+    <Text
+        x=40px
+        y=74px
+        width={100% - 80px}
+        height=46px
+        text="Heavy vector tiles in a long scroller. Designed to stress mesh + texture work so tile culling wins are obvious."
+        selectable=false
+        style={
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font_size: 15px
+            fill: rgba(101, 107, 120, 255)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }/>
+
+    <Scroller
+        x=0px
+        y=128px
+        width=100%
+        height={100% - 128px}
+        scroll_height={(360 * 360 + 80)px}
+    >
+        <Group width=100% height={(360 * 360 + 80)px}>
+            for card in 0..360 {
+                <Group
+                    x=32px
+                    y={(32 + card * 360)px}
+                    width={100% - 64px}
+                    height=320px
+                >
+                    <Text
+                        x=24px
+                        y=20px
+                        width={100% - 48px}
+                        height=24px
+                        text={"Vector Tile " + card}
+                        selectable=false
+                        style={
+                            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap", FontStyle::Normal, FontWeight::Bold)
+                            font_size: 16px
+                            fill: rgba(18, 22, 31, 255)
+                            align_vertical: TextAlignVertical::Center
+                            align_horizontal: TextAlignHorizontal::Left
+                            align_multiline: TextAlignHorizontal::Left
+                            underline: false
+                        }/>
+
+                    for row in 0..4 {
+                        <DotRow
+                            x=24px
+                            y={(64 + row * 42)px}
+                            width={100% - 48px}
+                            height=38px
+                            row=row
+                            card=card
+                        />
+                    }
+
+                    <Rectangle
+                        x=24px
+                        y={100% - 30px}
+                        width={100% - 48px}
+                        height=12px
+                        fill={rgba(235, 228, 220, 255)}
+                        corner_radii={RectangleCornerRadii::radii(6.0, 6.0, 6.0, 6.0)}
+                    />
+
+                    <Rectangle
+                        width=100%
+                        height=100%
+                        fill={rgba(255, 252, 248, 255)}
+                        corner_radii={RectangleCornerRadii::radii(28.0, 28.0, 28.0, 28.0)}
+                    />
+                </Group>
+            }
+        </Group>
+    </Scroller>
+
+    <Rectangle
+        width=100%
+        height=100%
+        fill={rgba(247, 242, 235, 255)}/>
+</Group>

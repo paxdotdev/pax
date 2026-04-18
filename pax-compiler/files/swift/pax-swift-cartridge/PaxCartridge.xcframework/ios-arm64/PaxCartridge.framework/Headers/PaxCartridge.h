@@ -49,6 +49,7 @@ void pax_surface_registry_register_surface(struct PaxEngineContainer *engine_con
                                            const char *host_signature_ptr,
                                            float origin_x,
                                            float origin_y,
+                                           int32_t replay_priority,
                                            float logical_width,
                                            float logical_height,
                                            uint32_t surface_width,

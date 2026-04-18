@@ -27,6 +27,7 @@ struct LayerCanvasTarget {
     canvas: HtmlCanvasElement,
     origin_x: f32,
     origin_y: f32,
+    replay_priority: i32,
     active: bool,
     surface: SurfaceMetrics,
 }
@@ -94,7 +95,10 @@ fn compute_surface_metrics(
 }
 
 #[cfg(feature = "piet")]
-pub fn get_render_context(window: Window) -> impl RenderContext {
+pub(crate) fn get_render_context(
+    window: Window,
+    _surface_policy: BrowserSurfacePolicy,
+) -> impl RenderContext {
     use pax_runtime::piet_render_context::PietRenderer;
     use piet_web::WebRenderContext;
     PietRenderer::new(move |layer| {
@@ -146,13 +150,15 @@ pub fn get_render_context(window: Window) -> impl RenderContext {
 }
 
 #[cfg(not(feature = "piet"))]
-pub fn get_render_context(window: Window) -> impl RenderContext {
+pub(crate) fn get_render_context(
+    window: Window,
+    surface_policy: BrowserSurfacePolicy,
+) -> impl RenderContext {
     use pax_pixels::{
         render_backend::{RenderBackend, RenderConfig},
         Transform2D, WgpuRenderer,
     };
     use pax_runtime::pax_pixels_render_context::{LayerRenderer, LayerTarget, PaxPixelsRenderer};
-    let surface_policy = BrowserSurfacePolicy::detect(&window);
     PaxPixelsRenderer::new(move |layer| {
         let window = window.clone();
         let surface_policy = surface_policy;
@@ -402,6 +408,10 @@ fn query_layer_canvas_targets(
                 .get_attribute("data-tile-origin-y")
                 .and_then(|value: String| value.parse::<f32>().ok())
                 .unwrap_or(0.0);
+            let replay_priority = canvas
+                .get_attribute("data-replay-priority")
+                .and_then(|value: String| value.parse::<i32>().ok())
+                .unwrap_or(0);
             let surface_desired_dpr =
                 if role.as_deref() == Some("scroller-canvas-host") && key != "single" {
                     // Large browser-owned scrollers are the current perf hotspot. Once a scroller is
@@ -423,6 +433,7 @@ fn query_layer_canvas_targets(
                 canvas,
                 origin_x,
                 origin_y,
+                replay_priority,
                 active,
                 surface,
             }
@@ -456,6 +467,7 @@ fn build_layer_surface_layout(
                 host_signature: target.host_signature,
                 origin_x: target.origin_x,
                 origin_y: target.origin_y,
+                replay_priority: target.replay_priority,
                 surface: LayerSurfaceSize {
                     logical_width: target.surface.logical_width,
                     logical_height: target.surface.logical_height,
@@ -496,28 +508,24 @@ fn query_layer_canvases(document: &Document, layer: usize) -> Vec<HtmlCanvasElem
         }
     }
     canvases.sort_by(|left, right| {
-        let left_origin_y = left
-            .get_attribute("data-tile-origin-y")
-            .and_then(|value: String| value.parse::<i32>().ok())
-            .unwrap_or(0);
-        let right_origin_y = right
-            .get_attribute("data-tile-origin-y")
-            .and_then(|value: String| value.parse::<i32>().ok())
-            .unwrap_or(0);
-        let left_origin_x = left
-            .get_attribute("data-tile-origin-x")
-            .and_then(|value: String| value.parse::<i32>().ok())
-            .unwrap_or(0);
-        let right_origin_x = right
-            .get_attribute("data-tile-origin-x")
-            .and_then(|value: String| value.parse::<i32>().ok())
-            .unwrap_or(0);
-        left_origin_y
-            .cmp(&right_origin_y)
-            .then(left_origin_x.cmp(&right_origin_x))
+        // The engine plans ring-stable physical tile slots; DOM origin can change when a slot is
+        // reused for a new content tile. Keep layout-provider order aligned with renderer identity.
+        parse_tile_key(left)
+            .cmp(&parse_tile_key(right))
             .then(left.id().cmp(&right.id()))
     });
     canvases
+}
+
+#[cfg(not(feature = "piet"))]
+fn parse_tile_key(canvas: &HtmlCanvasElement) -> (i32, i32) {
+    canvas
+        .get_attribute("data-tile-key")
+        .and_then(|key| {
+            let (column, row) = key.split_once(':')?;
+            Some((column.parse().ok()?, row.parse().ok()?))
+        })
+        .unwrap_or((0, 0))
 }
 
 #[cfg(not(feature = "piet"))]

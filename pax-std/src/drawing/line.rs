@@ -5,7 +5,7 @@ use pax_runtime::api::{use_RefCell, Layer, RenderContext, Stroke};
 use pax_runtime::BaseInstance;
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
-use crate::common::Point;
+use crate::common::{begin_bounded_canvas_node, Point};
 use crate::drawing::stroke_utils::{stroke_width_pixels, stroked_outline_path};
 
 use_RefCell!();
@@ -131,40 +131,33 @@ impl InstanceNode for LineInstance {
         rtc: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
-        let layer_id = expanded_node.occlusion.get().occlusion_layer_id;
-
         if !rtc.is_canvas_node_dirty(&expanded_node.id) {
             return;
         }
 
-        if !rc.begin_node(
-            layer_id,
-            expanded_node.id.to_u32(),
-            expanded_node.occlusion.get().z_index,
-        ) {
+        let Some(scope) = begin_bounded_canvas_node(rc, expanded_node, rtc) else {
             return;
-        }
+        };
 
-        let tab = expanded_node.transform_and_bounds.get();
         expanded_node.with_properties_unwrapped(|properties: &mut Line| {
-            let (start, end) = resolve_points(properties, tab.bounds);
+            let (start, end) = resolve_points(properties, scope.bounds);
             let stroke = properties.stroke.get();
             let stroke_width = stroke_width_pixels(&stroke);
             if stroke_width > f64::EPSILON {
                 let bez_path = centerline_path(start, end);
-                rc.save(layer_id);
-                rc.transform(layer_id, tab.transform.into());
+                rc.save(scope.layer_id);
+                rc.transform(scope.layer_id, scope.surface_transform);
                 rc.stroke_with_opacity(
-                    layer_id,
+                    scope.layer_id,
                     bez_path,
                     &stroke,
                     expanded_node.computed_opacity.get(),
                 );
-                rc.restore(layer_id);
+                rc.restore(scope.layer_id);
             }
         });
 
-        if rc.end_node(layer_id, expanded_node.id.to_u32()) {
+        if rc.end_node(scope.layer_id, scope.node_id) {
             rtc.clear_canvas_node_dirty(&expanded_node.id);
         }
     }

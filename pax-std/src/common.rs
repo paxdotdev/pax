@@ -1,6 +1,7 @@
-use kurbo::Affine;
+use kurbo::{Affine, Shape};
 pub use pax_engine::api::Size;
 use pax_engine::*;
+use pax_runtime::api::RenderContext;
 use pax_runtime::{ExpandedNode, RuntimeContext};
 
 #[pax]
@@ -74,4 +75,53 @@ pub fn canvas_surface_transform(expanded_node: &ExpandedNode, context: &RuntimeC
         parent_frame_id = parent_frame.parent_frame.get();
     }
     transform
+}
+
+fn canvas_surface_bounds_for_transform(transform: Affine, bounds: (f64, f64)) -> kurbo::Rect {
+    const TILE_CULL_BOUNDS_PAD: f64 = 64.0;
+    let (width, height) = bounds;
+    let bounds_path = kurbo::Rect::new(0.0, 0.0, width, height).to_path(0.1);
+    (transform * bounds_path)
+        .bounding_box()
+        .inflate(TILE_CULL_BOUNDS_PAD, TILE_CULL_BOUNDS_PAD)
+}
+
+/// Values a primitive needs after the render context has selected live tile surfaces.
+pub struct CanvasNodeRenderScope {
+    pub layer_id: usize,
+    pub node_id: u32,
+    pub surface_transform: Affine,
+    pub bounds: (f64, f64),
+}
+
+/// Begin a bounded retained vector/image node.
+///
+/// The render context owns tile selection and stale-node removal, but `pax-std`
+/// owns deriving conservative canvas-space coverage from an expanded node.
+pub fn begin_bounded_canvas_node(
+    rc: &mut dyn RenderContext,
+    expanded_node: &ExpandedNode,
+    context: &RuntimeContext,
+) -> Option<CanvasNodeRenderScope> {
+    let layer_id = expanded_node.occlusion.get().occlusion_layer_id;
+    let node_id = expanded_node.id.to_u32();
+    let tab = expanded_node.transform_and_bounds.get();
+    let surface_transform = canvas_surface_transform(expanded_node, context);
+    let coverage_bounds = canvas_surface_bounds_for_transform(surface_transform, tab.bounds);
+
+    if !rc.begin_node_with_bounds(
+        layer_id,
+        node_id,
+        expanded_node.occlusion.get().z_index,
+        coverage_bounds,
+    ) {
+        return None;
+    }
+
+    Some(CanvasNodeRenderScope {
+        layer_id,
+        node_id,
+        surface_transform,
+        bounds: tab.bounds,
+    })
 }

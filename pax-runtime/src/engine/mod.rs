@@ -104,6 +104,7 @@ impl std::fmt::Debug for Globals {
 pub struct PaxEngine {
     pub runtime_context: Rc<RuntimeContext>,
     pub root_expanded_node: Rc<ExpandedNode>,
+    pub scroller_tiling_policy: layer_tiling::ScrollerTilingPolicy,
 }
 
 pub enum HandlerLocation {
@@ -159,6 +160,7 @@ impl PaxEngine {
         platform: Platform,
         os: OS,
         get_elapsed_millis: Box<dyn Fn() -> u128>,
+        scroller_tiling_policy: layer_tiling::ScrollerTilingPolicy,
     ) -> Self {
         use crate::api::math::Transform2;
         use pax_runtime_api::{properties, Functions};
@@ -186,6 +188,7 @@ impl PaxEngine {
         PaxEngine {
             runtime_context,
             root_expanded_node: root_node,
+            scroller_tiling_policy,
         }
     }
 
@@ -197,6 +200,7 @@ impl PaxEngine {
         platform: Platform,
         os: OS,
         get_elapsed_millis: Box<dyn Fn() -> u128>,
+        scroller_tiling_policy: layer_tiling::ScrollerTilingPolicy,
     ) -> Self {
         use pax_runtime_api::{math::Transform2, properties, Functions};
         Functions::register_all_functions();
@@ -233,6 +237,7 @@ impl PaxEngine {
         PaxEngine {
             runtime_context,
             root_expanded_node,
+            scroller_tiling_policy,
         }
     }
 
@@ -245,6 +250,7 @@ impl PaxEngine {
         platform: Platform,
         os: OS,
         get_elapsed_millis: Box<dyn Fn() -> u128>,
+        scroller_tiling_policy: layer_tiling::ScrollerTilingPolicy,
     ) -> Self {
         use pax_runtime_api::{math::Transform2, properties, Functions};
         Functions::register_all_functions();
@@ -279,6 +285,7 @@ impl PaxEngine {
         PaxEngine {
             runtime_context,
             root_expanded_node,
+            scroller_tiling_policy,
         }
     }
 

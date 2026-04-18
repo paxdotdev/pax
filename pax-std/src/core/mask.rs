@@ -295,6 +295,8 @@ impl InstanceNode for MaskInstance {
 
         let layers = rcs.layers();
         for layer in 0..layers {
+            // Mask clips are stack effects for descendants, not leaf draw nodes. Keep them
+            // unbounded so every active layer renderer receives the matching save/clip state.
             if !rcs.begin_node(
                 layer,
                 expanded_node.id.to_u32(),

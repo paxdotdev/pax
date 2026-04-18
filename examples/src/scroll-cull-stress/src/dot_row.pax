@@ -1,0 +1,14 @@
+<Path
+    width=100%
+    height=38px
+    elements={elements}
+    fill={Fill::linearGradient(
+        (0%, 0%),
+        (100%, 0%),
+        [
+            GradientStop::get(Color::hsl((card / 6 + (card %% 6) * 60)deg, 34%, (86 - row * 9)%), 0%),
+            GradientStop::get(Color::hsl((card / 6 + (card %% 6) * 60)deg, 64%, (86 - row * 9)%), 50%),
+            GradientStop::get(Color::hsl((card / 6 + (card %% 6) * 60)deg, 92%, (86 - row * 9)%), 100%)
+        ]
+    )}
+/>

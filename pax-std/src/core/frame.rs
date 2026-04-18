@@ -112,6 +112,8 @@ impl InstanceNode for FrameInstance {
             return;
         };
 
+        // Clip stack nodes affect all descendant canvas draws on this layer. They intentionally
+        // use the unbounded begin path; primitive tile culling happens at leaf draw nodes.
         if !rcs.begin_node(
             layer_id,
             expanded_node.id.to_u32(),
