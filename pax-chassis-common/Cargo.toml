@@ -14,6 +14,7 @@ exclude = ["pax-swift-common/.build"]
 
 [dependencies]
 env_logger = "0.11.1"
+log = "0.4.21"
 piet = "0.7.0"
 piet-coregraphics = "0.7.0"
 pax-runtime = { path = "../pax-runtime", version="0.38.3" }

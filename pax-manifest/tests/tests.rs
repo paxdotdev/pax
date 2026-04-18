@@ -241,9 +241,7 @@ mod tests {
                             }),
                             TimelineTrackElement::Keyframe(TimelineKeyframe {
                                 marker: TimelineMarker::Percent(50.0),
-                                value: ValueDefinition::LiteralValue(PaxValue::Numeric(
-                                    1.0.into(),
-                                )),
+                                value: ValueDefinition::LiteralValue(PaxValue::Numeric(1.0.into())),
                                 easing: Some(Token::new_without_location("OutQuad".to_string())),
                             }),
                             TimelineTrackElement::Keyframe(TimelineKeyframe {
@@ -254,9 +252,9 @@ mod tests {
                                 easing: None,
                             }),
                         ],
-                        playhead: Some(Box::new(ValueDefinition::Identifier(
-                            PaxIdentifier::new("self.phase"),
-                        ))),
+                        playhead: Some(Box::new(ValueDefinition::Identifier(PaxIdentifier::new(
+                            "self.phase",
+                        )))),
                         frames: Some(90),
                         repeat: Some(false),
                         starting_value: None,

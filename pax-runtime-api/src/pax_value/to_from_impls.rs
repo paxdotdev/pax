@@ -202,7 +202,11 @@ impl ToPaxValue for StrokeCap {
             StrokeCap::Round => "Round",
             StrokeCap::Square => "Square",
         };
-        PaxValue::Enum(Box::new(("StrokeCap".to_string(), variant.to_string(), vec![])))
+        PaxValue::Enum(Box::new((
+            "StrokeCap".to_string(),
+            variant.to_string(),
+            vec![],
+        )))
     }
 }
 

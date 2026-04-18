@@ -359,10 +359,9 @@ impl Actor for PrivilegedAgentWebSocket {
 
     fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
         let mut active_client = self.state.active_websocket_client.lock().unwrap();
-        let was_active_client = active_client
-            .as_ref()
-            .zip(self.connection_id)
-            .is_some_and(|(active_client, connection_id)| active_client.connection_id == connection_id);
+        let was_active_client = active_client.as_ref().zip(self.connection_id).is_some_and(
+            |(active_client, connection_id)| active_client.connection_id == connection_id,
+        );
         if was_active_client {
             *active_client = None;
         }

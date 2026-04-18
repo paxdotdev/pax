@@ -75,58 +75,7 @@ struct PaxViewIos: View {
     func canvasView(size: CGSize) -> some View {
         PaxCanvasViewRepresentable()
             .frame(width: size.width, height: size.height, alignment: .topLeading)
-            .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .local)
-                .onChanged { dragGesture in
-                    if let previous = self.previousScrollLocation {
-                        let deltaX = dragGesture.location.x - previous.x
-                        let deltaY = dragGesture.location.y - previous.y
-
-                        sendTouchInterrupt(
-                            kind: "TouchMove",
-                            location: dragGesture.location,
-                            delta: CGPoint(x: deltaX, y: deltaY)
-                        )
-
-                        let json = String(format: "{\"Scroll\": {\"x\": %f, \"y\": %f, \"delta_x\": %f, \"delta_y\": %f} }",
-                                          dragGesture.location.x,
-                                          dragGesture.location.y,
-                                          -deltaX,
-                                          -deltaY)
-                        sendInterrupt(with: json)
-                    } else {
-                        sendTouchInterrupt(
-                            kind: "TouchStart",
-                            location: dragGesture.location,
-                            delta: .zero
-                        )
-                    }
-
-                    self.previousScrollLocation = dragGesture.location
-                }
-                .onEnded { dragGesture in
-                    let delta: CGPoint
-                    if let previous = self.previousScrollLocation {
-                        delta = CGPoint(
-                            x: dragGesture.location.x - previous.x,
-                            y: dragGesture.location.y - previous.y
-                        )
-                    } else {
-                        delta = .zero
-                    }
-                    sendTouchInterrupt(
-                        kind: "TouchEnd",
-                        location: dragGesture.location,
-                        delta: delta
-                    )
-                    self.previousScrollLocation = nil
-
-                    let json = String(format: "{\"Click\": {\"x\": %f, \"y\": %f, \"button\": \"Left\", \"modifiers\":[] } }", dragGesture.location.x, dragGesture.location.y)
-                    sendInterrupt(with: json)
-                }
-            )
     }
-
-    @State private var previousScrollLocation: CGPoint? = nil
 
     var body: some View {
         GeometryReader { proxy in
@@ -142,27 +91,6 @@ struct PaxViewIos: View {
             NativeInterruptDispatcher.shared.sendData = sendInterruptToEngine
             registerPaxFontsIfNeeded()
         }
-    }
-
-    func sendInterrupt(with json: String) {
-        let buffer = try! FlexBufferBuilder.fromJSON(json)
-        sendInterrupt(data: buffer.data)
-    }
-
-    func sendTouchInterrupt(kind: String, location: CGPoint, delta: CGPoint) {
-        let json = String(
-            format: "{\"%@\":{\"touches\":[{\"x\":%f,\"y\":%f,\"identifier\":0,\"delta_x\":%f,\"delta_y\":%f}]}}",
-            kind,
-            location.x,
-            location.y,
-            delta.x,
-            delta.y
-        )
-        sendInterrupt(with: json)
-    }
-
-    func sendInterrupt(data: Data) {
-        sendInterruptToEngine(data: data)
     }
 
     class PaxEngineContainer {
@@ -187,13 +115,9 @@ struct PaxViewIos: View {
 
 
     class PaxCanvasViewIos: UIView, NativeMessageHandling {
-
-        override class var layerClass: AnyClass {
-            CAMetalLayer.self
-        }
-
         let textElements = TextElements.singleton
         let frameElements = FrameElements.singleton
+        let scrollerElements = ScrollerElements.singleton
         let buttonElements = ButtonElements.singleton
         let checkboxElements = CheckboxElements.singleton
         let nativeImageElements = NativeImageElements.singleton
@@ -209,20 +133,17 @@ struct PaxViewIos: View {
         private var debugLayoutLogCount = 0
         private var debugTickLogCount = 0
         private var debugHeadingLogCount = 0
-
-        private var metalLayer: CAMetalLayer {
-            layer as! CAMetalLayer
-        }
+        private let surfaceManager = SurfaceManager()
 
         override init(frame: CGRect) {
             super.init(frame: frame)
-            configureMetalLayer()
+            isOpaque = false
             createDisplayLink()
         }
 
         required init?(coder: NSCoder) {
             super.init(coder: coder)
-            configureMetalLayer()
+            isOpaque = false
             createDisplayLink()
         }
 
@@ -244,24 +165,9 @@ struct PaxViewIos: View {
             window?.screen.scale ?? UIScreen.main.scale
         }
 
-        private func configureMetalLayer() {
-            isOpaque = false
-            let scale = currentScale()
-            contentScaleFactor = scale
-            metalLayer.contentsScale = scale
-            metalLayer.framebufferOnly = false
-            metalLayer.isOpaque = false
-            metalLayer.presentsWithTransaction = false
-            metalLayer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
-        }
-
         override func layoutSubviews() {
             super.layoutSubviews()
-            metalLayer.frame = bounds
             let scale = currentScale()
-            contentScaleFactor = scale
-            metalLayer.contentsScale = scale
-            metalLayer.drawableSize = CGSize(width: bounds.width * scale, height: bounds.height * scale)
             if debugLayoutLogCount < 8 {
                 NSLog("[pax-ios-debug] layoutSubviews bounds=%@ frame=%@ scale=%0.2f",
                       NSCoder.string(for: bounds),
@@ -331,7 +237,7 @@ struct PaxViewIos: View {
 
             let nativeMessageQueue = pax_tick(
                 engineContainer,
-                Unmanaged.passUnretained(metalLayer).toOpaque(),
+                nil,
                 width,
                 height,
                 scale
@@ -340,6 +246,13 @@ struct PaxViewIos: View {
             let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
             processNativeMessageQueueData(Data(buffer: buffer))
             pax_dealloc_message_queue(nativeMessageQueue)
+
+            surfaceManager.sync(
+                engineContainer: engineContainer,
+                rootView: self,
+                scale: CGFloat(scale)
+            )
+            pax_render(engineContainer)
 
             if needsNativeTextRemeasure {
                 needsNativeTextRemeasure = false

@@ -1,6 +1,6 @@
 use kurbo::{
-    stroke as kurbo_stroke, BezPath, Cap as KurboCap, Circle, Join as KurboJoin,
-    PathEl, Point, Rect, Shape, Stroke as KurboStroke, StrokeOpts as KurboStrokeOpts,
+    stroke as kurbo_stroke, BezPath, Cap as KurboCap, Circle, Join as KurboJoin, PathEl, Point,
+    Rect, Shape, Stroke as KurboStroke, StrokeOpts as KurboStrokeOpts,
 };
 use pax_runtime::api::{Stroke, StrokeCap};
 

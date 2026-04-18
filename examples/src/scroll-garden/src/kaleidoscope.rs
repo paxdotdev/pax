@@ -12,6 +12,7 @@ pub struct Kaleidoscope {
     pub layers: Property<usize>,
     pub variant: Property<KaleidoscopeVariant>,
     pub playhead: Property<f64>,
+    pub enable_tendrils: Property<bool>,
 
     pub _angles: Property<Vec<f64>>,
     pub _layers: Property<Vec<KaleidoscopeLayer>>,
@@ -31,6 +32,9 @@ impl Default for Kaleidoscope {
             layers: Property::new(3),
             variant: Property::new(KaleidoscopeVariant::Crimson),
             playhead: Property::new(0.0),
+            // Disabled by default until viewport tile culling makes these dense
+            // decorative subtrees cheap enough for the Apple scroller fixture.
+            enable_tendrils: Property::new(false),
             _angles: Property::new(vec![]),
             _layers: Property::new(vec![]),
             _phase: Property::new(0.0),

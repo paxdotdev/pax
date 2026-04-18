@@ -86,8 +86,8 @@ pub struct Scroller {
     pub auto_size: Property<bool>,
     pub border_radius: Property<f64>,
     /// Scroll snap anchors expressed in px/% along each axis.
-    /// Web maps to CSS scroll-snap-type + scroll-snap-align; iOS/macOS should map
-    /// to UIScrollView/NSScrollView snapping APIs when those chassis land.
+    /// Web maps to CSS scroll-snap-type + scroll-snap-align; Apple chassis map these
+    /// offsets to native scroll end-points while keeping engine scroll state authoritative.
     pub snap_positions_x: Property<Vec<Size>>,
     pub snap_positions_y: Property<Vec<Size>>,
 
@@ -303,8 +303,14 @@ fn effective_presentation_scroll(
                 let (content_width, content_height) =
                     expanded_node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
                         (
-                            scroller.scroll_width.get().get_pixels(fallback_viewport_width),
-                            scroller.scroll_height.get().get_pixels(fallback_viewport_height),
+                            scroller
+                                .scroll_width
+                                .get()
+                                .get_pixels(fallback_viewport_width),
+                            scroller
+                                .scroll_height
+                                .get()
+                                .get_pixels(fallback_viewport_height),
                         )
                     });
                 return (
@@ -414,6 +420,8 @@ impl InstanceNode for ScrollerHostInstance {
                             .iter()
                             .map(|pos| pos.get_pixels(height))
                             .collect();
+                        let scroll_enabled_x = scroll_width > width + 0.5;
+                        let scroll_enabled_y = scroll_height > height + 0.5;
                         let presentation_scroll = (
                             properties._presentation_scroll_x.get(),
                             properties._presentation_scroll_y.get(),
@@ -496,6 +504,16 @@ impl InstanceNode for ScrollerHostInstance {
                                 presentation_scroll.1,
                             ),
                             patch_if_needed(
+                                &mut old_state.scroll_enabled_x,
+                                &mut patch.scroll_enabled_x,
+                                scroll_enabled_x,
+                            ),
+                            patch_if_needed(
+                                &mut old_state.scroll_enabled_y,
+                                &mut patch.scroll_enabled_y,
+                                scroll_enabled_y,
+                            ),
+                            patch_if_needed(
                                 &mut old_state.transform,
                                 &mut patch.transform,
                                 computed_tab.transform.coeffs().to_vec(),
@@ -519,10 +537,13 @@ impl InstanceNode for ScrollerHostInstance {
                             || patch.size_y.is_some()
                             || patch.size_inner_pane_x.is_some()
                             || patch.size_inner_pane_y.is_some()
+                            || patch.scroll_enabled_x.is_some()
+                            || patch.scroll_enabled_y.is_some()
                             || patch.transform.is_some()
                             || patch.opacity.is_some()
                             || patch.clip_content.is_some();
-                        let has_scroller_island = resolve_scroller_island_layer(&expanded_node).is_some();
+                        let has_scroller_island =
+                            resolve_scroller_island_layer(&expanded_node).is_some();
                         if updates.into_iter().any(|updated| updated) {
                             context.enqueue_native_message(
                                 pax_message::NativeMessage::ScrollerUpdate(patch),
@@ -726,8 +747,9 @@ impl Scroller {
         let deps = [slot_children_count.untyped()];
         self._slot_children_count
             .replace_with(Property::computed(move || slot_children_count.get(), &deps));
-        self._native_scrolling
-            .set(matches!(ctx.platform, Platform::Web));
+        let native_scrolling =
+            matches!(ctx.platform, Platform::Web) || matches!(ctx.os, OS::IPhone | OS::Mac);
+        self._native_scrolling.set(native_scrolling);
         let scroll_params = match ctx.os {
             OS::Android => PlatformSpecificScrollParams {
                 deacceleration: 0.02,

@@ -1,6 +1,9 @@
 use pax_engine::pax;
-use pax_runtime::api::Layer;
-use pax_runtime::{BaseInstance, InstanceFlags, InstanceNode, InstantiationArgs};
+use pax_runtime::api::{borrow, Layer};
+use pax_runtime::{
+    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
+};
+use std::iter;
 use std::rc::Rc;
 
 /// Gathers a set of children underneath a single render node:
@@ -47,5 +50,27 @@ impl InstanceNode for GroupInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
+    }
+
+    fn handle_control_flow_node_expansion(
+        self: Rc<Self>,
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RuntimeContext>,
+    ) {
+        // Detached sidecar trees are not mounted, but mask sources still need a
+        // fully expanded subtree so their descendants can contribute coverage.
+        let env = Rc::clone(&expanded_node.stack);
+        let children = borrow!(self.base().get_instance_children());
+        let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
+        let children = expanded_node.generate_children(
+            children_with_envs,
+            context,
+            &expanded_node.parent_frame,
+            true,
+        );
+        for child in children.iter() {
+            child.recurse_control_flow_expansion(context);
+        }
+        expanded_node.children.set(children);
     }
 }

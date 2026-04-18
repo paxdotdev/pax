@@ -9,7 +9,7 @@ use crate::Transform2D;
 use wgpu::util::DeviceExt;
 use wgpu::TextureFormat;
 
-use super::{stencil::StencilRenderer, COMPAT_CLEAR_COLOR};
+use super::stencil::StencilRenderer;
 
 pub struct TextureRenderer {
     #[allow(dead_code)]
@@ -178,6 +178,7 @@ impl TextureRenderer {
         globals: &wgpu::Buffer,
         stencil_renderer: &StencilRenderer,
         clear_target: bool,
+        clear_color: wgpu::Color,
         rgba: &[u8],
         rgba_width: u32,
         transform: Transform2D,
@@ -272,7 +273,7 @@ impl TextureRenderer {
                     resolve_target,
                     ops: wgpu::Operations {
                         load: if clear_target {
-                            wgpu::LoadOp::Clear(COMPAT_CLEAR_COLOR)
+                            wgpu::LoadOp::Clear(clear_color)
                         } else {
                             wgpu::LoadOp::Load
                         },
@@ -406,6 +407,7 @@ impl TextureRenderer {
         resolve_target: Option<&wgpu::TextureView>,
         stencil_renderer: &StencilRenderer,
         clear_target: bool,
+        clear_color: wgpu::Color,
         texture: &CachedTextureResource,
         resource: &RetainedImageResource,
     ) {
@@ -423,7 +425,7 @@ impl TextureRenderer {
                     resolve_target,
                     ops: wgpu::Operations {
                         load: if clear_target {
-                            wgpu::LoadOp::Clear(COMPAT_CLEAR_COLOR)
+                            wgpu::LoadOp::Clear(clear_color)
                         } else {
                             wgpu::LoadOp::Load
                         },

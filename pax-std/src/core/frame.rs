@@ -73,9 +73,10 @@ impl InstanceNode for FrameInstance {
     fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {}
 
     fn resolve_effect_clip_path(&self, expanded_node: &ExpandedNode) -> Option<BezPath> {
-        let (clip_content, border_radius) = expanded_node.with_properties_unwrapped(
-            |frame: &mut Frame| (frame._clip_content.get(), frame.border_radius.get()),
-        );
+        let (clip_content, border_radius) =
+            expanded_node.with_properties_unwrapped(|frame: &mut Frame| {
+                (frame._clip_content.get(), frame.border_radius.get())
+            });
         if !clip_content {
             return None;
         }
@@ -209,10 +210,8 @@ impl InstanceNode for FrameInstance {
                         let clip_path = if properties._clip_content.get()
                             && clamped_radius > f64::EPSILON
                         {
-                            let rect =
-                                RoundedRect::new(0.0, 0.0, width, height, clamped_radius);
-                            let bez_path =
-                                Affine::from(computed_tab.transform) * rect.to_path(0.1);
+                            let rect = RoundedRect::new(0.0, 0.0, width, height, clamped_radius);
+                            let bez_path = Affine::from(computed_tab.transform) * rect.to_path(0.1);
                             bez_path_to_svg_path_data(&bez_path)
                         } else {
                             String::new()
@@ -236,7 +235,11 @@ impl InstanceNode for FrameInstance {
                                 &mut patch.transform,
                                 computed_tab.transform.coeffs().to_vec(),
                             ),
-                            patch_if_needed(&mut old_state.clip_path, &mut patch.clip_path, clip_path),
+                            patch_if_needed(
+                                &mut old_state.clip_path,
+                                &mut patch.clip_path,
+                                clip_path,
+                            ),
                             patch_if_needed(
                                 &mut old_state.opacity,
                                 &mut patch.opacity,

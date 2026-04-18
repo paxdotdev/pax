@@ -174,9 +174,7 @@ async fn test_manifest_serialization_request() {
 
         if Instant::now() >= deadline {
             let output = std::fs::read_to_string(path_str).unwrap_or_default();
-            panic!(
-                "timed out waiting for manifest serialization output.\nactual:\n{output}"
-            );
+            panic!("timed out waiting for manifest serialization output.\nactual:\n{output}");
         }
 
         tokio::time::sleep(Duration::from_millis(20)).await;

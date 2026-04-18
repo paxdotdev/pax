@@ -20,6 +20,14 @@ private func affineTransform(from coeffs: [Float]) -> CGAffineTransform {
     )
 }
 
+private func safeInverseTransform(_ transform: CGAffineTransform) -> CGAffineTransform {
+    let determinant = (transform.a * transform.d) - (transform.b * transform.c)
+    guard abs(determinant) > .ulpOfOne else {
+        return .identity
+    }
+    return transform.inverted()
+}
+
 private func resolvedDimension(_ value: Float) -> CGFloat? {
     guard value >= 0 else {
         return nil
@@ -42,6 +50,54 @@ private func combineCGSize(_ size: CGSize, into hasher: inout Hasher) {
 
 private func combineCGFloat(_ value: CGFloat, into hasher: inout Hasher) {
     hasher.combine(value.bitPattern)
+}
+
+private func combinePath(_ path: CGPath, into hasher: inout Hasher) {
+    path.applyWithBlock { elementPointer in
+        let element = elementPointer.pointee
+        let pointCount: Int
+        switch element.type {
+        case .moveToPoint:
+            hasher.combine(0)
+            pointCount = 1
+        case .addLineToPoint:
+            hasher.combine(1)
+            pointCount = 1
+        case .addQuadCurveToPoint:
+            hasher.combine(2)
+            pointCount = 2
+        case .addCurveToPoint:
+            hasher.combine(3)
+            pointCount = 3
+        case .closeSubpath:
+            hasher.combine(4)
+            pointCount = 0
+        @unknown default:
+            hasher.combine(99)
+            pointCount = 0
+        }
+        for index in 0..<pointCount {
+            combineCGFloat(element.points[index].x, into: &hasher)
+            combineCGFloat(element.points[index].y, into: &hasher)
+        }
+    }
+}
+
+private func clipPathSignature(_ paths: [CGPath], size: CGSize) -> Int {
+    var hasher = Hasher()
+    combineCGSize(size, into: &hasher)
+    hasher.combine(paths.count)
+    for path in paths {
+        combinePath(path, into: &hasher)
+    }
+    return hasher.finalize()
+}
+
+private func transformedClipPaths(_ paths: [CGPath], by transform: CGAffineTransform) -> [CGPath] {
+    paths.map { path in
+        var transform = transform
+        return path.copy(using: &transform) ?? path
+    }
 }
 
 private func combineDouble(_ value: Double, into hasher: inout Hasher) {
@@ -117,6 +173,28 @@ private struct PendingMaskRender {
     let payload: RasterizedNativeMaskPayload
 }
 
+private func currentNativeMaskScale() -> CGFloat {
+#if os(iOS) || os(tvOS) || os(watchOS)
+    #if targetEnvironment(simulator)
+    return 1.0
+    #else
+    return UIScreen.main.scale
+    #endif
+#elseif os(macOS)
+    return NSScreen.main?.backingScaleFactor ?? 1.0
+#endif
+}
+
+private func configureNativeTransformLayer(_ layer: CALayer) {
+    layer.allowsEdgeAntialiasing = true
+    layer.edgeAntialiasingMask = [
+        .layerLeftEdge,
+        .layerRightEdge,
+        .layerTopEdge,
+        .layerBottomEdge
+    ]
+}
+
 private struct RasterizedNativeMaskCacheKey: Hashable {
     let signature: UInt64
     let width: UInt64
@@ -184,6 +262,7 @@ private func rasterizedMaskImage(
     // Pax/native leaf geometry is expressed in a top-left, Y-down space.
     // Raw CoreGraphics bitmap contexts default to a bottom-left, Y-up space,
     // so normalize the context before rasterizing hole geometry into the mask.
+    // Frame clip paths are expressed in Pax's top-left, Y-down coordinate space.
     context.scaleBy(x: scale, y: scale)
     context.translateBy(x: 0, y: payload.size.height)
     context.scaleBy(x: 1, y: -1)
@@ -207,6 +286,44 @@ private func rasterizedMaskImage(
         context.fillPath()
         context.restoreGState()
     }
+
+    return context.makeImage()
+}
+
+private func rasterizedPositiveClipMaskImage(
+    paths: [CGPath],
+    size: CGSize,
+    scale: CGFloat
+) -> CGImage? {
+    guard size.width > 0, size.height > 0, !paths.isEmpty else {
+        return nil
+    }
+    let pixelWidth = max(Int(ceil(size.width * scale)), 1)
+    let pixelHeight = max(Int(ceil(size.height * scale)), 1)
+    let bytesPerRow = pixelWidth * 4
+    let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+        | CGBitmapInfo.byteOrder32Big.rawValue
+
+    guard let context = CGContext(
+        data: nil,
+        width: pixelWidth,
+        height: pixelHeight,
+        bitsPerComponent: 8,
+        bytesPerRow: bytesPerRow,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: bitmapInfo
+    ) else {
+        return nil
+    }
+
+    context.scaleBy(x: scale, y: scale)
+    context.translateBy(x: 0, y: size.height)
+    context.scaleBy(x: 1, y: -1)
+    context.setFillColor(gray: 1.0, alpha: 1.0)
+    for path in paths {
+        context.addPath(path)
+    }
+    context.fillPath()
 
     return context.makeImage()
 }
@@ -380,6 +497,51 @@ private func platformLayerTextAlignment(_ alignment: Alignment) -> CATextLayerAl
 }
 #endif
 
+public final class NativeLayerCountTracker {
+    public static let shared = NativeLayerCountTracker()
+    public private(set) var layerCount: Int = 1
+
+    private init() {}
+
+    public func update(_ count: Int) {
+        layerCount = max(count, 1)
+    }
+}
+
+public final class NativeScrollerHostRegistry {
+#if os(iOS) || os(tvOS) || os(watchOS)
+    public typealias HostView = UIView
+#elseif os(macOS)
+    public typealias HostView = NSView
+#endif
+
+    public struct Hosts {
+        public let canvasHost: HostView
+        public let contentHost: HostView
+    }
+
+    public static let shared = NativeScrollerHostRegistry()
+    private var hosts: [PaxNodeId: Hosts] = [:]
+
+    private init() {}
+
+    public func register(id: PaxNodeId, canvasHost: HostView, contentHost: HostView) {
+        hosts[id] = Hosts(canvasHost: canvasHost, contentHost: contentHost)
+    }
+
+    public func unregister(id: PaxNodeId) {
+        hosts.removeValue(forKey: id)
+    }
+
+    public func canvasHost(for id: PaxNodeId) -> HostView? {
+        hosts[id]?.canvasHost
+    }
+
+    public func contentHost(for id: PaxNodeId) -> HostView? {
+        hosts[id]?.contentHost
+    }
+}
+
 public struct NativeRenderingLayer: View {
     public init() {}
 
@@ -387,6 +549,7 @@ public struct NativeRenderingLayer: View {
     @ObservedObject var nativeSceneInvalidation = NativeSceneInvalidation.singleton
     let textElements = TextElements.singleton
     let frameElements = FrameElements.singleton
+    let scrollerElements = ScrollerElements.singleton
     let buttonElements = ButtonElements.singleton
     let checkboxElements = CheckboxElements.singleton
     let nativeImageElements = NativeImageElements.singleton
@@ -548,6 +711,29 @@ public struct NativeRenderingLayer: View {
         let children: [NativeRenderNode]
     }
 
+    private struct ScrollerRenderNode: Identifiable {
+        let id: PaxNodeId
+        let zIndex: Int
+        let parentFrame: PaxNodeId?
+        let localTransform: CGAffineTransform
+        let size: CGSize
+        let opacity: Double
+        let clipContent: Bool
+        let borderRadius: CGFloat
+        let clipSignature: Int
+        let contentSize: CGSize
+        let scrollX: Double
+        let scrollY: Double
+        let presentationScrollX: Double
+        let presentationScrollY: Double
+        let scrollEnabledX: Bool
+        let scrollEnabledY: Bool
+        let snapPointsX: [CGFloat]
+        let snapPointsY: [CGFloat]
+        let mask: ResolvedNativeMask?
+        let children: [NativeRenderNode]
+    }
+
     private final class RenderTreeCache {
         var generation: UInt64 = .max
         var nodes: [NativeRenderNode] = []
@@ -558,6 +744,7 @@ public struct NativeRenderingLayer: View {
     private enum NativeRenderNode: Identifiable {
         case item(NativeRenderItem)
         case frame(FrameRenderNode)
+        case scroller(ScrollerRenderNode)
 
         var id: String {
             switch self {
@@ -565,6 +752,8 @@ public struct NativeRenderingLayer: View {
                 return "item-\(item.id)"
             case .frame(let frame):
                 return "frame-\(frame.id)"
+            case .scroller(let scroller):
+                return "scroller-\(scroller.id)"
             }
         }
 
@@ -574,6 +763,8 @@ public struct NativeRenderingLayer: View {
                 return item.zIndex
             case .frame(let frame):
                 return frame.zIndex
+            case .scroller(let scroller):
+                return scroller.zIndex
             }
         }
 
@@ -583,6 +774,8 @@ public struct NativeRenderingLayer: View {
                 return item.id
             case .frame(let frame):
                 return frame.id
+            case .scroller(let scroller):
+                return scroller.id
             }
         }
     }
@@ -614,6 +807,7 @@ public struct NativeRenderingLayer: View {
             clipsToBounds = false
             autoresizesSubviews = false
             layer.anchorPoint = CGPoint(x: 0.0, y: 0.0)
+            configureNativeTransformLayer(layer)
         }
 #elseif os(macOS)
         override var isFlipped: Bool { true }
@@ -623,8 +817,12 @@ public struct NativeRenderingLayer: View {
             wantsLayer = true
             layer?.backgroundColor = NSColor.clear.cgColor
             layer?.anchorPoint = CGPoint(x: 0.0, y: 0.0)
+            if let layer {
+                configureNativeTransformLayer(layer)
+            }
             autoresizesSubviews = false
         }
+
 #endif
 
         required init?(coder: NSCoder) {
@@ -660,6 +858,7 @@ public struct NativeRenderingLayer: View {
                 clipMaskLayer.frame = CGRect(origin: .zero, size: bounds.size)
                 clipMaskLayer.path = path
                 clipMaskLayer.fillColor = platformColor(.white).cgColor
+                clipMaskLayer.contents = nil
                 backingLayer.mask = clipMaskLayer
                 backingLayer.cornerRadius = 0
                 backingLayer.masksToBounds = false
@@ -700,17 +899,79 @@ public struct NativeRenderingLayer: View {
                 tx: 0,
                 ty: 0
             )
+#if os(macOS)
+            let viewBackedTransform = Self.viewBackedTransform(
+                size: size,
+                linearTransform: linearTransform
+            )
+            let rectSize = viewBackedTransform.frameSize
+#else
+            let rectSize = size
+#endif
             CATransaction.begin()
             CATransaction.setDisableActions(true)
-            frame = rect
+            frame = CGRect(origin: rect.origin, size: rectSize)
             bounds = boundsRect
             let layer = backingLayer
+#if os(macOS)
+            if let layerTransform = viewBackedTransform.layerTransform {
+                frameRotation = viewBackedTransform.frameRotationDegrees
+                layer.setAffineTransform(layerTransform)
+            } else {
+                // Clear stale layer transforms before using AppKit's transform-aware
+                // frame rotation path. Setting this after frameRotation can erase the
+                // visual rotation on layer-backed views.
+                layer.setAffineTransform(.identity)
+                frameRotation = viewBackedTransform.frameRotationDegrees
+            }
+#else
             layer.setAffineTransform(linearTransform)
+#endif
             layer.zPosition = CGFloat(zIndex)
             layer.opacity = Float(opacity)
             CATransaction.commit()
             appliedGeometry = geometry
         }
+
+#if os(macOS)
+        private struct ViewBackedTransform {
+            let frameSize: CGSize
+            let frameRotationDegrees: CGFloat
+            let layerTransform: CGAffineTransform?
+        }
+
+        private static func viewBackedTransform(
+            size: CGSize,
+            linearTransform: CGAffineTransform
+        ) -> ViewBackedTransform {
+            let scaleX = hypot(linearTransform.a, linearTransform.b)
+            let scaleY = hypot(linearTransform.c, linearTransform.d)
+            let determinant = linearTransform.a * linearTransform.d - linearTransform.b * linearTransform.c
+            let columnDot = linearTransform.a * linearTransform.c + linearTransform.b * linearTransform.d
+            let shear = abs(columnDot) / max(scaleX * scaleY, CGFloat.ulpOfOne)
+
+            guard scaleX.isFinite,
+                  scaleY.isFinite,
+                  scaleX > CGFloat.ulpOfOne,
+                  scaleY > CGFloat.ulpOfOne,
+                  determinant > CGFloat.ulpOfOne,
+                  shear < 0.001
+            else {
+                return ViewBackedTransform(
+                    frameSize: size,
+                    frameRotationDegrees: 0,
+                    layerTransform: linearTransform
+                )
+            }
+
+            let radians = atan2(linearTransform.b, linearTransform.a)
+            return ViewBackedTransform(
+                frameSize: CGSize(width: size.width * scaleX, height: size.height * scaleY),
+                frameRotationDegrees: radians * 180.0 / .pi,
+                layerTransform: nil
+            )
+        }
+#endif
     }
 
     private static func attachPlatformSubview(_ child: PlatformBaseView, to parent: PlatformBaseView) {
@@ -868,15 +1129,7 @@ public struct NativeRenderingLayer: View {
 #endif
 
         private static func currentMaskScale() -> CGFloat {
-#if os(iOS) || os(tvOS) || os(watchOS)
-            #if targetEnvironment(simulator)
-            return 1.0
-            #else
-            return UIScreen.main.scale
-            #endif
-#elseif os(macOS)
-            return NSScreen.main?.backingScaleFactor ?? 1.0
-#endif
+            currentNativeMaskScale()
         }
 
         private func enqueueMaskRender(payload: RasterizedNativeMaskPayload, scale: CGFloat) {
@@ -1027,9 +1280,749 @@ public struct NativeRenderingLayer: View {
         }
     }
 
+#if os(iOS) || os(tvOS) || os(watchOS)
+    private protocol PlatformScrollerDelegate: UIScrollViewDelegate {}
+#elseif os(macOS)
+    private protocol PlatformScrollerDelegate {}
+#endif
+
+    private final class PlatformScrollerView: PlatformContainerView, PlatformScrollerDelegate {
+        private let scrollerId: PaxNodeId
+#if os(iOS) || os(tvOS) || os(watchOS)
+        private let scrollView = UIScrollView()
+        private let innerContentView = UIView()
+#elseif os(macOS)
+        private final class FlippedContentView: NSView {
+            override var isFlipped: Bool { true }
+        }
+        private let scrollView = NSScrollView()
+        private let innerContentView = FlippedContentView()
+        private var scrollObserver: NSObjectProtocol?
+        private var liveScrollStartObserver: NSObjectProtocol?
+        private var liveScrollEndObserver: NSObjectProtocol?
+        private var pendingSnapWorkItem: DispatchWorkItem?
+        private let macSnapQuietDelay: TimeInterval = 0.22
+        private var macSnapTimer: Timer?
+        private var isLiveScrolling = false
+        private var lastNativeScrollTime: TimeInterval = 0
+#endif
+        private let canvasHostViewInternal = PlatformContainerView(frame: .zero)
+        private let contentHostViewInternal = PlatformContainerView(frame: .zero)
+        private var appliedContentSize: CGSize = .zero
+        private var appliedScrollEnabledX: Bool?
+        private var appliedScrollEnabledY: Bool?
+        private var appliedSnapPointsX: [CGFloat] = []
+        private var appliedSnapPointsY: [CGFloat] = []
+        private var appliedScrollPosition: CGPoint = .zero
+#if os(iOS) || os(tvOS) || os(watchOS)
+        private var pendingIOSSnapTarget: CGPoint?
+        private var isProgrammaticSnapAnimating = false
+        private var iosSnapGeneration: UInt64 = 0
+        private var iosSnapDisplayLink: CADisplayLink?
+        private var iosSnapStartPosition: CGPoint = .zero
+        private var iosSnapTargetPosition: CGPoint = .zero
+        private var iosSnapStartTime: CFTimeInterval = 0
+        private var iosSnapDuration: TimeInterval = 0
+#elseif os(macOS)
+        private var isMacSnapActive = false
+        private var hasNativeSnapPoints: Bool {
+            !appliedSnapPointsX.isEmpty || !appliedSnapPointsY.isEmpty
+        }
+        private var macScrollSequence: UInt64 = 0
+        private var macSnapStartPosition: CGPoint = .zero
+        private var macSnapTargetPosition: CGPoint = .zero
+        private var macSnapStartTime: TimeInterval = 0
+        private var macSnapDuration: TimeInterval = 0
+#endif
+        private var appliedMaskSignature: UInt64?
+        private var appliedMaskSize: CGSize = .zero
+        private var currentNativeMaskLayer: CALayer?
+        private let positiveClipMaskLayer = CAShapeLayer()
+        private var appliedPositiveClipSignature: Int?
+        private var suppressScrollEvents = false
+
+        var contentHostView: PlatformContainerView { contentHostViewInternal }
+
+        init(id: PaxNodeId) {
+            self.scrollerId = id
+            super.init(frame: .zero)
+#if os(iOS) || os(tvOS) || os(watchOS)
+            scrollView.delegate = self
+            scrollView.showsVerticalScrollIndicator = false
+            scrollView.showsHorizontalScrollIndicator = false
+            scrollView.backgroundColor = .clear
+            scrollView.isOpaque = false
+            scrollView.alwaysBounceVertical = true
+            scrollView.alwaysBounceHorizontal = true
+            scrollView.clipsToBounds = true
+            scrollView.layer.masksToBounds = true
+            scrollView.contentInsetAdjustmentBehavior = .never
+            innerContentView.backgroundColor = .clear
+            innerContentView.isOpaque = false
+            scrollView.addSubview(innerContentView)
+#elseif os(macOS)
+            scrollView.wantsLayer = true
+            scrollView.hasVerticalScroller = false
+            scrollView.hasHorizontalScroller = false
+            scrollView.drawsBackground = false
+            scrollView.autohidesScrollers = true
+            scrollView.layer?.masksToBounds = true
+            scrollView.contentView.wantsLayer = true
+            scrollView.contentView.layer?.masksToBounds = true
+            innerContentView.wantsLayer = true
+            scrollView.contentView.postsBoundsChangedNotifications = true
+            scrollView.documentView = innerContentView
+            scrollObserver = NotificationCenter.default.addObserver(
+                forName: NSView.boundsDidChangeNotification,
+                object: scrollView.contentView,
+                queue: .main
+            ) { [weak self] _ in
+                self?.handleScroll()
+            }
+            liveScrollStartObserver = NotificationCenter.default.addObserver(
+                forName: NSScrollView.willStartLiveScrollNotification,
+                object: scrollView,
+                queue: .main
+            ) { [weak self] _ in
+                self?.isLiveScrolling = true
+                self?.beginMacUserScroll()
+            }
+            liveScrollEndObserver = NotificationCenter.default.addObserver(
+                forName: NSScrollView.didEndLiveScrollNotification,
+                object: scrollView,
+                queue: .main
+            ) { [weak self] _ in
+                self?.isLiveScrolling = false
+                self?.lastNativeScrollTime = Date().timeIntervalSinceReferenceDate
+                // Generic NSScrollView has no UIKit-style target-content-offset
+                // hook. Let AppKit finish live/momentum scrolling, then snap the
+                // resting clip origin so native momentum does not fight us.
+                self?.snapMacScrollPosition(animated: true)
+            }
+#endif
+
+            canvasHostViewInternal.isHidden = false
+            contentHostViewInternal.isHidden = false
+#if os(iOS) || os(tvOS) || os(watchOS)
+            canvasHostViewInternal.isUserInteractionEnabled = false
+            canvasHostViewInternal.layer.zPosition = 0
+            contentHostViewInternal.layer.zPosition = 1
+#elseif os(macOS)
+            canvasHostViewInternal.layer?.zPosition = 0
+            contentHostViewInternal.layer?.zPosition = 1
+#endif
+            innerContentView.addSubview(canvasHostViewInternal)
+            innerContentView.addSubview(contentHostViewInternal)
+            addSubview(scrollView)
+
+            NativeScrollerHostRegistry.shared.register(
+                id: scrollerId,
+                canvasHost: canvasHostViewInternal,
+                contentHost: contentHostViewInternal
+            )
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        deinit {
+#if os(macOS)
+            if let scrollObserver {
+                NotificationCenter.default.removeObserver(scrollObserver)
+            }
+            if let liveScrollStartObserver {
+                NotificationCenter.default.removeObserver(liveScrollStartObserver)
+            }
+            if let liveScrollEndObserver {
+                NotificationCenter.default.removeObserver(liveScrollEndObserver)
+            }
+#endif
+            NativeScrollerHostRegistry.shared.unregister(id: scrollerId)
+#if os(macOS)
+            cancelMacSnap()
+#endif
+        }
+
+#if os(iOS) || os(tvOS) || os(watchOS)
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            scrollView.frame = bounds
+        }
+#elseif os(macOS)
+        override func layout() {
+            super.layout()
+            scrollView.frame = bounds
+        }
+#endif
+
+        func update(scroller: ScrollerRenderNode) {
+            updateScrollEnabled(scroller.scrollEnabledX, scroller.scrollEnabledY)
+            updateSnapPoints(x: scroller.snapPointsX, y: scroller.snapPointsY)
+            updateContentSize(scroller.contentSize)
+            let scrollX = scroller.presentationScrollX.isFinite ? scroller.presentationScrollX : scroller.scrollX
+            let scrollY = scroller.presentationScrollY.isFinite ? scroller.presentationScrollY : scroller.scrollY
+            updateScrollPosition(CGPoint(x: scrollX, y: scrollY))
+#if os(iOS) || os(tvOS) || os(watchOS)
+            scrollView.clipsToBounds = scroller.clipContent
+            scrollView.layer.cornerRadius = scroller.clipContent ? scroller.borderRadius : 0
+            scrollView.layer.masksToBounds = scroller.clipContent
+#elseif os(macOS)
+            scrollView.contentView.copiesOnScroll = false
+            scrollView.layer?.cornerRadius = scroller.clipContent ? scroller.borderRadius : 0
+            scrollView.layer?.masksToBounds = scroller.clipContent
+            scrollView.contentView.layer?.masksToBounds = scroller.clipContent
+#endif
+        }
+
+        func updatePositiveClip(paths: [CGPath], size: CGSize) {
+            let signature = clipPathSignature(paths, size: size)
+            guard appliedPositiveClipSignature != signature else {
+                return
+            }
+            appliedPositiveClipSignature = signature
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            guard !paths.isEmpty else {
+#if os(iOS) || os(tvOS) || os(watchOS)
+                scrollView.layer.mask = nil
+#elseif os(macOS)
+                scrollView.layer?.mask = nil
+                scrollView.contentView.layer?.mask = nil
+#endif
+                CATransaction.commit()
+                return
+            }
+
+            positiveClipMaskLayer.frame = CGRect(origin: .zero, size: size)
+            let scale = currentNativeMaskScale()
+            positiveClipMaskLayer.contentsScale = scale
+            positiveClipMaskLayer.rasterizationScale = scale
+            if paths.count == 1, let path = paths.first {
+                positiveClipMaskLayer.path = path
+                positiveClipMaskLayer.fillColor = platformColor(.white).cgColor
+                positiveClipMaskLayer.contents = nil
+                positiveClipMaskLayer.contentsGravity = .resize
+#if os(iOS) || os(tvOS) || os(watchOS)
+                scrollView.layer.mask = positiveClipMaskLayer
+#elseif os(macOS)
+                scrollView.layer?.mask = positiveClipMaskLayer
+                scrollView.contentView.layer?.mask = nil
+#endif
+            } else {
+                if let image = rasterizedPositiveClipMaskImage(paths: paths, size: size, scale: scale) {
+                    positiveClipMaskLayer.path = nil
+                    positiveClipMaskLayer.fillColor = platformColor(.white).cgColor
+                    positiveClipMaskLayer.contents = image
+                    positiveClipMaskLayer.contentsScale = scale
+                    positiveClipMaskLayer.contentsGravity = .resize
+#if os(iOS) || os(tvOS) || os(watchOS)
+                    scrollView.layer.mask = positiveClipMaskLayer
+#elseif os(macOS)
+                    scrollView.layer?.mask = positiveClipMaskLayer
+                    scrollView.contentView.layer?.mask = nil
+#endif
+                }
+            }
+            CATransaction.commit()
+        }
+
+        func updateNativeMask(_ mask: ResolvedNativeMask?) {
+            guard let mask else {
+                guard appliedMaskSignature != nil || currentNativeMaskLayer != nil else {
+                    return
+                }
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                backingLayer.mask = nil
+                CATransaction.commit()
+                appliedMaskSignature = nil
+                appliedMaskSize = .zero
+                currentNativeMaskLayer = nil
+                return
+            }
+
+            if appliedMaskSignature == mask.signature && appliedMaskSize == mask.size {
+                return
+            }
+
+            let payload = rasterPayload(from: mask)
+            let scale = currentNativeMaskScale()
+            guard let image = cachedRasterizedMaskImage(payload: payload, scale: scale) else {
+                return
+            }
+
+            let maskLayer = CALayer()
+            maskLayer.frame = CGRect(origin: .zero, size: payload.size)
+            maskLayer.contents = image
+            maskLayer.contentsScale = scale
+            maskLayer.contentsGravity = .resize
+
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            backingLayer.mask = maskLayer
+            backingLayer.rasterizationScale = scale
+            CATransaction.commit()
+
+            appliedMaskSignature = mask.signature
+            appliedMaskSize = mask.size
+            currentNativeMaskLayer = maskLayer
+        }
+
+        private func updateSnapPoints(x: [CGFloat], y: [CGFloat]) {
+            if appliedSnapPointsX != x {
+                appliedSnapPointsX = x
+            }
+            if appliedSnapPointsY != y {
+                appliedSnapPointsY = y
+            }
+#if os(macOS)
+            updateMacScrollElasticity()
+#endif
+        }
+
+        private func nearestSnapPoint(
+            to value: CGFloat,
+            points: [CGFloat],
+            maxOffset: CGFloat
+        ) -> CGFloat {
+            guard !points.isEmpty else {
+                return min(max(0, value), maxOffset)
+            }
+            var best = min(max(0, points[0]), maxOffset)
+            var bestDistance = abs(best - value)
+            for point in points.dropFirst() {
+                let clamped = min(max(0, point), maxOffset)
+                let distance = abs(clamped - value)
+                if distance < bestDistance {
+                    best = clamped
+                    bestDistance = distance
+                }
+            }
+            return best
+        }
+
+        private func snappedScrollPosition(_ position: CGPoint) -> CGPoint {
+            let viewportSize: CGSize
+#if os(iOS) || os(tvOS) || os(watchOS)
+            viewportSize = scrollView.bounds.size
+#elseif os(macOS)
+            viewportSize = scrollView.contentView.bounds.size
+#endif
+            let maxX = max(0, appliedContentSize.width - viewportSize.width)
+            let maxY = max(0, appliedContentSize.height - viewportSize.height)
+            let x = appliedSnapPointsX.isEmpty
+                ? min(max(0, position.x), maxX)
+                : nearestSnapPoint(to: position.x, points: appliedSnapPointsX, maxOffset: maxX)
+            let y = appliedSnapPointsY.isEmpty
+                ? min(max(0, position.y), maxY)
+                : nearestSnapPoint(to: position.y, points: appliedSnapPointsY, maxOffset: maxY)
+            return CGPoint(x: x, y: y)
+        }
+
+        private func updateContentSize(_ size: CGSize) {
+            let safeSize = CGSize(width: max(0, size.width), height: max(0, size.height))
+            guard safeSize != appliedContentSize else {
+                return
+            }
+            appliedContentSize = safeSize
+            let rect = CGRect(origin: .zero, size: safeSize)
+            innerContentView.frame = rect
+            canvasHostViewInternal.frame = rect
+            contentHostViewInternal.frame = rect
+#if os(iOS) || os(tvOS) || os(watchOS)
+            scrollView.contentSize = safeSize
+#elseif os(macOS)
+            innerContentView.setFrameSize(safeSize)
+            if scrollView.documentView !== innerContentView {
+                scrollView.documentView = innerContentView
+            }
+            clampMacScrollPositionToContent()
+#endif
+        }
+
+        private func updateScrollEnabled(_ enableX: Bool, _ enableY: Bool) {
+            guard enableX != appliedScrollEnabledX || enableY != appliedScrollEnabledY else {
+                return
+            }
+            appliedScrollEnabledX = enableX
+            appliedScrollEnabledY = enableY
+#if os(iOS) || os(tvOS) || os(watchOS)
+            scrollView.isScrollEnabled = enableX || enableY
+            scrollView.alwaysBounceHorizontal = enableX
+            scrollView.alwaysBounceVertical = enableY
+#elseif os(macOS)
+            updateMacScrollElasticity()
+            clampMacScrollPositionToContent()
+#endif
+        }
+
+#if os(macOS)
+        private func setMacClipOrigin(_ origin: CGPoint) {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            scrollView.contentView.setBoundsOrigin(origin)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+            CATransaction.commit()
+        }
+
+        private func updateMacScrollElasticity() {
+            let enableX = appliedScrollEnabledX == true
+            let enableY = appliedScrollEnabledY == true
+            scrollView.horizontalScrollElasticity = enableX && appliedSnapPointsX.isEmpty
+                ? .automatic
+                : .none
+            scrollView.verticalScrollElasticity = enableY && appliedSnapPointsY.isEmpty
+                ? .automatic
+                : .none
+        }
+
+        private func cancelMacSnap() {
+            pendingSnapWorkItem?.cancel()
+            pendingSnapWorkItem = nil
+            macSnapTimer?.invalidate()
+            macSnapTimer = nil
+        }
+
+        private func beginMacUserScroll() {
+            cancelMacSnap()
+            macScrollSequence &+= 1
+            if isMacSnapActive {
+                scrollView.contentView.layer?.removeAllAnimations()
+            }
+            suppressScrollEvents = false
+            isMacSnapActive = false
+        }
+
+        private func scheduleMacSnap(delay: TimeInterval? = nil) {
+            guard !appliedSnapPointsX.isEmpty || !appliedSnapPointsY.isEmpty else {
+                return
+            }
+            guard !isLiveScrolling else {
+                return
+            }
+            guard !isMacSnapActive else {
+                return
+            }
+            cancelMacSnap()
+            let quietDelay = delay ?? macSnapQuietDelay
+            let scheduledSequence = macScrollSequence
+            let workItem = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                guard scheduledSequence == self.macScrollSequence else {
+                    return
+                }
+                let elapsed = Date().timeIntervalSinceReferenceDate - self.lastNativeScrollTime
+                guard elapsed >= quietDelay else {
+                    self.scheduleMacSnap(delay: quietDelay - elapsed)
+                    return
+                }
+                self.snapMacScrollPosition(animated: true)
+            }
+            pendingSnapWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + quietDelay, execute: workItem)
+        }
+
+        private func snapMacScrollPosition(animated: Bool) {
+            guard !appliedSnapPointsX.isEmpty || !appliedSnapPointsY.isEmpty else {
+                return
+            }
+            guard !isMacSnapActive else {
+                return
+            }
+            let current = scrollView.contentView.bounds.origin
+            let target = snappedScrollPosition(current)
+            guard shouldApplyScrollPosition(target, current: current) else {
+                return
+            }
+
+            cancelMacSnap()
+            let distance = hypot(target.x - current.x, target.y - current.y)
+            appliedScrollPosition = target
+            isMacSnapActive = true
+            suppressScrollEvents = false
+            macSnapStartPosition = current
+            macSnapTargetPosition = target
+
+            if !animated || distance <= 0.5 {
+                setMacClipOrigin(target)
+                finishMacSnap()
+                return
+            }
+
+            macSnapDuration = min(max(Double(distance / 2400.0), 0.14), 0.34)
+            macSnapStartTime = CACurrentMediaTime()
+            let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
+                self?.stepMacSnapAnimation(timer)
+            }
+            macSnapTimer = timer
+            RunLoop.main.add(timer, forMode: .common)
+        }
+
+        private func stepMacSnapAnimation(_ timer: Timer) {
+            guard isMacSnapActive else {
+                timer.invalidate()
+                if macSnapTimer === timer {
+                    macSnapTimer = nil
+                }
+                return
+            }
+            let elapsed = CACurrentMediaTime() - macSnapStartTime
+            let rawProgress = macSnapDuration <= 0 ? 1 : min(max(elapsed / macSnapDuration, 0), 1)
+            let easedProgress = 1 - pow(1 - rawProgress, 3)
+            let next = CGPoint(
+                x: macSnapStartPosition.x
+                    + (macSnapTargetPosition.x - macSnapStartPosition.x) * easedProgress,
+                y: macSnapStartPosition.y
+                    + (macSnapTargetPosition.y - macSnapStartPosition.y) * easedProgress
+            )
+            setMacClipOrigin(next)
+            if rawProgress >= 1 {
+                finishMacSnap()
+            }
+        }
+
+        private func finishMacSnap() {
+            macSnapTimer?.invalidate()
+            macSnapTimer = nil
+            let target = macSnapTargetPosition
+            if shouldApplyScrollPosition(target, current: scrollView.contentView.bounds.origin) {
+                setMacClipOrigin(target)
+            }
+            isMacSnapActive = false
+            let now = Date().timeIntervalSinceReferenceDate
+            lastNativeScrollTime = now
+            appliedScrollPosition = target
+            dispatchScrollbarChange(
+                id: scrollerId,
+                scrollX: Double(target.x),
+                scrollY: Double(target.y),
+                presentationScrollX: Double(target.x),
+                presentationScrollY: Double(target.y)
+            )
+        }
+
+        private func clampMacScrollPositionToContent() {
+            let viewportSize = scrollView.contentView.bounds.size
+            let maxX = max(0, appliedContentSize.width - viewportSize.width)
+            let maxY = max(0, appliedContentSize.height - viewportSize.height)
+            let current = scrollView.contentView.bounds.origin
+            let clamped = NSPoint(
+                x: min(max(0, current.x), maxX),
+                y: min(max(0, current.y), maxY)
+            )
+            guard shouldApplyScrollPosition(clamped, current: current) else {
+                return
+            }
+            suppressScrollEvents = true
+            setMacClipOrigin(clamped)
+            suppressScrollEvents = false
+            appliedScrollPosition = clamped
+        }
+#endif
+
+        private func updateScrollPosition(_ position: CGPoint) {
+            appliedScrollPosition = position
+#if os(iOS) || os(tvOS) || os(watchOS)
+            guard shouldApplyScrollPosition(position, current: scrollView.contentOffset) else {
+                return
+            }
+            if isProgrammaticSnapAnimating {
+                return
+            }
+            if scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating {
+                return
+            }
+            suppressScrollEvents = true
+            scrollView.setContentOffset(position, animated: false)
+            suppressScrollEvents = false
+#elseif os(macOS)
+            let viewportSize = scrollView.contentView.bounds.size
+            let target = NSPoint(
+                x: min(max(0, position.x), max(0, appliedContentSize.width - viewportSize.width)),
+                y: min(max(0, position.y), max(0, appliedContentSize.height - viewportSize.height))
+            )
+            guard shouldApplyScrollPosition(target, current: scrollView.contentView.bounds.origin) else {
+                return
+            }
+            if Date().timeIntervalSinceReferenceDate - lastNativeScrollTime < macSnapQuietDelay {
+                return
+            }
+            if isMacSnapActive {
+                return
+            }
+            suppressScrollEvents = true
+            setMacClipOrigin(target)
+            suppressScrollEvents = false
+#endif
+        }
+
+        private func shouldApplyScrollPosition(_ target: CGPoint, current: CGPoint) -> Bool {
+            abs(target.x - current.x) > 0.5 || abs(target.y - current.y) > 0.5
+        }
+
+#if os(iOS) || os(tvOS) || os(watchOS)
+        private func cancelIOSSnap() {
+            iosSnapGeneration &+= 1
+            iosSnapDisplayLink?.invalidate()
+            iosSnapDisplayLink = nil
+            isProgrammaticSnapAnimating = false
+            suppressScrollEvents = false
+        }
+
+        private func snapIOSScrollPosition(to target: CGPoint, animated: Bool) {
+            guard !appliedSnapPointsX.isEmpty || !appliedSnapPointsY.isEmpty else {
+                isProgrammaticSnapAnimating = false
+                return
+            }
+            let current = scrollView.contentOffset
+            guard shouldApplyScrollPosition(target, current: current) else {
+                isProgrammaticSnapAnimating = false
+                suppressScrollEvents = false
+                return
+            }
+            iosSnapDisplayLink?.invalidate()
+            isProgrammaticSnapAnimating = true
+            suppressScrollEvents = false
+            iosSnapGeneration &+= 1
+            iosSnapStartPosition = current
+            iosSnapTargetPosition = target
+            if !animated {
+                scrollView.contentOffset = target
+                finishIOSSnap()
+                return
+            }
+            let distance = hypot(target.x - current.x, target.y - current.y)
+            iosSnapDuration = min(max(Double(distance / 2200.0), 0.16), 0.42)
+            iosSnapStartTime = CACurrentMediaTime()
+            let displayLink = CADisplayLink(target: self, selector: #selector(stepIOSSnapAnimation(_:)))
+            iosSnapDisplayLink = displayLink
+            displayLink.add(to: .main, forMode: .common)
+        }
+
+        @objc private func stepIOSSnapAnimation(_ displayLink: CADisplayLink) {
+            guard isProgrammaticSnapAnimating else {
+                displayLink.invalidate()
+                if iosSnapDisplayLink === displayLink {
+                    iosSnapDisplayLink = nil
+                }
+                return
+            }
+            let elapsed = CACurrentMediaTime() - iosSnapStartTime
+            let rawProgress = iosSnapDuration <= 0 ? 1 : min(max(elapsed / iosSnapDuration, 0), 1)
+            let easedProgress = 1 - pow(1 - rawProgress, 3)
+            let next = CGPoint(
+                x: iosSnapStartPosition.x
+                    + (iosSnapTargetPosition.x - iosSnapStartPosition.x) * easedProgress,
+                y: iosSnapStartPosition.y
+                    + (iosSnapTargetPosition.y - iosSnapStartPosition.y) * easedProgress
+            )
+            scrollView.contentOffset = next
+            if rawProgress >= 1 {
+                finishIOSSnap()
+            }
+        }
+
+        private func finishIOSSnap() {
+            iosSnapDisplayLink?.invalidate()
+            iosSnapDisplayLink = nil
+            let target = iosSnapTargetPosition
+            if shouldApplyScrollPosition(target, current: scrollView.contentOffset) {
+                scrollView.contentOffset = target
+            }
+            appliedScrollPosition = target
+            suppressScrollEvents = false
+            isProgrammaticSnapAnimating = false
+            dispatchScrollbarChange(
+                id: scrollerId,
+                scrollX: Double(target.x),
+                scrollY: Double(target.y),
+                presentationScrollX: Double(target.x),
+                presentationScrollY: Double(target.y)
+            )
+        }
+
+        func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            cancelIOSSnap()
+            pendingIOSSnapTarget = nil
+            scrollView.layer.removeAllAnimations()
+        }
+
+        func scrollViewWillEndDragging(
+            _ scrollView: UIScrollView,
+            withVelocity velocity: CGPoint,
+            targetContentOffset: UnsafeMutablePointer<CGPoint>
+        ) {
+            guard !appliedSnapPointsX.isEmpty || !appliedSnapPointsY.isEmpty else {
+                return
+            }
+            let projected = targetContentOffset.pointee
+            pendingIOSSnapTarget = snappedScrollPosition(projected)
+            isProgrammaticSnapAnimating = true
+            // We drive the snap animation ourselves instead of mutating the target
+            // to the snap point, because UIKit occasionally applies that mutation
+            // as a one-frame jump for low-velocity releases.
+            targetContentOffset.pointee = scrollView.contentOffset
+        }
+
+        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+            if let target = pendingIOSSnapTarget {
+                pendingIOSSnapTarget = nil
+                DispatchQueue.main.async { [weak self] in
+                    self?.snapIOSScrollPosition(to: target, animated: true)
+                }
+            }
+        }
+
+        func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+            isProgrammaticSnapAnimating = false
+            suppressScrollEvents = false
+        }
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            guard !suppressScrollEvents else {
+                return
+            }
+            let offset = scrollView.contentOffset
+            appliedScrollPosition = offset
+            dispatchScrollbarChange(
+                id: scrollerId,
+                scrollX: Double(offset.x),
+                scrollY: Double(offset.y),
+                presentationScrollX: Double(offset.x),
+                presentationScrollY: Double(offset.y)
+            )
+        }
+#elseif os(macOS)
+        private func handleScroll() {
+            guard !suppressScrollEvents else {
+                return
+            }
+            let origin = scrollView.contentView.bounds.origin
+            let now = Date().timeIntervalSinceReferenceDate
+            appliedScrollPosition = origin
+            if !isMacSnapActive {
+                lastNativeScrollTime = now
+                macScrollSequence &+= 1
+            }
+            dispatchScrollbarChange(
+                id: scrollerId,
+                scrollX: Double(origin.x),
+                scrollY: Double(origin.y),
+                presentationScrollX: Double(origin.x),
+                presentationScrollY: Double(origin.y)
+            )
+            if hasNativeSnapPoints && !isMacSnapActive && !isLiveScrolling {
+                scheduleMacSnap(delay: macSnapQuietDelay)
+            }
+        }
+#endif
+    }
+
     private final class NativeSceneHostView: PlatformContainerView {
         private var frameViews: [PaxNodeId: PlatformContainerView] = [:]
         private var leafViews: [PaxNodeId: PlatformMaskedLeafView] = [:]
+        private var scrollerViews: [PaxNodeId: PlatformScrollerView] = [:]
         private var currentNodes: [NativeRenderNode] = []
 
 #if os(iOS) || os(tvOS) || os(watchOS)
@@ -1078,18 +2071,51 @@ public struct NativeRenderingLayer: View {
         private func refreshScene() {
             var activeFrames = Set<PaxNodeId>()
             var activeLeaves = Set<PaxNodeId>()
-            sync(nodes: currentNodes, parentView: self, activeFrames: &activeFrames, activeLeaves: &activeLeaves)
-            pruneInactiveNodes(activeFrames: activeFrames, activeLeaves: activeLeaves)
+            var activeScrollers = Set<PaxNodeId>()
+            sync(
+                nodes: currentNodes,
+                parentView: self,
+                activeFrames: &activeFrames,
+                activeLeaves: &activeLeaves,
+                activeScrollers: &activeScrollers,
+                positiveClipPaths: []
+            )
+            pruneInactiveNodes(
+                activeFrames: activeFrames,
+                activeLeaves: activeLeaves,
+                activeScrollers: activeScrollers
+            )
         }
+
+        private func containsScroller(_ nodes: [NativeRenderNode]) -> Bool {
+            nodes.contains { node in
+                switch node {
+                case .scroller:
+                    return true
+                case .frame(let frame):
+                    return containsScroller(frame.children)
+                case .item:
+                    return false
+                }
+            }
+        }
+
         private func sync(
             nodes: [NativeRenderNode],
             parentView: PlatformContainerView,
             activeFrames: inout Set<PaxNodeId>,
-            activeLeaves: inout Set<PaxNodeId>
+            activeLeaves: inout Set<PaxNodeId>,
+            activeScrollers: inout Set<PaxNodeId>,
+            positiveClipPaths: [CGPath]
         ) {
             for node in nodes {
                 switch node {
                 case .frame(let frame):
+                    let inheritedFrameClips = transformedClipPaths(
+                        positiveClipPaths,
+                        by: safeInverseTransform(frame.localTransform)
+                    )
+                    var childClipPaths = inheritedFrameClips
                     activeFrames.insert(frame.id)
                     let frameView = frameViews[frame.id] ?? {
                         let view = PlatformContainerView(frame: .zero)
@@ -1103,17 +2129,60 @@ public struct NativeRenderingLayer: View {
                         zIndex: frame.zIndex,
                         opacity: frame.opacity
                     )
+                    let clipPathForContainer = containsScroller(frame.children) ? nil : frame.clipPath
                     frameView.applyClip(
-                        path: frame.clipPath,
-                        signature: frame.clipSignature,
+                        path: clipPathForContainer,
+                        signature: clipPathForContainer == nil ? frame.clipSignature ^ 0x5F3759DF : frame.clipSignature,
                         borderRadius: frame.borderRadius,
                         clipContent: frame.clipContent
                     )
+                    if let clipPath = frame.clipPath {
+                        childClipPaths.append(clipPath)
+                    }
                     sync(
                         nodes: frame.children,
                         parentView: frameView,
                         activeFrames: &activeFrames,
-                        activeLeaves: &activeLeaves
+                        activeLeaves: &activeLeaves,
+                        activeScrollers: &activeScrollers,
+                        positiveClipPaths: childClipPaths
+                    )
+                case .scroller(let scroller):
+                    let scrollerClipPaths = transformedClipPaths(
+                        positiveClipPaths,
+                        by: safeInverseTransform(scroller.localTransform)
+                    )
+                    activeScrollers.insert(scroller.id)
+                    let scrollerView = scrollerViews[scroller.id] ?? {
+                        let view = PlatformScrollerView(id: scroller.id)
+                        scrollerViews[scroller.id] = view
+                        return view
+                    }()
+                    NativeRenderingLayer.attachPlatformSubview(scrollerView, to: parentView)
+                    scrollerView.applyGeometry(
+                        size: scroller.size,
+                        localTransform: scroller.localTransform,
+                        zIndex: scroller.zIndex,
+                        opacity: scroller.opacity
+                    )
+                    scrollerView.updatePositiveClip(paths: scrollerClipPaths, size: scroller.size)
+                    if scroller.mask == nil {
+                        scrollerView.applyClip(
+                            path: nil,
+                            signature: scroller.clipSignature,
+                            borderRadius: scroller.borderRadius,
+                            clipContent: scroller.clipContent
+                        )
+                    }
+                    scrollerView.updateNativeMask(scroller.mask)
+                    scrollerView.update(scroller: scroller)
+                    sync(
+                        nodes: scroller.children,
+                        parentView: scrollerView.contentHostView,
+                        activeFrames: &activeFrames,
+                        activeLeaves: &activeLeaves,
+                        activeScrollers: &activeScrollers,
+                        positiveClipPaths: []
                     )
                 case .item(let item):
                     activeLeaves.insert(item.id)
@@ -1134,7 +2203,11 @@ public struct NativeRenderingLayer: View {
             }
         }
 
-        private func pruneInactiveNodes(activeFrames: Set<PaxNodeId>, activeLeaves: Set<PaxNodeId>) {
+        private func pruneInactiveNodes(
+            activeFrames: Set<PaxNodeId>,
+            activeLeaves: Set<PaxNodeId>,
+            activeScrollers: Set<PaxNodeId>
+        ) {
             for (id, view) in frameViews where !activeFrames.contains(id) {
                 view.removeFromSuperview()
                 frameViews.removeValue(forKey: id)
@@ -1142,6 +2215,11 @@ public struct NativeRenderingLayer: View {
             for (id, leafView) in leafViews where !activeLeaves.contains(id) {
                 leafView.removeFromSuperview()
                 leafViews.removeValue(forKey: id)
+            }
+            for (id, scrollerView) in scrollerViews where !activeScrollers.contains(id) {
+                scrollerView.removeFromSuperview()
+                scrollerViews.removeValue(forKey: id)
+                NativeScrollerHostRegistry.shared.unregister(id: id)
             }
         }
     }
@@ -1268,10 +2346,16 @@ public struct NativeRenderingLayer: View {
     }
 
     private func parentFrameTransform(_ parentFrame: PaxNodeId?) -> CGAffineTransform {
-        guard let parentFrame, let frame = frameElements.elements[parentFrame] else {
+        guard let parentFrame else {
             return .identity
         }
-        return affineTransform(from: frame.transform)
+        if let frame = frameElements.elements[parentFrame] {
+            return affineTransform(from: frame.transform)
+        }
+        if let scroller = scrollerElements.elements[parentFrame] {
+            return affineTransform(from: scroller.transform)
+        }
+        return .identity
     }
 
     private func safeInverse(_ transform: CGAffineTransform) -> CGAffineTransform {
@@ -1291,6 +2375,17 @@ public struct NativeRenderingLayer: View {
         CGSize(width: max(0, CGFloat(frame.size_x)), height: max(0, CGFloat(frame.size_y)))
     }
 
+    private func scrollerSize(_ scroller: ScrollerElement) -> CGSize {
+        CGSize(width: max(0, CGFloat(scroller.size_x)), height: max(0, CGFloat(scroller.size_y)))
+    }
+
+    private func scrollerContentSize(_ scroller: ScrollerElement) -> CGSize {
+        CGSize(
+            width: max(0, CGFloat(scroller.sizeInnerPaneX)),
+            height: max(0, CGFloat(scroller.sizeInnerPaneY))
+        )
+    }
+
     private func localClipPath(for frame: FrameElement) -> Path? {
         guard frame.clipContent else {
             return nil
@@ -1302,7 +2397,8 @@ public struct NativeRenderingLayer: View {
         if let clipPath = frame.clipPath,
            !clipPath.isEmpty,
            let worldPath = parseSVGPath(clipPath) {
-            return worldPath.applying(safeInverse(affineTransform(from: frame.transform)))
+            let localPath = worldPath.applying(safeInverse(affineTransform(from: frame.transform)))
+            return localPath
         }
         return Path(CGRect(origin: .zero, size: size))
     }
@@ -1321,6 +2417,17 @@ public struct NativeRenderingLayer: View {
         return hasher.finalize()
     }
 
+    private func clipSignature(for scroller: ScrollerElement) -> Int {
+        guard scroller.clipContent else {
+            return 0
+        }
+        var hasher = Hasher()
+        hasher.combine(scroller.clipContent)
+        hasher.combine(scroller.borderRadius)
+        combineCGSize(scrollerSize(scroller), into: &hasher)
+        return hasher.finalize()
+    }
+
     private func sortedNodes(_ nodes: [NativeRenderNode]) -> [NativeRenderNode] {
         nodes.sorted { lhs, rhs in
             if lhs.zIndex == rhs.zIndex {
@@ -1333,6 +2440,8 @@ public struct NativeRenderingLayer: View {
     private func buildRenderTree() -> [NativeRenderNode] {
         let items = sortedRenderItems()
         let itemsByParent = Dictionary(grouping: items, by: { $0.parentFrame })
+        let scrollers = sortedElements(scrollerElements.elements)
+        let scrollersByParent = Dictionary(grouping: scrollers, by: { $0.parentFrame })
         let framesByParent = Dictionary(
             grouping: Array(frameElements.elements.values),
             by: { $0.parentFrame }
@@ -1344,10 +2453,11 @@ public struct NativeRenderingLayer: View {
                 return cached
             }
             let hasItems = !(itemsByParent[frameId] ?? []).isEmpty
+            let hasScrollers = !(scrollersByParent[frameId] ?? []).isEmpty
             let hasDescendants = (framesByParent[frameId] ?? []).contains { frame in
                 frameHasNativeDescendants(frame.id)
             }
-            let isActive = hasItems || hasDescendants
+            let isActive = hasItems || hasScrollers || hasDescendants
             activeFrames[frameId] = isActive
             return isActive
         }
@@ -1369,12 +2479,43 @@ public struct NativeRenderingLayer: View {
             )
         }
 
+        func buildScrollerNode(_ scroller: ScrollerElement) -> ScrollerRenderNode {
+            let children = buildChildren(parent: scroller.id)
+            let snapPointsX = scroller.snapPointsX.map { CGFloat($0) }
+            let snapPointsY = scroller.snapPointsY.map { CGFloat($0) }
+            return ScrollerRenderNode(
+                id: scroller.id,
+                zIndex: scroller.zIndex,
+                parentFrame: scroller.parentFrame,
+                localTransform: affineTransform(from: scroller.transform)
+                    .concatenating(safeInverse(parentFrameTransform(scroller.parentFrame))),
+                size: scrollerSize(scroller),
+                opacity: clampOpacity(scroller.opacity),
+                clipContent: scroller.clipContent,
+                borderRadius: CGFloat(scroller.borderRadius),
+                clipSignature: clipSignature(for: scroller),
+                contentSize: scrollerContentSize(scroller),
+                scrollX: scroller.scrollX,
+                scrollY: scroller.scrollY,
+                presentationScrollX: scroller.presentationScrollX,
+                presentationScrollY: scroller.presentationScrollY,
+                scrollEnabledX: scroller.scrollEnabledX,
+                scrollEnabledY: scroller.scrollEnabledY,
+                snapPointsX: snapPointsX,
+                snapPointsY: snapPointsY,
+                mask: resolvedNativeMask(for: scroller.id),
+                children: children
+            )
+        }
+
         func buildChildren(parent: PaxNodeId?) -> [NativeRenderNode] {
             let frameNodes = (framesByParent[parent] ?? [])
                 .filter { frameHasNativeDescendants($0.id) }
                 .map { NativeRenderNode.frame(buildFrameNode($0)) }
+            let scrollerNodes = (scrollersByParent[parent] ?? [])
+                .map { NativeRenderNode.scroller(buildScrollerNode($0)) }
             let itemNodes = (itemsByParent[parent] ?? []).map(NativeRenderNode.item)
-            return sortedNodes(frameNodes + itemNodes)
+            return sortedNodes(frameNodes + scrollerNodes + itemNodes)
         }
 
         return buildChildren(parent: nil)
@@ -1921,6 +3062,7 @@ private final class PaxNativeTextboxFieldView: UITextField, UITextFieldDelegate 
         borderStyle = .none
         autocorrectionType = .no
         autocapitalizationType = .none
+        contentVerticalAlignment = .center
         delegate = self
         addTarget(self, action: #selector(textDidChange), for: .editingChanged)
     }
@@ -1940,6 +3082,7 @@ private final class PaxNativeTextboxFieldView: UITextField, UITextFieldDelegate 
         font = element.style.font.getUIFont(size: element.style.font_size)
         textColor = platformColor(element.style.fill)
         textAlignment = platformTextAlignment(element.style.alignmentMultiline)
+        contentVerticalAlignment = .center
         backgroundColor = platformColor(element.background)
         layer.cornerRadius = CGFloat(element.borderRadius)
         layer.borderWidth = CGFloat(max(element.outlineWidth, element.strokeWidth))
@@ -2404,18 +3547,78 @@ private final class PaxNativeRadioSetView: NSStackView {
     }
 }
 
+private final class VerticallyCenteredTextFieldCell: NSTextFieldCell {
+    private func verticallyCenteredRect(for rect: NSRect) -> NSRect {
+        var drawingRect = super.drawingRect(forBounds: rect)
+        let textHeight = min(drawingRect.height, cellSize(forBounds: rect).height)
+        drawingRect.origin.y += max(0, (drawingRect.height - textHeight) * 0.5)
+        drawingRect.size.height = textHeight
+        return drawingRect
+    }
+
+    override func titleRect(forBounds rect: NSRect) -> NSRect {
+        verticallyCenteredRect(for: rect)
+    }
+
+    override func drawingRect(forBounds rect: NSRect) -> NSRect {
+        verticallyCenteredRect(for: rect)
+    }
+
+    override func edit(
+        withFrame rect: NSRect,
+        in controlView: NSView,
+        editor textObj: NSText,
+        delegate: Any?,
+        event: NSEvent?
+    ) {
+        super.edit(
+            withFrame: verticallyCenteredRect(for: rect),
+            in: controlView,
+            editor: textObj,
+            delegate: delegate,
+            event: event
+        )
+    }
+
+    override func select(
+        withFrame rect: NSRect,
+        in controlView: NSView,
+        editor textObj: NSText,
+        delegate: Any?,
+        start selStart: Int,
+        length selLength: Int
+    ) {
+        super.select(
+            withFrame: verticallyCenteredRect(for: rect),
+            in: controlView,
+            editor: textObj,
+            delegate: delegate,
+            start: selStart,
+            length: selLength
+        )
+    }
+}
+
 private final class PaxNativeTextboxFieldView: NSTextField, NSTextFieldDelegate {
     private var nodeId: PaxNodeId = 0
     private var isProgrammaticChange = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        cell = VerticallyCenteredTextFieldCell(textCell: "")
         delegate = self
         isBordered = false
         isBezeled = false
-        drawsBackground = true
+        isEditable = true
+        isSelectable = true
+        isEnabled = true
+        drawsBackground = false
         focusRingType = .none
         wantsLayer = true
+        layer?.masksToBounds = true
+        (cell as? NSTextFieldCell)?.usesSingleLineMode = true
+        (cell as? NSTextFieldCell)?.isScrollable = true
+        (cell as? NSTextFieldCell)?.wraps = false
     }
 
     required init?(coder: NSCoder) {
@@ -2433,8 +3636,10 @@ private final class PaxNativeTextboxFieldView: NSTextField, NSTextFieldDelegate 
         font = element.style.font.getNSFont(size: element.style.font_size)
         textColor = platformColor(element.style.fill)
         alignment = platformTextAlignment(element.style.alignmentMultiline)
-        backgroundColor = platformColor(element.background)
+        drawsBackground = false
+        layer?.backgroundColor = platformColor(element.background).cgColor
         layer?.cornerRadius = CGFloat(element.borderRadius)
+        layer?.masksToBounds = true
         layer?.borderWidth = CGFloat(max(element.outlineWidth, element.strokeWidth))
         layer?.borderColor = platformColor(element.outlineWidth > 0 ? element.outlineColor : element.strokeColor).cgColor
         if element.focusOnMount, window?.firstResponder !== currentEditor() {
@@ -2949,5 +4154,22 @@ public class EventBlockerElements: ObservableObject {
 
     public func remove(id: PaxNodeId) {
         elements.removeValue(forKey: id)
+    }
+}
+
+public class ScrollerElements: ObservableObject {
+    public static let singleton = ScrollerElements()
+    @Published public var elements: [PaxNodeId: ScrollerElement] = [:]
+
+    public func add(element: ScrollerElement) {
+        elements[element.id] = element
+    }
+
+    public func remove(id: PaxNodeId) {
+        elements.removeValue(forKey: id)
+    }
+
+    public func get(id: PaxNodeId) -> ScrollerElement? {
+        elements[id]
     }
 }

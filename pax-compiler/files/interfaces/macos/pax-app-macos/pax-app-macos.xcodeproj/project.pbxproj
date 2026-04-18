@@ -10,6 +10,7 @@
 		1486C80F2ACE4E48003AB8B8 /* PaxCartridge in Frameworks */ = {isa = PBXBuildFile; productRef = 1486C80E2ACE4E48003AB8B8 /* PaxCartridge */; };
 		1486C8112ACE4E48003AB8B8 /* PaxCartridgeAssets in Frameworks */ = {isa = PBXBuildFile; productRef = 1486C8102ACE4E48003AB8B8 /* PaxCartridgeAssets */; };
 		14A8ED632ADE1A7C00292406 /* PaxViewMacos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14FDCD4A2ACC9D690060F532 /* PaxViewMacos.swift */; };
+		14A8ED732ADE1A7C00292406 /* SurfaceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14FDCD532ACC9D690060F532 /* SurfaceManager.swift */; };
 		14A8ED642ADE1A7C00292406 /* Main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14FDCD482ACC9D690060F532 /* Main.swift */; };
 		14A8ED662ADE1A7C00292406 /* Messages in Frameworks */ = {isa = PBXBuildFile; productRef = 14A8ED5D2ADE1A7C00292406 /* Messages */; };
 		14A8ED672ADE1A7C00292406 /* FlexBuffers in Frameworks */ = {isa = PBXBuildFile; productRef = 14A8ED5C2ADE1A7C00292406 /* FlexBuffers */; };
@@ -20,6 +21,7 @@
 		14A8ED6D2ADE1A7C00292406 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 14FDCD4C2ACC9D6A0060F532 /* Assets.xcassets */; };
 		14FDCD492ACC9D690060F532 /* Main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14FDCD482ACC9D690060F532 /* Main.swift */; };
 		14FDCD4B2ACC9D690060F532 /* PaxViewMacos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14FDCD4A2ACC9D690060F532 /* PaxViewMacos.swift */; };
+		14FDCD542ACC9D690060F532 /* SurfaceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14FDCD532ACC9D690060F532 /* SurfaceManager.swift */; };
 		14FDCD4D2ACC9D6A0060F532 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 14FDCD4C2ACC9D6A0060F532 /* Assets.xcassets */; };
 		14FDCD502ACC9D6A0060F532 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 14FDCD4F2ACC9D6A0060F532 /* Preview Assets.xcassets */; };
 		14FDCD592ACC9E7B0060F532 /* FlexBuffers in Frameworks */ = {isa = PBXBuildFile; productRef = 14FDCD582ACC9E7B0060F532 /* FlexBuffers */; };
@@ -32,6 +34,7 @@
 		14FDCD452ACC9D690060F532 /* Pax macOS (Development).app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Pax macOS (Development).app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		14FDCD482ACC9D690060F532 /* Main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Main.swift; sourceTree = "<group>"; };
 		14FDCD4A2ACC9D690060F532 /* PaxViewMacos.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaxViewMacos.swift; sourceTree = "<group>"; };
+		14FDCD532ACC9D690060F532 /* SurfaceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfaceManager.swift; sourceTree = "<group>"; };
 		14FDCD4C2ACC9D6A0060F532 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		14FDCD4F2ACC9D6A0060F532 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		14FDCD512ACC9D6A0060F532 /* pax_app_macos.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = pax_app_macos.entitlements; sourceTree = "<group>"; };
@@ -95,6 +98,7 @@
 			children = (
 				14FDCD482ACC9D690060F532 /* Main.swift */,
 				14FDCD4A2ACC9D690060F532 /* PaxViewMacos.swift */,
+				14FDCD532ACC9D690060F532 /* SurfaceManager.swift */,
 				14FDCD4C2ACC9D6A0060F532 /* Assets.xcassets */,
 				14FDCD512ACC9D6A0060F532 /* pax_app_macos.entitlements */,
 				14FDCD4E2ACC9D6A0060F532 /* Preview Content */,
@@ -226,6 +230,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				14A8ED632ADE1A7C00292406 /* PaxViewMacos.swift in Sources */,
+				14A8ED732ADE1A7C00292406 /* SurfaceManager.swift in Sources */,
 				14A8ED642ADE1A7C00292406 /* Main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -235,6 +240,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				14FDCD4B2ACC9D690060F532 /* PaxViewMacos.swift in Sources */,
+				14FDCD542ACC9D690060F532 /* SurfaceManager.swift in Sources */,
 				14FDCD492ACC9D690060F532 /* Main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

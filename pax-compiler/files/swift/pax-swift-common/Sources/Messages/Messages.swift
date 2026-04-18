@@ -317,6 +317,28 @@ public func dispatchTextInput(id: PaxNodeId, text: String) {
     }
 }
 
+public func dispatchScrollbarChange(
+    id: PaxNodeId,
+    scrollX: Double,
+    scrollY: Double,
+    presentationScrollX: Double? = nil,
+    presentationScrollY: Double? = nil
+) {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey("Scrollbar") { messageBuilder in
+            messageBuilder.addWithStringKey("id", UInt(id))
+            messageBuilder.addWithStringKey("scroll_x", scrollX)
+            messageBuilder.addWithStringKey("scroll_y", scrollY)
+            if let presentationScrollX {
+                messageBuilder.addWithStringKey("presentation_scroll_x", presentationScrollX)
+            }
+            if let presentationScrollY {
+                messageBuilder.addWithStringKey("presentation_scroll_y", presentationScrollY)
+            }
+        }
+    }
+}
+
 private func readNodeId(_ fb: FlxbReference?) -> PaxNodeId? {
     guard let fb, !fb.isNull else {
         return nil
@@ -344,6 +366,24 @@ private func readFloatArray(_ fb: FlxbReference?) -> [Float]? {
         }
         if let value = item.asDouble {
             return Float(value)
+        }
+        return 0.0
+    }
+}
+
+private func readDoubleArray(_ fb: FlxbReference?) -> [Double]? {
+    guard let vector = fb?.asVector else {
+        return nil
+    }
+    return vector.makeIterator().map { item in
+        if let value = item.asDouble {
+            return value
+        }
+        if let value = item.asFloat {
+            return Double(value)
+        }
+        if let value = item.asInt {
+            return Double(value)
         }
         return 0.0
     }
@@ -1641,6 +1681,142 @@ public class FrameElement: ResolvedPlacementTarget {
 
 }
 
+public class ScrollerElement: NativePositionElement {
+    public var id: PaxNodeId
+    public var parentFrame: PaxNodeId?
+    public var occlusionLayerId: UInt32
+    public var zIndex: Int
+    public var transform: [Float]
+    public var size_x: Float
+    public var size_y: Float
+    public var opacity: Double
+    public var clipContent: Bool
+    public var borderRadius: Double
+    public var sizeInnerPaneX: Float
+    public var sizeInnerPaneY: Float
+    public var snapPointsX: [Double]
+    public var snapPointsY: [Double]
+    public var scrollX: Double
+    public var scrollY: Double
+    public var presentationScrollX: Double
+    public var presentationScrollY: Double
+    public var scrollEnabledX: Bool
+    public var scrollEnabledY: Bool
+    public var contentLayerId: UInt32?
+    public var presentedBounds: [Double]?
+    public var presentedClipBounds: [Double]?
+    public var subtreeDepth: UInt32
+    public var nativeMaskPatch: NativeMaskPatch? = nil
+
+    public init(
+        id: PaxNodeId,
+        parentFrame: PaxNodeId?,
+        occlusionLayerId: UInt32,
+        zIndex: Int,
+        transform: [Float],
+        size_x: Float,
+        size_y: Float,
+        opacity: Double,
+        clipContent: Bool,
+        borderRadius: Double,
+        sizeInnerPaneX: Float,
+        sizeInnerPaneY: Float,
+        snapPointsX: [Double],
+        snapPointsY: [Double],
+        scrollX: Double,
+        scrollY: Double,
+        presentationScrollX: Double,
+        presentationScrollY: Double,
+        scrollEnabledX: Bool,
+        scrollEnabledY: Bool,
+        contentLayerId: UInt32?,
+        presentedBounds: [Double]?,
+        presentedClipBounds: [Double]?,
+        subtreeDepth: UInt32
+    ) {
+        self.id = id
+        self.parentFrame = parentFrame
+        self.occlusionLayerId = occlusionLayerId
+        self.zIndex = zIndex
+        self.transform = transform
+        self.size_x = size_x
+        self.size_y = size_y
+        self.opacity = opacity
+        self.clipContent = clipContent
+        self.borderRadius = borderRadius
+        self.sizeInnerPaneX = sizeInnerPaneX
+        self.sizeInnerPaneY = sizeInnerPaneY
+        self.snapPointsX = snapPointsX
+        self.snapPointsY = snapPointsY
+        self.scrollX = scrollX
+        self.scrollY = scrollY
+        self.presentationScrollX = presentationScrollX
+        self.presentationScrollY = presentationScrollY
+        self.scrollEnabledX = scrollEnabledX
+        self.scrollEnabledY = scrollEnabledY
+        self.contentLayerId = contentLayerId
+        self.presentedBounds = presentedBounds
+        self.presentedClipBounds = presentedClipBounds
+        self.subtreeDepth = subtreeDepth
+    }
+
+    public static func makeDefault(
+        id: PaxNodeId,
+        parentFrame: PaxNodeId?,
+        occlusionLayerId: UInt32
+    ) -> ScrollerElement {
+        ScrollerElement(
+            id: id,
+            parentFrame: parentFrame,
+            occlusionLayerId: occlusionLayerId,
+            zIndex: 0,
+            transform: [1, 0, 0, 1, 0, 0],
+            size_x: 0,
+            size_y: 0,
+            opacity: 1.0,
+            clipContent: true,
+            borderRadius: 0.0,
+            sizeInnerPaneX: 0,
+            sizeInnerPaneY: 0,
+            snapPointsX: [],
+            snapPointsY: [],
+            scrollX: 0,
+            scrollY: 0,
+            presentationScrollX: Double.nan,
+            presentationScrollY: Double.nan,
+            scrollEnabledX: true,
+            scrollEnabledY: true,
+            contentLayerId: nil,
+            presentedBounds: nil,
+            presentedClipBounds: nil,
+            subtreeDepth: 0
+        )
+    }
+
+    public func applyPatch(patch: ScrollerUpdatePatch) {
+        if let transform = patch.transform { self.transform = transform }
+        if let size_x = patch.size_x { self.size_x = size_x }
+        if let size_y = patch.size_y { self.size_y = size_y }
+        if let opacity = patch.opacity { self.opacity = opacity }
+        if let clipContent = patch.clipContent { self.clipContent = clipContent }
+        if let borderRadius = patch.borderRadius { self.borderRadius = borderRadius }
+        if let sizeInnerPaneX = patch.size_inner_pane_x { self.sizeInnerPaneX = sizeInnerPaneX }
+        if let sizeInnerPaneY = patch.size_inner_pane_y { self.sizeInnerPaneY = sizeInnerPaneY }
+        if let snapPointsX = patch.snap_points_x { self.snapPointsX = snapPointsX }
+        if let snapPointsY = patch.snap_points_y { self.snapPointsY = snapPointsY }
+        if let scrollX = patch.scroll_x { self.scrollX = scrollX }
+        if let scrollY = patch.scroll_y { self.scrollY = scrollY }
+        if let presentationScrollX = patch.presentation_scroll_x { self.presentationScrollX = presentationScrollX }
+        if let presentationScrollY = patch.presentation_scroll_y { self.presentationScrollY = presentationScrollY }
+        if let scrollEnabledX = patch.scroll_enabled_x { self.scrollEnabledX = scrollEnabledX }
+        if let scrollEnabledY = patch.scroll_enabled_y { self.scrollEnabledY = scrollEnabledY }
+        if let contentLayerId = patch.content_layer_id { self.contentLayerId = contentLayerId }
+        if let presentedBounds = patch.presented_bounds { self.presentedBounds = presentedBounds }
+        if let presentedClipBounds = patch.presented_clip_bounds { self.presentedClipBounds = presentedClipBounds }
+        if let subtreeDepth = patch.subtree_depth { self.subtreeDepth = subtreeDepth }
+    }
+}
+
 
 
 /// A patch containing optional fields, representing an update action for the NativeElement of the given id_chain
@@ -1673,6 +1849,72 @@ public class FrameUpdatePatch: ResolvedPlacementPatch {
         self.clipPath = fb["clip_path"]?.asString
         self.borderRadius = readDouble(fb["border_radius"])
         self.opacity = readDouble(fb["opacity"])
+    }
+}
+
+public class ScrollerUpdatePatch: ResolvedPlacementPatch {
+    public var id: PaxNodeId
+    public var id_chain: [UInt64]
+    public var parentFrameUpdated: Bool
+    public var parentFrame: PaxNodeId?
+    public var zIndexUpdated: Bool
+    public var zIndex: Int?
+    public var transform: [Float]?
+    public var size_x: Float?
+    public var size_y: Float?
+    public var opacity: Double?
+    public var clipContent: Bool?
+    public var borderRadius: Double?
+    public var size_inner_pane_x: Float?
+    public var size_inner_pane_y: Float?
+    public var snap_points_x: [Double]?
+    public var snap_points_y: [Double]?
+    public var scroll_x: Double?
+    public var scroll_y: Double?
+    public var presentation_scroll_x: Double?
+    public var presentation_scroll_y: Double?
+    public var scroll_enabled_x: Bool?
+    public var scroll_enabled_y: Bool?
+    public var content_layer_id: UInt32?
+    public var presented_bounds: [Double]?
+    public var presented_clip_bounds: [Double]?
+    public var subtree_depth: UInt32?
+
+    public init(fb: FlxbReference) {
+        self.id = readNodeId(fb["id"]) ?? decodeId(fb) ?? 0
+        self.id_chain = decodeIdChain(fb)
+        self.parentFrameUpdated = fieldExists(fb, "parent_frame")
+        self.parentFrame = readNodeId(fb["parent_frame"])
+        self.zIndexUpdated = fieldExists(fb, "z_index")
+        self.zIndex = readInt(fb["z_index"])
+        self.transform = readFloatArray(fb["transform"])
+        self.size_x = fb["size_x"]?.asFloat
+        self.size_y = fb["size_y"]?.asFloat
+        self.opacity = readDouble(fb["opacity"])
+        self.clipContent = fb["clip_content"]?.asBool
+        self.borderRadius = readDouble(fb["border_radius"])
+        self.size_inner_pane_x = fb["size_inner_pane_x"]?.asFloat
+        self.size_inner_pane_y = fb["size_inner_pane_y"]?.asFloat
+        self.snap_points_x = readDoubleArray(fb["snap_points_x"])
+        self.snap_points_y = readDoubleArray(fb["snap_points_y"])
+        self.scroll_x = readDouble(fb["scroll_x"])
+        self.scroll_y = readDouble(fb["scroll_y"])
+        self.presentation_scroll_x = readDouble(fb["presentation_scroll_x"])
+        self.presentation_scroll_y = readDouble(fb["presentation_scroll_y"])
+        self.scroll_enabled_x = fb["scroll_enabled_x"]?.asBool
+        self.scroll_enabled_y = fb["scroll_enabled_y"]?.asBool
+        if let value = fb["content_layer_id"]?.asUInt64 {
+            self.content_layer_id = UInt32(truncatingIfNeeded: value)
+        } else {
+            self.content_layer_id = nil
+        }
+        self.presented_bounds = readDoubleArray(fb["presented_bounds"])
+        self.presented_clip_bounds = readDoubleArray(fb["presented_clip_bounds"])
+        if let value = fb["subtree_depth"]?.asUInt64 {
+            self.subtree_depth = UInt32(truncatingIfNeeded: value)
+        } else {
+            self.subtree_depth = nil
+        }
     }
 }
 

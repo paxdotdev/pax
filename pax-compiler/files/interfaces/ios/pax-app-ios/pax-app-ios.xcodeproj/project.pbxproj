@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		1405D1202ACF5B1C006EBEF1 /* PaxViewIos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1405D11F2ACF5B1C006EBEF1 /* PaxViewIos.swift */; };
+		1405D12C2ACF5B1C006EBEF1 /* SurfaceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1405D12B2ACF5B1C006EBEF1 /* SurfaceManager.swift */; };
 		1405D1222ACF5B1C006EBEF1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1405D1212ACF5B1C006EBEF1 /* ContentView.swift */; };
 		1405D1242ACF5B1D006EBEF1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1405D1232ACF5B1D006EBEF1 /* Assets.xcassets */; };
 		1405D1272ACF5B1D006EBEF1 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1405D1262ACF5B1D006EBEF1 /* Preview Assets.xcassets */; };
@@ -22,6 +23,7 @@
 /* Begin PBXFileReference section */
 		1405D11C2ACF5B1C006EBEF1 /* Pax iOS (Development).app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Pax iOS (Development).app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		1405D11F2ACF5B1C006EBEF1 /* PaxViewIos.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaxViewIos.swift; sourceTree = "<group>"; };
+		1405D12B2ACF5B1C006EBEF1 /* SurfaceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfaceManager.swift; sourceTree = "<group>"; };
 		1405D1212ACF5B1C006EBEF1 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		1405D1232ACF5B1D006EBEF1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1405D1262ACF5B1D006EBEF1 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
@@ -64,6 +66,7 @@
 			isa = PBXGroup;
 			children = (
 				1405D11F2ACF5B1C006EBEF1 /* PaxViewIos.swift */,
+				1405D12B2ACF5B1C006EBEF1 /* SurfaceManager.swift */,
 				1405D1212ACF5B1C006EBEF1 /* ContentView.swift */,
 				1405D1232ACF5B1D006EBEF1 /* Assets.xcassets */,
 				1405D1252ACF5B1D006EBEF1 /* Preview Content */,
@@ -164,6 +167,7 @@
 				14BA75902AD4C4DE001B3A61 /* Main.swift in Sources */,
 				1405D1222ACF5B1C006EBEF1 /* ContentView.swift in Sources */,
 				1405D1202ACF5B1C006EBEF1 /* PaxViewIos.swift in Sources */,
+				1405D12C2ACF5B1C006EBEF1 /* SurfaceManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

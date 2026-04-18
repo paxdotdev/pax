@@ -27,6 +27,7 @@ serde = {version="1.0.196", features=["derive"]}
 serde_json = "1.0.114"
 wasm-bindgen = {version = "0.2.93", features=["serde-serialize"]}
 wasm-bindgen-futures = "0.4.42"
+pollster = "0.4.0"
 
 [features]
 designer = []

@@ -34,14 +34,30 @@ use self::{
     stencil::StencilRenderer,
 };
 
-// Transparent white keeps alpha-capable browser surfaces composited cleanly, while browsers that
-// only expose opaque canvas alpha resolve the untouched background to white instead of black.
-pub(crate) const COMPAT_CLEAR_COLOR: wgpu::Color = wgpu::Color {
+const TRANSPARENT_CLEAR_COLOR: wgpu::Color = wgpu::Color {
+    r: 0.0,
+    g: 0.0,
+    b: 0.0,
+    a: 0.0,
+};
+
+const OPAQUE_FALLBACK_CLEAR_COLOR: wgpu::Color = wgpu::Color {
     r: 1.0,
     g: 1.0,
     b: 1.0,
-    a: 0.0,
+    a: 1.0,
 };
+
+fn surface_clear_color(alpha_mode: CompositeAlphaMode) -> wgpu::Color {
+    if alpha_mode == CompositeAlphaMode::Opaque {
+        // Opaque browser fallbacks expose the clear RGB directly; keep the old white default there.
+        OPAQUE_FALLBACK_CLEAR_COLOR
+    } else {
+        // Alpha-capable surfaces must clear to transparent black so translucent geometry does not
+        // accumulate white RGB in otherwise-transparent tile regions.
+        TRANSPARENT_CLEAR_COLOR
+    }
+}
 
 pub struct RenderConfig {
     pub debug: bool,
@@ -133,6 +149,7 @@ pub struct RenderBackend<'w> {
     stencil_renderer: StencilRenderer,
     multisampled_target: Option<MultisampledTarget>,
     sample_count: u32,
+    clear_color: wgpu::Color,
     active_frame: Option<ActiveFrame>,
     pending_clear: bool,
     pending_capture_ids: Vec<u32>,
@@ -480,7 +497,9 @@ impl<'w> RenderBackend<'w> {
             surface_usage |= TextureUsages::COPY_SRC;
         } else {
             #[cfg(target_arch = "wasm32")]
-            log::warn!("render backend: surface does not support COPY_SRC; disabling readback usage");
+            log::warn!(
+                "render backend: surface does not support COPY_SRC; disabling readback usage"
+            );
         }
         let initial_width = config.initial_width.max(1).min(max_surface_dimension);
         let initial_height = config.initial_height.max(1).min(max_surface_dimension);
@@ -703,6 +722,7 @@ impl<'w> RenderBackend<'w> {
             index_count: 0,
             multisampled_target: None,
             sample_count,
+            clear_color: surface_clear_color(alpha_mode),
             active_frame: None,
             pending_clear: false,
             pending_capture_ids: Vec::new(),
@@ -1227,6 +1247,7 @@ impl<'w> RenderBackend<'w> {
             resolve_target,
             &self.stencil_renderer,
             clear_target,
+            self.clear_color,
             texture,
             &draw.resource,
         );
@@ -1348,7 +1369,7 @@ impl<'w> RenderBackend<'w> {
 
     fn take_color_load_op(&mut self) -> wgpu::LoadOp<wgpu::Color> {
         if std::mem::take(&mut self.pending_clear) {
-            wgpu::LoadOp::Clear(COMPAT_CLEAR_COLOR)
+            wgpu::LoadOp::Clear(self.clear_color)
         } else {
             wgpu::LoadOp::Load
         }
@@ -1367,6 +1388,7 @@ impl<'w> RenderBackend<'w> {
             &self.globals_buffer,
             &self.stencil_renderer,
             clear_target,
+            self.clear_color,
             &image.rgba,
             image.pixel_width,
             transform,

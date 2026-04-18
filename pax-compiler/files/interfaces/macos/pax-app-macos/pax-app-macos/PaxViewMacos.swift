@@ -291,6 +291,7 @@ struct PaxViewMacos: View {
 
         let textElements = TextElements.singleton
         let frameElements = FrameElements.singleton
+        let scrollerElements = ScrollerElements.singleton
         let buttonElements = ButtonElements.singleton
         let checkboxElements = CheckboxElements.singleton
         let nativeImageElements = NativeImageElements.singleton
@@ -305,10 +306,7 @@ struct PaxViewMacos: View {
         private var isShuttingDown = false
         private let tickStateLock = NSLock()
         private var tickScheduled = false
-
-        private var metalLayer: CAMetalLayer {
-            layer as! CAMetalLayer
-        }
+        private let surfaceManager = SurfaceManager()
 
         private let devSessionDir = ProcessInfo.processInfo.environment["PAX_DEV_SESSION_DIR"].map {
             URL(fileURLWithPath: $0, isDirectory: true)
@@ -320,22 +318,22 @@ struct PaxViewMacos: View {
         private var lastDevPoll: Date = .distantPast
         private var lastDevHeartbeat: Date = .distantPast
 
+        override var isFlipped: Bool { true }
+
         override init(frame frameRect: NSRect) {
             super.init(frame: frameRect)
             self.wantsLayer = true
-            configureMetalLayer()
+            layer?.backgroundColor = NSColor.clear.cgColor
+            layer?.isOpaque = false
             createDisplayLink()
         }
 
         required init?(coder: NSCoder) {
             super.init(coder: coder)
             self.wantsLayer = true
-            configureMetalLayer()
+            layer?.backgroundColor = NSColor.clear.cgColor
+            layer?.isOpaque = false
             createDisplayLink()
-        }
-
-        override func makeBackingLayer() -> CALayer {
-            CAMetalLayer()
         }
 
         private var requestAnimationFrameQueue: [() -> Void] = []
@@ -426,30 +424,6 @@ struct PaxViewMacos: View {
             window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1.0
         }
 
-        private func configureMetalLayer() {
-            wantsLayer = true
-            if layer == nil {
-                layer = makeBackingLayer()
-            }
-            metalLayer.framebufferOnly = false
-            metalLayer.isOpaque = false
-            metalLayer.presentsWithTransaction = false
-            metalLayer.contentsScale = currentScale()
-            metalLayer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
-            metalLayer.frame = bounds
-            metalLayer.drawableSize = CGSize(
-                width: bounds.width * metalLayer.contentsScale,
-                height: bounds.height * metalLayer.contentsScale
-            )
-        }
-
-        override func layout() {
-            super.layout()
-            let scale = currentScale()
-            metalLayer.contentsScale = scale
-            metalLayer.frame = bounds
-            metalLayer.drawableSize = CGSize(width: bounds.width * scale, height: bounds.height * scale)
-        }
 
         private func tick() {
             guard !isShuttingDown else { return }
@@ -467,7 +441,7 @@ struct PaxViewMacos: View {
 
             let nativeMessageQueue = pax_tick(
                 engineContainer,
-                Unmanaged.passUnretained(metalLayer).toOpaque(),
+                nil,
                 width,
                 height,
                 Float(scale)
@@ -476,6 +450,12 @@ struct PaxViewMacos: View {
             let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
             processNativeMessageQueueData(Data(buffer: buffer))
             pax_dealloc_message_queue(nativeMessageQueue)
+            surfaceManager.sync(
+                engineContainer: engineContainer,
+                rootView: self,
+                scale: scale
+            )
+            pax_render(engineContainer)
             processDevRequestsIfNeeded()
         }
 

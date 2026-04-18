@@ -6,6 +6,7 @@ import Messages
 public struct DirtyCollections {
     public var text = false
     public var frame = false
+    public var scroller = false
     public var button = false
     public var checkbox = false
     public var nativeImage = false
@@ -17,7 +18,7 @@ public struct DirtyCollections {
     public var eventBlocker = false
 
     public var hasAny: Bool {
-        text || frame || button || checkbox || nativeImage || youtubeVideo || dropdown || radioSet || slider || textbox || eventBlocker
+        text || frame || scroller || button || checkbox || nativeImage || youtubeVideo || dropdown || radioSet || slider || textbox || eventBlocker
     }
 
     public init() {}
@@ -39,6 +40,7 @@ public protocol NativeMessageHandling: AnyObject {
     var frameElements: FrameElements { get }
     var buttonElements: ButtonElements { get }
     var checkboxElements: CheckboxElements { get }
+    var scrollerElements: ScrollerElements { get }
     var nativeImageElements: NativeImageElements { get }
     var youtubeVideoElements: YoutubeVideoElements { get }
     var dropdownElements: DropdownElements { get }
@@ -114,6 +116,10 @@ public extension NativeMessageHandling {
         }
         if let element = eventBlockerElements.elements[id] {
             recomputeResolvedMask(for: element)
+            return
+        }
+        if let element = scrollerElements.elements[id] {
+            recomputeResolvedMask(for: element)
         }
     }
 
@@ -168,6 +174,7 @@ public extension NativeMessageHandling {
         recomputeResolvedMasks(in: sliderElements.elements)
         recomputeResolvedMasks(in: textboxElements.elements)
         recomputeResolvedMasks(in: eventBlockerElements.elements)
+        recomputeResolvedMasks(in: scrollerElements.elements)
     }
 
     func publish(_ dirty: DirtyCollections) {
@@ -220,6 +227,41 @@ public extension NativeMessageHandling {
             frame.applyResolvedPlacement(patch)
         }
         dirty.frame = true
+    }
+
+    func handleScrollerCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        scrollerElements.add(element: ScrollerElement.makeDefault(
+            id: patch.id,
+            parentFrame: patch.parentFrame,
+            occlusionLayerId: patch.occlusionLayerId
+        ))
+        masks.mark(patch.id)
+        dirty.scroller = true
+    }
+
+    func handleScrollerUpdate(patch: ScrollerUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        if let scroller = scrollerElements.elements[patch.id] {
+            let previousTransform = scroller.transform
+            let previousSizeX = scroller.size_x
+            let previousSizeY = scroller.size_y
+            scroller.applyPatch(patch: patch)
+            scroller.applyResolvedPlacement(patch)
+            if geometryChanged(
+                scroller,
+                previousTransform: previousTransform,
+                previousSizeX: previousSizeX,
+                previousSizeY: previousSizeY
+            ) {
+                masks.mark(patch.id)
+            }
+        }
+        dirty.scroller = true
+    }
+
+    func handleScrollerDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
+        scrollerElements.remove(id: patch.id)
+        removeResolvedNativeMask(id: patch.id)
+        dirty.scroller = true
     }
 
     func handleFrameDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections, masks _: inout DirtyResolvedMasks) {
@@ -565,6 +607,12 @@ public extension NativeMessageHandling {
             eventBlockerElement.applyNativeMaskPatch(patch)
             masks.mark(patch.id)
             dirty.eventBlocker = true
+            return
+        }
+        if let scrollerElement = scrollerElements.elements[patch.id] {
+            scrollerElement.applyNativeMaskPatch(patch)
+            masks.mark(patch.id)
+            dirty.scroller = true
         }
     }
 
@@ -594,6 +642,16 @@ public extension NativeMessageHandling {
             }
             if let frameDeleteMessage = message["FrameDelete"] {
                 handleFrameDelete(patch: AnyDeletePatch(fb: frameDeleteMessage), dirty: &dirty, masks: &masks)
+            }
+
+            if let scrollerCreateMessage = message["ScrollerCreate"] {
+                handleScrollerCreate(patch: AnyCreatePatch(fb: scrollerCreateMessage), dirty: &dirty, masks: &masks)
+            }
+            if let scrollerUpdateMessage = message["ScrollerUpdate"] {
+                handleScrollerUpdate(patch: ScrollerUpdatePatch(fb: scrollerUpdateMessage), dirty: &dirty, masks: &masks)
+            }
+            if let scrollerDeleteMessage = message["ScrollerDelete"] {
+                handleScrollerDelete(patch: AnyDeletePatch(fb: scrollerDeleteMessage), dirty: &dirty)
             }
 
             if let buttonCreateMessage = message["ButtonCreate"] {
@@ -696,12 +754,21 @@ public extension NativeMessageHandling {
                 handleNavigate(patch: NavigationPatchMessage(fb: navigateMessage))
             }
 
+            if let shrinkLayersMessage = message["ShrinkLayersTo"] {
+                if let count = shrinkLayersMessage.asUInt64 {
+                    NativeLayerCountTracker.shared.update(Int(count))
+                } else if let count = shrinkLayersMessage.asInt {
+                    NativeLayerCountTracker.shared.update(Int(count))
+                }
+            }
+
+            if let layerAddMessage = message["LayerAdd"] {
+                let patch = LayerAddPatchMessage(fb: layerAddMessage)
+                let current = NativeLayerCountTracker.shared.layerCount
+                NativeLayerCountTracker.shared.update(current + Int(patch.numLayersToAdd))
+            }
+
             let _ = message["SetCursor"]
-            let _ = message["LayerAdd"]
-            let _ = message["ShrinkLayersTo"]
-            let _ = message["ScrollerCreate"]
-            let _ = message["ScrollerUpdate"]
-            let _ = message["ScrollerDelete"]
         }
 
         if masks.recomputeAll {

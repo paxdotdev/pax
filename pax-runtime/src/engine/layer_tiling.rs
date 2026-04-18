@@ -113,12 +113,10 @@ pub fn scroller_canvas_plan(
     } else {
         0
     };
-    let active_columns = (max_column + 1).min(
-        visible_tile_span(padded_viewport_width, tile_size, true) + overscan_columns * 2,
-    );
-    let active_rows = (max_row + 1).min(
-        visible_tile_span(padded_viewport_height, tile_size, true) + overscan_rows * 2,
-    );
+    let active_columns = (max_column + 1)
+        .min(visible_tile_span(padded_viewport_width, tile_size, true) + overscan_columns * 2);
+    let active_rows = (max_row + 1)
+        .min(visible_tile_span(padded_viewport_height, tile_size, true) + overscan_rows * 2);
     let start_column = clamp_window_start(
         (padded_scroll_x / tile_size).floor() as i32 - overscan_columns,
         max_column,

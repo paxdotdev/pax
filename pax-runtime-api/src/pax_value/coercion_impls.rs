@@ -87,19 +87,16 @@ impl CoercionRules for Color {
             PaxValue::Enum(contents) => {
                 let (name, variant, mut args) = *contents;
                 if name != "Color" {
-                    return Err(format!("{:?} can't be coerced into a Color", PaxValue::Enum(Box::new((name, variant, args)))));
+                    return Err(format!(
+                        "{:?} can't be coerced into a Color",
+                        PaxValue::Enum(Box::new((name, variant, args)))
+                    ));
                 }
                 match variant.as_str() {
                     "rgb" => Ok(Color::rgb(
-                        ColorChannel::try_coerce(
-                            args.remove(0),
-                        )?,
-                        ColorChannel::try_coerce(
-                            args.remove(0),
-                        )?,
-                        ColorChannel::try_coerce(
-                            args.remove(0),
-                        )?,
+                        ColorChannel::try_coerce(args.remove(0))?,
+                        ColorChannel::try_coerce(args.remove(0))?,
+                        ColorChannel::try_coerce(args.remove(0))?,
                     )),
                     "rgba" => Ok(Color::rgba(
                         ColorChannel::try_coerce(args.remove(0))?,
@@ -581,12 +578,14 @@ impl CoercionRules for Stroke {
                         _ => {}
                     }
                 }
-                let color = Property::new(color.ok_or_else(|| {
-                    "failed to convert to Stroke: missing `color`".to_string()
-                })?);
-                let width = Property::new(width.ok_or_else(|| {
-                    "failed to convert to Stroke: missing `width`".to_string()
-                })?);
+                let color =
+                    Property::new(color.ok_or_else(|| {
+                        "failed to convert to Stroke: missing `color`".to_string()
+                    })?);
+                let width =
+                    Property::new(width.ok_or_else(|| {
+                        "failed to convert to Stroke: missing `width`".to_string()
+                    })?);
                 let cap = Property::new(cap.unwrap_or_default());
                 Stroke { color, width, cap }
             }

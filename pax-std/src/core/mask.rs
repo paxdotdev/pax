@@ -2,19 +2,19 @@ use std::iter;
 use std::rc::Rc;
 
 use crate::common::{native_surface_opacity, patch_if_needed};
+use kurbo::Affine;
 use pax_engine::*;
 use pax_message::{AnyCreatePatch, FramePatch};
 use pax_runtime::api::{
-    bez_path_to_svg_path_data, borrow, borrow_mut, use_RefCell, Layer, Property, RenderContext,
+    bez_path_to_svg_path_data, borrow, borrow_mut, properties::UntypedProperty, use_RefCell, Layer,
+    Property, RenderContext,
 };
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use_RefCell!();
 
-/// Clips its first child by the coverage path of its second child.
-///
-/// Phase 1 only supports a direct geometry-backed primitive as the mask source.
+/// Clips its first child by the unioned coverage path of its second child subtree.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::core::mask::MaskInstance")]
@@ -43,8 +43,78 @@ impl MaskInstance {
         let Some(mask_source) = mask_source else {
             return None;
         };
-        let path = borrow!(mask_source.instance_node).resolve_coverage_path(&mask_source);
-        path
+        Self::resolve_subtree_coverage_path(&mask_source)
+    }
+
+    fn resolve_subtree_coverage_path(expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
+        let mut coverage = kurbo::BezPath::new();
+        if let Some(path) =
+            borrow!(expanded_node.instance_node).resolve_coverage_path(expanded_node)
+        {
+            coverage.extend(path.elements().iter().copied());
+        }
+        for child in expanded_node.children.get().iter() {
+            if let Some(path) = Self::resolve_subtree_coverage_path(child) {
+                coverage.extend(path.elements().iter().copied());
+            }
+        }
+
+        if coverage.elements().is_empty() {
+            None
+        } else {
+            Some(coverage)
+        }
+    }
+
+    fn collect_mask_source_deps(expanded_node: &ExpandedNode, deps: &mut Vec<UntypedProperty>) {
+        deps.push(expanded_node.transform_and_bounds.untyped());
+        deps.extend(
+            borrow!(expanded_node.properties_scope)
+                .values()
+                .cloned()
+                .map(|v| v.get_untyped_property().clone()),
+        );
+        for child in expanded_node.children.get().iter() {
+            Self::collect_mask_source_deps(child, deps);
+        }
+    }
+
+    fn mask_path_for_layer(
+        mask_path: &kurbo::BezPath,
+        expanded_node: &ExpandedNode,
+        layer: usize,
+        context: &RuntimeContext,
+    ) -> kurbo::BezPath {
+        let Some(owner_id) = context.get_layer_scroller_owner(layer) else {
+            return mask_path.clone();
+        };
+        let Some(owner) = context.get_expanded_node_by_eid(owner_id) else {
+            return mask_path.clone();
+        };
+        let owner_inverse = Affine::from(owner.transform_and_bounds.get().transform.inverse());
+        let mut layer_transform = owner_inverse;
+
+        // If this mask contains the scroller that owns the target canvas layer, the mask is fixed
+        // in the scroller viewport while the OS/browser moves the canvas host in content
+        // coordinates. Convert the viewport-local mask into content coordinates so the retained
+        // canvas clip stays aligned with the native view mask during scroll.
+        if owner.is_descendant_of(&expanded_node.id) {
+            if let Some(state) = context.get_scroller_surface_state(owner_id.to_u32()) {
+                let scroll_x = if state.presentation_scroll_x.is_finite() {
+                    state.presentation_scroll_x
+                } else {
+                    state.scroll_x
+                };
+                let scroll_y = if state.presentation_scroll_y.is_finite() {
+                    state.presentation_scroll_y
+                } else {
+                    state.scroll_y
+                };
+                layer_transform = Affine::translate((scroll_x, scroll_y)) * layer_transform;
+            }
+        }
+
+        layer_transform * mask_path.clone()
     }
 }
 
@@ -108,10 +178,14 @@ impl InstanceNode for MaskInstance {
                 context,
                 &Rc::downgrade(expanded_node),
             );
+            let sidecar = expanded_node.attach_sidecar_children(
+                sidecar,
+                context,
+                &expanded_node.parent_frame,
+            );
             for child in sidecar.iter() {
                 child.recurse_control_flow_expansion(context);
             }
-            expanded_node.attach_sidecar_children(sidecar, context, &expanded_node.parent_frame);
         }
 
         let weak_self_ref = Rc::downgrade(expanded_node);
@@ -122,17 +196,12 @@ impl InstanceNode for MaskInstance {
         }));
 
         let mut deps = vec![
+            expanded_node.transform_and_bounds.untyped(),
             expanded_node.computed_opacity.untyped(),
             expanded_node.occlusion.untyped(),
         ];
         if let Some(mask_child) = borrow!(expanded_node.sidecar_children).first() {
-            deps.push(mask_child.transform_and_bounds.untyped());
-            deps.extend(
-                borrow!(mask_child.properties_scope)
-                    .values()
-                    .cloned()
-                    .map(|v| v.get_untyped_property().clone()),
-            );
+            Self::collect_mask_source_deps(mask_child, &mut deps);
         }
 
         expanded_node
@@ -152,12 +221,21 @@ impl InstanceNode for MaskInstance {
                         id,
                         ..Default::default()
                     };
+                    let computed_tab = expanded_node.transform_and_bounds.get();
+                    let (width, height) = computed_tab.bounds;
 
                     let updates = [
                         patch_if_needed(
                             &mut old_state.clip_content,
                             &mut patch.clip_content,
                             !clip_path.is_empty(),
+                        ),
+                        patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
+                        patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
+                        patch_if_needed(
+                            &mut old_state.transform,
+                            &mut patch.transform,
+                            computed_tab.transform.coeffs().to_vec(),
                         ),
                         patch_if_needed(&mut old_state.clip_path, &mut patch.clip_path, clip_path),
                         patch_if_needed(
@@ -225,7 +303,10 @@ impl InstanceNode for MaskInstance {
                 continue;
             }
             rcs.save(layer);
-            rcs.clip(layer, mask_path.clone());
+            rcs.clip(
+                layer,
+                Self::mask_path_for_layer(&mask_path, expanded_node, layer, rtc),
+            );
             let _ = rcs.end_node(layer, expanded_node.id.to_u32());
         }
     }

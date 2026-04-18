@@ -103,9 +103,10 @@ impl InstanceNode for LineInstance {
         expanded_node: &ExpandedNode,
         ray: pax_runtime::api::math::Point2<pax_runtime::api::Window>,
     ) -> bool {
-        self.resolve_coverage_path(expanded_node).is_some_and(|path| {
-            path_contains_with_tolerance(&path, kurbo::Point::new(ray.x, ray.y))
-        })
+        self.resolve_coverage_path(expanded_node)
+            .is_some_and(|path| {
+                path_contains_with_tolerance(&path, kurbo::Point::new(ray.x, ray.y))
+            })
     }
 
     fn resolve_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<BezPath> {
@@ -113,8 +114,7 @@ impl InstanceNode for LineInstance {
             let tab = expanded_node.transform_and_bounds.get();
             let (start, end) = resolve_points(properties, tab.bounds);
             let stroke = properties.stroke.get();
-            line_coverage_path(start, end, &stroke)
-                .map(|path| Affine::from(tab.transform) * path)
+            line_coverage_path(start, end, &stroke).map(|path| Affine::from(tab.transform) * path)
         })
     }
 

@@ -12,6 +12,9 @@ use std::{
     rc::Rc,
 };
 
+#[cfg(not(target_arch = "wasm32"))]
+use pollster;
+
 pub struct LayerRenderer {
     key: String,
     host_signature: String,
@@ -189,7 +192,7 @@ fn pump_layer_initialization_queue(
         let in_flight_count = Rc::clone(&in_flight);
         let ready_layers = Rc::clone(&ready_layers);
 
-        wasm_bindgen_futures::spawn_local(async move {
+        let task = async move {
             let backend = (factory)(layer_index).await;
             let mut should_requeue = false;
             match backend {
@@ -248,7 +251,14 @@ fn pump_layer_initialization_queue(
                 in_flight_count,
                 ready_layers,
             );
-        });
+        };
+
+        #[cfg(target_arch = "wasm32")]
+        wasm_bindgen_futures::spawn_local(task);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            pollster::block_on(task);
+        }
     }
 }
 pub struct LayerSurfaceSize {
@@ -298,7 +308,7 @@ impl PaxPixelsRenderer {
 }
 
 impl PaxPixelsRenderer {
-    fn enqueue_layer_initialization(&self, layer_index: usize) {
+    fn queue_layer_initialization(&self, layer_index: usize) {
         if self
             .scheduled_layer_initializations
             .borrow_mut()
@@ -308,6 +318,10 @@ impl PaxPixelsRenderer {
                 .borrow_mut()
                 .push_back(layer_index);
         }
+    }
+
+    fn enqueue_layer_initialization(&self, layer_index: usize) {
+        self.queue_layer_initialization(layer_index);
         self.schedule_layer_initialization();
     }
 
@@ -379,7 +393,7 @@ impl PaxPixelsRenderer {
                         // underneath us. Stable slot keys let ordinary scroll slide tile origins in
                         // place; reserve full reinitialization for real additions/removals.
                         *backend = RenderLayerState::Pending;
-                        self.enqueue_layer_initialization(layer_index);
+                        self.queue_layer_initialization(layer_index);
                         needs_reinitialization = true;
                         continue;
                     }
@@ -408,6 +422,7 @@ impl PaxPixelsRenderer {
                                 self.replay_layers.borrow_mut().push(layer_index);
                             }
                             LayoutChangeKind::Resized => {
+                                renderer.renderer.reset_retained_scene();
                                 renderer
                                     .renderer
                                     .set_surface_transform(Transform2D::from_array([
@@ -427,6 +442,7 @@ impl PaxPixelsRenderer {
                                     surface.surface.logical_height,
                                     surface.surface.dpr,
                                 );
+                                self.replay_layers.borrow_mut().push(layer_index);
                             }
                         }
                     }

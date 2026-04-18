@@ -16,8 +16,8 @@ use pax_runtime::api::RenderContext;
 use pax_runtime::api::SelectStart;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::OS;
-use pax_runtime::DefinitionToInstanceTraverser;
 use pax_runtime::engine::layer_tiling::scroller_canvas_plan;
+use pax_runtime::DefinitionToInstanceTraverser;
 use web_time::Instant;
 use_RefCell!();
 
@@ -382,7 +382,9 @@ impl PaxChassisWeb {
             let engine = self.engine.borrow();
             for layer in &layers {
                 engine.runtime_context.set_canvas_dirty(*layer);
-                engine.runtime_context.mark_canvas_nodes_on_layer_dirty(*layer);
+                engine
+                    .runtime_context
+                    .mark_canvas_nodes_on_layer_dirty(*layer);
             }
         }
         self.render_context.refresh_layers(&layers);
@@ -949,7 +951,17 @@ impl PaxChassisWeb {
             let host_signature = "root".to_string();
             let width = viewport.bounds.0;
             let height = viewport.bounds.1;
-            scroller_canvas_plan(layer, host_signature, width, height, width, height, 0.0, 0.0, dpr)
+            scroller_canvas_plan(
+                layer,
+                host_signature,
+                width,
+                height,
+                width,
+                height,
+                0.0,
+                0.0,
+                dpr,
+            )
         } else {
             return JsValue::NULL;
         };

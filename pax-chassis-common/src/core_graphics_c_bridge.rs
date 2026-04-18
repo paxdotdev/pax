@@ -3,32 +3,35 @@
 extern crate core;
 
 use std::cell::RefCell;
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
 use std::collections::HashMap;
-use std::ffi::c_void;
+use std::ffi::{c_void, CStr};
 use std::mem::{transmute, ManuallyDrop};
+use std::pin::Pin;
 use std::rc::Rc;
 
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
 use core_graphics::context::CGContext;
 use flexbuffers::DeserializationError;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
-use pax_pixels::{
-    point,
-    render_backend::{RenderBackend, RenderConfig},
-    Box2D, Image as PaxPixelsImage, Stroke as PixelStroke, StrokeCap as PixelStrokeCap,
-    WgpuRenderer,
-};
-use pax_runtime::api::math::Point2;
+use pax_pixels::render_backend::{RenderBackend, RenderConfig};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
-use pax_runtime::api::Axis;
+use pax_pixels::{Transform2D, WgpuRenderer};
+use pax_runtime::api::math::Point2;
 use pax_runtime::api::{
     ButtonClick, Click, Event, Focus, ModifierKey, MouseButton, MouseEventArgs, RenderContext,
     SelectStart, TextboxChange, Touch, TouchEnd, TouchMove, TouchStart,
 };
+use pax_runtime::engine::layer_tiling::scroller_canvas_plan;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
-use pax_runtime::pax_pixels_render_context::{convert_kurbo_to_lyon_path, to_pax_pixels_color};
+use pax_runtime::pax_pixels_render_context::{
+    LayerRenderer, LayerSurfaceEntry, LayerSurfaceLayout, LayerSurfaceSize, LayerTarget,
+    PaxPixelsRenderer,
+};
 use pax_runtime::PaxEngine;
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
 use piet::kurbo;
+#[cfg(not(any(target_os = "ios", target_os = "macos")))]
 use piet::kurbo::Shape;
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
 use piet::{InterpolationMode, LineCap, RenderContext as PietRenderContext, StrokeStyle};
@@ -45,7 +48,6 @@ use pax_runtime::designtime_support::{
     build_designtime_inspect_tree_payload, build_designtime_ray_cast_payload,
     build_designtime_selector_query_payload,
 };
-use pax_runtime::DefinitionToInstanceTraverser;
 //Re-export all native message types; used by Swift via FFI.
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`
 //in order to be visible to Swift
@@ -211,251 +213,229 @@ fn stroke_to_piet_style(cap: pax_runtime::api::StrokeCap) -> StrokeStyle {
 }
 
 #[cfg(any(target_os = "ios", target_os = "macos"))]
+#[derive(Clone)]
+struct SurfaceRegistration {
+    key: String,
+    host_signature: String,
+    origin_x: f32,
+    origin_y: f32,
+    logical_width: f32,
+    logical_height: f32,
+    surface_width: u32,
+    surface_height: u32,
+    dpr: [f32; 2],
+    layer_ptr: *mut c_void,
+}
+
+#[cfg(any(target_os = "ios", target_os = "macos"))]
+#[derive(Default)]
+struct LayerSurfaceLayoutData {
+    active: bool,
+    surfaces: Vec<SurfaceRegistration>,
+}
+
+#[cfg(any(target_os = "ios", target_os = "macos"))]
+#[derive(Default)]
+struct LayerSurfaceRegistry {
+    layers: Vec<LayerSurfaceLayoutData>,
+}
+
+#[cfg(any(target_os = "ios", target_os = "macos"))]
+impl LayerSurfaceRegistry {
+    fn begin_frame(&mut self, layer_count: usize) {
+        if self.layers.len() < layer_count {
+            self.layers
+                .resize_with(layer_count, LayerSurfaceLayoutData::default);
+        }
+        for layer in &mut self.layers {
+            layer.active = false;
+            layer.surfaces.clear();
+        }
+    }
+
+    fn set_layer_active(&mut self, layer_id: usize, active: bool) {
+        if self.layers.len() <= layer_id {
+            self.layers
+                .resize_with(layer_id + 1, LayerSurfaceLayoutData::default);
+        }
+        if let Some(layer) = self.layers.get_mut(layer_id) {
+            layer.active = active;
+        }
+    }
+
+    fn register_surface(&mut self, layer_id: usize, surface: SurfaceRegistration) {
+        if self.layers.len() <= layer_id {
+            self.layers
+                .resize_with(layer_id + 1, LayerSurfaceLayoutData::default);
+        }
+        if let Some(layer) = self.layers.get_mut(layer_id) {
+            layer.surfaces.push(surface);
+        }
+    }
+
+    fn layout_for_layer(&self, layer_id: usize) -> LayerSurfaceLayout {
+        let Some(layer) = self.layers.get(layer_id) else {
+            return LayerSurfaceLayout {
+                surfaces: Vec::new(),
+                active: false,
+            };
+        };
+        let surfaces = layer
+            .surfaces
+            .iter()
+            .map(|surface| LayerSurfaceEntry {
+                key: surface.key.clone(),
+                host_signature: surface.host_signature.clone(),
+                origin_x: surface.origin_x,
+                origin_y: surface.origin_y,
+                surface: LayerSurfaceSize {
+                    logical_width: surface.logical_width,
+                    logical_height: surface.logical_height,
+                    surface_width: surface.surface_width,
+                    surface_height: surface.surface_height,
+                    dpr: surface.dpr,
+                },
+            })
+            .collect();
+        LayerSurfaceLayout {
+            surfaces,
+            active: layer.active,
+        }
+    }
+
+    fn registrations_for_layer(&self, layer_id: usize) -> Vec<SurfaceRegistration> {
+        self.layers
+            .get(layer_id)
+            .map(|layer| layer.surfaces.clone())
+            .unwrap_or_default()
+    }
+}
+
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 pub struct AppleRenderContext {
-    backend: WgpuRenderer<'static>,
-    image_map: HashMap<String, PaxPixelsImage>,
-    image_versions: HashMap<String, u64>,
-    logical_size: (usize, usize),
-    dpr: u32,
+    renderer: PaxPixelsRenderer,
+    registry: Rc<RefCell<LayerSurfaceRegistry>>,
 }
 
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 impl AppleRenderContext {
-    fn new(layer: *mut c_void, width: usize, height: usize, dpr: f32) -> Result<Self, String> {
-        let dpr = dpr.round().max(1.0) as u32;
-        let dpr_vec = [dpr as f32; 2];
-        let config = RenderConfig::new(false, width as u32, height as u32, dpr_vec);
-        let backend =
-            unsafe { pollster::block_on(RenderBackend::to_core_animation_layer(layer, config)) }
-                .map_err(|err| err.to_string())?;
-        let mut backend = WgpuRenderer::new(backend);
-        backend.resize_surface(
-            (width as f32 * dpr as f32).max(1.0),
-            (height as f32 * dpr as f32).max(1.0),
-        );
-        backend.set_viewport(width as f32, height as f32, dpr_vec);
-        Ok(Self {
-            backend,
-            image_map: HashMap::new(),
-            image_versions: HashMap::new(),
-            logical_size: (width, height),
-            dpr,
-        })
-    }
+    fn new() -> Self {
+        let registry = Rc::new(RefCell::new(LayerSurfaceRegistry::default()));
+        let registry_factory = Rc::clone(&registry);
+        let renderer = PaxPixelsRenderer::new(move |layer| {
+            let registry = Rc::clone(&registry_factory);
+            Box::pin(async move {
+                let initial_layout = registry.borrow().layout_for_layer(layer);
+                let registrations = registry.borrow().registrations_for_layer(layer);
+                if registrations.is_empty() {
+                    let layout_provider: Pin<Box<dyn Fn() -> LayerSurfaceLayout>> = Box::pin({
+                        let registry = Rc::clone(&registry);
+                        move || registry.borrow().layout_for_layer(layer)
+                    });
+                    let target = LayerTarget::new(Vec::new(), initial_layout.active);
+                    return Some((target, layout_provider));
+                }
 
-    fn resize_if_needed(&mut self, width: usize, height: usize, dpr: f32) -> bool {
-        let dpr = dpr.round().max(1.0) as u32;
-        if self.logical_size == (width, height) && self.dpr == dpr {
-            return false;
-        }
-        let dpr_vec = [dpr as f32; 2];
-        self.backend.resize_surface(
-            (width as f32 * dpr as f32).max(1.0),
-            (height as f32 * dpr as f32).max(1.0),
-        );
-        self.backend
-            .set_viewport(width as f32, height as f32, dpr_vec);
-        self.logical_size = (width, height);
-        self.dpr = dpr;
-        true
-    }
-}
+                let mut renderers = Vec::with_capacity(registrations.len());
+                for surface in registrations {
+                    if surface.layer_ptr.is_null() {
+                        log::warn!(
+                            "skipping render backend for layer {} tile {}: nil layer pointer",
+                            layer,
+                            surface.key
+                        );
+                        return None;
+                    }
+                    let backend = match unsafe {
+                        RenderBackend::to_core_animation_layer(
+                            surface.layer_ptr,
+                            RenderConfig::new(
+                                false,
+                                surface.surface_width,
+                                surface.surface_height,
+                                surface.dpr,
+                            ),
+                        )
+                    }
+                    .await
+                    {
+                        Ok(backend) => backend,
+                        Err(err) => {
+                            log::warn!(
+                                "failed to create render backend for layer {} tile {}: {}",
+                                layer,
+                                surface.key,
+                                err
+                            );
+                            return None;
+                        }
+                    };
 
-#[cfg(any(target_os = "ios", target_os = "macos"))]
-impl RenderContext for AppleRenderContext {
-    fn fill_with_opacity(
-        &mut self,
-        _layer: usize,
-        path: kurbo::BezPath,
-        fill: &pax_runtime::api::Fill,
-        opacity: f64,
-    ) {
-        let bounds = path.bounding_box();
-        self.backend.fill_path_with_opacity(
-            convert_kurbo_to_lyon_path(&path),
-            to_pax_pixels_fill(fill, bounds),
-            opacity as f32,
-        );
-    }
+                    let mut renderer = WgpuRenderer::new(backend);
+                    renderer.set_surface_transform(Transform2D::from_array([
+                        1.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                        -surface.origin_x,
+                        -surface.origin_y,
+                    ]));
+                    renderer.resize_surface(
+                        surface.surface_width as f32,
+                        surface.surface_height as f32,
+                    );
+                    renderer.set_viewport(
+                        surface.logical_width,
+                        surface.logical_height,
+                        surface.dpr,
+                    );
+                    renderers.push(LayerRenderer::new(
+                        surface.key,
+                        surface.host_signature,
+                        renderer,
+                        surface.origin_x,
+                        surface.origin_y,
+                        surface.logical_width,
+                        surface.logical_height,
+                        surface.surface_width,
+                        surface.surface_height,
+                        surface.dpr,
+                    ));
+                }
 
-    fn stroke_with_opacity(
-        &mut self,
-        _layer: usize,
-        path: kurbo::BezPath,
-        stroke: &pax_runtime::api::Stroke,
-        opacity: f64,
-    ) {
-        let bounds = path.bounding_box();
-        self.backend.stroke_path_with_opacity(
-            convert_kurbo_to_lyon_path(&path),
-            PixelStroke {
-                fill: to_pax_pixels_fill(&pax_runtime::api::Fill::Solid(stroke.color.get()), bounds),
-                weight: stroke.width.get().expect_pixels().to_float() as f32,
-                cap: match stroke.cap.get() {
-                    pax_runtime::api::StrokeCap::Butt => PixelStrokeCap::Butt,
-                    pax_runtime::api::StrokeCap::Round => PixelStrokeCap::Round,
-                    pax_runtime::api::StrokeCap::Square => PixelStrokeCap::Square,
-                },
-            },
-            opacity as f32,
-        );
-    }
-
-    fn save(&mut self, _layer: usize) {
-        self.backend.save();
-    }
-
-    fn restore(&mut self, _layer: usize) {
-        self.backend.restore();
-    }
-
-    fn clip(&mut self, _layer: usize, path: kurbo::BezPath) {
-        self.backend.clip(convert_kurbo_to_lyon_path(&path));
-    }
-
-    fn transform(&mut self, _layer: usize, affine: kurbo::Affine) {
-        self.backend.transform(pax_pixels::Transform2D::from_array(
-            affine.as_coeffs().map(|value| value as f32),
-        ));
-    }
-
-    fn load_image(&mut self, path: &str, buf: &[u8], width: usize, height: usize) {
-        self.image_map.insert(
-            path.to_string(),
-            PaxPixelsImage {
-                rgba: buf.to_vec(),
-                pixel_width: width as u32,
-                pixel_height: height as u32,
-            },
-        );
-        *self.image_versions.entry(path.to_string()).or_insert(0) += 1;
-    }
-
-    fn draw_image(&mut self, _layer: usize, image_path: &str, rect: kurbo::Rect) {
-        let Some(image) = self.image_map.get(image_path) else {
-            return;
-        };
-        let version = *self.image_versions.get(image_path).unwrap_or(&0);
-        self.backend.draw_image(
-            image_path,
-            version,
-            image,
-            Box2D {
-                min: point(rect.x0 as f32, rect.y0 as f32),
-                max: point(rect.x1 as f32, rect.y1 as f32),
-            },
-        );
-    }
-
-    fn get_image_size(&mut self, image_path: &str) -> Option<(usize, usize)> {
-        self.image_map
-            .get(image_path)
-            .map(|image| (image.pixel_width as usize, image.pixel_height as usize))
-    }
-
-    fn image_loaded(&self, image_path: &str) -> bool {
-        self.image_map.contains_key(image_path)
-    }
-
-    fn layers(&self) -> usize {
-        1
-    }
-
-    fn resize_layers_to(&mut self, _layer_count: usize, _dirty_canvases: Rc<RefCell<Vec<bool>>>) {}
-
-    fn clear(&mut self, _layer: usize) {
-        self.backend.clear();
-    }
-
-    fn flush(&mut self, _layer: usize, _dirty_canvases: Rc<RefCell<Vec<bool>>>) {
-        self.backend.flush();
-    }
-
-    fn resize(&mut self, width: usize, height: usize) {
-        self.backend.resize(width as f32, height as f32);
-    }
-
-    fn refresh_layers(&mut self, _layers: &[usize]) {}
-
-    fn begin_node(&mut self, _layer: usize, node_id: u32, z_index: i32) -> bool {
-        self.backend.begin_node(node_id, z_index)
-    }
-
-    fn end_node(&mut self, _layer: usize, node_id: u32) -> bool {
-        self.backend.end_node(node_id)
-    }
-
-    fn remove_node(&mut self, _layer: usize, node_id: u32) -> bool {
-        self.backend.remove_node(node_id)
-    }
-}
-
-#[cfg(any(target_os = "ios", target_os = "macos"))]
-fn to_pax_pixels_fill(fill: &pax_runtime::api::Fill, rect: kurbo::Rect) -> pax_pixels::Fill {
-    let bounds = (rect.width(), rect.height());
-    let origin = rect.origin();
-    match fill {
-        pax_runtime::api::Fill::Solid(color) => pax_pixels::Fill::Solid(to_pax_pixels_color(color)),
-        pax_runtime::api::Fill::LinearGradient(gradient) => {
-            let start_x = gradient.start.0.evaluate(bounds, Axis::X);
-            let start_y = gradient.start.1.evaluate(bounds, Axis::Y);
-            let end_x = gradient.end.0.evaluate(bounds, Axis::X);
-            let end_y = gradient.end.1.evaluate(bounds, Axis::Y);
-            let main_axis =
-                pax_pixels::Vector2D::new((end_x - start_x) as f32, (end_y - start_y) as f32);
-            pax_pixels::Fill::Gradient {
-                stops: gradient
-                    .stops
+                let layout_provider: Pin<Box<dyn Fn() -> LayerSurfaceLayout>> = Box::pin({
+                    let registry = Rc::clone(&registry);
+                    move || registry.borrow().layout_for_layer(layer)
+                });
+                let layout = layout_provider();
+                let mut target = LayerTarget::new(renderers, layout.active);
+                for (surface, renderer) in layout
+                    .surfaces
                     .iter()
-                    .map(|stop| pax_pixels::GradientStop {
-                        color: to_pax_pixels_color(&stop.color),
-                        stop: stop
-                            .position
-                            .evaluate((main_axis.length() as f64, 0.0), Axis::X)
-                            as f32,
-                    })
-                    .collect(),
-                gradient_type: pax_pixels::GradientType::Linear,
-                pos: pax_pixels::Point2D::new(
-                    (origin.x + start_x) as f32,
-                    (origin.y + start_y) as f32,
-                ),
-                main_axis,
-                off_axis: pax_pixels::Vector2D::zero(),
-            }
-        }
-        pax_runtime::api::Fill::RadialGradient(gradient) => {
-            let start_x = gradient.start.0.evaluate(bounds, Axis::X);
-            let start_y = gradient.start.1.evaluate(bounds, Axis::Y);
-            let end_x = gradient.end.0.evaluate(bounds, Axis::X);
-            let end_y = gradient.end.1.evaluate(bounds, Axis::Y);
-            let radius = gradient.radius as f32;
-            let main_axis = pax_pixels::Vector2D::new(
-                radius * (end_x - start_x) as f32,
-                radius * (end_y - start_y) as f32,
-            );
-            let off_axis = pax_pixels::Vector2D::new(-main_axis.y, main_axis.x);
-            pax_pixels::Fill::Gradient {
-                gradient_type: pax_pixels::GradientType::Radial,
-                pos: pax_pixels::Point2D::new(
-                    (origin.x + start_x) as f32,
-                    (origin.y + start_y) as f32,
-                ),
-                main_axis,
-                off_axis,
-                stops: gradient
-                    .stops
-                    .iter()
-                    .map(|stop| pax_pixels::GradientStop {
-                        color: to_pax_pixels_color(&stop.color),
-                        stop: stop
-                            .position
-                            .evaluate((main_axis.length() as f64, 0.0), Axis::X)
-                            as f32,
-                    })
-                    .collect(),
-            }
-        }
+                    .zip(target.renderers_mut().iter_mut())
+                {
+                    renderer.renderer_mut().resize_surface(
+                        surface.surface.surface_width as f32,
+                        surface.surface.surface_height as f32,
+                    );
+                    renderer.renderer_mut().set_viewport(
+                        surface.surface.logical_width,
+                        surface.surface.logical_height,
+                        surface.surface.dpr,
+                    );
+                }
+                Some((target, layout_provider))
+            })
+        });
+        Self { renderer, registry }
+    }
+
+    fn registry(&self) -> Rc<RefCell<LayerSurfaceRegistry>> {
+        Rc::clone(&self.registry)
+    }
+
+    fn renderer_mut(&mut self) -> &mut PaxPixelsRenderer {
+        &mut self.renderer
     }
 }
 
@@ -477,6 +457,20 @@ fn serialize_message_queue(messages: Vec<NativeMessage>) -> *mut NativeMessageQu
     }
 }
 
+fn serialize_payload<T: Serialize>(payload: &T) -> *mut NativeMessageQueue {
+    let mut serializer = flexbuffers::FlexbufferSerializer::new();
+    payload.serialize(&mut serializer).unwrap();
+    let data_buffer = serializer.take_buffer();
+    let length = data_buffer.len();
+    let leaked_data: ManuallyDrop<Box<[u8]>> = ManuallyDrop::new(data_buffer.into_boxed_slice());
+    unsafe {
+        transmute(Box::new(NativeMessageQueue {
+            data_ptr: Box::into_raw(ManuallyDrop::into_inner(leaked_data)),
+            length: length as u64,
+        }))
+    }
+}
+
 /// Container data structure for PaxEngine, aggregated to support passing across C bridge
 #[repr(C)] //Exposed to Swift via PaxCartridge.h
 pub struct PaxEngineContainer {
@@ -490,6 +484,14 @@ pub struct PaxEngineContainer {
         Box<dyn pax_runtime::cartridge::DefinitionToInstanceTraverser>,
     #[cfg(feature = "designtime")]
     pub designtime_manager: Rc<RefCell<DesigntimeManager>>,
+}
+
+#[cfg(any(target_os = "ios", target_os = "macos"))]
+fn ensure_render_context(container: &mut PaxEngineContainer) -> &mut AppleRenderContext {
+    if container._render_context.is_null() {
+        container._render_context = Box::into_raw(Box::new(AppleRenderContext::new()));
+    }
+    unsafe { &mut *container._render_context }
 }
 
 #[derive(Serialize)]
@@ -705,20 +707,31 @@ pub extern "C" fn pax_interrupt(
                 borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
             }
         }
-        NativeInterrupt::Scrollbar(_args) => {}
+        NativeInterrupt::Scrollbar(args) => {
+            let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
+            if let Some(node) = node {
+                borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
+            }
+        }
         NativeInterrupt::Scroll(_args) => {}
         NativeInterrupt::VisualViewportUpdate(_args) => {}
+        NativeInterrupt::AddedLayer(args) => {
+            if let Some(layer_id) = args.layer_id.map(|layer| layer as usize) {
+                engine.runtime_context.set_canvas_dirty(layer_id);
+                engine
+                    .runtime_context
+                    .mark_canvas_nodes_on_layer_dirty(layer_id);
+            } else {
+                engine.runtime_context.set_all_canvases_dirty();
+                engine.runtime_context.mark_all_canvas_nodes_dirty();
+            }
+        }
         NativeInterrupt::Image(args) => match args {
             ImageLoadInterruptArgs::Reference(_ref_args) => {
                 #[cfg(any(target_os = "ios", target_os = "macos"))]
                 {
                     let ref_args = _ref_args;
-                    let Some(render_context) =
-                        (unsafe { (*engine_container)._render_context.as_mut() })
-                    else {
-                        unsafe { (*engine_container)._engine = Box::into_raw(engine) };
-                        return;
-                    };
+                    let render_context = ensure_render_context(&mut engine_container);
                     let identifier = if ref_args.path.is_empty() {
                         format!("image-{}", ref_args.id)
                     } else {
@@ -730,7 +743,7 @@ pub extern "C" fn pax_interrupt(
                             ref_args.image_data_length,
                         )
                     };
-                    render_context.load_image(
+                    render_context.renderer_mut().load_image(
                         &identifier,
                         image_data,
                         ref_args.width,
@@ -742,7 +755,6 @@ pub extern "C" fn pax_interrupt(
             }
             ImageLoadInterruptArgs::Data(_args) => {}
         },
-        NativeInterrupt::AddedLayer(_args) => {}
         NativeInterrupt::Screenshot(args) => match args {
             ImageLoadInterruptArgs::Reference(ref_args) => {
                 let ptr = ref_args.image_data as *const u8;
@@ -763,7 +775,7 @@ pub extern "C" fn pax_interrupt(
         _ => {}
     }
 
-    unsafe { (*engine_container)._engine = Box::into_raw(engine) };
+    engine_container._engine = Box::into_raw(engine);
     let _ = Box::into_raw(engine_container);
 }
 
@@ -773,7 +785,7 @@ pub extern "C" fn pax_interrupt(
 #[no_mangle] //Exposed to Swift via PaxCartridge.h
 pub extern "C" fn pax_tick(
     engine_container: *mut PaxEngineContainer,
-    render_target: *mut c_void,
+    _render_target: *mut c_void,
     width: f32,
     height: f32,
     _dpr: f32,
@@ -800,57 +812,9 @@ pub extern "C" fn pax_tick(
     engine.set_viewport_size((width as f64, height as f64));
     let messages = engine.tick();
 
-    #[cfg(any(target_os = "ios", target_os = "macos"))]
-    {
-        if width > 0.0 && height > 0.0 && !render_target.is_null() {
-            let container = unsafe { &mut *engine_container };
-            let should_recreate =
-                container._render_context.is_null() || container._render_target != render_target;
-
-            if should_recreate {
-                if !container._render_context.is_null() {
-                    unsafe { drop(Box::from_raw(container._render_context)) };
-                    container._render_context = std::ptr::null_mut();
-                }
-                match AppleRenderContext::new(render_target, width as usize, height as usize, _dpr)
-                {
-                    Ok(render_context) => {
-                        container._render_context = Box::into_raw(Box::new(render_context));
-                        container._render_target = render_target;
-                        engine.runtime_context.set_all_canvases_dirty();
-                        engine.runtime_context.mark_all_canvas_nodes_dirty();
-                    }
-                    Err(err) => {
-                        eprintln!("failed to initialize Apple gpu render context: {err}");
-                    }
-                }
-            } else if let Some(render_context) = unsafe { container._render_context.as_mut() } {
-                if render_context.resize_if_needed(width as usize, height as usize, _dpr) {
-                    engine.runtime_context.set_all_canvases_dirty();
-                    engine.runtime_context.mark_all_canvas_nodes_dirty();
-                }
-            }
-
-            let should_redraw_all = engine
-                .runtime_context
-                .dirty_canvases
-                .borrow()
-                .iter()
-                .any(|dirty| *dirty);
-            if should_redraw_all {
-                engine.runtime_context.set_all_canvases_dirty();
-                engine.runtime_context.mark_all_canvas_nodes_dirty();
-            }
-
-            if let Some(render_context) = unsafe { container._render_context.as_mut() } {
-                engine.render(render_context as &mut dyn RenderContext);
-            }
-        }
-    }
-
     #[cfg(not(any(target_os = "ios", target_os = "macos")))]
     {
-        let will_cast_cgContext = render_target as *mut CGContext;
+        let will_cast_cgContext = _render_target as *mut CGContext;
         let ctx = unsafe { &mut *will_cast_cgContext };
         let mut render_context =
             AppleRenderContext::new(CoreGraphicsContext::new_y_up(ctx, height as f64, None));
@@ -861,6 +825,223 @@ pub extern "C" fn pax_tick(
     engine_container._engine = Box::into_raw(engine);
     let _ = Box::into_raw(engine_container);
     queue_container
+}
+
+#[no_mangle]
+pub extern "C" fn pax_get_layer_canvas_plan(
+    engine_container: *mut PaxEngineContainer,
+    layer_id: u32,
+    dpr: f32,
+) -> *mut NativeMessageQueue {
+    if engine_container.is_null() {
+        return std::ptr::null_mut();
+    }
+    let mut engine_container = unsafe { Box::from_raw(engine_container) };
+    let engine = unsafe { Box::from_raw(engine_container._engine) };
+    let ctx = &engine.runtime_context;
+    let dpr = (dpr as f64).max(1.0);
+    let layer = layer_id as usize;
+
+    let plan = if let Some(owner) = ctx.get_layer_scroller_owner(layer) {
+        let scroller_id = owner.to_u32();
+        if let Some(state) = ctx.get_scroller_surface_state(scroller_id) {
+            let host_signature = format!("scroller:{scroller_id}");
+            let mut viewport_width = state.viewport_width;
+            let mut viewport_height = state.viewport_height;
+            let mut scroll_x = if state.presentation_scroll_x.is_finite() {
+                state.presentation_scroll_x
+            } else {
+                state.scroll_x
+            };
+            let mut scroll_y = if state.presentation_scroll_y.is_finite() {
+                state.presentation_scroll_y
+            } else {
+                state.scroll_y
+            };
+            if ctx.get_root_scroller_id() == Some(scroller_id) {
+                if let Some(visual) = ctx.get_visual_viewport_state() {
+                    viewport_width = visual.width;
+                    viewport_height = visual.height;
+                    scroll_x = visual.page_scroll_x;
+                    scroll_y = visual.page_scroll_y;
+                }
+            }
+            Some(scroller_canvas_plan(
+                layer,
+                host_signature,
+                state.content_width,
+                state.content_height,
+                viewport_width,
+                viewport_height,
+                scroll_x,
+                scroll_y,
+                dpr,
+            ))
+        } else {
+            None
+        }
+    } else if layer == 0 {
+        let viewport = ctx.globals().viewport.get();
+        let host_signature = "root".to_string();
+        let width = viewport.bounds.0;
+        let height = viewport.bounds.1;
+        Some(scroller_canvas_plan(
+            layer,
+            host_signature,
+            width,
+            height,
+            width,
+            height,
+            0.0,
+            0.0,
+            dpr,
+        ))
+    } else {
+        None
+    };
+
+    engine_container._engine = Box::into_raw(engine);
+    let _ = Box::into_raw(engine_container);
+
+    match plan {
+        Some(plan) => serialize_payload(&plan),
+        None => std::ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn pax_surface_registry_begin_frame(
+    engine_container: *mut PaxEngineContainer,
+    layer_count: u32,
+) {
+    if engine_container.is_null() {
+        return;
+    }
+    let mut engine_container = unsafe { Box::from_raw(engine_container) };
+    #[cfg(any(target_os = "ios", target_os = "macos"))]
+    {
+        let render_context = ensure_render_context(&mut engine_container);
+        let registry = render_context.registry();
+        registry.borrow_mut().begin_frame(layer_count as usize);
+    }
+    let _ = Box::into_raw(engine_container);
+}
+
+#[no_mangle]
+pub extern "C" fn pax_surface_registry_set_layer_active(
+    engine_container: *mut PaxEngineContainer,
+    layer_id: u32,
+    active: bool,
+) {
+    if engine_container.is_null() {
+        return;
+    }
+    let mut engine_container = unsafe { Box::from_raw(engine_container) };
+    #[cfg(any(target_os = "ios", target_os = "macos"))]
+    {
+        let render_context = ensure_render_context(&mut engine_container);
+        let registry = render_context.registry();
+        registry
+            .borrow_mut()
+            .set_layer_active(layer_id as usize, active);
+    }
+    let _ = Box::into_raw(engine_container);
+}
+
+#[no_mangle]
+pub extern "C" fn pax_surface_registry_register_surface(
+    engine_container: *mut PaxEngineContainer,
+    layer_id: u32,
+    key_ptr: *const std::os::raw::c_char,
+    host_signature_ptr: *const std::os::raw::c_char,
+    origin_x: f32,
+    origin_y: f32,
+    logical_width: f32,
+    logical_height: f32,
+    surface_width: u32,
+    surface_height: u32,
+    dpr_x: f32,
+    dpr_y: f32,
+    layer_ptr: *mut c_void,
+) {
+    if engine_container.is_null() || key_ptr.is_null() || host_signature_ptr.is_null() {
+        return;
+    }
+    let mut engine_container = unsafe { Box::from_raw(engine_container) };
+    #[cfg(any(target_os = "ios", target_os = "macos"))]
+    {
+        let key = unsafe { CStr::from_ptr(key_ptr) }
+            .to_string_lossy()
+            .to_string();
+        let host_signature = unsafe { CStr::from_ptr(host_signature_ptr) }
+            .to_string_lossy()
+            .to_string();
+        let render_context = ensure_render_context(&mut engine_container);
+        let registry = render_context.registry();
+        registry.borrow_mut().register_surface(
+            layer_id as usize,
+            SurfaceRegistration {
+                key,
+                host_signature,
+                origin_x,
+                origin_y,
+                logical_width,
+                logical_height,
+                surface_width,
+                surface_height,
+                dpr: [dpr_x, dpr_y],
+                layer_ptr,
+            },
+        );
+    }
+    let _ = Box::into_raw(engine_container);
+}
+
+#[no_mangle]
+pub extern "C" fn pax_refresh_render_surfaces(engine_container: *mut PaxEngineContainer) {
+    if engine_container.is_null() {
+        return;
+    }
+    let mut engine_container = unsafe { Box::from_raw(engine_container) };
+    #[cfg(any(target_os = "ios", target_os = "macos"))]
+    {
+        let render_context = ensure_render_context(&mut engine_container);
+        let layer_count = render_context.renderer_mut().layers();
+        let layers: Vec<usize> = (0..layer_count).collect();
+        render_context.renderer_mut().refresh_layers(&layers);
+    }
+    let _ = Box::into_raw(engine_container);
+}
+
+#[no_mangle]
+pub extern "C" fn pax_render(engine_container: *mut PaxEngineContainer) {
+    if engine_container.is_null() {
+        return;
+    }
+    let mut engine_container = unsafe { Box::from_raw(engine_container) };
+    let mut engine = unsafe { Box::from_raw(engine_container._engine) };
+
+    #[cfg(any(target_os = "ios", target_os = "macos"))]
+    {
+        let render_context = ensure_render_context(&mut engine_container);
+        let renderer = render_context.renderer_mut();
+        for layer_id in renderer.take_ready_canvas_layers() {
+            engine.runtime_context.set_canvas_dirty(layer_id);
+            engine
+                .runtime_context
+                .mark_canvas_nodes_on_layer_dirty(layer_id);
+        }
+        for layer_id in renderer.take_replay_canvas_layers() {
+            engine.runtime_context.set_canvas_dirty(layer_id);
+            engine
+                .runtime_context
+                .mark_canvas_nodes_on_layer_dirty(layer_id);
+        }
+        engine.render(renderer as &mut dyn RenderContext);
+    }
+
+    engine_container._engine = Box::into_raw(engine);
+    let _ = Box::into_raw(engine_container);
 }
 
 #[no_mangle]

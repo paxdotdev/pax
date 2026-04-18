@@ -344,8 +344,10 @@ impl<'w> WgpuRenderer<'w> {
 
     pub fn stroke_path_with_opacity(&mut self, path: Path, stroke: Stroke, opacity: f32) {
         let current_transform = self.current_transform();
-        let geometry_signature =
-            hash_vector_path(&path, PendingVectorOpKind::Stroke(stroke.weight, stroke.cap));
+        let geometry_signature = hash_vector_path(
+            &path,
+            PendingVectorOpKind::Stroke(stroke.weight, stroke.cap),
+        );
         let Some(PendingNode {
             kind: PendingNodeKind::Vector(buffers),
             ..
