@@ -8,11 +8,13 @@ use std::path::Path;
 use syn::parse_file;
 use syn::visit::Visit;
 
+/// Format one Pax template string.
 pub fn format_pax_template(code: String) -> Result<String, eyre::Report> {
     let pax_component_definition = parse_pax_err(Rule::pax_component_definition, code.as_str())?;
     Ok(rules::format(pax_component_definition))
 }
 
+/// Format either a `.pax` file or an inlined Pax template inside a Rust file.
 pub fn format_file(file_path: &str) -> Result<(), Report> {
     let path = Path::new(file_path);
 

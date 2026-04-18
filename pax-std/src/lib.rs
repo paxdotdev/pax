@@ -3,14 +3,17 @@ pub mod core;
 pub mod drawing;
 pub mod forms;
 pub mod layout;
+pub mod media;
 
 pub use common::*;
 pub use core::*;
 pub use drawing::*;
 pub use forms::*;
 pub use layout::*;
+pub use media::*;
 
 #[cfg(feature = "parser")]
+// Registers all pax-std reflectable types with designtime parsing.
 pub fn extend_designtime_parsing_context_with_all_pax_std_types(
     mut ctx: pax_manifest::parsing::ParsingContext,
 ) -> pax_manifest::parsing::ParsingContext {
@@ -29,7 +32,6 @@ pub fn extend_designtime_parsing_context_with_all_pax_std_types(
     // designtime template hot-reloads can introduce standard-library tags that
     // were not present in the original userland tree.
     parse_reflectables!(
-        Point,
         BlankComponent,
         ComboBox,
         NewItem,
@@ -42,10 +44,8 @@ pub fn extend_designtime_parsing_context_with_all_pax_std_types(
         Link,
         Target,
         NativeImage,
-        Scrollbar,
         Scroller,
         ScrollerHost,
-        PlatformSpecificScrollParams,
         Text,
         TextStyle,
         Font,
@@ -71,7 +71,7 @@ pub fn extend_designtime_parsing_context_with_all_pax_std_types(
         Checkbox,
         ConfirmationDialog,
         Dropdown,
-        RadioSet,
+        RadioList,
         Slider,
         Tabs,
         Textbox,

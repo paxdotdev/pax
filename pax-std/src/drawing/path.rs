@@ -1,14 +1,14 @@
 use kurbo::{Affine, BezPath};
 
 use pax_engine::api::{Fill, PathElement};
+use pax_runtime::api::drawing::stroke_utils::{stroke_width_pixels, stroked_outline_path};
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
 use pax_runtime::api::{Layer, RenderContext, Stroke};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 
-use crate::common::{begin_bounded_canvas_node, Point};
-use crate::drawing::stroke_utils::{stroke_width_pixels, stroked_outline_path};
+use crate::common::{begin_bounded_canvas_node, to_kurbo_point};
 use pax_engine::*;
 
 use_RefCell!();
@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
 
-/// A basic 2D vector path for arbitrary Bézier and line-segment chains.
+/// A 2D vector path for arbitrary Bézier and line-segment chains.
 ///
 /// `elements` describes the path in local coordinates. `fill` paints the
 /// interior of closed contours, while `stroke` paints the path itself; for
@@ -62,6 +62,7 @@ impl Path {
     }
 }
 
+// Runtime instance backing `<Path>`.
 pub struct PathInstance {
     base: BaseInstance,
 }
@@ -249,7 +250,7 @@ fn build_local_bez_path(elements: &[PathElement], bounds: (f64, f64)) -> Option<
 
     if let Some(elem) = itr_elems.next() {
         if let &PathElement::Point(x, y) = elem {
-            bez_path.move_to(Point { x, y }.to_kurbo_point(bounds));
+            bez_path.move_to(to_kurbo_point(x, y, bounds));
         } else {
             log::warn!("path must start with point");
             return None;
@@ -259,14 +260,14 @@ fn build_local_bez_path(elements: &[PathElement], bounds: (f64, f64)) -> Option<
     while let Some(elem) = itr_elems.next() {
         match elem {
             &PathElement::Point(x, y) => {
-                bez_path.move_to(Point { x, y }.to_kurbo_point(bounds));
+                bez_path.move_to(to_kurbo_point(x, y, bounds));
             }
             &PathElement::Line => {
                 let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
                     log::warn!("line expects to be followed by a point");
                     return None;
                 };
-                bez_path.line_to(Point { x, y }.to_kurbo_point(bounds));
+                bez_path.line_to(to_kurbo_point(x, y, bounds));
             }
             &PathElement::Quadratic(h_x, h_y) => {
                 let Some(&PathElement::Point(x, y)) = itr_elems.next() else {
@@ -274,8 +275,8 @@ fn build_local_bez_path(elements: &[PathElement], bounds: (f64, f64)) -> Option<
                     return None;
                 };
                 bez_path.quad_to(
-                    Point { x: h_x, y: h_y }.to_kurbo_point(bounds),
-                    Point { x, y }.to_kurbo_point(bounds),
+                    to_kurbo_point(h_x, h_y, bounds),
+                    to_kurbo_point(x, y, bounds),
                 );
             }
             &PathElement::Cubic(v1, v2, v3, v4) => {
@@ -284,9 +285,9 @@ fn build_local_bez_path(elements: &[PathElement], bounds: (f64, f64)) -> Option<
                     return None;
                 };
                 bez_path.curve_to(
-                    Point { x: v1, y: v2 }.to_kurbo_point(bounds),
-                    Point { x: v3, y: v4 }.to_kurbo_point(bounds),
-                    Point { x, y }.to_kurbo_point(bounds),
+                    to_kurbo_point(v1, v2, bounds),
+                    to_kurbo_point(v3, v4, bounds),
+                    to_kurbo_point(x, y, bounds),
                 );
             }
             &PathElement::Close => {
@@ -304,22 +305,29 @@ use pax_engine::{
     pax, Property,
 };
 
+// Local store shared by `Path` and its path-builder children.
 pub struct PathContext {
+    // Shared path element list mutated by path-builder child components.
     pub elements: Property<Vec<PathElement>>,
 }
 
 impl Store for PathContext {}
 
+/// Path child component that inserts a `PathElement::Point`.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined( @settings { @mount: on_mount @pre_render: pre_render @unmount: on_unmount })]
 pub struct PathPoint {
+    /// Point x-coordinate.
     pub x: Property<Size>,
+    /// Point y-coordinate.
     pub y: Property<Size>,
-    pub on_change: Property<bool>,
+    // Private reactive hook that writes this child into the parent path.
+    pub _on_change: Property<bool>,
 }
 
 impl PathPoint {
+    // Registers this child as a point command in the parent `Path`.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let path_elems = ctx
             .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
@@ -329,7 +337,7 @@ impl PathPoint {
         let y = self.y.clone();
         let id = ctx.slot_index.clone();
         let deps = [x.untyped(), y.untyped(), id.untyped()];
-        self.on_change.replace_with(Property::computed(
+        self._on_change.replace_with(Property::computed(
             move || {
                 path_elems.update(|elems| {
                     let id = id.get().unwrap();
@@ -344,6 +352,7 @@ impl PathPoint {
         ));
     }
 
+    // Removes this child command from the parent `Path`.
     pub fn on_unmount(&mut self, ctx: &NodeContext) {
         let path_elems = ctx
             .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
@@ -356,20 +365,23 @@ impl PathPoint {
         });
     }
 
+    // Forces the path-command computed property to run.
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        // trigger dirty prop to fire closure
-        self.on_change.get();
+        self._on_change.get();
     }
 }
 
+/// Path child component that inserts a straight line segment.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined( @settings { @mount: on_mount @pre_render: pre_render @unmount: on_unmount })]
 pub struct PathLine {
-    pub on_change: Property<bool>,
+    // Private reactive hook that writes this child into the parent path.
+    pub _on_change: Property<bool>,
 }
 
 impl PathLine {
+    // Registers this child as a line command in the parent `Path`.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let path_elems = ctx
             .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
@@ -377,7 +389,7 @@ impl PathLine {
 
         let id = ctx.slot_index.clone();
         let deps = [id.untyped()];
-        self.on_change.replace_with(Property::computed(
+        self._on_change.replace_with(Property::computed(
             move || {
                 path_elems.update(|elems| {
                     let id = id.get().unwrap();
@@ -392,6 +404,7 @@ impl PathLine {
         ));
     }
 
+    // Removes this child command from the parent `Path`.
     pub fn on_unmount(&mut self, ctx: &NodeContext) {
         let path_elems = ctx
             .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
@@ -403,20 +416,23 @@ impl PathLine {
             }
         });
     }
+    // Forces the path-command computed property to run.
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        // trigger dirty prop to fire closure
-        self.on_change.get();
+        self._on_change.get();
     }
 }
 
+/// Path child component that closes the current contour.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined( @settings { @mount: on_mount @pre_render: pre_render @unmount: on_unmount })]
 pub struct PathClose {
-    pub on_change: Property<bool>,
+    // Private reactive hook that writes this child into the parent path.
+    pub _on_change: Property<bool>,
 }
 
 impl PathClose {
+    // Registers this child as a close-path command in the parent `Path`.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let path_elems = ctx
             .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
@@ -424,7 +440,7 @@ impl PathClose {
 
         let id = ctx.slot_index.clone();
         let deps = [id.untyped()];
-        self.on_change.replace_with(Property::computed(
+        self._on_change.replace_with(Property::computed(
             move || {
                 path_elems.update(|elems| {
                     let id = id.get().unwrap();
@@ -438,6 +454,7 @@ impl PathClose {
             &deps,
         ));
     }
+    // Removes this child command from the parent `Path`.
     pub fn on_unmount(&mut self, ctx: &NodeContext) {
         let path_elems = ctx
             .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
@@ -451,22 +468,27 @@ impl PathClose {
         });
     }
 
+    // Forces the path-command computed property to run.
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        // trigger dirty prop to fire closure
-        self.on_change.get();
+        self._on_change.get();
     }
 }
 
+/// Path child component that inserts a quadratic curve control point.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined( @settings { @mount: on_mount @pre_render: pre_render @unmount: on_unmount })]
 pub struct PathCurve {
+    /// Control point x-coordinate.
     pub x: Property<Size>,
+    /// Control point y-coordinate.
     pub y: Property<Size>,
-    pub on_change: Property<bool>,
+    // Private reactive hook that writes this child into the parent path.
+    pub _on_change: Property<bool>,
 }
 
 impl PathCurve {
+    // Registers this child as a quadratic curve command in the parent `Path`.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let path_elems = ctx
             .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
@@ -476,7 +498,7 @@ impl PathCurve {
         let y = self.y.clone();
         let id = ctx.slot_index.clone();
         let deps = [x.untyped(), y.untyped(), id.untyped()];
-        self.on_change.replace_with(Property::computed(
+        self._on_change.replace_with(Property::computed(
             move || {
                 path_elems.update(|elems| {
                     let id = id.get().unwrap();
@@ -491,6 +513,7 @@ impl PathCurve {
         ));
     }
 
+    // Removes this child command from the parent `Path`.
     pub fn on_unmount(&mut self, ctx: &NodeContext) {
         let path_elems = ctx
             .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
@@ -503,8 +526,8 @@ impl PathCurve {
         });
     }
 
+    // Forces the path-command computed property to run.
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        // trigger dirty prop to fire closure
-        self.on_change.get();
+        self._on_change.get();
     }
 }

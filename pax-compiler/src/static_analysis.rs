@@ -1882,7 +1882,7 @@ mod tests {
                 "pax_std::forms::button::Button",
                 "pax_std::layout::carousel::Carousel",
                 "pax_std::layout::table::Table",
-                "pax_std::drawing::image::ImageSource",
+                "pax_std::media::image::ImageSource",
                 "pax_std::drawing::path::PathCurve",
             ],
         );

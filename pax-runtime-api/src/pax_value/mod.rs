@@ -12,8 +12,10 @@ mod macros;
 pub mod numeric;
 mod to_from_impls;
 
+/// Shared runtime PaxValue handle.
 pub type RcPaxValue = Rc<PaxValue>;
-/// Container for all internal pax types
+/// Runtime container for polymorphic values, for evaluating PAXEL.
+///
 /// Two important traits are related to this type:
 /// ToFromPaxValue - responsible for converting to and from specific types (u8,
 /// String, Color, etc)
@@ -22,18 +24,31 @@ pub type RcPaxValue = Rc<PaxValue>;
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "crate::serde")]
 pub enum PaxValue {
+    /// Boolean value.
     Bool(bool),
+    /// Polymorphic numeric value.
     Numeric(Numeric),
+    /// UTF-8 string value.
     String(String),
+    /// Pax size value, such as `25px` or `50%`.
     Size(Size),
+    /// Raw percent value.
     Percent(Percent),
+    /// Pax color value.
     Color(Box<Color>),
+    /// Pax rotation value.
     Rotation(Rotation),
+    /// Vector path element value.
     PathElement(Box<PathElement>),
+    /// Optional value.
     Option(Box<Option<PaxValue>>),
+    /// Homogeneous or heterogeneous vector value.
     Vec(Vec<PaxValue>),
+    /// Range value.
     Range(Box<PaxValue>, Box<PaxValue>),
+    /// Object value represented by named fields.
     Object(Vec<(String, PaxValue)>),
+    /// Enum value represented by type name, variant name, and payload values.
     Enum(Box<(String, String, Vec<PaxValue>)>),
 }
 
@@ -139,10 +154,12 @@ impl Default for PaxValue {
     }
 }
 
-/// This type serves a similar purpose as Box<dyn Any>, but allows for special
+/// This type serves a similar purpose as `Box<dyn Any>`, but allows for special
 /// handling of some types, enabling things like coercion.
 pub enum PaxAny {
+    /// Built-in PAXEL/runtime value.
     Builtin(PaxValue),
+    /// Arbitrary Rust value boxed for runtime storage.
     Any(Box<dyn Any>),
 }
 
@@ -154,17 +171,18 @@ impl std::fmt::Debug for PaxAny {
 
 impl Interpolatable for PaxValue {}
 
-/// This trait is implemented by all types that has a builtin equivalent
-/// representation (see to_from_impls module) This is NOT responsible for
-/// coercing between types, but returns an err in all cases where the underlying
-/// type is not exactly what is expected
+/// Converts a Rust value into its built-in `PaxValue` representation.
+///
+/// This is exact conversion, not coercion; coercion is handled separately by
+/// `CoercionRules`.
 pub trait ToPaxValue {
+    /// Converts this value into a `PaxValue`.
     fn to_pax_value(self) -> PaxValue;
 }
 
 /// Trait that marks a type as being representable as a PaxAny, and provides
 /// the implementation for going to/from that type. For all builtins this
-/// means going to/from a pax value. For others to a Box<dyn Any>. This
+/// means going to/from a pax value. For others to a `Box<dyn Any>`. This
 /// is automatically Implemented for PaxValue types through the macro
 /// impl_to_from_pax_value!, and for other types by implementing the marker
 /// trait ImplToFromPaxAny.
@@ -172,9 +190,13 @@ pub trait ToFromPaxAny
 where
     Self: Sized + 'static,
 {
+    /// Converts this value into a `PaxAny`.
     fn to_pax_any(self) -> PaxAny;
+    /// Attempts to recover this concrete type from a `PaxAny`.
     fn from_pax_any(pax_any: PaxAny) -> Result<Self, String>;
+    /// Attempts to borrow this concrete type from a `PaxAny`.
     fn ref_from_pax_any(pax_any: &PaxAny) -> Result<&Self, String>;
+    /// Attempts to mutably borrow this concrete type from a `PaxAny`.
     fn mut_from_pax_any(pax_any: &mut PaxAny) -> Result<&mut Self, String>;
 }
 
@@ -205,10 +227,9 @@ impl ToFromPaxAny for PaxValue {
     }
 }
 
-/// Marker trait. Implement only for types that are not part of PaxValue, but
-/// need to be stored inside a PaxAny. If they are part of pax value, instead
-/// implement CoercionRules manually, or using the default impl macro as seen
-/// in coercion_impls.rs
+/// Marker trait for types that can be stored inside `PaxAny` without a built-in `PaxValue` representation.
+///
+/// If the type is part of `PaxValue`, implement `CoercionRules` instead.
 pub trait ImplToFromPaxAny: 'static {}
 
 // If a type has marker trait, implement to from

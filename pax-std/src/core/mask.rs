@@ -20,6 +20,7 @@ use_RefCell!();
 #[primitive("pax_std::core::mask::MaskInstance")]
 pub struct Mask {}
 
+// Runtime instance backing `<Mask>`.
 pub struct MaskInstance {
     base: BaseInstance,
 }

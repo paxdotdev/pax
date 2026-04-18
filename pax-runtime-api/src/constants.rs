@@ -1,4 +1,7 @@
 #![allow(unused)]
+//! Compiler-facing type and property spelling constants.
+
+// Runtime API type names used by parser and manifest plumbing.
 pub const NUMERIC: &str = "Numeric";
 pub const SIZE: &str = "Size";
 pub const ROTATION: &str = "Rotation";
@@ -14,11 +17,13 @@ pub const TRUE: &str = "true";
 pub const COLOR: &str = "Color";
 pub const COLOR_CHANNEL: &str = "ColorChannel";
 
+// Template-node sentinel type IDs.
 pub const TYPE_ID_IF: &str = "IF";
 pub const TYPE_ID_REPEAT: &str = "REPEAT";
 pub const TYPE_ID_SLOT: &str = "SLOT";
 pub const TYPE_ID_COMMENT: &str = "COMMENT";
 
+// Property names that every renderable node may accept.
 pub const COMMON_PROPERTIES: [&str; 14] = [
     "id",
     "x",
@@ -36,6 +41,7 @@ pub const COMMON_PROPERTIES: [&str; 14] = [
     "opacity",
 ];
 
+// Checks whether contextual `into` inference should be attempted for a target type.
 pub fn is_intoable_downstream_type(type_to_check: &str) -> bool {
     BLESSED_INTOABLE_DOWNSTREAM_TYPES
         .iter()
@@ -53,6 +59,7 @@ const BLESSED_INTOABLE_DOWNSTREAM_TYPES: [&'static str; 6] = [
     "pax_engine::api::Fill",
 ];
 
+// Common property names paired with their compiler-facing type spellings.
 pub const COMMON_PROPERTIES_TYPE: &[(&str, &str)] = &[
     ("id", "String"),
     ("x", "pax_engine::api::Size"),

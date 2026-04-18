@@ -555,7 +555,7 @@ public struct NativeRenderingLayer: View {
     let nativeImageElements = NativeImageElements.singleton
     let youtubeVideoElements = YoutubeVideoElements.singleton
     let dropdownElements = DropdownElements.singleton
-    let radioSetElements = RadioSetElements.singleton
+    let radioListElements = RadioListElements.singleton
     let sliderElements = SliderElements.singleton
     let textboxElements = TextboxElements.singleton
     let eventBlockerElements = EventBlockerElements.singleton
@@ -566,7 +566,7 @@ public struct NativeRenderingLayer: View {
         case checkbox(CheckboxElement)
         case slider(SliderElement)
         case dropdown(DropdownElement)
-        case radioSet(RadioSetElement)
+        case radioList(RadioListElement)
         case textbox(TextboxElement)
         case nativeImage(NativeImageElement)
         case youtubeVideo(YoutubeVideoElement)
@@ -593,8 +593,8 @@ public struct NativeRenderingLayer: View {
                 return "slider"
             case .dropdown:
                 return "dropdown"
-            case .radioSet:
-                return "radio-set"
+            case .radioList:
+                return "radio-list"
             case .textbox(let element):
                 return element.isTextArea ? "textbox-area" : "textbox-field"
             case .nativeImage:
@@ -654,7 +654,7 @@ public struct NativeRenderingLayer: View {
                 combineDouble(element.strokeWidth, into: &hasher)
                 combineDouble(element.borderRadius, into: &hasher)
                 combineTextStyle(element.style, into: &hasher)
-            case .radioSet(let element):
+            case .radioList(let element):
                 hasher.combine(element.selectedId)
                 hasher.combine(element.options)
                 combineTextStyle(element.style, into: &hasher)
@@ -2298,8 +2298,8 @@ public struct NativeRenderingLayer: View {
         items.append(contentsOf: sortedElements(dropdownElements.elements).map { element in
             dropdownItem(for: element)
         })
-        items.append(contentsOf: sortedElements(radioSetElements.elements).map { element in
-            radioSetItem(for: element)
+        items.append(contentsOf: sortedElements(radioListElements.elements).map { element in
+            radioListItem(for: element)
         })
         items.append(contentsOf: sortedElements(textboxElements.elements).map { element in
             textboxItem(for: element)
@@ -2553,8 +2553,8 @@ public struct NativeRenderingLayer: View {
         renderItem(element: element, kind: .dropdown(element))
     }
 
-    private func radioSetItem(for element: RadioSetElement) -> NativeRenderItem {
-        renderItem(element: element, kind: .radioSet(element))
+    private func radioListItem(for element: RadioListElement) -> NativeRenderItem {
+        renderItem(element: element, kind: .radioList(element))
     }
 
     private func textboxItem(for element: TextboxElement) -> NativeRenderItem {
@@ -2699,8 +2699,8 @@ fileprivate extension NativeRenderingLayer {
 #elseif os(macOS)
             return PaxNativeDropdownView(frame: .zero, pullsDown: false)
 #endif
-        case .radioSet:
-            return PaxNativeRadioSetView()
+        case .radioList:
+            return PaxNativeRadioListView()
         case .textbox(let element):
             return element.isTextArea ? PaxNativeTextboxAreaView() : PaxNativeTextboxFieldView()
         case .nativeImage:
@@ -2728,8 +2728,8 @@ fileprivate extension NativeRenderingLayer {
             (view as? PaxNativeSliderView)?.apply(element: element)
         case .dropdown(let element):
             (view as? PaxNativeDropdownView)?.apply(element: element)
-        case .radioSet(let element):
-            (view as? PaxNativeRadioSetView)?.apply(element: element)
+        case .radioList(let element):
+            (view as? PaxNativeRadioListView)?.apply(element: element)
         case .textbox(let element):
             if element.isTextArea {
                 (view as? PaxNativeTextboxAreaView)?.apply(element: element)
@@ -3008,7 +3008,7 @@ private final class PaxNativeDropdownView: UIButton {
     }
 }
 
-private final class PaxNativeRadioSetView: UIStackView {
+private final class PaxNativeRadioListView: UIStackView {
     private var nodeId: PaxNodeId = 0
 
     override init(frame: CGRect) {
@@ -3023,7 +3023,7 @@ private final class PaxNativeRadioSetView: UIStackView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func apply(element: RadioSetElement) {
+    func apply(element: RadioListElement) {
         nodeId = element.id
         if arrangedSubviews.count != element.options.count {
             arrangedSubviews.forEach { view in
@@ -3049,7 +3049,7 @@ private final class PaxNativeRadioSetView: UIStackView {
     }
 
     @objc private func selectOption(_ sender: UIButton) {
-        dispatchFormRadioSetChange(id: nodeId, selectedId: UInt32(sender.tag))
+        dispatchFormRadioListChange(id: nodeId, selectedId: UInt32(sender.tag))
     }
 }
 
@@ -3503,7 +3503,7 @@ private final class PaxNativeDropdownView: NSPopUpButton {
     }
 }
 
-private final class PaxNativeRadioSetView: NSStackView {
+private final class PaxNativeRadioListView: NSStackView {
     private var nodeId: PaxNodeId = 0
 
     override init(frame frameRect: NSRect) {
@@ -3519,7 +3519,7 @@ private final class PaxNativeRadioSetView: NSStackView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func apply(element: RadioSetElement) {
+    func apply(element: RadioListElement) {
         nodeId = element.id
         if arrangedSubviews.count != element.options.count {
             arrangedSubviews.forEach { view in
@@ -3543,7 +3543,7 @@ private final class PaxNativeRadioSetView: NSStackView {
     }
 
     @objc private func selectOption(_ sender: NSButton) {
-        dispatchFormRadioSetChange(id: nodeId, selectedId: UInt32(sender.tag))
+        dispatchFormRadioListChange(id: nodeId, selectedId: UInt32(sender.tag))
     }
 }
 
@@ -4105,11 +4105,11 @@ public class DropdownElements: ObservableObject {
     }
 }
 
-public class RadioSetElements: ObservableObject {
-    public static let singleton = RadioSetElements()
-    @Published public var elements: [PaxNodeId: RadioSetElement] = [:]
+public class RadioListElements: ObservableObject {
+    public static let singleton = RadioListElements()
+    @Published public var elements: [PaxNodeId: RadioListElement] = [:]
 
-    public func add(element: RadioSetElement) {
+    public func add(element: RadioListElement) {
         elements[element.id] = element
     }
 

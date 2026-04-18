@@ -123,7 +123,7 @@ struct PaxViewIos: View {
         let nativeImageElements = NativeImageElements.singleton
         let youtubeVideoElements = YoutubeVideoElements.singleton
         let dropdownElements = DropdownElements.singleton
-        let radioSetElements = RadioSetElements.singleton
+        let radioListElements = RadioListElements.singleton
         let sliderElements = SliderElements.singleton
         let textboxElements = TextboxElements.singleton
         let eventBlockerElements = EventBlockerElements.singleton

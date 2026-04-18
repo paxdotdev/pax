@@ -67,7 +67,7 @@ if 0 == 1 {
     <Button/>
     <Image/>
     <Dropdown/>
-    <RadioSet/>
+    <RadioList/>
     <Scroller/>
     <Link/>
     <Carousel/>

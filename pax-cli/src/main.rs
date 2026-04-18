@@ -11,6 +11,7 @@ use pax_compiler::{CreateContext, RunContext, RunTarget};
 extern crate pax_language_server;
 
 mod dev;
+mod docs;
 mod http;
 
 use color_eyre::eyre::eyre;
@@ -208,6 +209,7 @@ fn main() -> Result<(), Report> {
                         .hidden(true),
                 ),
         )
+        .subcommand(docs::command())
         .subcommand(dev::command())
         .get_matches_from(normalize_designer_args(std::env::args().collect())?);
 
@@ -400,6 +402,7 @@ fn perform_nominal_action(
             )?;
             Ok(())
         }
+        ("docs", Some(args)) => docs::handle(args),
         ("dev", Some(args)) => dev::handle(args, process_child_ids),
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable
     }

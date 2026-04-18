@@ -1,0 +1,11 @@
+# core
+<!-- summary: API docs for pax-std::core. -->
+<!-- tags: api, pax-std -->
+
+## Submodules
+- [core::frame](core/frame.md)
+- [core::group](core/group.md)
+- [core::link](core/link.md)
+- [core::mask](core/mask.md)
+- [core::scroller](core/scroller.md)
+- [core::text](core/text.md)

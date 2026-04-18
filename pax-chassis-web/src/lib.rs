@@ -436,7 +436,7 @@ impl PaxChassisWeb {
                 };
                 topmost_node.dispatch_drop(Event::new(args_drop), &globals, &engine.runtime_context)
             }
-            NativeInterrupt::FormRadioSetChange(args) => {
+            NativeInterrupt::FormRadioListChange(args) => {
                 let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
                 if let Some(node) = node {
                     borrow!(node.instance_node).handle_native_interrupt(&node, &x);
@@ -583,7 +583,7 @@ impl PaxChassisWeb {
                     &engine.runtime_context,
                 )
             }
-            NativeInterrupt::Scrollbar(args) => {
+            NativeInterrupt::ScrollerPosition(args) => {
                 let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
                 if let Some(node) = node {
                     borrow!(node.instance_node).handle_native_interrupt(&node, &x);

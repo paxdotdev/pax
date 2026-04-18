@@ -46,6 +46,7 @@
       <sourceFolder url="file://$MODULE_DIR$/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/pax-kit/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/pax-pixels/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-docs/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/pax-create-sandbox/.pax" />
       <excludeFolder url="file://$MODULE_DIR$/pax-std/target" />
@@ -78,6 +79,5 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="Python 3.9 interpreter library" level="application" />
   </component>
 </module>

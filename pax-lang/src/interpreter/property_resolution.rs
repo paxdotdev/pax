@@ -10,6 +10,7 @@ pub trait IdentifierResolver {
     fn resolve(&self, name: String) -> Result<Variable, String>;
 }
 
+/// Walk an expression tree and report the symbols that should dirty-watch it.
 pub trait DependencyCollector {
     fn collect_dependencies(&self) -> Vec<String>;
 }

@@ -137,7 +137,7 @@ pub enum ToolbarComponent {
     Button,
     Slider,
     Dropdown,
-    RadioSet,
+    RadioList,
 }
 
 impl Interpolatable for ProjectMode {}

@@ -1,0 +1,233 @@
+/* API pages nest more deeply than narrative docs, so keep heading levels
+   distinguishable without making compact reference pages feel oversized. */
+.content h1 {
+    font-size: 3.55rem;
+    line-height: 1.14;
+}
+
+.content h2 {
+    font-size: 2.65rem;
+    line-height: 1.2;
+}
+
+.content h3 {
+    font-size: 2.25rem;
+    line-height: 1.24;
+}
+
+.content h4 {
+    font-size: 1.9rem;
+    line-height: 1.3;
+}
+
+.content h5 {
+    font-size: 1.58rem;
+    line-height: 1.35;
+    margin-block-start: 1.25em;
+    margin-block-end: 0.45em;
+}
+
+.content h1 code,
+.content h2 code,
+.content h3 code,
+.content h4 code,
+.content h5 code {
+    font-size: 1em;
+}
+
+.content hr {
+    margin-top: 55px;
+    opacity: 0.5;
+}
+
+/* mdBook strips Markdown emphasis from SUMMARY.md sidebar labels. Target the
+   stable generated href instead, since the chapter number can change. */
+.chapter a[href$="api/internal/index.html"] {
+    display: block;
+    margin-top: 0.65em;
+    padding-top: 0.65em;
+    border-top: 1px solid rgba(127, 127, 127, 0.35);
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
+.content pre code.api-signature a {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.16em;
+}
+
+.content pre code.api-signature a:hover {
+    color: var(--links);
+}
+
+.pax-version-picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-right: 0.65rem;
+    color: var(--fg);
+    font-size: calc(0.82rem + 2pt);
+}
+
+.pax-version-label {
+    opacity: 0.72;
+}
+
+.pax-version-select {
+    max-width: 11rem;
+    border: 1px solid rgba(127, 127, 127, 0.35);
+    border-radius: 6px;
+    padding: 0.22rem 1.6rem 0.22rem 0.45rem;
+    color: var(--fg);
+    background: var(--bg);
+    font: inherit;
+    font-size: calc(1em + 2pt);
+}
+
+.pax-version-select:disabled {
+    opacity: 0.7;
+}
+
+.content code.language-pax .hljs-template-variable,
+.content code.language-paxel .hljs-template-variable,
+.content code.lang-pax .hljs-template-variable,
+.content code.lang-paxel .hljs-template-variable {
+    color: inherit;
+}
+
+.content code.language-pax .hljs-name,
+.content code.language-paxel .hljs-name,
+.content code.lang-pax .hljs-name,
+.content code.lang-paxel .hljs-name,
+.content code.language-pax .hljs-selector-id,
+.content code.language-paxel .hljs-selector-id,
+.content code.lang-pax .hljs-selector-id,
+.content code.lang-paxel .hljs-selector-id,
+.content code.language-pax .hljs-selector-class,
+.content code.language-paxel .hljs-selector-class,
+.content code.lang-pax .hljs-selector-class,
+.content code.lang-paxel .hljs-selector-class {
+    color: #39bae6;
+}
+
+.content code.language-pax .hljs-variable,
+.content code.language-paxel .hljs-variable,
+.content code.lang-pax .hljs-variable,
+.content code.lang-paxel .hljs-variable {
+    color: #95e6cb;
+}
+
+.content code.language-pax .hljs-attr,
+.content code.language-paxel .hljs-attr,
+.content code.lang-pax .hljs-attr,
+.content code.lang-paxel .hljs-attr {
+    color: #f07178;
+}
+
+.content code.language-pax .hljs-symbol,
+.content code.language-paxel .hljs-symbol,
+.content code.lang-pax .hljs-symbol,
+.content code.lang-paxel .hljs-symbol {
+    color: #ffb454;
+}
+
+.content code.language-pax .hljs-meta,
+.content code.language-paxel .hljs-meta,
+.content code.lang-pax .hljs-meta,
+.content code.lang-paxel .hljs-meta {
+    color: #ffb454;
+    font-weight: 700;
+}
+
+.pax-example-card {
+    margin: 2rem 0;
+    border: 1px solid rgba(127, 127, 127, 0.28);
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(127, 127, 127, 0.07);
+}
+
+.pax-example-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.8rem 1rem;
+    border-bottom: 1px solid rgba(127, 127, 127, 0.22);
+}
+
+.pax-example-title {
+    margin: 0;
+    font-size: 1.15rem;
+}
+
+.pax-example-command {
+    white-space: nowrap;
+    font-size: 0.78rem;
+}
+
+.pax-example-stale {
+    display: inline-block;
+    margin-left: 0.6rem;
+    font-size: 0.75rem;
+    opacity: 0.75;
+}
+
+.pax-example-frame {
+    display: block;
+    width: 100%;
+    border: 0;
+    background: white;
+}
+
+.pax-example-missing,
+.pax-example-error {
+    padding: 1rem;
+    color: var(--fg);
+    background: rgba(127, 127, 127, 0.1);
+}
+
+.pax-example-source {
+    border-top: 1px solid rgba(127, 127, 127, 0.22);
+}
+
+.pax-example-tabs {
+    display: flex;
+    gap: 0.25rem;
+    overflow-x: auto;
+    padding: 0.55rem 0.7rem 0;
+}
+
+.pax-example-tab {
+    border: 1px solid rgba(127, 127, 127, 0.28);
+    border-bottom: 0;
+    border-radius: 8px 8px 0 0;
+    padding: 0.45rem 0.7rem;
+    color: var(--fg);
+    background: transparent;
+    font: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+
+.pax-example-tab[aria-selected="true"] {
+    background: rgba(127, 127, 127, 0.14);
+    font-weight: 700;
+}
+
+.pax-example-panel {
+    padding: 0 0.7rem 0.7rem;
+}
+
+.pax-example-pre {
+    max-height: 520px;
+    overflow: auto;
+}
+
+.pax-example-truncated {
+    margin: 0.5rem 0 0;
+    font-size: 0.85rem;
+    opacity: 0.8;
+}

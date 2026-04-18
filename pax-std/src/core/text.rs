@@ -23,18 +23,27 @@ use {
 
 use crate::common::{native_surface_opacity, patch_if_needed};
 
-/// Renders text in a platform-native way
+/// Renders and styles text on-screen using platform-specific native elements (for example, a `<div>` with text content on the web, or a `UILabel` on iOS).
+/// Text supports robust text layout features like automatic line breaking and selection, as well as platform-specific
+/// accessibility tools like screen readers.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[custom(Default)]
 #[primitive("pax_std::core::text::TextInstance")]
 pub struct Text {
+    /// Whether the text can be edited by the user.
     pub editable: Property<bool>,
+    /// Whether the text can be selected by the user.
     pub selectable: Property<bool>,
+    /// Whether text overflow is clipped to the node bounds.
     pub clip: Property<bool>,
+    /// Text content to display.
     pub text: Property<String>,
+    /// Text styling.
     pub style: Property<TextStyle>,
+    // Secondary style link used by native text patch plumbing.
     pub _style_link: Property<TextStyle>,
+    /// Whether `text` should be interpreted as Markdown.
     pub markdown: Property<bool>,
 }
 
@@ -52,6 +61,7 @@ impl Default for Text {
     }
 }
 
+// Runtime instance backing `<Text>`.
 pub struct TextInstance {
     base: BaseInstance,
 }
@@ -279,23 +289,31 @@ impl InstanceNode for TextInstance {
     }
 }
 
+/// Struct describing platform-agnostic text display properties.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[custom(Default)]
 pub struct TextStyle {
     #[serde(default)]
+    /// Font family/source/style/weight configuration.
     pub font: Property<Font>,
     #[serde(default)]
+    /// Font size, in pixels.
     pub font_size: Property<Size>,
     #[serde(default)]
+    /// Text fill.
     pub fill: Property<Fill>,
     #[serde(default)]
+    /// Whether text should be underlined.
     pub underline: Property<bool>,
     #[serde(default)]
+    /// Alignment for multiline text layout.
     pub align_multiline: Property<TextAlignHorizontal>,
     #[serde(default)]
+    /// Vertical text alignment within its bounds.
     pub align_vertical: Property<TextAlignVertical>,
     #[serde(default)]
+    /// Horizontal text alignment within its bounds.
     pub align_horizontal: Property<TextAlignHorizontal>,
 }
 
@@ -418,10 +436,12 @@ impl PartialEq<TextStyleMessage> for TextStyle {
     }
 }
 
+/// Describes a font available to native text renderers.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[custom(Default)]
 pub enum Font {
+    /// Web font described by family name, stylesheet URL, style, and weight.
     Web(String, String, FontStyle, FontWeight),
 }
 
@@ -433,6 +453,7 @@ impl Default for Font {
     }
 }
 
+/// Describes available font styles.
 #[pax]
 #[engine_import_path("pax_engine")]
 pub enum FontStyle {
@@ -442,6 +463,7 @@ pub enum FontStyle {
     Oblique,
 }
 
+/// Describes available font weights.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[derive(PartialEq)]
@@ -458,6 +480,7 @@ pub enum FontWeight {
     Black,
 }
 
+/// Describes available horizontal text alignments.
 #[pax]
 #[engine_import_path("pax_engine")]
 pub enum TextAlignHorizontal {
@@ -467,6 +490,7 @@ pub enum TextAlignHorizontal {
     Right,
 }
 
+/// Describes available vertical text alignments.
 #[pax]
 #[engine_import_path("pax_engine")]
 pub enum TextAlignVertical {
@@ -497,6 +521,7 @@ impl PartialEq<TextAlignHorizontalMessage> for TextAlignHorizontal {
     }
 }
 
+// Converts an optional horizontal alignment to its native patch representation.
 pub fn opt_align_to_message(
     opt_alignment: &Option<TextAlignHorizontal>,
 ) -> Option<TextAlignHorizontalMessage> {
@@ -507,6 +532,7 @@ pub fn opt_align_to_message(
     })
 }
 
+// Compares an optional Pax value against an optional native patch value.
 pub fn opt_value_eq_opt_msg<T, U>(opt_value: &Option<T>, opt_value_msg: &Option<U>) -> bool
 where
     T: PartialEq<U>,
@@ -636,6 +662,7 @@ impl From<FontWeight> for FontWeightMessage {
 }
 
 impl FontWeight {
+    /// Returns the next heavier named font weight.
     pub fn increase(weight: FontWeight) -> FontWeight {
         match weight {
             FontWeight::Thin => FontWeight::ExtraLight,
@@ -649,6 +676,7 @@ impl FontWeight {
             FontWeight::Black => FontWeight::Black,
         }
     }
+    /// Returns the next lighter named font weight.
     pub fn decrease(weight: FontWeight) -> FontWeight {
         match weight {
             FontWeight::Thin => FontWeight::Thin,

@@ -4,6 +4,10 @@ use pax_engine::api::*;
 use pax_engine::*;
 use std::cmp::Ordering;
 
+/// Divides slotted content into resizable horizontal or vertical sections.
+///
+/// `dividers` contains positions along the main axis. With `n` dividers,
+/// `Resizable` expects `n + 1` slot children.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined(
@@ -12,7 +16,7 @@ use std::cmp::Ordering;
         @mouse_move=on_mouse_move
         @mouse_up=on_mouse_up
     >
-        for s in self.sections {
+        for s in self._sections {
             <Group
                 x={s.x}
                 y={s.y}
@@ -32,33 +36,46 @@ use std::cmp::Ordering;
     }
 )]
 pub struct Resizable {
+    /// Divider positions along the main axis.
     pub dividers: Property<Vec<Size>>,
+    /// Whether sections are split horizontally or vertically.
     pub direction: Property<ResizableDirection>,
 
-    // private
-    pub sections: Property<Vec<Section>>,
-    pub index_moving: Property<Option<usize>>,
+    // Computed sections emitted into the inline template.
+    pub _sections: Property<Vec<Section>>,
+    // Divider currently being dragged, if any.
+    pub _index_moving: Property<Option<usize>>,
 }
 
+/// Axis direction for a `Resizable` split.
 #[pax]
 #[engine_import_path("pax_engine")]
 pub enum ResizableDirection {
+    /// Split content into top-to-bottom sections.
     Vertical,
+    /// Split content into left-to-right sections.
     #[default]
     Horizontal,
 }
 
+// Internal section rectangle emitted into the inline template.
 #[pax]
 #[engine_import_path("pax_engine")]
 pub struct Section {
+    // Section x position.
     pub x: Size,
+    // Section y position.
     pub y: Size,
+    // Section width.
     pub width: Size,
+    // Section height.
     pub height: Size,
+    // Slot index rendered into this section.
     pub i: usize,
 }
 
 impl Resizable {
+    // Computes section rectangles from divider positions and slot count.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let slot_count = ctx.slot_children_count.clone();
         let dividers = self.dividers.clone();
@@ -69,7 +86,7 @@ impl Resizable {
             direction.untyped(),
         ];
 
-        self.sections.replace_with(Property::computed(
+        self._sections.replace_with(Property::computed(
             move || {
                 let divs = dividers.get();
                 if slot_count.get() != divs.len() + 1 {
@@ -106,6 +123,7 @@ impl Resizable {
         ));
     }
 
+    // Starts dragging the nearest divider when the pointer is close enough.
     pub fn on_mouse_down(&mut self, ctx: &NodeContext, event: Event<MouseDown>) {
         let bounds = ctx.bounds_self.get();
 
@@ -122,10 +140,11 @@ impl Resizable {
             .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(Ordering::Equal))
             .unwrap_or_default();
         if distance < 10.0 {
-            self.index_moving.set(Some(closest_ind));
+            self._index_moving.set(Some(closest_ind));
         }
     }
 
+    // Updates the active divider position while dragging.
     pub fn on_mouse_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
         let bounds = ctx.bounds_self.get();
 
@@ -134,7 +153,7 @@ impl Resizable {
             ResizableDirection::Horizontal => (event.mouse.x, bounds.0),
         };
 
-        if let Some(ind) = self.index_moving.get() {
+        if let Some(ind) = self._index_moving.get() {
             self.dividers.update(|dividers| {
                 let divider = &mut dividers[ind];
                 *divider = match divider.clone() {
@@ -148,7 +167,8 @@ impl Resizable {
         }
     }
 
+    // Ends any in-progress divider drag.
     pub fn on_mouse_up(&mut self, _ctx: &NodeContext, _event: Event<MouseUp>) {
-        self.index_moving.set(None);
+        self._index_moving.set(None);
     }
 }

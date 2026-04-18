@@ -5,6 +5,7 @@ use crate::*;
 use pax_engine::api::*;
 use pax_engine::*;
 
+/// A confirmation dialog, a modal dialog that asks the user to confirm an action with "Yes" or "No" buttons.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined(
@@ -23,9 +24,12 @@ use pax_engine::*;
 )]
 #[custom(Default)]
 pub struct ConfirmationDialog {
+    /// Prompt text shown in the dialog.
     pub text: Property<String>,
+    /// Whether the dialog is visible.
     pub open: Property<bool>,
-    pub signal: Property<bool>,
+    // Private signal toggled when the user confirms.
+    pub _signal: Property<bool>,
 }
 
 impl Default for ConfirmationDialog {
@@ -33,17 +37,19 @@ impl Default for ConfirmationDialog {
         Self {
             text: Property::new("Are you sure?".to_owned()),
             open: Property::default(),
-            signal: Property::default(),
+            _signal: Property::default(),
         }
     }
 }
 
 impl ConfirmationDialog {
+    // Handles the affirmative button and emits the confirmation signal.
     pub fn handle_yes(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
         self.open.set(false);
-        self.signal.set(true);
+        self._signal.set(true);
     }
 
+    // Handles the negative button by closing the dialog.
     pub fn handle_no(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
         self.open.set(false);
     }

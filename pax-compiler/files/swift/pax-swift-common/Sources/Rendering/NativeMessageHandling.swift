@@ -12,13 +12,13 @@ public struct DirtyCollections {
     public var nativeImage = false
     public var youtubeVideo = false
     public var dropdown = false
-    public var radioSet = false
+    public var radioList = false
     public var slider = false
     public var textbox = false
     public var eventBlocker = false
 
     public var hasAny: Bool {
-        text || frame || scroller || button || checkbox || nativeImage || youtubeVideo || dropdown || radioSet || slider || textbox || eventBlocker
+        text || frame || scroller || button || checkbox || nativeImage || youtubeVideo || dropdown || radioList || slider || textbox || eventBlocker
     }
 
     public init() {}
@@ -44,7 +44,7 @@ public protocol NativeMessageHandling: AnyObject {
     var nativeImageElements: NativeImageElements { get }
     var youtubeVideoElements: YoutubeVideoElements { get }
     var dropdownElements: DropdownElements { get }
-    var radioSetElements: RadioSetElements { get }
+    var radioListElements: RadioListElements { get }
     var sliderElements: SliderElements { get }
     var textboxElements: TextboxElements { get }
     var eventBlockerElements: EventBlockerElements { get }
@@ -102,7 +102,7 @@ public extension NativeMessageHandling {
             recomputeResolvedMask(for: element)
             return
         }
-        if let element = radioSetElements.elements[id] {
+        if let element = radioListElements.elements[id] {
             recomputeResolvedMask(for: element)
             return
         }
@@ -170,7 +170,7 @@ public extension NativeMessageHandling {
         recomputeResolvedMasks(in: nativeImageElements.elements)
         recomputeResolvedMasks(in: youtubeVideoElements.elements)
         recomputeResolvedMasks(in: dropdownElements.elements)
-        recomputeResolvedMasks(in: radioSetElements.elements)
+        recomputeResolvedMasks(in: radioListElements.elements)
         recomputeResolvedMasks(in: sliderElements.elements)
         recomputeResolvedMasks(in: textboxElements.elements)
         recomputeResolvedMasks(in: eventBlockerElements.elements)
@@ -424,14 +424,14 @@ public extension NativeMessageHandling {
         dirty.dropdown = true
     }
 
-    func handleRadioSetCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
-        radioSetElements.add(element: RadioSetElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+    func handleRadioListCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        radioListElements.add(element: RadioListElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
         masks.mark(patch.id)
-        dirty.radioSet = true
+        dirty.radioList = true
     }
 
-    func handleRadioSetUpdate(patch: RadioSetUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
-        if let element = radioSetElements.elements[patch.id] {
+    func handleRadioListUpdate(patch: RadioListUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        if let element = radioListElements.elements[patch.id] {
             let previousTransform = element.transform
             let previousSizeX = element.size_x
             let previousSizeY = element.size_y
@@ -446,13 +446,13 @@ public extension NativeMessageHandling {
                 masks.mark(patch.id)
             }
         }
-        dirty.radioSet = true
+        dirty.radioList = true
     }
 
-    func handleRadioSetDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
-        radioSetElements.remove(id: patch.id)
+    func handleRadioListDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
+        radioListElements.remove(id: patch.id)
         removeResolvedNativeMask(id: patch.id)
-        dirty.radioSet = true
+        dirty.radioList = true
     }
 
     func handleSliderCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
@@ -585,10 +585,10 @@ public extension NativeMessageHandling {
             dirty.dropdown = true
             return
         }
-        if let radioSetElement = radioSetElements.elements[patch.id] {
-            radioSetElement.applyNativeMaskPatch(patch)
+        if let radioListElement = radioListElements.elements[patch.id] {
+            radioListElement.applyNativeMaskPatch(patch)
             masks.mark(patch.id)
-            dirty.radioSet = true
+            dirty.radioList = true
             return
         }
         if let sliderElement = sliderElements.elements[patch.id] {
@@ -724,14 +724,14 @@ public extension NativeMessageHandling {
                 handleDropdownDelete(patch: AnyDeletePatch(fb: dropdownDeleteMessage), dirty: &dirty)
             }
 
-            if let radioSetCreateMessage = message["RadioSetCreate"] {
-                handleRadioSetCreate(patch: AnyCreatePatch(fb: radioSetCreateMessage), dirty: &dirty, masks: &masks)
+            if let radioListCreateMessage = message["RadioListCreate"] {
+                handleRadioListCreate(patch: AnyCreatePatch(fb: radioListCreateMessage), dirty: &dirty, masks: &masks)
             }
-            if let radioSetUpdateMessage = message["RadioSetUpdate"] {
-                handleRadioSetUpdate(patch: RadioSetUpdatePatch(fb: radioSetUpdateMessage), dirty: &dirty, masks: &masks)
+            if let radioListUpdateMessage = message["RadioListUpdate"] {
+                handleRadioListUpdate(patch: RadioListUpdatePatch(fb: radioListUpdateMessage), dirty: &dirty, masks: &masks)
             }
-            if let radioSetDeleteMessage = message["RadioSetDelete"] {
-                handleRadioSetDelete(patch: AnyDeletePatch(fb: radioSetDeleteMessage), dirty: &dirty)
+            if let radioListDeleteMessage = message["RadioListDelete"] {
+                handleRadioListDelete(patch: AnyDeletePatch(fb: radioListDeleteMessage), dirty: &dirty)
             }
 
             if let eventBlockerCreateMessage = message["EventBlockerCreate"] {

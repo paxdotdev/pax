@@ -12,6 +12,7 @@ use crate::{node_interface::NodeLocal, ExpandedNode, RuntimeContext, TransformAn
 use super::expanded_node::Occlusion;
 
 #[derive(Clone, Copy, Debug)]
+/// Axis-aligned bounds used by the occlusion and native-mask pass.
 pub struct OcclusionBox {
     x1: f64,
     y1: f64,
@@ -109,6 +110,7 @@ enum DrawableInfo {
     },
 }
 
+/// Recompute z ordering, native masks, and canvas/native layer assignments for the tree.
 pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
     let mut drawables = Vec::new();
     let mut z_index = 0;

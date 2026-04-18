@@ -15,8 +15,8 @@
         <script src="pax-interface-web.js" ></script>
         <script>
             if (typeof window.Pax.mount === 'function') {
-                const basePath = window.location.origin + window.location.pathname;
-                window.Pax.mount("#mount", basePath + "pax-cartridge");
+                const cartridgeUrl = new URL("pax-cartridge", window.location.href);
+                window.Pax.mount("#mount", cartridgeUrl.href);
             } else {
                 console.error("Pax cartridge failed to load or was malformed.");
             }

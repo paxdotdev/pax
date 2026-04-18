@@ -1,7 +1,7 @@
 use super::{private::PropertyId, properties_table::PropertyTable};
 
 impl PropertyTable {
-    /// marks dependencies of self dirty recursively
+    // marks dependencies of self dirty recursively
     pub fn dirtify_outbound(&self, id: PropertyId) {
         let mut to_dirtify =
             self.with_property_data_mut(id, |property_data| property_data.outbound.clone());
@@ -19,8 +19,8 @@ impl PropertyTable {
         }
     }
 
-    /// Removes id from its dependents
-    /// NOTE: does NOT modify the outbound list
+    // Removes id from its dependents
+    // NOTE: does NOT modify the outbound list
     pub fn disconnect_outbound(&self, id: PropertyId) {
         self.with_property_data(id, |property_data| {
             for outbound_id in &property_data.outbound {
@@ -31,8 +31,8 @@ impl PropertyTable {
         });
     }
 
-    /// Removes id from its dependencies
-    /// NOTE: does NOT modify the inbound list
+    // Removes id from its dependencies
+    // NOTE: does NOT modify the inbound list
     pub fn disconnect_inbound(&self, id: PropertyId) {
         self.with_property_data_mut(id, |property_data| {
             for inbound_id in &property_data.inbound {
@@ -43,11 +43,11 @@ impl PropertyTable {
         });
     }
 
-    /// Adds its own PropertyId to the outbound list
-    /// of its dependencies, letting them know to dirty
-    /// it if it changes
-    /// NOTE: does NOT modify the inbound list of self (id), only
-    /// uses it to hook up dependencies
+    // Adds its own PropertyId to the outbound list
+    // of its dependencies, letting them know to dirty
+    // it if it changes
+    // NOTE: does NOT modify the inbound list of self (id), only
+    // uses it to hook up dependencies
     pub fn connect_inbound(&self, id: PropertyId) {
         self.with_property_data(id, |property_data| {
             for inbound_id in &property_data.inbound {

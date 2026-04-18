@@ -42,6 +42,7 @@ use {
 };
 
 #[derive(Clone)]
+/// Engine-wide reactive globals exposed to every component frame.
 pub struct Globals {
     pub frames_elapsed: Property<u64>,
     pub viewport: Property<TransformAndBounds<NodeLocal, Window>>,
@@ -55,6 +56,7 @@ pub struct Globals {
 }
 
 impl Globals {
+    /// Build the root stack frame containing `$mobile`, `$desktop`, `$viewport`, and `$frames_elapsed`.
     pub fn stack_frame(&self) -> Rc<RuntimePropertiesStackFrame> {
         let mobile = Property::new(self.os.is_mobile());
         let desktop = Property::new(self.os.is_desktop());
@@ -107,17 +109,20 @@ pub struct PaxEngine {
     pub scroller_tiling_policy: layer_tiling::ScrollerTilingPolicy,
 }
 
+/// Indicates whether a handler should receive inline-node or containing-component properties.
 pub enum HandlerLocation {
     Inline,
     Component,
 }
 
+/// Runtime event handler thunk generated from template bindings.
 pub struct Handler {
     pub function: fn(Rc<RefCell<PaxAny>>, &NodeContext, Option<PaxAny>),
     pub location: HandlerLocation,
 }
 
 impl Handler {
+    /// Build a handler whose `self` argument is the inline primitive/component.
     pub fn new_inline_handler(
         function: fn(Rc<RefCell<PaxAny>>, &NodeContext, Option<PaxAny>),
     ) -> Self {
@@ -127,6 +132,7 @@ impl Handler {
         }
     }
 
+    /// Build a handler whose `self` argument is the containing component.
     pub fn new_component_handler(
         function: fn(Rc<RefCell<PaxAny>>, &NodeContext, Option<PaxAny>),
     ) -> Self {
@@ -137,6 +143,7 @@ impl Handler {
     }
 }
 
+/// Map from event key to one or more handlers registered on an instance node.
 pub struct HandlerRegistry {
     pub handlers: HashMap<String, Vec<Handler>>,
 }

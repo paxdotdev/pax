@@ -8,10 +8,13 @@ use crate::{Interpolatable, Numeric, Rotation};
 
 use super::{Generic, Point2, Space};
 
+/// A representation of a vector in 2D space.
 pub struct Vector2<W = Generic> {
+    /// Horizontal component.
     pub x: f64,
+    /// Vertical component.
     pub y: f64,
-    _panthom: PhantomData<W>,
+    _phantom: PhantomData<W>,
 }
 
 // Implement Clone, Copy, PartialEq, etc manually, as
@@ -29,7 +32,7 @@ impl<W: Space> Clone for Vector2<W> {
         Self {
             x: self.x,
             y: self.y,
-            _panthom: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -49,54 +52,64 @@ impl<W: Space> Default for Vector2<W> {
 }
 
 impl<W: Space> Vector2<W> {
+    /// Constructs a vector from x and y components.
     pub fn new(x: f64, y: f64) -> Self {
         Self {
             x,
             y,
-            _panthom: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
+    /// Unit vector along the x axis.
     pub fn x() -> Self {
         Self::new(1.0, 0.0)
     }
 
+    /// Unit vector along the y axis.
     pub fn y() -> Self {
         Self::new(0.0, 1.0)
     }
 
+    /// Returns the left-handed normal.
     pub fn normal(&self) -> Self {
         Self::new(-self.y, self.x)
     }
 
+    /// Returns this vector scaled to unit length.
     pub fn normalize(self) -> Self {
         self / self.length()
     }
 
+    /// Returns squared vector length.
     pub fn length_squared(&self) -> f64 {
         self.x * self.x + self.y * self.y
     }
 
+    /// Returns vector length.
     pub fn length(&self) -> f64 {
         self.length_squared().sqrt()
     }
 
+    /// Returns a vector with absolute component values.
     pub fn coord_abs(&self) -> Self {
         Self::new(self.x.abs(), self.y.abs())
     }
 
+    /// Projects this vector onto `axis`.
     pub fn project_onto(self, axis: Self) -> Self {
         let dot_product = self * axis;
         axis * dot_product / axis.length_squared()
     }
 
+    // Projects this vector onto an axis-aligned frame described by `other`.
     pub fn project_axis_aligned(self, other: Self) -> Self {
         let v = self.coord_abs();
         let o = other.coord_abs().normalize();
         o.to_signums_of(self) * (v.x / o.x).max(v.y / o.y)
     }
 
-    /// Returns the angle walking from self to other counter clockwise
+    /// Returns the counter-clockwise angle from this vector to `other`.
     pub fn angle_to(self, other: Self) -> Rotation {
         let dot = self.x * other.x + self.y * other.y; //Dot product between [x1, y1] and [x2, y2]
         let det = self.x * other.y - self.y * other.x; //Determinant
@@ -104,11 +117,12 @@ impl<W: Space> Vector2<W> {
         Rotation::Radians(Numeric::from(angle))
     }
 
-    /// Returns the magnitude of the cross product as if both vectors had z value 0.0
+    /// Returns the z component of the 3D cross product, assuming both vectors have z value 0.0.
     pub fn cross(self, other: Self) -> f64 {
         self.x * other.y - self.y * other.x
     }
 
+    /// Copies this vector's magnitudes onto the component signs of `other`.
     pub fn to_signums_of(&self, other: Self) -> Self {
         Self::new(
             self.x.abs() * other.x.signum(),
@@ -116,14 +130,17 @@ impl<W: Space> Vector2<W> {
         )
     }
 
+    /// Reinterprets this vector as a point.
     pub fn to_point(&self) -> Point2<W> {
         Point2::new(self.x, self.y)
     }
 
+    /// Casts this vector into another phantom coordinate space.
     pub fn cast_space<WNew: Space>(&self) -> Vector2<WNew> {
         Vector2::new(self.x, self.y)
     }
 
+    /// Rotates this vector by `angle`.
     pub fn rotate(&self, angle: Rotation) -> Self {
         let (s, c) = angle.get_as_radians().sin_cos();
         let x = self.x * c - self.y * s;
@@ -131,10 +148,12 @@ impl<W: Space> Vector2<W> {
         Self::new(x, y)
     }
 
+    /// Rotates this vector 90 degrees clockwise.
     pub fn rotate90(self) -> Self {
         Self::new(self.y, -self.x)
     }
 
+    /// Multiplies component-wise by `other`.
     pub fn mult(&self, other: Self) -> Vector2<W> {
         Vector2::new(self.x * other.x, self.y * other.y)
     }

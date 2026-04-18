@@ -272,9 +272,9 @@ public func dispatchFormDropdownChange(id: PaxNodeId, selectedId: UInt32) {
     }
 }
 
-public func dispatchFormRadioSetChange(id: PaxNodeId, selectedId: UInt32) {
+public func dispatchFormRadioListChange(id: PaxNodeId, selectedId: UInt32) {
     dispatchNativeInterrupt { builder in
-        builder.addMapWithStringKey("FormRadioSetChange") { messageBuilder in
+        builder.addMapWithStringKey("FormRadioListChange") { messageBuilder in
             messageBuilder.addWithStringKey("id", UInt(id))
             messageBuilder.addWithStringKey("selected_id", UInt(selectedId))
         }
@@ -2472,7 +2472,7 @@ public class DropdownElement: NativePositionElement {
     }
 }
 
-public class RadioSetUpdatePatch: ResolvedPlacementPatch {
+public class RadioListUpdatePatch: ResolvedPlacementPatch {
     public var id: PaxNodeId
     public var parentFrameUpdated: Bool
     public var parentFrame: PaxNodeId?
@@ -2518,7 +2518,7 @@ public class RadioSetUpdatePatch: ResolvedPlacementPatch {
     }
 }
 
-public class RadioSetElement: NativePositionElement {
+public class RadioListElement: NativePositionElement {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
     public var occlusionLayerId: UInt32
@@ -2554,11 +2554,11 @@ public class RadioSetElement: NativePositionElement {
         self.background = background
     }
 
-    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> RadioSetElement {
-        RadioSetElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0, selectedId: 0, options: [], style: defaultPaxTextStyle(), backgroundChecked: Color(.blue), outlineColor: Color(.gray), outlineWidth: 1, background: Color(.white))
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> RadioListElement {
+        RadioListElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0, selectedId: 0, options: [], style: defaultPaxTextStyle(), backgroundChecked: Color(.blue), outlineColor: Color(.gray), outlineWidth: 1, background: Color(.white))
     }
 
-    public func applyPatch(_ patch: RadioSetUpdatePatch) {
+    public func applyPatch(_ patch: RadioListUpdatePatch) {
         if let transform = patch.transform { self.transform = transform }
         if let size_x = patch.size_x { self.size_x = size_x }
         if let size_y = patch.size_y { self.size_y = size_y }

@@ -400,7 +400,7 @@
                         height=74px
                         text="Animated iris and star cut away the subtree with fractional strength instead of snapping to a hard binary hole."
                     />
-                    <RadioSet
+                    <RadioList
                         class=radio_neon
                         x=14px
                         y=172px

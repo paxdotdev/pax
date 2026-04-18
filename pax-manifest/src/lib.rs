@@ -121,6 +121,7 @@ impl PaxManifest {
     }
 }
 
+/// Type ids for the built-in common properties attached to every template node.
 pub fn get_common_properties_type_ids() -> Vec<TypeId> {
     let mut ret = vec![];
     for (_, import_path) in constants::COMMON_PROPERTIES_TYPE {
@@ -135,6 +136,7 @@ pub fn get_common_properties_type_ids() -> Vec<TypeId> {
     ret
 }
 
+/// Common properties represented as manifest property definitions.
 pub fn get_common_properties_as_property_definitions() -> Vec<PropertyDefinition> {
     let mut ret = vec![];
     for (cp, import_path) in constants::COMMON_PROPERTIES_TYPE {
@@ -157,10 +159,12 @@ pub fn get_common_properties_as_property_definitions() -> Vec<PropertyDefinition
     ret
 }
 
+/// Primitive numeric Rust types supported directly by manifest reflection.
 pub const SUPPORTED_NUMERIC_PRIMITIVES: [&str; 13] = [
     "u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64", "i128", "isize", "f64",
 ];
 
+/// Primitive nonnumeric Rust types supported directly by manifest reflection.
 pub const SUPPORTED_NONNUMERIC_PRIMITIVES: [&str; 2] = ["String", "bool"];
 
 /// Container for an entire component definition — includes template, settings,
@@ -197,6 +201,7 @@ impl ComponentDefinition {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
+/// One entry inside a settings block.
 pub enum SettingsBlockElement {
     SelectorBlock(Token, LiteralBlockDefinition),
     Handler(Token, Vec<Token>),
@@ -205,6 +210,7 @@ pub enum SettingsBlockElement {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
+/// Compile-time representation of a declared timeline.
 pub struct TimelineDefinition {
     pub name: Option<Token>,
     pub playhead: Option<ValueDefinition>,
@@ -227,6 +233,7 @@ impl Default for TimelineDefinition {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
+/// One entry inside a timeline block.
 pub enum TimelineBlockElement {
     SelectorBlock(Token, TimelineSelectorBlockDefinition),
     Comment(String),
@@ -234,12 +241,14 @@ pub enum TimelineBlockElement {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(crate = "pax_message::serde")]
+/// Selector body inside a timeline block.
 pub struct TimelineSelectorBlockDefinition {
     pub elements: Vec<TimelineSelectorElement>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
+/// One selector-scoped element inside a timeline block.
 pub enum TimelineSelectorElement {
     Track(Token, TimelineTrackDefinition),
     Comment(String),
@@ -247,6 +256,7 @@ pub enum TimelineSelectorElement {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(crate = "pax_message::serde")]
+/// Track-level timeline data for one animated property.
 pub struct TimelineTrackDefinition {
     pub elements: Vec<TimelineTrackElement>,
     pub playhead: Option<Box<ValueDefinition>>,
@@ -258,6 +268,7 @@ pub struct TimelineTrackDefinition {
 }
 
 impl TimelineTrackDefinition {
+    /// Iterate only keyframe entries, skipping comments.
     pub fn keyframes(&self) -> impl Iterator<Item = &TimelineKeyframe> {
         self.elements.iter().filter_map(|element| match element {
             TimelineTrackElement::Keyframe(keyframe) => Some(keyframe),
@@ -268,6 +279,7 @@ impl TimelineTrackDefinition {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
+/// One entry in a timeline track.
 pub enum TimelineTrackElement {
     Keyframe(TimelineKeyframe),
     Comment(String),
@@ -275,6 +287,7 @@ pub enum TimelineTrackElement {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
+/// A single timeline value at a frame or percent marker.
 pub struct TimelineKeyframe {
     pub marker: TimelineMarker,
     pub value: ValueDefinition,
@@ -283,6 +296,7 @@ pub struct TimelineKeyframe {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(crate = "pax_message::serde")]
+/// Timeline position expressed as an absolute frame or normalized percentage.
 pub enum TimelineMarker {
     Frame(u64),
     Percent(f64),
@@ -305,6 +319,7 @@ impl Display for TimelineMarker {
 
 #[derive(Serialize, Default, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 #[serde(crate = "pax_message::serde")]
+/// Stable id for a template node inside a single component.
 pub struct TemplateNodeId(usize);
 
 impl CoercionRules for TemplateNodeId {
@@ -325,10 +340,12 @@ impl ToPaxValue for TemplateNodeId {
 }
 
 impl TemplateNodeId {
+    /// Construct a template node id from its numeric index.
     pub fn build(id: usize) -> Self {
         TemplateNodeId(id)
     }
 
+    /// Numeric index backing this id.
     pub fn as_usize(&self) -> usize {
         self.0
     }
@@ -342,6 +359,7 @@ impl Display for TemplateNodeId {
 
 #[derive(Serialize, Default, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 #[serde(crate = "pax_message::serde")]
+/// Manifest-level type identity category.
 pub enum PaxType {
     If,
     Slot,
@@ -812,12 +830,14 @@ impl Interpolatable for UniqueTemplateNodeIdentifier {}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, Default)]
 #[serde(crate = "pax_message::serde")]
+/// Globally unique identity for a template node: component type plus local template-node id.
 pub struct UniqueTemplateNodeIdentifier {
     component: TypeId,
     template_node_id: TemplateNodeId,
 }
 
 impl UniqueTemplateNodeIdentifier {
+    /// Construct a globally unique template-node id.
     pub fn build(component: TypeId, template_node_id: TemplateNodeId) -> Self {
         UniqueTemplateNodeIdentifier {
             component,
@@ -825,10 +845,12 @@ impl UniqueTemplateNodeIdentifier {
         }
     }
 
+    /// Component that owns this template node.
     pub fn get_containing_component_type_id(&self) -> TypeId {
         self.component.clone()
     }
 
+    /// Node id within the containing component template.
     pub fn get_template_node_id(&self) -> TemplateNodeId {
         self.template_node_id.clone()
     }
@@ -841,6 +863,7 @@ impl Display for UniqueTemplateNodeIdentifier {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+/// Parent relationship for a node inside a component template tree.
 pub enum TreeLocation {
     #[default]
     Root,
@@ -848,6 +871,7 @@ pub enum TreeLocation {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+/// Desired insertion position among siblings.
 pub enum TreeIndexPosition {
     #[default]
     Top,
@@ -856,6 +880,7 @@ pub enum TreeIndexPosition {
 }
 
 impl TreeIndexPosition {
+    /// Resolve this symbolic position against a sibling-list length.
     pub fn get_index(&self, len: usize) -> usize {
         match self {
             TreeIndexPosition::Top => 0,
@@ -864,6 +889,7 @@ impl TreeIndexPosition {
         }
     }
 
+    /// Construct an explicit index position.
     pub fn new(index: usize) -> Self {
         TreeIndexPosition::At(index)
     }
@@ -898,6 +924,7 @@ impl Ord for TreeIndexPosition {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+/// Full editable location metadata for a template node.
 pub struct NodeLocation {
     pub type_id: TypeId,
     pub tree_location: TreeLocation,
@@ -905,6 +932,7 @@ pub struct NodeLocation {
 }
 
 impl NodeLocation {
+    /// Construct a node location.
     pub fn new(type_id: TypeId, location: TreeLocation, index: TreeIndexPosition) -> Self {
         NodeLocation {
             type_id,
@@ -913,10 +941,12 @@ impl NodeLocation {
         }
     }
 
+    /// Parent-location component of this node location.
     pub fn get_tree_location(&self) -> &TreeLocation {
         &self.tree_location
     }
 
+    /// Type id of the node at this location.
     pub fn get_type_id(&self) -> &TypeId {
         &self.type_id
     }
@@ -1478,7 +1508,7 @@ impl ComponentTemplate {
     }
 }
 
-/// Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
+/// Represents an entry within a component template, e.g. a `<Rectangle>` declaration inside a template
 /// Each node in a template is represented by exactly one `TemplateNodeDefinition`, and this is a compile-time
 /// concern.  Note the difference between compile-time `definitions` and runtime `instances`.
 /// A compile-time `TemplateNodeDefinition` corresponds to a single runtime `RenderNode` instance.
@@ -1589,7 +1619,7 @@ pub struct PropertyDefinitionFlags {
     //
     /// Is the source being iterated over a Range?
     pub is_repeat_source_range: bool,
-    /// Is the source being iterated over an iterable, like Vec<T>?
+    /// Is the source being iterated over an iterable, like `Vec<T>`?
     pub is_repeat_source_iterable: bool,
 
     /// Describes whether this property is a `Property`-wrapped `T` in `Property<T>`
@@ -1623,7 +1653,7 @@ pub struct TypeDefinition {
     pub type_id: TypeId,
 
     /// Statically known type_id for this Property's iterable TypeDefinition, that is,
-    /// T for some Property<Vec<T>>
+    /// T for some `Property<Vec<T>>`
     pub inner_iterable_type_id: Option<TypeId>,
 
     /// A vec of PropertyType, describing known addressable (sub-)properties of this PropertyType
@@ -1822,6 +1852,7 @@ impl Display for TimelineTrackDefinition {
 }
 
 impl LiteralBlockDefinition {
+    /// Construct a literal object block from setting elements.
     pub fn new(elements: Vec<SettingElement>) -> Self {
         Self {
             explicit_type_pascal_identifier: None,
@@ -1832,12 +1863,14 @@ impl LiteralBlockDefinition {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
+/// One key/value or comment entry inside a literal block.
 pub enum SettingElement {
     Setting(Token, ValueDefinition),
     Comment(String),
 }
 
 impl LiteralBlockDefinition {
+    /// Return only actual setting entries, omitting comments.
     pub fn get_all_settings<'a>(&'a self) -> Vec<(&'a Token, &'a ValueDefinition)> {
         self.elements
             .iter()
@@ -1886,6 +1919,7 @@ impl Ord for Token {
 }
 
 impl Token {
+    /// Construct a token with source location information.
     pub fn new(token_value: String, token_location: LocationInfo) -> Self {
         Self {
             token_value,
@@ -1893,6 +1927,7 @@ impl Token {
         }
     }
 
+    /// Construct a token synthesized without a source location.
     pub fn new_without_location(token_value: String) -> Self {
         Self {
             token_value,
@@ -1903,6 +1938,7 @@ impl Token {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
+/// Parsed numeric literal before final type coercion.
 pub enum Number {
     Float(f64),
     Int(isize),
@@ -1910,11 +1946,13 @@ pub enum Number {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
+/// Parsed Pax unit suffix.
 pub enum Unit {
     Pixels,
     Percent,
 }
 
+/// Mangle an identifier into a token-safe representation for generated symbols.
 pub fn escape_identifier(input: String) -> String {
     input
         .replace("(", "LPAR")

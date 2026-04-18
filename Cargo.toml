@@ -13,6 +13,7 @@ members = [
     "pax-cli",
     "pax-compiler",
     "pax-compiler",
+    "pax-docs",
     "pax-designtime",
     "pax-engine",
     "pax-kit",

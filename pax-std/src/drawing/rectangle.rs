@@ -12,16 +12,20 @@ use pax_engine::{helpers, pax, Property};
 use pax_manifest::pax_runtime_api::Numeric;
 use std::rc::Rc;
 
-/// A basic 2D vector rectangle
+/// A 2D vector rectangle, which covers its bounding box with the specified fill and stroke.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::drawing::rectangle::RectangleInstance")]
 pub struct Rectangle {
+    /// Stroke drawn around the rectangle.
     pub stroke: Property<Stroke>,
+    /// Fill painted inside the rectangle.
     pub fill: Property<Fill>,
+    /// Per-corner radii.
     pub corner_radii: Property<RectangleCornerRadii>,
 }
 
+// Runtime instance backing `<Rectangle>`.
 pub struct RectangleInstance {
     base: BaseInstance,
 }
@@ -153,13 +157,18 @@ impl InstanceNode for RectangleInstance {
     }
 }
 
+/// Corner radii for a rectangle, ordered clockwise from top-left.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[has_helpers]
 pub struct RectangleCornerRadii {
+    /// Top-left corner radius.
     pub top_left: Property<Numeric>,
+    /// Top-right corner radius.
     pub top_right: Property<Numeric>,
+    /// Bottom-right corner radius.
     pub bottom_right: Property<Numeric>,
+    /// Bottom-left corner radius.
     pub bottom_left: Property<Numeric>,
 }
 
@@ -176,6 +185,7 @@ impl Into<RoundedRectRadii> for &RectangleCornerRadii {
 
 #[helpers]
 impl RectangleCornerRadii {
+    /// Constructs a `RectangleCornerRadii` value from clockwise corner radii.
     pub fn radii(
         top_left: Numeric,
         top_right: Numeric,

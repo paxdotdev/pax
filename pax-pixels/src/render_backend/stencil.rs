@@ -27,12 +27,14 @@ struct StencilStackEntry {
     geometry_signature: u64,
 }
 
+/// One clip geometry instance to draw into the stencil buffer.
 pub struct ClipDraw<'a> {
     pub clip_id: u32,
     pub geometry_signature: u64,
     pub geometry: &'a VertexBuffers<Vertex, u16>,
 }
 
+/// Maintains the stencil stack used to render nested vector clips.
 pub struct StencilRenderer {
     stencil_pipeline: RenderPipeline,
     decrement_pipeline: RenderPipeline,
@@ -51,11 +53,13 @@ pub struct StencilRenderer {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
+/// Tessellated stencil vertex.
 pub struct Vertex {
     pub position: [f32; 2],
 }
 
 impl StencilRenderer {
+    /// Create the stencil pipelines and backing texture.
     pub fn new(
         device: &Device,
         width: u32,

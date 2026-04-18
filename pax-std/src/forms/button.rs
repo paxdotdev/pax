@@ -12,16 +12,23 @@ use_RefCell!();
 use crate::common::{native_surface_opacity, patch_if_needed};
 use crate::TextStyle;
 
+/// A button control, delegating to a platform-specific native button.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::forms::button::ButtonInstance")]
 #[custom(Default)]
 pub struct Button {
+    /// Text label displayed inside the button.
     pub label: Property<String>,
+    /// Button background color.
     pub color: Property<Color>,
+    /// Button background color while hovered, when supported.
     pub hover_color: Property<Color>,
+    /// Button corner radius, in pixels.
     pub border_radius: Property<f64>,
+    /// Button outline stroke.
     pub outline: Property<Stroke>,
+    /// Text style applied to the label.
     pub style: Property<TextStyle>,
 }
 
@@ -47,6 +54,7 @@ impl Default for Button {
     }
 }
 
+// Runtime instance backing `<Button>`.
 pub struct ButtonInstance {
     base: BaseInstance,
 }

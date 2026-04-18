@@ -12,19 +12,28 @@ use std::rc::Rc;
 
 use crate::common::{native_surface_opacity, patch_if_needed};
 
-/// A platform-native text input field
+/// A text input field, with support for styling and font specification.  Will be composited as a platform-specific
+/// native element, for example an `<input>` element in the browser or a `UITextField` on iOS.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::forms::textbox::TextboxInstance")]
 #[custom(Default)]
 pub struct Textbox {
+    /// Current text value.
     pub text: Property<String>,
+    /// Textbox background color.
     pub background: Property<Color>,
+    /// Placeholder text shown when empty, when supported by the chassis.
     pub placeholder: Property<String>,
+    /// Border stroke.
     pub stroke: Property<Stroke>,
+    /// Corner radius, in pixels.
     pub border_radius: Property<f64>,
+    /// Text style.
     pub style: Property<TextStyle>,
+    /// Focus outline stroke.
     pub outline: Property<Stroke>,
+    /// Requests focus when the textbox mounts.
     pub focus_on_mount: Property<bool>,
 }
 
@@ -58,6 +67,7 @@ impl Default for Textbox {
         }
     }
 }
+// Runtime instance backing `<Textbox>`.
 pub struct TextboxInstance {
     base: BaseInstance,
 }

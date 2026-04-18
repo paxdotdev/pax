@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize)]
+/// Messages emitted by the runtime to create, update, delete, or configure native/chassis resources.
 pub enum NativeMessage {
     TextCreate(AnyCreatePatch),
     TextUpdate(TextPatch),
@@ -39,9 +40,9 @@ pub enum NativeMessage {
     DropdownCreate(AnyCreatePatch),
     DropdownUpdate(DropdownPatch),
     DropdownDelete(u32),
-    RadioSetCreate(AnyCreatePatch),
-    RadioSetUpdate(RadioSetPatch),
-    RadioSetDelete(u32),
+    RadioListCreate(AnyCreatePatch),
+    RadioListUpdate(RadioListPatch),
+    RadioListDelete(u32),
     ButtonCreate(AnyCreatePatch),
     ButtonUpdate(ButtonPatch),
     ButtonDelete(u32),
@@ -59,6 +60,7 @@ pub enum NativeMessage {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Events and data packets sent from the chassis back into the Pax runtime.
 pub enum NativeInterrupt {
     ChassisResizeRequestCollection(Vec<ChassisResizeRequestArgs>),
     SelectStart(SelectStartArgs),
@@ -84,11 +86,13 @@ pub enum NativeInterrupt {
     FormCheckboxToggle(FormCheckboxToggleArgs),
     FormDropdownChange(FormDropdownChangeArgs),
     FormSliderChange(FormSliderChangeArgs),
-    FormRadioSetChange(FormRadioSetChangeArgs),
+    FormRadioListChange(FormRadioListChangeArgs),
     FormTextboxChange(FormTextboxChangeArgs),
     FormTextboxInput(FormTextboxInputArgs),
     FormButtonClick(FormButtonClickArgs),
-    Scrollbar(ScrollbarInterruptArgs),
+    // TODO: remove alias once all persisted/older web chassis payloads use `ScrollerPosition`.
+    #[serde(alias = "Scrollbar")]
+    ScrollerPosition(ScrollerPositionInterruptArgs),
     BrowserConfig(BrowserConfigInterruptArgs),
     VisualViewportUpdate(VisualViewportUpdateArgs),
     DropFile(DropFileArgs),
@@ -97,6 +101,7 @@ pub enum NativeInterrupt {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Chassis response containing measured native control bounds.
 pub struct ChassisResizeRequestArgs {
     pub id: u32,
     pub width: f64,
@@ -105,6 +110,7 @@ pub struct ChassisResizeRequestArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Checkbox state-change interrupt payload.
 pub struct FormCheckboxToggleArgs {
     pub state: bool,
     pub id: u32,
@@ -112,14 +118,17 @@ pub struct FormCheckboxToggleArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Focus interrupt marker payload.
 pub struct FocusInterruptArgs {}
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Selection-start interrupt marker payload.
 pub struct SelectStartArgs {}
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Textbox committed-value change payload.
 pub struct FormTextboxChangeArgs {
     pub text: String,
     pub id: u32,
@@ -127,6 +136,7 @@ pub struct FormTextboxChangeArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Dropdown selection-change payload.
 pub struct FormDropdownChangeArgs {
     pub id: u32,
     pub selected_id: u32,
@@ -134,6 +144,7 @@ pub struct FormDropdownChangeArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Slider value-change payload.
 pub struct FormSliderChangeArgs {
     pub id: u32,
     pub value: f64,
@@ -141,13 +152,15 @@ pub struct FormSliderChangeArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
-pub struct FormRadioSetChangeArgs {
+/// Radio-list selection-change payload.
+pub struct FormRadioListChangeArgs {
     pub id: u32,
     pub selected_id: u32,
 }
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Raw text input payload delivered by a native text control.
 pub struct TextInputArgs {
     pub text: String,
     pub id: u32,
@@ -155,6 +168,7 @@ pub struct TextInputArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Textbox in-progress input payload.
 pub struct FormTextboxInputArgs {
     pub text: String,
     pub id: u32,
@@ -162,12 +176,14 @@ pub struct FormTextboxInputArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Native button click payload.
 pub struct FormButtonClickArgs {
     pub id: u32,
 }
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Pointer tap/click payload normalized to window coordinates.
 pub struct ClapInterruptArgs {
     pub x: f64,
     pub y: f64,
@@ -175,6 +191,7 @@ pub struct ClapInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Wheel or gesture scroll delta payload.
 pub struct ScrollInterruptArgs {
     pub delta_x: f64,
     pub delta_y: f64,
@@ -182,7 +199,8 @@ pub struct ScrollInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
-pub struct ScrollbarInterruptArgs {
+/// Native scroller position payload, including optional presentation offsets.
+pub struct ScrollerPositionInterruptArgs {
     pub id: u32,
     pub scroll_x: f64,
     pub scroll_y: f64,
@@ -192,6 +210,7 @@ pub struct ScrollbarInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Browser capability flags discovered by the web chassis.
 pub struct BrowserConfigInterruptArgs {
     pub allow_scroller_vector_layers: bool,
     pub allow_nested_scroller_vector_layers: bool,
@@ -199,6 +218,7 @@ pub struct BrowserConfigInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Browser visual viewport payload for page-scroll-backed root scrollers.
 pub struct VisualViewportUpdateArgs {
     pub width: f64,
     pub height: f64,
@@ -210,6 +230,7 @@ pub struct VisualViewportUpdateArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// One touch point in a multi-touch interrupt.
 pub struct TouchMessage {
     pub x: f64,
     pub y: f64,
@@ -220,24 +241,28 @@ pub struct TouchMessage {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Touch-start interrupt payload.
 pub struct TouchStartInterruptArgs {
     pub touches: Vec<TouchMessage>,
 }
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Touch-move interrupt payload.
 pub struct TouchMoveInterruptArgs {
     pub touches: Vec<TouchMessage>,
 }
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Touch-end interrupt payload.
 pub struct TouchEndInterruptArgs {
     pub touches: Vec<TouchMessage>,
 }
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// File-drop interrupt payload.
 pub struct DropFileArgs {
     pub x: f64,
     pub y: f64,
@@ -248,6 +273,7 @@ pub struct DropFileArgs {
 
 #[derive(Deserialize, Clone)]
 #[repr(C)]
+/// Normalized mouse button identifier.
 pub enum MouseButtonMessage {
     Left,
     Right,
@@ -257,6 +283,7 @@ pub enum MouseButtonMessage {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Normalized keyboard modifier identifier.
 pub enum ModifierKeyMessage {
     Shift,
     Control,
@@ -266,6 +293,7 @@ pub enum ModifierKeyMessage {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Key-down interrupt payload.
 pub struct KeyDownInterruptArgs {
     pub key: String,
     pub modifiers: Vec<ModifierKeyMessage>,
@@ -274,6 +302,7 @@ pub struct KeyDownInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Key-up interrupt payload.
 pub struct KeyUpInterruptArgs {
     pub key: String,
     pub modifiers: Vec<ModifierKeyMessage>,
@@ -282,6 +311,7 @@ pub struct KeyUpInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Key-press interrupt payload.
 pub struct KeyPressInterruptArgs {
     pub key: String,
     pub modifiers: Vec<ModifierKeyMessage>,
@@ -290,6 +320,7 @@ pub struct KeyPressInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Click interrupt payload.
 pub struct ClickInterruptArgs {
     pub x: f64,
     pub y: f64,
@@ -299,6 +330,7 @@ pub struct ClickInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Double-click interrupt payload.
 pub struct DoubleClickInterruptArgs {
     pub x: f64,
     pub y: f64,
@@ -308,6 +340,7 @@ pub struct DoubleClickInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Mouse-move interrupt payload.
 pub struct MouseMoveInterruptArgs {
     pub x: f64,
     pub y: f64,
@@ -317,6 +350,7 @@ pub struct MouseMoveInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Wheel interrupt payload.
 pub struct WheelInterruptArgs {
     pub x: f64,
     pub y: f64,
@@ -327,6 +361,7 @@ pub struct WheelInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Mouse-down interrupt payload.
 pub struct MouseDownInterruptArgs {
     pub x: f64,
     pub y: f64,
@@ -336,6 +371,7 @@ pub struct MouseDownInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Mouse-up interrupt payload.
 pub struct MouseUpInterruptArgs {
     pub x: f64,
     pub y: f64,
@@ -345,6 +381,7 @@ pub struct MouseUpInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Mouse-over interrupt payload.
 pub struct MouseOverInterruptArgs {
     pub x: f64,
     pub y: f64,
@@ -354,6 +391,7 @@ pub struct MouseOverInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Mouse-out interrupt payload.
 pub struct MouseOutInterruptArgs {
     pub x: f64,
     pub y: f64,
@@ -363,6 +401,7 @@ pub struct MouseOutInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Context-menu interrupt payload.
 pub struct ContextMenuInterruptArgs {
     pub x: f64,
     pub y: f64,
@@ -372,12 +411,14 @@ pub struct ContextMenuInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Image-load response, either by pointer or copied metadata.
 pub enum ImageLoadInterruptArgs {
     Reference(ImagePointerArgs),
     Data(ImageDataArgs),
 }
 #[derive(Deserialize)]
 #[repr(C)]
+/// Image-load payload carrying a pointer to chassis-owned image bytes.
 pub struct ImagePointerArgs {
     pub id: u32,
     pub path: String,
@@ -389,6 +430,7 @@ pub struct ImagePointerArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Image-load payload carrying image metadata without a byte pointer.
 pub struct ImageDataArgs {
     pub id: u32,
     pub path: String,
@@ -397,24 +439,28 @@ pub struct ImageDataArgs {
 }
 
 #[repr(C)]
+/// Raw FFI buffer containing serialized interrupts.
 pub struct InterruptBuffer {
     pub data_ptr: *const u8,
     pub length: u64,
 }
 
 #[repr(C)]
+/// Raw FFI buffer containing serialized native messages.
 pub struct NativeMessageQueue {
     pub data_ptr: *mut [u8],
     pub length: u64,
 }
 
 #[derive(Serialize)]
+/// Serializable batch of native messages emitted for one runtime tick.
 pub struct MessageQueue {
     pub messages: Vec<NativeMessage>,
 }
 
 #[derive(Deserialize)]
 #[repr(C)]
+/// Chassis acknowledgement that render layers were added.
 pub struct AddedLayerArgs {
     pub num_layers_added: u32,
     #[serde(default)]
@@ -424,6 +470,7 @@ pub struct AddedLayerArgs {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize)]
 #[repr(C)]
+/// Create/update patch for a native frame host.
 pub struct FramePatch {
     pub id: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -444,6 +491,7 @@ pub struct FramePatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize, Clone)]
 #[repr(C)]
+/// One vector coverage path entry for a native occlusion mask.
 pub struct MaskPathPatch {
     pub path: String,
     pub clips: Vec<String>,
@@ -471,6 +519,7 @@ impl std::hash::Hash for MaskPathPatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize, Clone, PartialEq)]
 #[repr(C)]
+/// Create/update patch for a native occlusion mask surface.
 pub struct NativeMaskPatch {
     pub id: u32,
     pub size_x: f64,
@@ -481,6 +530,7 @@ pub struct NativeMaskPatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize)]
 #[repr(C)]
+/// Create/update patch for an invisible native hit-test blocker.
 pub struct EventBlockerPatch {
     pub id: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -496,6 +546,7 @@ pub struct EventBlockerPatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize, Clone)]
 #[repr(C)]
+/// Create/update patch for a native checkbox.
 pub struct CheckboxPatch {
     pub id: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -517,6 +568,7 @@ pub struct CheckboxPatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize, Clone)]
 #[repr(C)]
+/// Create/update patch for a native image element.
 pub struct NativeImagePatch {
     pub id: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -534,6 +586,7 @@ pub struct NativeImagePatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize, Clone)]
 #[repr(C)]
+/// Create/update patch for an embedded YouTube video.
 pub struct YoutubeVideoPatch {
     pub id: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -550,6 +603,7 @@ pub struct YoutubeVideoPatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize, Clone)]
 #[repr(C)]
+/// Create/update patch for a native dropdown/select element.
 pub struct DropdownPatch {
     pub id: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -572,7 +626,8 @@ pub struct DropdownPatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize, Clone)]
 #[repr(C)]
-pub struct RadioSetPatch {
+/// Create/update patch for a native radio list.
+pub struct RadioListPatch {
     pub id: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_frame: Option<Option<u32>>,
@@ -594,6 +649,7 @@ pub struct RadioSetPatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize, Clone)]
 #[repr(C)]
+/// Create/update patch for a native slider.
 pub struct SliderPatch {
     pub id: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -616,6 +672,7 @@ pub struct SliderPatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize, Clone)]
 #[repr(C)]
+/// Create/update patch for a native textbox.
 pub struct TextboxPatch {
     pub id: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -642,6 +699,7 @@ pub struct TextboxPatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize)]
 #[repr(C)]
+/// Create/update patch for a native button.
 pub struct ButtonPatch {
     pub id: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -663,6 +721,7 @@ pub struct ButtonPatch {
 
 #[derive(Default, Serialize)]
 #[repr(C)]
+/// Style payload shared by checkbox-like controls.
 pub struct CheckboxStyleMessage {
     //pub fill: Option<ColorMessage>,
 }
@@ -670,6 +729,7 @@ pub struct CheckboxStyleMessage {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize)]
 #[repr(C)]
+/// Request for the chassis to navigate to a URL.
 pub struct NavigationPatch {
     pub url: String,
     pub target: String,
@@ -678,6 +738,7 @@ pub struct NavigationPatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize)]
 #[repr(C)]
+/// Request for the chassis to update cursor style.
 pub struct SetCursorPatch {
     pub cursor: String,
 }
@@ -685,6 +746,7 @@ pub struct SetCursorPatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize, Clone)]
 #[repr(C)]
+/// Create/update patch for native or browser-managed text.
 pub struct TextPatch {
     pub id: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -707,6 +769,7 @@ pub struct TextPatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize, Clone, PartialEq)]
 #[repr(C)]
+/// Serializable text style payload shared with chassis text renderers.
 pub struct TextStyleMessage {
     pub font: Option<FontPatch>,
     pub font_size: Option<f64>,
@@ -720,6 +783,7 @@ pub struct TextStyleMessage {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize)]
 #[repr(C)]
+/// Image-load request sent to the chassis.
 pub struct ImagePatch {
     pub id: u32,
     pub path: Option<String>,
@@ -728,6 +792,7 @@ pub struct ImagePatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize, Clone, PartialEq)]
 #[repr(C)]
+/// Serializable color payload for native/chassis messages.
 pub enum ColorMessage {
     Rgba([f64; 4]),
     Rgb([f64; 3]),
@@ -742,6 +807,7 @@ impl Default for ColorMessage {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize, Clone, PartialEq)]
 #[repr(C)]
+/// Serializable horizontal text alignment.
 pub enum TextAlignHorizontalMessage {
     #[default]
     Left,
@@ -752,6 +818,7 @@ pub enum TextAlignHorizontalMessage {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize, Clone, PartialEq)]
 #[repr(C)]
+/// Serializable vertical text alignment.
 pub enum TextAlignVerticalMessage {
     #[default]
     Top,
@@ -761,6 +828,7 @@ pub enum TextAlignVerticalMessage {
 
 #[derive(Serialize)]
 #[repr(C)]
+/// Serializable style payload for link text.
 pub struct LinkStyleMessage {
     pub font: Option<FontPatch>,
     pub fill: Option<ColorMessage>,
@@ -771,6 +839,7 @@ pub struct LinkStyleMessage {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize)]
 #[repr(C)]
+/// Create/update patch for a native/browser-owned scroller.
 pub struct ScrollerPatch {
     pub id: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -804,6 +873,7 @@ pub struct ScrollerPatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize)]
 #[repr(C)]
+/// Common creation payload shared by native element families.
 pub struct AnyCreatePatch {
     pub id: u32,
     pub parent_frame: Option<u32>,
@@ -823,6 +893,7 @@ pub struct AnyCreatePatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize, Clone, PartialEq)]
 #[repr(C)]
+/// Serializable font selection payload.
 pub enum FontPatch {
     System(SystemFontMessage),
     Web(WebFontMessage),
@@ -838,6 +909,7 @@ impl Default for FontPatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize, Clone, PartialEq)]
 #[repr(C)]
+/// System font family payload.
 pub struct SystemFontMessage {
     pub family: Option<String>,
     pub style: Option<FontStyleMessage>,
@@ -857,6 +929,7 @@ impl Default for SystemFontMessage {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize, Clone, PartialEq)]
 #[repr(C)]
+/// Web font payload, including family and source URL.
 pub struct WebFontMessage {
     pub family: Option<String>,
     pub url: Option<String>,
@@ -867,6 +940,7 @@ pub struct WebFontMessage {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize, Clone, PartialEq)]
 #[repr(C)]
+/// Local bundled font payload.
 pub struct LocalFontMessage {
     pub family: Option<String>,
     pub path: Option<String>,
@@ -877,6 +951,7 @@ pub struct LocalFontMessage {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone, Serialize, PartialEq)]
 #[repr(C)]
+/// Serializable font-style value.
 pub enum FontStyleMessage {
     Normal,
     Italic,
@@ -886,6 +961,7 @@ pub enum FontStyleMessage {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Clone, Serialize, PartialEq)]
 #[repr(C)]
+/// Serializable font-weight value.
 pub enum FontWeightMessage {
     Thin,
     ExtraLight,
@@ -901,6 +977,7 @@ pub enum FontWeightMessage {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize)]
 #[repr(C)]
+/// Request to allocate additional native/canvas layers.
 pub struct LayerAddPatch {
     pub num_layers_to_add: usize,
 }
@@ -908,6 +985,7 @@ pub struct LayerAddPatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize)]
 #[repr(C)]
+/// Request to capture a screenshot from the chassis.
 pub struct ScreenshotPatch {
     pub id: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -915,6 +993,7 @@ pub struct ScreenshotPatch {
 }
 
 #[derive(Serialize, Deserialize)]
+/// Completed screenshot bytes returned by the chassis.
 pub struct ScreenshotData {
     pub id: u32,
     pub data: Vec<u8>,

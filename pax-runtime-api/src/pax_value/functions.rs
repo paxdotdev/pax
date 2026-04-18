@@ -15,6 +15,7 @@ type FunctionType = Arc<dyn Fn(Vec<PaxValue>) -> Result<PaxValue, String> + Send
 static FUNCTIONS: Lazy<Arc<RwLock<HashMap<String, HashMap<String, FunctionType>>>>> =
     Lazy::new(|| Arc::new(RwLock::new(HashMap::new())));
 
+// Dumps registered PAXEL helper functions for diagnostics.
 pub fn print_all_functions() {
     let functions = FUNCTIONS.read().unwrap();
     log::warn!("Total scopes: {}", functions.len());
@@ -26,6 +27,7 @@ pub fn print_all_functions() {
     }
 }
 
+// Registers one PAXEL helper function under a scope/name pair.
 pub fn register_function(scope: String, name: String, func: FunctionType) {
     let mut functions = FUNCTIONS.write().unwrap();
     functions
@@ -34,6 +36,7 @@ pub fn register_function(scope: String, name: String, func: FunctionType) {
         .insert(name, func);
 }
 
+// Dispatches a registered PAXEL helper function.
 pub fn call_function(scope: String, name: String, args: Vec<PaxValue>) -> Result<PaxValue, String> {
     let functions = FUNCTIONS.read().unwrap();
     let scope_funcs = functions
@@ -45,7 +48,7 @@ pub fn call_function(scope: String, name: String, args: Vec<PaxValue>) -> Result
     func(args)
 }
 
-// Helper functions
+/// Helper function for adding two PaxValues
 fn add(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function add".to_string());
@@ -54,6 +57,7 @@ fn add(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(itr.next().unwrap() + itr.next().unwrap())
 }
 
+/// Helper function for subtracting two PaxValues
 fn sub_or_neg(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() == 1 {
         Ok(-args.into_iter().next().unwrap())
@@ -65,6 +69,7 @@ fn sub_or_neg(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     }
 }
 
+/// Helper function for multiplying two PaxValues
 fn mul(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function mul".to_string());
@@ -73,6 +78,7 @@ fn mul(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(itr.next().unwrap() * itr.next().unwrap())
 }
 
+/// Helper function for dividing two PaxValues
 fn div(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function div".to_string());
@@ -81,6 +87,7 @@ fn div(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(itr.next().unwrap() / itr.next().unwrap())
 }
 
+/// Helper function for exponentiating one PaxValue by another
 fn exp(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function exp".to_string());
@@ -89,6 +96,7 @@ fn exp(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(itr.next().unwrap().pow(itr.next().unwrap()))
 }
 
+/// Helper function for taking the modulus of one PaxValue by another
 fn mod_(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function mod_".to_string());
@@ -97,6 +105,7 @@ fn mod_(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(itr.next().unwrap() % itr.next().unwrap())
 }
 
+/// Helper function for checking if two PaxValues are equal
 fn rel_eq(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function rel_eq".to_string());
@@ -104,6 +113,7 @@ fn rel_eq(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(PaxValue::Bool(args[0] == args[1]))
 }
 
+/// Helper function for checking if one PaxValue is greater than another
 fn rel_gt(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function rel_gt".to_string());
@@ -111,6 +121,7 @@ fn rel_gt(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(PaxValue::Bool(args[0] > args[1]))
 }
 
+/// Helper function for checking if one PaxValue is greater than or equal to another
 fn rel_gte(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function rel_gte".to_string());
@@ -118,6 +129,7 @@ fn rel_gte(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(PaxValue::Bool(args[0] >= args[1]))
 }
 
+/// Helper function for checking if one PaxValue is less than another
 fn rel_lt(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function rel_lt".to_string());
@@ -125,6 +137,7 @@ fn rel_lt(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(PaxValue::Bool(args[0] < args[1]))
 }
 
+/// Helper function for checking if one PaxValue is less than or equal to another
 fn rel_lte(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function rel_lte".to_string());
@@ -132,6 +145,7 @@ fn rel_lte(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(PaxValue::Bool(args[0] <= args[1]))
 }
 
+/// Helper function for checking if two PaxValues are not equal
 fn rel_neq(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function rel_neq".to_string());
@@ -139,6 +153,7 @@ fn rel_neq(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(PaxValue::Bool(args[0] != args[1]))
 }
 
+/// Helper function for performing a boolean AND operation on two PaxValues
 fn bool_and(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function bool_and".to_string());
@@ -147,6 +162,7 @@ fn bool_and(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(itr.next().unwrap().op_and(itr.next().unwrap()))
 }
 
+/// Helper function for performing a boolean OR operation on two PaxValues
 fn bool_or(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function bool_or".to_string());
@@ -155,6 +171,7 @@ fn bool_or(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(itr.next().unwrap().op_or(itr.next().unwrap()))
 }
 
+/// Helper function for performing a boolean NOT operation on a PaxValue
 fn bool_not(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 1 {
         return Err("Expected 1 argument for function bool_not".to_string());
@@ -162,6 +179,7 @@ fn bool_not(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(args.into_iter().next().unwrap().op_not())
 }
 
+/// Helper function for taking the minimum of two PaxValues
 fn min(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function min".to_string());
@@ -170,6 +188,7 @@ fn min(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(itr.next().unwrap().min(itr.next().unwrap()))
 }
 
+/// Helper function for taking the maximum of two PaxValues
 fn max(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 2 {
         return Err("Expected 2 arguments for function max".to_string());
@@ -178,6 +197,7 @@ fn max(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(itr.next().unwrap().max(itr.next().unwrap()))
 }
 
+/// Helper function for getting the length of a PaxValue vector
 fn len(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 1 {
         return Err("len function takes a single argument".to_string());
@@ -188,6 +208,7 @@ fn len(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     }
 }
 
+/// Helper function for creating an RGB color from three PaxValues representing the red, green, and blue channels
 fn rgb(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 3 {
         return Err("Expected 3 arguments for function rgb".to_string());
@@ -199,6 +220,7 @@ fn rgb(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(Color::rgb(r, g, b).to_pax_value())
 }
 
+/// Helper function for creating an RGBA color from four PaxValues representing the red, green, blue, and alpha channels
 fn rgba(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 4 {
         return Err("Expected 4 arguments for function rgba".to_string());
@@ -211,6 +233,7 @@ fn rgba(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(Color::rgba(r, g, b, a).to_pax_value())
 }
 
+/// Helper function for creating an HSL color from three PaxValues representing the hue, saturation, and lightness channels
 fn hsl(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 3 {
         return Err("Expected 3 arguments for function hsl".to_string());
@@ -222,6 +245,7 @@ fn hsl(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(Color::hsl(h, s, l).to_pax_value())
 }
 
+/// Helper function for creating an HSLA color from four PaxValues representing the hue, saturation, lightness, and alpha channels
 fn hsla(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 4 {
         return Err("Expected 4 arguments for function hsla".to_string());
@@ -234,6 +258,7 @@ fn hsla(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(Color::hsla(h, s, l, a).to_pax_value())
 }
 
+/// Helper function for creating a color from a hexadecimal string representation
 fn hex(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     if args.len() != 1 {
         return Err("Expected 1 argument for function hex".to_string());
@@ -242,13 +267,17 @@ fn hex(args: Vec<PaxValue>) -> Result<PaxValue, String> {
     Ok(Color::from_hex(&hex).to_pax_value())
 }
 
+/// Registers helper functions made available to PAXEL scopes.
 pub trait HelperFunctions {
+    /// Registers all helper functions for this type.
     fn register_all_functions() {}
 }
 
+/// Registry bootstrap for built-in PAXEL helper functions.
 pub struct Functions;
 
 impl Functions {
+    /// Registers built-in math, color, and transform helper functions.
     pub fn register_all_functions() {
         // Math
         register_function("Math".to_string(), "+".to_string(), Arc::new(add));
@@ -279,6 +308,7 @@ impl Functions {
         crate::Transform2D::register_all_functions();
     }
 
+    /// Returns true if a helper function exists in the named scope.
     pub fn has_function(scope: &str, name: &str) -> bool {
         let functions = FUNCTIONS.read().unwrap();
         if let Some(scope_funcs) = functions.get(scope) {

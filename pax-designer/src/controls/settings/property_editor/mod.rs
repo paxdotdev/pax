@@ -252,6 +252,7 @@ pub fn toggle_value(value: ValueDefinition) -> anyhow::Result<ValueDefinition> {
         ValueDefinition::Identifier(_) => bail!("can't toggle identifier"),
         ValueDefinition::DoubleBinding(_) => bail!("can't toggle double binding"),
         ValueDefinition::EventBindingTarget(_) => bail!("can't toggle event"),
+        ValueDefinition::Timeline(_) => bail!("can't toggle timeline"),
     };
     Ok(toggled_val)
 }

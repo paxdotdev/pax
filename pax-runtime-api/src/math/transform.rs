@@ -48,10 +48,12 @@ impl<W: Space, T: Space> Interpolatable for Transform2<W, T> {
     }
 }
 
+/// A 2D affine transform between two phantom coordinate spaces.
 pub struct Transform2<WFrom = Generic, WTo = WFrom> {
+    /// Affine matrix coefficients in kurbo-compatible `[a, b, c, d, e, f]` order.
     pub m: [f64; 6],
-    _panthom_from: PhantomData<WFrom>,
-    _panthom_to: PhantomData<WTo>,
+    _phantom_from: PhantomData<WFrom>,
+    _phantom_to: PhantomData<WTo>,
 }
 
 // Implement Clone, Copy, PartialEq, etc manually, as
@@ -61,8 +63,8 @@ impl<F, T> Clone for Transform2<F, T> {
     fn clone(&self) -> Self {
         Self {
             m: self.m,
-            _panthom_from: PhantomData,
-            _panthom_to: PhantomData,
+            _phantom_from: PhantomData,
+            _phantom_to: PhantomData,
         }
     }
 }
@@ -89,55 +91,67 @@ impl<F: Space, T: Space> Default for Transform2<F, T> {
 }
 
 impl<WFrom: Space, WTo: Space> Transform2<WFrom, WTo> {
+    /// Constructs a transform from raw affine coefficients.
     pub fn new(m: [f64; 6]) -> Self {
         Self {
             m,
-            _panthom_from: PhantomData,
-            _panthom_to: PhantomData,
+            _phantom_from: PhantomData,
+            _phantom_to: PhantomData,
         }
     }
 
+    /// Returns the identity transform.
     pub fn identity() -> Self {
         Self::new([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
     }
 
+    /// Constructs a uniform scale transform.
     pub fn scale(s: f64) -> Self {
         Self::scale_sep(Vector2::new(s, s))
     }
 
+    /// Constructs a non-uniform scale transform.
     pub fn scale_sep(s: Vector2<WTo>) -> Self {
         Self::new([s.x, 0.0, 0.0, s.y, 0.0, 0.0])
     }
 
+    /// Constructs a skew transform.
     pub fn skew(k: Vector2<WTo>) -> Self {
         Self::new([1.0, k.y, k.x, 1.0, 0.0, 0.0])
     }
 
+    /// Constructs a rotation transform, in radians.
     pub fn rotate(th: f64) -> Self {
         let (s, c) = th.sin_cos();
         Self::new([c, s, -s, c, 0.0, 0.0])
     }
 
+    /// Constructs a translation transform.
     pub fn translate(p: Vector2<WTo>) -> Self {
         Self::new([1.0, 0.0, 0.0, 1.0, p.x, p.y])
     }
 
+    /// Returns the affine determinant.
     pub fn determinant(self) -> f64 {
         self.m[0] * self.m[3] - self.m[1] * self.m[2]
     }
 
+    /// Returns raw affine coefficients in kurbo-compatible `[a, b, c, d, e, f]` order.
     pub fn coeffs(&self) -> [f64; 6] {
         self.m
     }
 
+    /// Extracts the translation component as a vector.
     pub fn get_translation(self) -> Vector2<WFrom> {
         (self * Point2::<WFrom>::default()).cast_space().to_vector()
     }
 
+    /// Returns the transformed unit scale vector.
     pub fn get_scale(self) -> Vector2<WTo> {
         self * Vector2::<WFrom>::new(1.0, 1.0)
     }
 
+    /// Casts the phantom coordinate spaces without changing coefficients.
     pub fn cast_spaces<W: Space, T: Space>(self) -> Transform2<W, T> {
         Transform2::new(self.m)
     }
@@ -155,12 +169,12 @@ impl<WFrom: Space, WTo: Space> Transform2<WFrom, WTo> {
         ])
     }
 
+    /// Composes a transform from origin and basis vectors.
     pub fn compose(p: Point2<WTo>, vx: Vector2<WTo>, vy: Vector2<WTo>) -> Self {
         Self::new([vx.x, vx.y, vy.x, vy.y, p.x, p.y])
     }
 
-    // Decomposes the transform into translation point + unit vector transforms
-    // (ie. where (0, 1) and (1, 0) end up)
+    /// Decomposes the transform into origin and transformed basis vectors.
     pub fn decompose(&self) -> (Point2<WTo>, Vector2<WTo>, Vector2<WTo>) {
         let [v1x, v1y, v2x, v2y, px, py] = self.m;
         (
@@ -170,17 +184,23 @@ impl<WFrom: Space, WTo: Space> Transform2<WFrom, WTo> {
         )
     }
 
+    /// Returns true when `point` lands inside the transformed unit square.
     pub fn contains_point(&self, point: Point2<WTo>) -> bool {
         let unit = self.inverse() * point;
         unit.x > 0.0 && unit.y > 0.0 && unit.x < 1.0 && unit.y < 1.0
     }
 }
 
+/// Decomposed transform components used for interpolation.
 #[derive(PartialEq, Clone)]
 pub struct TransformParts {
+    /// Translation component.
     pub origin: Vector2,
+    /// Scale component.
     pub scale: Vector2,
+    /// Skew component.
     pub skew: Vector2,
+    /// Rotation component, in radians.
     pub rotation: f64,
 }
 

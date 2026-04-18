@@ -13,6 +13,7 @@ use std::rc::Rc;
 #[primitive("pax_std::core::group::GroupInstance")]
 pub struct Group {}
 
+// Runtime instance backing `<Group>`.
 pub struct GroupInstance {
     base: BaseInstance,
 }

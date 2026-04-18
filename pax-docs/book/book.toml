@@ -1,0 +1,7 @@
+[book]
+title = "Pax Docs"
+src = "src"
+
+[output.html]
+additional-css = ["theme/pax-docs.css"]
+additional-js = ["theme/pax-version.js", "theme/highlight-pax.js", "theme/pax-examples.js"]

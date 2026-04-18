@@ -17,6 +17,7 @@ pub mod property_resolution;
 mod tests;
 
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
+/// PAXEL expression AST node.
 pub enum PaxExpression {
     Primary(Box<PaxPrimary>),
     Prefix(Box<PaxPrefix>),
@@ -42,6 +43,7 @@ impl Display for PaxExpression {
 }
 
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
+/// Primary expression forms: literals, symbols, object/list/tuple literals, calls, and ranges.
 pub enum PaxPrimary {
     Literal(PaxValue),
     Grouped(Box<PaxExpression>, Option<PaxUnit>),
@@ -150,6 +152,7 @@ impl Default for PaxPrimary {
 }
 
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
+/// Unit suffix attached to a grouped numeric expression.
 pub enum PaxUnit {
     Percent,
     Pixels,
@@ -158,6 +161,7 @@ pub enum PaxUnit {
 }
 
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
+/// Access path applied after an identifier, such as `.field`, `.0`, or `[index]`.
 pub enum PaxAccessor {
     Tuple(usize),
     List(PaxExpression),
@@ -165,12 +169,14 @@ pub enum PaxAccessor {
 }
 
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
+/// Prefix operation such as numeric negation or boolean not.
 pub struct PaxPrefix {
     operator: PaxOperator,
     rhs: Box<PaxExpression>,
 }
 
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
+/// Binary infix operation with left and right expression operands.
 pub struct PaxInfix {
     operator: PaxOperator,
     lhs: Box<PaxExpression>,
@@ -178,17 +184,20 @@ pub struct PaxInfix {
 }
 
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
+/// Postfix operation node.
 pub struct PaxPostfix {
     operator: PaxOperator,
     lhs: Box<PaxExpression>,
 }
 
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
+/// Parsed operator token, stored by display name.
 pub struct PaxOperator {
     name: String,
 }
 
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
+/// Symbol reference in a PAXEL expression.
 pub struct PaxIdentifier {
     pub name: String,
 }
@@ -200,6 +209,7 @@ impl Display for PaxIdentifier {
 }
 
 impl PaxIdentifier {
+    /// Construct an identifier from its source spelling.
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
@@ -215,6 +225,7 @@ pub fn parse_pax_expression(expr: &str) -> Result<PaxExpression, String> {
     recurse_pratt_parse(parsed_expr, &pratt_parser)
 }
 
+/// Parse an already-produced pest pair into a PAXEL expression AST.
 pub fn parse_pax_expression_from_pair(expr: Pair<Rule>) -> Result<PaxExpression, String> {
     let pratt_parser = get_pax_pratt_parser();
     recurse_pratt_parse(Pairs::single(expr), &pratt_parser)

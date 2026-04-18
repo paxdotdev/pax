@@ -11,13 +11,14 @@ pub use transform::Transform2;
 pub use transform::TransformParts;
 pub use vector::Vector2;
 
+/// Marker trait for phantom coordinate spaces.
 pub trait Space: 'static {}
 
+/// Generic, untyped coordinate space.
 pub struct Generic;
 
 impl Space for Generic {}
 
-// TODO remove after Affine not used
 impl<W: Space> Mul<Point2<W>> for Affine {
     type Output = Point2<W>;
 

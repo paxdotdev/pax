@@ -126,6 +126,7 @@ impl InstanceNode for ComponentInstance {
 }
 
 #[derive(Debug, Clone, Default)]
+/// Built-in `$scroll_position` value synthesized for components inside scrollers.
 pub struct ScrollPosition {
     pub x: f64,
     pub y: f64,
@@ -154,6 +155,7 @@ impl ToPaxValue for ScrollPosition {
 }
 
 impl ScrollPosition {
+    /// Create a stack frame containing `$scroll_position` when scroll properties are present.
     pub fn create_builtin_if_exists(
         property_scope: Ref<HashMap<String, Variable>>,
     ) -> Option<HashMap<String, Variable>> {

@@ -18,6 +18,7 @@ pub use interpreter::{
     computable::Computable, parse_pax_expression, property_resolution::DependencyCollector,
 };
 
+/// Pest parser generated from the Pax grammar.
 #[derive(Parser)]
 #[grammar = "pax.pest"]
 pub struct PaxParser;
@@ -137,6 +138,7 @@ fn renamed_rules(rule: &Rule) -> String {
     }
 }
 
+/// Parse a string against a single Pax grammar rule, returning a human-readable error string.
 pub fn parse_pax_str(expected_rule: Rule, input: &str) -> Result<Pair<'_, Rule>, String> {
     let pairs = PaxParser::parse(expected_rule, input);
     match pairs {
@@ -151,6 +153,7 @@ pub fn parse_pax_str(expected_rule: Rule, input: &str) -> Result<Pair<'_, Rule>,
     }
 }
 
+/// Parse a string against a Pax grammar rule, preserving the structured pest error.
 pub fn parse_pax_err(expected_rule: Rule, input: &str) -> Result<Pair<'_, Rule>, Error<Rule>> {
     let pairs = PaxParser::parse(expected_rule, input);
     match pairs {
@@ -165,6 +168,7 @@ pub fn parse_pax_err(expected_rule: Rule, input: &str) -> Result<Pair<'_, Rule>,
     }
 }
 
+/// Parse a string into pest pairs for a Pax grammar rule.
 pub fn parse_pax_pairs(expected_rule: Rule, input: &str) -> Result<Pairs<'_, Rule>, Error<Rule>> {
     let pairs = PaxParser::parse(expected_rule, input);
     match pairs {

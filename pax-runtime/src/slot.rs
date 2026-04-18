@@ -10,7 +10,7 @@ use crate::{
 
 /// A special "control-flow" primitive (a la `yield` or perhaps `goto`) — represents a slot into which
 /// an slot_child can be rendered.  Slot relies on `slot_children` being present
-/// on the [`Runtime`] stack and will not render any content if there are no `slot_children` found.
+/// on the runtime stack and will not render any content if there are no `slot_children` found.
 ///
 /// Consider a Stacker:  the owner of a Stacker passes the Stacker some nodes to render
 /// inside the cells of the Stacker.  To the owner of the Stacker, those nodes might seem like

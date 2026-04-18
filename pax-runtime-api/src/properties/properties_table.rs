@@ -7,13 +7,13 @@ use crate::{Property, TransitionManager, TransitionQueueEntry};
 use super::{private::PropertyId, PropertyValue};
 
 thread_local! {
-    /// Global property table used to store data backing dirty-dag
+    // Global property table used to store data backing dirty-dag
     pub(crate) static PROPERTY_TABLE: PropertyTable = PropertyTable::default();
-    /// Property time variable, to be used by
+    // Global property timestamp
     pub(crate) static PROPERTY_TIME: RefCell<Property<u64>> = RefCell::new(Property::new(0));
 }
 
-/// The main collection of data associated with a specific property id
+// The main collection of data associated with a specific property id
 pub struct PropertyData {
     // typed data for this property,
     // can always be downcast to TypedPropertyData<T>
@@ -37,6 +37,7 @@ impl PropertyData {
     }
 }
 
+// Type-specialized payload for one `Property<T>` table entry.
 pub struct TypedPropertyData<T> {
     value: T,
     transition_manager: Option<TransitionManager<T>>,
@@ -44,7 +45,7 @@ pub struct TypedPropertyData<T> {
     property_type: PropertyType<T>,
 }
 
-/// Specialization data only needed for different kinds of properties
+// Specialization data only needed for different kinds of properties
 #[derive(Clone)]
 pub(crate) enum PropertyType<T> {
     Literal,
@@ -54,7 +55,7 @@ pub(crate) enum PropertyType<T> {
     },
 }
 
-/// Main propertytable, containing data associated with each property
+// Main propertytable, containing data associated with each property
 #[derive(Default)]
 pub(crate) struct PropertyTable {
     // Main property table containing property data
@@ -63,15 +64,16 @@ pub(crate) struct PropertyTable {
     debug_names: RefCell<SparseSecondaryMap<PropertyId, String>>,
 }
 
+// Reference-counted slotmap entry for one property id.
 pub struct Entry {
     ref_count: usize,
     data: Option<PropertyData>,
 }
 
 impl PropertyTable {
-    /// Main function to get access to a value inside of a property.
-    /// Makes sure the value is up to date before returning in the case
-    /// of computed properties.
+    // Main function to get access to a value inside of a property.
+    // Makes sure the value is up to date before returning in the case
+    // of computed properties.
     pub fn get_value<T: PropertyValue>(&self, id: PropertyId) -> T {
         self.update_value::<T>(id);
         self.with_property_data_mut(id, |property_data| {
@@ -79,6 +81,7 @@ impl PropertyTable {
         })
     }
 
+    // Reads a property value by reference after updating dirty dependencies.
     pub fn read_value<T: PropertyValue, V>(&self, id: PropertyId, f: impl FnOnce(&T) -> V) -> V {
         self.update_value::<T>(id);
         self.with_property_data_mut(id, |property_data| {
@@ -98,7 +101,7 @@ impl PropertyTable {
         self.dirtify_outbound(id);
     }
 
-    /// Adds a new untyped property entry
+    // Adds a new untyped property entry
     pub fn add_entry<T: PropertyValue>(
         &self,
         start_val: T,
@@ -165,11 +168,11 @@ impl PropertyTable {
         }
     }
 
-    /// Gives mutable access to a entry in the property table
-    /// WARNING: this function is dangerous, f can not drop, create, set, get
-    /// or in any other way modify the global property table or this will panic
-    /// with multiple mutable borrows. Letting f contain any form of userland
-    /// code is NOT a good idea.
+    // Gives mutable access to a entry in the property table
+    // WARNING: this function is dangerous, f can not drop, create, set, get
+    // or in any other way modify the global property table or this will panic
+    // with multiple mutable borrows. Letting f contain any form of userland
+    // code is NOT a good idea.
     fn with_entry_mut<V>(&self, id: PropertyId, f: impl FnOnce(&mut Entry) -> V) -> V {
         let mut sm = self.property_map.borrow_mut();
         let data = sm.get_mut(id).unwrap();
@@ -177,10 +180,10 @@ impl PropertyTable {
         return_value
     }
 
-    /// Allows mutable access to the data associated with a property id.
-    /// WARNING while this method is being run, the entry corresponding to id
-    /// is not present in the table, and methods such as .get(), .set(), and
-    /// possibly others on the property with the id parameter bellow will panic.
+    // Allows mutable access to the data associated with a property id.
+    // WARNING while this method is being run, the entry corresponding to id
+    // is not present in the table, and methods such as .get(), .set(), and
+    // possibly others on the property with the id parameter bellow will panic.
     pub fn with_property_data_mut<V>(
         &self,
         id: PropertyId,
@@ -207,15 +210,15 @@ impl PropertyTable {
         res
     }
 
-    /// Allows access to the data associated with a property id.
-    /// WARNING while this method is being run, the entry corresponding to id
-    /// is not present in the table, and methods such as .get(), .set(), and
-    /// possibly others on the property with the id parameter bellow will panic.
+    // Allows access to the data associated with a property id.
+    // WARNING while this method is being run, the entry corresponding to id
+    // is not present in the table, and methods such as .get(), .set(), and
+    // possibly others on the property with the id parameter bellow will panic.
     pub fn with_property_data<V>(&self, id: PropertyId, f: impl FnOnce(&PropertyData) -> V) -> V {
         self.with_property_data_mut(id, |property_data| f(&*property_data))
     }
 
-    /// Increase the ref count of a property
+    // Increase the ref count of a property
     pub fn increase_ref_count(&self, id: PropertyId) -> usize {
         self.with_entry_mut(id, |entry| {
             entry.ref_count += 1;
@@ -223,7 +226,7 @@ impl PropertyTable {
         })
     }
 
-    /// Decrease the ref count of a property
+    // Decrease the ref count of a property
     pub fn decrease_ref_count(&self, id: PropertyId) -> usize {
         self.with_entry_mut(id, |entry| {
             entry.ref_count -= 1;
@@ -231,10 +234,10 @@ impl PropertyTable {
         })
     }
 
-    /// Replaces the way the source parameters property is being
-    /// computed / its value to the way target does.
-    /// NOTE: source_id and target_id need to both contain
-    /// the type T, or else this panics
+    // Replaces the way the source parameters property is being
+    // computed / its value to the way target does.
+    // NOTE: source_id and target_id need to both contain
+    // the type T, or else this panics
     pub fn replace_property_keep_outbound_connections<T: Clone + 'static>(
         &self,
         source_id: PropertyId,
@@ -319,7 +322,7 @@ impl PropertyTable {
         }
     }
 
-    /// drop a properties underlying data, making any subsequent calls invalid by panic
+    // drop a properties underlying data, making any subsequent calls invalid by panic
     pub fn remove_entry(&self, id: PropertyId) {
         let res = {
             self.disconnect_outbound(id);
@@ -335,6 +338,7 @@ impl PropertyTable {
         drop(res);
     }
 
+    // Returns a human-readable name for diagnostics, falling back to the raw id.
     pub fn debug_name(&self, id: PropertyId) -> String {
         self.debug_names
             .borrow()
@@ -345,6 +349,7 @@ impl PropertyTable {
             .to_owned()
     }
 
+    // Returns the number of live property-table slots.
     pub(crate) fn total_properties_count(&self) -> usize {
         self.property_map.borrow().len()
     }

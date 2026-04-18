@@ -9,6 +9,7 @@ use super::{
 /// specific PropertyId has been dropped.
 #[derive(Debug)]
 pub struct UntypedProperty {
+    // Slotmap id for the backing property table entry.
     pub(crate) id: PropertyId,
 }
 
@@ -36,6 +37,7 @@ impl Drop for UntypedProperty {
 }
 
 impl UntypedProperty {
+    // Allocates a new table entry and returns its untyped handle.
     pub(crate) fn new<T: PropertyValue>(
         val: T,
         inbound: Vec<PropertyId>,
@@ -47,6 +49,7 @@ impl UntypedProperty {
         }
     }
 
+    // Returns the table id backing this untyped property handle.
     pub fn get_id(&self) -> PropertyId {
         self.id
     }

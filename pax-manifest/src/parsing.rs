@@ -4,6 +4,7 @@ use pax_lang::{from_pax, parse_pax_expression, parse_pax_str, Pair, Pairs, Rule,
 use pax_runtime_api::{Color, Fill, PaxValue, Size, Stroke};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
+/// Parse template nodes out of a component-definition AST into a mutable template context.
 pub fn parse_template_from_component_definition_string(
     ctx: &mut TemplateNodeParseContext,
     pax: &str,
@@ -24,6 +25,7 @@ pub fn parse_template_from_component_definition_string(
         });
 }
 
+/// Mutable state used while parsing template nodes for one component.
 pub struct TemplateNodeParseContext {
     pub template: ComponentTemplate,
     pub pascal_identifier_to_type_id_map: HashMap<String, TypeId>,
@@ -719,6 +721,7 @@ pub fn parse_settings_from_component_definition_string(
     settings
 }
 
+/// Accumulator for manifest parsing across components and reflected types.
 pub struct ParsingContext {
     /// Used to track which files/sources have been visited during parsing,
     /// to prevent duplicate parsing
@@ -752,6 +755,7 @@ impl Default for ParsingContext {
 }
 
 #[derive(Debug)]
+/// Source-mapped parsing error payload used by designer/editor integrations.
 pub struct ParsingError {
     pub error_name: String,
     pub error_message: String,
@@ -808,6 +812,7 @@ pub fn assemble_component_definition(
     (ctx, new_def)
 }
 
+/// Convert macro-parser module roots into crate-relative paths.
 pub fn clean_module_path(module_path: &str) -> String {
     if module_path.starts_with("parser") {
         module_path.replacen("parser", "crate", 1)
@@ -816,6 +821,7 @@ pub fn clean_module_path(module_path: &str) -> String {
     }
 }
 
+/// Build a component definition for a `#[pax]` data struct with no template.
 pub fn assemble_struct_only_component_definition(
     ctx: ParsingContext,
     module_path: &str,
@@ -837,6 +843,7 @@ pub fn assemble_struct_only_component_definition(
     (ctx, new_def)
 }
 
+/// Build a component definition for a built-in primitive.
 pub fn assemble_primitive_definition(
     module_path: &str,
     primitive_instance_import_path: String,
@@ -857,6 +864,7 @@ pub fn assemble_primitive_definition(
     }
 }
 
+/// Insert and return a reflected type definition.
 pub fn assemble_type_definition(
     mut ctx: ParsingContext,
     property_definitions: Vec<PropertyDefinition>,
@@ -913,7 +921,7 @@ pub trait Reflectable {
 
     ///The import path is the fully namespace-qualified path for a type, like `std::vec::Vec`
     ///This is distinct from type_id ONLY when the type has generics, like Vec, where
-    ///the type_id is distinct across a Vec<Foo> and a Vec<Bar>.  In both cases of Vec,
+    ///the type_id is distinct across a `Vec<Foo>` and a `Vec<Bar>`.  In both cases of Vec,
     ///the import_path will remain the same.
     fn get_import_path() -> String {
         //This default is used by primitives but expected to

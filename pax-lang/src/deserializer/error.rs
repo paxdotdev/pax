@@ -3,9 +3,11 @@ use std::fmt::{self, Display};
 
 use serde::{de, ser};
 
+/// Result type used by the Pax literal deserializer.
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Clone)]
+/// Error emitted while converting Pax literal syntax into runtime values.
 pub enum Error {
     Message(String),
     UnsupportedType(String),

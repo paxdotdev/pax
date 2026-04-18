@@ -31,10 +31,15 @@ impl_default_coercion_rule!(f64, PaxValue::Numeric);
 impl_default_coercion_rule!(isize, PaxValue::Numeric);
 impl_default_coercion_rule!(usize, PaxValue::Numeric);
 
+/// Attempts to coerce a dynamic `PaxValue` into a concrete Rust type.
+///
+/// Coercion is intentionally broader than exact `ToPaxValue` conversion; for
+/// example a `Color` can be coerced into a `Fill`.
 pub trait CoercionRules
 where
     Self: Sized + 'static,
 {
+    /// Attempts to coerce `value` into `Self`.
     fn try_coerce(value: PaxValue) -> Result<Self, String>;
 }
 
@@ -1049,6 +1054,7 @@ impl CoercionRules for Vector2 {
     }
 }
 
+// Pulls named object fields into a fixed-order array for coercion implementations.
 pub fn extract_options<T, const N: usize>(
     keys: [&'static str; N],
     vec: Vec<(String, T)>,

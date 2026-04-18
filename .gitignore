@@ -3,6 +3,7 @@ pax-compiler/files/interfaces/web/public/pax-interface-web.js
 pax-compiler/files/interfaces/web/package-lock.json
 target/
 vendor/
+pax-docs/book/book/
 
 .swiftpm
 .build

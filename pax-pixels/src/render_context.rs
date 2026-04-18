@@ -41,6 +41,7 @@ use std::hash::{Hash, Hasher};
 
 const DEFAULT_TESSELLATION_TOLERANCE: f32 = 0.1;
 
+/// Retained scene renderer that records Pax vector/image commands and flushes them through wgpu.
 pub struct WgpuRenderer<'w> {
     render_backend: RenderBackend<'w>,
     scene: HashMap<u32, RetainedNode>,
@@ -281,6 +282,7 @@ impl TransformArena {
 }
 
 impl<'w> WgpuRenderer<'w> {
+    /// Create a retained renderer around a low-level `RenderBackend`.
     pub fn new(render_backend: RenderBackend<'w>) -> Self {
         Self {
             render_backend,
@@ -300,6 +302,7 @@ impl<'w> WgpuRenderer<'w> {
         }
     }
 
+    /// Current transform at the top of the render-state stack.
     pub fn current_transform(&self) -> Transform2D {
         self.transform_stack
             .last()
@@ -307,6 +310,7 @@ impl<'w> WgpuRenderer<'w> {
             .unwrap_or_else(Transform2D::identity)
     }
 
+    /// Set the base transform for the physical surface tile being rendered.
     pub fn set_surface_transform(&mut self, transform: Transform2D) {
         // A logical Pax layer may fan out to multiple physical browser canvases. Keep the tile's
         // content-space translation as the base transform so retained node transforms remain
@@ -321,6 +325,7 @@ impl<'w> WgpuRenderer<'w> {
         self.saves.clear();
     }
 
+    /// Drop retained scene state for a surface that has been rebound to a new tile origin.
     pub fn reset_retained_scene(&mut self) {
         // Reusing a physical browser surface for a different tile origin is only safe if the
         // retained scene is truly origin-agnostic. The current retained vector path still caches
@@ -338,10 +343,12 @@ impl<'w> WgpuRenderer<'w> {
         self.current_node = None;
     }
 
+    /// Queue a stroked vector path into the current retained node.
     pub fn stroke_path(&mut self, path: Path, stroke: Stroke) {
         self.stroke_path_with_opacity(path, stroke, 1.0);
     }
 
+    /// Queue a stroked vector path with an extra opacity multiplier.
     pub fn stroke_path_with_opacity(&mut self, path: Path, stroke: Stroke, opacity: f32) {
         let current_transform = self.current_transform();
         let geometry_signature = hash_vector_path(
@@ -365,10 +372,12 @@ impl<'w> WgpuRenderer<'w> {
         });
     }
 
+    /// Queue a filled vector path into the current retained node.
     pub fn fill_path(&mut self, path: Path, fill: Fill) {
         self.fill_path_with_opacity(path, fill, 1.0);
     }
 
+    /// Queue a filled vector path with an extra opacity multiplier.
     pub fn fill_path_with_opacity(&mut self, path: Path, fill: Fill, opacity: f32) {
         let current_transform = self.current_transform();
         let geometry_signature = hash_vector_path(&path, PendingVectorOpKind::Fill);
@@ -1724,28 +1733,32 @@ fn clip_stacks_match(left: &[ClipReference], right: &[ClipReference]) -> bool {
 }
 
 #[derive(Debug, Clone, Copy)]
+/// One color stop in a GPU gradient fill.
 pub struct GradientStop {
     pub color: Color,
     pub stop: f32,
 }
 
 #[derive(Debug, Clone, Copy)]
+/// Shape of a GPU gradient fill.
 pub enum GradientType {
     Linear,
     Radial,
 }
 
 #[derive(Debug, Clone, Copy)]
+/// Linear RGBA color used by the low-level renderer.
 pub struct Color {
     rgba: [f32; 4],
 }
 
 impl Color {
+    /// Construct a color from linear RGBA channels in the range 0.0-1.0.
     pub fn rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { rgba: [r, g, b, a] }
     }
 
-    //credit: ChatGPT
+    /// Construct a color from HSV plus alpha, with hue normalized to 0.0-1.0.
     pub fn hsva(h: f32, s: f32, v: f32, a: f32) -> Self {
         let i = (h * 6.0).floor() as i32;
         let f = h * 6.0 - i as f32;
@@ -1764,7 +1777,8 @@ impl Color {
         Self { rgba: [r, g, b, a] }
     }
 
-    //Credit piet library: https://docs.rs/piet/latest/src/piet/color.rs.html#130-173
+    /// Construct a color from HLC/Lab-style components plus alpha.
+    // Credit piet library: https://docs.rs/piet/latest/src/piet/color.rs.html#130-173
     pub fn hlca(h: f32, l: f32, c: f32, a: f32) -> Self {
         // The reverse transformation from Lab to XYZ, see
         // https://en.wikipedia.org/wiki/CIELAB_color_space
@@ -1819,6 +1833,7 @@ impl Color {
 }
 
 #[derive(Debug, Clone)]
+/// Fill style for a tessellated vector path.
 pub enum Fill {
     Solid(Color),
     Gradient {
@@ -1831,6 +1846,7 @@ pub enum Fill {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Stroke end-cap style.
 pub enum StrokeCap {
     Butt,
     Round,
@@ -1838,6 +1854,7 @@ pub enum StrokeCap {
 }
 
 #[derive(Debug, Clone)]
+/// Stroke style for a tessellated vector path.
 pub struct Stroke {
     pub fill: Fill,
     pub weight: f32,

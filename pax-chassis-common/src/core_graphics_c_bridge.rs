@@ -677,7 +677,7 @@ pub extern "C" fn pax_interrupt(
                 );
             }
         }
-        NativeInterrupt::FormRadioSetChange(args) => {
+        NativeInterrupt::FormRadioListChange(args) => {
             let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
             if let Some(node) = node {
                 borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
@@ -740,7 +740,7 @@ pub extern "C" fn pax_interrupt(
                 borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
             }
         }
-        NativeInterrupt::Scrollbar(args) => {
+        NativeInterrupt::ScrollerPosition(args) => {
             let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
             if let Some(node) = node {
                 borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);

@@ -11,15 +11,18 @@ use std::rc::Rc;
 
 const ELLIPSE_PATH_ACCURACY: f64 = 0.01;
 
-/// A basic 2D vector ellipse
+/// A 2D vector ellipse, which inscribes its bounding box with the specified fill and stroke.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::drawing::ellipse::EllipseInstance")]
 pub struct Ellipse {
+    /// Stroke drawn around the ellipse.
     pub stroke: Property<Stroke>,
+    /// Fill painted inside the ellipse.
     pub fill: Property<Fill>,
 }
 
+// Runtime instance backing `<Ellipse>`.
 pub struct EllipseInstance {
     base: BaseInstance,
 }

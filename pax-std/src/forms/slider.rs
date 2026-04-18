@@ -12,18 +12,25 @@ use std::rc::Rc;
 
 use crate::common::{native_surface_opacity, patch_if_needed};
 
-/// A platform-native Slider control
+/// A slider control, delegating to a platform-specific native range input.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::forms::slider::SliderInstance")]
 #[custom(Default)]
 pub struct Slider {
+    /// Track background color.
     pub background: Property<Color>,
+    /// Accent color for the active track/thumb, when supported.
     pub accent: Property<Color>,
+    /// Slider corner radius, in pixels.
     pub border_radius: Property<f64>,
+    /// Current slider value.
     pub value: Property<f64>,
+    /// Step interval.
     pub step: Property<f64>,
+    /// Minimum value.
     pub min: Property<f64>,
+    /// Maximum value.
     pub max: Property<f64>,
 }
 
@@ -41,6 +48,7 @@ impl Default for Slider {
     }
 }
 
+// Runtime instance backing `<Slider>`.
 pub struct SliderInstance {
     base: BaseInstance,
 }

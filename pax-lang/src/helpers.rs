@@ -5,6 +5,7 @@ use syn::visit::Visit;
 use syn::{parse_file, ItemStruct};
 
 #[derive(Debug)]
+/// Source span and contents for a Pax template embedded in an `#[inlined(...)]` attribute.
 pub struct InlinedTemplate {
     pub struct_name: String,
     pub start: (usize, usize),
@@ -13,12 +14,14 @@ pub struct InlinedTemplate {
 }
 
 #[derive(Debug)]
+/// AST visitor that extracts `#[inlined(...)]` templates from `#[pax]` structs.
 pub struct InlinedTemplateFinder {
     pub file_contents: String,
     pub templates: Vec<InlinedTemplate>,
 }
 
 impl InlinedTemplateFinder {
+    /// Prepare a finder for one Rust source file.
     pub fn new(file_contents: String) -> Self {
         InlinedTemplateFinder {
             file_contents,
@@ -92,6 +95,7 @@ fn find_start_end_bytes(
     (start_byte, end_byte)
 }
 
+/// Replace a source span addressed by one-indexed line/column coordinates.
 pub fn replace_by_line_column(
     input: &str,
     start: (usize, usize),
@@ -112,6 +116,7 @@ pub fn replace_by_line_column(
     }
 }
 
+/// Extract a source substring addressed by one-indexed line/column coordinates.
 pub fn get_substring_by_line_column(
     input: &str,
     start: (usize, usize),
@@ -125,6 +130,7 @@ pub fn get_substring_by_line_column(
     }
 }
 
+/// Replace a matching `#[inlined(...)]` template with an empty template body.
 pub fn clear_inlined_template(file_path: &str, pascal_identifier: &str) {
     let path = Path::new(file_path);
     let content = fs::read_to_string(path).expect("Failed to read file");

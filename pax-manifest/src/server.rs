@@ -4,17 +4,20 @@ use pax_runtime_api::{CoercionRules, HelperFunctions, Interpolatable, PaxValue, 
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
+/// Publish request payload used by designer/server flows.
 pub struct PublishRequest {
     pub manifest: PaxManifest,
     //github_username: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
+/// Successful publish response payload.
 pub struct PublishResponseSuccess {
     pub pull_request_url: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
+/// Publish response union.
 pub enum PublishResponse {
     #[default]
     Undefined,
@@ -23,6 +26,7 @@ pub enum PublishResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
+/// Error payload returned by publish flows.
 pub struct ResponseError {
     pub message: String,
 }

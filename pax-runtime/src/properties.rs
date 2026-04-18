@@ -23,10 +23,11 @@ use crate::{ComponentInstance, InstanceNode};
 impl Interpolatable for ExpandedNodeIdentifier {}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// Stable runtime identifier assigned to an expanded node.
 pub struct ExpandedNodeIdentifier(pub u32);
 
 impl ExpandedNodeIdentifier {
-    // used for sending identifiers to chassis
+    /// Convert to the integer id passed across chassis message boundaries.
     pub fn to_u32(&self) -> u32 {
         self.0
     }
@@ -58,6 +59,7 @@ pub struct RuntimeContext {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
+/// Last-known scroll state for a native or browser-owned scroller surface.
 pub struct ScrollerSurfaceState {
     pub viewport_width: f64,
     pub viewport_height: f64,
@@ -71,6 +73,7 @@ pub struct ScrollerSurfaceState {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
+/// Browser visual viewport state used when page scrolling participates in root scroller behavior.
 pub struct VisualViewportState {
     pub width: f64,
     pub height: f64,
@@ -119,6 +122,7 @@ impl NodeCache {
 
 impl RuntimeContext {
     #[cfg(not(feature = "designtime"))]
+    /// Create a runtime context for normal app execution.
     pub fn new(globals: Globals) -> Self {
         Self {
             next_uid: Cell::new(ExpandedNodeIdentifier(0)),
@@ -142,6 +146,7 @@ impl RuntimeContext {
     }
 
     #[cfg(feature = "designtime")]
+    /// Create a runtime context with the userland component tracked for designer tools.
     pub fn new(globals: Globals, userland: Rc<ComponentInstance>) -> Self {
         Self {
             next_uid: Cell::new(ExpandedNodeIdentifier(0)),
@@ -166,47 +171,58 @@ impl RuntimeContext {
         }
     }
 
+    /// Store the root expanded node after it has been initialized.
     pub fn register_root_expanded_node(&self, root: &Rc<ExpandedNode>) {
         *borrow_mut!(self.root_expanded_node) = Rc::downgrade(root);
     }
 
+    /// Add a node to runtime lookup caches.
     pub fn add_to_cache(&self, node: &Rc<ExpandedNode>) {
         borrow_mut!(self.node_cache).add_to_cache(node);
     }
 
+    /// Remove a node from runtime lookup caches.
     pub fn remove_from_cache(&self, node: &Rc<ExpandedNode>) {
         borrow_mut!(self.node_cache).remove_from_cache(node);
     }
 
+    /// Look up an expanded node by runtime id.
     pub fn get_expanded_node_by_eid(&self, id: ExpandedNodeIdentifier) -> Option<Rc<ExpandedNode>> {
         borrow!(self.node_cache).eid_to_node.get(&id).cloned()
     }
 
+    /// Store a screenshot payload delivered by the chassis.
     pub fn load_screenshot(&self, id: u32, data: ScreenshotData) -> bool {
         borrow_mut!(self.screenshot_map).insert(id, data);
         true
     }
 
+    /// Shared screenshot capture map keyed by request id.
     pub fn get_screenshot_map(&self) -> Rc<RefCell<HashMap<u32, ScreenshotData>>> {
         Rc::clone(&self.screenshot_map)
     }
 
+    /// Remember browser-owned scroller state for native compositing and scroll transforms.
     pub fn set_scroller_surface_state(&self, id: u32, state: ScrollerSurfaceState) {
         borrow_mut!(self.scroller_surface_states).insert(id, state);
     }
 
+    /// Remove cached scroller surface state.
     pub fn remove_scroller_surface_state(&self, id: u32) {
         borrow_mut!(self.scroller_surface_states).remove(&id);
     }
 
+    /// Fetch cached scroller surface state by node id.
     pub fn get_scroller_surface_state(&self, id: u32) -> Option<ScrollerSurfaceState> {
         borrow!(self.scroller_surface_states).get(&id).cloned()
     }
 
+    /// Clear layer-to-scroller ownership before recomputing occlusion.
     pub fn clear_layer_scroller_owners(&self) {
         borrow_mut!(self.layer_scroller_owners).clear();
     }
 
+    /// Record that a canvas layer is owned by a particular scroller.
     pub fn register_layer_scroller_owner(
         &self,
         layer_id: usize,
@@ -215,30 +231,37 @@ impl RuntimeContext {
         borrow_mut!(self.layer_scroller_owners).insert(layer_id, scroller_id);
     }
 
+    /// Find the scroller that owns a canvas layer, when one exists.
     pub fn get_layer_scroller_owner(&self, layer_id: usize) -> Option<ExpandedNodeIdentifier> {
         borrow!(self.layer_scroller_owners).get(&layer_id).copied()
     }
 
+    /// Mark which node currently delegates root scrolling behavior to the page.
     pub fn set_root_scroller_id(&self, id: Option<u32>) {
         self.root_scroller_id.set(id);
     }
 
+    /// Current page-scroll-backed root scroller id.
     pub fn get_root_scroller_id(&self) -> Option<u32> {
         self.root_scroller_id.get()
     }
 
+    /// Cache the browser visual viewport state for root scroller math.
     pub fn set_visual_viewport_state(&self, state: VisualViewportState) {
         self.visual_viewport_state.set(Some(state));
     }
 
+    /// Clear cached visual viewport state.
     pub fn clear_visual_viewport_state(&self) {
         self.visual_viewport_state.set(None);
     }
 
+    /// Return cached browser visual viewport state, if available.
     pub fn get_visual_viewport_state(&self) -> Option<VisualViewportState> {
         self.visual_viewport_state.get()
     }
 
+    /// Ensure the dirty-canvas table has entries up to the requested layer count.
     pub fn resize_canvas_layers_to(&self, id: usize) {
         let mut dirty_canvases = borrow_mut!(self.dirty_canvases);
         let old_len = dirty_canvases.len();
@@ -248,6 +271,7 @@ impl RuntimeContext {
         }
     }
 
+    /// Mark every canvas layer clean.
     pub fn clear_all_dirty_canvases(&self) {
         let mut dirty_canvases = borrow_mut!(self.dirty_canvases);
         for v in dirty_canvases.iter_mut() {
@@ -255,6 +279,7 @@ impl RuntimeContext {
         }
     }
 
+    /// Mark a canvas layer dirty.
     pub fn set_canvas_dirty(&self, id: usize) {
         let mut dirty_canvases = borrow_mut!(self.dirty_canvases);
         if let Some(v) = dirty_canvases.get_mut(id) {
@@ -262,6 +287,7 @@ impl RuntimeContext {
         }
     }
 
+    /// Check whether a canvas layer needs redraw.
     pub fn is_canvas_dirty(&self, id: &usize) -> bool {
         *borrow!(self.dirty_canvases).get(*id).unwrap_or(&true)
     }

@@ -1,17 +1,17 @@
 use kurbo::{Affine, BezPath, Shape};
 use pax_engine::api::Size;
 use pax_engine::*;
+use pax_runtime::api::drawing::stroke_utils::{stroke_width_pixels, stroked_outline_path};
 use pax_runtime::api::{use_RefCell, Layer, RenderContext, Stroke};
 use pax_runtime::BaseInstance;
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
-use crate::common::{begin_bounded_canvas_node, Point};
-use crate::drawing::stroke_utils::{stroke_width_pixels, stroked_outline_path};
+use crate::common::{begin_bounded_canvas_node, to_kurbo_point};
 
 use_RefCell!();
 use std::rc::Rc;
 
-/// A basic 2D vector line segment.
+/// A 2D vector line segment.
 ///
 /// `x1`/`y1` and `x2`/`y2` describe the segment endpoints in the primitive's
 /// local coordinate space. The segment is rendered with `stroke`, whose cap
@@ -32,6 +32,7 @@ pub struct Line {
     pub stroke: Property<Stroke>,
 }
 
+// Runtime instance backing `<Line>`.
 pub struct LineInstance {
     base: BaseInstance,
 }
@@ -187,16 +188,8 @@ impl InstanceNode for LineInstance {
 
 fn resolve_points(line: &Line, bounds: (f64, f64)) -> (kurbo::Point, kurbo::Point) {
     (
-        Point {
-            x: line.x1.get(),
-            y: line.y1.get(),
-        }
-        .to_kurbo_point(bounds),
-        Point {
-            x: line.x2.get(),
-            y: line.y2.get(),
-        }
-        .to_kurbo_point(bounds),
+        to_kurbo_point(line.x1.get(), line.y1.get(), bounds),
+        to_kurbo_point(line.x2.get(), line.y2.get(), bounds),
     )
 }
 

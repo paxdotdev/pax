@@ -11,7 +11,7 @@ import {
     SUPPORTED_OBJECTS,
     TEXTBOX_UPDATE_PATCH,
     TEXT_UPDATE_PATCH,
-    RADIOSET_UPDATE_PATCH,
+    RADIO_LIST_UPDATE_PATCH,
     EVENT_BLOCKER_UPDATE_PATCH,
     NAVIGATION_PATCH,
     NATIVE_IMAGE_UPDATE_PATCH,
@@ -24,7 +24,7 @@ import {AnyCreatePatch} from "./classes/messages/any-create-patch";
 import {TextUpdatePatch} from "./classes/messages/text-update-patch";
 import {CheckboxUpdatePatch} from "./classes/messages/checkbox-update-patch";
 import {FrameUpdatePatch} from "./classes/messages/frame-update-patch";
-import {RadioSetUpdatePatch} from "./classes/messages/radio-set-update-patch";
+import {RadioListUpdatePatch} from "./classes/messages/radio-list-update-patch";
 import {EventBlockerUpdatePatch} from "./classes/messages/event-blocker-update-patch";
 import {ImageLoadPatch} from "./classes/messages/image-load-patch";
 import {ScrollerUpdatePatch} from "./classes/messages/scroller-update-patch";
@@ -264,19 +264,19 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
         }else if (unwrapped_msg["TextboxDelete"]) {
             let msg = unwrapped_msg["TextboxDelete"];
             nativePool.textboxDelete(msg)
-        }else if(unwrapped_msg["RadioSetCreate"]) {
-            let msg = unwrapped_msg["RadioSetCreate"]
+        }else if(unwrapped_msg["RadioListCreate"]) {
+            let msg = unwrapped_msg["RadioListCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
             patch.fromPatch(msg);
-            nativePool.radioSetCreate(patch);
-        } else if (unwrapped_msg["RadioSetUpdate"]){
-            let msg = unwrapped_msg["RadioSetUpdate"]
-            let patch: RadioSetUpdatePatch = objectManager.getFromPool(RADIOSET_UPDATE_PATCH, objectManager);
+            nativePool.radioListCreate(patch);
+        } else if (unwrapped_msg["RadioListUpdate"]){
+            let msg = unwrapped_msg["RadioListUpdate"]
+            let patch: RadioListUpdatePatch = objectManager.getFromPool(RADIO_LIST_UPDATE_PATCH, objectManager);
             patch.fromPatch(msg, nativePool.registeredFontFaces);
-            nativePool.radioSetUpdate(patch);
-        }else if (unwrapped_msg["RadioSetDelete"]) {
-            let msg = unwrapped_msg["RadioSetDelete"];
-            nativePool.radioSetDelete(msg)
+            nativePool.radioListUpdate(patch);
+        }else if (unwrapped_msg["RadioListDelete"]) {
+            let msg = unwrapped_msg["RadioListDelete"];
+            nativePool.radioListDelete(msg)
         } else if(unwrapped_msg["DropdownCreate"]) {
             let msg = unwrapped_msg["DropdownCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);

@@ -9,17 +9,15 @@ use crate::api::math::{Transform2, Vector2};
 use crate::api::{Axis, Size, Transform2D};
 use crate::node_interface::NodeLocal;
 
-/// For the `current_expanded_node` attached to `ptc`, calculates and returns a new [`crate::rendering::TransformAndBounds`] a.k.a. "tab".
-/// Intended as a helper method to be called during properties computation, for creating a new tab to attach to `ptc` for downstream calculations.
+/// Compute a reactive `TransformAndBounds` property from layout properties plus parent geometry.
 pub fn compute_tab(
     layout_properties: Property<LayoutProperties>,
     extra_transform: Property<Option<Transform2D>>,
     container_transform_and_bounds: Property<TransformAndBounds<NodeLocal, Window>>,
 ) -> Property<TransformAndBounds<NodeLocal, Window>> {
-    //get the size of this node (calc'd or otherwise) and use
-    //it as the new accumulated bounds: both for this node's children (their parent container bounds)
-    //and for this node itself (e.g. for specifying the size of a Rectangle node)
-
+    // get the size of this node (calc'd or otherwise) and use
+    // it as the new accumulated bounds: both for this node's children (their parent container bounds)
+    // and for this node itself (e.g. for specifying the size of a Rectangle node)
     let deps = [
         layout_properties.untyped(),
         container_transform_and_bounds.untyped(),
@@ -44,6 +42,7 @@ pub fn compute_tab(
     )
 }
 
+/// Resolve one set of layout properties into concrete bounds and a window-space transform.
 pub fn calculate_transform_and_bounds(
     LayoutProperties {
         width,
@@ -79,8 +78,8 @@ pub fn calculate_transform_and_bounds(
     let bounds = (width, height);
 
     // Anchor behavior:  if no anchor is specified and if x/y values are present
-    //and have an explicit percent value or component, use those percent values (clamp 100% and 0%)
-    //otherwise, default to 0
+    // and have an explicit percent value or component, use those percent values (clamp 100% and 0%)
+    // otherwise, default to 0
     let anchor_x = anchor_x.unwrap_or_else(|| match x {
         Size::Pixels(_) => Size::ZERO(),
         Size::Combined(_, per) | Size::Percent(per) => {
@@ -145,8 +144,6 @@ pub fn calculate_transform_and_bounds(
     }
 }
 
-/// Properties that are currently re-computed each frame before rendering.
-
 impl<F: Space, T: Space> Interpolatable for TransformAndBounds<F, T> {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
         TransformAndBounds {
@@ -159,6 +156,12 @@ impl<F: Space, T: Space> Interpolatable for TransformAndBounds<F, T> {
     }
 }
 
+/// Pax's canonical representation of position, size, and transform, encoded
+/// as a transform (translation, rotation, scale, skew) and a separate width/height (bounds) value.
+/// Bounds are expressed as the (x1, y1) values of the axis-aligned pre-transform bounding box,
+/// where (x0, y0) are the origin.
+///
+/// In this model, position is a derived property, calculated by applying the transform to the bounding box.
 #[derive(PartialEq)]
 pub struct TransformAndBounds<F, T = F> {
     pub transform: Transform2<F, T>,
@@ -229,6 +232,7 @@ impl<W1: Space, W2: Space, W3: Space> Mul<TransformAndBounds<W1, W2>>
 }
 
 impl<F: Space, T: Space> TransformAndBounds<F, T> {
+    /// Center point of this transformed box.
     pub fn center(&self) -> Point2<T> {
         let (o, u, v) = self.transform.decompose();
         let u = u * self.bounds.0;
@@ -236,6 +240,7 @@ impl<F: Space, T: Space> TransformAndBounds<F, T> {
         o + v / 2.0 + u / 2.0
     }
 
+    /// Corners of this transformed box, starting at origin and proceeding around the rectangle.
     pub fn corners(&self) -> [Point2<T>; 4] {
         let (o, u, v) = self.transform.decompose();
         let u = u * self.bounds.0;
@@ -243,10 +248,12 @@ impl<F: Space, T: Space> TransformAndBounds<F, T> {
         [o, o + v, o + u + v, o + u]
     }
 
+    /// Test whether a point falls inside this transformed box.
     pub fn contains_point(&self, point: Point2<T>) -> bool {
         self.as_transform().contains_point(point)
     }
 
+    /// Move scale from the transform into the bounds field.
     pub fn as_pure_size(self) -> Self {
         let mut parts: TransformParts = self.transform.into();
         let bounds_x = std::mem::replace(&mut parts.scale.x, 1.0);
@@ -256,6 +263,7 @@ impl<F: Space, T: Space> TransformAndBounds<F, T> {
             bounds: (self.bounds.0 * bounds_x, self.bounds.1 * bounds_y),
         }
     }
+    /// Move bounds into the transform as scale, leaving unit bounds.
     pub fn as_pure_scale(self) -> Self {
         TransformAndBounds {
             transform: self.transform
@@ -264,6 +272,7 @@ impl<F: Space, T: Space> TransformAndBounds<F, T> {
         }
     }
 
+    /// Retype coordinate-space markers without changing numeric values.
     pub fn cast_spaces<A: Space, B: Space>(self) -> TransformAndBounds<A, B> {
         TransformAndBounds {
             transform: self.transform.cast_spaces(),
@@ -271,6 +280,7 @@ impl<F: Space, T: Space> TransformAndBounds<F, T> {
         }
     }
 
+    /// Convert this split representation into a single affine transform.
     pub fn as_transform(&self) -> Transform2<F, T> {
         self.transform * Transform2::scale_sep(Vector2::new(self.bounds.0, self.bounds.1))
     }
@@ -338,6 +348,7 @@ fn test_transform_and_bounds_mult() {
 impl Interpolatable for LayoutProperties {}
 
 #[derive(Debug, Default, Clone)]
+/// Unresolved layout inputs copied out of common properties before geometry calculation.
 pub struct LayoutProperties {
     pub x: Option<Size>,
     pub y: Option<Size>,
@@ -353,6 +364,7 @@ pub struct LayoutProperties {
 }
 
 impl LayoutProperties {
+    /// Full-size defaults for nodes that should fill their containing bounds.
     pub fn fill() -> Self {
         Self {
             x: Some(Size::ZERO()),
@@ -371,6 +383,7 @@ impl LayoutProperties {
 }
 
 impl<F: Space, T: Space> TransformAndBounds<F, T> {
+    /// Invert the transform-and-bounds mapping.
     pub fn inverse(&self) -> TransformAndBounds<T, F> {
         let t_inv = self.transform.inverse();
         let b_inv = (1.0 / self.bounds.0, 1.0 / self.bounds.1);
@@ -380,7 +393,7 @@ impl<F: Space, T: Space> TransformAndBounds<F, T> {
         }
     }
 
-    //Applies the separating axis theorem to determine whether two `TransformAndBounds` intersect.
+    /// Test transformed-box intersection using the separating axis theorem.
     pub fn intersects(&self, other: &Self) -> bool {
         let corners_self = self.corners();
         let corners_other = other.corners();

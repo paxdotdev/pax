@@ -15,6 +15,7 @@ struct ImgData<R: piet::RenderContext> {
 type ClearFn = Box<dyn Fn()>;
 type ResizeFn = Box<dyn Fn()>;
 
+/// Legacy/test `RenderContext` implementation backed by piet.
 pub struct PietRenderer<R: piet::RenderContext> {
     backends: Vec<(R, ClearFn, ResizeFn)>,
     image_map: HashMap<String, ImgData<R>>,
@@ -22,6 +23,7 @@ pub struct PietRenderer<R: piet::RenderContext> {
 }
 
 impl<R: piet::RenderContext> PietRenderer<R> {
+    /// Create a piet renderer with a chassis-provided layer factory.
     pub fn new(layer_factory: impl Fn(usize) -> (R, ClearFn, ResizeFn) + 'static) -> Self {
         Self {
             layer_factory: Box::new(layer_factory),

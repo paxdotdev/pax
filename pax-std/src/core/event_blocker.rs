@@ -15,8 +15,10 @@ use_RefCell!();
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::core::event_blocker::EventBlockerInstance")]
+// Transparent native surface that absorbs pointer events before they reach content beneath it.
 pub struct EventBlocker {}
 
+// Runtime instance backing `<EventBlocker>`.
 pub struct EventBlockerInstance {
     base: BaseInstance,
 }

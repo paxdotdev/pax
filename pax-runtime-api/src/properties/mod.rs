@@ -20,9 +20,10 @@ mod private {
     );
 }
 
-/// PropertyValue represents a restriction on valid generic types that a property
-/// can contain. All T need to be Clone (to enable .get()) + 'static (no
-/// references/ lifetimes)
+/// Bound for values that can live inside Pax `Property<T>`.
+///
+/// Values must be cloneable for `.get()`, interpolatable for transitions, and
+/// `'static` because properties are stored in the runtime graph.
 pub trait PropertyValue: Default + Clone + Interpolatable + 'static {}
 impl<T: Default + Clone + Interpolatable + 'static> PropertyValue for T {}
 
@@ -36,8 +37,10 @@ impl<T: PropertyValue> Interpolatable for Property<T> {
         )
     }
 }
-/// A typed wrapper over a UntypedProperty that casts to/from an untyped
-/// property on get/set
+/// A reactive value node in Pax's property graph.
+///
+/// `Property<T>` is the primary state and binding primitive used by generated
+/// components, PAXEL expressions, and Rust component logic.
 #[derive(Clone)]
 pub struct Property<T> {
     untyped: UntypedProperty,
@@ -51,10 +54,12 @@ impl<T: PropertyValue + std::fmt::Debug> std::fmt::Debug for Property<T> {
 }
 
 impl<T: PropertyValue> Property<T> {
+    /// Creates a literal property with an initial value.
     pub fn new(val: T) -> Self {
         Self::new_optional_name(val, None)
     }
 
+    // Rewraps an untyped property with a typed view.
     pub fn new_from_untyped(untyped: UntypedProperty) -> Self {
         Self {
             untyped,
@@ -62,14 +67,17 @@ impl<T: PropertyValue> Property<T> {
         }
     }
 
+    /// Creates a computed property from an evaluator and dependency list.
     pub fn computed(evaluator: impl Fn() -> T + 'static, dependents: &[UntypedProperty]) -> Self {
         Self::computed_with_config(evaluator, dependents, None)
     }
 
+    /// Creates a named literal property, useful for diagnostics.
     pub fn new_with_name(val: T, name: &str) -> Self {
         Self::new_optional_name(val, Some(name))
     }
 
+    /// Creates a named computed property, useful for diagnostics.
     pub fn computed_with_name(
         evaluator: impl Fn() -> T + 'static,
         dependents: &[UntypedProperty],
@@ -104,14 +112,18 @@ impl<T: PropertyValue> Property<T> {
         }
     }
 
+    /// Immediately starts an ease transition from the current value to end_val, over time frames, following curve.
     pub fn ease_to(&self, end_val: T, time: u64, curve: EasingCurve) {
         self.ease_to_value(end_val, time, curve, true);
     }
 
+    /// Enqueues an ease transition from the current value to end_val, over time frames, following
+    /// curve, which will start after all currently enqueued transitions finish.
     pub fn ease_to_later(&self, end_val: T, time: u64, curve: EasingCurve) {
         self.ease_to_value(end_val, time, curve, false);
     }
 
+    /// Shared logic for easing operations
     fn ease_to_value(&self, end_val: T, time: u64, curve: EasingCurve, overwrite: bool) {
         PROPERTY_TABLE.with(|t| {
             t.transition(
@@ -139,9 +151,9 @@ impl<T: PropertyValue> Property<T> {
         PROPERTY_TABLE.with(|t| t.set_value(self.untyped.id, val));
     }
 
-    // Get access to a mutable reference to the inner value T.
-    // Always updates dependents of this property, no matter
-    // if the value changed or not
+    /// Get access to a mutable reference to the inner value T.
+    /// Will trigger updates for dependents of this property, regardless
+    /// of if the value actually changed
     pub fn update(&self, f: impl FnOnce(&mut T)) {
         // This is a temporary impl of the update method.
         // (very bad perf comparatively, but very safe).
@@ -150,19 +162,19 @@ impl<T: PropertyValue> Property<T> {
         self.set(val);
     }
 
-    // Get access to a reference to the inner value T.
-    // WARNING: this method can panic if this property was already borrowed,
-    // which can happen if read is called inside a read of the same property
+    /// Reads the inner value by reference.
+    ///
+    /// Panics if this property is already borrowed, which can happen if `read`
+    /// is called inside a read of the same property.
     pub fn read<V>(&self, f: impl FnOnce(&T) -> V) -> V {
         PROPERTY_TABLE.with(|t| t.read_value(self.untyped.id, f))
     }
 
-    /// replaces a properties evaluation/inbounds/value to be the same as
-    /// target, while keeping its dependents.
-    /// WARNING: this method can introduce circular dependencies if one is not careful.
-    /// Using it wrongly can introduce memory leaks and inconsistent property behavior.
-    /// This method can be used to replace an inner value from for example a literal to
-    /// a computed computed, while keeping the link to its dependents
+    /// Replaces this property's evaluator, dependencies, and value with `target`, while keeping dependents.
+    ///
+    /// This can introduce circular dependencies if used carelessly. It is
+    /// intended for changing a property from literal to computed (or vice
+    /// versa) without severing existing outbound links.
     pub fn replace_with(&self, target: Property<T>) {
         PROPERTY_TABLE.with(|t| {
             // we know self contains T, and that target contains T, so this should never panic
@@ -170,7 +182,7 @@ impl<T: PropertyValue> Property<T> {
         })
     }
 
-    /// Casts this property to its untyped version
+    /// Casts this property to its untyped version.
     pub fn untyped(&self) -> UntypedProperty {
         self.untyped.clone()
     }
@@ -182,8 +194,8 @@ impl<T: PropertyValue> Default for Property<T> {
     }
 }
 
-/// Serialization and deserialization fully disconnects properties,
-/// and only loads them back in as literals.
+// Serialization and deserialization fully disconnects properties,
+// and only loads them back in as literal values.
 impl<'de, T: PropertyValue + Deserialize<'de>> Deserialize<'de> for Property<T> {
     fn deserialize<D>(deserializer: D) -> Result<Property<T>, D::Error>
     where
@@ -204,11 +216,12 @@ impl<T: PropertyValue + Serialize> Serialize for Property<T> {
     }
 }
 
-/// Utility method to inspect total entry count in property table
+// Utility method to inspect total entry count in property table.
 pub fn property_table_total_properties_count() -> usize {
     PROPERTY_TABLE.with(|t| t.total_properties_count())
 }
 
+// Registers the runtime clock property used by transition/easing machinery.
 pub fn register_time(prop: &Property<u64>) {
     PROPERTY_TIME.with_borrow_mut(|time| *time = prop.clone());
 }

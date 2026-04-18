@@ -208,6 +208,7 @@ impl PaxValue {
         }
     }
 
+    // Boolean negation used by PAXEL's `!` operator.
     pub fn op_not(self) -> Self {
         match self {
             PaxValue::Bool(v) => PaxValue::Bool(!v),
@@ -229,6 +230,7 @@ impl PaxValue {
         }
     }
 
+    // Numeric minimum helper used by PAXEL function dispatch.
     pub fn min(self, rhs: Self) -> Self {
         match (self, rhs) {
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => a.min(b).to_pax_value(),
@@ -239,6 +241,7 @@ impl PaxValue {
         }
     }
 
+    // Numeric maximum helper used by PAXEL function dispatch.
     pub fn max(self, rhs: Self) -> Self {
         match (self, rhs) {
             (PaxValue::Numeric(a), PaxValue::Numeric(b)) => a.max(b).to_pax_value(),

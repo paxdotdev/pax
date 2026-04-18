@@ -129,7 +129,7 @@ strong {
     border-color: transparent !important;
 }
 
-.radio-set-style {
+.radio-list-style {
     background: var(--background-color);
     border-width: var(--border-width);
     border-color: var(--border-color);
@@ -143,7 +143,7 @@ strong {
     border-style: solid;
 }
 
-.radio-set-style:checked {
+.radio-list-style:checked {
     background-color: var(--selected-color) !important;
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg viewBox='0 0 16 16' fill='%23fff' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='8' cy='8' r='3'/%3E%3C/svg%3E") !important;
     background-repeat: no-repeat !important;

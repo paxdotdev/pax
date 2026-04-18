@@ -1,29 +1,16 @@
 use kurbo::{Affine, Shape};
 pub use pax_engine::api::Size;
-use pax_engine::*;
 use pax_runtime::api::RenderContext;
 use pax_runtime::{ExpandedNode, RuntimeContext};
 
-#[pax]
-#[engine_import_path("pax_engine")]
-#[derive(Copy)]
-pub struct Point {
-    pub x: Size,
-    pub y: Size,
+// Resolves Pax units against bounds into a kurbo point.
+pub(crate) fn to_kurbo_point(x: Size, y: Size, bounds: (f64, f64)) -> kurbo::Point {
+    let x = x.evaluate(bounds, pax_engine::api::Axis::X);
+    let y = y.evaluate(bounds, pax_engine::api::Axis::Y);
+    kurbo::Point { x, y }
 }
 
-impl Point {
-    pub fn new(x: Size, y: Size) -> Self {
-        Self { x, y }
-    }
-
-    pub fn to_kurbo_point(self, bounds: (f64, f64)) -> kurbo::Point {
-        let x = self.x.evaluate(bounds, api::Axis::X);
-        let y = self.y.evaluate(bounds, api::Axis::Y);
-        kurbo::Point { x, y }
-    }
-}
-
+// Writes a patch field only when the new value differs from cached old state.
 pub fn patch_if_needed<T: PartialEq + Clone>(
     old_state: &mut Option<T>,
     patch: &mut Option<T>,
@@ -38,6 +25,7 @@ pub fn patch_if_needed<T: PartialEq + Clone>(
     }
 }
 
+// Converts computed world opacity into the relative opacity expected by native hosts.
 pub fn native_surface_opacity(expanded_node: &ExpandedNode, context: &RuntimeContext) -> f64 {
     let opacity = expanded_node.computed_opacity.get().clamp(0.0, 1.0);
     let Some(parent_frame_id) = expanded_node.parent_frame.get() else {
@@ -54,6 +42,7 @@ pub fn native_surface_opacity(expanded_node: &ExpandedNode, context: &RuntimeCon
     }
 }
 
+// Resolves the transform a canvas primitive should use inside its owning canvas surface.
 pub fn canvas_surface_transform(expanded_node: &ExpandedNode, context: &RuntimeContext) -> Affine {
     let transform = Affine::from(expanded_node.transform_and_bounds.get().transform);
     let own_layer = expanded_node.occlusion.get().occlusion_layer_id;

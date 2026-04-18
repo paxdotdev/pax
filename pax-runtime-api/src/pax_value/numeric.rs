@@ -3,6 +3,10 @@ use std::{cmp::Ordering, fmt::Display};
 use crate::{Interpolatable, Size};
 use serde::{Deserialize, Serialize};
 use std::hash::Hash;
+
+/// Numeric type wrapper for PAXEL and runtime polymorphic numeric operations.
+/// This broad polyfill specifically enables terse numeric operations within expressions, without
+/// the overhead of explicit typing or numeric microsyntax.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(crate = "crate::serde")]
 #[derive(Debug, Copy)]
@@ -192,14 +196,17 @@ impl_to_from!(isize, Numeric::ISize);
 impl_to_from!(usize, Numeric::USize);
 
 impl Numeric {
+    /// Coerces this numeric value to `f64`.
     pub fn to_float(&self) -> f64 {
         self.into()
     }
 
+    /// Coerces this numeric value to `i64`.
     pub fn to_int(&self) -> i64 {
         self.into()
     }
 
+    /// Returns true when this value is stored as a floating-point number.
     pub fn is_float(&self) -> bool {
         match self {
             Numeric::F64(_) | Numeric::F32(_) => true,
@@ -207,6 +214,7 @@ impl Numeric {
         }
     }
 
+    /// Raises this number to `exp`, preserving integer arithmetic when both sides are integral.
     pub fn pow(self, exp: Self) -> Self {
         match (self.is_float(), exp.is_float()) {
             (false, false) => Numeric::I64(self.to_int().pow(exp.into())),
@@ -214,6 +222,7 @@ impl Numeric {
         }
     }
 
+    /// Returns the smaller of two numeric values.
     pub fn min(self, other: Self) -> Self {
         match (self.is_float(), other.is_float()) {
             (false, false) => Numeric::I64(self.to_int().min(other.to_int())),
@@ -221,6 +230,7 @@ impl Numeric {
         }
     }
 
+    /// Returns the larger of two numeric values.
     pub fn max(self, other: Self) -> Self {
         match (self.is_float(), other.is_float()) {
             (false, false) => Numeric::I64(self.to_int().max(other.to_int())),

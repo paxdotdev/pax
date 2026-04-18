@@ -1,5 +1,5 @@
 import {BUTTON_CLASS, BUTTON_TEXT_CONTAINER_CLASS,
-    NATIVE_LEAF_CLASS, CHECKBOX_CLASS, RADIO_SET_CLASS, SCROLLER_CONTAINER,
+    NATIVE_LEAF_CLASS, CHECKBOX_CLASS, RADIO_LIST_CLASS, SCROLLER_CONTAINER,
     CANVAS_CLASS, NATIVE_OVERLAY_CLASS, INNER_PANE} from "../utils/constants";
 import {AnyCreatePatch} from "./messages/any-create-patch";
 import snarkdown from 'snarkdown';
@@ -40,7 +40,7 @@ import type {PaxChassisWeb} from "../types/pax-chassis-web";
 import { CheckboxUpdatePatch } from "./messages/checkbox-update-patch";
 
 import { TextboxUpdatePatch } from "./messages/textbox-update-patch";
-import { RadioSetUpdatePatch } from "./messages/radio-set-update-patch";
+import { RadioListUpdatePatch } from "./messages/radio-list-update-patch";
 import { DropdownUpdatePatch } from "./messages/dropdown-update-patch";
 import { SliderUpdatePatch } from "./messages/slider-update-patch";
 import { EventBlockerUpdatePatch } from "./messages/event-blocker-update-patch";
@@ -506,7 +506,7 @@ export class NativeElementPool {
 
 
     
-    radioSetCreate(patch: AnyCreatePatch) {
+    radioListCreate(patch: AnyCreatePatch) {
         let fields = document.createElement('fieldset') as HTMLFieldSetElement;
         fields.style.border = "0";
         fields.style.margin = "0";
@@ -518,7 +518,7 @@ export class NativeElementPool {
                 let container = target.parentNode as Element;
                 let index = Array.from(container!.parentNode!.children).indexOf(container);
                 let message = {
-                    "FormRadioSetChange": {
+                    "FormRadioListChange": {
                         "id": patch.id!,
                         "selected_id": index,
                     }
@@ -527,14 +527,14 @@ export class NativeElementPool {
             }
         });
 
-        let radioSetDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
-        radioSetDiv.setAttribute("class", NATIVE_LEAF_CLASS)
-        radioSetDiv.setAttribute("pax_id", String(patch.id));
-        radioSetDiv.appendChild(fields);
+        let radioListDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        radioListDiv.setAttribute("class", NATIVE_LEAF_CLASS)
+        radioListDiv.setAttribute("pax_id", String(patch.id));
+        radioListDiv.appendChild(fields);
 
         if(patch.id != undefined && patch.occlusionLayerId != undefined){
-            this.layers.addElement(radioSetDiv, patch.parentFrame, patch.occlusionLayerId);
-            this.nodesLookup.set(patch.id!, radioSetDiv);
+            this.layers.addElement(radioListDiv, patch.parentFrame, patch.occlusionLayerId);
+            this.nodesLookup.set(patch.id!, radioListDiv);
         } else {
             throw new Error("undefined id or occlusionLayer");
         }
@@ -542,7 +542,7 @@ export class NativeElementPool {
     }
 
     
-    radioSetUpdate(patch: RadioSetUpdatePatch) {
+    radioListUpdate(patch: RadioListUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
         this.applyLeafPlacement(leaf!, patch);
         updateCommonProps(leaf!, patch);
@@ -562,7 +562,7 @@ export class NativeElementPool {
                 option.type = "radio";
                 option.name = `radio-${patch.id}`;
                 option.value = optionText.toString();
-                option.setAttribute("class", RADIO_SET_CLASS);
+                option.setAttribute("class", RADIO_LIST_CLASS);
                 div.appendChild(option);
                 const label = document.createElement('label') as HTMLLabelElement;
                 label.innerHTML = optionText.toString();
@@ -595,7 +595,7 @@ export class NativeElementPool {
         }
     }
 
-    radioSetDelete(id: number) {
+    radioListDelete(id: number) {
         let oldNode = this.nodesLookup.get(id);
         if (oldNode){
             let parent = oldNode.parentElement;
@@ -2081,7 +2081,7 @@ export class NativeElementPool {
             state.lastSentPresentationScrollY = measurement.presentationScrollY;
         }
         let message = {
-            "Scrollbar": {
+            "ScrollerPosition": {
                 "id": id,
                 "scroll_x": measurement.scrollX,
                 "scroll_y": measurement.scrollY,

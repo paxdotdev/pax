@@ -17,6 +17,7 @@ use crate::node_interface::NodeInterface;
 use {pax_designtime::DesigntimeManager, pax_manifest::UniqueTemplateNodeIdentifier};
 
 #[derive(Clone)]
+/// Runtime context passed into user component lifecycle methods and event handlers.
 pub struct NodeContext {
     pub expanded_node: Weak<ExpandedNode>,
     /// slot index of this node in its container
@@ -52,27 +53,32 @@ pub struct NodeContext {
 }
 
 impl NodeContext {
+    /// Push component-local state onto the runtime stack for descendants to find.
     pub fn push_local_store<T: Store>(&self, store: T) {
         self.local_stack_frame.insert_stack_local_store(store);
     }
 
+    /// Borrow the nearest stack-local store of type `T`.
     pub fn peek_local_store<T: Store, V>(&self, f: impl FnOnce(&mut T) -> V) -> Result<V, String> {
         self.local_stack_frame.peek_stack_local_store(f)
     }
 
+    /// Convert a window-space point into this node's local coordinate space.
     pub fn local_point(&self, p: Point2<Window>) -> Point2<NodeLocal> {
         self.node_transform_and_bounds.as_transform().inverse() * p
     }
 
+    /// Return the interface for this node's containing component, when present.
     pub fn get_node_interface(&self) -> Option<NodeInterface> {
         Weak::upgrade(&self.containing_component).map(|v| v.into())
     }
 
-    /// Get std::time::Instant::now()
+    /// Milliseconds elapsed according to the chassis-provided clock.
     pub fn elapsed_time_millis(&self) -> u128 {
         (self.get_elapsed_millis)()
     }
 
+    /// Attach a dependency subscription whose callback runs when any dependency dirties.
     pub fn subscribe(&self, dependencies: &[UntypedProperty], f: impl Fn() + 'static) {
         let subscription_prop = Property::computed(f, dependencies);
         match self.expanded_node.upgrade() {
@@ -81,6 +87,7 @@ impl NodeContext {
         }
     }
 
+    /// Remove all subscriptions registered on this node.
     pub fn clear_subscriptions(&self) {
         match self.expanded_node.upgrade() {
             Some(expanded_node) => borrow_mut!(expanded_node.subscriptions).clear(),
@@ -88,6 +95,7 @@ impl NodeContext {
         }
     }
 
+    /// Ask the chassis to navigate to a URL.
     pub fn navigate_to(&self, url: &str, target: NavigationTarget) {
         self.runtime_context
             .enqueue_native_message(NativeMessage::Navigate(NavigationPatch {
@@ -100,6 +108,7 @@ impl NodeContext {
             }))
     }
 
+    /// Queue a named custom event from this component for dispatch at the end of the tick.
     pub fn dispatch_event(&self, identifier: &'static str) -> Result<(), String> {
         let component_origin = self
             .containing_component
@@ -126,6 +135,7 @@ impl NodeContext {
         Ok(())
     }
 
+    /// Ask the chassis to display the requested cursor over the app surface.
     pub fn set_cursor(&self, cursor: CursorStyle) {
         self.runtime_context
             .enqueue_native_message(NativeMessage::SetCursor(SetCursorPatch {
@@ -133,6 +143,7 @@ impl NodeContext {
             }));
     }
 
+    /// Request a screenshot capture from the chassis, keyed by caller-provided id.
     pub fn screenshot(&self, id: u32) {
         self.runtime_context
             .enqueue_native_message(NativeMessage::Screenshot(ScreenshotPatch {
@@ -141,6 +152,7 @@ impl NodeContext {
             }));
     }
 
+    /// Shared map where completed screenshot captures are published by id.
     pub fn get_screenshot_map(&self) -> Rc<RefCell<HashMap<u32, ScreenshotData>>> {
         self.runtime_context.get_screenshot_map()
     }

@@ -30,11 +30,16 @@ use pax_runtime::api::NodeContext;
 
 )]
 pub struct Stacker {
+    /// The direction the stacker should flow its cells
     pub direction: Property<StackerDirection>,
+
+    // Computed cell rectangles emitted into the inline template.
     pub _cell_specs: Property<Vec<StackerCell>>,
+
+    /// Spacing between cells
     pub gutter: Property<Size>,
 
-    /// For for specifying sizes of each cell.  None-values (or array-index out-of-bounds values)
+    /// Size of each cell, by index.  None-values (or array-index out-of-bounds values)
     /// will fall back to computed, equal-sizing
     pub sizes: Property<Vec<Option<Size>>>,
 }
@@ -51,6 +56,7 @@ impl Default for Stacker {
 }
 
 impl Stacker {
+    // Computes child rectangles for the inline template.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let sizes = self.sizes.clone();
         let bound = ctx.bounds_self.clone();
@@ -159,19 +165,27 @@ impl Stacker {
     }
 }
 
+// Internal cell rectangle emitted into the inline template.
 #[pax]
 #[engine_import_path("pax_engine")]
 pub struct StackerCell {
+    // Cell x offset in pixels.
     pub x_px: f64,
+    // Cell y offset in pixels.
     pub y_px: f64,
+    // Cell width in pixels.
     pub width_px: f64,
+    // Cell height in pixels.
     pub height_px: f64,
 }
 
+/// Flow direction for a `Stacker`.
 #[pax]
 #[engine_import_path("pax_engine")]
 pub enum StackerDirection {
+    /// Stack children top-to-bottom.
     #[default]
     Vertical,
+    /// Stack children left-to-right.
     Horizontal,
 }

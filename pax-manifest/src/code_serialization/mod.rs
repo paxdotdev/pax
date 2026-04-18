@@ -93,7 +93,7 @@ fn to_timeline_marker(args: &HashMap<String, tera::Value>) -> tera::Result<tera:
     Err(tera::Error::msg("Unknown timeline marker variant"))
 }
 
-/// Serialize a component to a string
+/// Serialize one component definition back into Pax source.
 pub fn press_code_serialization_template(args: ComponentDefinition) -> Result<String, String> {
     let mut tera = Tera::default();
 
@@ -157,6 +157,7 @@ pub fn press_code_serialization_template(args: ComponentDefinition) -> Result<St
     Ok(formatted_template)
 }
 
+/// Colorized line diff for terminal output.
 pub fn diff(old_content: &str, new_content: &str) -> Option<String> {
     let diff = TextDiff::from_lines(old_content, new_content);
     let mut all_diffs = vec![];
@@ -178,6 +179,7 @@ pub fn diff(old_content: &str, new_content: &str) -> Option<String> {
     }
 }
 
+/// HTML diff used by designer-facing source update previews.
 pub fn diff_html(old_content: &str, new_content: &str) -> Option<String> {
     let diff = TextDiff::from_lines(old_content, new_content);
     let mut all_diffs = vec![];
@@ -242,6 +244,7 @@ pub fn serialize_component_to_file(component: &ComponentDefinition, file_path: S
     }
 }
 
+/// Serialize the manifest's main component back to its source file.
 pub fn serialize_main_component(manifest: &PaxManifest, repo_root: &str) {
     let mc = manifest.components.get(&manifest.main_component_type_id);
     if let Some(mc) = mc {
@@ -255,6 +258,7 @@ pub fn serialize_main_component(manifest: &PaxManifest, repo_root: &str) {
     }
 }
 
+/// Serialize the manifest's main component to a Pax source string.
 pub fn serialize_main_component_to_string(manifest: &PaxManifest) -> String {
     let mc = manifest.components.get(&manifest.main_component_type_id);
     if let Some(mc) = mc {
@@ -284,6 +288,7 @@ fn write_inlined_pax(serialized_component: String, path: &Path, pascal_identifie
     }
 }
 
+/// Create the companion Rust file for a newly created blank component.
 pub fn serialize_new_component_rust_file(comp_def: &ComponentDefinition, pax_file_path: String) {
     if let PaxType::BlankComponent { pascal_identifier } = comp_def.type_id.get_pax_type() {
         let path = PathBuf::from(&pax_file_path);
@@ -357,12 +362,13 @@ fn add_mod_and_use_if_missing(
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Template payload for generating a Rust file that hosts a Pax component.
 pub struct RustFileSerialization {
     pub pax_path: String,
     pub pascal_identifier: String,
 }
 
-/// Serialize a new component rust file
+/// Render the Rust-file template for a new component.
 pub fn press_rust_file_serialization_template(args: RustFileSerialization) -> String {
     let mut tera = Tera::default();
 

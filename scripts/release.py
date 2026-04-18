@@ -12,15 +12,50 @@ import time
 import argparse
 from collections import defaultdict
 
-parser = argparse.ArgumentParser(description='My Script')
+parser = argparse.ArgumentParser(description='Release Pax crates and release-bound docs')
 parser.add_argument('--turbo', action='store_true', help='Enable turbo mode')
+parser.add_argument(
+    '--skip-docs',
+    action='store_true',
+    help='Skip docs version manifest updates and docs publishing',
+)
+parser.add_argument(
+    '--skip-docs-publish',
+    action='store_true',
+    help='Update the docs version manifest, but skip uploading docs to S3/CloudFront',
+)
+parser.add_argument(
+    '--skip-docs-examples',
+    action='store_true',
+    help='Skip rebuilding runnable example bundles while publishing docs',
+)
+parser.add_argument(
+    '--docs-bucket',
+    help='S3 bucket for docs output (default: publish_versioned_docs.py default)',
+)
+parser.add_argument(
+    '--docs-distribution-id',
+    help='CloudFront distribution id for docs invalidation',
+)
+parser.add_argument(
+    '--docs-no-latest',
+    action='store_true',
+    help='Publish versioned docs only, leaving the mutable latest docs at the bucket root untouched',
+)
 parser.add_argument('new_version', help='The new version string')
 args = parser.parse_args()
 
 NEW_VERSION = args.new_version
+WORKSPACE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+DOCS_PUBLISHER = os.path.join(
+    WORKSPACE_DIR, "pax-docs", "scripts", "publish_versioned_docs.py"
+)
 # Use NEW_VERSION as needed
 print('New version is:', NEW_VERSION)
 print('Turbo mode is:', args.turbo)
+print('Docs publishing skipped:', args.skip_docs or args.skip_docs_publish)
+
+os.chdir(WORKSPACE_DIR)
 
 
 PACKAGES = [
@@ -46,8 +81,51 @@ PACKAGES = [
     "pax-lang",
 ]
 
+
+def docs_publish_command(new_version, manifest_only=False):
+    cmd_args = [
+        DOCS_PUBLISHER,
+        new_version,
+        "--workspace",
+        WORKSPACE_DIR,
+    ]
+
+    if manifest_only:
+        cmd_args.extend(["--skip-build", "--no-upload"])
+        return cmd_args
+
+    if args.skip_docs_examples:
+        cmd_args.append("--skip-examples")
+    if args.docs_bucket:
+        cmd_args.extend(["--bucket", args.docs_bucket])
+    if args.docs_distribution_id:
+        cmd_args.extend(["--distribution-id", args.docs_distribution_id])
+    if args.docs_no_latest:
+        cmd_args.append("--no-latest")
+
+    return cmd_args
+
+
+def update_docs_version_manifest(new_version):
+    if args.skip_docs:
+        print("Skipping docs version manifest update.")
+        return
+
+    subprocess.run(docs_publish_command(new_version, manifest_only=True), check=True)
+
+
+def publish_docs(new_version):
+    if args.skip_docs:
+        print("Skipping docs publish.")
+        return
+    if args.skip_docs_publish:
+        print("Skipping docs publish; docs version manifest was still updated.")
+        return
+
+    subprocess.run(docs_publish_command(new_version), check=True)
+
 # Compile ts to js and css for the web chassis
-original_dir = os.getcwd()
+original_dir = WORKSPACE_DIR
 try:
     target_dir = os.path.join(original_dir, 'pax-compiler', 'files', 'interfaces', 'web')
     os.chdir(target_dir)
@@ -153,6 +231,10 @@ for root in root_packages:
 EXAMPLES_DIR = "examples/src"
 update_crate_versions_in_examples(NEW_VERSION, PACKAGE_NAMES, EXAMPLES_DIR)
 
+# Also update the docs version manifest, so the release commit records the
+# newly published docs version before any S3/CloudFront upload happens.
+update_docs_version_manifest(NEW_VERSION)
+
 
 # Set to keep track of already published packages
 published = set()
@@ -188,8 +270,10 @@ subprocess.run(['cargo', 'build'])
 # Fixup git commit, to include updates to Cargo.lock
 subprocess.run(["git", "commit", "-a", "--amend", "--no-edit"], check=True)
 
+# Publish the mutable latest docs plus the immutable /<version>/ snapshot after
+# the release commit has been amended into its final state.
+publish_docs(NEW_VERSION)
+
 # Perform git tag
 # subprocess.run(["git", "tag", "-a", "v" + NEW_VERSION, "-m", "Release v" + NEW_VERSION], check=True)
-
-
 

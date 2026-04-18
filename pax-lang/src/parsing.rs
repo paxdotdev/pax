@@ -2,6 +2,7 @@ use pest::pratt_parser::{Assoc, Op, PrattParser};
 
 use crate::Rule;
 
+/// Build the Pratt parser that encodes PAXEL operator precedence and associativity.
 pub fn get_pax_pratt_parser() -> PrattParser<Rule> {
     // Operator precedence is declared via the ordering here:
     PrattParser::new()

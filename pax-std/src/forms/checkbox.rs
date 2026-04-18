@@ -11,17 +11,21 @@ use std::rc::Rc;
 
 use crate::common::{native_surface_opacity, patch_if_needed};
 
-/// A platform-native checkbox element
+/// A checkbox control, delegating to a platform-specific native checkbox.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::forms::checkbox::CheckboxInstance")]
 #[custom(Default)]
 pub struct Checkbox {
+    /// The background color when unchecked
     pub background: Property<Color>,
+    /// The background color when checked
     pub background_checked: Property<Color>,
+    /// The outline stroke of the checkbox
     pub outline: Property<Stroke>,
+    /// The border radius of the checkbox
     pub border_radius: Property<f64>,
-
+    /// Whether the checkbox is currently checked
     pub checked: Property<bool>,
 }
 
@@ -41,6 +45,7 @@ impl Default for Checkbox {
     }
 }
 
+// Runtime instance backing `<Checkbox>`.
 pub struct CheckboxInstance {
     base: BaseInstance,
 }

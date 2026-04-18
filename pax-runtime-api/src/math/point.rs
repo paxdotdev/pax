@@ -9,10 +9,13 @@ use super::{vector::Vector2, Generic, Space};
 
 impl<W: Space> Interpolatable for Point2<W> {}
 
+/// A representation of a point in 2D space (float).
 pub struct Point2<W = Generic> {
+    /// Horizontal coordinate.
     pub x: f64,
+    /// Vertical coordinate.
     pub y: f64,
-    _panthom: PhantomData<W>,
+    _phantom: PhantomData<W>,
 }
 
 // Implement Clone, Copy, PartialEq, etc manually, as
@@ -29,7 +32,7 @@ impl<W: Space> Clone for Point2<W> {
         Self {
             x: self.x,
             y: self.y,
-            _panthom: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -49,26 +52,31 @@ impl<W: Space> Default for Point2<W> {
 }
 
 impl<W: Space> Point2<W> {
+    /// Constructs a point from x and y coordinates.
     pub fn new(x: f64, y: f64) -> Self {
         Point2 {
             x,
             y,
-            _panthom: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
+    /// Reinterprets this point as a vector from the origin.
     pub fn to_vector(self) -> Vector2<W> {
         Vector2::new(self.x, self.y)
     }
 
+    /// Casts this point into another phantom coordinate space.
     pub fn cast_space<WNew: Space>(self) -> Point2<WNew> {
         Point2::new(self.x, self.y)
     }
 
+    /// Returns the midpoint between this point and `other`.
     pub fn midpoint_towards(self, other: Self) -> Self {
         self.lerp_towards(other, 1.0 / 2.0)
     }
 
+    /// Linearly interpolates toward `other` by `l`.
     pub fn lerp_towards(self, other: Self, l: f64) -> Self {
         let v = other - self;
         self + l * v

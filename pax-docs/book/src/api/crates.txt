@@ -1,0 +1,9 @@
+# One crate name per line
+pax-runtime-api
+pax-std
+pax-kit
+pax-lang
+pax-runtime
+pax-manifest
+pax-message
+pax-pixels

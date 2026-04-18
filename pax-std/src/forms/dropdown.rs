@@ -13,17 +13,24 @@ use std::rc::Rc;
 
 use crate::common::{native_surface_opacity, patch_if_needed};
 
-/// A platform-native dropdown list
+/// A dropdown list control, delegating to a platform-specific native dropdown implementation.
+/// Allows the selection of a single option from a list of options.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::forms::dropdown::DropdownInstance")]
 #[custom(Default)]
 pub struct Dropdown {
+    /// Outline stroke for the dropdown control.
     pub stroke: Property<Stroke>,
+    /// List of selectable option labels.
     pub options: Property<Vec<String>>,
+    /// Index of the currently selected option.
     pub selected_id: Property<u32>,
+    /// Text style for option labels.
     pub style: Property<TextStyle>,
+    /// Dropdown background color.
     pub background: Property<Color>,
+    /// Dropdown corner radius, in pixels.
     pub border_radius: Property<f64>,
 }
 
@@ -52,6 +59,7 @@ impl Default for Dropdown {
     }
 }
 
+// Runtime instance backing `<Dropdown>`.
 pub struct DropdownInstance {
     base: BaseInstance,
 }

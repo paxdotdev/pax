@@ -7,6 +7,7 @@ use pax_engine::*;
 
 const IN_OUT_TIME: u64 = 10;
 
+/// A user interface "toast", a notification banner that appears for a short time and then disappears again.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined(
@@ -29,15 +30,23 @@ const IN_OUT_TIME: u64 = 10;
     }
 )]
 pub struct Toast {
+    /// Whether the toast is currently shown.
     pub shown: Property<bool>,
+    /// The message to display in the toast.
     pub message: Property<String>,
+    /// The height of the toast.
     pub height: Property<Size>,
+    /// The y position of the toast.
     pub y_pos: Property<Size>,
-    pub signal: Property<bool>,
-    pub on_message_changed: Property<bool>,
+
+    // Private signal toggled when the action button is triggered.
+    pub _signal: Property<bool>,
+    // Private listener that starts show/hide animation when `message` changes.
+    pub _on_message_changed: Property<bool>,
 }
 
 impl Toast {
+    // Initializes toast positioning and wires message-driven animation.
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
         self.height.set(Size::Pixels(80.into()));
         self.y_pos.set(Size::default() + self.height.get());
@@ -46,7 +55,7 @@ impl Toast {
         let y_pos = self.y_pos.clone();
         let height = self.height.clone();
         self.shown.set(true);
-        self.on_message_changed.replace_with(Property::computed(
+        self._on_message_changed.replace_with(Property::computed(
             move || {
                 if message.get() != "" {
                     // show for the animation period
@@ -63,14 +72,15 @@ impl Toast {
         ));
     }
 
+    // Forces the message-change listener to run.
     pub fn pre_render(&mut self, _ctx: &NodeContext) {
-        // trigger dirtification
-        self.on_message_changed.get();
+        self._on_message_changed.get();
     }
 
+    // Hides the toast and emits its action signal.
     pub fn handle_trigger(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
         set_px_offset(&self.y_pos, self.height.get(), IN_OUT_TIME);
-        self.signal.set(true);
+        self._signal.set(true);
     }
 }
 

@@ -19,6 +19,7 @@ use crate::{ExpandedNode, HandlerRegistry, RuntimeContext, RuntimePropertiesStac
 pub type InstanceNodePtr = Rc<dyn InstanceNode>;
 pub type InstanceNodePtrList = RefCell<Vec<InstanceNodePtr>>;
 
+/// Construction payload used when compiler-generated code instantiates an `InstanceNode`.
 pub struct InstantiationArgs {
     pub prototypical_common_properties_factory: Box<
         dyn Fn(
@@ -42,6 +43,7 @@ pub struct InstantiationArgs {
         Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, Variable>>>,
 }
 
+/// Lightweight clone of reusable base-node data for helper constructors.
 pub struct ReusableInstanceNodeArgs {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub children: InstanceNodePtrList,
@@ -49,6 +51,7 @@ pub struct ReusableInstanceNodeArgs {
 }
 
 impl ReusableInstanceNodeArgs {
+    /// Capture the reusable portions of a `BaseInstance`.
     pub fn new(base: &BaseInstance) -> Self {
         ReusableInstanceNodeArgs {
             handler_registry: base.handler_registry.clone(),
@@ -59,6 +62,7 @@ impl ReusableInstanceNodeArgs {
 }
 
 #[derive(Clone)]
+/// Coarse runtime category for an instance node.
 pub enum NodeType {
     Component,
     Primitive,
@@ -73,17 +77,17 @@ impl std::fmt::Debug for dyn InstanceNode {
 /// Central runtime representation of a properties-computable and renderable node.
 /// `InstanceNode`s are conceptually stateless, and rely on [`ExpandedNode`]s for stateful representations.
 ///
-/// An `InstanceNode` sits in between a [`pax_compiler::TemplateNodeDefinition`], the
+/// An `InstanceNode` sits in between a `pax_compiler::TemplateNodeDefinition`, the
 /// compile-time `definition` analogue to this `instance`, and [`ExpandedNode`].
 ///
-/// There is a 1:1 relationship between [`pax_compiler::TemplateNodeDefinition`]s and `InstanceNode`s.
+/// There is a 1:1 relationship between `pax_compiler::TemplateNodeDefinition`s and `InstanceNode`s.
 /// There is a one-to-many relationship between one `InstanceNode` and possibly many variant [`ExpandedNode`]s,
 /// due to duplication via `for`.
 ///
 /// `InstanceNode`s are architecturally "type-aware" — they can perform type-specific operations e.g. on the state stored in [`ExpandedNode`], while
 /// [`ExpandedNode`]s are "type-blind".  The latter store polymorphic data but cannot operate on it without the type-aware assistance of their linked `InstanceNode`.
 ///
-/// (See [`RepeatInstance#expand_node`] where we visit a singular `InstanceNode` several times, producing multiple [`ExpandedNode`]s.)
+/// (See `RepeatInstance::expand_node` where we visit a singular `InstanceNode` several times, producing multiple [`ExpandedNode`]s.)
 pub trait InstanceNode {
     ///Retrieves the base instance, containing common functionality that all instances share
     fn base(&self) -> &BaseInstance;
@@ -104,7 +108,7 @@ pub trait InstanceNode {
     /// Second lifecycle method during each render loop, occurs after
     /// properties have been computed, but before rendering
     /// Example use-case: perform side-effects to the drawing contexts.
-    /// This is how [`Frame`] performs clipping, for example.
+    /// This is how `Frame` performs clipping, for example.
     /// Occurs in a pre-order traversal of the render tree.
     #[allow(unused_variables)]
     fn handle_pre_render(
@@ -248,6 +252,7 @@ pub trait InstanceNode {
     }
 }
 
+/// Shared storage carried by every concrete `InstanceNode`.
 pub struct BaseInstance {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub instance_prototypical_properties_factory: Box<
@@ -270,6 +275,7 @@ pub struct BaseInstance {
 }
 
 #[derive(Clone)]
+/// Static traversal/rendering flags for a concrete instance node.
 pub struct InstanceFlags {
     /// Used for exotic tree traversals for `Slot`, e.g. for `Stacker` > `Repeat` > `Rectangle`
     /// where the repeated `Rectangle`s need to be be considered direct children of `Stacker`.
@@ -293,6 +299,7 @@ pub struct InstanceFlags {
 }
 
 impl BaseInstance {
+    /// Build shared instance state from compiler-generated instantiation args.
     pub fn new(args: InstantiationArgs, flags: InstanceFlags) -> Self {
         BaseInstance {
             handler_registry: args.handler_registry,
@@ -320,17 +327,18 @@ impl BaseInstance {
     /// Return the list of instance nodes that are children of this one.  Intuitively, this will return
     /// instance nodes mapping exactly to the template node definitions.
     /// For `Component`s, `get_instance_children` returns the root(s) of its template, not its `slot_children`.
-    /// (see [`get_slot_children`] for the way to retrieve the latter.)
+    /// (see `get_slot_children` for the way to retrieve the latter.)
     pub fn get_instance_children(&self) -> &InstanceNodePtrList {
         &self.instance_children
     }
 
+    /// Static behavior flags for this instance.
     pub fn flags(&self) -> &InstanceFlags {
         &self.flags
     }
 }
 
-/// Represents the outer stroke of a drawable element
+/// Resolved stroke style used by canvas drawing primitives.
 pub struct StrokeInstance {
     pub color: Color,
     pub width: f64,

@@ -183,8 +183,8 @@ thread_local! {
                     },
                     ToolbarItem {
                         icon: "assets/icons/icon-component.png",
-                        tooltip: "RadioSet Creation Tool",
-                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::RadioSet))
+                        tooltip: "RadioList Creation Tool",
+                        event: ToolbarEvent::SelectTool(Tool::CreateComponent(ToolbarComponent::RadioList))
                     },
                 ]
             },

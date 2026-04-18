@@ -203,9 +203,9 @@ impl Action for MouseEntryPointAction {
                                 DesignerNodeType::Dropdown,
                                 ctx,
                             ),
-                            ToolbarComponent::RadioSet => CreateComponentTool::new(
+                            ToolbarComponent::RadioList => CreateComponentTool::new(
                                 point_glass,
-                                DesignerNodeType::RadioSet,
+                                DesignerNodeType::RadioList,
                                 ctx,
                             ),
                         }))));

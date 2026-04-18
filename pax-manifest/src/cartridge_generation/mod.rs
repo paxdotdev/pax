@@ -8,6 +8,7 @@ use crate::{
 };
 
 #[derive(Serialize, Debug)]
+/// Template context for generating a component's cartridge code.
 pub struct ComponentInfo {
     pub type_id: TypeId,
     pub pascal_identifier: String,
@@ -17,12 +18,14 @@ pub struct ComponentInfo {
 }
 
 #[derive(Serialize, Debug)]
+/// Property entry passed into cartridge codegen templates.
 pub struct PropertyInfo {
     pub name: String,
     pub property_type: PropertyDefinition,
 }
 
 #[derive(Serialize, Debug)]
+/// Event handler entry passed into cartridge codegen templates.
 pub struct HandlerInfo {
     pub name: String,
     pub args_type: Option<String>,
@@ -514,6 +517,7 @@ impl PaxManifest {
 }
 
 #[derive(Serialize, Deserialize)]
+/// Common property metadata passed into cartridge codegen templates.
 pub struct CommonProperty {
     name: String,
     property_type: TypeId,

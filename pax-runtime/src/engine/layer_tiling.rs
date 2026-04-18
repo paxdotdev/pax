@@ -43,6 +43,7 @@ impl Default for ScrollerTilingPolicy {
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// One physical canvas surface used to render a logical Pax layer tile.
 pub struct SurfaceCanvasDescriptor {
     pub id: String,
     pub key: String,
@@ -58,12 +59,14 @@ pub struct SurfaceCanvasDescriptor {
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Canvas tiling plan for one logical occlusion layer.
 pub struct LayerCanvasPlan {
     pub layer_id: usize,
     pub active: bool,
     pub surfaces: Vec<SurfaceCanvasDescriptor>,
 }
 
+/// Build a one-surface plan for layers that do not need tiling.
 pub fn single_surface_plan(
     layer_id: usize,
     host_signature: String,
@@ -90,6 +93,7 @@ pub fn single_surface_plan(
     }
 }
 
+/// Build a tile window for a scrollable vector layer.
 pub fn scroller_canvas_plan(
     layer_id: usize,
     host_signature: String,

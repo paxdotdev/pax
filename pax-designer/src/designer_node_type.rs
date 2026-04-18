@@ -32,7 +32,7 @@ pub enum DesignerNodeType {
     Image,
     Slider,
     Dropdown,
-    RadioSet,
+    RadioList,
     Conditional,
     Repeat,
     Slot,
@@ -109,7 +109,7 @@ impl DesignerNodeType {
                     "forms::checkbox::Checkbox" => DesignerNodeType::Checkbox,
                     "core::scroller::Scroller" => DesignerNodeType::Scroller,
                     "forms::button::Button" => DesignerNodeType::Button,
-                    "drawing::image::Image" => DesignerNodeType::Image,
+                    "media::image::Image" => DesignerNodeType::Image,
                     "forms::slider::Slider" => DesignerNodeType::Slider,
                     "forms::dropdown::Dropdown" => DesignerNodeType::Dropdown,
                     "layout::carousel::Carousel" => DesignerNodeType::Carousel,
@@ -214,7 +214,7 @@ impl DesignerNodeType {
             DesignerNodeType::Image => (
                 "Image",
                 "image",
-                TypeId::build_singleton("pax_std::drawing::image::Image", None),
+                TypeId::build_singleton("pax_std::media::image::Image", None),
                 false,
             ),
             DesignerNodeType::Slider => (
@@ -235,10 +235,10 @@ impl DesignerNodeType {
                 ("[Unregistered Type]", "component", TypeId::default(), false)
             }
             // TODO add custom image
-            DesignerNodeType::RadioSet => (
-                "Radio Set",
+            DesignerNodeType::RadioList => (
+                "Radio List",
                 "component",
-                TypeId::build_singleton("pax_std::forms::radio_set::RadioSet", None),
+                TypeId::build_singleton("pax_std::forms::radio_list::RadioList", None),
                 false,
             ),
             DesignerNodeType::Slot => (

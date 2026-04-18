@@ -17,6 +17,7 @@ use pax_runtime::api::Layer;
 #[primitive("pax_std::core::inline_frame::InlineFrameInstance")]
 pub struct InlineFrame {}
 
+// Runtime instance backing `<InlineFrame>`.
 pub struct InlineFrameInstance {
     base: BaseInstance,
 }

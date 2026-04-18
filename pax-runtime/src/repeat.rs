@@ -24,7 +24,7 @@ pub struct RepeatInstance {
 
 impl ImplToFromPaxAny for RepeatProperties {}
 ///Contains modal _vec_ and _range_ variants, describing whether the Repeat source
-///is encoded as a Vec<T> (where T is a `PaxValue` properties type) or as a Range<isize>
+///is encoded as a `Vec<T>` (where T is a `PaxValue` properties type) or as a `Range<isize>`
 #[derive(Default)]
 pub struct RepeatProperties {
     pub source_expression: Property<PaxValue>,
@@ -55,6 +55,7 @@ impl ToPaxValue for RepeatProperties {
     }
 }
 
+/// Per-iteration bindings exposed inside a `for` template body.
 pub struct RepeatItem {
     pub elem: Property<PaxValue>,
     pub i: Property<usize>,

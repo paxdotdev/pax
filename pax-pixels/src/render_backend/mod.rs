@@ -59,6 +59,7 @@ fn surface_clear_color(alpha_mode: CompositeAlphaMode) -> wgpu::Color {
     }
 }
 
+/// GPU resource sizing and initial surface configuration.
 pub struct RenderConfig {
     pub debug: bool,
     index_buffer_size: u64,
@@ -83,6 +84,7 @@ pub(crate) const MAX_SCENE_TRANSFORMS: usize = 480;
 pub(crate) const MAX_SCENE_CLIPS: usize = 480;
 
 impl RenderConfig {
+    /// Construct default buffer capacities for an initial surface size.
     pub fn new(_debug: bool, width: u32, height: u32, dpr: [f32; 2]) -> Self {
         Self {
             debug: false,
@@ -116,6 +118,7 @@ fn write_u16_buffer_padded(queue: &wgpu::Queue, buffer: &wgpu::Buffer, data: &[u
     queue.write_buffer(buffer, 0, bytemuck::cast_slice(&padded));
 }
 
+/// Low-level wgpu backend that owns surface, pipeline, and GPU buffers.
 pub struct RenderBackend<'w> {
     //configuration
     config: RenderConfig,
@@ -167,6 +170,7 @@ struct MultisampledTarget {
 }
 
 #[derive(Clone)]
+/// CPU-readable screenshot payload captured from a rendered frame.
 pub struct CapturedFrame {
     pub width: u32,
     pub height: u32,
@@ -829,16 +833,19 @@ impl<'w> RenderBackend<'w> {
         })
     }
 
+    /// Current stencil clip depth.
     pub fn get_clip_depth(&mut self) -> u32 {
         let (_, depth) = self.stencil_renderer.get_stencil();
         depth
     }
 
+    /// Resize both the physical surface and logical viewport.
     pub fn resize(&mut self, width: u32, height: u32) {
         self.resize_surface(width, height);
         self.set_viewport(width as f32, height as f32, self.globals.dpr);
     }
 
+    /// Resize the backing surface, clamping to device limits.
     pub fn resize_surface(&mut self, width: u32, height: u32) {
         let max_dim = self.max_surface_dimension.max(1);
         let requested_width = width.max(1);
@@ -876,6 +883,7 @@ impl<'w> RenderBackend<'w> {
         };
     }
 
+    /// Update logical viewport uniforms without reallocating the surface.
     pub fn set_viewport(&mut self, width: f32, height: f32, dpr: [f32; 2]) {
         self.globals.resolution = [width.max(1.0), height.max(1.0)];
         self.globals.dpr = dpr;
@@ -886,6 +894,7 @@ impl<'w> RenderBackend<'w> {
         );
     }
 
+    /// Maximum texture dimension supported by the active adapter.
     pub fn max_surface_dimension(&self) -> u32 {
         self.max_surface_dimension
     }
@@ -1685,6 +1694,7 @@ impl CpuBuffers {
 }
 
 #[derive(Clone)]
+/// Decoded RGBA image data ready for upload as a GPU texture.
 pub struct Image {
     pub rgba: Vec<u8>,
     pub pixel_width: u32,

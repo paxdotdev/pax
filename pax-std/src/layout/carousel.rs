@@ -9,34 +9,58 @@ const DOT_GAP: f64 = 10.0;
 const DOT_PILL_PADDING_X: f64 = 14.0;
 const DOT_PILL_THICKNESS: f64 = 26.0;
 
+/// A paged scrolling container with native scroll snapping and optional page dots.
+///
+/// Each slotted child becomes one page. The carousel lays pages out along `axis`,
+/// sizes each page with `page_size`, and binds its scroll position through an
+/// internal `Scroller`.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[file("layout/carousel.pax")]
 #[custom(Default)]
 pub struct Carousel {
+    /// Axis along which pages are laid out and snapped.
     pub axis: Property<CarouselAxis>,
     /// Size of each page along the scroll axis (defaults to 100%).
     pub page_size: Property<Size>,
+    /// Whether to show page-position dots when there is more than one page.
     pub show_dots: Property<bool>,
+    /// Horizontal scroll position, in pixels.
     pub scroll_pos_x: Property<f64>,
+    /// Vertical scroll position, in pixels.
     pub scroll_pos_y: Property<f64>,
 
-    // computed
+    // Computed page layouts for the inline template.
     pub _pages: Property<Vec<CarouselCell>>,
+    // Computed page width in pixels.
     pub _page_width_px: Property<f64>,
+    // Computed page height in pixels.
     pub _page_height_px: Property<f64>,
+    // Computed scrollable content width.
     pub _scroll_width: Property<Size>,
+    // Computed scrollable content height.
     pub _scroll_height: Property<Size>,
+    // Computed horizontal scroll snap anchors.
     pub _snap_positions_x: Property<Vec<Size>>,
+    // Computed vertical scroll snap anchors.
     pub _snap_positions_y: Property<Vec<Size>>,
+    // Computed number of pages.
     pub _page_count: Property<usize>,
+    // Computed active page index.
     pub _active_page: Property<usize>,
+    // Computed visibility for dots after accounting for page count.
     pub _show_dots: Property<bool>,
+    // Computed dot positions and active states.
     pub _dots: Property<Vec<CarouselDot>>,
+    // Computed total dot row/column length.
     pub _dots_width: Property<f64>,
+    // Computed dot-pill width.
     pub _dots_pill_width: Property<f64>,
+    // Computed dot-pill height.
     pub _dots_pill_height: Property<f64>,
+    // Computed dot-pill x position.
     pub _dots_pos_x: Property<Size>,
+    // Computed dot-pill y position.
     pub _dots_pos_y: Property<Size>,
 }
 
@@ -68,26 +92,36 @@ impl Default for Carousel {
     }
 }
 
+/// Direction for carousel paging and scroll snapping.
 #[pax]
 #[engine_import_path("pax_engine")]
 pub enum CarouselAxis {
+    /// Pages flow left-to-right.
     #[default]
     Horizontal,
+    /// Pages flow top-to-bottom.
     Vertical,
 }
 
+// Internal page layout emitted into the inline template.
 #[pax]
 #[engine_import_path("pax_engine")]
 pub struct CarouselCell {
+    // Page x offset in pixels.
     pub x_px: f64,
+    // Page y offset in pixels.
     pub y_px: f64,
 }
 
+// Internal page-dot layout emitted into the inline template.
 #[pax]
 #[engine_import_path("pax_engine")]
 pub struct CarouselDot {
+    // Dot x position in pixels.
     pub x_px: f64,
+    // Dot y position in pixels.
     pub y_px: f64,
+    // Whether this dot represents the active page.
     pub is_active: bool,
 }
 
@@ -102,6 +136,7 @@ struct CarouselLayout {
 }
 
 impl Carousel {
+    // Wires derived layout properties used by the inline template.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let axis = self.axis.clone();
         let page_size = self.page_size.clone();
@@ -377,6 +412,7 @@ impl Carousel {
         ));
     }
 
+    // Keyboard paging for arrow-key navigation.
     pub fn key_down(&mut self, ctx: &NodeContext, args: Event<KeyDown>) {
         let key = args.keyboard.key.as_str();
         let axis = self.axis.get();

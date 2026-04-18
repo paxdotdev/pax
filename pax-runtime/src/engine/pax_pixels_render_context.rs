@@ -15,6 +15,7 @@ use std::{
 #[cfg(not(target_arch = "wasm32"))]
 use pollster;
 
+/// Retained renderer bound to one physical surface tile for a logical layer.
 pub struct LayerRenderer {
     key: String,
     host_signature: String,
@@ -28,6 +29,7 @@ pub struct LayerRenderer {
     dpr: [f32; 2],
 }
 
+/// Current renderer set for one logical layer.
 pub struct LayerTarget {
     renderers: Vec<LayerRenderer>,
     active: bool,
@@ -44,6 +46,7 @@ struct TileCullStats {
     origin_only_resets: u64,
 }
 
+/// Desired surface geometry for one tile in a layer layout.
 pub struct LayerSurfaceEntry {
     pub key: String,
     pub host_signature: String,
@@ -53,6 +56,7 @@ pub struct LayerSurfaceEntry {
     pub surface: LayerSurfaceSize,
 }
 
+/// Desired set of physical surfaces for a logical layer.
 pub struct LayerSurfaceLayout {
     pub surfaces: Vec<LayerSurfaceEntry>,
     pub active: bool,
@@ -69,6 +73,7 @@ enum LayoutChangeKind {
 }
 
 impl LayerRenderer {
+    /// Create a renderer wrapper with its current tile geometry.
     pub fn new(
         key: String,
         host_signature: String,
@@ -95,6 +100,7 @@ impl LayerRenderer {
         }
     }
 
+    /// Access the underlying retained `pax-pixels` renderer.
     pub fn renderer_mut(&mut self) -> &mut WgpuRenderer<'static> {
         &mut self.renderer
     }
@@ -157,6 +163,7 @@ fn surface_intersects_coverage_bounds(
 }
 
 impl LayerTarget {
+    /// Create a layer target from physical surface renderers.
     pub fn new(renderers: Vec<LayerRenderer>, active: bool) -> Self {
         // The first tiled pass keeps node drawing opaque by replaying the same retained scene into
         // each active physical surface. That duplicates retained scene state per tile, but it keeps
@@ -169,6 +176,7 @@ impl LayerTarget {
         }
     }
 
+    /// Mutable access to each physical renderer backing this logical layer.
     pub fn renderers_mut(&mut self) -> &mut [LayerRenderer] {
         &mut self.renderers
     }
@@ -347,6 +355,7 @@ fn pump_layer_initialization_queue(
         }
     }
 }
+/// Logical and backing-pixel dimensions for one physical surface.
 pub struct LayerSurfaceSize {
     pub logical_width: f32,
     pub logical_height: f32,
@@ -355,6 +364,7 @@ pub struct LayerSurfaceSize {
     pub dpr: [f32; 2],
 }
 
+/// Runtime `RenderContext` implementation backed by `pax-pixels`/wgpu.
 pub struct PaxPixelsRenderer {
     backends: Rc<RefCell<Vec<RenderLayerState>>>,
     layer_factory: Rc<dyn Fn(usize) -> Pin<Box<dyn Future<Output = Option<LayerDef>>>>>,
@@ -372,6 +382,7 @@ pub struct PaxPixelsRenderer {
     tile_cull_stats: RefCell<Vec<TileCullStats>>,
 }
 
+/// Lifecycle state for a lazily-created render layer.
 pub enum RenderLayerState {
     Pending,
     Failed,
@@ -379,6 +390,7 @@ pub enum RenderLayerState {
 }
 
 impl PaxPixelsRenderer {
+    /// Create a renderer that lazily asks the chassis for layer backends.
     pub fn new(
         layer_factory: impl Fn(usize) -> Pin<Box<dyn Future<Output = Option<LayerDef>>>> + 'static,
     ) -> Self {
@@ -1132,11 +1144,13 @@ fn to_pax_pixels_fill(
     }
 }
 
+/// Convert a runtime API color into the `pax-pixels` render-context color.
 pub fn to_pax_pixels_color(color: &pax_runtime_api::Color) -> pax_pixels::Color {
     let [r, g, b, a] = color.to_rgba_0_1();
     pax_pixels::Color::rgba(r as f32, g as f32, b as f32, a as f32)
 }
 
+/// Convert a kurbo path emitted by primitives into a lyon path consumed by `pax-pixels`.
 pub fn convert_kurbo_to_lyon_path(kurbo_path: &BezPath) -> Path {
     let mut builder = Path::builder();
     let mut closed = false;

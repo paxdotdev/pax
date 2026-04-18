@@ -65,7 +65,7 @@ pub struct ExpandedNode {
     /// thus `containing_component` is `Option`al.
     pub containing_component: Weak<ExpandedNode>,
 
-    /// Persistent clone of the state of the [`PropertiesTreeShared#runtime_properties_stack`] at the time that this node was expanded (this is expected to remain immutable
+    /// Persistent clone of the state of the `PropertiesTreeShared#runtime_properties_stack` at the time that this node was expanded (this is expected to remain immutable
     /// through the lifetime of the program after the initial expansion; however, if that constraint changes, this should be
     /// explicitly updated to accommodate.)
     pub stack: Rc<RuntimePropertiesStackFrame>,
@@ -662,7 +662,7 @@ impl ExpandedNode {
         borrow!(self.instance_node).handle_post_render(&self, ctx, rcs);
     }
 
-    /// Manages unpacking an Rc<RefCell<PaxValue>>, downcasting into
+    /// Manages unpacking an `Rc<RefCell<PaxValue>>`, downcasting into
     /// the parameterized `target_type`, and executing a provided closure `body` in the
     /// context of that unwrapped variant (including support for mutable operations),
     /// the closure is executed.  Used at least by calculating properties in `expand_node` and

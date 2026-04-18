@@ -24,6 +24,7 @@ const VEC: &str = "Vec";
 const ENUM: &str = "Enum";
 const OBJECT: &str = "Object";
 
+/// Deserialize a Pax literal string into a runtime `PaxValue`.
 pub fn from_pax(str: &str) -> Result<PaxValue> {
     let ast = if let Ok(mut ast) = PaxParser::parse(Rule::literal_value, &str) {
         ast.next().unwrap()
@@ -35,17 +36,20 @@ pub fn from_pax(str: &str) -> Result<PaxValue> {
     Ok(t)
 }
 
+/// Deserialize a parsed literal AST node into a runtime `PaxValue`.
 pub fn from_pax_ast(ast: Pair<Rule>) -> Result<PaxValue> {
     let deserializer: PaxDeserializer = PaxDeserializer::from(ast);
     let t = PaxValue::deserialize(deserializer)?;
     Ok(t)
 }
 
+/// Serde bridge from Pax literal grammar nodes into runtime values.
 pub struct PaxDeserializer<'de> {
     pub ast: Pair<'de, Rule>,
 }
 
 impl<'de> PaxDeserializer<'de> {
+    /// Wrap a pest pair as a deserializer.
     pub fn from(ast: Pair<'de, Rule>) -> Self {
         PaxDeserializer { ast }
     }

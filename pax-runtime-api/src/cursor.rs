@@ -1,3 +1,4 @@
+/// The variants of mouse cursors available on mouse-supporting platforms (derived from CSS cursor values).
 #[derive(Debug, Clone, PartialEq)]
 pub enum CursorStyle {
     // General

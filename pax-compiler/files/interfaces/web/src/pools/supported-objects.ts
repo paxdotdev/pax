@@ -14,7 +14,7 @@ import { ButtonUpdatePatch } from "../classes/messages/button-update-patch";
 import { TextboxUpdatePatch } from "../classes/messages/textbox-update-patch";
 import { DropdownUpdatePatch } from "../classes/messages/dropdown-update-patch";
 import { SliderUpdatePatch } from "../classes/messages/slider-update-patch";
-import { RadioSetUpdatePatch } from "../classes/messages/radio-set-update-patch";
+import { RadioListUpdatePatch } from "../classes/messages/radio-list-update-patch";
 import { EventBlockerUpdatePatch } from "../classes/messages/event-blocker-update-patch";
 import { NavigationPatch } from "../classes/messages/navigation-patch";
 import { YoutubeVideoUpdatePatch } from "../classes/messages/youtube-video-update-patch";
@@ -49,7 +49,7 @@ export const TEXTBOX_UPDATE_PATCH = "Textbox Update Patch";
 export const DROPDOWN_UPDATE_PATCH = "Dropdown Update Patch";
 export const BUTTON_UPDATE_PATCH = "Button Update Patch";
 export const SLIDER_UPDATE_PATCH = "Slider Update Patch";
-export const RADIOSET_UPDATE_PATCH = "Radio Set Update Patch";
+export const RADIO_LIST_UPDATE_PATCH = "Radio List Update Patch";
 
 export const LAYER = "LAYER";
 export const OCCLUSION_CONTEXT = "Occlusion Context";
@@ -201,9 +201,9 @@ export let SUPPORTED_OBJECTS = [{
     cleanUp: (patch: SliderUpdatePatch) => { patch.cleanUp() },
 },
 {
-    name: RADIOSET_UPDATE_PATCH,
-    factory: (objectManager: ObjectManager) => new RadioSetUpdatePatch(objectManager),
-    cleanUp: (patch: RadioSetUpdatePatch) => { patch.cleanUp() },
+    name: RADIO_LIST_UPDATE_PATCH,
+    factory: (objectManager: ObjectManager) => new RadioListUpdatePatch(objectManager),
+    cleanUp: (patch: RadioListUpdatePatch) => { patch.cleanUp() },
 },
 {
     name: IMAGE_LOAD_PATCH,

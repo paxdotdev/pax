@@ -21,7 +21,7 @@ pub struct SpaceGame {
 
     pub last_asteroid: Property<u64>,
     pub last_bullet: Property<u64>,
-    pub background_tiles: Property<Vec<Point>>,
+    pub background_tiles: Property<Vec<BackgroundTile>>,
 
     pub keys_pressed: Property<Vec<u8>>,
     pub game_state: Property<String>,
@@ -44,7 +44,7 @@ pub struct Asteroid {
 }
 
 #[pax]
-pub struct Point {
+pub struct BackgroundTile {
     pub x: f64,
     pub y: f64,
 }
@@ -182,7 +182,7 @@ impl SpaceGame {
         let mut backgrounds = vec![];
         for j in 0..h_n {
             for i in 0..w_n {
-                backgrounds.push(Point {
+                backgrounds.push(BackgroundTile {
                     x: (w_n as f64 - 1.0) * IMG_SIZE
                         - (ticks as f64 * BACKGROUND_SPEED + i as f64 * IMG_SIZE)
                             .rem_euclid(w_n as f64 * IMG_SIZE),
