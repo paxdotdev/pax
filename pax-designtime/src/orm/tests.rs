@@ -2,8 +2,8 @@
 mod tests {
     use crate::orm::PaxManifestORM;
     use pax_manifest::{
-        ComponentDefinition, LiteralBlockDefinition, PaxManifest, SettingsBlockElement, Token,
-        TypeId,
+        pax_runtime_api::Size, ComponentDefinition, LiteralBlockDefinition, PaxManifest,
+        SettingsBlockElement, Token, TypeId,
     };
     use std::collections::{BTreeMap, HashMap};
 
@@ -46,7 +46,9 @@ mod tests {
         // Build and configure a new node
         let mut node_builder = orm.build_new_node(type_id.clone(), rectangle_type_id);
 
-        node_builder.set_property("x", "10px").unwrap();
+        node_builder
+            .set_property_from_typed("x", Some(Size::Pixels(10.into())))
+            .unwrap();
         node_builder.save().unwrap();
 
         assert!(orm

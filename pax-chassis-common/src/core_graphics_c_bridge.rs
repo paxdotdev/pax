@@ -37,6 +37,7 @@ use piet::kurbo::Shape;
 use piet::{InterpolationMode, LineCap, RenderContext as PietRenderContext, StrokeStyle};
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
 use piet_coregraphics::CoreGraphicsContext;
+#[cfg(feature = "designtime")]
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -535,6 +536,7 @@ struct InspectTreePayload {
     error: Option<String>,
 }
 
+#[cfg(feature = "designtime")]
 #[derive(Deserialize)]
 struct RayCastRequestPayload {
     x: f64,
@@ -550,11 +552,13 @@ struct InspectNodeListPayload {
     error: Option<String>,
 }
 
+#[cfg(feature = "designtime")]
 #[derive(Deserialize)]
 struct SelectorQueryRequestPayload {
     selector: String,
 }
 
+#[cfg(feature = "designtime")]
 #[derive(Deserialize)]
 struct ReplaceNodeRequestPayload {
     component_type_id: String,
@@ -1212,6 +1216,7 @@ fn inspect_node_list_error(error: impl Into<String>) -> InspectNodeListPayload {
     }
 }
 
+#[cfg(feature = "designtime")]
 fn request_slice<'a>(request_buffer: *const InterruptBuffer) -> &'a [u8] {
     let length: u64 = unsafe { (*request_buffer).length.try_into().unwrap_or_default() };
     unsafe {

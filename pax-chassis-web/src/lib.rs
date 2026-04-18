@@ -187,6 +187,7 @@ pub fn init_console_logging() {
         .expect("console_log::init_with_level initialized correctly");
 }
 
+#[cfg(feature = "designtime")]
 pub(crate) fn read_dev_console_entries_json(since_seq: Option<u64>, limit: usize) -> String {
     let since_seq = since_seq.map(|value| value as f64).unwrap_or(-1.0);
     get_dev_console_entries_json(since_seq, limit as u32)
