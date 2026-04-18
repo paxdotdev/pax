@@ -40,6 +40,167 @@ const IOS_SIMULATOR_MULTIARCH_PACKAGE_ID: &str = "ios-arm64_x86_64-simulator";
 const IOS_PACKAGE_ID: &str = "ios-arm64";
 const PAX_CARTRIDGE_FRAMEWORK_BINARY: &str = "PaxCartridge";
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AppleTargetKind {
+    MacOS,
+    IosSimulator,
+    IosDevice,
+}
+
+#[derive(Clone, Copy)]
+struct AppleTargetMapping {
+    rust_target: &'static str,
+    packaged_arch: &'static str,
+    xcode_arch: &'static str,
+    kind: AppleTargetKind,
+}
+
+struct AppleBuildResult {
+    packaged_arch: String,
+    dylib_path: String,
+    output: Output,
+    kind: AppleTargetKind,
+}
+
+const MACOS_ARM64_TARGET: AppleTargetMapping = AppleTargetMapping {
+    rust_target: "aarch64-apple-darwin",
+    packaged_arch: "macos-arm64",
+    xcode_arch: "arm64",
+    kind: AppleTargetKind::MacOS,
+};
+
+const MACOS_X86_64_TARGET: AppleTargetMapping = AppleTargetMapping {
+    rust_target: "x86_64-apple-darwin",
+    packaged_arch: "macos-x86_64",
+    xcode_arch: "x86_64",
+    kind: AppleTargetKind::MacOS,
+};
+
+const IOS_DEVICE_ARM64_TARGET: AppleTargetMapping = AppleTargetMapping {
+    rust_target: "aarch64-apple-ios",
+    packaged_arch: "ios-arm64",
+    xcode_arch: "arm64",
+    kind: AppleTargetKind::IosDevice,
+};
+
+const IOS_SIMULATOR_X86_64_TARGET: AppleTargetMapping = AppleTargetMapping {
+    rust_target: "x86_64-apple-ios",
+    packaged_arch: "iossimulator-x86_64",
+    xcode_arch: "x86_64",
+    kind: AppleTargetKind::IosSimulator,
+};
+
+const IOS_SIMULATOR_ARM64_TARGET: AppleTargetMapping = AppleTargetMapping {
+    rust_target: "aarch64-apple-ios-sim",
+    packaged_arch: "iossimulator-arm64",
+    xcode_arch: "arm64",
+    kind: AppleTargetKind::IosSimulator,
+};
+
+fn select_apple_target_mappings(
+    target: &RunTarget,
+    is_release: bool,
+    resolved_ios_device: Option<&ResolvedIosDevice>,
+    host_arch: &str,
+) -> Vec<AppleTargetMapping> {
+    match target {
+        RunTarget::macOS => {
+            if is_release {
+                vec![MACOS_ARM64_TARGET, MACOS_X86_64_TARGET]
+            } else {
+                match host_arch {
+                    "x86_64" => vec![MACOS_X86_64_TARGET],
+                    "aarch64" | "arm64" => vec![MACOS_ARM64_TARGET],
+                    _ => vec![MACOS_ARM64_TARGET, MACOS_X86_64_TARGET],
+                }
+            }
+        }
+        RunTarget::iOS => match ios_build_destination(is_release, resolved_ios_device) {
+            IosDeviceKind::Physical => vec![IOS_DEVICE_ARM64_TARGET],
+            IosDeviceKind::Simulator => match host_arch {
+                "x86_64" => vec![IOS_SIMULATOR_X86_64_TARGET],
+                "aarch64" | "arm64" => vec![IOS_SIMULATOR_ARM64_TARGET],
+                _ => vec![IOS_SIMULATOR_ARM64_TARGET, IOS_SIMULATOR_X86_64_TARGET],
+            },
+        },
+        RunTarget::Web => vec![],
+    }
+}
+
+fn ios_build_destination(
+    is_release: bool,
+    resolved_ios_device: Option<&ResolvedIosDevice>,
+) -> IosDeviceKind {
+    match resolved_ios_device.map(|device| device.kind) {
+        Some(kind) => kind,
+        None if is_release => IosDeviceKind::Physical,
+        None => IosDeviceKind::Simulator,
+    }
+}
+
+fn xcode_archs_for_target_mappings(target_mappings: &[AppleTargetMapping]) -> String {
+    let mut archs = Vec::new();
+    for target_mapping in target_mappings {
+        if !archs.contains(&target_mapping.xcode_arch) {
+            archs.push(target_mapping.xcode_arch);
+        }
+    }
+    archs.join(" ")
+}
+
+fn copy_or_lipo_dylibs(
+    process_child_ids: &Arc<Mutex<Vec<u64>>>,
+    label: &str,
+    input_paths: &[String],
+    output_path: &Path,
+) -> Result<(), eyre::Report> {
+    if input_paths.is_empty() {
+        return Err(eyre!(
+            "No architecture-specific binaries were available for {} packaging.",
+            label
+        ));
+    }
+
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    if input_paths.len() == 1 {
+        fs::copy(&input_paths[0], output_path)?;
+        return Ok(());
+    }
+
+    let mut lipo_command = Command::new("lipo");
+    lipo_command
+        .arg("-create")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    for path in input_paths {
+        lipo_command.arg(path);
+    }
+
+    lipo_command.arg("-output").arg(output_path);
+
+    #[cfg(unix)]
+    unsafe {
+        lipo_command.pre_exec(crate::pre_exec_hook);
+    }
+    let child = lipo_command.spawn().expect(ERR_SPAWN);
+    let output = wait_with_output(process_child_ids, child);
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(eyre!(
+            "Failed to combine {} dylibs with lipo. {}",
+            label,
+            stderr.trim()
+        ));
+    }
+
+    Ok(())
+}
+
 fn remove_path_if_exists(path: &Path) -> Result<(), eyre::Report> {
     match fs::symlink_metadata(path) {
         Ok(metadata) => {
@@ -197,43 +358,24 @@ pub fn build_apple_project_with_cartridge(
     let should_run_designtime = ctx.should_run_designtime;
     let should_run_designer = ctx.should_run_designer;
 
-    //0: Rust arch string, for passing to cargo
-    //1: Apple arch string, for addressing xcframework
-    let target_mappings: &[(&str, &str)] = if let RunTarget::macOS = target {
-        if is_release {
-            &[
-                ("aarch64-apple-darwin", "macos-arm64"),
-                ("x86_64-apple-darwin", "macos-x86_64"),
-            ]
-        } else {
-            // Build only relevant archs for dev
-            if std::env::consts::ARCH == "x86_64" {
-                &[("x86_64-apple-darwin", "macos-x86_64")]
-            } else {
-                &[("aarch64-apple-darwin", "macos-arm64")]
-            }
-        }
-    } else {
-        // Build all archs for iOS builds.  We could limit these like we do for macOS
-        // dev builds, but at time of initial authoring, it was slowing zb down.
-        &[
-            ("aarch64-apple-ios", "ios-arm64"),
-            ("x86_64-apple-ios", "iossimulator-x86_64"),
-            ("aarch64-apple-ios-sim", "iossimulator-arm64"),
-        ]
-    };
+    let target_mappings = select_apple_target_mappings(
+        target,
+        is_release,
+        resolved_ios_device.as_ref(),
+        std::env::consts::ARCH,
+    );
 
     let dylib_file_name = resolve_dylib_file_name(&project_path)?;
 
     let mut handles = Vec::new();
 
     //(arch id, single-platform .dylib path, stdout/stderr from build)
-    let build_results: Arc<Mutex<HashMap<u32, (String, String, Output)>>> =
+    let build_results: Arc<Mutex<HashMap<u32, AppleBuildResult>>> =
         Arc::new(Mutex::new(HashMap::new()));
 
     let targets_single_string = target_mappings
         .iter()
-        .map(|tm| tm.1.to_string())
+        .map(|tm| tm.packaged_arch.to_string())
         .collect::<Vec<String>>()
         .join(", ")
         .bold();
@@ -245,8 +387,7 @@ pub fn build_apple_project_with_cartridge(
         target_mappings.len()
     );
 
-    let mut index = 0;
-    for target_mapping in target_mappings {
+    for (index, target_mapping) in target_mappings.iter().copied().enumerate() {
         let project_path = project_path.clone();
         let pax_dir = pax_dir.clone();
         let dylib_file_name = dylib_file_name.clone();
@@ -268,7 +409,7 @@ pub fn build_apple_project_with_cartridge(
                 .arg("--color")
                 .arg("always")
                 .arg("--target")
-                .arg(target_mapping.0)
+                .arg(target_mapping.rust_target)
                 .arg(arg_features)
                 .env("PAX_DIR", &pax_dir)
                 .stdout(std::process::Stdio::piped())
@@ -296,25 +437,24 @@ pub fn build_apple_project_with_cartridge(
 
             let dylib_src = project_path
                 .join("target")
-                .join(target_mapping.0)
+                .join(target_mapping.rust_target)
                 .join(build_mode_name)
                 .join(&dylib_file_name);
 
-            let new_val = (
-                target_mapping.1.to_string(),
-                dylib_src.to_str().unwrap().to_string(),
+            let new_val = AppleBuildResult {
+                packaged_arch: target_mapping.packaged_arch.to_string(),
+                dylib_path: dylib_src.to_str().unwrap().to_string(),
                 output,
-            );
+                kind: target_mapping.kind,
+            };
             build_results_threadsafe
                 .lock()
                 .unwrap()
-                .insert(index, new_val);
+                .insert(index as u32, new_val);
         });
-        index = index + 1;
         handles.push(handle);
     }
 
-    let mut index = 0;
     // Wait for all threads to complete and print their outputs
     for handle in handles {
         handle.join().unwrap();
@@ -326,8 +466,8 @@ pub fn build_apple_project_with_cartridge(
     //Print stdout/stderr
     for i in 0..target_mappings.len() {
         let result = results.get(&(i as u32)).unwrap();
-        let target = &result.0;
-        let output = &result.2;
+        let target = &result.packaged_arch;
+        let output = &result.output;
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -345,8 +485,6 @@ pub fn build_apple_project_with_cartridge(
         if !output.status.success() {
             should_abort = true;
         }
-
-        index = index + 1;
     }
 
     if should_abort {
@@ -357,8 +495,8 @@ pub fn build_apple_project_with_cartridge(
 
     // Update the `install name` of each Rust-built .dylib, instead of the default-output absolute file paths
     // embedded in each .dylib.  This allows our .dylibs to be portably embedded into an SPM module.
-    let result = results.iter().try_for_each(|res: (&u32, &(String, String, Output))| {
-        let dylib_path = &res.1.1;
+    let result = results.iter().try_for_each(|res: (&u32, &AppleBuildResult)| {
+        let dylib_path = &res.1.dylib_path;
         let mut cmd = Command::new("install_name_tool");
         cmd
             .arg("-id")
@@ -426,7 +564,7 @@ pub fn build_apple_project_with_cartridge(
         // macos arch .frameworks in an xcframework; they must lipo'd into a single .framework + dylib.
         // Similarly, iOS binaries require a particular bundling for simulator & device builds.)
         println!(
-            "{} 🖇️  Combining architecture-specific binaries with `lipo`...",
+            "{} 🖇️  Packaging architecture-specific binaries...",
             *PAX_BADGE
         );
 
@@ -436,89 +574,61 @@ pub fn build_apple_project_with_cartridge(
 
             let lipo_input_paths = results
                 .iter()
-                .map(|res| res.1 .1.clone())
+                .filter(|res| res.1.kind == AppleTargetKind::MacOS)
+                .map(|res| res.1.dylib_path.clone())
                 .collect::<Vec<String>>();
 
-            // Construct the lipo command
-            let mut lipo_command = Command::new("lipo");
-            lipo_command
-                .arg("-create")
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped());
-
-            // Add each input path to the command
-            for path in &lipo_input_paths {
-                lipo_command.arg(path);
-            }
-
-            // Specify the output path
-            lipo_command.arg("-output").arg(macos_dylib_dest);
-
-            #[cfg(unix)]
-            unsafe {
-                lipo_command.pre_exec(crate::pre_exec_hook);
-            }
-            let child = lipo_command.spawn().expect(ERR_SPAWN);
-            let output = wait_with_output(&process_child_ids, child);
-
-            if !output.status.success() {
-                return Err(eyre!("Failed to combine packages with lipo. Aborting."));
-            }
+            copy_or_lipo_dylibs(
+                &process_child_ids,
+                "macOS",
+                &lipo_input_paths,
+                &macos_dylib_dest,
+            )?;
         } else {
             // For iOS, we want to:
-            // 1. lipo together both simulator build architectures
-            // 2. copy (a) the lipo'd simulator binary, and (b) the vanilla arm64 iOS binary into the framework
+            // 1. copy or lipo together the selected simulator build architectures
+            // 2. copy or lipo together the selected device build architectures
             let simulator_builds = results
                 .iter()
-                .filter(|res| res.1 .0.starts_with("iossimulator-"))
+                .filter(|res| res.1.kind == AppleTargetKind::IosSimulator)
                 .collect::<Vec<_>>();
             let device_build = results
                 .iter()
-                .filter(|res| res.1 .0.starts_with("ios-"))
+                .filter(|res| res.1.kind == AppleTargetKind::IosDevice)
                 .collect::<Vec<_>>();
 
-            let lipo_input_paths = simulator_builds
+            let simulator_input_paths = simulator_builds
                 .iter()
-                .map(|res| res.1 .1.clone())
+                .map(|res| res.1.dylib_path.clone())
+                .collect::<Vec<String>>();
+            let device_input_paths = device_build
+                .iter()
+                .map(|res| res.1.dylib_path.clone())
                 .collect::<Vec<String>>();
 
-            // Construct the lipo command
-            let mut lipo_command = Command::new("lipo");
-            lipo_command
-                .arg("-create")
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped());
-
-            // Add each input path to the command
-            for path in &lipo_input_paths {
-                lipo_command.arg(path);
+            if !simulator_input_paths.is_empty() {
+                copy_or_lipo_dylibs(
+                    &process_child_ids,
+                    "iOS simulator",
+                    &simulator_input_paths,
+                    &simulator_dylib_dest,
+                )?;
             }
 
-            // Specify the output path
-            lipo_command.arg("-output").arg(simulator_dylib_dest);
-
-            #[cfg(unix)]
-            unsafe {
-                lipo_command.pre_exec(crate::pre_exec_hook);
+            if !device_input_paths.is_empty() {
+                copy_or_lipo_dylibs(
+                    &process_child_ids,
+                    "iOS device",
+                    &device_input_paths,
+                    &iphone_native_dylib_dest,
+                )?;
             }
-            let child = lipo_command.spawn().expect(ERR_SPAWN);
-            let output = wait_with_output(&process_child_ids, child);
-            if !output.status.success() {
-                return Err(eyre!("Failed to combine dylibs with lipo. Aborting."));
-            }
-
-            //Copy singular device build (iOS, not simulator)
-            let device_dylib_src = &device_build[0].1 .1;
-
-            let _ = fs::copy(device_dylib_src, iphone_native_dylib_dest);
         }
     } else {
         // For macos development builds, instead of lipoing, just drop the singular build into the appropriate output destination
         // This measure speeds up development builds substantially.
-        // Note that we could do something similar for iOS, but it wasn't immediately in reach at time of authoring (build failed when
-        // providing non-lipo'd binaries in the framework for iOS)
         let result = results.iter().next().unwrap();
-        let src = &result.1 .1;
+        let src = &result.1.dylib_path;
         let dest = macos_dylib_dest;
         let _ = fs::copy(src, dest);
     }
@@ -606,6 +716,11 @@ Note that the temporary directories mentioned above are subject to overwriting.\
     } else {
         "macosx"
     };
+    let xcode_archs = if let RunTarget::iOS = target {
+        Some(xcode_archs_for_target_mappings(&target_mappings))
+    } else {
+        None
+    };
 
     println!("{} 💻 Building xcodeproject...", *PAX_BADGE);
     let mut cmd = Command::new("xcodebuild");
@@ -627,6 +742,10 @@ Note that the temporary directories mentioned above are subject to overwriting.\
         ))
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::piped());
+
+    if let Some(xcode_archs) = xcode_archs.as_deref() {
+        cmd.arg(format!("ARCHS={xcode_archs}"));
+    }
 
     if let Some(device) = resolved_ios_device.as_ref() {
         cmd.arg("-destination")
@@ -1697,4 +1816,78 @@ fn is_simulator_booted(device_udid: &str, process_child_ids: &Arc<Mutex<Vec<u64>
     output_str
         .lines()
         .any(|line| line.contains(device_udid) && line.contains("Booted"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn resolved_ios_device(kind: IosDeviceKind) -> ResolvedIosDevice {
+        ResolvedIosDevice {
+            kind,
+            name: "Test Device".to_string(),
+            identifier: "TEST-DEVICE".to_string(),
+        }
+    }
+
+    fn rust_targets(target_mappings: &[AppleTargetMapping]) -> Vec<&'static str> {
+        target_mappings
+            .iter()
+            .map(|target_mapping| target_mapping.rust_target)
+            .collect()
+    }
+
+    #[test]
+    fn ios_debug_without_destination_builds_host_simulator_arch() {
+        let target_mappings = select_apple_target_mappings(&RunTarget::iOS, false, None, "aarch64");
+
+        assert_eq!(
+            rust_targets(&target_mappings),
+            vec!["aarch64-apple-ios-sim"]
+        );
+        assert_eq!(xcode_archs_for_target_mappings(&target_mappings), "arm64");
+    }
+
+    #[test]
+    fn ios_debug_for_physical_device_builds_device_arch_only() {
+        let device = resolved_ios_device(IosDeviceKind::Physical);
+        let target_mappings =
+            select_apple_target_mappings(&RunTarget::iOS, false, Some(&device), "aarch64");
+
+        assert_eq!(rust_targets(&target_mappings), vec!["aarch64-apple-ios"]);
+        assert_eq!(xcode_archs_for_target_mappings(&target_mappings), "arm64");
+    }
+
+    #[test]
+    fn ios_release_without_destination_builds_device_arch_only() {
+        let target_mappings = select_apple_target_mappings(&RunTarget::iOS, true, None, "aarch64");
+
+        assert_eq!(rust_targets(&target_mappings), vec!["aarch64-apple-ios"]);
+        assert_eq!(xcode_archs_for_target_mappings(&target_mappings), "arm64");
+    }
+
+    #[test]
+    fn ios_simulator_on_unknown_host_keeps_multiarch_fallback() {
+        let target_mappings = select_apple_target_mappings(&RunTarget::iOS, false, None, "mystery");
+
+        assert_eq!(
+            rust_targets(&target_mappings),
+            vec!["aarch64-apple-ios-sim", "x86_64-apple-ios"]
+        );
+        assert_eq!(
+            xcode_archs_for_target_mappings(&target_mappings),
+            "arm64 x86_64"
+        );
+    }
+
+    #[test]
+    fn macos_release_keeps_multiarch_build() {
+        let target_mappings =
+            select_apple_target_mappings(&RunTarget::macOS, true, None, "aarch64");
+
+        assert_eq!(
+            rust_targets(&target_mappings),
+            vec!["aarch64-apple-darwin", "x86_64-apple-darwin"]
+        );
+    }
 }
