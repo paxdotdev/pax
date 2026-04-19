@@ -8,7 +8,7 @@ const INDENTATION: usize = 4;
 pub const PREFIX_OPERATORS: [Rule; 2] = [Rule::xo_neg, Rule::xo_bool_not];
 pub const DO_NOT_INSERT_TAB_MARKER: &str = "|-DO_NOT_INSERT_TAB-|";
 
-pub const INFIX_OPERATORS: [Rule; 16] = [
+pub const INFIX_OPERATORS: [Rule; 17] = [
     Rule::xo_add,
     Rule::xo_bool_and,
     Rule::xo_bool_or,
@@ -25,6 +25,7 @@ pub const INFIX_OPERATORS: [Rule; 16] = [
     Rule::xo_sub,
     Rule::xo_tern_then,
     Rule::xo_tern_else,
+    Rule::xo_null_coalesce,
 ];
 
 #[cfg(feature = "parser")]
@@ -126,7 +127,10 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
             Box::new(ArgsListMultiLineRule),
             Box::new(ArgsListDefaultRule),
         ],
-        Rule::expression_body => vec![
+        Rule::expression_body
+        | Rule::expression_ternary
+        | Rule::expression_coalesce
+        | Rule::expression_binary => vec![
             Box::new(ExpressionBodyMultiLineRule),
             Box::new(ExpressionBodyDefaultRule),
         ],
@@ -194,6 +198,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::xo_rel_lte
         | Rule::xo_rel_neq
         | Rule::xo_sub
+        | Rule::xo_null_coalesce
         | Rule::xo_tern_then
         | Rule::xo_tern_else
         | Rule::xo_range

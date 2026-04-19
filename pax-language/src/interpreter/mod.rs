@@ -23,6 +23,8 @@ pub enum PaxExpression {
     Prefix(Box<PaxPrefix>),
     Infix(Box<PaxInfix>),
     Postfix(Box<PaxPostfix>),
+    Ternary(Box<PaxTernary>),
+    NullCoalesce(Box<PaxNullCoalesce>),
 }
 
 impl Default for PaxExpression {
@@ -38,6 +40,10 @@ impl Display for PaxExpression {
             PaxExpression::Prefix(p) => write!(f, "{}{}", p.operator.name, p.rhs),
             PaxExpression::Infix(i) => write!(f, "{} {} {}", i.lhs, i.operator.name, i.rhs),
             PaxExpression::Postfix(p) => write!(f, "{}{}", p.lhs, p.operator.name),
+            PaxExpression::Ternary(t) => {
+                write!(f, "{} ? {} : {}", t.condition, t.then_branch, t.else_branch)
+            }
+            PaxExpression::NullCoalesce(n) => write!(f, "{} ?? {}", n.lhs, n.rhs),
         }
     }
 }
@@ -191,6 +197,23 @@ pub struct PaxPostfix {
 }
 
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
+/// Conditional expression with a boolean condition and selected true/false branch.
+pub struct PaxTernary {
+    condition: Box<PaxExpression>,
+    then_branch: Box<PaxExpression>,
+    else_branch: Box<PaxExpression>,
+}
+
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
+/// Short-circuiting fallback expression. `Some(value) ?? fallback` evaluates to
+/// `value`, `None ?? fallback` evaluates the fallback, and non-option left
+/// operands pass through unchanged.
+pub struct PaxNullCoalesce {
+    lhs: Box<PaxExpression>,
+    rhs: Box<PaxExpression>,
+}
+
+#[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 /// Parsed operator token, stored by display name.
 pub struct PaxOperator {
     name: String,
@@ -275,7 +298,42 @@ fn recurse_pratt_parse(
                     }
                 }
             }
-            Rule::expression_body => recurse_pratt_parse(primary.into_inner(), pratt_parser),
+            Rule::expression_body | Rule::expression_binary => {
+                recurse_pratt_parse(primary.into_inner(), pratt_parser)
+            }
+            Rule::expression_coalesce => {
+                let mut inner = primary.into_inner();
+                let lhs = recurse_pratt_parse(Pairs::single(inner.next().unwrap()), pratt_parser)?;
+                if inner.next().is_some() {
+                    let rhs =
+                        recurse_pratt_parse(Pairs::single(inner.next().unwrap()), pratt_parser)?;
+                    Ok(PaxExpression::NullCoalesce(Box::new(PaxNullCoalesce {
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    })))
+                } else {
+                    Ok(lhs)
+                }
+            }
+            Rule::expression_ternary => {
+                let mut inner = primary.into_inner();
+                let condition =
+                    recurse_pratt_parse(Pairs::single(inner.next().unwrap()), pratt_parser)?;
+                if inner.next().is_some() {
+                    let then_branch =
+                        recurse_pratt_parse(Pairs::single(inner.next().unwrap()), pratt_parser)?;
+                    inner.next();
+                    let else_branch =
+                        recurse_pratt_parse(Pairs::single(inner.next().unwrap()), pratt_parser)?;
+                    Ok(PaxExpression::Ternary(Box::new(PaxTernary {
+                        condition: Box::new(condition),
+                        then_branch: Box::new(then_branch),
+                        else_branch: Box::new(else_branch),
+                    })))
+                } else {
+                    Ok(condition)
+                }
+            }
             Rule::expression_grouped => {
                 let mut inner = primary.clone().into_inner();
                 let expr = inner.next().unwrap();

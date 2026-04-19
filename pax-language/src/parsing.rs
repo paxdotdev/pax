@@ -6,8 +6,6 @@ use crate::Rule;
 pub fn get_pax_pratt_parser() -> PrattParser<Rule> {
     // Operator precedence is declared via the ordering here:
     PrattParser::new()
-        .op(Op::infix(Rule::xo_tern_then, Assoc::Left)
-            | Op::infix(Rule::xo_tern_else, Assoc::Right))
         .op(Op::infix(Rule::xo_bool_and, Assoc::Left) | Op::infix(Rule::xo_bool_or, Assoc::Left))
         .op(Op::infix(Rule::xo_add, Assoc::Left) | Op::infix(Rule::xo_sub, Assoc::Left))
         .op(Op::infix(Rule::xo_mul, Assoc::Left) | Op::infix(Rule::xo_div, Assoc::Left))

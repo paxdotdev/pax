@@ -252,7 +252,7 @@ def render_highlighter(
     );
     const COLOR_FUNCTIONS = new Set(PAX_GRAMMAR_TOKENS.colorFunctions);
     const UNITS = new Set(PAX_GRAMMAR_TOKENS.units.filter((unit) => /^[A-Za-z]+$/.test(unit)));
-    const OPERATORS = ["==", "!=", ">=", "<=", "&&", "||", "%%", "..", "::", "+", "-", "*", "/", "%", "^", "?", ":", "=", ">", "<", "!", ",", ".", "[", "]", "(", ")"];
+    const OPERATORS = ["==", "!=", ">=", "<=", "&&", "||", "%%", "??", "..", "::", "+", "-", "*", "/", "%", "^", "?", ":", "=", ">", "<", "!", ",", ".", "[", "]", "(", ")"];
 
     function escapeHtml(value) {{
         return value

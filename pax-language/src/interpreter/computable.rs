@@ -6,7 +6,7 @@ use pax_runtime_api::{
 
 use super::{
     property_resolution::IdentifierResolver, PaxAccessor, PaxExpression, PaxIdentifier, PaxInfix,
-    PaxPostfix, PaxPrefix, PaxPrimary, PaxUnit,
+    PaxNullCoalesce, PaxPostfix, PaxPrefix, PaxPrimary, PaxTernary, PaxUnit,
 };
 
 /// Trait for expression types that can be computed to a value
@@ -21,6 +21,8 @@ impl Computable for PaxExpression {
             PaxExpression::Prefix(p) => p.compute(idr),
             PaxExpression::Infix(p) => p.compute(idr),
             PaxExpression::Postfix(p) => p.compute(idr),
+            PaxExpression::Ternary(p) => p.compute(idr),
+            PaxExpression::NullCoalesce(p) => p.compute(idr),
         }
     }
 }
@@ -165,6 +167,31 @@ impl Computable for PaxInfix {
         let rhs = self.rhs.compute(idr)?;
         let operator = &self.operator.name;
         call_function("Math".to_string(), operator.to_string(), vec![lhs, rhs])
+    }
+}
+
+impl Computable for PaxTernary {
+    fn compute(&self, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String> {
+        match self.condition.compute(idr.clone())? {
+            PaxValue::Bool(true) => self.then_branch.compute(idr),
+            PaxValue::Bool(false) => self.else_branch.compute(idr),
+            value => Err(format!(
+                "Ternary condition must compute to a boolean, got: {:?}",
+                value
+            )),
+        }
+    }
+}
+
+impl Computable for PaxNullCoalesce {
+    fn compute(&self, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String> {
+        match self.lhs.compute(idr.clone())? {
+            PaxValue::Option(opt) => match *opt {
+                Some(value) => Ok(value),
+                None => self.rhs.compute(idr),
+            },
+            value => Ok(value),
+        }
     }
 }
 

@@ -2,8 +2,94 @@
 <!-- summary: PAXEL expressions, data binding syntax, and reactive updates. -->
 <!-- tags: paxel, bindings, expressions -->
 
-- PAXEL basics: `{...}` expressions, literals, operators, and function calls.
-- Binding syntax: `prop={expr}` versus `prop=bind:state`.
-- Reactive updates: spreadsheet-like propagation and purity expectations.
-- Derived values in templates: formatting strings, math, and unit math.
-- Debugging bindings: common gotchas and troubleshooting patterns.
+Pax template expressions are written in PAXEL, a small side-effect-free expression language. Use expressions when a property should be derived from literals, component state, built-in functions, or other expressions.
+
+## Bindings
+
+Use `{...}` for a one-way derived value:
+
+```pax
+<Text text={"Score: " + score} />
+<Rectangle width={(base_width + 8)px} />
+```
+
+Use `bind:` when a native form control should read and write a component property:
+
+```pax
+<Textbox text=bind:name />
+<Slider value=bind:volume min=0.0 max=1.0 />
+```
+
+Expressions are reactive: when an identifier used by the expression changes, Pax recomputes the derived value.
+
+## Operators
+
+| Category | Operators | Example |
+| --- | --- | --- |
+| Fallback | `??` | `maybe_title ?? "Untitled"` |
+| Conditional | `? :` | `is_selected ? YELLOW : GRAY` |
+| Boolean | `!`, `&&`, `||` | `enabled && !disabled` |
+| Equality | `==`, `!=` | `mode != "hidden"` |
+| Comparison | `<`, `<=`, `>`, `>=` | `score >= target` |
+| Arithmetic | `+`, `-`, `*`, `/`, `%%`, `^` | `(index + 1) * 24` |
+| Range | `..` | `0..count` |
+| Access | `.`, `[...]` | `user.name`, `items[index]` |
+| Grouping and units | `(...)`, `(expr)px`, `(expr)%`, `(expr)deg`, `(expr)rad` | `{(width + 12)px}` |
+
+`??` is the null coalescing operator. When the left side is `Some(value)`, the result is `value`. When the left side is `None`, Pax evaluates and returns the right side. Non-option left values pass through unchanged, and the right side is not evaluated unless it is needed.
+
+```pax
+<Text text={maybe_title ?? "Untitled"} />
+<Rectangle width={maybe_width ?? 240px} />
+<Text text={user_label ?? fallback_label ?? "Anonymous"} />
+```
+
+Use ternaries for branch selection:
+
+```pax
+<Rectangle fill={is_selected ? YELLOW : GRAY} />
+<Text text={count == 1 ? "1 item" : "Items: " + count} />
+```
+
+## Literals
+
+PAXEL supports booleans, numbers, strings, units, colors, lists, tuples, objects, ranges, enum/function-style calls, and option literals.
+
+```pax
+<Rectangle x=25px y=10% rotate=15deg fill=rgba(255, 128, 64, 255) />
+<Stacker sizes=[Some(120px), None, Some(30%)] />
+<Text text={Some("Ready") ?? "Waiting"} />
+```
+
+Objects can contain nested expressions:
+
+```pax
+<Rectangle fill={is_hot ? {r: 255, g: heat * 80, b: 0, a: 1} : {r: 0, g: 120, b: 255, a: 1}} />
+```
+
+## Loops
+
+Ranges are commonly used as `for` sources:
+
+```pax
+for i in 0..count {
+    <Text y={(i * 24)px} text={"Item " + i} />
+}
+```
+
+## Function Calls
+
+Functions and enum-style constructors use Rust-like path syntax:
+
+```pax
+<Rectangle width={Math::max(80, desired_width)} />
+<Text text={"Smallest: " + Math::min(a, b)} />
+```
+
+## Common Gotchas
+
+Use `%%` for modulo. `%` is reserved for percent units such as `50%` or `(width / 2)%`.
+
+Use `bind:` only for two-way control state. For derived display values, use `{...}`.
+
+Keep template expressions pure. Move side effects, mutations, and event handling into Rust handlers, then expose the resulting state back to Pax properties.

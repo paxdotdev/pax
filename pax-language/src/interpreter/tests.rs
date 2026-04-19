@@ -13,6 +13,15 @@ fn initialize_test_resolver() -> Rc<HashMap<String, PaxValue>> {
     let mut idr = HashMap::new();
     idr.insert("a".to_string(), PaxValue::Numeric(Numeric::I64(10)));
     idr.insert("b".to_string(), PaxValue::Numeric(Numeric::I64(4)));
+    idr.insert("flag".to_string(), PaxValue::Bool(true));
+    idr.insert(
+        "maybe_a".to_string(),
+        PaxValue::Option(Box::new(Some(PaxValue::Numeric(Numeric::I64(10))))),
+    );
+    idr.insert(
+        "missing_value".to_string(),
+        PaxValue::Option(Box::new(None)),
+    );
     idr.insert(
         "c".to_string(),
         PaxValue::Vec(vec![
@@ -196,6 +205,87 @@ fn test_bool_or() {
     let idr = initialize_test_resolver();
     let expr = "true || false";
     let expected = PaxValue::Bool(true);
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_ternary_true_branch() {
+    let idr = initialize_test_resolver();
+    let expr = "true ? 10 : 4";
+    let expected = PaxValue::Numeric(Numeric::I64(10));
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_ternary_false_branch() {
+    let idr = initialize_test_resolver();
+    let expr = "false ? 10 : 4";
+    let expected = PaxValue::Numeric(Numeric::I64(4));
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_ternary_short_circuits() {
+    let idr = initialize_test_resolver();
+    let expr = "true ? a : missing_identifier";
+    let expected = PaxValue::Numeric(Numeric::I64(10));
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_nested_ternary() {
+    let idr = initialize_test_resolver();
+    let expr = "false ? 1 : true ? 2 : 3";
+    let expected = PaxValue::Numeric(Numeric::I64(2));
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_null_coalesce_some_unwraps() {
+    let idr = initialize_test_resolver();
+    let expr = "Some(10) ?? 4";
+    let expected = PaxValue::Numeric(Numeric::I64(10));
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_null_coalesce_none_uses_fallback() {
+    let idr = initialize_test_resolver();
+    let expr = "None ?? 4";
+    let expected = PaxValue::Numeric(Numeric::I64(4));
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_null_coalesce_variable_option() {
+    let idr = initialize_test_resolver();
+    let expr = "maybe_a ?? b";
+    let expected = PaxValue::Numeric(Numeric::I64(10));
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_null_coalesce_right_associative() {
+    let idr = initialize_test_resolver();
+    let expr = "None ?? Some(4) ?? 5";
+    let expected = PaxValue::Numeric(Numeric::I64(4));
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_null_coalesce_short_circuits_non_option() {
+    let idr = initialize_test_resolver();
+    let expr = "\"hello\" ?? missing_identifier";
+    let expected = PaxValue::String("hello".to_string());
     let result = compute_paxel(expr, idr).unwrap();
     assert_eq!(expected, result);
 }
@@ -400,6 +490,22 @@ fn test_collect_dependencies() {
 }
 
 #[test]
+fn test_collect_ternary_dependencies() {
+    let expr = "flag ? a : b";
+    let expected = vec!["flag".to_string(), "a".to_string(), "b".to_string()];
+    let result = PaxExpression::collect_dependencies(&parse_pax_expression(expr).unwrap());
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_collect_null_coalesce_dependencies() {
+    let expr = "missing_value ?? b";
+    let expected = vec!["missing_value".to_string(), "b".to_string()];
+    let result = PaxExpression::collect_dependencies(&parse_pax_expression(expr).unwrap());
+    assert_eq!(expected, result);
+}
+
+#[test]
 fn test_negative_size() {
     let idr = initialize_test_resolver();
     let expr = "-10px";
@@ -420,6 +526,22 @@ fn test_display_expression() {
 fn test_display_complex_expression() {
     let expr = "Math::min(a,Math::max(3,1))";
     let expected = "Math::min(a, Math::max(3, 1))";
+    let result = format!("{}", parse_pax_expression(expr).unwrap());
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_display_ternary_expression() {
+    let expr = "flag ? a + 1 : b + 2";
+    let expected = "flag ? a + 1 : b + 2";
+    let result = format!("{}", parse_pax_expression(expr).unwrap());
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_display_null_coalesce_expression() {
+    let expr = "maybe_title ?? \"Untitled\"";
+    let expected = "maybe_title ?? \"Untitled\"";
     let result = format!("{}", parse_pax_expression(expr).unwrap());
     assert_eq!(expected, result);
 }

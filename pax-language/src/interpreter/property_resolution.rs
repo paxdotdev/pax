@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use pax_runtime_api::{PaxValue, Property, Variable};
 
-use super::{PaxExpression, PaxInfix, PaxPostfix, PaxPrefix, PaxPrimary};
+use super::{
+    PaxExpression, PaxInfix, PaxNullCoalesce, PaxPostfix, PaxPrefix, PaxPrimary, PaxTernary,
+};
 
 /// Trait for resolving identifiers to values
 /// This is implemented by RuntimePropertyStackFrame
@@ -22,6 +24,8 @@ impl DependencyCollector for PaxExpression {
             PaxExpression::Prefix(p) => p.collect_dependencies(),
             PaxExpression::Infix(p) => p.collect_dependencies(),
             PaxExpression::Postfix(p) => p.collect_dependencies(),
+            PaxExpression::Ternary(p) => p.collect_dependencies(),
+            PaxExpression::NullCoalesce(p) => p.collect_dependencies(),
         }
     }
 }
@@ -69,6 +73,23 @@ impl DependencyCollector for PaxInfix {
 impl DependencyCollector for PaxPostfix {
     fn collect_dependencies(&self) -> Vec<String> {
         self.lhs.collect_dependencies()
+    }
+}
+
+impl DependencyCollector for PaxTernary {
+    fn collect_dependencies(&self) -> Vec<String> {
+        let mut deps = self.condition.collect_dependencies();
+        deps.extend(self.then_branch.collect_dependencies());
+        deps.extend(self.else_branch.collect_dependencies());
+        deps
+    }
+}
+
+impl DependencyCollector for PaxNullCoalesce {
+    fn collect_dependencies(&self) -> Vec<String> {
+        let mut deps = self.lhs.collect_dependencies();
+        deps.extend(self.rhs.collect_dependencies());
+        deps
     }
 }
 

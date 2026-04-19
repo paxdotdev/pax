@@ -54,6 +54,26 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_ternary_expression() {
+        let res = utils::parse_value("{is_selected ? 1 : 0}");
+        if let Ok(Some(ValueDefinition::Expression(info))) = res {
+            assert_eq!(&info.expression.to_string(), "is_selected ? 1 : 0");
+        } else {
+            panic!("unexpected result: {:?}", res);
+        }
+    }
+
+    #[test]
+    fn test_parse_null_coalesce_expression() {
+        let res = utils::parse_value("{maybe_title ?? \"Untitled\"}");
+        if let Ok(Some(ValueDefinition::Expression(info))) = res {
+            assert_eq!(&info.expression.to_string(), "maybe_title ?? \"Untitled\"");
+        } else {
+            panic!("unexpected result: {:?}", res);
+        }
+    }
+
+    #[test]
     fn test_parse_inline_timeline() {
         let res = utils::parse_value("@timeline { 0: 0, Linear, 100%: 1 }");
         if let Ok(Some(ValueDefinition::Timeline(track))) = res {
@@ -304,6 +324,104 @@ mod tests {
         assert_eq!(branches[0].child_ids.len(), 1);
         assert_eq!(branches[1].child_ids.len(), 2);
         assert_eq!(branches[2].child_ids.len(), 1);
+    }
+
+    #[test]
+    fn test_serialize_ternary_expression() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let rectangle_type_id = TypeId::build_singleton("Rectangle", Some("Rectangle"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Rectangle".to_string(), rectangle_type_id);
+
+        let pax = r#"
+            <Rectangle fill={is_selected ? WHITE : GRAY} />
+        "#;
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            pax,
+            false,
+            template_map.clone(),
+            "crate",
+            component_type_id.clone(),
+            "example.pax",
+        );
+
+        let rendered = press_code_serialization_template(component).unwrap();
+        assert!(rendered.contains("fill={is_selected ? WHITE : GRAY}"));
+
+        let (_, parsed_component) = assemble_component_definition(
+            ParsingContext::default(),
+            &rendered,
+            false,
+            template_map,
+            "crate",
+            component_type_id,
+            "example.pax",
+        );
+        let template = parsed_component.template.unwrap();
+        let rectangle_id = template.get_root().remove(0);
+        let rectangle_node = template.get_node(&rectangle_id).unwrap();
+        let settings = rectangle_node.settings.as_ref().unwrap();
+        let fill = settings.iter().find_map(|setting| match setting {
+            SettingElement::Setting(token, value) if token.token_value == "fill" => Some(value),
+            _ => None,
+        });
+
+        assert!(matches!(
+            fill,
+            Some(ValueDefinition::Expression(info))
+                if info.expression.to_string() == "is_selected ? WHITE : GRAY"
+        ));
+    }
+
+    #[test]
+    fn test_serialize_null_coalesce_expression() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let text_type_id = TypeId::build_singleton("Text", Some("Text"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Text".to_string(), text_type_id);
+
+        let pax = r#"
+            <Text text={maybe_title ?? "Untitled"} />
+        "#;
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            pax,
+            false,
+            template_map.clone(),
+            "crate",
+            component_type_id.clone(),
+            "example.pax",
+        );
+
+        let rendered = press_code_serialization_template(component).unwrap();
+        assert!(rendered.contains("text={maybe_title ?? \"Untitled\"}"));
+
+        let (_, parsed_component) = assemble_component_definition(
+            ParsingContext::default(),
+            &rendered,
+            false,
+            template_map,
+            "crate",
+            component_type_id,
+            "example.pax",
+        );
+        let template = parsed_component.template.unwrap();
+        let text_id = template.get_root().remove(0);
+        let text_node = template.get_node(&text_id).unwrap();
+        let settings = text_node.settings.as_ref().unwrap();
+        let text = settings.iter().find_map(|setting| match setting {
+            SettingElement::Setting(token, value) if token.token_value == "text" => Some(value),
+            _ => None,
+        });
+
+        assert!(matches!(
+            text,
+            Some(ValueDefinition::Expression(info))
+                if info.expression.to_string() == "maybe_title ?? \"Untitled\""
+        ));
     }
 
     #[test]

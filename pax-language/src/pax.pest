@@ -191,13 +191,17 @@ literal_color_const = {
 /// This sub-grammar describes PAXEL, the Pax Expression Language
 //////
 
-// Expression body may be a binary operation like `x + 5` or `num_clicks % 2 == 0`
-// or a literal returned value like `Color { ... }` or `5`
+// Expression body may be a binary operation like `x + 5` or `num_clicks %% 2 == 0`,
+// a short-circuiting fallback expression like `maybe_label ?? "Untitled"`,
+// or a literal returned value like `Color { ... }` or `5`.
 //
 // If we wish to include postfix operators, or e.g. refactor `px` and `%` to be treated as postfix operators,
 // the following is the order of xo that the Pratt parser expects
 // expr_with_postfix  =   { xo_prefix* ~ xo_primary ~ xo_postfix* ~ (xo_infix ~ xo_prefix* ~ xo_primary ~ xo_postfix* )* }
-expression_body =   { xo_prefix* ~ xo_primary ~ (xo_infix ~ xo_prefix* ~ xo_primary )* }
+expression_body = { expression_ternary }
+expression_ternary = { expression_coalesce ~ (xo_tern_then ~ expression_body ~ xo_tern_else ~ expression_body)? }
+expression_coalesce = { expression_binary ~ (xo_null_coalesce ~ expression_coalesce)? }
+expression_binary = { xo_prefix* ~ xo_primary ~ (xo_infix ~ xo_prefix* ~ xo_primary )* }
 
 expression_wrapped = _{
     "{" ~ comment? ~ expression_body ~ "}"
@@ -215,15 +219,18 @@ Color {h: 360, s: 1, l: 1, a: 1}
 {h: 360, s: 1, l: 1, a: 1}
 
 [Boolean statements]
-num_clicks % 2 == 0
+num_clicks %% 2 == 0
 
 [Complex statements including ternaries, grouping, logical operators, and object construction]
-(num_clicks % 2 == 0 && is_selected) ?
+(num_clicks %% 2 == 0 && is_selected) ?
     {r: 255 * color_intensity, g: 0, b: 0, a: 1} :
     {r: 0, g: 255 * color_intensity, b: 0, a: 1}
 
 [String literals + operations]
 "Is " + (is_selected ? "" : "not ") + "selected."
+
+[Option fallback]
+maybe_title ?? "Untitled"
 */
 
 //`xo` is short for both "expression operator" and "expression operand", collectively all symbols
@@ -249,9 +256,7 @@ xo_infix = _{
     xo_rel_lte |
     xo_rel_lt |
     xo_rel_neq |
-    xo_sub |
-    xo_tern_then |
-    xo_tern_else
+    xo_sub
 }
     xo_add = {"+"}
     xo_bool_and = {"&&"}
@@ -267,8 +272,9 @@ xo_infix = _{
     xo_rel_lte = {"<="}
     xo_rel_neq = {"!="}
     xo_sub = {"-"}
-    xo_tern_then = {"?"}
-    xo_tern_else = {":"}
+xo_null_coalesce = {"??"}
+xo_tern_then = {"?"}
+xo_tern_else = {":"}
 
 xo_range = { (xo_literal | xo_symbol) ~ (xo_range_exclusive) ~ (xo_literal | xo_symbol)}
     xo_range_exclusive = @{".."}
