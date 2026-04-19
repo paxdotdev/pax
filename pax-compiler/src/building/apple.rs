@@ -330,6 +330,7 @@ pub fn build_apple_project_with_cartridge(
     ctx: &RunContext,
     pax_dir: &PathBuf,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
+    assets_dirs: Vec<String>,
     manifest: PaxManifest,
 ) -> Result<(), eyre::Report> {
     let target: &RunTarget = &ctx.target;
@@ -701,6 +702,23 @@ Note that the temporary directories mentioned above are subject to overwriting.\
     let _ = fs::create_dir_all(&source_packages_path);
     let _ = remove_path_if_exists(&executable_resources_bundle_path);
     let _ = remove_path_if_exists(&executable_dot_app_path);
+
+    let asset_dest = pax_dir
+        .join(INTERFACE_DIR_NAME)
+        .join("common")
+        .join("pax-swift-cartridge")
+        .join("Sources")
+        .join("PaxCartridgeAssets")
+        .join("Resources")
+        .join("assets");
+    fs::create_dir_all(&asset_dest)?;
+    for asset_src in assets_dirs {
+        let asset_src = PathBuf::from(asset_src);
+        if asset_src.exists() {
+            copy_dir_recursively(&asset_src, &asset_dest, &[])
+                .map_err(|err| eyre!("Error copying assets: {}", err))?;
+        }
+    }
 
     let build_for_physical_device = matches!(
         resolved_ios_device.as_ref().map(|device| device.kind),

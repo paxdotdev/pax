@@ -2,8 +2,7 @@ if game_state == "PLAYING" {
     <Text x=10px y=10px text={"Score: " + score} style={
         fill: WHITE
     }/>
-}
-if game_state == "GAME_OVER" {
+} else if game_state == "GAME_OVER" {
     <Text y=25% height=25% width=100% text="GAME OVER" id=game_over/>
     <Text y=50% height=25% width=100% text={"Score: " + score} id=game_over_score/>
     <Rectangle fill=rgba(255, 0, 50, 50)/>

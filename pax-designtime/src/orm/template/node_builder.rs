@@ -365,6 +365,7 @@ impl<'a> NodeBuilder<'a> {
                             .control_flow_updates
                             .slot_index_expression
                             .flatten(),
+                        conditional_branches: vec![],
                     };
 
                     NodeType::ControlFlow(Box::new(control_flow_settings_defintion))

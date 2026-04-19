@@ -1386,7 +1386,15 @@ impl ComponentTemplate {
             control_flow_settings.repeat_source_expression = value;
         }
         if let Some(value) = conditional_expression {
-            control_flow_settings.condition_expression = value;
+            control_flow_settings.condition_expression = value.clone();
+            if let Some(first_branch) = control_flow_settings.conditional_branches.first_mut() {
+                if matches!(
+                    first_branch.branch_kind,
+                    ControlFlowConditionalBranchKind::If
+                ) {
+                    first_branch.condition_expression = value;
+                }
+            }
         }
         if let Some(value) = slot_index_expression {
             control_flow_settings.slot_index_expression = value;
@@ -1769,11 +1777,30 @@ impl ControlFlowRepeatPredicateDefinition {
 /// expressions and the related vtable ids (for "punching" during expression compilation)
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(crate = "pax_message::serde")]
+pub enum ControlFlowConditionalBranchKind {
+    #[default]
+    If,
+    ElseIf,
+    Else,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(crate = "pax_message::serde")]
+pub struct ControlFlowConditionalBranchDefinition {
+    pub branch_kind: ControlFlowConditionalBranchKind,
+    pub condition_expression: Option<ExpressionInfo>,
+    pub child_ids: Vec<TemplateNodeId>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(crate = "pax_message::serde")]
 pub struct ControlFlowSettingsDefinition {
     pub condition_expression: Option<ExpressionInfo>,
     pub slot_index_expression: Option<ExpressionInfo>,
     pub repeat_predicate_definition: Option<ControlFlowRepeatPredicateDefinition>,
     pub repeat_source_expression: Option<ExpressionInfo>,
+    #[serde(default)]
+    pub conditional_branches: Vec<ControlFlowConditionalBranchDefinition>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]

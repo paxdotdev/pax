@@ -615,6 +615,7 @@ struct PaxViewMacos: View {
                     builder.addMapWithStringKey("Image") { imageBuilder in
                         imageBuilder.addMapWithStringKey("Reference") { referenceBuilder in
                             referenceBuilder.addWithStringKey("id", UInt(patch.id))
+                            referenceBuilder.addStringWithStringKey("path", fullPatchPath)
                             referenceBuilder.addWithStringKey("image_data", raw_pointer_uint)
                             referenceBuilder.addWithStringKey("image_data_length", UInt(totalBytes))
                             referenceBuilder.addWithStringKey("width", UInt(width))

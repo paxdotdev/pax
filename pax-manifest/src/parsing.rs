@@ -114,20 +114,9 @@ fn recurse_visit_tag_pairs_for_template(
             let any_tag_pair = any_tag_pair.into_inner().next().unwrap();
             let _template_node_definition = match any_tag_pair.as_rule() {
                 Rule::statement_if => {
-                    let mut statement_if = any_tag_pair.into_inner();
-                    let expression_body = statement_if.next().unwrap();
-                    let condition_expression =
-                        parse_pax_expression(expression_body.as_str()).unwrap();
-                    let expression_info = ExpressionInfo::new(condition_expression);
-
                     //`if` TemplateNodeDefinition
                     let template_node = TemplateNodeDefinition {
-                        control_flow_settings: Some(ControlFlowSettingsDefinition {
-                            condition_expression: Some(expression_info),
-                            slot_index_expression: None,
-                            repeat_predicate_definition: None,
-                            repeat_source_expression: None,
-                        }),
+                        control_flow_settings: Some(ControlFlowSettingsDefinition::default()),
                         type_id: TypeId::build_if(),
                         settings: None,
                         raw_comment_string: None,
@@ -137,19 +126,86 @@ fn recurse_visit_tag_pairs_for_template(
                         TreeLocation::Root => ctx.template.add_root_node_back(template_node),
                         TreeLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
                     };
+                    let if_node_id = id.get_template_node_id();
+                    let mut first_condition_expression = None;
+                    let mut conditional_branches = Vec::new();
 
-                    let prospective_inner_nodes = statement_if.next();
+                    for branch in any_tag_pair.into_inner() {
+                        let branch_rule = branch.as_rule();
+                        let mut branch_inner = branch.into_inner();
+                        let (branch_kind, condition_expression, prospective_inner_nodes) =
+                            match branch_rule {
+                                Rule::statement_if_branch => {
+                                    let expression_body = branch_inner.next().unwrap();
+                                    let expression_info = ExpressionInfo::new(
+                                        parse_pax_expression(expression_body.as_str()).unwrap(),
+                                    );
+                                    (
+                                        ControlFlowConditionalBranchKind::If,
+                                        Some(expression_info),
+                                        branch_inner.next(),
+                                    )
+                                }
+                                Rule::statement_else_if_branch => {
+                                    let expression_body = branch_inner.next().unwrap();
+                                    let expression_info = ExpressionInfo::new(
+                                        parse_pax_expression(expression_body.as_str()).unwrap(),
+                                    );
+                                    (
+                                        ControlFlowConditionalBranchKind::ElseIf,
+                                        Some(expression_info),
+                                        branch_inner.next(),
+                                    )
+                                }
+                                Rule::statement_else_branch => (
+                                    ControlFlowConditionalBranchKind::Else,
+                                    None,
+                                    branch_inner.next(),
+                                ),
+                                _ => unreachable!("Parsing error: {:?}", branch_rule),
+                            };
 
-                    if let Some(inner_nodes) = prospective_inner_nodes {
-                        inner_nodes.into_inner().for_each(|sub_tag_pair| {
-                            recurse_visit_tag_pairs_for_template(
-                                ctx,
-                                sub_tag_pair,
-                                pax,
-                                TreeLocation::Parent(id.clone().get_template_node_id()),
-                            );
-                        })
+                        if first_condition_expression.is_none() {
+                            first_condition_expression = condition_expression.clone();
+                        }
+
+                        let existing_children_count = ctx
+                            .template
+                            .get_children(&if_node_id)
+                            .unwrap_or_default()
+                            .len();
+
+                        if let Some(inner_nodes) = prospective_inner_nodes {
+                            inner_nodes.into_inner().for_each(|sub_tag_pair| {
+                                recurse_visit_tag_pairs_for_template(
+                                    ctx,
+                                    sub_tag_pair,
+                                    pax,
+                                    TreeLocation::Parent(if_node_id.clone()),
+                                );
+                            })
+                        }
+
+                        let child_ids = ctx
+                            .template
+                            .get_children(&if_node_id)
+                            .unwrap_or_default()
+                            .into_iter()
+                            .skip(existing_children_count)
+                            .collect();
+                        conditional_branches.push(ControlFlowConditionalBranchDefinition {
+                            branch_kind,
+                            condition_expression,
+                            child_ids,
+                        });
                     }
+
+                    let mut if_node = ctx.template.get_node(&if_node_id).unwrap().clone();
+                    if let Some(control_flow_settings) = &mut if_node.control_flow_settings {
+                        control_flow_settings.condition_expression = first_condition_expression;
+                        control_flow_settings.conditional_branches = conditional_branches;
+                    }
+                    ctx.template.set_node(if_node_id, if_node);
                 }
                 Rule::statement_for => {
                     let mut cfavd = ControlFlowSettingsDefinition::default();
@@ -218,6 +274,7 @@ fn recurse_visit_tag_pairs_for_template(
                             slot_index_expression: Some(slot_expression),
                             repeat_predicate_definition: None,
                             repeat_source_expression: None,
+                            conditional_branches: vec![],
                         }),
                         type_id: TypeId::build_slot(),
                         settings: None,

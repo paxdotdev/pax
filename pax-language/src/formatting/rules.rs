@@ -136,6 +136,9 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         }
         Rule::statement_for => vec![Box::new(StatementForDefaultRule)],
         Rule::statement_if => vec![Box::new(StatementIfDefaultRule)],
+        Rule::statement_if_branch => vec![Box::new(StatementIfBranchDefaultRule)],
+        Rule::statement_else_if_branch => vec![Box::new(StatementElseIfBranchDefaultRule)],
+        Rule::statement_else_branch => vec![Box::new(StatementElseBranchDefaultRule)],
         Rule::statement_slot => vec![Box::new(StatementSlotDefaultRule)],
         Rule::any_template_value | Rule::node_inner_content | Rule::settings_value => {
             vec![Box::new(WrapExpressionRule), Box::new(ForwardRule)]
@@ -998,12 +1001,46 @@ struct StatementIfDefaultRule;
 
 impl FormattingRule for StatementIfDefaultRule {
     fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
-        let mut formatted_node = String::new();
+        children
+            .iter()
+            .map(|child| child.formatted_node.clone())
+            .collect::<Vec<String>>()
+            .join("")
+    }
+}
+
+#[derive(Clone)]
+struct StatementIfBranchDefaultRule;
+
+impl FormattingRule for StatementIfBranchDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
         let exp = children[0].formatted_node.clone();
         let inner_nodes = children[1].formatted_node.clone();
         let inner_nodes_indented = indent_every_line_of_string(inner_nodes);
-        formatted_node.push_str(format!("if {} {{\n{}\n}}", exp, inner_nodes_indented).as_str());
-        formatted_node
+        format!("if {} {{\n{}\n}}", exp, inner_nodes_indented)
+    }
+}
+
+#[derive(Clone)]
+struct StatementElseIfBranchDefaultRule;
+
+impl FormattingRule for StatementElseIfBranchDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        let exp = children[0].formatted_node.clone();
+        let inner_nodes = children[1].formatted_node.clone();
+        let inner_nodes_indented = indent_every_line_of_string(inner_nodes);
+        format!(" else if {} {{\n{}\n}}", exp, inner_nodes_indented)
+    }
+}
+
+#[derive(Clone)]
+struct StatementElseBranchDefaultRule;
+
+impl FormattingRule for StatementElseBranchDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        let inner_nodes = children[0].formatted_node.clone();
+        let inner_nodes_indented = indent_every_line_of_string(inner_nodes);
+        format!(" else {{\n{}\n}}", inner_nodes_indented)
     }
 }
 

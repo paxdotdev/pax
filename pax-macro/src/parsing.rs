@@ -85,35 +85,46 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(
         Rule::statement_control_flow => {
             let matched_tag = any_tag_pair.into_inner().next().unwrap();
 
-            let n = match matched_tag.as_rule() {
-                Rule::statement_if => 1,
-                Rule::statement_for => 2,
-                Rule::statement_slot => 0,
+            match matched_tag.as_rule() {
+                Rule::statement_if => {
+                    matched_tag.into_inner().for_each(|branch| {
+                        branch.into_inner().for_each(|branch_child| {
+                            if branch_child.as_rule() == Rule::inner_nodes {
+                                branch_child.into_inner().for_each(|sub_tag_pair| {
+                                    recurse_visit_tag_pairs_for_pascal_identifiers(
+                                        sub_tag_pair,
+                                        Rc::clone(&pascal_identifiers),
+                                    );
+                                });
+                            }
+                        });
+                    });
+                }
+                Rule::statement_for => {
+                    let prospective_inner_nodes =
+                        matched_tag.into_inner().nth(2).expect("WRONG nth");
+                    match prospective_inner_nodes.as_rule() {
+                        Rule::inner_nodes => {
+                            prospective_inner_nodes
+                                .into_inner()
+                                .for_each(|sub_tag_pair| {
+                                    recurse_visit_tag_pairs_for_pascal_identifiers(
+                                        sub_tag_pair,
+                                        Rc::clone(&pascal_identifiers),
+                                    );
+                                })
+                        }
+                        _ => {
+                            unreachable!(
+                                "Parsing error 4449292922: {:?}",
+                                prospective_inner_nodes.as_rule()
+                            );
+                        }
+                    }
+                }
+                Rule::statement_slot => {}
                 _ => {
                     unreachable!("Parsing error 944491032: {:?}", matched_tag.as_rule());
-                }
-            };
-
-            let prospective_inner_nodes = matched_tag.into_inner().nth(n).expect("WRONG nth");
-            match prospective_inner_nodes.as_rule() {
-                Rule::inner_nodes => {
-                    let inner_nodes = prospective_inner_nodes;
-                    inner_nodes.into_inner().for_each(|sub_tag_pair| {
-                        recurse_visit_tag_pairs_for_pascal_identifiers(
-                            sub_tag_pair,
-                            Rc::clone(&pascal_identifiers),
-                        );
-                    })
-                }
-                Rule::expression_body => {
-                    //This space intentionally left blank.
-                    //e.g. for `slot` -- not necessary to worry about for PascalIdentifiers
-                }
-                _ => {
-                    unreachable!(
-                        "Parsing error 4449292922: {:?}",
-                        prospective_inner_nodes.as_rule()
-                    );
                 }
             }
         }

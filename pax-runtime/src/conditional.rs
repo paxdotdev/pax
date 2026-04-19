@@ -1,4 +1,4 @@
-use std::{iter, rc::Rc};
+use std::{iter, ops::Range, rc::Rc};
 use_RefCell!();
 
 use pax_runtime_api::pax_value::ImplToFromPaxAny;
@@ -16,6 +16,7 @@ use crate::{
 /// with the `if` syntax in templates.
 pub struct ConditionalInstance {
     base: BaseInstance,
+    branch_child_ranges: Vec<Range<usize>>,
 }
 
 impl ImplToFromPaxAny for ConditionalProperties {}
@@ -24,15 +25,22 @@ impl ImplToFromPaxAny for ConditionalProperties {}
 #[derive(Default)]
 pub struct ConditionalProperties {
     pub boolean_expression: Property<bool>,
+    pub conditional_branches: Vec<Property<bool>>,
 }
 
 impl ToPaxValue for ConditionalProperties {
     fn to_pax_value(self) -> PaxValue {
         PaxValue::Object(
-            vec![(
-                "boolean_expression".to_string(),
-                self.boolean_expression.to_pax_value(),
-            )]
+            vec![
+                (
+                    "boolean_expression".to_string(),
+                    self.boolean_expression.to_pax_value(),
+                ),
+                (
+                    "conditional_branches".to_string(),
+                    self.conditional_branches.to_pax_value(),
+                ),
+            ]
             .into_iter()
             .collect(),
         )
@@ -55,6 +63,7 @@ impl InstanceNode for ConditionalInstance {
                     is_slot: false,
                 },
             ),
+            branch_child_ranges: vec![],
         })
     }
 
@@ -88,6 +97,25 @@ impl InstanceNode for ConditionalInstance {
 }
 
 impl ConditionalInstance {
+    pub fn instantiate_with_branch_child_ranges(
+        args: InstantiationArgs,
+        branch_child_ranges: Vec<Range<usize>>,
+    ) -> Rc<Self> {
+        Rc::new(Self {
+            base: BaseInstance::new(
+                args,
+                InstanceFlags {
+                    invisible_to_slot: true,
+                    invisible_to_raycasting: true,
+                    layer: Layer::DontCare,
+                    is_component: false,
+                    is_slot: false,
+                },
+            ),
+            branch_child_ranges,
+        })
+    }
+
     fn handle_setup(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
@@ -98,14 +126,27 @@ impl ConditionalInstance {
         let cloned_self = Rc::clone(&self);
         let cloned_context = Rc::clone(context);
 
-        let cond_expr =
+        let boolean_expression =
             expanded_node.with_properties_unwrapped(|properties: &mut ConditionalProperties| {
                 properties.boolean_expression.clone()
             });
+        let conditional_branches =
+            expanded_node.with_properties_unwrapped(|properties: &mut ConditionalProperties| {
+                properties.conditional_branches.clone()
+            });
+        let branch_conditions = if conditional_branches.is_empty() {
+            vec![boolean_expression]
+        } else {
+            conditional_branches
+        };
 
-        let dep = cond_expr.untyped();
+        let deps = branch_conditions
+            .iter()
+            .map(|condition| condition.untyped())
+            .collect::<Vec<_>>();
+        let branch_child_ranges = self.branch_child_ranges.clone();
 
-        let old_val = RefCell::new(None);
+        let old_active_branch = RefCell::new(None::<Option<usize>>);
         let last_children = RefCell::new(Vec::new());
         expanded_node
             .children
@@ -114,33 +155,39 @@ impl ConditionalInstance {
                     let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
                         panic!("ran evaluator after expanded node dropped (conditional elem)")
                     };
-                    let val = cond_expr.get();
-                    if Some(val) == *borrow!(old_val) {
+                    let active_branch = branch_conditions
+                        .iter()
+                        .enumerate()
+                        .find_map(|(index, condition)| condition.get().then_some(index));
+                    if *borrow!(old_active_branch) == Some(active_branch) {
                         return borrow!(last_children).clone();
                     }
-                    *borrow_mut!(old_val) = Some(val);
-                    let ret = if val {
-                        let env = Rc::clone(&cloned_expanded_node.stack);
-                        let children = borrow!(cloned_self.base().get_instance_children());
-                        let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
-                        cloned_expanded_node.generate_children(
-                            children_with_envs,
-                            &cloned_context,
-                            &cloned_expanded_node.parent_frame,
-                            is_mount,
-                        )
+                    *borrow_mut!(old_active_branch) = Some(active_branch);
+
+                    let children = borrow!(cloned_self.base().get_instance_children());
+                    let effective_branch_ranges = if branch_child_ranges.is_empty() {
+                        vec![0..children.len()]
                     } else {
-                        cloned_expanded_node.generate_children(
-                            vec![],
-                            &cloned_context,
-                            &cloned_expanded_node.parent_frame,
-                            is_mount,
-                        )
+                        branch_child_ranges.clone()
                     };
+                    let selected_range = active_branch
+                        .and_then(|index| effective_branch_ranges.get(index).cloned())
+                        .unwrap_or(0..0);
+                    let start = selected_range.start.min(children.len());
+                    let end = selected_range.end.min(children.len());
+                    let env = Rc::clone(&cloned_expanded_node.stack);
+                    let children_with_envs =
+                        children[start..end].iter().cloned().zip(iter::repeat(env));
+                    let ret = cloned_expanded_node.generate_children(
+                        children_with_envs,
+                        &cloned_context,
+                        &cloned_expanded_node.parent_frame,
+                        is_mount,
+                    );
                     *borrow_mut!(last_children) = ret.clone();
                     ret
                 },
-                &[dep],
+                &deps,
                 &format!("conditional_children (node id: {})", expanded_node.id.0),
             ));
     }

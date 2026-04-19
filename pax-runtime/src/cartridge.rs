@@ -6,7 +6,7 @@ use crate::{
 };
 use pax_language::Computable;
 use pax_manifest::{
-    LiteralBlockDefinition, SettingElement, TimelineKeyframe, TimelineMarker,
+    ExpressionInfo, LiteralBlockDefinition, SettingElement, TimelineKeyframe, TimelineMarker,
     TimelineTrackDefinition, TimelineTrackElement, TypeId, ValueDefinition,
 };
 use pax_message::borrow;
@@ -21,6 +21,56 @@ use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
 pub trait PaxCartridge {}
+
+fn build_conditional_branch_property(
+    branch_kind: pax_manifest::ControlFlowConditionalBranchKind,
+    condition_expression: Option<ExpressionInfo>,
+    stack_frame: Rc<RuntimePropertiesStackFrame>,
+) -> Property<bool> {
+    match condition_expression {
+        Some(expr_info) => build_conditional_expression_property(expr_info, stack_frame),
+        None => Property::new(matches!(
+            branch_kind,
+            pax_manifest::ControlFlowConditionalBranchKind::Else
+        )),
+    }
+}
+
+fn build_conditional_expression_property(
+    expr_info: ExpressionInfo,
+    stack_frame: Rc<RuntimePropertiesStackFrame>,
+) -> Property<bool> {
+    let cloned_stack = stack_frame.clone();
+    let expr_ast = expr_info.expression.clone();
+
+    let mut dependencies = Vec::new();
+    for dependency in &expr_info.dependencies {
+        if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
+            dependencies.push(p);
+        } else {
+            log::warn!("Failed to resolve symbol {}", dependency);
+        }
+    }
+
+    let name = format!("conditional (if) expr ({})", expr_ast);
+    Property::computed_with_name(
+        move || {
+            let new_value = expr_ast
+                .compute(cloned_stack.clone())
+                .unwrap_or_else(|err| {
+                    log::warn!("Failed to compute expression: {:?}", err);
+                    Default::default()
+                });
+            bool::try_coerce(new_value).unwrap_or_else(|_e| {
+                log::warn!("Failed to parse boolean expression: {}", expr_ast);
+                Default::default()
+            })
+        },
+        &dependencies,
+        &name,
+    )
+}
+
 pub trait DefinitionToInstanceTraverser {
     fn new(manifest: pax_manifest::PaxManifest) -> Self
     where
@@ -156,14 +206,59 @@ pub trait DefinitionToInstanceTraverser {
         };
         match tnd.type_id.get_pax_type() {
             pax_manifest::PaxType::If => {
-                let expr_info = tnd
-                    .control_flow_settings
-                    .as_ref()
-                    .unwrap()
-                    .condition_expression
-                    .as_ref()
-                    .unwrap()
-                    .clone();
+                let control_flow_settings = tnd.control_flow_settings.as_ref().unwrap();
+                let conditional_branch_definitions =
+                    if control_flow_settings.conditional_branches.is_empty() {
+                        control_flow_settings
+                            .condition_expression
+                            .clone()
+                            .map(|condition| {
+                                vec![(
+                                    pax_manifest::ControlFlowConditionalBranchKind::If,
+                                    Some(condition),
+                                )]
+                            })
+                            .unwrap_or_default()
+                    } else {
+                        control_flow_settings
+                            .conditional_branches
+                            .iter()
+                            .map(|branch| {
+                                (
+                                    branch.branch_kind.clone(),
+                                    branch.condition_expression.clone(),
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                    };
+                let branch_child_ranges = if control_flow_settings.conditional_branches.is_empty() {
+                    vec![]
+                } else {
+                    let mut start = 0;
+                    control_flow_settings
+                        .conditional_branches
+                        .iter()
+                        .map(|branch| {
+                            let branch_instance_count = branch
+                                .child_ids
+                                .iter()
+                                .filter(|child_id| {
+                                    containing_template
+                                        .get_node(child_id)
+                                        .map(|child| {
+                                            child.type_id.get_pax_type()
+                                                != &pax_manifest::PaxType::Comment
+                                        })
+                                        .unwrap_or(false)
+                                })
+                                .count();
+                            let end = start + branch_instance_count;
+                            let range = start..end;
+                            start = end;
+                            range
+                        })
+                        .collect()
+                };
                 let prototypical_properties_factory: Box<
                     dyn Fn(
                         std::rc::Rc<crate::RuntimePropertiesStackFrame>,
@@ -171,17 +266,21 @@ pub trait DefinitionToInstanceTraverser {
                     )
                         -> Option<std::rc::Rc<RefCell<pax_runtime_api::pax_value::PaxAny>>>,
                 > = Box::new(move |stack_frame, expanded_node| {
-                    let cloned_stack = stack_frame.clone();
-                    let expr_ast = expr_info.expression.clone();
-
-                    let mut dependencies = Vec::new();
-                    for dependency in &expr_info.dependencies {
-                        if let Some(p) = stack_frame.resolve_symbol_as_erased_property(dependency) {
-                            dependencies.push(p);
-                        } else {
-                            log::warn!("Failed to resolve symbol {}", dependency);
-                        }
-                    }
+                    let conditional_branch_properties = conditional_branch_definitions
+                        .iter()
+                        .cloned()
+                        .map(|(branch_kind, condition_expression)| {
+                            build_conditional_branch_property(
+                                branch_kind,
+                                condition_expression,
+                                stack_frame.clone(),
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    let boolean_expression = conditional_branch_properties
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| Property::new(false));
 
                     if let Some(expanded_node) = &expanded_node {
                         let expanded_node = borrow!(**expanded_node);
@@ -189,59 +288,30 @@ pub trait DefinitionToInstanceTraverser {
                         let rc = Rc::clone(&outer_ref);
                         let mut inner_ref = (*rc).borrow_mut();
                         let cp = ConditionalProperties::mut_from_pax_any(&mut inner_ref).unwrap();
-                        let name = format!("conditional (if) expr ({})", expr_ast);
-                        cp.boolean_expression
-                            .replace_with(Property::computed_with_name(
-                                move || {
-                                    let new_value = expr_ast
-                                        .compute(cloned_stack.clone())
-                                        .unwrap_or_else(|err| {
-                                            log::warn!("Failed to compute expression: {:?}", err);
-                                            Default::default()
-                                        });
-                                    let coerced =
-                                        bool::try_coerce(new_value).unwrap_or_else(|_e| {
-                                            log::warn!(
-                                                "Failed to parse boolean expression: {}",
-                                                expr_ast
-                                            );
-                                            Default::default()
-                                        });
-                                    coerced
-                                },
-                                &dependencies,
-                                &name,
-                            ));
+                        cp.boolean_expression.replace_with(boolean_expression);
+                        cp.conditional_branches = conditional_branch_properties;
                         return None;
                     }
 
                     Some(std::rc::Rc::new(RefCell::new({
                         let mut properties = crate::ConditionalProperties::default();
-                        let name = format!("conditional (if) expr ({})", expr_ast);
-                        properties.boolean_expression = Property::computed_with_name(
-                            move || {
-                                let new_value = expr_ast.compute(cloned_stack.clone()).unwrap();
-                                let coerced = bool::try_coerce(new_value).unwrap_or_else(|_e| {
-                                    log::warn!("Failed to parse boolean expression: {}", expr_ast);
-                                    Default::default()
-                                });
-                                coerced
-                            },
-                            &dependencies,
-                            &name,
-                        );
+                        properties.boolean_expression = boolean_expression;
+                        properties.conditional_branches = conditional_branch_properties;
                         properties.to_pax_any()
                     })))
                 });
-                crate::ConditionalInstance::instantiate(crate::rendering::InstantiationArgs {
-                    prototypical_common_properties_factory,
-                    prototypical_properties_factory,
-                    handler_registry: None,
-                    component_template: None,
-                    children: Some(children),
-                    template_node_identifier: Some(unique_identifier),
-                    properties_scope_factory: None,
-                })
+                crate::ConditionalInstance::instantiate_with_branch_child_ranges(
+                    crate::rendering::InstantiationArgs {
+                        prototypical_common_properties_factory,
+                        prototypical_properties_factory,
+                        handler_registry: None,
+                        component_template: None,
+                        children: Some(children),
+                        template_node_identifier: Some(unique_identifier),
+                        properties_scope_factory: None,
+                    },
+                    branch_child_ranges,
+                )
             }
             pax_manifest::PaxType::Slot => {
                 let expr_info = tnd

@@ -46,11 +46,27 @@
 
 {% macro render_template_node(node_map, children, node_id) %}
         {% if node_map[node_id].control_flow_settings %}
-            {{ self::render_control_flow_statement(cfd=node_map[node_id].control_flow_settings) }}
-                {% for child_id in children[node_id] %}
-                    {{ self::render_template_node(node_map=node_map, children=children, node_id=child_id) }}
+            {% if node_map[node_id].control_flow_settings.conditional_branches and node_map[node_id].control_flow_settings.conditional_branches | length() > 0 %}
+                {% for branch in node_map[node_id].control_flow_settings.conditional_branches %}
+                    {% if loop.index0 == 0 %}
+                        if {{ to_pax_expression(value=branch.condition_expression) }} {
+                    {% elif branch.condition_expression %}
+                        else if {{ to_pax_expression(value=branch.condition_expression) }} {
+                    {% else %}
+                        else {
+                    {% endif %}
+                    {% for child_id in branch.child_ids %}
+                        {{ self::render_template_node(node_map=node_map, children=children, node_id=child_id) }}
+                    {% endfor %}
+                    }
                 {% endfor %}
-            }
+            {% else %}
+                {{ self::render_control_flow_statement(cfd=node_map[node_id].control_flow_settings) }}
+                    {% for child_id in children[node_id] %}
+                        {{ self::render_template_node(node_map=node_map, children=children, node_id=child_id) }}
+                    {% endfor %}
+                }
+            {% endif %}
         {% elif node_map[node_id].raw_comment_string %}
             {{node_map[node_id].raw_comment_string}}
         {% else %}

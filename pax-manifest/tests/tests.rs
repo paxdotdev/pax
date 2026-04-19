@@ -11,10 +11,11 @@ mod tests {
             assemble_component_definition, parse_timeline_from_component_definition_string,
             ParsingContext,
         },
-        utils, ComponentDefinition, ComponentTemplate, PaxIdentifier, SettingElement,
-        TemplateNodeDefinition, TimelineBlockElement, TimelineDefinition, TimelineKeyframe,
-        TimelineMarker, TimelineSelectorBlockDefinition, TimelineSelectorElement,
-        TimelineTrackDefinition, TimelineTrackElement, Token, TypeId, ValueDefinition,
+        utils, ComponentDefinition, ComponentTemplate, ControlFlowConditionalBranchKind,
+        PaxIdentifier, SettingElement, TemplateNodeDefinition, TimelineBlockElement,
+        TimelineDefinition, TimelineKeyframe, TimelineMarker, TimelineSelectorBlockDefinition,
+        TimelineSelectorElement, TimelineTrackDefinition, TimelineTrackElement, Token, TypeId,
+        ValueDefinition,
     };
 
     #[test]
@@ -150,6 +151,159 @@ mod tests {
     fn test_parse_with_extra() {
         let res = utils::parse_value("{5 + 3}this_shouldn't succeed");
         assert!(matches!(res, Err(_)));
+    }
+
+    #[test]
+    fn test_parse_if_else_if_else_template_branches() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let text_type_id = TypeId::build_singleton("Text", Some("Text"));
+        let rectangle_type_id = TypeId::build_singleton("Rectangle", Some("Rectangle"));
+        let group_type_id = TypeId::build_singleton("Group", Some("Group"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Text".to_string(), text_type_id.clone());
+        template_map.insert("Rectangle".to_string(), rectangle_type_id);
+        template_map.insert("Group".to_string(), group_type_id);
+
+        let pax = r#"
+            if self.mode == 0 {
+                <Text id=playing />
+            } else if self.mode == 1 {
+                <Rectangle id=game_over_backdrop />
+                <Text id=game_over />
+            } else {
+                <Group id=error />
+            }
+        "#;
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            pax,
+            false,
+            template_map,
+            "crate",
+            component_type_id,
+            "example.pax",
+        );
+
+        let template = component.template.unwrap();
+        let if_id = template.get_root().remove(0);
+        let if_node = template.get_node(&if_id).unwrap();
+        let control_flow_settings = if_node.control_flow_settings.as_ref().unwrap();
+
+        assert_eq!(control_flow_settings.conditional_branches.len(), 3);
+        assert!(matches!(
+            control_flow_settings.conditional_branches[0].branch_kind,
+            ControlFlowConditionalBranchKind::If
+        ));
+        assert!(matches!(
+            control_flow_settings.conditional_branches[1].branch_kind,
+            ControlFlowConditionalBranchKind::ElseIf
+        ));
+        assert!(matches!(
+            control_flow_settings.conditional_branches[2].branch_kind,
+            ControlFlowConditionalBranchKind::Else
+        ));
+        assert_eq!(
+            control_flow_settings.conditional_branches[0]
+                .condition_expression
+                .as_ref()
+                .unwrap()
+                .expression
+                .to_string(),
+            "mode == 0"
+        );
+        assert_eq!(
+            control_flow_settings.conditional_branches[1]
+                .condition_expression
+                .as_ref()
+                .unwrap()
+                .expression
+                .to_string(),
+            "mode == 1"
+        );
+        assert!(control_flow_settings.conditional_branches[2]
+            .condition_expression
+            .is_none());
+        assert_eq!(
+            control_flow_settings.conditional_branches[0]
+                .child_ids
+                .len(),
+            1
+        );
+        assert_eq!(
+            control_flow_settings.conditional_branches[1]
+                .child_ids
+                .len(),
+            2
+        );
+        assert_eq!(
+            control_flow_settings.conditional_branches[2]
+                .child_ids
+                .len(),
+            1
+        );
+        assert_eq!(template.get_children(&if_id).unwrap().len(), 4);
+    }
+
+    #[test]
+    fn test_serialize_if_else_if_else_template_branches() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let text_type_id = TypeId::build_singleton("Text", Some("Text"));
+        let rectangle_type_id = TypeId::build_singleton("Rectangle", Some("Rectangle"));
+        let group_type_id = TypeId::build_singleton("Group", Some("Group"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Text".to_string(), text_type_id.clone());
+        template_map.insert("Rectangle".to_string(), rectangle_type_id);
+        template_map.insert("Group".to_string(), group_type_id);
+
+        let pax = r#"
+            if self.mode == 0 {
+                <Text id=playing />
+            } else if self.mode == 1 {
+                <Rectangle id=game_over_backdrop />
+                <Text id=game_over />
+            } else {
+                <Group id=error />
+            }
+        "#;
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            pax,
+            false,
+            template_map.clone(),
+            "crate",
+            component_type_id.clone(),
+            "example.pax",
+        );
+
+        let rendered = press_code_serialization_template(component).unwrap();
+        assert!(rendered.contains("else if mode == 1"));
+        assert!(rendered.contains("else"));
+
+        let (_, parsed_component) = assemble_component_definition(
+            ParsingContext::default(),
+            &rendered,
+            false,
+            template_map,
+            "crate",
+            component_type_id,
+            "example.pax",
+        );
+        let template = parsed_component.template.unwrap();
+        let if_id = template.get_root().remove(0);
+        let branches = &template
+            .get_node(&if_id)
+            .unwrap()
+            .control_flow_settings
+            .as_ref()
+            .unwrap()
+            .conditional_branches;
+
+        assert_eq!(branches.len(), 3);
+        assert_eq!(branches[0].child_ids.len(), 1);
+        assert_eq!(branches[1].child_ids.len(), 2);
+        assert_eq!(branches[2].child_ids.len(), 1);
     }
 
     #[test]
