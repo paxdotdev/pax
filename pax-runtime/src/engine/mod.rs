@@ -345,7 +345,9 @@ impl PaxEngine {
             .recurse_update(&mut self.runtime_context);
 
         let ctx = &self.runtime_context;
-        occlusion::update_node_occlusion(&self.root_expanded_node, ctx);
+        if ctx.take_occlusion_dirty() {
+            occlusion::update_node_occlusion(&self.root_expanded_node, ctx);
+        }
         let time = &ctx.globals().frames_elapsed;
         time.set(time.get() + 1);
 
@@ -357,23 +359,29 @@ impl PaxEngine {
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
         self.update_layer_count(rcs);
 
-        for i in 0..rcs.layers() {
-            if self
-                .runtime_context
-                .dirty_canvases
-                .borrow()
-                .get(i)
-                .cloned()
-                .unwrap_or(false)
-            {
-                rcs.clear(i);
+        if !self.runtime_context.has_canvas_render_work() {
+            return;
+        }
+
+        let removals = self.runtime_context.take_canvas_node_removals();
+        let mut dirty_layers = self.runtime_context.dirty_canvas_layers();
+        dirty_layers.extend(removals.iter().map(|(layer, _)| *layer));
+        dirty_layers.sort_unstable();
+        dirty_layers.dedup();
+        let has_dirty_nodes = self.runtime_context.has_dirty_canvas_nodes();
+        let has_node_removals = !removals.is_empty();
+        if !has_dirty_nodes && !has_node_removals {
+            for layer in &dirty_layers {
+                rcs.clear(*layer);
             }
         }
 
-        for (layer, node_id) in self.runtime_context.take_canvas_node_removals() {
+        let mut failed_removal_layers = Vec::new();
+        for (layer, node_id) in removals {
             if !rcs.remove_node(layer, node_id) {
                 self.runtime_context
                     .enqueue_canvas_node_removal(layer, node_id);
+                failed_removal_layers.push(layer);
             }
         }
 
@@ -384,9 +392,12 @@ impl PaxEngine {
         self.runtime_context.recurse_flush_queued_renders(rcs);
 
         self.runtime_context.clear_all_dirty_canvases();
+        for layer in failed_removal_layers {
+            self.runtime_context.set_canvas_dirty(layer);
+        }
 
-        for i in 0..rcs.layers() {
-            rcs.flush(i, Rc::clone(&self.runtime_context.dirty_canvases));
+        for layer in dirty_layers {
+            rcs.flush(layer, Rc::clone(&self.runtime_context.dirty_canvases));
         }
     }
 
@@ -402,6 +413,7 @@ impl PaxEngine {
                 .viewport
                 .update(|t_and_b| t_and_b.bounds = new_viewport_size);
         });
+        self.runtime_context.mark_occlusion_dirty();
     }
 
     pub fn update_layer_count(&self, rcs: &mut dyn RenderContext) {

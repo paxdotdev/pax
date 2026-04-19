@@ -866,7 +866,7 @@ impl<'w> WgpuRenderer<'w> {
             self.order_dirty = true;
             self.scene_dirty = true;
         }
-        true
+        removed
     }
 
     fn ensure_vector_node(&mut self) -> Option<&mut PendingNode> {

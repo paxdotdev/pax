@@ -377,6 +377,7 @@ pub struct PaxGpuRenderer {
     scheduled_layer_initializations: Rc<RefCell<HashSet<usize>>>,
     layer_initializations_in_flight: Rc<Cell<usize>>,
     active_render_scopes: RefCell<Vec<Vec<Vec<usize>>>>,
+    dirty_render_surfaces: RefCell<Vec<HashSet<usize>>>,
     targeted_replay_queues: RefCell<Vec<VecDeque<Vec<usize>>>>,
     #[cfg(debug_assertions)]
     tile_cull_stats: RefCell<Vec<TileCullStats>>,
@@ -406,6 +407,7 @@ impl PaxGpuRenderer {
             scheduled_layer_initializations: Rc::new(RefCell::new(HashSet::new())),
             layer_initializations_in_flight: Rc::new(Cell::new(0)),
             active_render_scopes: Default::default(),
+            dirty_render_surfaces: Default::default(),
             targeted_replay_queues: Default::default(),
             #[cfg(debug_assertions)]
             tile_cull_stats: Default::default(),
@@ -494,6 +496,41 @@ impl PaxGpuRenderer {
         }
     }
 
+    fn mark_render_surfaces_dirty(
+        &self,
+        layer: usize,
+        renderer_indices: impl IntoIterator<Item = usize>,
+    ) {
+        let mut dirty_surfaces = self.dirty_render_surfaces.borrow_mut();
+        if dirty_surfaces.len() <= layer {
+            dirty_surfaces.resize_with(layer + 1, HashSet::new);
+        }
+        dirty_surfaces[layer].extend(renderer_indices);
+    }
+
+    fn dirty_render_surface_scope(&self, layer: usize) -> Option<Vec<usize>> {
+        let mut indices: Vec<_> = self
+            .dirty_render_surfaces
+            .borrow()
+            .get(layer)?
+            .iter()
+            .copied()
+            .collect();
+        if indices.is_empty() {
+            return None;
+        }
+        indices.sort_unstable();
+        Some(indices)
+    }
+
+    fn clear_dirty_render_surfaces(&self, layer: usize, renderer_indices: &[usize]) {
+        if let Some(dirty_surfaces) = self.dirty_render_surfaces.borrow_mut().get_mut(layer) {
+            for index in renderer_indices {
+                dirty_surfaces.remove(index);
+            }
+        }
+    }
+
     fn targeted_replay_scope(&self, layer: usize) -> Option<Vec<usize>> {
         self.targeted_replay_queues
             .borrow()
@@ -530,20 +567,27 @@ impl PaxGpuRenderer {
         !queue.is_empty()
     }
 
-    fn flush_targeted_or_all(&self, layer: usize, target: &mut LayerTarget) -> bool {
-        let Some(indices) = self.targeted_replay_scope(layer) else {
-            for renderer in &mut target.renderers {
-                renderer.renderer.flush();
-            }
-            return false;
-        };
-
-        for index in indices {
-            if let Some(renderer) = target.renderers.get_mut(index) {
-                renderer.renderer.flush();
-            }
+    fn flush_targeted_or_dirty(&self, layer: usize, target: &mut LayerTarget) -> bool {
+        let targeted_indices = self.targeted_replay_scope(layer);
+        let dirty_indices = self.dirty_render_surface_scope(layer);
+        let used_targeted_replay = targeted_indices.is_some();
+        let mut indices = targeted_indices.unwrap_or_default();
+        if let Some(dirty_indices) = dirty_indices {
+            indices.extend(dirty_indices);
         }
-        true
+        indices.sort_unstable();
+        indices.dedup();
+
+        if !indices.is_empty() {
+            for index in &indices {
+                if let Some(renderer) = target.renderers.get_mut(*index) {
+                    renderer.renderer.flush();
+                }
+            }
+            self.clear_dirty_render_surfaces(layer, &indices);
+        }
+
+        used_targeted_replay
     }
 
     fn clear_targeted_replay_scope(&self, layer: usize) {
@@ -690,6 +734,7 @@ impl PaxGpuRenderer {
                     }
                     if needs_full_layer_replay {
                         self.clear_targeted_replay_scope(layer_index);
+                        self.mark_render_surfaces_dirty(layer_index, 0..target.renderers.len());
                         self.replay_layers.borrow_mut().push(layer_index);
                     } else if !targeted_replay_entries.is_empty() {
                         #[cfg(debug_assertions)]
@@ -844,9 +889,34 @@ impl RenderContext for PaxGpuRenderer {
     }
 
     fn clear(&mut self, layer: usize) {
-        self.with_layer_context(layer, |context| {
-            context.clear();
-        });
+        let mut backends = self.backends.borrow_mut();
+        match backends.get_mut(layer) {
+            Some(RenderLayerState::Pending) => {
+                let mut failed_context_gets = self.failed_context_gets.borrow_mut();
+                if failed_context_gets.len() <= layer {
+                    failed_context_gets.resize(layer + 1, false);
+                }
+                failed_context_gets[layer] = true;
+            }
+            Some(RenderLayerState::Failed) => {}
+            Some(RenderLayerState::Ready((target, _))) => {
+                if !target.active {
+                    return;
+                }
+                target.prepare_for_render();
+                let indices = self.targeted_or_all_indices(layer, target.renderers.len());
+                for index in &indices {
+                    if let Some(renderer) = target.renderers.get_mut(*index) {
+                        renderer.renderer.clear();
+                    }
+                }
+                self.mark_render_surfaces_dirty(layer, indices);
+            }
+            None => log::warn!(
+                "tried to clear layer {} context for non-existent layer",
+                layer
+            ),
+        }
     }
 
     fn flush(&mut self, layer: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>) {
@@ -872,7 +942,7 @@ impl RenderContext for PaxGpuRenderer {
                         *failed = false;
                     }
                 }
-                flushed_targeted_batch = self.flush_targeted_or_all(layer, target);
+                flushed_targeted_batch = self.flush_targeted_or_dirty(layer, target);
             }
             None => log::warn!(
                 "tried to flush layer {} context for non-existent layer",
@@ -950,7 +1020,8 @@ impl RenderContext for PaxGpuRenderer {
                     return false;
                 }
                 target.prepare_for_render();
-                let candidate_indices = self.targeted_or_all_indices(layer, target.renderers.len());
+                let candidate_indices =
+                    self.targeted_or_all_indices(layer, target.renderers.len());
                 let mut selected = Vec::new();
                 for index in candidate_indices {
                     let Some(renderer) = target.renderers.get_mut(index) else {
@@ -962,6 +1033,7 @@ impl RenderContext for PaxGpuRenderer {
                 }
                 let began = !selected.is_empty();
                 if began {
+                    self.mark_render_surfaces_dirty(layer, selected.iter().copied());
                     self.push_render_scope(layer, selected);
                 }
                 began
@@ -1006,6 +1078,7 @@ impl RenderContext for PaxGpuRenderer {
                     stats.nodes_considered += 1;
                 });
                 let mut selected = Vec::new();
+                let mut removed = Vec::new();
                 for index in candidate_indices {
                     let Some(renderer) = target.renderers.get_mut(index) else {
                         continue;
@@ -1013,7 +1086,9 @@ impl RenderContext for PaxGpuRenderer {
                     if !renderer.intersects_coverage_bounds(&coverage_bounds) {
                         // If a dirty node moved out of this tile, skipping begin_node is not
                         // enough: the renderer may still retain that node from an earlier frame.
-                        renderer.renderer.remove_node(node_id);
+                        if renderer.renderer.remove_node(node_id) {
+                            removed.push(index);
+                        }
                         continue;
                     }
                     if renderer.renderer.begin_node(node_id, z_index) {
@@ -1021,6 +1096,10 @@ impl RenderContext for PaxGpuRenderer {
                     }
                 }
                 let began = !selected.is_empty();
+                self.mark_render_surfaces_dirty(
+                    layer,
+                    selected.iter().chain(removed.iter()).copied(),
+                );
                 #[cfg(debug_assertions)]
                 self.update_tile_cull_stats(layer, |stats| {
                     let selected_count = selected.len() as u64;
@@ -1054,11 +1133,46 @@ impl RenderContext for PaxGpuRenderer {
     }
 
     fn remove_node(&mut self, layer: usize, node_id: u32) -> bool {
-        let mut removed = false;
-        self.with_layer_context(layer, |context| {
-            removed = context.remove_node(node_id);
-        });
-        removed
+        let mut backends = self.backends.borrow_mut();
+        match backends.get_mut(layer) {
+            Some(RenderLayerState::Pending) => {
+                let mut failed_context_gets = self.failed_context_gets.borrow_mut();
+                if failed_context_gets.len() <= layer {
+                    failed_context_gets.resize(layer + 1, false);
+                }
+                failed_context_gets[layer] = true;
+                false
+            }
+            Some(RenderLayerState::Failed) => false,
+            Some(RenderLayerState::Ready((target, _))) => {
+                if !target.active {
+                    return false;
+                }
+                target.prepare_for_render();
+                let candidate_indices = 0..target.renderers.len();
+                let mut removed_indices = Vec::new();
+                for index in candidate_indices {
+                    let Some(renderer) = target.renderers.get_mut(index) else {
+                        continue;
+                    };
+                    if renderer.renderer.remove_node(node_id) {
+                        removed_indices.push(index);
+                    }
+                }
+                let removed = !removed_indices.is_empty();
+                if removed {
+                    self.mark_render_surfaces_dirty(layer, removed_indices);
+                }
+                true
+            }
+            None => {
+                log::warn!(
+                    "tried to remove node from layer {} context for non-existent layer",
+                    layer
+                );
+                false
+            }
+        }
     }
 }
 

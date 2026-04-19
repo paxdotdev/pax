@@ -46,6 +46,8 @@ let messages : any[];
 let nativePool = new NativeElementPool(objectManager);
 let textDecoder = new TextDecoder();
 let initializedChassis = false;
+let renderLoopStarting = false;
+let renderLoopStarted = false;
 const perfTraceEnabled = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("pax_scroll_perf");
 let perfTraceSequence = 0;
 
@@ -68,6 +70,10 @@ function withProfileMeasure<T>(name: string, fn: () => T): T {
 }
 
 export function mount(selector_or_element: string | Element, extensionlessUrl: string) {
+    if (renderLoopStarting || renderLoopStarted) {
+        console.warn("Pax render loop already started; ignoring duplicate mount() call.");
+        return;
+    }
 
     //Inject CSS
     let link = document.createElement('link')
@@ -110,12 +116,19 @@ async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxC
 }
 
 async function startRenderLoop(extensionlessUrl: string, mount: Element) {
+    if (renderLoopStarting || renderLoopStarted) {
+        return;
+    }
+    renderLoopStarting = true;
     try {
         let {chassis, get_latest_memory} = await loadWasmModule(extensionlessUrl);
         nativePool.attach(chassis, mount);
         initializeChassis(chassis, mount);
+        renderLoopStarted = true;
+        renderLoopStarting = false;
         requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, get_latest_memory));
     } catch (error) {
+        renderLoopStarting = false;
         console.error("Failed to load or instantiate Wasm module:", error);
     }
 }

@@ -51,6 +51,7 @@ pub struct RuntimeContext {
     pub dirty_canvases: Rc<RefCell<Vec<bool>>>,
     dirty_canvas_nodes: RefCell<HashSet<ExpandedNodeIdentifier>>,
     removed_canvas_nodes: RefCell<Vec<(usize, u32)>>,
+    occlusion_dirty: Cell<bool>,
     screenshot_map: Rc<RefCell<HashMap<u32, ScreenshotData>>>,
     scroller_surface_states: RefCell<HashMap<u32, ScrollerSurfaceState>>,
     layer_scroller_owners: RefCell<HashMap<usize, ExpandedNodeIdentifier>>,
@@ -137,6 +138,7 @@ impl RuntimeContext {
             dirty_canvases: Default::default(),
             dirty_canvas_nodes: Default::default(),
             removed_canvas_nodes: Default::default(),
+            occlusion_dirty: Cell::new(true),
             screenshot_map: Default::default(),
             scroller_surface_states: Default::default(),
             layer_scroller_owners: Default::default(),
@@ -163,6 +165,7 @@ impl RuntimeContext {
             dirty_canvases: Default::default(),
             dirty_canvas_nodes: Default::default(),
             removed_canvas_nodes: Default::default(),
+            occlusion_dirty: Cell::new(true),
             screenshot_map: Default::default(),
             scroller_surface_states: Default::default(),
             layer_scroller_owners: Default::default(),
@@ -179,11 +182,13 @@ impl RuntimeContext {
     /// Add a node to runtime lookup caches.
     pub fn add_to_cache(&self, node: &Rc<ExpandedNode>) {
         borrow_mut!(self.node_cache).add_to_cache(node);
+        self.mark_occlusion_dirty();
     }
 
     /// Remove a node from runtime lookup caches.
     pub fn remove_from_cache(&self, node: &Rc<ExpandedNode>) {
         borrow_mut!(self.node_cache).remove_from_cache(node);
+        self.mark_occlusion_dirty();
     }
 
     /// Look up an expanded node by runtime id.
@@ -205,11 +210,13 @@ impl RuntimeContext {
     /// Remember browser-owned scroller state for native compositing and scroll transforms.
     pub fn set_scroller_surface_state(&self, id: u32, state: ScrollerSurfaceState) {
         borrow_mut!(self.scroller_surface_states).insert(id, state);
+        self.mark_occlusion_dirty();
     }
 
     /// Remove cached scroller surface state.
     pub fn remove_scroller_surface_state(&self, id: u32) {
         borrow_mut!(self.scroller_surface_states).remove(&id);
+        self.mark_occlusion_dirty();
     }
 
     /// Fetch cached scroller surface state by node id.
@@ -239,6 +246,7 @@ impl RuntimeContext {
     /// Mark which node currently delegates root scrolling behavior to the page.
     pub fn set_root_scroller_id(&self, id: Option<u32>) {
         self.root_scroller_id.set(id);
+        self.mark_occlusion_dirty();
     }
 
     /// Current page-scroll-backed root scroller id.
@@ -249,11 +257,13 @@ impl RuntimeContext {
     /// Cache the browser visual viewport state for root scroller math.
     pub fn set_visual_viewport_state(&self, state: VisualViewportState) {
         self.visual_viewport_state.set(Some(state));
+        self.mark_occlusion_dirty();
     }
 
     /// Clear cached visual viewport state.
     pub fn clear_visual_viewport_state(&self) {
         self.visual_viewport_state.set(None);
+        self.mark_occlusion_dirty();
     }
 
     /// Return cached browser visual viewport state, if available.
@@ -290,6 +300,40 @@ impl RuntimeContext {
     /// Check whether a canvas layer needs redraw.
     pub fn is_canvas_dirty(&self, id: &usize) -> bool {
         *borrow!(self.dirty_canvases).get(*id).unwrap_or(&true)
+    }
+
+    pub fn dirty_canvas_layers(&self) -> Vec<usize> {
+        borrow!(self.dirty_canvases)
+            .iter()
+            .enumerate()
+            .filter_map(|(index, dirty)| dirty.then_some(index))
+            .collect()
+    }
+
+    pub fn has_dirty_canvas_layers(&self) -> bool {
+        borrow!(self.dirty_canvases).iter().any(|dirty| *dirty)
+    }
+
+    pub fn has_dirty_canvas_nodes(&self) -> bool {
+        !borrow!(self.dirty_canvas_nodes).is_empty()
+    }
+
+    pub fn has_canvas_node_removals(&self) -> bool {
+        !borrow!(self.removed_canvas_nodes).is_empty()
+    }
+
+    pub fn has_canvas_render_work(&self) -> bool {
+        self.has_dirty_canvas_layers() || self.has_canvas_node_removals()
+    }
+
+    pub fn mark_occlusion_dirty(&self) {
+        self.occlusion_dirty.set(true);
+    }
+
+    pub fn take_occlusion_dirty(&self) -> bool {
+        let dirty = self.occlusion_dirty.get();
+        self.occlusion_dirty.set(false);
+        dirty
     }
 
     pub fn set_all_canvases_dirty(&self) {

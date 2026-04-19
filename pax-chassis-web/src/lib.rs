@@ -598,6 +598,7 @@ impl PaxChassisWeb {
                 globals
                     .browser_allows_nested_scroller_vector_layers
                     .set(args.allow_nested_scroller_vector_layers);
+                engine.runtime_context.mark_occlusion_dirty();
                 false
             }
             NativeInterrupt::VisualViewportUpdate(args) => {

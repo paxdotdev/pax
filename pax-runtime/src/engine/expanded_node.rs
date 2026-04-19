@@ -146,6 +146,9 @@ pub struct ExpandedNode {
     /// used by canvas elements to dirtify their canvas
     pub changed_listener: Property<()>,
 
+    /// Tracks whether this node's occlusion-affecting inputs changed.
+    pub occlusion_listener: Property<()>,
+
     /// used to know when a slot child is attached
     pub slot_child_attached_listener: Property<()>,
 
@@ -286,9 +289,11 @@ impl ExpandedNode {
             slot_index: Property::default(),
             suspended: Property::new(false),
             changed_listener: Property::default(),
+            occlusion_listener: Property::default(),
             slot_child_attached_listener: Property::default(),
             subscriptions: Default::default(),
         });
+        res.bind_occlusion_listener(context);
         res
     }
 
@@ -309,6 +314,8 @@ impl ExpandedNode {
             Some(Rc::clone(&self)),
         );
         self.bind_to_parent_bounds(context);
+        self.bind_occlusion_listener(context);
+        context.mark_occlusion_dirty();
         context.set_canvas_dirty(self.occlusion.get().occlusion_layer_id);
     }
 
@@ -333,6 +340,8 @@ impl ExpandedNode {
         self.occlusion.set(Default::default());
 
         self.bind_to_parent_bounds(context);
+        self.bind_occlusion_listener(context);
+        context.mark_occlusion_dirty();
         Rc::clone(self).recurse_mount(context);
         Rc::clone(self).recurse_update(context);
     }
@@ -470,6 +479,26 @@ impl ExpandedNode {
         ));
     }
 
+    fn bind_occlusion_listener(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
+        let mut deps: Vec<_> = borrow!(self.properties_scope)
+            .values()
+            .map(|v| v.get_untyped_property().clone())
+            .collect();
+        deps.extend([
+            self.children.untyped(),
+            self.transform_and_bounds.untyped(),
+            self.computed_opacity.untyped(),
+        ]);
+
+        let context = Rc::clone(ctx);
+        self.occlusion_listener.replace_with(Property::computed(
+            move || {
+                context.mark_occlusion_dirty();
+            },
+            &deps,
+        ));
+    }
+
     pub fn inherit_suspend(self: &Rc<Self>, node: &Rc<Self>) {
         let cp = self.get_common_properties();
         let self_suspended = borrow!(cp)._suspended.clone();
@@ -526,6 +555,7 @@ impl ExpandedNode {
         Rc::clone(&*borrow!(self.instance_node)).update(&self, context);
         // trigger native message sending
         self.changed_listener.get();
+        self.occlusion_listener.get();
 
         if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
             if !self.suspended.get() {
