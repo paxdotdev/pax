@@ -925,6 +925,13 @@ impl PaxChassisWeb {
         borrow_mut!(self.engine).render(self.render_context.as_mut());
     }
 
+    pub fn layer_canvas_plan_generation(&self) -> u32 {
+        self.engine
+            .borrow()
+            .runtime_context
+            .layer_canvas_plan_generation()
+    }
+
     pub fn get_layer_canvas_plan(&self, layer: usize) -> JsValue {
         let engine = self.engine.borrow();
         let ctx = &engine.runtime_context;

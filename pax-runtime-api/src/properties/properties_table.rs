@@ -1,4 +1,9 @@
-use std::{any::Any, cell::RefCell, rc::Rc};
+use std::{
+    any::Any,
+    cell::RefCell,
+    collections::{HashSet, VecDeque},
+    rc::Rc,
+};
 
 use slotmap::{SlotMap, SparseSecondaryMap};
 
@@ -62,6 +67,9 @@ pub(crate) struct PropertyTable {
     // Box<dyn Any> is of type Box<Entry<T>> where T is the proptype
     pub(crate) property_map: RefCell<SlotMap<PropertyId, Entry>>,
     debug_names: RefCell<SparseSecondaryMap<PropertyId, String>>,
+    effect_properties: RefCell<HashSet<PropertyId>>,
+    queued_effects: RefCell<VecDeque<PropertyId>>,
+    queued_effect_set: RefCell<HashSet<PropertyId>>,
 }
 
 // Reference-counted slotmap entry for one property id.
@@ -272,6 +280,8 @@ impl PropertyTable {
         let target_name = self.debug_name(target_id);
         let mut names = self.debug_names.borrow_mut();
         names.insert(source_id, format!("{}", target_name));
+
+        self.enqueue_effect_if_registered(source_id);
     }
 
     // re-computes the value if dirty
@@ -325,6 +335,7 @@ impl PropertyTable {
     // drop a properties underlying data, making any subsequent calls invalid by panic
     pub fn remove_entry(&self, id: PropertyId) {
         let res = {
+            self.unregister_effect(id);
             self.disconnect_outbound(id);
             self.disconnect_inbound(id);
             let Ok(mut sm) = self.property_map.try_borrow_mut() else {
@@ -352,5 +363,64 @@ impl PropertyTable {
     // Returns the number of live property-table slots.
     pub(crate) fn total_properties_count(&self) -> usize {
         self.property_map.borrow().len()
+    }
+
+    pub(crate) fn register_effect(&self, id: PropertyId) {
+        self.effect_properties.borrow_mut().insert(id);
+        self.enqueue_effect_if_registered(id);
+    }
+
+    pub(crate) fn drain_effects(&self, max_iterations: usize) -> usize {
+        let mut ran = 0;
+        while ran < max_iterations {
+            let Some(id) = self.pop_queued_effect() else {
+                break;
+            };
+            if !self.is_registered_effect(id) || !self.has_live_entry(id) {
+                continue;
+            }
+            let dirty = self.with_property_data(id, |property_data| property_data.dirty);
+            if dirty {
+                self.update_value::<()>(id);
+                ran += 1;
+            }
+        }
+        ran
+    }
+
+    pub(crate) fn enqueue_effect_if_registered(&self, id: PropertyId) {
+        if self.is_registered_effect(id) {
+            self.enqueue_effect(id);
+        }
+    }
+
+    fn enqueue_effect(&self, id: PropertyId) {
+        let mut queued_set = self.queued_effect_set.borrow_mut();
+        if queued_set.insert(id) {
+            self.queued_effects.borrow_mut().push_back(id);
+        }
+    }
+
+    fn pop_queued_effect(&self) -> Option<PropertyId> {
+        let id = self.queued_effects.borrow_mut().pop_front()?;
+        self.queued_effect_set.borrow_mut().remove(&id);
+        Some(id)
+    }
+
+    fn unregister_effect(&self, id: PropertyId) {
+        self.effect_properties.borrow_mut().remove(&id);
+        self.queued_effect_set.borrow_mut().remove(&id);
+    }
+
+    fn is_registered_effect(&self, id: PropertyId) -> bool {
+        self.effect_properties.borrow().contains(&id)
+    }
+
+    fn has_live_entry(&self, id: PropertyId) -> bool {
+        self.property_map
+            .borrow()
+            .get(id)
+            .and_then(|entry| entry.data.as_ref())
+            .is_some()
     }
 }

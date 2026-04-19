@@ -7,15 +7,21 @@ impl PropertyTable {
             self.with_property_data_mut(id, |property_data| property_data.outbound.clone());
 
         while let Some(dep_id) = to_dirtify.pop() {
-            self.with_property_data_mut(dep_id, |dep_data| {
+            let should_queue_effect = self.with_property_data_mut(dep_id, |dep_data| {
                 if dep_id == id {
                     unreachable!("property cycle");
                 }
                 if !dep_data.dirty {
                     dep_data.dirty = true;
                     to_dirtify.extend_from_slice(&dep_data.outbound);
+                    true
+                } else {
+                    false
                 }
             });
+            if should_queue_effect {
+                self.enqueue_effect_if_registered(dep_id);
+            }
         }
     }
 

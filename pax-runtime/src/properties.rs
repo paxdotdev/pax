@@ -1,12 +1,13 @@
 use crate::api::math::Point2;
 use crate::api::Window;
+use crate::constants::{PRE_RENDER_HANDLERS, TICK_HANDLERS};
 use pax_language::interpreter::property_resolution::IdentifierResolver;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, ScreenshotData};
-use pax_runtime_api::properties::UntypedProperty;
+use pax_runtime_api::properties::{drain_effects, register_effect_property, UntypedProperty};
 use pax_runtime_api::{
-    borrow, borrow_mut, use_RefCell, Event, Interpolatable, MouseOut, MouseOver, RenderContext,
-    Store, Variable,
+    borrow, borrow_mut, use_RefCell, Event, Interpolatable, MouseOut, MouseOver, Property,
+    RenderContext, Store, Variable,
 };
 use_RefCell!();
 use std::any::{Any, TypeId};
@@ -52,6 +53,9 @@ pub struct RuntimeContext {
     dirty_canvas_nodes: RefCell<HashSet<ExpandedNodeIdentifier>>,
     removed_canvas_nodes: RefCell<Vec<(usize, u32)>>,
     occlusion_dirty: Cell<bool>,
+    layer_canvas_plan_generation: Cell<u32>,
+    tick_handler_nodes: RefCell<Vec<ExpandedNodeIdentifier>>,
+    pre_render_handler_nodes: RefCell<Vec<ExpandedNodeIdentifier>>,
     screenshot_map: Rc<RefCell<HashMap<u32, ScreenshotData>>>,
     scroller_surface_states: RefCell<HashMap<u32, ScrollerSurfaceState>>,
     layer_scroller_owners: RefCell<HashMap<usize, ExpandedNodeIdentifier>>,
@@ -139,6 +143,9 @@ impl RuntimeContext {
             dirty_canvas_nodes: Default::default(),
             removed_canvas_nodes: Default::default(),
             occlusion_dirty: Cell::new(true),
+            layer_canvas_plan_generation: Cell::new(1),
+            tick_handler_nodes: Default::default(),
+            pre_render_handler_nodes: Default::default(),
             screenshot_map: Default::default(),
             scroller_surface_states: Default::default(),
             layer_scroller_owners: Default::default(),
@@ -166,6 +173,9 @@ impl RuntimeContext {
             dirty_canvas_nodes: Default::default(),
             removed_canvas_nodes: Default::default(),
             occlusion_dirty: Cell::new(true),
+            layer_canvas_plan_generation: Cell::new(1),
+            tick_handler_nodes: Default::default(),
+            pre_render_handler_nodes: Default::default(),
             screenshot_map: Default::default(),
             scroller_surface_states: Default::default(),
             layer_scroller_owners: Default::default(),
@@ -182,13 +192,90 @@ impl RuntimeContext {
     /// Add a node to runtime lookup caches.
     pub fn add_to_cache(&self, node: &Rc<ExpandedNode>) {
         borrow_mut!(self.node_cache).add_to_cache(node);
+        self.register_node_lifecycle_handlers(node);
         self.mark_occlusion_dirty();
     }
 
     /// Remove a node from runtime lookup caches.
     pub fn remove_from_cache(&self, node: &Rc<ExpandedNode>) {
         borrow_mut!(self.node_cache).remove_from_cache(node);
+        self.unregister_node_lifecycle_handlers(node.id);
         self.mark_occlusion_dirty();
+    }
+
+    pub fn register_node_effect_property(
+        &self,
+        _node: ExpandedNodeIdentifier,
+        prop: &Property<()>,
+    ) {
+        register_effect_property(prop);
+    }
+
+    pub fn register_node_effect(
+        &self,
+        node: ExpandedNodeIdentifier,
+        dependencies: &[UntypedProperty],
+        effect: impl Fn() + 'static,
+    ) -> Property<()> {
+        let prop = Property::computed(effect, dependencies);
+        self.register_node_effect_property(node, &prop);
+        prop
+    }
+
+    pub fn drain_node_effects(&self) {
+        const MAX_NODE_EFFECTS_PER_TICK: usize = 100_000;
+        let drained = drain_effects(MAX_NODE_EFFECTS_PER_TICK);
+        if drained == MAX_NODE_EFFECTS_PER_TICK {
+            log::warn!(
+                "node effect drain hit {} effects in one tick; deferring remaining effects",
+                MAX_NODE_EFFECTS_PER_TICK
+            );
+        }
+    }
+
+    pub fn tick_handler_nodes(&self) -> Vec<ExpandedNodeIdentifier> {
+        borrow!(self.tick_handler_nodes).clone()
+    }
+
+    pub fn pre_render_handler_nodes(&self) -> Vec<ExpandedNodeIdentifier> {
+        borrow!(self.pre_render_handler_nodes).clone()
+    }
+
+    fn register_node_lifecycle_handlers(&self, node: &Rc<ExpandedNode>) {
+        let registry = borrow!(node.instance_node)
+            .base()
+            .handler_registry
+            .as_ref()
+            .map(Rc::clone);
+        let Some(registry) = registry else {
+            return;
+        };
+        let handlers = &borrow!(registry).handlers;
+        if handlers.get(TICK_HANDLERS).is_some_and(|h| !h.is_empty()) {
+            self.register_lifecycle_handler(&self.tick_handler_nodes, node.id);
+        }
+        if handlers
+            .get(PRE_RENDER_HANDLERS)
+            .is_some_and(|h| !h.is_empty())
+        {
+            self.register_lifecycle_handler(&self.pre_render_handler_nodes, node.id);
+        }
+    }
+
+    fn unregister_node_lifecycle_handlers(&self, id: ExpandedNodeIdentifier) {
+        borrow_mut!(self.tick_handler_nodes).retain(|node_id| *node_id != id);
+        borrow_mut!(self.pre_render_handler_nodes).retain(|node_id| *node_id != id);
+    }
+
+    fn register_lifecycle_handler(
+        &self,
+        handler_nodes: &RefCell<Vec<ExpandedNodeIdentifier>>,
+        id: ExpandedNodeIdentifier,
+    ) {
+        let mut handler_nodes = borrow_mut!(handler_nodes);
+        if !handler_nodes.contains(&id) {
+            handler_nodes.push(id);
+        }
     }
 
     /// Look up an expanded node by runtime id.
@@ -210,12 +297,14 @@ impl RuntimeContext {
     /// Remember browser-owned scroller state for native compositing and scroll transforms.
     pub fn set_scroller_surface_state(&self, id: u32, state: ScrollerSurfaceState) {
         borrow_mut!(self.scroller_surface_states).insert(id, state);
+        self.mark_layer_canvas_plans_dirty();
         self.mark_occlusion_dirty();
     }
 
     /// Remove cached scroller surface state.
     pub fn remove_scroller_surface_state(&self, id: u32) {
         borrow_mut!(self.scroller_surface_states).remove(&id);
+        self.mark_layer_canvas_plans_dirty();
         self.mark_occlusion_dirty();
     }
 
@@ -227,6 +316,7 @@ impl RuntimeContext {
     /// Clear layer-to-scroller ownership before recomputing occlusion.
     pub fn clear_layer_scroller_owners(&self) {
         borrow_mut!(self.layer_scroller_owners).clear();
+        self.mark_layer_canvas_plans_dirty();
     }
 
     /// Record that a canvas layer is owned by a particular scroller.
@@ -236,6 +326,7 @@ impl RuntimeContext {
         scroller_id: ExpandedNodeIdentifier,
     ) {
         borrow_mut!(self.layer_scroller_owners).insert(layer_id, scroller_id);
+        self.mark_layer_canvas_plans_dirty();
     }
 
     /// Find the scroller that owns a canvas layer, when one exists.
@@ -246,6 +337,7 @@ impl RuntimeContext {
     /// Mark which node currently delegates root scrolling behavior to the page.
     pub fn set_root_scroller_id(&self, id: Option<u32>) {
         self.root_scroller_id.set(id);
+        self.mark_layer_canvas_plans_dirty();
         self.mark_occlusion_dirty();
     }
 
@@ -257,12 +349,14 @@ impl RuntimeContext {
     /// Cache the browser visual viewport state for root scroller math.
     pub fn set_visual_viewport_state(&self, state: VisualViewportState) {
         self.visual_viewport_state.set(Some(state));
+        self.mark_layer_canvas_plans_dirty();
         self.mark_occlusion_dirty();
     }
 
     /// Clear cached visual viewport state.
     pub fn clear_visual_viewport_state(&self) {
         self.visual_viewport_state.set(None);
+        self.mark_layer_canvas_plans_dirty();
         self.mark_occlusion_dirty();
     }
 
@@ -279,6 +373,18 @@ impl RuntimeContext {
         for dirty in dirty_canvases.iter_mut().skip(old_len) {
             *dirty = true;
         }
+        if old_len != id {
+            self.mark_layer_canvas_plans_dirty();
+        }
+    }
+
+    pub fn mark_layer_canvas_plans_dirty(&self) {
+        let next = self.layer_canvas_plan_generation.get().wrapping_add(1);
+        self.layer_canvas_plan_generation.set(next.max(1));
+    }
+
+    pub fn layer_canvas_plan_generation(&self) -> u32 {
+        self.layer_canvas_plan_generation.get()
     }
 
     /// Mark every canvas layer clean.

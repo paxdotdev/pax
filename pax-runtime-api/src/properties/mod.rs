@@ -221,6 +221,16 @@ pub fn property_table_total_properties_count() -> usize {
     PROPERTY_TABLE.with(|t| t.total_properties_count())
 }
 
+#[doc(hidden)]
+pub fn register_effect_property(prop: &Property<()>) {
+    PROPERTY_TABLE.with(|t| t.register_effect(prop.untyped.id));
+}
+
+#[doc(hidden)]
+pub fn drain_effects(max_iterations: usize) -> usize {
+    PROPERTY_TABLE.with(|t| t.drain_effects(max_iterations))
+}
+
 // Registers the runtime clock property used by transition/easing machinery.
 pub fn register_time(prop: &Property<u64>) {
     PROPERTY_TIME.with_borrow_mut(|time| *time = prop.clone());

@@ -57,6 +57,7 @@ import {
     estimateWarmLayerCanvasCount,
     isIOSWebKitBrowser,
 } from "./surface-host-policy";
+import type { LayerCanvasPlan } from "./surface-host-policy";
 import { CanvasPool } from "./canvas-pool";
 
 const SCREENSHOT_FONT_STYLE_ATTRIBUTE = 'data-pax-screenshot-font-style';
@@ -67,6 +68,7 @@ export class NativeElementPool {
     private lastCanvasSurfaceSignatures = new Map<string, string>();
     private lastCanvasTransformSignatures = new Map<string, string>();
     private lastCanvasLayerCounts = new Map<number, number>();
+    private layerCanvasPlanCache = new Map<number, LayerCanvasPlan | null>();
     layers: OcclusionLayerManager;
     private nodesLookup = new Map<number, HTMLElement>();
     private scrollerHosts = new Map<number, ScrollerDomHosts>();
@@ -74,6 +76,8 @@ export class NativeElementPool {
     private presentationRecords = new Map<number, PresentationRecord>();
     private pendingScrollerUpdates = new Map<number, PendingScrollerUpdate>();
     private surfaceRefreshPending = false;
+    private lastLayerCanvasPlanGeneration?: number;
+    private lastLayerCanvasPlanDevicePixelRatio?: number;
     private chassis?: PaxChassisWeb;
     private mount?: HTMLElement;
     private activePageScrollScrollerId?: number;
@@ -1514,12 +1518,30 @@ export class NativeElementPool {
     }
 
     syncRenderSurfaceLayouts() {
+        let layerCanvasPlanGeneration = this.chassis?.layer_canvas_plan_generation() ?? -1;
+        let devicePixelRatio =
+            typeof window !== "undefined" ? Math.max(window.devicePixelRatio || 1, 1) : 1;
+        let planInputsChanged =
+            this.lastLayerCanvasPlanGeneration !== layerCanvasPlanGeneration
+            || this.lastLayerCanvasPlanDevicePixelRatio !== devicePixelRatio;
+        if (planInputsChanged) {
+            this.layerCanvasPlanCache.clear();
+        }
         this.syncWarmScrollerHosts();
+        if (
+            !this.surfaceRefreshPending
+            && !planInputsChanged
+        ) {
+            return;
+        }
+        this.lastLayerCanvasPlanGeneration = layerCanvasPlanGeneration;
+        this.lastLayerCanvasPlanDevicePixelRatio = devicePixelRatio;
         this.layers.syncLayerCanvasLayouts((layerId) => {
             if (!this.chassis) {
                 return undefined;
             }
             let plan = this.chassis.get_layer_canvas_plan(layerId);
+            this.layerCanvasPlanCache.set(layerId, plan ?? null);
             if (plan && layerId !== 0) {
                 let warmState = this.layerWarmState(layerId);
                 if (warmState === "cold") {
@@ -1640,8 +1662,13 @@ export class NativeElementPool {
 
 
     private estimateWarmLayerCanvasCount(layerId: number, host?: HTMLElement) {
+        let cachedPlan = this.layerCanvasPlanCache.get(layerId);
+        if (cachedPlan && Array.isArray(cachedPlan.surfaces)) {
+            return cachedPlan.surfaces.length;
+        }
         if (this.chassis) {
             let plan = this.chassis.get_layer_canvas_plan(layerId);
+            this.layerCanvasPlanCache.set(layerId, plan ?? null);
             if (plan && Array.isArray(plan.surfaces)) {
                 return plan.surfaces.length;
             }

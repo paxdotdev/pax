@@ -68,6 +68,10 @@ export class PaxChassisWeb {
 */
   render(): void;
 /**
+* @returns {number}
+*/
+  layer_canvas_plan_generation(): number;
+/**
 * @param {number} layer
 * @returns {any}
 */
@@ -117,6 +121,7 @@ export interface InitOutput {
   readonly paxchassisweb_designtime_tick: (a: number) => void;
   readonly paxchassisweb_tick: (a: number) => number;
   readonly paxchassisweb_render: (a: number) => void;
+  readonly paxchassisweb_layer_canvas_plan_generation: (a: number) => number;
   readonly paxchassisweb_get_layer_canvas_plan: (a: number, b: number) => number;
   readonly paxchassisweb_request_layer_screenshot: (a: number, b: number, c: number) => void;
   readonly paxchassisweb_take_layer_screenshot: (a: number, b: number, c: number) => number;

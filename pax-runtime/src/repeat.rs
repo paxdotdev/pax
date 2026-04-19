@@ -159,6 +159,7 @@ impl RepeatInstance {
         let last_length = Rc::new(RefCell::new(0));
         let last_elem_sym = Rc::new(RefCell::new(None));
         let last_i_sym = Rc::new(RefCell::new(None));
+        let last_children = Rc::new(RefCell::new(Vec::new()));
 
         let children = Property::computed_with_name(
             move || {
@@ -182,7 +183,7 @@ impl RepeatInstance {
                     && i_symbol.read(|i| i == &*borrow!(last_i_sym))
                     && elem_symbol.read(|e| e == &*borrow!(last_elem_sym))
                 {
-                    return cloned_expanded_node.children.get();
+                    return borrow!(last_children).clone();
                 }
                 *borrow_mut!(last_length) = source_len;
                 *borrow_mut!(last_i_sym) = i_symbol.get();
@@ -240,6 +241,7 @@ impl RepeatInstance {
                     &cloned_expanded_node.parent_frame,
                     is_mount,
                 );
+                *borrow_mut!(last_children) = ret.clone();
                 ret
             },
             &deps,

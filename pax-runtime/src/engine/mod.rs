@@ -1,3 +1,4 @@
+use crate::constants::{PRE_RENDER_HANDLERS, TICK_HANDLERS};
 use crate::{
     api::Property, ExpandedNodeIdentifier, RuntimePropertiesStackFrame, TransformAndBounds,
 };
@@ -337,16 +338,15 @@ impl PaxEngine {
     ///     a. find lowest node (last child of last node)
     ///     b. start rendering, from lowest node on-up, throughout tree
     pub fn tick(&mut self) -> Vec<NativeMessage> {
-        //
-        // 1. UPDATE NODES (properties, etc.). This part we should be able to
-        // completely remove once reactive properties dirty-dag is a thing.
-        //
-        self.root_expanded_node
-            .recurse_update(&mut self.runtime_context);
-
         let ctx = &self.runtime_context;
+        self.run_lifecycle_handlers(TICK_HANDLERS, ctx.tick_handler_nodes());
+        ctx.drain_node_effects();
+        self.run_lifecycle_handlers(PRE_RENDER_HANDLERS, ctx.pre_render_handler_nodes());
+        ctx.drain_node_effects();
+
         if ctx.take_occlusion_dirty() {
             occlusion::update_node_occlusion(&self.root_expanded_node, ctx);
+            ctx.drain_node_effects();
         }
         let time = &ctx.globals().frames_elapsed;
         time.set(time.get() + 1);
@@ -354,6 +354,14 @@ impl PaxEngine {
         ctx.flush_custom_events().unwrap();
         let native_messages = ctx.take_native_messages();
         native_messages
+    }
+
+    fn run_lifecycle_handlers(&self, handler_key: &str, nodes: Vec<ExpandedNodeIdentifier>) {
+        for node_id in nodes {
+            if let Some(node) = self.runtime_context.get_expanded_node_by_eid(node_id) {
+                node.run_lifecycle_handlers(handler_key, &self.runtime_context);
+            }
+        }
     }
 
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
@@ -413,6 +421,7 @@ impl PaxEngine {
                 .viewport
                 .update(|t_and_b| t_and_b.bounds = new_viewport_size);
         });
+        self.runtime_context.mark_layer_canvas_plans_dirty();
         self.runtime_context.mark_occlusion_dirty();
     }
 

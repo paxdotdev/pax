@@ -105,7 +105,8 @@ impl ConditionalInstance {
 
         let dep = cond_expr.untyped();
 
-        let old_val = RefCell::new(false);
+        let old_val = RefCell::new(None);
+        let last_children = RefCell::new(Vec::new());
         expanded_node
             .children
             .replace_with(Property::computed_with_name(
@@ -114,21 +115,20 @@ impl ConditionalInstance {
                         panic!("ran evaluator after expanded node dropped (conditional elem)")
                     };
                     let val = cond_expr.get();
-                    if val == *borrow!(old_val) {
-                        return cloned_expanded_node.children.get();
+                    if Some(val) == *borrow!(old_val) {
+                        return borrow!(last_children).clone();
                     }
-                    *borrow_mut!(old_val) = val;
-                    if val {
+                    *borrow_mut!(old_val) = Some(val);
+                    let ret = if val {
                         let env = Rc::clone(&cloned_expanded_node.stack);
                         let children = borrow!(cloned_self.base().get_instance_children());
                         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
-                        let res = cloned_expanded_node.generate_children(
+                        cloned_expanded_node.generate_children(
                             children_with_envs,
                             &cloned_context,
                             &cloned_expanded_node.parent_frame,
                             is_mount,
-                        );
-                        res
+                        )
                     } else {
                         cloned_expanded_node.generate_children(
                             vec![],
@@ -136,7 +136,9 @@ impl ConditionalInstance {
                             &cloned_expanded_node.parent_frame,
                             is_mount,
                         )
-                    }
+                    };
+                    *borrow_mut!(last_children) = ret.clone();
+                    ret
                 },
                 &[dep],
                 &format!("conditional_children (node id: {})", expanded_node.id.0),

@@ -1,4 +1,5 @@
 use super::*;
+use std::{cell::Cell, rc::Rc};
 
 #[test]
 fn test_literal_set_get() {
@@ -84,4 +85,36 @@ fn test_recursive_props() {
         assert_eq!(prop_of_prop.get().get(), prop_of_prop_clone.get().get());
     }
     assert!(PROPERTY_TABLE.with(|t| t.property_map.borrow().is_empty()));
+}
+
+#[test]
+fn test_registered_effect_drains_when_dirty() {
+    let source = Property::new(1);
+    let eval_count = Rc::new(Cell::new(0));
+    let seen_value = Rc::new(Cell::new(0));
+
+    let source_for_effect = source.clone();
+    let eval_count_for_effect = Rc::clone(&eval_count);
+    let seen_value_for_effect = Rc::clone(&seen_value);
+    let effect = Property::computed(
+        move || {
+            eval_count_for_effect.set(eval_count_for_effect.get() + 1);
+            seen_value_for_effect.set(source_for_effect.get());
+        },
+        &[source.untyped()],
+    );
+    register_effect_property(&effect);
+
+    assert_eq!(eval_count.get(), 0);
+    assert_eq!(drain_effects(10), 1);
+    assert_eq!(eval_count.get(), 1);
+    assert_eq!(seen_value.get(), 1);
+
+    source.set(2);
+    source.set(3);
+    assert_eq!(eval_count.get(), 1);
+    assert_eq!(drain_effects(10), 1);
+    assert_eq!(eval_count.get(), 2);
+    assert_eq!(seen_value.get(), 3);
+    assert_eq!(drain_effects(10), 0);
 }

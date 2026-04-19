@@ -23,5 +23,6 @@ pub const MOUSE_OUT_HANDLERS: &str = "mouse_out";
 pub const DOUBLE_CLICK_HANDLERS: &str = "double_click";
 pub const CONTEXT_MENU_HANDLERS: &str = "context_menu";
 pub const WHEEL_HANDLERS: &str = "wheel";
+pub const TICK_HANDLERS: &str = "tick";
 pub const PRE_RENDER_HANDLERS: &str = "pre_render";
 pub const MOUNT_HANDLERS: &str = "mount";

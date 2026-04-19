@@ -80,9 +80,13 @@ impl NodeContext {
 
     /// Attach a dependency subscription whose callback runs when any dependency dirties.
     pub fn subscribe(&self, dependencies: &[UntypedProperty], f: impl Fn() + 'static) {
-        let subscription_prop = Property::computed(f, dependencies);
         match self.expanded_node.upgrade() {
-            Some(expanded_node) => borrow_mut!(expanded_node.subscriptions).push(subscription_prop),
+            Some(expanded_node) => {
+                let subscription_prop =
+                    self.runtime_context
+                        .register_node_effect(expanded_node.id, dependencies, f);
+                borrow_mut!(expanded_node.subscriptions).push(subscription_prop);
+            }
             None => log::warn!("couldn't add subscription: node doesn't exist anymore"),
         }
     }

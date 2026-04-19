@@ -12,9 +12,9 @@ use crate::constants::{
     CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, DROP_HANDLERS, FOCUSED_HANDLERS,
     KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS, KEY_UP_HANDLERS, MOUSE_DOWN_HANDLERS,
     MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS, MOUSE_OVER_HANDLERS, MOUSE_UP_HANDLERS,
-    SCROLL_HANDLERS, SELECT_START_HANDLERS, TEXTBOX_CHANGE_HANDLERS, TEXTBOX_INPUT_HANDLERS,
-    TEXT_INPUT_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS,
-    WHEEL_HANDLERS,
+    PRE_RENDER_HANDLERS, SCROLL_HANDLERS, SELECT_START_HANDLERS, TEXTBOX_CHANGE_HANDLERS,
+    TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS, TICK_HANDLERS, TOUCH_END_HANDLERS,
+    TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use_RefCell!();
 use crate::{ExpandedNodeIdentifier, Globals, LayoutProperties, TransformAndBounds};
@@ -148,6 +148,9 @@ pub struct ExpandedNode {
 
     /// Tracks whether this node's occlusion-affecting inputs changed.
     pub occlusion_listener: Property<()>,
+
+    /// Pulls the node's children property only when its upstream dependencies changed.
+    pub children_listener: Property<()>,
 
     /// used to know when a slot child is attached
     pub slot_child_attached_listener: Property<()>,
@@ -290,10 +293,12 @@ impl ExpandedNode {
             suspended: Property::new(false),
             changed_listener: Property::default(),
             occlusion_listener: Property::default(),
+            children_listener: Property::default(),
             slot_child_attached_listener: Property::default(),
             subscriptions: Default::default(),
         });
         res.bind_occlusion_listener(context);
+        res.bind_children_listener(context);
         res
     }
 
@@ -343,7 +348,7 @@ impl ExpandedNode {
         self.bind_occlusion_listener(context);
         context.mark_occlusion_dirty();
         Rc::clone(self).recurse_mount(context);
-        Rc::clone(self).recurse_update(context);
+        context.drain_node_effects();
     }
 
     /// Returns whether this node is a descendant of the ExpandedNode described by `other_expanded_node_id` (id)
@@ -497,6 +502,29 @@ impl ExpandedNode {
             },
             &deps,
         ));
+        ctx.register_node_effect_property(self.id, &self.occlusion_listener);
+    }
+
+    fn bind_children_listener(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
+        let deps = [self.children.untyped()];
+        let weak_self = Rc::downgrade(self);
+        let context = Rc::clone(ctx);
+        self.children_listener.replace_with(Property::computed(
+            move || {
+                let Some(node) = weak_self.upgrade() else {
+                    return;
+                };
+                let _ = node.children.get();
+                if borrow!(node.instance_node).base().flags().is_component
+                    || borrow!(node.expanded_slot_children).is_some()
+                {
+                    node.compute_flattened_slot_children();
+                }
+                context.mark_occlusion_dirty();
+            },
+            &deps,
+        ));
+        ctx.register_node_effect_property(self.id, &self.children_listener);
     }
 
     pub fn inherit_suspend(self: &Rc<Self>, node: &Rc<Self>) {
@@ -536,12 +564,16 @@ impl ExpandedNode {
 
     /// This method recursively updates all node properties. When dirty-dag exists, this won't
     /// need to be here since all property dependencies can be set up and removed during mount/unmount
-    pub fn recurse_update(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+    pub fn run_lifecycle_handlers(
+        self: &Rc<Self>,
+        handler_key: &str,
+        context: &Rc<RuntimeContext>,
+    ) {
         if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
             if !self.suspended.get() {
                 for handler in borrow!(registry)
                     .handlers
-                    .get("tick")
+                    .get(handler_key)
                     .unwrap_or(&Vec::new())
                 {
                     (handler.function)(
@@ -552,26 +584,16 @@ impl ExpandedNode {
                 }
             }
         }
+    }
+
+    pub fn recurse_update(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        self.run_lifecycle_handlers(TICK_HANDLERS, context);
         Rc::clone(&*borrow!(self.instance_node)).update(&self, context);
         // trigger native message sending
         self.changed_listener.get();
         self.occlusion_listener.get();
 
-        if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
-            if !self.suspended.get() {
-                for handler in borrow!(registry)
-                    .handlers
-                    .get("pre_render")
-                    .unwrap_or(&Vec::new())
-                {
-                    (handler.function)(
-                        Rc::clone(&*borrow!(self.properties)),
-                        &self.get_node_context(context),
-                        None,
-                    )
-                }
-            }
-        }
+        self.run_lifecycle_handlers(PRE_RENDER_HANDLERS, context);
         for subscription in &*borrow!(self.subscriptions) {
             // fire dirty bit if present
             subscription.get();
@@ -626,6 +648,7 @@ impl ExpandedNode {
             borrow!(self.instance_node)
                 .clone()
                 .handle_mount(&self, context);
+            context.register_node_effect_property(self.id, &self.changed_listener);
         }
     }
 
@@ -666,6 +689,8 @@ impl ExpandedNode {
             // Needed because occlusion updates are only sent on diffs so we reset it when unmounting
             self.occlusion.set(Default::default());
             self.browser_content_layer_id.set(None);
+            self.changed_listener.replace_with(Property::default());
+            borrow_mut!(self.subscriptions).clear();
         }
     }
 
