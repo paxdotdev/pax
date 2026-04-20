@@ -1,7 +1,7 @@
 #[cfg(test)]
 #[cfg(feature = "parsing")]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -10,14 +10,14 @@ mod tests {
     use pax_manifest::{
         code_serialization::press_code_serialization_template,
         parsing::{
-            assemble_component_definition, parse_timeline_from_component_definition_string,
-            ParsingContext,
+            assemble_component_definition, parse_settings_from_component_definition_string,
+            parse_timeline_from_component_definition_string, ParsingContext,
         },
         utils, ComponentDefinition, ComponentTemplate, ControlFlowConditionalBranchKind,
-        PaxIdentifier, SettingElement, TemplateNodeDefinition, TimelineBlockElement,
-        TimelineDefinition, TimelineKeyframe, TimelineMarker, TimelineSelectorBlockDefinition,
-        TimelineSelectorElement, TimelineTrackDefinition, TimelineTrackElement, Token, TypeId,
-        ValueDefinition,
+        PaxIdentifier, PaxManifest, SettingElement, SettingsBlockElement, TemplateNodeDefinition,
+        TimelineBlockElement, TimelineDefinition, TimelineKeyframe, TimelineMarker,
+        TimelineSelectorBlockDefinition, TimelineSelectorElement, TimelineTrackDefinition,
+        TimelineTrackElement, Token, TypeId, ValueDefinition,
     };
 
     fn write_temp_rust_source(contents: &str) -> std::path::PathBuf {
@@ -198,6 +198,107 @@ mod tests {
                 .map(|token| token.token_value.as_str()),
             Some("breeze")
         );
+    }
+
+    #[test]
+    fn test_parse_transition_bindings_from_settings_block() {
+        let component = parse_pax_str(
+            Rule::pax_component_definition,
+            r#"
+                <Group />
+
+                @settings {
+                    @in: enter,
+                    @out: exit,
+                }
+            "#,
+        )
+        .expect("component should parse");
+
+        let settings = parse_settings_from_component_definition_string(component);
+        assert!(matches!(
+            &settings[0],
+            SettingsBlockElement::Transition(key, value)
+                if key.token_value == "in" && value.token_value == "enter"
+        ));
+        assert!(matches!(
+            &settings[1],
+            SettingsBlockElement::Transition(key, value)
+                if key.token_value == "out" && value.token_value == "exit"
+        ));
+    }
+
+    #[test]
+    fn test_transition_timeline_blocks_lower_to_transition_properties() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let text_type_id = TypeId::build_singleton("Text", Some("Text"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Text".to_string(), text_type_id);
+
+        let pax = r#"
+            <Text id=hero opacity=0.5 />
+
+            @settings {
+                @in: enter,
+                @out: exit,
+            }
+
+            @timeline enter {
+                #hero {
+                    opacity: {
+                        0: 0,
+                        10: 1,
+                    },
+                }
+            }
+
+            @timeline exit {
+                #hero {
+                    opacity: {
+                        0: 1,
+                        10: 0,
+                    },
+                }
+            }
+        "#;
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            pax,
+            false,
+            template_map,
+            "crate",
+            component_type_id.clone(),
+            "example.pax",
+            file!(),
+        );
+        let mut components = BTreeMap::new();
+        components.insert(component_type_id.clone(), component);
+        let manifest = PaxManifest {
+            components,
+            main_component_type_id: component_type_id.clone(),
+            type_table: Default::default(),
+            assets_dirs: vec![],
+            engine_import_path: "pax_kit::pax_engine".to_string(),
+        };
+
+        let component = manifest.components.get(&component_type_id).unwrap();
+        let template = component.template.as_ref().unwrap();
+        let root_id = template.get_root().remove(0);
+        let node = template.get_node(&root_id).unwrap();
+        let common = manifest.get_inline_common_properties(&component_type_id, node);
+
+        match common.get("opacity") {
+            Some(ValueDefinition::Transition(transition)) => {
+                assert!(transition.enter.is_some());
+                assert!(transition.exit.is_some());
+                assert!(matches!(
+                    transition.starting_value.as_deref(),
+                    Some(ValueDefinition::LiteralValue(PaxValue::Numeric(_)))
+                ));
+            }
+            other => panic!("expected transition opacity, got {:?}", other),
+        }
     }
 
     #[test]

@@ -147,7 +147,6 @@ impl ConditionalInstance {
         let branch_child_ranges = self.branch_child_ranges.clone();
 
         let old_active_branch = RefCell::new(None::<Option<usize>>);
-        let last_children = RefCell::new(Vec::new());
         expanded_node
             .children
             .replace_with(Property::computed_with_name(
@@ -160,7 +159,7 @@ impl ConditionalInstance {
                         .enumerate()
                         .find_map(|(index, condition)| condition.get().then_some(index));
                     if *borrow!(old_active_branch) == Some(active_branch) {
-                        return borrow!(last_children).clone();
+                        return cloned_expanded_node.current_attached_children();
                     }
                     *borrow_mut!(old_active_branch) = Some(active_branch);
 
@@ -184,7 +183,6 @@ impl ConditionalInstance {
                         &cloned_expanded_node.parent_frame,
                         is_mount,
                     );
-                    *borrow_mut!(last_children) = ret.clone();
                     ret
                 },
                 &deps,

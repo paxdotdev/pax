@@ -29,6 +29,10 @@ use crate::api::{
     NodeContext, RenderContext, Scroll, Size, TextboxChange, TextboxInput, TouchEnd, TouchMove,
     TouchStart, Wheel, Window,
 };
+use pax_manifest::cartridge_generation::{
+    TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT, TRANSITION_PHASE_IDLE, TRANSITION_PHASE_SYMBOL,
+    TRANSITION_PLAYHEAD_SYMBOL,
+};
 
 use crate::{
     compute_tab, ComponentInstance, HandlerLocation, InstanceNode, InstanceNodePtr, RuntimeContext,
@@ -75,6 +79,12 @@ pub struct ExpandedNode {
 
     /// A list of mounted children that need to be dismounted when children is recalculated
     pub mounted_children: RefCell<Vec<Rc<ExpandedNode>>>,
+
+    /// Children that represent the currently selected control-flow/template output.
+    pub active_children: RefCell<Vec<Rc<ExpandedNode>>>,
+
+    /// Children retained only so exit transitions can finish before unmount.
+    pub exiting_children: RefCell<Vec<Rc<ExpandedNode>>>,
 
     /// Auxiliary children participate in update/layout but are not mounted or rendered directly.
     pub sidecar_children: RefCell<Vec<Rc<ExpandedNode>>>,
@@ -157,6 +167,19 @@ pub struct ExpandedNode {
 
     /// subscription properties: added to this expanded node by calling ctx.subscribe in a node event handler
     pub subscriptions: RefCell<Vec<Property<()>>>,
+
+    /// Current lifecycle transition phase for this node.
+    pub transition_phase: Property<u64>,
+    /// Frame at which the active lifecycle transition began.
+    pub transition_origin_frame: Property<u64>,
+    /// Local playhead, in frames, for the active lifecycle transition.
+    pub transition_playhead: Property<f64>,
+    /// Wall-clock start for exit timeout enforcement.
+    pub exit_started_millis: Cell<Option<u128>>,
+    /// Effect property used to release deferred exit children.
+    pub exit_cleanup_listener: Property<()>,
+    /// Whether exit cleanup should do work on frame ticks.
+    pub exit_cleanup_active: Cell<bool>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -241,6 +264,44 @@ impl ExpandedNode {
         containing_component: Weak<ExpandedNode>,
         parent: Weak<ExpandedNode>,
     ) -> Rc<Self> {
+        let transition_config = template.base().transition_config().clone();
+        let has_transition_bindings = transition_config.has_enter || transition_config.has_exit;
+        let transition_phase = Property::new_with_name(TRANSITION_PHASE_IDLE, "transition phase");
+        let transition_origin_frame =
+            Property::new_with_name(context.globals().frames_elapsed.get(), "transition origin");
+        let frames_elapsed = context.globals().frames_elapsed.clone();
+        let frames_elapsed_for_playhead = frames_elapsed.clone();
+        let transition_origin_frame_for_playhead = transition_origin_frame.clone();
+        let transition_playhead = Property::computed_with_name(
+            move || {
+                frames_elapsed_for_playhead
+                    .get()
+                    .saturating_sub(transition_origin_frame_for_playhead.get())
+                    as f64
+            },
+            &[frames_elapsed.untyped(), transition_origin_frame.untyped()],
+            "transition playhead",
+        );
+
+        let env = if has_transition_bindings {
+            env.push(
+                vec![
+                    (
+                        TRANSITION_PHASE_SYMBOL.to_string(),
+                        Variable::new_from_typed_property(transition_phase.clone()),
+                    ),
+                    (
+                        TRANSITION_PLAYHEAD_SYMBOL.to_string(),
+                        Variable::new_from_typed_property(transition_playhead.clone()),
+                    ),
+                ]
+                .into_iter()
+                .collect(),
+            )
+        } else {
+            env
+        };
+
         let properties =
             (&template.base().instance_prototypical_properties_factory)(env.clone(), None).unwrap();
 
@@ -278,6 +339,8 @@ impl ExpandedNode {
                 &format!("node children (node id: {})", id.0),
             ),
             mounted_children: RefCell::new(Vec::new()),
+            active_children: RefCell::new(Vec::new()),
+            exiting_children: RefCell::new(Vec::new()),
             sidecar_children: RefCell::new(Vec::new()),
             transform_and_bounds: Property::new(TransformAndBounds::default()),
             computed_opacity: Property::new(1.0),
@@ -296,6 +359,12 @@ impl ExpandedNode {
             children_listener: Property::default(),
             slot_child_attached_listener: Property::default(),
             subscriptions: Default::default(),
+            transition_phase,
+            transition_origin_frame,
+            transition_playhead,
+            exit_started_millis: Cell::new(None),
+            exit_cleanup_listener: Property::default(),
+            exit_cleanup_active: Cell::new(false),
         });
         res.bind_occlusion_listener(context);
         res.bind_children_listener(context);
@@ -393,15 +462,144 @@ impl ExpandedNode {
         children
     }
 
+    pub(crate) fn current_attached_children(&self) -> Vec<Rc<ExpandedNode>> {
+        borrow!(self.mounted_children).clone()
+    }
+
+    fn sync_mounted_children_from_active_and_exiting(&self) -> Vec<Rc<ExpandedNode>> {
+        let mut combined = borrow!(self.exiting_children).clone();
+        combined.extend(borrow!(self.active_children).iter().cloned());
+        *borrow_mut!(self.mounted_children) = combined.clone();
+        combined
+    }
+
+    fn has_child(children: &[Rc<ExpandedNode>], target: &Rc<ExpandedNode>) -> bool {
+        children.iter().any(|child| Rc::ptr_eq(child, target))
+    }
+
+    fn has_exit_transition(&self) -> bool {
+        borrow!(self.instance_node)
+            .base()
+            .transition_config()
+            .has_exit
+    }
+
+    fn start_self_enter_transition(&self, context: &Rc<RuntimeContext>) {
+        if !borrow!(self.instance_node)
+            .base()
+            .transition_config()
+            .has_enter
+        {
+            return;
+        }
+        self.transition_phase.set(TRANSITION_PHASE_ENTER);
+        self.transition_origin_frame
+            .set(context.globals().frames_elapsed.get());
+        self.exit_started_millis.set(None);
+    }
+
+    fn start_self_exit_transition(&self, context: &Rc<RuntimeContext>) -> bool {
+        if !self.has_exit_transition() {
+            return false;
+        }
+        self.transition_phase.set(TRANSITION_PHASE_EXIT);
+        self.transition_origin_frame
+            .set(context.globals().frames_elapsed.get());
+        self.exit_started_millis
+            .set(Some((context.globals().get_elapsed_millis)()));
+        true
+    }
+
+    fn start_exit_transition_tree(self: &Rc<Self>, context: &Rc<RuntimeContext>) -> bool {
+        let mut started = self.start_self_exit_transition(context);
+        for child in borrow!(self.mounted_children).iter() {
+            started |= child.start_exit_transition_tree(context);
+        }
+        started
+    }
+
+    fn self_exit_transition_complete(&self, context: &Rc<RuntimeContext>) -> bool {
+        if self.transition_phase.get() != TRANSITION_PHASE_EXIT {
+            return true;
+        }
+        let transition_config = borrow!(self.instance_node)
+            .base()
+            .transition_config()
+            .clone();
+        let frames_complete =
+            self.transition_playhead.get() >= transition_config.exit_frame_count as f64;
+        let timeout_complete = self
+            .exit_started_millis
+            .get()
+            .map(|started| {
+                (context.globals().get_elapsed_millis)().saturating_sub(started)
+                    >= transition_config.timeout_ms as u128
+            })
+            .unwrap_or(false);
+        frames_complete || timeout_complete
+    }
+
+    fn exit_transition_tree_complete(self: &Rc<Self>, context: &Rc<RuntimeContext>) -> bool {
+        self.self_exit_transition_complete(context)
+            && borrow!(self.mounted_children)
+                .iter()
+                .all(|child| child.exit_transition_tree_complete(context))
+    }
+
+    fn enable_exit_cleanup_listener(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        if self.exit_cleanup_active.get() {
+            return;
+        }
+        self.exit_cleanup_active.set(true);
+        let weak_self = Rc::downgrade(self);
+        let cloned_context = Rc::clone(context);
+        let frames_elapsed = context.globals().frames_elapsed.clone();
+        let frames_elapsed_dep = frames_elapsed.untyped();
+        self.exit_cleanup_listener
+            .replace_with(Property::computed_with_name(
+                move || {
+                    let _ = frames_elapsed.get();
+                    if let Some(node) = weak_self.upgrade() {
+                        node.prune_completed_exit_children(&cloned_context);
+                    }
+                },
+                &[frames_elapsed_dep],
+                "exit transition cleanup",
+            ));
+        context.register_node_effect_property(self.id, &self.exit_cleanup_listener);
+    }
+
+    fn prune_completed_exit_children(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        let exiting = std::mem::take(&mut *borrow_mut!(self.exiting_children));
+        if exiting.is_empty() {
+            self.exit_cleanup_active.set(false);
+            return;
+        }
+
+        let mut retained = Vec::new();
+        for child in exiting {
+            if child.exit_transition_tree_complete(context) {
+                child.recurse_unmount(context);
+            } else {
+                retained.push(child);
+            }
+        }
+        *borrow_mut!(self.exiting_children) = retained;
+        let combined = self.sync_mounted_children_from_active_and_exiting();
+        self.children.set(combined);
+        context.mark_occlusion_dirty();
+
+        if borrow!(self.exiting_children).is_empty() {
+            self.exit_cleanup_active.set(false);
+        }
+    }
+
     pub fn attach_children(
         self: &Rc<Self>,
         new_children: Vec<Rc<ExpandedNode>>,
         context: &Rc<RuntimeContext>,
         parent_frame: &Property<Option<ExpandedNodeIdentifier>>,
     ) -> Vec<Rc<ExpandedNode>> {
-        let mut curr_children = borrow_mut!(self.mounted_children);
-        //TODO here we could probably check intersection between old and new children (to avoid unmount + mount)
-
         for child in new_children.iter() {
             // set parent and connect up viewport bounds to new parent
             *borrow_mut!(child.render_parent) = Rc::downgrade(self);
@@ -417,15 +615,26 @@ impl ExpandedNode {
             child.bind_to_parent_bounds(context);
         }
         if self.attached.get() > 0 {
-            for child in curr_children.iter() {
-                Rc::clone(child).recurse_unmount(context);
+            let old_active_children = borrow!(self.active_children).clone();
+            for child in old_active_children.iter() {
+                if Self::has_child(&new_children, child) {
+                    continue;
+                }
+                if child.start_exit_transition_tree(context) {
+                    borrow_mut!(self.exiting_children).push(Rc::clone(child));
+                    self.enable_exit_cleanup_listener(context);
+                } else {
+                    Rc::clone(child).recurse_unmount(context);
+                }
             }
             for child in new_children.iter() {
-                Rc::clone(child).recurse_mount(context);
+                if !Self::has_child(&old_active_children, child) {
+                    Rc::clone(child).recurse_mount(context);
+                }
             }
         }
-        *curr_children = new_children.clone();
-        new_children
+        *borrow_mut!(self.active_children) = new_children;
+        self.sync_mounted_children_from_active_and_exiting()
     }
 
     pub fn attach_sidecar_children(
@@ -631,6 +840,7 @@ impl ExpandedNode {
                 self.compute_flattened_slot_children();
             }
             self.attached.set(self.attached.get() + 1);
+            self.start_self_enter_transition(context);
             context.add_to_cache(&self);
             if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
                 for handler in borrow!(registry)
@@ -691,6 +901,11 @@ impl ExpandedNode {
             self.browser_content_layer_id.set(None);
             self.changed_listener.replace_with(Property::default());
             borrow_mut!(self.subscriptions).clear();
+            borrow_mut!(self.active_children).clear();
+            borrow_mut!(self.exiting_children).clear();
+            borrow_mut!(self.mounted_children).clear();
+            self.exit_cleanup_active.set(false);
+            self.exit_cleanup_listener.replace_with(Property::default());
         }
     }
 

@@ -23,6 +23,8 @@
             {% else %}
                 {{settings_block_element.Handler.1[0].token_value}}
             {% endif %}
+        {% elif settings_block_element.Transition %}
+            @{{settings_block_element.Transition.0.token_value}}: {{settings_block_element.Transition.1.token_value}}
         {% endif %}
     {% endfor %}
 }

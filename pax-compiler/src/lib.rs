@@ -552,7 +552,9 @@ fn collect_settings_block_elements(
             SettingsBlockElement::SelectorBlock(_, block) => {
                 collect_literal_block_definition(block, seen, collected);
             }
-            SettingsBlockElement::Handler(_, _) | SettingsBlockElement::Comment(_) => {}
+            SettingsBlockElement::Handler(_, _)
+            | SettingsBlockElement::Transition(_, _)
+            | SettingsBlockElement::Comment(_) => {}
         }
     }
 }
@@ -594,6 +596,21 @@ fn collect_value_definition(
             for element in &track.elements {
                 if let pax_manifest::TimelineTrackElement::Keyframe(keyframe) = element {
                     collect_value_definition(&keyframe.value, seen, collected);
+                }
+            }
+        }
+        ValueDefinition::Transition(transition) => {
+            if let Some(starting_value) = &transition.starting_value {
+                collect_value_definition(starting_value, seen, collected);
+            }
+            for track in [&transition.enter, &transition.exit].into_iter().flatten() {
+                if let Some(starting_value) = &track.starting_value {
+                    collect_value_definition(starting_value, seen, collected);
+                }
+                for element in &track.elements {
+                    if let pax_manifest::TimelineTrackElement::Keyframe(keyframe) = element {
+                        collect_value_definition(&keyframe.value, seen, collected);
+                    }
                 }
             }
         }

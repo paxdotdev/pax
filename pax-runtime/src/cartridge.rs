@@ -5,9 +5,13 @@ use crate::{
     ReusableInstanceNodeArgs, RuntimePropertiesStackFrame,
 };
 use pax_language::Computable;
+use pax_manifest::cartridge_generation::{
+    TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT, TRANSITION_PHASE_SYMBOL,
+    TRANSITION_PLAYHEAD_SYMBOL,
+};
 use pax_manifest::{
     ExpressionInfo, LiteralBlockDefinition, SettingElement, TimelineKeyframe, TimelineMarker,
-    TimelineTrackDefinition, TimelineTrackElement, TypeId, ValueDefinition,
+    TimelineTrackDefinition, TimelineTrackElement, TransitionDefinition, TypeId, ValueDefinition,
 };
 use pax_message::borrow;
 use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny};
@@ -174,6 +178,7 @@ pub trait DefinitionToInstanceTraverser {
             component_template,
             children: None,
             template_node_identifier: None,
+            transition_config: manifest.get_component_transition_config(type_id),
             properties_scope_factory: Some(factory.get_properties_scope_factory()),
         }
     }
@@ -308,6 +313,7 @@ pub trait DefinitionToInstanceTraverser {
                         component_template: None,
                         children: Some(children),
                         template_node_identifier: Some(unique_identifier),
+                        transition_config: Default::default(),
                         properties_scope_factory: None,
                     },
                     branch_child_ranges,
@@ -412,6 +418,7 @@ pub trait DefinitionToInstanceTraverser {
                     component_template: None,
                     children: Some(children),
                     template_node_identifier: Some(unique_identifier),
+                    transition_config: Default::default(),
                     properties_scope_factory: None,
                 })
             }
@@ -516,6 +523,7 @@ pub trait DefinitionToInstanceTraverser {
                     component_template: None,
                     children: Some(children),
                     template_node_identifier: Some(unique_identifier),
+                    transition_config: Default::default(),
                     properties_scope_factory: None,
                 })
             }
@@ -724,6 +732,9 @@ fn resolve_property<T: CoercionRules + PropertyValue + DeserializeOwned>(
         pax_manifest::ValueDefinition::Timeline(track) => {
             build_timeline_property(name, &track, cloned_stack.clone())
         }
+        pax_manifest::ValueDefinition::Transition(transition) => {
+            build_transition_property(name, &transition, cloned_stack.clone())
+        }
         pax_manifest::ValueDefinition::DoubleBinding(identifier) => {
             let untyped_property =
                 if let Some(p) = stack.resolve_symbol_as_erased_property(&identifier.name) {
@@ -827,6 +838,33 @@ fn collect_value_definition_dependencies(
                 }
             }
         }
+        ValueDefinition::Transition(transition) => {
+            if let Some(property) = stack.resolve_symbol_as_erased_property(TRANSITION_PHASE_SYMBOL)
+            {
+                dependents.push(property);
+            }
+            if let Some(property) =
+                stack.resolve_symbol_as_erased_property(TRANSITION_PLAYHEAD_SYMBOL)
+            {
+                dependents.push(property);
+            }
+            if let Some(starting_value) = &transition.starting_value {
+                collect_value_definition_dependencies(starting_value, stack, dependents);
+            }
+            for track in [&transition.enter, &transition.exit].into_iter().flatten() {
+                if let Some(playhead) = &track.playhead {
+                    collect_value_definition_dependencies(playhead, stack, dependents);
+                }
+                if let Some(starting_value) = &track.starting_value {
+                    collect_value_definition_dependencies(starting_value, stack, dependents);
+                }
+                for element in &track.elements {
+                    if let TimelineTrackElement::Keyframe(keyframe) = element {
+                        collect_value_definition_dependencies(&keyframe.value, stack, dependents);
+                    }
+                }
+            }
+        }
         ValueDefinition::LiteralValue(_)
         | ValueDefinition::EventBindingTarget(_)
         | ValueDefinition::Undefined => {}
@@ -860,7 +898,7 @@ fn evaluate_value_definition_to_pax_value(
                 .resolve_symbol_as_variable(&identifier.name)
                 .map(|variable| variable.get_as_pax_value())
         }
-        ValueDefinition::Timeline(_) => None,
+        ValueDefinition::Timeline(_) | ValueDefinition::Transition(_) => None,
         ValueDefinition::EventBindingTarget(_) | ValueDefinition::Undefined => None,
     }
 }
@@ -1067,13 +1105,85 @@ pub fn build_timeline_property<T: CoercionRules + PropertyValue>(
     )
 }
 
+fn coerce_transition_starting_value<T: CoercionRules + PropertyValue>(
+    transition: &TransitionDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+) -> Option<T> {
+    transition
+        .starting_value
+        .as_ref()
+        .and_then(|value| coerce_timeline_value(value, stack))
+}
+
+fn sample_transition_track<T: CoercionRules + PropertyValue>(
+    transition: &TransitionDefinition,
+    track: Option<&TimelineTrackDefinition>,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+) -> Option<T> {
+    let mut track = track?.clone();
+    if track.starting_value.is_none() {
+        track.starting_value = transition.starting_value.clone();
+    }
+    sample_timeline_track(&track, stack)
+}
+
+fn sample_transition_property<T: CoercionRules + PropertyValue>(
+    transition: &TransitionDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+) -> Option<T> {
+    let phase = stack
+        .resolve_symbol_as_variable(TRANSITION_PHASE_SYMBOL)
+        .and_then(|variable| Numeric::try_coerce(variable.get_as_pax_value()).ok())
+        .map(|value| value.to_int() as u64)
+        .unwrap_or_default();
+
+    match phase {
+        TRANSITION_PHASE_ENTER => {
+            sample_transition_track(transition, transition.enter.as_ref(), stack)
+                .or_else(|| coerce_transition_starting_value(transition, stack))
+        }
+        TRANSITION_PHASE_EXIT => {
+            sample_transition_track(transition, transition.exit.as_ref(), stack)
+                .or_else(|| sample_transition_track(transition, transition.enter.as_ref(), stack))
+                .or_else(|| coerce_transition_starting_value(transition, stack))
+        }
+        _ => coerce_transition_starting_value(transition, stack),
+    }
+}
+
+pub fn build_transition_property<T: CoercionRules + PropertyValue>(
+    name: &str,
+    transition: &TransitionDefinition,
+    stack: Rc<RuntimePropertiesStackFrame>,
+) -> Property<T> {
+    let mut dependents = Vec::new();
+    collect_value_definition_dependencies(
+        &ValueDefinition::Transition(transition.clone()),
+        &stack,
+        &mut dependents,
+    );
+
+    let cloned_stack = stack.clone();
+    let cloned_transition = transition.clone();
+    Property::computed_with_name(
+        move || sample_transition_property(&cloned_transition, &cloned_stack).unwrap_or_default(),
+        &dependents,
+        name,
+    )
+}
+
 #[cfg(test)]
 mod timeline_tests {
     use super::build_timeline_property;
+    use super::build_transition_property;
     use crate::RuntimePropertiesStackFrame;
+    use pax_manifest::cartridge_generation::{
+        TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT, TRANSITION_PHASE_SYMBOL,
+        TRANSITION_PLAYHEAD_SYMBOL,
+    };
     use pax_manifest::{
-        TimelineKeyframe, TimelineMarker, TimelineTrackDefinition, TimelineTrackElement, Token,
-        ValueDefinition,
+        PaxIdentifier, TimelineKeyframe, TimelineMarker, TimelineTrackDefinition,
+        TimelineTrackElement, Token, TransitionDefinition, ValueDefinition,
     };
     use pax_runtime_api::{PaxValue, Property, Variable};
     use std::collections::HashMap;
@@ -1241,6 +1351,83 @@ mod timeline_tests {
         assert!((property.get() - 2.5).abs() < 0.0001);
         playhead.set(10.0);
         assert!((property.get() - 10.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn transition_property_switches_between_enter_and_exit_tracks() {
+        let phase = Property::new(0_u64);
+        let playhead = Property::new(0.0_f64);
+        let scope: HashMap<String, Variable> = vec![
+            (
+                TRANSITION_PHASE_SYMBOL.to_string(),
+                Variable::new_from_typed_property(phase.clone()),
+            ),
+            (
+                TRANSITION_PLAYHEAD_SYMBOL.to_string(),
+                Variable::new_from_typed_property(playhead.clone()),
+            ),
+        ]
+        .into_iter()
+        .collect();
+        let stack = RuntimePropertiesStackFrame::new(scope);
+        let playhead_binding = Some(Box::new(ValueDefinition::Identifier(PaxIdentifier::new(
+            TRANSITION_PLAYHEAD_SYMBOL,
+        ))));
+        let enter = TimelineTrackDefinition {
+            elements: vec![
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(0),
+                    value: ValueDefinition::LiteralValue(PaxValue::Numeric(0.0.into())),
+                    easing: Some(Token::new_without_location("Linear".to_string())),
+                }),
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(10),
+                    value: ValueDefinition::LiteralValue(PaxValue::Numeric(10.0.into())),
+                    easing: None,
+                }),
+            ],
+            playhead: playhead_binding.clone(),
+            frames: Some(10),
+            repeat: Some(false),
+            starting_value: None,
+            use_local_property_scope: false,
+        };
+        let exit = TimelineTrackDefinition {
+            elements: vec![
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(0),
+                    value: ValueDefinition::LiteralValue(PaxValue::Numeric(10.0.into())),
+                    easing: Some(Token::new_without_location("Linear".to_string())),
+                }),
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(10),
+                    value: ValueDefinition::LiteralValue(PaxValue::Numeric(0.0.into())),
+                    easing: None,
+                }),
+            ],
+            playhead: playhead_binding,
+            frames: Some(10),
+            repeat: Some(false),
+            starting_value: None,
+            use_local_property_scope: false,
+        };
+        let transition = TransitionDefinition {
+            enter: Some(enter),
+            exit: Some(exit),
+            starting_value: Some(Box::new(ValueDefinition::LiteralValue(PaxValue::Numeric(
+                5.0.into(),
+            )))),
+        };
+        let property = build_transition_property::<f64>("opacity", &transition, stack);
+
+        assert_eq!(property.get(), 5.0);
+        phase.set(TRANSITION_PHASE_ENTER);
+        playhead.set(5.0);
+        assert_eq!(property.get(), 5.0);
+        phase.set(TRANSITION_PHASE_EXIT);
+        assert_eq!(property.get(), 5.0);
+        playhead.set(10.0);
+        assert_eq!(property.get(), 0.0);
     }
 }
 

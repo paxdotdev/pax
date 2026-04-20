@@ -731,12 +731,20 @@ pub fn parse_settings_from_component_definition_string(
                                     let literal_function_token = parse_literal_function(
                                         settings_event_binding_pairs.next().unwrap(),
                                     );
-                                    let handler_element: SettingsBlockElement =
-                                        SettingsBlockElement::Handler(
+                                    let event_name = event_id_token.token_value.as_str();
+                                    if matches!(event_name, "in" | "out") {
+                                        settings.push(SettingsBlockElement::Transition(
                                             event_id_token,
-                                            vec![literal_function_token],
-                                        );
-                                    settings.push(handler_element);
+                                            literal_function_token,
+                                        ));
+                                    } else {
+                                        let handler_element: SettingsBlockElement =
+                                            SettingsBlockElement::Handler(
+                                                event_id_token,
+                                                vec![literal_function_token],
+                                            );
+                                        settings.push(handler_element);
+                                    }
                                 }
                                 Rule::selector_block => {
                                     //selector_block => settings_key_value_pair where v is a ValueDefinition

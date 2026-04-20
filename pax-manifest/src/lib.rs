@@ -205,6 +205,7 @@ impl ComponentDefinition {
 pub enum SettingsBlockElement {
     SelectorBlock(Token, LiteralBlockDefinition),
     Handler(Token, Vec<Token>),
+    Transition(Token, Token),
     Comment(String),
 }
 
@@ -217,6 +218,15 @@ pub struct TimelineDefinition {
     pub frames: Option<u64>,
     pub repeat: bool,
     pub elements: Vec<TimelineBlockElement>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(crate = "pax_message::serde")]
+/// Pair of timeline tracks bound to a node's enter/exit lifecycle.
+pub struct TransitionDefinition {
+    pub enter: Option<TimelineTrackDefinition>,
+    pub exit: Option<TimelineTrackDefinition>,
+    pub starting_value: Option<Box<ValueDefinition>>,
 }
 
 impl Default for TimelineDefinition {
@@ -1712,6 +1722,7 @@ pub enum ValueDefinition {
     LiteralValue(PaxValue),
     Block(LiteralBlockDefinition),
     Timeline(TimelineTrackDefinition),
+    Transition(TransitionDefinition),
     /// (Expression contents, vtable id binding)
     Expression(ExpressionInfo),
     /// (Expression contents, vtable id binding)
@@ -1728,6 +1739,7 @@ impl Display for ValueDefinition {
             ValueDefinition::LiteralValue(value) => write!(f, "{}", value),
             ValueDefinition::Block(block) => write!(f, "{}", block),
             ValueDefinition::Timeline(track) => write!(f, "@timeline {}", track),
+            ValueDefinition::Transition(_) => write!(f, "@transition"),
             ValueDefinition::Expression(e) => write!(f, "{{{}}}", e.expression),
             ValueDefinition::Identifier(i) => write!(f, "{}", i),
             ValueDefinition::DoubleBinding(ident) => {

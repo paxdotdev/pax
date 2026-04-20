@@ -4,6 +4,7 @@ use std::iter;
 use std::rc::Rc;
 use_RefCell!();
 use crate::api::{math::Point2, CommonProperties, RenderContext};
+use pax_manifest::cartridge_generation::ComponentTransitionConfig;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::NativeInterrupt;
 use pax_runtime_api::pax_value::PaxAny;
@@ -38,6 +39,7 @@ pub struct InstantiationArgs {
     pub component_template: Option<InstanceNodePtrList>,
 
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
+    pub transition_config: ComponentTransitionConfig,
     // Used by RuntimePropertyStackFrame to pull out struct's properties based on their names
     pub properties_scope_factory:
         Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, Variable>>>,
@@ -270,6 +272,7 @@ pub struct BaseInstance {
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     pub properties_scope_factory:
         Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, Variable>>>,
+    pub transition_config: ComponentTransitionConfig,
     instance_children: InstanceNodePtrList,
     flags: InstanceFlags,
 }
@@ -310,6 +313,7 @@ impl BaseInstance {
             flags,
             template_node_identifier: args.template_node_identifier,
             properties_scope_factory: args.properties_scope_factory,
+            transition_config: args.transition_config,
         }
     }
 
@@ -335,6 +339,10 @@ impl BaseInstance {
     /// Static behavior flags for this instance.
     pub fn flags(&self) -> &InstanceFlags {
         &self.flags
+    }
+
+    pub fn transition_config(&self) -> &ComponentTransitionConfig {
+        &self.transition_config
     }
 }
 

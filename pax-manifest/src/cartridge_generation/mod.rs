@@ -4,8 +4,30 @@ use std::collections::{BTreeMap, HashMap};
 use crate::{
     constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_TYPE},
     PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement, TemplateNodeDefinition,
-    TimelineBlockElement, TimelineDefinition, TimelineSelectorElement, TypeId, ValueDefinition,
+    TimelineBlockElement, TimelineDefinition, TimelineSelectorElement, TransitionDefinition,
+    TypeId, ValueDefinition,
 };
+
+pub const TRANSITION_PHASE_IDLE: u64 = 0;
+pub const TRANSITION_PHASE_ENTER: u64 = 1;
+pub const TRANSITION_PHASE_EXIT: u64 = 2;
+pub const TRANSITION_PLAYHEAD_SYMBOL: &str = "$transition_playhead";
+pub const TRANSITION_PHASE_SYMBOL: &str = "$transition_phase";
+pub const DEFAULT_OUT_TRANSITION_TIMEOUT_MS: u64 = 5_000;
+
+#[derive(Clone, Default, Debug)]
+pub struct ComponentTransitionBindingInfo {
+    pub enter: Option<String>,
+    pub exit: Option<String>,
+}
+
+#[derive(Clone, Default, Debug)]
+pub struct ComponentTransitionConfig {
+    pub has_enter: bool,
+    pub has_exit: bool,
+    pub exit_frame_count: u64,
+    pub timeout_ms: u64,
+}
 
 #[derive(Serialize, Debug)]
 /// Template context for generating a component's cartridge code.
@@ -181,6 +203,7 @@ impl PaxManifest {
                         ValueDefinition::LiteralValue(_)
                         | ValueDefinition::Block(_)
                         | ValueDefinition::Timeline(_)
+                        | ValueDefinition::Transition(_)
                         | ValueDefinition::Expression(_)
                         | ValueDefinition::Identifier(_)
                         | ValueDefinition::DoubleBinding(_) => {
@@ -195,6 +218,7 @@ impl PaxManifest {
             &mut map,
             &tnd.settings,
             &component.timelines,
+            &component.settings,
         );
         map
     }
@@ -215,6 +239,7 @@ impl PaxManifest {
                         ValueDefinition::LiteralValue(_)
                         | ValueDefinition::Block(_)
                         | ValueDefinition::Timeline(_)
+                        | ValueDefinition::Transition(_)
                         | ValueDefinition::Expression(_)
                         | ValueDefinition::Identifier(_) => {
                             if CommonProperty::get_common_properties().contains(&key.token_value) {
@@ -230,6 +255,7 @@ impl PaxManifest {
             &mut map,
             &tnd.settings,
             &component.timelines,
+            &component.settings,
         );
         map.retain(|key, _| CommonProperty::get_common_properties().contains(key));
         map
@@ -242,6 +268,9 @@ impl PaxManifest {
                 if let SettingElement::Setting(key, value) = setting {
                     match value {
                         ValueDefinition::EventBindingTarget(e) => {
+                            if matches!(key.token_value.as_str(), "in" | "out") {
+                                continue;
+                            }
                             handlers.push((
                                 key.token_value.clone(),
                                 self.clean_handler(e.name.clone()),
@@ -334,15 +363,127 @@ impl PaxManifest {
             .unwrap_or_else(|| format!("#{}", ordinal + 1))
     }
 
-    fn merge_timeline_track_into_map(
-        map: &mut BTreeMap<String, ValueDefinition>,
-        base_map: &BTreeMap<String, ValueDefinition>,
+    fn timeline_name(timeline_definition: &TimelineDefinition) -> Option<&str> {
+        timeline_definition
+            .name
+            .as_ref()
+            .map(|token| token.token_value.as_str())
+    }
+
+    fn transition_bindings_from_settings(
+        settings: &Option<Vec<SettingsBlockElement>>,
+    ) -> ComponentTransitionBindingInfo {
+        let mut bindings = ComponentTransitionBindingInfo::default();
+        if let Some(settings) = settings {
+            for setting in settings {
+                if let SettingsBlockElement::Transition(key, value) = setting {
+                    match key.token_value.as_str() {
+                        "in" => bindings.enter = Some(value.token_value.clone()),
+                        "out" => bindings.exit = Some(value.token_value.clone()),
+                        _ => {}
+                    }
+                }
+            }
+        }
+        bindings
+    }
+
+    pub fn get_component_transition_bindings(
+        &self,
+        component_type_id: &TypeId,
+    ) -> ComponentTransitionBindingInfo {
+        self.components
+            .get(component_type_id)
+            .map(|component| Self::transition_bindings_from_settings(&component.settings))
+            .unwrap_or_default()
+    }
+
+    fn timeline_track_frame_count(
         timeline_definition: &TimelineDefinition,
-        timeline_ordinal: usize,
-        property_name: &str,
         track: &crate::TimelineTrackDefinition,
-        use_local_property_scope: bool,
-    ) {
+    ) -> u64 {
+        let mut max_frame = track
+            .frames
+            .or(timeline_definition.frames)
+            .unwrap_or_default();
+        let mut uses_percent_markers = false;
+        for keyframe in track.keyframes() {
+            match keyframe.marker {
+                crate::TimelineMarker::Frame(frame) => max_frame = max_frame.max(frame),
+                crate::TimelineMarker::Percent(_) => uses_percent_markers = true,
+            }
+        }
+        if uses_percent_markers {
+            max_frame.max(track.frames.or(timeline_definition.frames).unwrap_or(100))
+        } else {
+            max_frame
+        }
+    }
+
+    fn timeline_frame_count(timeline_definition: &TimelineDefinition) -> u64 {
+        let mut max_frame = timeline_definition.frames.unwrap_or_default();
+        for element in &timeline_definition.elements {
+            if let TimelineBlockElement::SelectorBlock(_, block) = element {
+                for selector_element in &block.elements {
+                    if let TimelineSelectorElement::Track(_, track) = selector_element {
+                        max_frame = max_frame
+                            .max(Self::timeline_track_frame_count(timeline_definition, track));
+                    }
+                }
+            }
+        }
+        max_frame
+    }
+
+    pub fn get_component_transition_config(
+        &self,
+        component_type_id: &TypeId,
+    ) -> ComponentTransitionConfig {
+        let Some(component) = self.components.get(component_type_id) else {
+            return ComponentTransitionConfig::default();
+        };
+        let bindings = Self::transition_bindings_from_settings(&component.settings);
+        let mut config = ComponentTransitionConfig {
+            timeout_ms: DEFAULT_OUT_TRANSITION_TIMEOUT_MS,
+            ..Default::default()
+        };
+
+        for timeline in &component.timelines {
+            match Self::timeline_transition_kind(timeline, &bindings) {
+                Some(TRANSITION_PHASE_ENTER) => {
+                    config.has_enter = true;
+                }
+                Some(TRANSITION_PHASE_EXIT) => {
+                    config.has_exit = true;
+                    config.exit_frame_count = config
+                        .exit_frame_count
+                        .max(Self::timeline_frame_count(timeline));
+                }
+                _ => {}
+            }
+        }
+
+        config
+    }
+
+    fn timeline_transition_kind(
+        timeline_definition: &TimelineDefinition,
+        bindings: &ComponentTransitionBindingInfo,
+    ) -> Option<u64> {
+        let name = Self::timeline_name(timeline_definition)?;
+        if bindings.enter.as_deref() == Some(name) {
+            return Some(TRANSITION_PHASE_ENTER);
+        }
+        if bindings.exit.as_deref() == Some(name) {
+            return Some(TRANSITION_PHASE_EXIT);
+        }
+        None
+    }
+
+    fn prepare_timeline_track(
+        timeline_definition: &TimelineDefinition,
+        track: &crate::TimelineTrackDefinition,
+    ) -> crate::TimelineTrackDefinition {
         let mut track = track.clone();
         if track.frames.is_none() {
             track.frames = timeline_definition.frames;
@@ -353,6 +494,39 @@ impl PaxManifest {
         if track.playhead.is_none() {
             track.playhead = timeline_definition.playhead.clone().map(Box::new);
         }
+        track
+    }
+
+    fn prepare_transition_track(
+        timeline_definition: &TimelineDefinition,
+        track: &crate::TimelineTrackDefinition,
+        base_map: &BTreeMap<String, ValueDefinition>,
+        property_name: &str,
+    ) -> crate::TimelineTrackDefinition {
+        let mut track = track.clone();
+        if track.frames.is_none() {
+            track.frames = timeline_definition.frames;
+        }
+        track.repeat = Some(false);
+        track.playhead = Some(Box::new(ValueDefinition::Identifier(
+            crate::PaxIdentifier::new(TRANSITION_PLAYHEAD_SYMBOL),
+        )));
+        if track.starting_value.is_none() {
+            track.starting_value = base_map.get(property_name).cloned().map(Box::new);
+        }
+        track
+    }
+
+    fn merge_timeline_track_into_map(
+        map: &mut BTreeMap<String, ValueDefinition>,
+        base_map: &BTreeMap<String, ValueDefinition>,
+        timeline_definition: &TimelineDefinition,
+        timeline_ordinal: usize,
+        property_name: &str,
+        track: &crate::TimelineTrackDefinition,
+        use_local_property_scope: bool,
+    ) {
+        let mut track = Self::prepare_timeline_track(timeline_definition, track);
         if track.starting_value.is_none() {
             track.starting_value = base_map.get(property_name).cloned().map(Box::new);
         }
@@ -373,12 +547,58 @@ impl PaxManifest {
         map.insert(property_name.to_string(), ValueDefinition::Timeline(track));
     }
 
+    fn merge_transition_track_into_map(
+        map: &mut BTreeMap<String, ValueDefinition>,
+        base_map: &BTreeMap<String, ValueDefinition>,
+        timeline_definition: &TimelineDefinition,
+        timeline_ordinal: usize,
+        property_name: &str,
+        track: &crate::TimelineTrackDefinition,
+        transition_kind: u64,
+    ) {
+        let track =
+            Self::prepare_transition_track(timeline_definition, track, base_map, property_name);
+        let mut transition = match map.remove(property_name) {
+            Some(ValueDefinition::Transition(existing)) => existing,
+            Some(existing) => TransitionDefinition {
+                starting_value: Some(Box::new(existing)),
+                ..Default::default()
+            },
+            None => TransitionDefinition {
+                starting_value: base_map.get(property_name).cloned().map(Box::new),
+                ..Default::default()
+            },
+        };
+
+        let slot = match transition_kind {
+            TRANSITION_PHASE_ENTER => &mut transition.enter,
+            TRANSITION_PHASE_EXIT => &mut transition.exit,
+            _ => return,
+        };
+        if slot.is_some() {
+            let winner = Self::timeline_label(timeline_definition, timeline_ordinal);
+            log::warn!(
+                "transition conflict on property '{}'; later transition timeline '{}' overrides an earlier transition track",
+                property_name,
+                winner,
+            );
+        }
+        *slot = Some(track);
+
+        map.insert(
+            property_name.to_string(),
+            ValueDefinition::Transition(transition),
+        );
+    }
+
     fn merge_inline_timelines_with_timeline_blocks(
         map: &mut BTreeMap<String, ValueDefinition>,
         inline_settings: &Option<Vec<SettingElement>>,
         timelines: &[TimelineDefinition],
+        component_settings: &Option<Vec<SettingsBlockElement>>,
     ) {
         let base_map = map.clone();
+        let transition_bindings = Self::transition_bindings_from_settings(component_settings);
         let ids = Self::pull_matched_identifiers_from_inline(inline_settings, "id".to_string());
         let classes =
             Self::pull_matched_identifiers_from_inline(inline_settings, "class".to_string());
@@ -392,9 +612,23 @@ impl PaxManifest {
                     if !Self::timeline_target_matches_node(&token.token_value, &classes, &ids) {
                         continue;
                     }
+                    let transition_kind =
+                        Self::timeline_transition_kind(timeline_definition, &transition_bindings);
 
                     for element in value.elements.iter() {
                         if let TimelineSelectorElement::Track(property, track) = element {
+                            if let Some(transition_kind) = transition_kind {
+                                Self::merge_transition_track_into_map(
+                                    map,
+                                    &base_map,
+                                    timeline_definition,
+                                    timeline_ordinal,
+                                    &property.token_value,
+                                    track,
+                                    transition_kind,
+                                );
+                                continue;
+                            }
                             if Self::has_inline_property(inline_settings, &property.token_value) {
                                 continue;
                             }
@@ -424,15 +658,30 @@ impl PaxManifest {
         };
 
         let base_map = map.clone();
+        let transition_bindings = Self::transition_bindings_from_settings(&component.settings);
         for (timeline_ordinal, timeline_definition) in component.timelines.iter().enumerate() {
             for timeline_value in timeline_definition.elements.iter() {
                 if let TimelineBlockElement::SelectorBlock(token, value) = timeline_value {
                     if !Self::timeline_target_is_local(&token.token_value) {
                         continue;
                     }
+                    let transition_kind =
+                        Self::timeline_transition_kind(timeline_definition, &transition_bindings);
 
                     for element in value.elements.iter() {
                         if let TimelineSelectorElement::Track(property, track) = element {
+                            if let Some(transition_kind) = transition_kind {
+                                Self::merge_transition_track_into_map(
+                                    map,
+                                    &base_map,
+                                    timeline_definition,
+                                    timeline_ordinal,
+                                    &property.token_value,
+                                    track,
+                                    transition_kind,
+                                );
+                                continue;
+                            }
                             Self::merge_timeline_track_into_map(
                                 map,
                                 &base_map,
