@@ -154,6 +154,7 @@ pub struct RenderBackend<'w> {
     sample_count: u32,
     clear_color: wgpu::Color,
     active_frame: Option<ActiveFrame>,
+    capture_target: Option<CaptureTarget>,
     pending_clear: bool,
     pending_capture_ids: Vec<u32>,
     completed_captures: Arc<Mutex<HashMap<u32, CapturedFrame>>>,
@@ -167,6 +168,23 @@ struct ActiveFrame {
 struct MultisampledTarget {
     _texture: Texture,
     view: TextureView,
+}
+
+struct CaptureTarget {
+    texture: Texture,
+    view: TextureView,
+    multisampled_target: Option<MultisampledTarget>,
+    initialized: bool,
+}
+
+impl CaptureTarget {
+    fn color_attachment_views(&self) -> (&TextureView, Option<&TextureView>) {
+        if let Some(multisampled_target) = &self.multisampled_target {
+            (&multisampled_target.view, Some(&self.view))
+        } else {
+            (&self.view, None)
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -501,8 +519,8 @@ impl<'w> RenderBackend<'w> {
             surface_usage |= TextureUsages::COPY_SRC;
         } else {
             #[cfg(target_arch = "wasm32")]
-            log::warn!(
-                "render backend: surface does not support COPY_SRC; disabling readback usage"
+            log::debug!(
+                "render backend: surface does not support COPY_SRC; screenshots will use mirror target"
             );
         }
         let initial_width = config.initial_width.max(1).min(max_surface_dimension);
@@ -728,6 +746,7 @@ impl<'w> RenderBackend<'w> {
             sample_count,
             clear_color: surface_clear_color(alpha_mode),
             active_frame: None,
+            capture_target: None,
             pending_clear: false,
             pending_capture_ids: Vec::new(),
             completed_captures: Arc::new(Mutex::new(HashMap::new())),
@@ -863,6 +882,7 @@ impl<'w> RenderBackend<'w> {
             );
         }
         self.active_frame = None;
+        self.capture_target = None;
         self.pending_clear = false;
         self.surface_config.width = width;
         self.surface_config.height = height;
@@ -901,6 +921,9 @@ impl<'w> RenderBackend<'w> {
 
     pub(crate) fn request_screenshot_capture(&mut self, request_id: u32) {
         self.pending_capture_ids.push(request_id);
+        if !self.surface_supports_copy_src() {
+            self.ensure_capture_target();
+        }
     }
 
     pub(crate) fn take_screenshot_capture(&mut self, request_id: u32) -> Option<CapturedFrame> {
@@ -1115,6 +1138,43 @@ impl<'w> RenderBackend<'w> {
             render_pass.draw_indexed(0..resource.index_count, 0, 0..1);
         }
 
+        if self.should_render_capture_target() {
+            self.ensure_capture_target();
+            let capture_load_op = self.take_capture_color_load_op(load_op);
+            let capture_target = self.capture_target.as_ref().unwrap();
+            let (capture_texture, capture_resolve_target) = capture_target.color_attachment_views();
+            let (stencil_texture, stencil_index) = self.stencil_renderer.get_stencil();
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Retained Screenshot Mirror Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: capture_texture,
+                    depth_slice: None,
+                    resolve_target: capture_resolve_target,
+                    ops: wgpu::Operations {
+                        load: capture_load_op,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: stencil_texture,
+                    depth_ops: None,
+                    stencil_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            render_pass.set_pipeline(&self.pipeline);
+            render_pass.set_bind_group(0, &resource.bind_group, &[]);
+            render_pass.set_vertex_buffer(0, resource.vertex_buffer.slice(..));
+            render_pass.set_stencil_reference(stencil_index);
+            render_pass.set_index_buffer(resource.index_buffer.slice(..), IndexFormat::Uint16);
+            render_pass.draw_indexed(0..resource.index_count, 0, 0..1);
+        }
+
         self.queue.submit(std::iter::once(encoder.finish()));
     }
 
@@ -1150,6 +1210,58 @@ impl<'w> RenderBackend<'w> {
                     resolve_target,
                     ops: wgpu::Operations {
                         load: load_op,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            render_pass.set_stencil_reference(stencil_index);
+            for draw in draws {
+                match draw {
+                    RetainedDraw::Vector(resource) => {
+                        render_pass.set_pipeline(&self.pipeline);
+                        render_pass.set_bind_group(0, &resource.bind_group, &[]);
+                        render_pass.set_vertex_buffer(0, resource.vertex_buffer.slice(..));
+                        render_pass
+                            .set_index_buffer(resource.index_buffer.slice(..), IndexFormat::Uint16);
+                        render_pass.draw_indexed(0..resource.index_count, 0, 0..1);
+                    }
+                    RetainedDraw::Image { texture, draw } => {
+                        self.texture_renderer.draw_retained_image_in_pass(
+                            &mut render_pass,
+                            texture,
+                            &draw.resource,
+                        );
+                    }
+                }
+            }
+        }
+
+        if self.should_render_capture_target() {
+            self.ensure_capture_target();
+            let capture_load_op = self.take_capture_color_load_op(load_op);
+            let capture_target = self.capture_target.as_ref().unwrap();
+            let (capture_texture, capture_resolve_target) = capture_target.color_attachment_views();
+            let (stencil_texture, _) = self.stencil_renderer.get_stencil();
+            let depth_stencil_attachment = Some(wgpu::RenderPassDepthStencilAttachment {
+                view: stencil_texture,
+                depth_ops: None,
+                stencil_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
+            });
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Retained Batch Screenshot Mirror Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: capture_texture,
+                    depth_slice: None,
+                    resolve_target: capture_resolve_target,
+                    ops: wgpu::Operations {
+                        load: capture_load_op,
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -1260,6 +1372,23 @@ impl<'w> RenderBackend<'w> {
             texture,
             &draw.resource,
         );
+        if self.should_render_capture_target() {
+            self.ensure_capture_target();
+            let capture_clear_target = self.take_capture_clear_target(clear_target);
+            let capture_target = self.capture_target.as_ref().unwrap();
+            let (capture_texture, capture_resolve_target) = capture_target.color_attachment_views();
+            self.texture_renderer.draw_retained_image(
+                &self.device,
+                &self.queue,
+                capture_texture,
+                capture_resolve_target,
+                &self.stencil_renderer,
+                capture_clear_target,
+                self.clear_color,
+                texture,
+                &draw.resource,
+            );
+        }
     }
 
     fn write_buffers(&mut self, buffers: &mut CpuBuffers) {
@@ -1362,6 +1491,44 @@ impl<'w> RenderBackend<'w> {
             render_pass.draw_indexed(0..self.index_count as u32, 0, 0..1);
         }
 
+        if self.should_render_capture_target() {
+            self.ensure_capture_target();
+            let capture_load_op = self.take_capture_color_load_op(load_op);
+            let capture_target = self.capture_target.as_ref().unwrap();
+            let (capture_texture, capture_resolve_target) = capture_target.color_attachment_views();
+            let (stencil_texture, stencil_reference) = self.stencil_renderer.get_stencil();
+            let depth_stencil_attachment = Some(wgpu::RenderPassDepthStencilAttachment {
+                view: stencil_texture,
+                depth_ops: None,
+                stencil_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
+            });
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Screenshot Mirror Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: capture_texture,
+                    depth_slice: None,
+                    resolve_target: capture_resolve_target,
+                    ops: wgpu::Operations {
+                        load: capture_load_op,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            render_pass.set_pipeline(&self.pipeline);
+            render_pass.set_bind_group(0, &self.bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_stencil_reference(stencil_reference);
+            render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
+            render_pass.draw_indexed(0..self.index_count as u32, 0, 0..1);
+        }
+
         //render primitives
         self.queue.submit(std::iter::once(encoder.finish()));
     }
@@ -1403,6 +1570,26 @@ impl<'w> RenderBackend<'w> {
             transform,
             rect,
         );
+        if self.should_render_capture_target() {
+            self.ensure_capture_target();
+            let capture_clear_target = self.take_capture_clear_target(clear_target);
+            let capture_target = self.capture_target.as_ref().unwrap();
+            let (capture_texture, capture_resolve_target) = capture_target.color_attachment_views();
+            self.texture_renderer.render_image(
+                &self.device,
+                &self.queue,
+                capture_texture,
+                capture_resolve_target,
+                &self.globals_buffer,
+                &self.stencil_renderer,
+                capture_clear_target,
+                self.clear_color,
+                &image.rgba,
+                image.pixel_width,
+                transform,
+                rect,
+            );
+        }
     }
 
     pub(crate) fn clear(&mut self) {
@@ -1445,6 +1632,29 @@ impl<'w> RenderBackend<'w> {
                     multiview_mask: None,
                 });
             }
+            if self.should_render_capture_target() {
+                self.ensure_capture_target();
+                let capture_load_op = self.take_capture_color_load_op(load_op);
+                let capture_target = self.capture_target.as_ref().unwrap();
+                let (capture_texture, capture_resolve_target) =
+                    capture_target.color_attachment_views();
+                let _r = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Screenshot Mirror Clear Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: capture_texture,
+                        depth_slice: None,
+                        resolve_target: capture_resolve_target,
+                        ops: wgpu::Operations {
+                            load: capture_load_op,
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+            }
             self.queue.submit(std::iter::once(encoder.finish()));
         }
 
@@ -1468,15 +1678,89 @@ impl<'w> RenderBackend<'w> {
         }
     }
 
+    fn surface_supports_copy_src(&self) -> bool {
+        self.surface_config.usage.contains(TextureUsages::COPY_SRC)
+    }
+
+    fn should_render_capture_target(&self) -> bool {
+        !self.surface_supports_copy_src() && !self.pending_capture_ids.is_empty()
+    }
+
+    fn ensure_capture_target(&mut self) {
+        if self.surface_supports_copy_src() || self.capture_target.is_some() {
+            return;
+        }
+
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Surface Screenshot Mirror"),
+            size: wgpu::Extent3d {
+                width: self.surface_config.width.max(1),
+                height: self.surface_config.height.max(1),
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: self.surface_config.format,
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC,
+            view_formats: &[self.surface_config.format],
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let multisampled_target = if self.sample_count > 1 {
+            let (texture, view) = create_multisampled_framebuffer(
+                &self.device,
+                &self.surface_config,
+                self.sample_count,
+            );
+            Some(MultisampledTarget {
+                _texture: texture,
+                view,
+            })
+        } else {
+            None
+        };
+        self.capture_target = Some(CaptureTarget {
+            texture,
+            view,
+            multisampled_target,
+            initialized: false,
+        });
+    }
+
+    fn take_capture_color_load_op(
+        &mut self,
+        screen_load_op: wgpu::LoadOp<wgpu::Color>,
+    ) -> wgpu::LoadOp<wgpu::Color> {
+        let Some(capture_target) = self.capture_target.as_mut() else {
+            return screen_load_op;
+        };
+        if matches!(screen_load_op, wgpu::LoadOp::Clear(_)) {
+            capture_target.initialized = true;
+            return screen_load_op;
+        }
+        if !capture_target.initialized {
+            capture_target.initialized = true;
+            return wgpu::LoadOp::Clear(self.clear_color);
+        }
+        screen_load_op
+    }
+
+    fn take_capture_clear_target(&mut self, screen_clear_target: bool) -> bool {
+        let Some(capture_target) = self.capture_target.as_mut() else {
+            return screen_clear_target;
+        };
+        if screen_clear_target || !capture_target.initialized {
+            capture_target.initialized = true;
+            return true;
+        }
+        false
+    }
+
     fn capture_surface_for_pending_requests(&mut self) {
         let capture_ids = std::mem::take(&mut self.pending_capture_ids);
         if capture_ids.is_empty() {
             return;
         }
-
-        let Some(active_frame) = self.active_frame.as_ref() else {
-            return;
-        };
 
         let width = self.surface_config.width.max(1);
         let height = self.surface_config.height.max(1);
@@ -1497,9 +1781,20 @@ impl<'w> RenderBackend<'w> {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Surface Screenshot Encoder"),
             });
+        let source_texture = if self.surface_supports_copy_src() {
+            let Some(active_frame) = self.active_frame.as_ref() else {
+                return;
+            };
+            &active_frame.surface.texture
+        } else {
+            let Some(capture_target) = self.capture_target.as_ref() else {
+                return;
+            };
+            &capture_target.texture
+        };
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
-                texture: &active_frame.surface.texture,
+                texture: source_texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,

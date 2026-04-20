@@ -3,7 +3,9 @@ use pax_gpu::{
     point, Box2D, Image, Path, Stroke as PixelStroke, StrokeCap as PixelStrokeCap, Transform2D,
     WgpuRenderer,
 };
-use pax_runtime_api::{Axis, RenderContext, ScreenshotData, Stroke, StrokeCap};
+use pax_runtime_api::{
+    Axis, LayerSurfaceScreenshotData, RenderContext, ScreenshotData, Stroke, StrokeCap,
+};
 use std::{
     cell::{Cell, RefCell},
     collections::{HashMap, HashSet, VecDeque},
@@ -985,6 +987,7 @@ impl RenderContext for PaxGpuRenderer {
         self.with_layer_context(layer, |context| {
             context.request_screenshot_capture(request_id);
         });
+        self.replay_layers.borrow_mut().push(layer);
     }
 
     fn take_layer_screenshot(&mut self, layer: usize, request_id: u32) -> Option<ScreenshotData> {
@@ -1001,6 +1004,39 @@ impl RenderContext for PaxGpuRenderer {
                     });
         });
         screenshot
+    }
+
+    fn take_layer_surface_screenshots(
+        &mut self,
+        layer: usize,
+        request_id: u32,
+    ) -> Vec<LayerSurfaceScreenshotData> {
+        let mut screenshots = Vec::new();
+        let mut backends = self.backends.borrow_mut();
+        let Some(RenderLayerState::Ready((target, _))) = backends.get_mut(layer) else {
+            return screenshots;
+        };
+        if !target.active {
+            return screenshots;
+        }
+
+        for renderer in target.renderers_mut() {
+            let Some(capture) = renderer.renderer_mut().take_screenshot_capture(request_id) else {
+                continue;
+            };
+            screenshots.push(LayerSurfaceScreenshotData {
+                id: request_id,
+                key: renderer.key.clone(),
+                data: capture.rgba,
+                width: capture.width as usize,
+                height: capture.height as usize,
+                origin_x: renderer.origin_x,
+                origin_y: renderer.origin_y,
+                logical_width: renderer.logical_width,
+                logical_height: renderer.logical_height,
+            });
+        }
+        screenshots
     }
 
     fn begin_node(&mut self, layer: usize, node_id: u32, z_index: i32) -> bool {

@@ -1,5 +1,5 @@
 [package]
-name = "native-scroller-matrix"
+name = "scroll-matrix"
 version = "0.38.3"
 edition = "2021"
 default-run = "run"

@@ -117,6 +117,25 @@ impl MaskInstance {
 
         layer_transform * mask_path.clone()
     }
+
+    fn layer_clip_is_handled_by_scroller_dom(
+        expanded_node: &ExpandedNode,
+        layer: usize,
+        context: &RuntimeContext,
+    ) -> bool {
+        let Some(owner_id) = context.get_layer_scroller_owner(layer) else {
+            return false;
+        };
+        let Some(owner) = context.get_expanded_node_by_eid(owner_id) else {
+            return false;
+        };
+
+        // Browser-owned scroller islands mount their canvas host inside the native scroller DOM
+        // subtree. When that subtree is already inside this Mask's CSS clip container, applying a
+        // second vector stencil clip in content coordinates double-clips and drifts during native
+        // scroll. The DOM ancestor clip is the authoritative clip for that island.
+        owner.is_descendant_of(&expanded_node.id)
+    }
 }
 
 impl InstanceNode for MaskInstance {
@@ -296,6 +315,9 @@ impl InstanceNode for MaskInstance {
 
         let layers = rcs.layers();
         for layer in 0..layers {
+            if Self::layer_clip_is_handled_by_scroller_dom(expanded_node, layer, rtc) {
+                continue;
+            }
             // Mask clips are stack effects for descendants, not leaf draw nodes. Keep them
             // unbounded so every active layer renderer receives the matching save/clip state.
             if !rcs.begin_node(
@@ -334,6 +356,9 @@ impl InstanceNode for MaskInstance {
 
         let layers = rcs.layers();
         for layer in 0..layers {
+            if Self::layer_clip_is_handled_by_scroller_dom(expanded_node, layer, rtc) {
+                continue;
+            }
             rcs.restore(layer);
         }
     }

@@ -75,6 +75,29 @@ pub trait RenderContext {
         None
     }
 
+    /// Returns ready screenshots for the physical surfaces backing one logical layer.
+    fn take_layer_surface_screenshots(
+        &mut self,
+        layer: usize,
+        request_id: u32,
+    ) -> Vec<LayerSurfaceScreenshotData> {
+        self.take_layer_screenshot(layer, request_id)
+            .map(|screenshot| {
+                vec![LayerSurfaceScreenshotData {
+                    id: screenshot.id,
+                    key: "single".to_string(),
+                    data: screenshot.data,
+                    width: screenshot.width,
+                    height: screenshot.height,
+                    origin_x: 0.0,
+                    origin_y: 0.0,
+                    logical_width: screenshot.width as f32,
+                    logical_height: screenshot.height as f32,
+                }]
+            })
+            .unwrap_or_default()
+    }
+
     /// Begins rendering a node and returns false when the backend can skip it.
     fn begin_node(&mut self, _layer: usize, _node_id: u32, _z_index: i32) -> bool {
         true

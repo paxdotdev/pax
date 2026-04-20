@@ -1000,3 +1000,17 @@ pub struct ScreenshotData {
     pub width: usize,
     pub height: usize,
 }
+
+#[derive(Serialize, Deserialize)]
+/// Completed screenshot bytes for one physical surface within a logical canvas layer.
+pub struct LayerSurfaceScreenshotData {
+    pub id: u32,
+    pub key: String,
+    pub data: Vec<u8>,
+    pub width: usize,
+    pub height: usize,
+    pub origin_x: f32,
+    pub origin_y: f32,
+    pub logical_width: f32,
+    pub logical_height: f32,
+}

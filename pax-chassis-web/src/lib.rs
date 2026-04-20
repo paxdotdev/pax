@@ -1012,6 +1012,15 @@ impl PaxChassisWeb {
             .unwrap_or(JsValue::NULL)
     }
 
+    pub fn take_layer_surface_screenshots(&mut self, layer: usize, request_id: u32) -> JsValue {
+        serde_wasm_bindgen::to_value(
+            &self
+                .render_context
+                .take_layer_surface_screenshots(layer, request_id),
+        )
+        .unwrap_or(JsValue::NULL)
+    }
+
     pub fn image_loaded(&mut self, path: &str) -> bool {
         self.render_context.image_loaded(path)
     }
