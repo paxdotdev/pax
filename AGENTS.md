@@ -23,20 +23,10 @@ Start with the local docs before inventing patterns.  The most useful entry poin
 - `pax-docs/book/src/data-binding-expressions.md` for PAXEL expressions and reactive bindings.
 - `pax-docs/book/src/event-handling-rust.md` for Rust event handlers and state updates.
 - `pax-docs/book/src/SUMMARY.md` for the full docs table of contents, including the API docs (generated from this codebase's code comments.)
-- `examples/src/*` for working patterns. Prefer copying a current example's shape over making up a new style.
+- `examples/src/*` for code samples and working patterns.
 
 These docs are also available by CLI: `pax-cli docs`
 
-Authoring Pax happens in two layers:
-
-1. `.pax` templates delcaratively describe UI trees, layout, bindings, events, animation, and style.
-2. Rust files own application state, event handlers, data loading, platform-facing logic, and any kind of side-effects.
-
-The reactive loop is: 
-1. Template (Pax) declares content and structural control flow 
-2. Expressions (Pax) can bind Property values or map them through logical expressions into Template settings (PAXEL, pax's spreadsheet-formula-inspired, template-embedded expression language) 
-3. Event bindings (Pax) route certain interrupts (e.g. clicks) to #4
-4. Event handlers (Rust) can perform arbitrary side-effects and set Properties, which updates content and rendering reactively
 
 ## Library Considerations
 
@@ -46,24 +36,31 @@ New features are often proven on one "chassis" at a time (platform target.)  In 
 
 ## Writing Pax
 
-While Pax is designed to feel familiar and "HTML-like," there are some design decisions that may counter some expectations from working with other technologies.
+* Authoring Pax happens in two layers:
 
-*Element order and z-order* -- in Pax, elements "on top" of others in a file are "on top" in z-index.  E.g. `<Ellipse/><Rectangle/>` will render the ellipse on top of the rectangle in z-index.  This keeps the file spatially arranged in the same way one might e.g. arrange elements in the tree view of a visual design tool, or how one might imagine looking at a stack of cards on a table.
+  1. `.pax` templates delcaratively describe UI trees, layout, bindings, events, animation, and style.
+  2. Rust files own application state, event handlers, data loading, platform-facing logic, and any kind of side-effects.
 
-*Units* -- Pax offers first-class unit support for declaring property values.  For example `25px`, `25%`, `25deg`, `25rad`, and even expression constructs like `50% + 25px` or `(some_value + 25)%` are valid.
+*Reactivity* -- Pax templates are grammatically constrained to be 100% declarative.  Dynamic logic is encoded in PAXEL, an expression language that is demarcated by `{...}`.  Since the language is side-effect free, Pax is able to update properties in a "spreadsheet-like" fashion, offering many architectural and performance benefits. While powerful, this paradigm requires approaching some things differently than you might with other toolkits.
 
-*Constrained reactivity* -- Pax templates are grammatically constrained to be 100% declarative.  Dynamic logic is encoded in PAXEL, an expression language that is demarcated by `{...}`.  Since the language is side-effect free, Pax is able to update properties in a "spreadsheet-like" fashion, offering many architectural and performance benefits. While powerful, this paradigm requires approaching some things differently than you might with other toolkits.
+  Pax's reactive loop is:
 
-### Common Pax Gotchas
+  1. Template (Pax) declares content and structural control flow
+  2. Expressions (Pax) can bind Property values or map them through logical expressions into Template settings (PAXEL, pax's spreadsheet-formula-inspired, template-embedded expression language)
+  3. Event bindings (Pax) route certain interrupts (e.g. clicks) to #4
+  4. Event handlers (Rust) can perform arbitrary side-effects and set Properties, which updates content and rendering reactively
 
-- PAXEL is not Rust. Keep expressions pure and side-effect free; move mutation, IO, and imperative branching into Rust event handlers or runtime code.
-- Be explicit with units. `50% + 25px` is meaningful; a naked number may not mean what a CSS-trained reader expects.
-- Check z-order before debugging layout math. Backgrounds/backdrops usually belong after the content they sit behind.
-- Docs pages under `pax-docs/book/src/api` are often generated. Prefer fixing the source comments or generator when an API doc needs to change.
+  `pax_runtime_api::properties::Property` also has mechanisms for programmatic subscription and integrating into the spreadsheet like DAG that drives Pax's reactive runtime and rendering engine.
 
-## AI + Developer tools
+*Element order and z-order* -- in Pax, elements "on top" of others in a file are "on top" in z-index.  E.g. `<Ellipse/><Rectangle/>` will render the ellipse on top of the rectangle in z-index.  This keeps the file spatially arranged in the same way one might e.g. arrange elements in the tree view of a visual design tool, or how one might imagine looking at a stack of cards on a table.  Check z-order before debugging layout math.
 
-The pax-cli includes developer tools, designed for AI use, for improving automated feedback loops.
+*Units* -- Pax offers first-class unit support for declaring property values.  For example `25px`, `25%`, `25deg`, `25rad`. `{100% - 25px}` is an expressive construct for filling a container minus a fixed amount, and you can group units, too `(some_property + 25)px`.  Rely on % for responsive sizing.
+
+
+
+## `pax-cli dev` AI + Developer tools
+
+The pax-cli includes developer tools, designed for humans as well as AI use (for improving automated feedback loops.)
 
 For example, you can take screenshots, read docs by CLI, take screenshot sequences (approx. watching a video, e.g. for an animation or interaction), trigger userland events like clicks/touches, and inspect scenes. 
 
@@ -94,7 +91,7 @@ When a task starts from Linear:
 - Include generated files only when they are required source artifacts for this repo. Remove build output, caches, screenshots, and throwaway experiment files before final status.
 - The User will occasional direct you to resolve a merge conflict.  When resolving conflicts, refer to your context for knowledge of intentional changes on the working branch.  Be sure to respect the changes made by the incoming branch, and splice logic to maintain both sets of intended changes (surfacing problematic areas for manual testing, if necessary). Don't allow work to be lost during merges, as this can be perniciously difficult to track down.
 
-## Cleanup Practice
+## Cleanup
 
 Before commits, the user may ask for a cleanup pass.  Follow this protocol at those times:
 
@@ -103,9 +100,13 @@ Before commits, the user may ask for a cleanup pass.  Follow this protocol at th
 - If a partial implementation must stay, make the boundary explicit with a short comment or follow-up issue reference.
 - Run the narrowest meaningful validation first; broaden only when the change touches shared compiler/runtime behavior.
 
-## Comment Practice
+## Comments
 
 - Use `///` for public Rust API documentation that should appear in generated docs.
 - Use `//` for implementation notes, invariants, and short explanations of surprising code.
 - Comments should explain why a choice exists, what invariant is being protected, or what external constraint is in play. Avoid repeating what the next line of code already says.
 - Update or remove stale comments as part of the change that makes them stale, or when discovered in the course of adjacent work.
+
+## Collaboration
+
+- Whenever relevant, run a web build of the currently focused project (e.g. current example) and provide it to the user at the end of every iteration.  If we're developing for e.g. iOS or macOS per context, then run the appropriate target accordingly.  
