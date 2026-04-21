@@ -13,7 +13,10 @@ use piet::{Color, StrokeStyle};
 
 use crate::api::{Layer, Scroll, Window};
 
-use crate::{ExpandedNode, HandlerRegistry, RuntimeContext, RuntimePropertiesStackFrame};
+use crate::{
+    ContentChildrenSource, ExpandedNode, HandlerRegistry, RuntimeContext,
+    RuntimePropertiesStackFrame,
+};
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for instance nodes.
@@ -217,6 +220,16 @@ pub trait InstanceNode {
     /// Returns the current browser-owned scroll offset in local scroller coordinates.
     fn resolve_scroll_offset(&self, _expanded_node: &ExpandedNode) -> Option<(f64, f64)> {
         None
+    }
+
+    /// Selects which child family should be normalized into `content_children`
+    /// for container-style consumers.
+    fn content_children_source(&self) -> ContentChildrenSource {
+        if self.base().flags().is_component {
+            ContentChildrenSource::Slot
+        } else {
+            ContentChildrenSource::Direct
+        }
     }
 
     fn handle_native_interrupt(

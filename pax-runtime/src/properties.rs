@@ -805,7 +805,9 @@ impl RuntimePropertiesStackFrame {
         if let Some(e) = self.symbols_within_frame.get(&clean_symbol(symbol)) {
             Some(e.clone().get_untyped_property().clone())
         } else {
-            self.parent.as_ref()?.resolve_symbol_as_erased_property(symbol)
+            self.parent
+                .as_ref()?
+                .resolve_symbol_as_erased_property(symbol)
         }
     }
 

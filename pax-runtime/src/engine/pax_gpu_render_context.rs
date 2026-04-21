@@ -1056,8 +1056,7 @@ impl RenderContext for PaxGpuRenderer {
                     return false;
                 }
                 target.prepare_for_render();
-                let candidate_indices =
-                    self.targeted_or_all_indices(layer, target.renderers.len());
+                let candidate_indices = self.targeted_or_all_indices(layer, target.renderers.len());
                 let mut selected = Vec::new();
                 for index in candidate_indices {
                     let Some(renderer) = target.renderers.get_mut(index) else {
@@ -1228,8 +1227,7 @@ fn to_pax_gpu_fill(
             let end_y = gradient.end.1.evaluate(bounds, Axis::Y);
             let local_pos =
                 pax_gpu::Point2D::new((orig.x + start_x) as f32, (orig.y + start_y) as f32);
-            let local_end =
-                pax_gpu::Point2D::new((orig.x + end_x) as f32, (orig.y + end_y) as f32);
+            let local_end = pax_gpu::Point2D::new((orig.x + end_x) as f32, (orig.y + end_y) as f32);
             let world_pos = transform.transform_point(local_pos);
             let world_end = transform.transform_point(local_end);
             let main_axis = world_end - world_pos;
@@ -1259,10 +1257,8 @@ fn to_pax_gpu_fill(
             let r = gradient.radius as f32;
             let local_pos =
                 pax_gpu::Point2D::new((orig.x + start_x) as f32, (orig.y + start_y) as f32);
-            let local_main_axis = pax_gpu::Vector2D::new(
-                r * (end_x - start_x) as f32,
-                r * (end_y - start_y) as f32,
-            );
+            let local_main_axis =
+                pax_gpu::Vector2D::new(r * (end_x - start_x) as f32, r * (end_y - start_y) as f32);
             let local_off_axis = pax_gpu::Vector2D::new(-local_main_axis.y, local_main_axis.x);
             let world_pos = transform.transform_point(local_pos);
             let world_main_axis = transform.transform_point(pax_gpu::Point2D::new(

@@ -69,7 +69,7 @@ mod tests {
     use pax_language::parse_pax_expression;
     use pax_manifest::cartridge_generation::{ComponentTransitionConfig, TRANSITION_PHASE_EXIT};
     use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
-    use pax_runtime_api::{borrow, CoercionRules, Numeric, Platform, OS, Size};
+    use pax_runtime_api::{borrow, CoercionRules, Numeric, Platform, Size, OS};
     use std::cell::RefCell;
 
     fn test_globals() -> Globals {
@@ -285,12 +285,7 @@ mod tests {
     }
 
     fn source_with_x(entries: &[(&str, f64)]) -> PaxValue {
-        PaxValue::Vec(
-            entries
-                .iter()
-                .map(|(id, x)| item_with_x(id, *x))
-                .collect(),
-        )
+        PaxValue::Vec(entries.iter().map(|(id, x)| item_with_x(id, *x)).collect())
     }
 
     fn ids(nodes: &[Rc<ExpandedNode>]) -> Vec<u32> {
@@ -349,7 +344,8 @@ mod tests {
     #[test]
     fn keyed_repeat_assigns_distinct_scope_bindings_per_child() {
         let source_property = Property::new(source(&["a", "b", "c"]));
-        let leaf: Rc<dyn InstanceNode> = ComponentInstance::instantiate(leaf_args(Default::default()));
+        let leaf: Rc<dyn InstanceNode> =
+            ComponentInstance::instantiate(leaf_args(Default::default()));
         let repeat: Rc<dyn InstanceNode> =
             RepeatInstance::instantiate(repeat_args(source_property, vec![leaf]));
         let root_component =
@@ -365,7 +361,8 @@ mod tests {
         let indices: Vec<_> = children
             .iter()
             .map(|child| {
-                child.stack
+                child
+                    .stack
                     .resolve_symbol("i")
                     .and_then(|variable| Numeric::try_coerce(variable.get_as_pax_value()).ok())
                     .map(|value| value.to_int())
@@ -394,7 +391,8 @@ mod tests {
         let xs: Vec<_> = children
             .iter()
             .map(|child| {
-                child.stack
+                child
+                    .stack
                     .resolve_symbol("item")
                     .map(|variable| variable.get_as_pax_value())
                     .and_then(|value| match value {
@@ -503,8 +501,9 @@ mod tests {
     #[test]
     fn keyed_repeat_resolves_expression_common_properties_for_transition_components() {
         let source_property = Property::new(source_with_x(&[("a", 0.0), ("b", 10.0), ("c", 20.0)]));
-        let leaf: Rc<dyn InstanceNode> =
-            ComponentInstance::instantiate(transitioned_expression_positioned_leaf_args("(item.x)px"));
+        let leaf: Rc<dyn InstanceNode> = ComponentInstance::instantiate(
+            transitioned_expression_positioned_leaf_args("(item.x)px"),
+        );
         let repeat: Rc<dyn InstanceNode> =
             RepeatInstance::instantiate(repeat_args(source_property, vec![leaf]));
         let root_component =

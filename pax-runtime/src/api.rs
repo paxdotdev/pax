@@ -46,6 +46,12 @@ pub struct NodeContext {
     pub slot_children: Property<Vec<Rc<ExpandedNode>>>,
     /// A property that can be depended on to dirty when a slot child is attached
     pub slot_children_attached_listener: Property<()>,
+    /// Normalized content children interpreted by this node when it acts as a container.
+    pub content_children: Property<Vec<Rc<ExpandedNode>>>,
+    /// Convenience count derived from `content_children`.
+    pub content_children_count: Property<usize>,
+    /// A structural invalidation signal for `content_children`.
+    pub content_children_changed: Property<()>,
 
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,

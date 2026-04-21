@@ -8,6 +8,7 @@ use pax_runtime_api::{Interpolatable, Percent, Property, Rotation, Window};
 use crate::api::math::{Transform2, Vector2};
 use crate::api::{Axis, Size, Transform2D};
 use crate::node_interface::NodeLocal;
+use crate::ContainerFrame;
 
 /// Compute a reactive `TransformAndBounds` property from layout properties plus parent geometry.
 pub fn compute_tab(
@@ -40,6 +41,23 @@ pub fn compute_tab(
         },
         &deps,
     )
+}
+
+/// Apply a container-assigned child frame on top of the parent geometry.
+///
+/// This is the geometry seam where container-owned placement can cooperate
+/// with descendant-authored layout and future bottom-up measurement.
+pub fn apply_container_frame(
+    container_transform_and_bounds: TransformAndBounds<NodeLocal, Window>,
+    container_frame: Option<ContainerFrame>,
+) -> TransformAndBounds<NodeLocal, Window> {
+    match container_frame {
+        Some(frame) => TransformAndBounds {
+            transform: container_transform_and_bounds.transform * frame.transform,
+            bounds: frame.bounds,
+        },
+        None => container_transform_and_bounds,
+    }
 }
 
 /// Resolve one set of layout properties into concrete bounds and a window-space transform.
@@ -343,6 +361,24 @@ fn test_transform_and_bounds_mult() {
         .map(|(a, b)| (a - b).abs())
         .sum::<f64>();
     assert!(diff_sum < 1e-4);
+}
+
+#[test]
+fn test_apply_container_frame_uses_assigned_bounds() {
+    let parent = TransformAndBounds::<NodeLocal, Window> {
+        transform: Transform2::translate(Vector2::new(50.0, 60.0)),
+        bounds: (100.0, 100.0),
+    };
+    let frame = ContainerFrame {
+        transform: Transform2::translate(Vector2::new(10.0, 20.0)),
+        bounds: (30.0, 40.0),
+    };
+
+    let result = apply_container_frame(parent, Some(frame));
+
+    assert_eq!(result.bounds, (30.0, 40.0));
+    assert_eq!(result.transform.m[4], 60.0);
+    assert_eq!(result.transform.m[5], 80.0);
 }
 
 impl Interpolatable for LayoutProperties {}

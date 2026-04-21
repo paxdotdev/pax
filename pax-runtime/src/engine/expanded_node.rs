@@ -35,8 +35,8 @@ use pax_manifest::cartridge_generation::{
 };
 
 use crate::{
-    compute_tab, ComponentInstance, HandlerLocation, InstanceNode, InstanceNodePtr, RuntimeContext,
-    RuntimePropertiesStackFrame,
+    apply_container_frame, compute_tab, ComponentInstance, ContainerFrame, ContentChildrenSource,
+    HandlerLocation, InstanceNode, InstanceNodePtr, RuntimeContext, RuntimePropertiesStackFrame,
 };
 
 #[derive(Clone)]
@@ -101,6 +101,8 @@ pub struct ExpandedNode {
     /// The layout information (width, height, transform) used to render this node.
     /// computed property based on parent bounds + common properties
     pub transform_and_bounds: Property<TransformAndBounds<NodeLocal, Window>>,
+    /// Optional container-assigned virtual wrapper frame applied before this node's own layout.
+    pub container_frame: Property<Option<ContainerFrame>>,
 
     /// The accumulated opacity inherited from render ancestors and this node's
     /// own common opacity value.
@@ -343,6 +345,7 @@ impl ExpandedNode {
             exiting_children: RefCell::new(Vec::new()),
             sidecar_children: RefCell::new(Vec::new()),
             transform_and_bounds: Property::new(TransformAndBounds::default()),
+            container_frame: Property::new(None),
             computed_opacity: Property::new(1.0),
             expanded_slot_children: Default::default(),
             expanded_and_flattened_slot_children: Default::default(),
@@ -662,13 +665,22 @@ impl ExpandedNode {
             .upgrade()
             .map(|n| n.transform_and_bounds.clone())
             .unwrap_or_else(|| ctx.globals().viewport);
+        let container_frame = self.container_frame.clone();
+        let deps = [
+            parent_transform_and_bounds.untyped(),
+            container_frame.untyped(),
+        ];
+        let effective_parent_transform_and_bounds = Property::computed(
+            move || apply_container_frame(parent_transform_and_bounds.get(), container_frame.get()),
+            &deps,
+        );
         let common_props = borrow!(self.common_properties);
         let extra_transform = borrow!(common_props).transform.clone();
 
         let transform_and_bounds = compute_tab(
             self.layout_properties(),
             extra_transform,
-            parent_transform_and_bounds,
+            effective_parent_transform_and_bounds,
         );
         self.transform_and_bounds.replace_with(transform_and_bounds);
 
@@ -1009,6 +1021,31 @@ impl ExpandedNode {
                     .map(|v| v.slot_child_attached_listener.clone())
                     .unwrap_or_default()
             };
+        let content_children = match borrow!(self.instance_node).content_children_source() {
+            ContentChildrenSource::Direct => self.children.clone(),
+            ContentChildrenSource::Slot => {
+                if borrow!(self.instance_node).base().flags().is_component {
+                    self.expanded_and_flattened_slot_children.clone()
+                } else {
+                    self.containing_component
+                        .upgrade()
+                        .map(|v| v.expanded_and_flattened_slot_children.clone())
+                        .unwrap_or_default()
+                }
+            }
+        };
+        let content_children_count_source = content_children.clone();
+        let content_children_count = Property::computed(
+            move || content_children_count_source.get().len(),
+            &[content_children.untyped()],
+        );
+        let content_children_signal = content_children.clone();
+        let content_children_changed = Property::computed(
+            move || {
+                let _ = content_children_signal.get();
+            },
+            &[content_children.untyped()],
+        );
 
         let last_frame = Rc::new(RefCell::new(globals.frames_elapsed.get()));
         let suspended = self.suspended.clone();
@@ -1048,6 +1085,9 @@ impl ExpandedNode {
             slot_children,
             node_transform_and_bounds: self.transform_and_bounds.get(),
             slot_children_attached_listener,
+            content_children,
+            content_children_count,
+            content_children_changed,
             #[cfg(feature = "designtime")]
             designtime: globals.designtime.clone(),
         }

@@ -16,6 +16,8 @@ pub use pax_runtime::api::ToPaxValue;
 pub use pax_runtime::engine::node_interface::*;
 pub use pax_runtime::layout as node_layout;
 pub use pax_runtime::rendering;
+pub use pax_runtime::Container;
+pub use pax_runtime::ContainerFrame;
 pub use pax_runtime::Slot;
 
 #[cfg(feature = "designtime")]

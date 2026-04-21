@@ -3,6 +3,7 @@ pub mod cartridge;
 pub mod component;
 pub mod conditional;
 pub mod constants;
+pub mod container;
 #[cfg(feature = "designtime")]
 pub mod designtime_support;
 pub mod engine;
@@ -16,6 +17,7 @@ pub mod slot;
 pub use crate::cartridge::*;
 pub use crate::component::*;
 pub use crate::conditional::*;
+pub use crate::container::*;
 pub use crate::engine::*;
 pub use crate::layout::*;
 pub use crate::properties::*;

@@ -56,11 +56,17 @@ impl Default for Stacker {
 }
 
 impl Stacker {
-    // Computes child rectangles for the inline template.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
+        self.bind_container(ctx);
+    }
+}
+
+impl Container for Stacker {
+    // Computes child rectangles for the inline template.
+    fn bind_container(&self, ctx: &NodeContext) {
         let sizes = self.sizes.clone();
         let bound = ctx.bounds_self.clone();
-        let slot_children_count = ctx.slot_children_count.clone();
+        let content_children_count = ctx.content_children_count.clone();
         let gutter = self.gutter.clone();
         let direction = self.direction.clone();
 
@@ -69,13 +75,13 @@ impl Stacker {
             direction.untyped(),
             sizes.untyped(),
             gutter.untyped(),
-            slot_children_count.untyped(),
+            content_children_count.untyped(),
         ];
 
         //NOTE: replace with is needed since the for loop already has a connection to the prop
         self._cell_specs.replace_with(Property::computed_with_name(
             move || {
-                let cells: f64 = slot_children_count.get() as f64;
+                let cells: f64 = content_children_count.get() as f64;
                 let bounds = bound.get();
 
                 let active_bound = match direction.get() {
