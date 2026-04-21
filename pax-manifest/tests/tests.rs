@@ -2,6 +2,8 @@
 #[cfg(feature = "parsing")]
 mod tests {
     use std::collections::HashMap;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     use pax_language::{parse_pax_str, Rule};
     use pax_manifest::pax_runtime_api::PaxValue;
@@ -17,6 +19,37 @@ mod tests {
         TimelineSelectorElement, TimelineTrackDefinition, TimelineTrackElement, Token, TypeId,
         ValueDefinition,
     };
+
+    fn write_temp_rust_source(contents: &str) -> std::path::PathBuf {
+        let unique_suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "pax-manifest-implicit-handlers-{}-{}.rs",
+            std::process::id(),
+            unique_suffix
+        ));
+        fs::write(&path, contents).expect("temporary Rust source should be writable");
+        path
+    }
+
+    fn lifecycle_bindings(component: &ComponentDefinition) -> Vec<(String, String)> {
+        component
+            .settings
+            .as_ref()
+            .into_iter()
+            .flatten()
+            .filter_map(|setting| match setting {
+                pax_manifest::SettingsBlockElement::Handler(event, handlers)
+                    if handlers.len() == 1 =>
+                {
+                    Some((event.token_value.clone(), handlers[0].token_value.clone()))
+                }
+                _ => None,
+            })
+            .collect()
+    }
 
     #[test]
     fn test_parse_empty() {
@@ -203,6 +236,7 @@ mod tests {
             "crate",
             component_type_id,
             "example.pax",
+            file!(),
         );
 
         let template = component.template.unwrap();
@@ -295,6 +329,7 @@ mod tests {
             "crate",
             component_type_id.clone(),
             "example.pax",
+            file!(),
         );
 
         let rendered = press_code_serialization_template(component).unwrap();
@@ -309,6 +344,7 @@ mod tests {
             "crate",
             component_type_id,
             "example.pax",
+            file!(),
         );
         let template = parsed_component.template.unwrap();
         let if_id = template.get_root().remove(0);
@@ -345,6 +381,7 @@ mod tests {
             "crate",
             component_type_id.clone(),
             "example.pax",
+            file!(),
         );
 
         let rendered = press_code_serialization_template(component).unwrap();
@@ -358,6 +395,7 @@ mod tests {
             "crate",
             component_type_id,
             "example.pax",
+            file!(),
         );
         let template = parsed_component.template.unwrap();
         let rectangle_id = template.get_root().remove(0);
@@ -394,6 +432,7 @@ mod tests {
             "crate",
             component_type_id.clone(),
             "example.pax",
+            file!(),
         );
 
         let rendered = press_code_serialization_template(component).unwrap();
@@ -407,6 +446,7 @@ mod tests {
             "crate",
             component_type_id,
             "example.pax",
+            file!(),
         );
         let template = parsed_component.template.unwrap();
         let text_id = template.get_root().remove(0);
@@ -620,6 +660,7 @@ mod tests {
             "crate",
             component_type_id,
             "example.pax",
+            file!(),
         );
 
         assert_eq!(parsed_component.timelines.len(), 1);
@@ -651,5 +692,86 @@ mod tests {
             Some(ValueDefinition::Identifier(identifier)) if identifier.name == "self.phase"
         ));
         assert_eq!(opacity_track.keyframes().count(), 3);
+    }
+
+    #[test]
+    fn test_assemble_component_definition_adds_implicit_lifecycle_handlers() {
+        let rust_source = write_temp_rust_source(
+            r#"
+            pub struct Example;
+
+            impl Example {
+                pub fn on_mount(&mut self, _ctx: &NodeContext) {}
+                pub fn on_tick(&mut self, _ctx: &NodeContext) {}
+                pub fn on_pre_render(&mut self, _ctx: &NodeContext) {}
+                pub fn on_unmount(&mut self, _ctx: &NodeContext) {}
+            }
+            "#,
+        );
+
+        let group_type_id = TypeId::build_singleton("Group", Some("Group"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Group".to_string(), group_type_id);
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            "<Group />",
+            false,
+            template_map,
+            "crate",
+            TypeId::build_singleton("crate::Example", Some("Example")),
+            "example.pax",
+            rust_source.to_str().unwrap(),
+        );
+
+        let bindings = lifecycle_bindings(&component);
+        assert!(bindings.contains(&("mount".to_string(), "on_mount".to_string())));
+        assert!(bindings.contains(&("tick".to_string(), "on_tick".to_string())));
+        assert!(bindings.contains(&("pre_render".to_string(), "on_pre_render".to_string())));
+        assert!(bindings.contains(&("unmount".to_string(), "on_unmount".to_string())));
+
+        fs::remove_file(rust_source).expect("temporary Rust source should be removable");
+    }
+
+    #[test]
+    fn test_assemble_component_definition_prefers_explicit_lifecycle_bindings() {
+        let rust_source = write_temp_rust_source(
+            r#"
+            pub struct Example;
+
+            impl Example {
+                pub fn on_mount(&mut self, _ctx: &NodeContext) {}
+                pub fn tick(&mut self, _ctx: &NodeContext) {}
+            }
+            "#,
+        );
+
+        let group_type_id = TypeId::build_singleton("Group", Some("Group"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Group".to_string(), group_type_id);
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            r#"
+                <Group />
+
+                @settings {
+                    @mount: custom_mount
+                }
+            "#,
+            false,
+            template_map,
+            "crate",
+            TypeId::build_singleton("crate::Example", Some("Example")),
+            "example.pax",
+            rust_source.to_str().unwrap(),
+        );
+
+        let bindings = lifecycle_bindings(&component);
+        assert!(bindings.contains(&("mount".to_string(), "custom_mount".to_string())));
+        assert!(!bindings.contains(&("mount".to_string(), "on_mount".to_string())));
+        assert!(bindings.contains(&("tick".to_string(), "tick".to_string())));
+
+        fs::remove_file(rust_source).expect("temporary Rust source should be removable");
     }
 }

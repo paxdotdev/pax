@@ -96,7 +96,7 @@ impl ColorPickerExample {
         self.property_listener.replace_with(Property::computed(
             move || {
                 let new_col = Color::hsla(
-                    Rotation::Percent(hue.get().into()),
+                    hue_rotation_0_1(hue.get()),
                     (saturation.get() * 255.0).into(),
                     (lightness.get() * 255.0).into(),
                     (alpha.get() * 255.0).into(),
@@ -214,7 +214,7 @@ fn palette(hue: f64) -> Vec<u8> {
     for y in 0..PALETTE_IMAGE_SIZE as i32 {
         for x in 0..PALETTE_IMAGE_SIZE as i32 {
             let c = Color::hsl(
-                Rotation::Percent(hue.into()),
+                hue_rotation_0_1(hue),
                 (x * 255 / max_index).into(),
                 (255 - y * 255 / max_index).into(),
             )
@@ -229,7 +229,7 @@ fn hue_slider() -> [u8; 10 * 4] {
     let mut hues = [0u8; 10 * 4];
     for i in (0..40).step_by(4) {
         let c = Color::hsl(
-            Rotation::Percent((i as f64 / 40.0).into()),
+            hue_rotation_0_1(i as f64 / 40.0),
             255.into(),
             (255 / 2).into(),
         )
@@ -253,6 +253,10 @@ fn alpha_slider(color: Color) -> [u8; 10 * 4] {
         alphas[i..(i + 4)].copy_from_slice(&c.map(|v| (v * 255.0) as u8));
     }
     alphas
+}
+
+fn hue_rotation_0_1(hue: f64) -> Rotation {
+    Rotation::Percent((hue * 100.0).into())
 }
 
 fn color_channel(text: &str) -> Option<u8> {

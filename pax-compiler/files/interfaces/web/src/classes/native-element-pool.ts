@@ -650,7 +650,6 @@ export class NativeElementPool {
         this.applyLeafPlacement(leaf!, patch);
         updateCommonProps(leaf!, patch);
         let slider = leaf!.firstChild as HTMLInputElement;
-        slider.style.height = "";
 
         if (patch.step != null && patch.step.toString() != slider.step) {
             slider.step = patch.step.toString();

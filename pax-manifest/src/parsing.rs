@@ -3,6 +3,9 @@ use pax_language::interpreter::parse_pax_expression_from_pair;
 use pax_language::{from_pax, parse_pax_expression, parse_pax_str, Pair, Pairs, Rule, Span};
 use pax_runtime_api::{Color, Fill, PaxValue, Size, Stroke};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::fs;
+use std::path::Path;
+use syn::{FnArg, ImplItem, ImplItemMethod, Item, Type, Visibility};
 
 /// Parse template nodes out of a component-definition AST into a mutable template context.
 pub fn parse_template_from_component_definition_string(
@@ -821,6 +824,272 @@ pub struct ParsingError {
     pub end: (usize, usize),
 }
 
+const IMPLICIT_LIFECYCLE_HANDLER_CANDIDATES: [(&str, [&str; 2]); 4] = [
+    ("mount", ["on_mount", "mount"]),
+    ("tick", ["on_tick", "tick"]),
+    ("pre_render", ["on_pre_render", "pre_render"]),
+    ("unmount", ["on_unmount", "unmount"]),
+];
+
+fn add_implicit_lifecycle_handlers(
+    settings: &mut Vec<SettingsBlockElement>,
+    module_path: &str,
+    self_type_id: &TypeId,
+    rust_source_file_path: &str,
+) {
+    let explicit_events = settings
+        .iter()
+        .filter_map(|setting| match setting {
+            SettingsBlockElement::Handler(key, _) => Some(key.token_value.clone()),
+            _ => None,
+        })
+        .collect::<HashSet<_>>();
+
+    let available_handlers =
+        collect_component_lifecycle_handler_names(module_path, self_type_id, rust_source_file_path);
+
+    for (event_name, candidates) in IMPLICIT_LIFECYCLE_HANDLER_CANDIDATES {
+        if explicit_events.contains(event_name) {
+            continue;
+        }
+
+        if let Some(handler_name) = candidates
+            .iter()
+            .find(|candidate| available_handlers.contains(**candidate))
+        {
+            settings.push(SettingsBlockElement::Handler(
+                Token::new_without_location(event_name.to_string()),
+                vec![Token::new_without_location((*handler_name).to_string())],
+            ));
+        }
+    }
+}
+
+fn collect_component_lifecycle_handler_names(
+    target_module_path: &str,
+    self_type_id: &TypeId,
+    rust_source_file_path: &str,
+) -> HashSet<String> {
+    let source = match fs::read_to_string(rust_source_file_path) {
+        Ok(source) => source,
+        Err(err) => {
+            log::warn!(
+                "Failed to read Rust source `{}` while inferring implicit lifecycle handlers: {}",
+                rust_source_file_path,
+                err
+            );
+            return HashSet::new();
+        }
+    };
+
+    let parsed_file = match syn::parse_file(&source) {
+        Ok(parsed_file) => parsed_file,
+        Err(err) => {
+            log::warn!(
+                "Failed to parse Rust source `{}` while inferring implicit lifecycle handlers: {}",
+                rust_source_file_path,
+                err
+            );
+            return HashSet::new();
+        }
+    };
+
+    let root_module_path = source_root_module_path(rust_source_file_path)
+        .unwrap_or_else(|| target_module_path.to_string());
+    let target_import_path = self_type_id
+        .import_path()
+        .unwrap_or_else(|| self_type_id.to_string());
+    let target_ident = self_type_id
+        .get_pascal_identifier()
+        .unwrap_or_else(|| self_type_id.to_string());
+    let mut handlers = HashSet::new();
+
+    collect_component_lifecycle_handler_names_from_items(
+        &parsed_file.items,
+        &root_module_path,
+        target_module_path,
+        &target_import_path,
+        &target_ident,
+        &mut handlers,
+    );
+
+    handlers
+}
+
+fn collect_component_lifecycle_handler_names_from_items(
+    items: &[Item],
+    current_module_path: &str,
+    target_module_path: &str,
+    target_import_path: &str,
+    target_ident: &str,
+    handlers: &mut HashSet<String>,
+) {
+    for item in items {
+        match item {
+            Item::Impl(item_impl)
+                if impl_targets_component(
+                    item_impl,
+                    current_module_path,
+                    target_module_path,
+                    target_import_path,
+                    target_ident,
+                ) =>
+            {
+                for impl_item in &item_impl.items {
+                    if let ImplItem::Method(method) = impl_item {
+                        if is_valid_implicit_lifecycle_method(method) {
+                            handlers.insert(method.sig.ident.to_string());
+                        }
+                    }
+                }
+            }
+            Item::Mod(item_mod) => {
+                if let Some((_, module_items)) = &item_mod.content {
+                    let child_module_path = format!("{}::{}", current_module_path, item_mod.ident);
+                    collect_component_lifecycle_handler_names_from_items(
+                        module_items,
+                        &child_module_path,
+                        target_module_path,
+                        target_import_path,
+                        target_ident,
+                        handlers,
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn impl_targets_component(
+    item_impl: &syn::ItemImpl,
+    current_module_path: &str,
+    target_module_path: &str,
+    target_import_path: &str,
+    target_ident: &str,
+) -> bool {
+    if item_impl.trait_.is_some() {
+        return false;
+    }
+
+    let Type::Path(type_path) = item_impl.self_ty.as_ref() else {
+        return false;
+    };
+
+    let canonical_path = canonicalize_path(&type_path.path, current_module_path);
+    if canonical_path == target_import_path {
+        return true;
+    }
+
+    type_path.path.segments.len() == 1
+        && type_path
+            .path
+            .segments
+            .last()
+            .is_some_and(|segment| segment.ident == target_ident)
+        && current_module_path == target_module_path
+}
+
+fn canonicalize_path(path: &syn::Path, current_module_path: &str) -> String {
+    let segments = path
+        .segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect::<Vec<_>>();
+
+    if segments.is_empty() {
+        return current_module_path.to_string();
+    }
+
+    match segments[0].as_str() {
+        "crate" => segments.join("::"),
+        "self" => {
+            if segments.len() == 1 {
+                current_module_path.to_string()
+            } else {
+                format!("{}::{}", current_module_path, segments[1..].join("::"))
+            }
+        }
+        "super" => {
+            let mut module_segments = current_module_path
+                .split("::")
+                .map(str::to_string)
+                .collect::<Vec<_>>();
+            let mut index = 0;
+            while index < segments.len() && segments[index] == "super" {
+                if module_segments.len() > 1 {
+                    module_segments.pop();
+                }
+                index += 1;
+            }
+            module_segments.extend(segments[index..].iter().cloned());
+            module_segments.join("::")
+        }
+        _ => format!("{}::{}", current_module_path, segments.join("::")),
+    }
+}
+
+fn is_valid_implicit_lifecycle_method(method: &ImplItemMethod) -> bool {
+    matches!(method.vis, Visibility::Public(_))
+        && method.sig.inputs.len() == 2
+        && matches!(method.sig.inputs.first(), Some(FnArg::Receiver(_)))
+        && method
+            .sig
+            .inputs
+            .iter()
+            .nth(1)
+            .is_some_and(is_node_context_arg)
+}
+
+fn is_node_context_arg(arg: &FnArg) -> bool {
+    match arg {
+        FnArg::Typed(arg) => type_ends_with_ident(arg.ty.as_ref(), "NodeContext"),
+        FnArg::Receiver(_) => false,
+    }
+}
+
+fn type_ends_with_ident(ty: &Type, ident: &str) -> bool {
+    match ty {
+        Type::Reference(reference) => type_ends_with_ident(reference.elem.as_ref(), ident),
+        Type::Path(type_path) => type_path
+            .path
+            .segments
+            .last()
+            .is_some_and(|segment| segment.ident == ident),
+        _ => false,
+    }
+}
+
+fn source_root_module_path(rust_source_file_path: &str) -> Option<String> {
+    let path = Path::new(rust_source_file_path);
+    let components = path
+        .components()
+        .map(|component| component.as_os_str().to_string_lossy().to_string())
+        .collect::<Vec<_>>();
+    let src_index = components
+        .iter()
+        .rposition(|component| component == "src")?;
+    let relative_components = &components[(src_index + 1)..];
+    let file_name = relative_components.last()?;
+
+    let mut module_segments = vec!["crate".to_string()];
+    module_segments.extend(
+        relative_components[..relative_components.len().saturating_sub(1)]
+            .iter()
+            .cloned(),
+    );
+
+    match file_name.as_str() {
+        "lib.rs" | "main.rs" | "mod.rs" => {}
+        file_name if file_name.ends_with(".rs") => {
+            module_segments.push(file_name.trim_end_matches(".rs").to_string());
+        }
+        _ => return None,
+    }
+
+    Some(module_segments.join("::"))
+}
+
 /// From a raw string of Pax representing a single component, parse a complete ComponentDefinition
 pub fn assemble_component_definition(
     mut ctx: ParsingContext,
@@ -829,13 +1098,14 @@ pub fn assemble_component_definition(
     template_map: HashMap<String, TypeId>,
     module_path: &str,
     self_type_id: TypeId,
-    component_source_file_path: &str,
+    template_source_file_path: &str,
+    rust_source_file_path: &str,
 ) -> (ParsingContext, ComponentDefinition) {
     let mut tpc = TemplateNodeParseContext {
         pascal_identifier_to_type_id_map: template_map,
         template: ComponentTemplate::new(
             self_type_id.clone(),
-            Some(component_source_file_path.to_owned()),
+            Some(template_source_file_path.to_owned()),
         ),
     };
 
@@ -851,8 +1121,14 @@ pub fn assemble_component_definition(
     //populate template_node_definitions vec, needed for traversing node tree at codegen-time
     ctx.template_node_definitions = tpc.template.clone();
 
-    let settings = parse_settings_from_component_definition_string(ast.clone());
+    let mut settings = parse_settings_from_component_definition_string(ast.clone());
     let timelines = parse_timeline_from_component_definition_string(ast);
+    add_implicit_lifecycle_handlers(
+        &mut settings,
+        &modified_module_path,
+        &self_type_id,
+        rust_source_file_path,
+    );
 
     let new_def = ComponentDefinition {
         is_primitive: false,

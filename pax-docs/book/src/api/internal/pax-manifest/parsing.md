@@ -73,7 +73,7 @@ on primitive types
 
 ## Functions
 ### `assemble_component_definition`
-<pre><code class="api-signature language-rust ignore">pub fn assemble_component_definition(ctx: <a href="/api/internal/pax-manifest/parsing.md#parsingcontext">ParsingContext</a>, pax: &amp;str, is_main_component: bool, template_map: HashMap&lt;String, <a href="/api/internal/pax-manifest/index.md#typeid">TypeId</a>&gt;, module_path: &amp;str, self_type_id: <a href="/api/internal/pax-manifest/index.md#typeid">TypeId</a>, component_source_file_path: &amp;str) -&gt; (<a href="/api/internal/pax-manifest/parsing.md#parsingcontext">ParsingContext</a>, <a href="/api/internal/pax-manifest/index.md#componentdefinition">ComponentDefinition</a>)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn assemble_component_definition(ctx: <a href="/api/internal/pax-manifest/parsing.md#parsingcontext">ParsingContext</a>, pax: &amp;str, is_main_component: bool, template_map: HashMap&lt;String, <a href="/api/internal/pax-manifest/index.md#typeid">TypeId</a>&gt;, module_path: &amp;str, self_type_id: <a href="/api/internal/pax-manifest/index.md#typeid">TypeId</a>, template_source_file_path: &amp;str, rust_source_file_path: &amp;str) -&gt; (<a href="/api/internal/pax-manifest/parsing.md#parsingcontext">ParsingContext</a>, <a href="/api/internal/pax-manifest/index.md#componentdefinition">ComponentDefinition</a>)</code></pre>
 
 From a raw string of Pax representing a single component, parse a complete ComponentDefinition
 

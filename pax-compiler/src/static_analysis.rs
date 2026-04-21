@@ -332,6 +332,7 @@ fn build_item_recursive(
                 .unwrap_or(&item.source_path)
                 .to_string_lossy()
                 .to_string();
+            let rust_source_file_path = item.source_path.to_string_lossy().to_string();
             let owned_ctx = std::mem::take(ctx);
             let (new_ctx, component_definition) = assemble_component_definition(
                 owned_ctx,
@@ -341,6 +342,7 @@ fn build_item_recursive(
                 &item.module_path,
                 self_type_id.clone(),
                 &component_source_file_path,
+                &rust_source_file_path,
             );
             *ctx = new_ctx;
             component_definition

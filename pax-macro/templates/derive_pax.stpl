@@ -375,7 +375,8 @@ impl <%= engine_import_path %>::pax_manifest::parsing::Reflectable for <%= pasca
 
                 <% if args_full_component.as_ref().is_some() { %>
                     // Get source file path for write-back
-                    let mut component_source_file_path = file!().to_string();
+                    let rust_source_file_path = file!().to_string();
+                    let mut component_source_file_path = rust_source_file_path.clone();
                     <% if args_full_component.as_ref().unwrap().associated_pax_file_path.is_some() { %>
                         component_source_file_path = r"<%= args_full_component.as_ref().unwrap().associated_pax_file_path.as_ref().unwrap() %>".to_string();
                     <% } %>   
@@ -390,6 +391,7 @@ impl <%= engine_import_path %>::pax_manifest::parsing::Reflectable for <%= pasca
                             &<%= engine_import_path %>::pax_manifest::parsing::clean_module_path(module_path!()),
                             self_type_id.clone(),
                             &component_source_file_path,
+                            &rust_source_file_path,
                         );
                 <% } %>
                 <% if args_struct_only_component.as_ref().is_some() { %>
