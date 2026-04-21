@@ -57,7 +57,6 @@ New features are often proven on one "chassis" at a time (platform target.)  In 
 *Units* -- Pax offers first-class unit support for declaring property values.  For example `25px`, `25%`, `25deg`, `25rad`. `{100% - 25px}` is an expressive construct for filling a container minus a fixed amount, and you can group units, too `(some_property + 25)px`.  Rely on % for responsive sizing.
 
 
-
 ## `pax-cli dev` AI + Developer tools
 
 The pax-cli includes developer tools, designed for humans as well as AI use (for improving automated feedback loops.)
