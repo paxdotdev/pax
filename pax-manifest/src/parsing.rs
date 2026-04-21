@@ -214,9 +214,6 @@ fn recurse_visit_tag_pairs_for_template(
                     let mut cfavd = ControlFlowSettingsDefinition::default();
                     let mut for_statement = any_tag_pair.clone().into_inner();
                     let mut predicate_declaration = for_statement.next().unwrap().into_inner();
-                    let source = for_statement.next().unwrap();
-
-                    let prospective_inner_nodes = for_statement.next();
 
                     if predicate_declaration.clone().count() > 1 {
                         //tuple, like the `elem, i` in `for (elem, i) in self.some_list`
@@ -235,11 +232,30 @@ fn recurse_visit_tag_pairs_for_template(
                         );
                     }
 
-                    let inner_source = source.into_inner().next().unwrap();
-                    /* statement_for_source = { xo_range | xo_symbol } */
-                    let repeat_source_definition =
-                        ExpressionInfo::new(parse_pax_expression(inner_source.as_str()).unwrap());
-                    cfavd.repeat_source_expression = Some(repeat_source_definition);
+                    let mut prospective_inner_nodes = None;
+                    for for_statement_child in for_statement {
+                        match for_statement_child.as_rule() {
+                            Rule::statement_for_source => {
+                                let inner_source = for_statement_child.into_inner().next().unwrap();
+                                /* statement_for_source = { xo_range | xo_symbol } */
+                                let repeat_source_definition = ExpressionInfo::new(
+                                    parse_pax_expression(inner_source.as_str()).unwrap(),
+                                );
+                                cfavd.repeat_source_expression = Some(repeat_source_definition);
+                            }
+                            Rule::statement_for_key => {
+                                let key_expression =
+                                    for_statement_child.into_inner().next().unwrap();
+                                cfavd.repeat_key_expression = Some(ExpressionInfo::new(
+                                    parse_pax_expression(key_expression.as_str()).unwrap(),
+                                ));
+                            }
+                            Rule::inner_nodes => {
+                                prospective_inner_nodes = Some(for_statement_child);
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
 
                     //`for` TemplateNodeDefinition
                     let template_node = TemplateNodeDefinition {
@@ -277,6 +293,7 @@ fn recurse_visit_tag_pairs_for_template(
                             slot_index_expression: Some(slot_expression),
                             repeat_predicate_definition: None,
                             repeat_source_expression: None,
+                            repeat_key_expression: None,
                             conditional_branches: vec![],
                         }),
                         type_id: TypeId::build_slot(),

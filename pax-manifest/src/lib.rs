@@ -1812,6 +1812,8 @@ pub struct ControlFlowSettingsDefinition {
     pub repeat_predicate_definition: Option<ControlFlowRepeatPredicateDefinition>,
     pub repeat_source_expression: Option<ExpressionInfo>,
     #[serde(default)]
+    pub repeat_key_expression: Option<ExpressionInfo>,
+    #[serde(default)]
     pub conditional_branches: Vec<ControlFlowConditionalBranchDefinition>,
 }
 

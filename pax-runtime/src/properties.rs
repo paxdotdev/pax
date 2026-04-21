@@ -743,7 +743,7 @@ fn find_paths_to_common_ancestor(
 pub struct RuntimePropertiesStackFrame {
     symbols_within_frame: HashMap<String, Variable>,
     local_stores: Rc<RefCell<HashMap<TypeId, Box<dyn Any>>>>,
-    parent: Weak<RuntimePropertiesStackFrame>,
+    parent: Option<Rc<RuntimePropertiesStackFrame>>,
 }
 
 impl RuntimePropertiesStackFrame {
@@ -751,7 +751,7 @@ impl RuntimePropertiesStackFrame {
         Rc::new(Self {
             symbols_within_frame,
             local_stores: Default::default(),
-            parent: Weak::new(),
+            parent: None,
         })
     }
 
@@ -759,12 +759,12 @@ impl RuntimePropertiesStackFrame {
         Rc::new(RuntimePropertiesStackFrame {
             symbols_within_frame,
             local_stores: Default::default(),
-            parent: Rc::downgrade(&self),
+            parent: Some(Rc::clone(self)),
         })
     }
 
     pub fn pop(self: &Rc<Self>) -> Option<Rc<Self>> {
-        self.parent.upgrade()
+        self.parent.clone()
     }
 
     pub fn insert_stack_local_store<T: Store>(&self, store: T) {
@@ -782,7 +782,7 @@ impl RuntimePropertiesStackFrame {
         while !borrow!(current.local_stores).contains_key(&type_id) {
             current = current
                 .parent
-                .upgrade()
+                .clone()
                 .ok_or_else(|| format!("couldn't find store in local stack"))?;
         }
         let v = {
@@ -797,7 +797,7 @@ impl RuntimePropertiesStackFrame {
         if let Some(e) = self.symbols_within_frame.get(&clean_symbol(symbol)) {
             Some(e.clone())
         } else {
-            self.parent.upgrade()?.resolve_symbol_as_variable(symbol)
+            self.parent.as_ref()?.resolve_symbol_as_variable(symbol)
         }
     }
 
@@ -805,9 +805,7 @@ impl RuntimePropertiesStackFrame {
         if let Some(e) = self.symbols_within_frame.get(&clean_symbol(symbol)) {
             Some(e.clone().get_untyped_property().clone())
         } else {
-            self.parent
-                .upgrade()?
-                .resolve_symbol_as_erased_property(symbol)
+            self.parent.as_ref()?.resolve_symbol_as_erased_property(symbol)
         }
     }
 
@@ -815,7 +813,7 @@ impl RuntimePropertiesStackFrame {
         self.symbols_within_frame
             .get(&clean_symbol(symbol))
             .cloned()
-            .or_else(|| self.parent.upgrade()?.resolve_symbol(symbol))
+            .or_else(|| self.parent.as_ref()?.resolve_symbol(symbol))
     }
 }
 

@@ -14,10 +14,10 @@ mod tests {
             parse_timeline_from_component_definition_string, ParsingContext,
         },
         utils, ComponentDefinition, ComponentTemplate, ControlFlowConditionalBranchKind,
-        PaxIdentifier, PaxManifest, SettingElement, SettingsBlockElement, TemplateNodeDefinition,
-        TimelineBlockElement, TimelineDefinition, TimelineKeyframe, TimelineMarker,
-        TimelineSelectorBlockDefinition, TimelineSelectorElement, TimelineTrackDefinition,
-        TimelineTrackElement, Token, TypeId, ValueDefinition,
+        ControlFlowRepeatPredicateDefinition, PaxIdentifier, PaxManifest, SettingElement,
+        SettingsBlockElement, TemplateNodeDefinition, TimelineBlockElement, TimelineDefinition,
+        TimelineKeyframe, TimelineMarker, TimelineSelectorBlockDefinition, TimelineSelectorElement,
+        TimelineTrackDefinition, TimelineTrackElement, Token, TypeId, ValueDefinition,
     };
 
     fn write_temp_rust_source(contents: &str) -> std::path::PathBuf {
@@ -398,6 +398,93 @@ mod tests {
             1
         );
         assert_eq!(template.get_children(&if_id).unwrap().len(), 4);
+    }
+
+    #[test]
+    fn test_parse_keyed_for_template() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let text_type_id = TypeId::build_singleton("Text", Some("Text"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Text".to_string(), text_type_id);
+
+        let pax = r#"
+            for (item, i) in self.items key item.id {
+                <Text text={item.label} />
+            }
+        "#;
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            pax,
+            false,
+            template_map,
+            "crate",
+            component_type_id,
+            "example.pax",
+        );
+
+        let template = component.template.unwrap();
+        let repeat_id = template.get_root().remove(0);
+        let repeat_node = template.get_node(&repeat_id).unwrap();
+        let control_flow_settings = repeat_node.control_flow_settings.as_ref().unwrap();
+
+        assert!(matches!(
+            control_flow_settings.repeat_predicate_definition.as_ref(),
+            Some(ControlFlowRepeatPredicateDefinition::ElemIdIndexId(elem, i))
+                if elem == "item" && i == "i"
+        ));
+        assert_eq!(
+            control_flow_settings
+                .repeat_key_expression
+                .as_ref()
+                .unwrap()
+                .expression
+                .to_string(),
+            "item.id"
+        );
+    }
+
+    #[test]
+    fn test_serialize_keyed_for_template() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let text_type_id = TypeId::build_singleton("Text", Some("Text"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Text".to_string(), text_type_id);
+
+        let pax = r#"
+            for (item, i) in self.items key item.id {
+                <Text text={item.label} />
+            }
+        "#;
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            pax,
+            false,
+            template_map.clone(),
+            "crate",
+            component_type_id.clone(),
+            "example.pax",
+        );
+
+        let rendered = press_code_serialization_template(component).unwrap();
+        assert!(rendered.contains("key item.id"));
+
+        let (_, parsed_component) = assemble_component_definition(
+            ParsingContext::default(),
+            &rendered,
+            false,
+            template_map,
+            "crate",
+            component_type_id,
+            "example.pax",
+        );
+        let template = parsed_component.template.unwrap();
+        let repeat_id = template.get_root().remove(0);
+        let repeat_node = template.get_node(&repeat_id).unwrap();
+        let control_flow_settings = repeat_node.control_flow_settings.as_ref().unwrap();
+
+        assert!(control_flow_settings.repeat_key_expression.is_some());
     }
 
     #[test]

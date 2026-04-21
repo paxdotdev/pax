@@ -308,7 +308,7 @@ statement_if = { statement_if_branch ~ statement_else_if_branch* ~ statement_els
 statement_if_branch = { "if" ~ expression_body ~ "{" ~ inner_nodes ~ "}" }
 statement_else_if_branch = { "else" ~ "if" ~ expression_body ~ "{" ~ inner_nodes ~ "}" }
 statement_else_branch = { "else" ~ "{" ~ inner_nodes ~ "}" }
-statement_for = {"for" ~ statement_for_predicate_declaration ~ "in" ~ statement_for_source ~ "{" ~ inner_nodes ~ "}"}
+statement_for = {"for" ~ statement_for_predicate_declaration ~ "in" ~ statement_for_source ~ statement_for_key? ~ "{" ~ inner_nodes ~ "}"}
 statement_slot = {"slot" ~ ("(" ~ expression_body ~ ")")}
 
 //Examples:
@@ -326,3 +326,4 @@ statement_for_predicate_declaration = {
 // in this.some_symbol..25
 // in 25..some_symbol
 statement_for_source = { xo_range | xo_symbol }
+statement_for_key = { "key" ~ expression_body }

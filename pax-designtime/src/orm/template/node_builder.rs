@@ -357,6 +357,7 @@ impl<'a> NodeBuilder<'a> {
                             .control_flow_updates
                             .repeat_source_expression
                             .flatten(),
+                        repeat_key_expression: None,
                         condition_expression: self
                             .control_flow_updates
                             .conditional_expression

@@ -137,6 +137,7 @@ fn renamed_rules(rule: &Rule) -> String {
         Rule::statement_slot => "slot".to_string(),
         Rule::statement_for_predicate_declaration => "for predicate (e.g. i, (elem,i) )".to_string(),
         Rule::statement_for_source => "for source (e.g. 0..5 )".to_string(),
+        Rule::statement_for_key => "for key expression (e.g. key item.id )".to_string(),
         Rule::literal_list => "list".to_string(),
         Rule::literal_option => "option".to_string(),
         Rule::literal_some => "Some".to_string(),

@@ -1634,8 +1634,10 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(
                     });
                 }
                 Rule::statement_for => {
-                    let prospective_inner_nodes = matched_tag.into_inner().nth(2).unwrap();
-                    if prospective_inner_nodes.as_rule() == Rule::inner_nodes {
+                    if let Some(prospective_inner_nodes) = matched_tag
+                        .into_inner()
+                        .find(|child| child.as_rule() == Rule::inner_nodes)
+                    {
                         prospective_inner_nodes
                             .into_inner()
                             .for_each(|sub_tag_pair| {

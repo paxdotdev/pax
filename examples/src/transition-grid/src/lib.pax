@@ -1,0 +1,108 @@
+<Group width=100% height=100%>
+    <Text
+        id=title
+        x=50%
+        y=54px
+        width=720px
+        height=42px
+        text="Transition Grid"
+        selectable=false
+    />
+
+    <Text
+        id=subtitle
+        x=50%
+        y=96px
+        width=720px
+        height=24px
+        text={"Clicks " + total_clicks + " / Recycled " + recycle_count}
+        selectable=false
+    />
+
+    if show_hint {
+        <HintPill
+            x=50%
+            y=145px
+            width=460px
+            height=38px
+            anchor_x=50%
+            anchor_y=50%
+        />
+    }
+
+    <Group
+        id=grid
+        x=50%
+        y=55%
+        width=512px
+        height=336px
+        anchor_x=50%
+        anchor_y=50%
+    >
+        for (cell, i) in self.cells key cell.id {
+            <CellButton
+                x={(cell.x)px}
+                y={(cell.y)px}
+                width=72px
+                height=72px
+                anchor_x=50%
+                anchor_y=50%
+                hue={cell.hue}
+                hits={cell.hits}
+                @click=self.handle_cell_click
+            />
+        }
+    </Group>
+
+    <Rectangle
+        width=100%
+        height=100%
+        fill={Fill::linearGradient(
+            (0%, 0%),
+            (100%, 100%),
+            [
+                GradientStop::get(Color::rgba(248, 250, 244, 255), 0%),
+                GradientStop::get(Color::rgba(230, 240, 232, 255), 58%),
+                GradientStop::get(Color::rgba(214, 226, 218, 255), 100%)
+            ]
+        )}
+    />
+</Group>
+
+@settings {
+    @mount: handle_mount
+
+    #title {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::ExtraBold
+            )
+            font_size: 38px
+            fill: rgba(24, 41, 36, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+            underline: false
+        }
+    }
+
+    #subtitle {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 15px
+            fill: rgba(74, 92, 84, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+            underline: false
+        }
+    }
+}

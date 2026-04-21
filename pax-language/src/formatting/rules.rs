@@ -139,6 +139,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
             vec![Box::new(XoObjectSettingsKeyValuePairDefaultRule)]
         }
         Rule::statement_for => vec![Box::new(StatementForDefaultRule)],
+        Rule::statement_for_key => vec![Box::new(StatementForKeyDefaultRule)],
         Rule::statement_if => vec![Box::new(StatementIfDefaultRule)],
         Rule::statement_if_branch => vec![Box::new(StatementIfBranchDefaultRule)],
         Rule::statement_else_if_branch => vec![Box::new(StatementElseIfBranchDefaultRule)],
@@ -991,13 +992,49 @@ struct StatementForDefaultRule;
 impl FormattingRule for StatementForDefaultRule {
     fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
         let mut formatted_node = String::new();
-        let sfpd = children[0].formatted_node.clone();
-        let sfs = children[1].formatted_node.clone();
-        let inner_nodes = children[2].formatted_node.clone();
+        let sfpd = children
+            .iter()
+            .find(|child| child.node_type == Rule::statement_for_predicate_declaration)
+            .map(|child| child.formatted_node.clone())
+            .unwrap_or_default();
+        let sfs = children
+            .iter()
+            .find(|child| child.node_type == Rule::statement_for_source)
+            .map(|child| child.formatted_node.clone())
+            .unwrap_or_default();
+        let key = children
+            .iter()
+            .find(|child| child.node_type == Rule::statement_for_key)
+            .map(|child| format!(" {}", child.formatted_node))
+            .unwrap_or_default();
+        let inner_nodes = children
+            .iter()
+            .find(|child| child.node_type == Rule::inner_nodes)
+            .map(|child| child.formatted_node.clone())
+            .unwrap_or_default();
         let inner_nodes_indented = indent_every_line_of_string(inner_nodes);
+        formatted_node.push_str(
+            format!(
+                "for {} in {}{} {{\n{}\n}}",
+                sfpd, sfs, key, inner_nodes_indented
+            )
+            .as_str(),
+        );
         formatted_node
-            .push_str(format!("for {} in {} {{\n{}\n}}", sfpd, sfs, inner_nodes_indented).as_str());
-        formatted_node
+    }
+}
+
+#[derive(Clone)]
+struct StatementForKeyDefaultRule;
+
+impl FormattingRule for StatementForKeyDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        let expression = children
+            .iter()
+            .find(|child| child.node_type == Rule::expression_body)
+            .map(|child| child.formatted_node.clone())
+            .unwrap_or_default();
+        format!("key {}", expression)
     }
 }
 

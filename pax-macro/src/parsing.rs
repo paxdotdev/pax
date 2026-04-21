@@ -101,8 +101,10 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(
                     });
                 }
                 Rule::statement_for => {
-                    let prospective_inner_nodes =
-                        matched_tag.into_inner().nth(2).expect("WRONG nth");
+                    let prospective_inner_nodes = matched_tag
+                        .into_inner()
+                        .find(|child| child.as_rule() == Rule::inner_nodes)
+                        .expect("for statement missing inner nodes");
                     match prospective_inner_nodes.as_rule() {
                         Rule::inner_nodes => {
                             prospective_inner_nodes

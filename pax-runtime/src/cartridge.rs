@@ -430,6 +430,12 @@ pub trait DefinitionToInstanceTraverser {
                     .repeat_source_expression
                     .clone()
                     .unwrap();
+                let repeat_key_expression = tnd
+                    .control_flow_settings
+                    .as_ref()
+                    .unwrap()
+                    .repeat_key_expression
+                    .clone();
                 let predictate_definition = tnd
                     .control_flow_settings
                     .as_ref()
@@ -490,6 +496,7 @@ pub trait DefinitionToInstanceTraverser {
                         repeat
                             .iterator_elem_symbol
                             .replace_with(Property::new(elem));
+                        repeat.repeat_key_expression = repeat_key_expression.clone();
                         return None;
                     }
 
@@ -513,6 +520,7 @@ pub trait DefinitionToInstanceTraverser {
                         properties
                             .iterator_elem_symbol
                             .replace_with(Property::new(elem));
+                        properties.repeat_key_expression = repeat_key_expression.clone();
                         properties.to_pax_any()
                     })))
                 });

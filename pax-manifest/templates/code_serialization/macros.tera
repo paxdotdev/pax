@@ -14,7 +14,10 @@
             in 
             {% if cfd.repeat_source_expression -%}
                 {{to_pax_expression(value=cfd.repeat_source_expression)}}
-            {% endif %} 
+            {% endif %}
+            {% if cfd.repeat_key_expression -%}
+                key {{to_pax_expression(value=cfd.repeat_key_expression)}}
+            {% endif %}
             {
     {% endif %}
 {% endmacro %}

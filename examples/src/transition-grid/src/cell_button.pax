@@ -1,0 +1,99 @@
+<Group width=100% height=100%>
+    if hits > 0 {
+        <Text
+            id=hit_count
+            x=50%
+            y=50%
+            width=52px
+            height=22px
+            text={hits + "/5"}
+            selectable=false
+        />
+    }
+
+    <Rectangle
+        x=50%
+        y=18%
+        width=62%
+        height=18%
+        anchor_x=50%
+        anchor_y=50%
+        fill=rgba(255, 255, 255, 62)
+        corner_radii={RectangleCornerRadii::radii(6.0, 6.0, 6.0, 6.0)}
+    />
+
+    <Rectangle
+        x=50%
+        y=50%
+        width=100%
+        height=100%
+        anchor_x=50%
+        anchor_y=50%
+        fill={hsl((display_hue)deg, 72%, 52%)}
+        stroke={
+            color: rgba(23, 42, 36, 255)
+            width: 2px
+        }
+        corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+    />
+</Group>
+
+@settings {
+    @mount: handle_mount
+    @pre_render: handle_pre_render
+    @in: enter
+    @out: exit
+
+    #hit_count {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::ExtraBold
+            )
+            font_size: 15px
+            fill: rgba(255, 255, 255, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+            underline: false
+        }
+    }
+}
+
+@timeline enter {
+    frames: 22,
+    self {
+        scale_x: {
+            0: 8%, OutBack,
+            100%: 100%,
+        },
+        scale_y: {
+            0: 8%, OutBack,
+            100%: 100%,
+        },
+        opacity: {
+            0: 0,
+            100%: 1,
+        },
+    }
+}
+
+@timeline exit {
+    frames: 18,
+    self {
+        scale_x: {
+            0: 100%, InQuad,
+            100%: 8%,
+        },
+        scale_y: {
+            0: 100%, InQuad,
+            100%: 8%,
+        },
+        opacity: {
+            0: 1,
+            100%: 0,
+        },
+    }
+}

@@ -1,0 +1,72 @@
+<Group width=100% height=100%>
+    <Text
+        id=hint_text
+        x=50%
+        y=50%
+        width={100% - 34px}
+        height=22px
+        text="Click any tile. Fifth click recycles it."
+        selectable=false
+    />
+
+    <Rectangle
+        width=100%
+        height=100%
+        fill=rgba(255, 255, 255, 210)
+        stroke={
+            color: rgba(43, 73, 63, 255)
+            width: 1px
+        }
+        corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+    />
+</Group>
+
+@settings {
+    @in: enter
+    @out: exit
+
+    #hint_text {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::SemiBold
+            )
+            font_size: 14px
+            fill: rgba(33, 52, 46, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+            underline: false
+        }
+    }
+}
+
+@timeline enter {
+    frames: 18,
+    self {
+        scale_x: {
+            0: 20%, OutBack,
+            100%: 100%,
+        },
+        opacity: {
+            0: 0,
+            100%: 1,
+        },
+    }
+}
+
+@timeline exit {
+    frames: 16,
+    self {
+        scale_x: {
+            0: 100%, InQuad,
+            100%: 20%,
+        },
+        opacity: {
+            0: 1,
+            100%: 0,
+        },
+    }
+}
