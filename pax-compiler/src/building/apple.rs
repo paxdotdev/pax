@@ -911,8 +911,6 @@ Note that the temporary directories mentioned above are subject to overwriting.\
             // Handle macOS `run`
             //
 
-            let system_binary_path =
-                executable_dot_app_path.join(&format!("Contents/MacOS/{}", scheme));
             let mut dev_session = if ctx.should_run_designtime {
                 Some(prepare_dev_session(&project_path, &pax_dir)?)
             } else {
@@ -940,7 +938,18 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                 None
             };
 
-            let mut cmd = Command::new(system_binary_path);
+            if let Some(session) = dev_session.as_mut() {
+                session.location = Some("local-window".to_string());
+                session.last_seen_ms = now_ms();
+                write_project_active_session(&pax_dir, session)?;
+                write_registered_session(session)?;
+            }
+
+            // Launch the app bundle through LaunchServices so it participates in
+            // normal macOS activation/focus behavior instead of appearing as a
+            // background direct-exec process.
+            let mut cmd = Command::new("open");
+            cmd.arg("-W").arg("-n").arg(&executable_dot_app_path);
             if let Some(session) = &dev_session {
                 cmd.env(
                     "PAX_DEV_SESSION_DIR",
@@ -967,17 +976,36 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                 cmd.pre_exec(crate::pre_exec_hook);
             }
 
-            let mut child = cmd.spawn().expect("failed to execute the app");
-            let app_pid = child.id() as u64;
-            if let Some(session) = dev_session.as_mut() {
-                finalize_dev_session(&pax_dir, session, child.id())?;
-            }
-            process_child_ids.lock().unwrap().push(app_pid);
+            let mut child = cmd.spawn().expect("failed to launch the app bundle");
+            let open_pid = child.id() as u64;
+            process_child_ids.lock().unwrap().push(open_pid);
+
+            let launched_app_pid = if let Some(session) = dev_session.as_mut() {
+                let launched_app_pid = wait_for_registered_session_app_pid(
+                    &session.session_id,
+                    Duration::from_secs(5),
+                )?;
+                if let Some(app_pid) = launched_app_pid {
+                    session.app_pid = Some(app_pid);
+                    session.location = Some(format!("local-window pid:{app_pid}"));
+                    session.last_seen_ms = now_ms();
+                    write_project_active_session(&pax_dir, session)?;
+                    process_child_ids.lock().unwrap().push(app_pid as u64);
+                }
+                launched_app_pid
+            } else {
+                None
+            };
+
             let status = child.wait().expect("failed to wait for the app");
             process_child_ids
                 .lock()
                 .unwrap()
-                .retain(|&id| id != app_pid);
+                .retain(|&id| id != open_pid);
+            process_child_ids
+                .lock()
+                .unwrap()
+                .retain(|&id| launched_app_pid.map(|pid| pid as u64) != Some(id));
             if let Some(session) = &dev_session {
                 cleanup_dev_session(&pax_dir, session)?;
             }
@@ -1736,23 +1764,29 @@ fn prepare_dev_session(
     })
 }
 
-fn finalize_dev_session(
-    pax_dir: &PathBuf,
-    session: &mut DevSession,
-    app_pid: u32,
-) -> Result<(), eyre::Report> {
-    session.app_pid = Some(app_pid);
-    session.location = Some(format!("local-window pid:{app_pid}"));
-    session.last_seen_ms = now_ms();
-    write_project_active_session(pax_dir, session)?;
-    write_registered_session(session)?;
-    Ok(())
-}
-
 fn cleanup_dev_session(pax_dir: &PathBuf, session: &DevSession) -> Result<(), eyre::Report> {
     dev_session::remove_project_active_session(pax_dir, &session.session_id)?;
     dev_session::remove_registered_session(&session.session_id)?;
     Ok(())
+}
+
+fn wait_for_registered_session_app_pid(
+    session_id: &str,
+    timeout: Duration,
+) -> Result<Option<u32>, eyre::Report> {
+    let registry_file = dev_session::global_session_registry_file(session_id)?;
+    let start = std::time::Instant::now();
+    while start.elapsed() < timeout {
+        if let Ok(registry_data) = fs::read(&registry_file) {
+            if let Ok(session) = serde_json::from_slice::<DevSession>(&registry_data) {
+                if session.app_pid.is_some() {
+                    return Ok(session.app_pid);
+                }
+            }
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    Ok(None)
 }
 
 fn spawn_designtime_server_process(

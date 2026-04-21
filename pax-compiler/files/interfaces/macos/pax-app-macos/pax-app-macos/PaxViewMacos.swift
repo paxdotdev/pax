@@ -169,10 +169,10 @@ private struct PaxDevSessionRegistration: Codable {
     let designtime: Bool
     let project_root: String?
     let session_dir: String?
-    let app_pid: UInt32?
+    var app_pid: UInt32?
     let design_server_addr: String?
     let control_kind: String
-    let location: String?
+    var location: String?
     let started_at_ms: UInt64
     var last_seen_ms: UInt64
 }
@@ -326,6 +326,7 @@ struct PaxViewMacos: View {
             layer?.backgroundColor = NSColor.clear.cgColor
             layer?.isOpaque = false
             createDisplayLink()
+            refreshDevSessionRegistrationIfNeeded(now: Date(), allowThrottle: false)
         }
 
         required init?(coder: NSCoder) {
@@ -334,6 +335,7 @@ struct PaxViewMacos: View {
             layer?.backgroundColor = NSColor.clear.cgColor
             layer?.isOpaque = false
             createDisplayLink()
+            refreshDevSessionRegistrationIfNeeded(now: Date(), allowThrottle: false)
         }
 
         private var requestAnimationFrameQueue: [() -> Void] = []
@@ -655,16 +657,23 @@ struct PaxViewMacos: View {
         }
 
         private func updateDevSessionHeartbeatIfNeeded(now: Date) {
+            refreshDevSessionRegistrationIfNeeded(now: now, allowThrottle: true)
+        }
+
+        private func refreshDevSessionRegistrationIfNeeded(now: Date, allowThrottle: Bool) {
             guard let devRegistryFile = devRegistryFile else {
                 return
             }
-            if now.timeIntervalSince(lastDevHeartbeat) < 1.0 {
+            if allowThrottle && now.timeIntervalSince(lastDevHeartbeat) < 1.0 {
                 return
             }
 
             do {
                 let registryData = try Data(contentsOf: devRegistryFile)
                 var session = try JSONDecoder().decode(PaxDevSessionRegistration.self, from: registryData)
+                let appPid = UInt32(ProcessInfo.processInfo.processIdentifier)
+                session.app_pid = appPid
+                session.location = "local-window pid:\(appPid)"
                 session.last_seen_ms = nowMs()
                 let encoder = JSONEncoder()
                 encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

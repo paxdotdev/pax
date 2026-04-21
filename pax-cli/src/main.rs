@@ -565,20 +565,20 @@ fn perform_cleanup(
 fn kill_process(pid: u32) -> Result<(), std::io::Error> {
     use std::process::Command;
 
-    // Use the negative PID to refer to the process group
-    let output = Command::new("kill")
-        .arg("-9") // send SIGKILL
-        .arg(format!("-{}", pid))
-        .output()?;
+    // Prefer the process group so descendants do not leak, but fall back to the
+    // concrete pid for processes we did not launch in their own group.
+    for target in [format!("-{}", pid), pid.to_string()] {
+        let output = Command::new("kill").arg("-9").arg(&target).output()?;
 
-    if output.status.success() {
-        Ok(())
-    } else {
-        Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Failed to kill process",
-        ))
+        if output.status.success() {
+            return Ok(());
+        }
     }
+
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Other,
+        "Failed to kill process",
+    ))
 }
 
 #[cfg(windows)]
