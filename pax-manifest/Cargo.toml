@@ -11,7 +11,7 @@ description = "Definition container for an entire Pax cartridge"
 [features]
 default = []
 json = ["dep:serde_json"]
-parsing = ["pax-language/parser"]
+parsing = ["pax-language/parser", "dep:syn"]
 server = ["parsing"]
 code_serialization = [
     "json",

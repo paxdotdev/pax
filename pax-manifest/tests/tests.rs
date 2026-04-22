@@ -10,7 +10,8 @@ mod tests {
     use pax_manifest::{
         code_serialization::press_code_serialization_template,
         parsing::{
-            assemble_component_definition, parse_settings_from_component_definition_string,
+            assemble_component_definition,
+            parse_settings_from_component_definition_string,
             parse_timeline_from_component_definition_string, ParsingContext,
         },
         utils, ComponentDefinition, ComponentTemplate, ControlFlowConditionalBranchKind,
@@ -49,6 +50,31 @@ mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    fn assemble_component_definition_with_inferred_rust_source(
+        ctx: ParsingContext,
+        pax: &str,
+        is_main_component: bool,
+        template_map: HashMap<String, TypeId>,
+        module_path: &str,
+        self_type_id: TypeId,
+        template_source_file_path: &str,
+    ) -> (ParsingContext, ComponentDefinition) {
+        let rust_source_file_path = template_source_file_path
+            .strip_suffix(".pax")
+            .map(|path| format!("{path}.rs"))
+            .unwrap_or_else(|| "example.rs".to_string());
+        assemble_component_definition(
+            ctx,
+            pax,
+            is_main_component,
+            template_map,
+            module_path,
+            self_type_id,
+            template_source_file_path,
+            &rust_source_file_path,
+        )
     }
 
     #[test]
@@ -413,7 +439,7 @@ mod tests {
             }
         "#;
 
-        let (_, component) = assemble_component_definition(
+        let (_, component) = assemble_component_definition_with_inferred_rust_source(
             ParsingContext::default(),
             pax,
             false,
@@ -457,7 +483,7 @@ mod tests {
             }
         "#;
 
-        let (_, component) = assemble_component_definition(
+        let (_, component) = assemble_component_definition_with_inferred_rust_source(
             ParsingContext::default(),
             pax,
             false,
@@ -470,7 +496,7 @@ mod tests {
         let rendered = press_code_serialization_template(component).unwrap();
         assert!(rendered.contains("key item.id"));
 
-        let (_, parsed_component) = assemble_component_definition(
+        let (_, parsed_component) = assemble_component_definition_with_inferred_rust_source(
             ParsingContext::default(),
             &rendered,
             false,

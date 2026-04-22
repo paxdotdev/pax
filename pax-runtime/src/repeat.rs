@@ -107,27 +107,31 @@ mod tests {
 
     fn component_args(template: Option<Vec<Rc<dyn InstanceNode>>>) -> InstantiationArgs {
         InstantiationArgs {
-            prototypical_common_properties_factory: default_common_properties_factory(),
-            prototypical_properties_factory: default_properties_factory(),
+            prototypical_common_properties: crate::CommonPropertiesInit::Factory(
+                default_common_properties_factory(),
+            ),
+            prototypical_properties: crate::PropertiesInit::Factory(default_properties_factory()),
             handler_registry: None,
             children: None,
             component_template: template.map(RefCell::new),
             template_node_identifier: None,
             transition_config: Default::default(),
-            properties_scope_factory: None,
+            properties_scope: crate::PropertiesScopeInit::None,
         }
     }
 
     fn leaf_args(transition_config: ComponentTransitionConfig) -> InstantiationArgs {
         InstantiationArgs {
-            prototypical_common_properties_factory: default_common_properties_factory(),
-            prototypical_properties_factory: default_properties_factory(),
+            prototypical_common_properties: crate::CommonPropertiesInit::Factory(
+                default_common_properties_factory(),
+            ),
+            prototypical_properties: crate::PropertiesInit::Factory(default_properties_factory()),
             handler_registry: None,
             children: None,
             component_template: Some(RefCell::new(Vec::new())),
             template_node_identifier: None,
             transition_config,
-            properties_scope_factory: None,
+            properties_scope: crate::PropertiesScopeInit::None,
         }
     }
 
@@ -138,66 +142,74 @@ mod tests {
         let key_expression = ExpressionInfo::new(parse_pax_expression("item.id").unwrap());
         let source_for_factory = source.clone();
         InstantiationArgs {
-            prototypical_common_properties_factory: default_common_properties_factory(),
-            prototypical_properties_factory: Box::new(move |_, expanded_node| {
-                if let Some(expanded_node) = expanded_node {
-                    expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
-                        properties
-                            .source_expression
-                            .replace_with(source_for_factory.clone());
-                        properties
-                            .iterator_i_symbol
-                            .replace_with(Property::new(Some("i".to_string())));
-                        properties
-                            .iterator_elem_symbol
-                            .replace_with(Property::new(Some("item".to_string())));
-                        properties.repeat_key_expression = Some(key_expression.clone());
-                    });
-                    return None;
-                }
-
-                Some(Rc::new(RefCell::new(
-                    RepeatProperties {
-                        source_expression: source_for_factory.clone(),
-                        iterator_i_symbol: Property::new(Some("i".to_string())),
-                        iterator_elem_symbol: Property::new(Some("item".to_string())),
-                        repeat_key_expression: Some(key_expression.clone()),
+            prototypical_common_properties: crate::CommonPropertiesInit::Factory(
+                default_common_properties_factory(),
+            ),
+            prototypical_properties: crate::PropertiesInit::Factory(Box::new(
+                move |_, expanded_node| {
+                    if let Some(expanded_node) = expanded_node {
+                        expanded_node.with_properties_unwrapped(
+                            |properties: &mut RepeatProperties| {
+                                properties
+                                    .source_expression
+                                    .replace_with(source_for_factory.clone());
+                                properties
+                                    .iterator_i_symbol
+                                    .replace_with(Property::new(Some("i".to_string())));
+                                properties
+                                    .iterator_elem_symbol
+                                    .replace_with(Property::new(Some("item".to_string())));
+                                properties.repeat_key_expression = Some(key_expression.clone());
+                            },
+                        );
+                        return None;
                     }
-                    .to_pax_any(),
-                )))
-            }),
+
+                    Some(Rc::new(RefCell::new(
+                        RepeatProperties {
+                            source_expression: source_for_factory.clone(),
+                            iterator_i_symbol: Property::new(Some("i".to_string())),
+                            iterator_elem_symbol: Property::new(Some("item".to_string())),
+                            repeat_key_expression: Some(key_expression.clone()),
+                        }
+                        .to_pax_any(),
+                    )))
+                },
+            )),
             handler_registry: None,
             children: Some(RefCell::new(children)),
             component_template: None,
             template_node_identifier: None,
             transition_config: Default::default(),
-            properties_scope_factory: None,
+            properties_scope: crate::PropertiesScopeInit::None,
         }
     }
 
     fn positioned_leaf_args() -> InstantiationArgs {
         InstantiationArgs {
-            prototypical_common_properties_factory: Box::new(|env, _| {
-                let i_untyped = env.resolve_symbol_as_erased_property("i").unwrap();
-                let i = Property::<usize>::new_from_untyped(i_untyped.clone());
-                let deps = [i_untyped];
+            prototypical_common_properties: crate::CommonPropertiesInit::Factory(Box::new(
+                |env, _| {
+                    let i_untyped = env.resolve_symbol_as_erased_property("i").unwrap();
+                    let i = Property::<usize>::new_from_untyped(i_untyped.clone());
+                    let deps = [i_untyped];
 
-                let mut cp = CommonProperties::default();
-                cp.x = Property::computed(
-                    move || Some(Size::Pixels((i.get() as f64 * 10.0).into())),
-                    &deps,
-                );
-                cp.width = Property::new(Some(Size::Pixels(10.into())));
-                cp.height = Property::new(Some(Size::Pixels(10.into())));
-                Some(Rc::new(RefCell::new(cp)))
-            }),
-            prototypical_properties_factory: default_properties_factory(),
+                    let mut cp = CommonProperties::default();
+                    cp.x = Property::computed(
+                        move || Some(Size::Pixels((i.get() as f64 * 10.0).into())),
+                        &deps,
+                    );
+                    cp.width = Property::new(Some(Size::Pixels(10.into())));
+                    cp.height = Property::new(Some(Size::Pixels(10.into())));
+                    Some(Rc::new(RefCell::new(cp)))
+                },
+            )),
+            prototypical_properties: crate::PropertiesInit::Factory(default_properties_factory()),
             handler_registry: None,
             children: None,
             component_template: Some(RefCell::new(Vec::new())),
             template_node_identifier: None,
             transition_config: Default::default(),
-            properties_scope_factory: None,
+            properties_scope: crate::PropertiesScopeInit::None,
         }
     }
 
@@ -216,40 +228,42 @@ mod tests {
     fn expression_positioned_leaf_args(expr: &str) -> InstantiationArgs {
         let expression = ExpressionInfo::new(parse_pax_expression(expr).unwrap());
         InstantiationArgs {
-            prototypical_common_properties_factory: Box::new(move |env, _| {
-                let mut deps = Vec::new();
-                for dependency in &expression.dependencies {
-                    let property = env
-                        .resolve_symbol_as_erased_property(dependency)
-                        .unwrap_or_else(|| panic!("missing dependency: {dependency}"));
-                    deps.push(property);
-                }
+            prototypical_common_properties: crate::CommonPropertiesInit::Factory(Box::new(
+                move |env, _| {
+                    let mut deps = Vec::new();
+                    for dependency in &expression.dependencies {
+                        let property = env
+                            .resolve_symbol_as_erased_property(dependency)
+                            .unwrap_or_else(|| panic!("missing dependency: {dependency}"));
+                        deps.push(property);
+                    }
 
-                let expression_for_eval = expression.clone();
-                let env_for_eval = Rc::clone(&env);
-                let mut cp = CommonProperties::default();
-                cp.x = Property::computed(
-                    move || {
-                        let env_for_eval: Rc<dyn IdentifierResolver> = env_for_eval.clone();
-                        expression_for_eval
-                            .expression
-                            .compute(env_for_eval)
-                            .ok()
-                            .and_then(|value| Size::try_coerce(value).ok())
-                    },
-                    &deps,
-                );
-                cp.width = Property::new(Some(Size::Pixels(10.into())));
-                cp.height = Property::new(Some(Size::Pixels(10.into())));
-                Some(Rc::new(RefCell::new(cp)))
-            }),
-            prototypical_properties_factory: default_properties_factory(),
+                    let expression_for_eval = expression.clone();
+                    let env_for_eval = Rc::clone(&env);
+                    let mut cp = CommonProperties::default();
+                    cp.x = Property::computed(
+                        move || {
+                            let env_for_eval: Rc<dyn IdentifierResolver> = env_for_eval.clone();
+                            expression_for_eval
+                                .expression
+                                .compute(env_for_eval)
+                                .ok()
+                                .and_then(|value| Size::try_coerce(value).ok())
+                        },
+                        &deps,
+                    );
+                    cp.width = Property::new(Some(Size::Pixels(10.into())));
+                    cp.height = Property::new(Some(Size::Pixels(10.into())));
+                    Some(Rc::new(RefCell::new(cp)))
+                },
+            )),
+            prototypical_properties: crate::PropertiesInit::Factory(default_properties_factory()),
             handler_registry: None,
             children: None,
             component_template: Some(RefCell::new(Vec::new())),
             template_node_identifier: None,
             transition_config: Default::default(),
-            properties_scope_factory: None,
+            properties_scope: crate::PropertiesScopeInit::None,
         }
     }
 

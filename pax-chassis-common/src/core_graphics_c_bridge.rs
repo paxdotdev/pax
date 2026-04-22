@@ -628,9 +628,6 @@ pub extern "C" fn pax_interrupt(
             }
         }
         NativeInterrupt::Click(args) => {
-            let topmost_node = engine
-                .runtime_context
-                .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
             let modifiers = args.modifiers.iter().map(ModifierKey::from).collect();
             let args_click = Click {
                 mouse: MouseEventArgs {
@@ -640,45 +637,60 @@ pub extern "C" fn pax_interrupt(
                     modifiers,
                 },
             };
-            topmost_node.dispatch_click(Event::new(args_click), &globals, &engine.runtime_context);
-        }
-        NativeInterrupt::TouchStart(args) => {
-            if let Some(first_touch) = args.touches.first() {
-                let topmost_node = engine
-                    .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
-                let touches = args.touches.iter().map(Touch::from).collect();
-                topmost_node.dispatch_touch_start(
-                    Event::new(TouchStart { touches }),
+            if let Some(topmost_node) = engine
+                .runtime_context
+                .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+            {
+                topmost_node.dispatch_click(
+                    Event::new(args_click),
                     &globals,
                     &engine.runtime_context,
                 );
+            }
+        }
+        NativeInterrupt::TouchStart(args) => {
+            if let Some(first_touch) = args.touches.first() {
+                let touches = args.touches.iter().map(Touch::from).collect();
+                if let Some(topmost_node) = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y))
+                {
+                    topmost_node.dispatch_touch_start(
+                        Event::new(TouchStart { touches }),
+                        &globals,
+                        &engine.runtime_context,
+                    );
+                }
             }
         }
         NativeInterrupt::TouchMove(args) => {
             if let Some(first_touch) = args.touches.first() {
-                let topmost_node = engine
-                    .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
                 let touches = args.touches.iter().map(Touch::from).collect();
-                topmost_node.dispatch_touch_move(
-                    Event::new(TouchMove { touches }),
-                    &globals,
-                    &engine.runtime_context,
-                );
+                if let Some(topmost_node) = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y))
+                {
+                    topmost_node.dispatch_touch_move(
+                        Event::new(TouchMove { touches }),
+                        &globals,
+                        &engine.runtime_context,
+                    );
+                }
             }
         }
         NativeInterrupt::TouchEnd(args) => {
             if let Some(first_touch) = args.touches.first() {
-                let topmost_node = engine
-                    .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
                 let touches = args.touches.iter().map(Touch::from).collect();
-                topmost_node.dispatch_touch_end(
-                    Event::new(TouchEnd { touches }),
-                    &globals,
-                    &engine.runtime_context,
-                );
+                if let Some(topmost_node) = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y))
+                {
+                    topmost_node.dispatch_touch_end(
+                        Event::new(TouchEnd { touches }),
+                        &globals,
+                        &engine.runtime_context,
+                    );
+                }
             }
         }
         NativeInterrupt::FormRadioListChange(args) => {

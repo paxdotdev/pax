@@ -85,27 +85,31 @@ mod tests {
         children: Option<Vec<Rc<dyn InstanceNode>>>,
     ) -> InstantiationArgs {
         InstantiationArgs {
-            prototypical_common_properties_factory: default_common_properties_factory(),
-            prototypical_properties_factory: default_properties_factory(),
+            prototypical_common_properties: crate::CommonPropertiesInit::Factory(
+                default_common_properties_factory(),
+            ),
+            prototypical_properties: crate::PropertiesInit::Factory(default_properties_factory()),
             handler_registry: None,
             children: children.map(RefCell::new),
             component_template: template.map(RefCell::new),
             template_node_identifier: None,
             transition_config: Default::default(),
-            properties_scope_factory: None,
+            properties_scope: crate::PropertiesScopeInit::None,
         }
     }
 
     fn direct_node_args(children: Vec<Rc<dyn InstanceNode>>) -> InstantiationArgs {
         InstantiationArgs {
-            prototypical_common_properties_factory: default_common_properties_factory(),
-            prototypical_properties_factory: default_properties_factory(),
+            prototypical_common_properties: crate::CommonPropertiesInit::Factory(
+                default_common_properties_factory(),
+            ),
+            prototypical_properties: crate::PropertiesInit::Factory(default_properties_factory()),
             handler_registry: None,
             children: Some(RefCell::new(children)),
             component_template: None,
             template_node_identifier: None,
             transition_config: Default::default(),
-            properties_scope_factory: None,
+            properties_scope: crate::PropertiesScopeInit::None,
         }
     }
 
