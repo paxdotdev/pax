@@ -41,7 +41,7 @@ pub struct RuntimeContext {
     globals: RefCell<Globals>,
     root_expanded_node: RefCell<Weak<ExpandedNode>>,
     #[cfg(feature = "designtime")]
-    pub userland_frame_instance_node: RefCell<Rc<dyn InstanceNode>>,
+    pub userland_frame_instance_node: RefCell<Option<Rc<dyn InstanceNode>>>,
     #[cfg(feature = "designtime")]
     pub userland_root_expanded_node: RefCell<Option<Rc<ExpandedNode>>>,
     node_cache: RefCell<NodeCache>,
@@ -162,7 +162,37 @@ impl RuntimeContext {
             messages: RefCell::new(Vec::new()),
             globals: RefCell::new(globals),
             root_expanded_node: RefCell::new(Weak::new()),
-            userland_frame_instance_node: RefCell::new(userland),
+            userland_frame_instance_node: RefCell::new(Some(userland)),
+            userland_root_expanded_node: Default::default(),
+            node_cache: RefCell::new(NodeCache::new()),
+            queued_custom_events: Default::default(),
+            queued_renders: Default::default(),
+            layer_count: Cell::default(),
+            last_topmost_element: Default::default(),
+            dirty_canvases: Default::default(),
+            dirty_canvas_nodes: Default::default(),
+            removed_canvas_nodes: Default::default(),
+            occlusion_dirty: Cell::new(true),
+            layer_canvas_plan_generation: Cell::new(1),
+            tick_handler_nodes: Default::default(),
+            pre_render_handler_nodes: Default::default(),
+            screenshot_map: Default::default(),
+            scroller_surface_states: Default::default(),
+            layer_scroller_owners: Default::default(),
+            root_scroller_id: Cell::new(None),
+            visual_viewport_state: Cell::new(None),
+        }
+    }
+
+    #[cfg(feature = "designtime")]
+    /// Create a runtime context before any userland tree has been mounted.
+    pub fn new_empty(globals: Globals) -> Self {
+        Self {
+            next_uid: Cell::new(ExpandedNodeIdentifier(0)),
+            messages: RefCell::new(Vec::new()),
+            globals: RefCell::new(globals),
+            root_expanded_node: RefCell::new(Weak::new()),
+            userland_frame_instance_node: RefCell::new(None),
             userland_root_expanded_node: Default::default(),
             node_cache: RefCell::new(NodeCache::new()),
             queued_custom_events: Default::default(),
@@ -187,6 +217,11 @@ impl RuntimeContext {
     /// Store the root expanded node after it has been initialized.
     pub fn register_root_expanded_node(&self, root: &Rc<ExpandedNode>) {
         *borrow_mut!(self.root_expanded_node) = Rc::downgrade(root);
+    }
+
+    /// Clear the registered root expanded node.
+    pub fn clear_root_expanded_node(&self) {
+        *borrow_mut!(self.root_expanded_node) = Weak::new();
     }
 
     /// Add a node to runtime lookup caches.
@@ -550,7 +585,9 @@ impl RuntimeContext {
         //Next: check whether ancestral clipping bounds (hit_test) are satisfied
         //Finally: check whether element itself satisfies hit_test(ray)
 
-        let root_node = root.unwrap_or_else(|| borrow!(self.root_expanded_node).upgrade().unwrap());
+        let Some(root_node) = root.or_else(|| borrow!(self.root_expanded_node).upgrade()) else {
+            return accum;
+        };
         let mut to_process = vec![(root_node, false)];
         while let Some((node, clipped)) = to_process.pop() {
             // make sure slot sources are updated for this node
@@ -592,12 +629,16 @@ impl RuntimeContext {
     pub fn get_topmost_element_beneath_ray(
         self: &Rc<Self>,
         ray: Point2<Window>,
-    ) -> Rc<ExpandedNode> {
+    ) -> Option<Rc<ExpandedNode>> {
         let res = self.get_elements_beneath_ray(None, ray, true, vec![], false);
-        let new_topmost = res
+        let Some(new_topmost) = res
             .into_iter()
             .next()
-            .unwrap_or(borrow!(self.root_expanded_node).upgrade().unwrap());
+            .or_else(|| borrow!(self.root_expanded_node).upgrade())
+        else {
+            *borrow_mut!(self.last_topmost_element) = Weak::new();
+            return None;
+        };
 
         //send mouse over/out events if the hit element is different than last
         let last_topmost = borrow!(self.last_topmost_element).upgrade();
@@ -616,7 +657,7 @@ impl RuntimeContext {
                 .map(Rc::downgrade)
                 .unwrap_or_default();
         }
-        new_topmost
+        Some(new_topmost)
     }
 
     pub fn gen_uid(&self) -> ExpandedNodeIdentifier {
@@ -665,7 +706,17 @@ impl RuntimeContext {
 
     #[cfg(feature = "designtime")]
     pub fn get_userland_root_instance_node(&self) -> Option<Rc<dyn InstanceNode>> {
-        Some(borrow!(self.userland_frame_instance_node).clone())
+        borrow!(self.userland_frame_instance_node).clone()
+    }
+
+    #[cfg(feature = "designtime")]
+    pub fn set_userland_root_expanded_node(&self, root: Option<Rc<ExpandedNode>>) {
+        *borrow_mut!(self.userland_root_expanded_node) = root;
+    }
+
+    #[cfg(feature = "designtime")]
+    pub fn set_userland_root_instance_node(&self, node: Option<Rc<dyn InstanceNode>>) {
+        *borrow_mut!(self.userland_frame_instance_node) = node;
     }
 
     pub fn get_root_expanded_node(&self) -> Option<Rc<ExpandedNode>> {

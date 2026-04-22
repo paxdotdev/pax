@@ -349,18 +349,17 @@ impl<'w> RenderBackend<'w> {
         canvas: web_sys::HtmlCanvasElement,
         config: RenderConfig,
     ) -> Result<Self, anyhow::Error> {
-        let instance = Self::new_browser_instance(
-            wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL,
-            config.debug,
-            true,
-        )
-        .await;
+        #[cfg(feature = "webgl")]
+        let backends = wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL;
+        #[cfg(not(feature = "webgl"))]
+        let backends = wgpu::Backends::BROWSER_WEBGPU;
+        let instance = Self::new_browser_instance(backends, config.debug, true).await;
         let surface_target = wgpu::SurfaceTarget::Canvas(canvas);
         let surface = instance.create_surface(surface_target)?;
         Self::new(surface, instance, config).await
     }
 
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(all(target_arch = "wasm32", feature = "webgl"))]
     pub async fn to_canvas_gl(
         canvas: web_sys::HtmlCanvasElement,
         config: RenderConfig,
@@ -369,6 +368,16 @@ impl<'w> RenderBackend<'w> {
         let surface_target = wgpu::SurfaceTarget::Canvas(canvas);
         let surface = instance.create_surface(surface_target)?;
         Self::new(surface, instance, config).await
+    }
+
+    #[cfg(all(target_arch = "wasm32", not(feature = "webgl")))]
+    pub async fn to_canvas_gl(
+        _canvas: web_sys::HtmlCanvasElement,
+        _config: RenderConfig,
+    ) -> Result<Self, anyhow::Error> {
+        Err(anyhow!(
+            "WebGL support is not compiled into this build; rebuild with the `webgl` feature"
+        ))
     }
 
     #[cfg(not(target_arch = "wasm32"))]

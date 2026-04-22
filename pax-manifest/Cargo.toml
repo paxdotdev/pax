@@ -9,23 +9,38 @@ repository = "https://www.github.com/paxproject/pax"
 description = "Definition container for an entire Pax cartridge"
 
 [features]
-parsing = []
+default = []
+json = ["dep:serde_json"]
+parsing = ["pax-language/parser"]
+server = ["parsing"]
+code_serialization = [
+    "json",
+    "parsing",
+    "dep:colored",
+    "dep:html-escape",
+    "dep:include_dir",
+    "dep:serde_derive",
+    "dep:similar",
+    "dep:syn",
+    "dep:tera",
+]
+compiler = ["code_serialization", "json", "parsing", "server"]
+designtime = ["compiler"]
 
 [lib]
 
 [dependencies]
 pax-message = {path="../pax-message", version="0.38.3"}
 pax-runtime-api = {path="../pax-runtime-api", version="0.38.3"}
-pax-language = {version = "0.38.3", path="../pax-language"}
+pax-language = {version = "0.38.3", path="../pax-language", default-features = false}
 kurbo = "0.11.1"
 log = "0.4.20"
-colored = "2.0.0"
-include_dir = {version = "0.7.3", features = ["glob"]}
-similar = "2.2.1"
+colored = { version = "2.0.0", optional = true }
+include_dir = {version = "0.7.3", features = ["glob"], optional = true}
+similar = { version = "2.2.1", optional = true }
 serde = { version = "1.0.159", features=["derive"] }
-serde_derive = "1.0.159"
-serde_with = { version= "3.6.1", features = ["json"]} 
-serde_json = { version = "1.0.95"}
-syn = { version = "1.0", features = ["full", "parsing", "visit"] }
-tera = "1"
-html-escape = "0.2.13"
+serde_derive = { version = "1.0.159", optional = true }
+serde_json = { version = "1.0.95", optional = true}
+syn = { version = "1.0", features = ["full", "parsing", "visit"], optional = true }
+tera = { version = "1", optional = true }
+html-escape = { version = "0.2.13", optional = true }

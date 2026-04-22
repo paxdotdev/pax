@@ -68,6 +68,8 @@ pub struct RunContext {
     pub should_run_designtime: bool,
     pub should_run_designer: bool,
     pub is_release: bool,
+    pub profile_wasm_size: bool,
+    pub webgl: bool,
     pub ios_device: Option<String>,
     pub ios_development_team: Option<String>,
 }
@@ -177,6 +179,7 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
         &merged_manifest,
         &userland_manifest,
         designer_manifest,
+        ctx.is_release && !ctx.should_run_designtime && !ctx.should_run_designer,
     );
     // source_map.extract_ranges_from_generated_code(cartridge_path.to_str().unwrap());
 

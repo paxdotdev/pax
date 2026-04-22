@@ -175,10 +175,16 @@ pub(crate) fn get_render_context(
             )
             .await;
             if surface_policy.force_gl() {
+                #[cfg(feature = "webgl")]
                 log::info!(
                     "render backend: forcing GL canvas path for iOS WebKit browser surfaces"
                 );
+                #[cfg(not(feature = "webgl"))]
+                log::warn!(
+                    "render backend: iOS WebKit requested GL canvas path, but this build was compiled without WebGL fallback"
+                );
             }
+            let force_gl = surface_policy.force_gl() && cfg!(feature = "webgl");
 
             let mut renderers = Vec::with_capacity(initial_targets.len());
             let mut backend_limit = u32::MAX;
@@ -186,7 +192,7 @@ pub(crate) fn get_render_context(
                 target.canvas.set_width(target.surface.surface_width);
                 target.canvas.set_height(target.surface.surface_height);
 
-                let backend = match if surface_policy.force_gl() {
+                let backend = match if force_gl {
                     RenderBackend::to_canvas_gl(
                         target.canvas.clone(),
                         RenderConfig::new(

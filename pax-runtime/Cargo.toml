@@ -17,18 +17,18 @@ log = "0.4.20"
 mut_static = "5.0.0"
 pax-message = {path = "../pax-message", version="0.38.3"}
 pax-manifest = {version="0.38.3", path = "../pax-manifest"}
-pax-language = {version="0.38.3", path = "../pax-language"}
+pax-language = {version="0.38.3", path = "../pax-language", default-features = false}
 pax-designtime = {version="0.38.3", path = "../pax-designtime", optional = true}
 pax-runtime-api = {version="0.38.3", path = "../pax-runtime-api"}
 piet = "0.7.0"
 piet-common = "0.7.0"
 pax-gpu = {path = "../pax-gpu", version = "0.38.3"}
 serde = {version="1.0.196", features=["derive"]}
-serde_json = "1.0.114"
-wasm-bindgen = {version = "0.2.93", features=["serde-serialize"]}
+serde_json = { version = "1.0.114", optional = true }
+wasm-bindgen = "0.2.93"
 wasm-bindgen-futures = "0.4.42"
 pollster = "0.4.0"
 
 [features]
 designer = []
-designtime = ["dep:pax-designtime"]
+designtime = ["dep:pax-designtime", "dep:serde_json", "pax-language/parser", "pax-manifest/designtime"]

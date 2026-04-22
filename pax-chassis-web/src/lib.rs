@@ -1,9 +1,19 @@
 //! Basic example of rendering in the browser
 #![allow(non_snake_case)]
 
-use js_sys::{Uint32Array, Uint8Array};
-use pax_message::ImageLoadInterruptArgs;
-use pax_message::ScreenshotData;
+use js_sys::{Array, Object, Reflect, Uint32Array, Uint8Array};
+use pax_message::{
+    AddedLayerArgs, BrowserConfigInterruptArgs, ChassisResizeRequestArgs, ClapInterruptArgs,
+    ClickInterruptArgs, ContextMenuInterruptArgs, DoubleClickInterruptArgs, DropFileArgs,
+    FocusInterruptArgs, FormButtonClickArgs, FormCheckboxToggleArgs, FormDropdownChangeArgs,
+    FormRadioListChangeArgs, FormSliderChangeArgs, FormTextboxChangeArgs, FormTextboxInputArgs,
+    ImageDataArgs, ImageLoadInterruptArgs, ImagePointerArgs, KeyDownInterruptArgs,
+    KeyPressInterruptArgs, KeyUpInterruptArgs, ModifierKeyMessage, MouseButtonMessage,
+    MouseDownInterruptArgs, MouseMoveInterruptArgs, MouseUpInterruptArgs, NativeInterrupt,
+    ScreenshotData, ScrollInterruptArgs, ScrollerPositionInterruptArgs, SelectStartArgs,
+    TextInputArgs, TouchEndInterruptArgs, TouchMessage, TouchMoveInterruptArgs,
+    TouchStartInterruptArgs, VisualViewportUpdateArgs, WheelInterruptArgs,
+};
 use pax_runtime::api::borrow;
 use pax_runtime::api::borrow_mut;
 use pax_runtime::api::math::Point2;
@@ -34,13 +44,11 @@ use web_sys::window;
 
 pub use {console_error_panic_hook, console_log};
 
-use pax_message::NativeInterrupt;
 use pax_runtime::api::{
     Clap, Click, ContextMenu, DoubleClick, Drop, KeyDown, KeyPress, KeyUp, KeyboardEventArgs,
     ModifierKey, MouseButton, MouseDown, MouseEventArgs, MouseMove, MouseUp, Touch, TouchEnd,
     TouchMove, TouchStart, Wheel,
 };
-use serde_json;
 
 #[cfg(feature = "designtime")]
 use pax_designtime::DesigntimeManager;
@@ -413,10 +421,10 @@ impl PaxChassisWeb {
 
     pub fn interrupt(
         &mut self,
-        native_interrupt: String,
+        native_interrupt: JsValue,
         additional_payload: &JsValue,
     ) -> InterruptResult {
-        let x: NativeInterrupt = serde_json::from_str(&native_interrupt).unwrap();
+        let x = native_interrupt_from_js(native_interrupt);
 
         let engine = borrow_mut!(self.engine);
         let ctx = &engine.runtime_context;
@@ -425,17 +433,25 @@ impl PaxChassisWeb {
             NativeInterrupt::Focus(_args) => engine.global_dispatch_focus(Focus {}),
             NativeInterrupt::DropFile(args) => {
                 let data = Uint8Array::new(additional_payload).to_vec();
-                let topmost_node = engine
+                if let Some(topmost_node) = engine
                     .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                let args_drop = Drop {
-                    x: args.x,
-                    y: args.y,
-                    name: args.name.clone(),
-                    mime_type: args.mime_type.clone(),
-                    data,
-                };
-                topmost_node.dispatch_drop(Event::new(args_drop), &globals, &engine.runtime_context)
+                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+                {
+                    let args_drop = Drop {
+                        x: args.x,
+                        y: args.y,
+                        name: args.name.clone(),
+                        mime_type: args.mime_type.clone(),
+                        data,
+                    };
+                    topmost_node.dispatch_drop(
+                        Event::new(args_drop),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    false
+                }
             }
             NativeInterrupt::FormRadioListChange(args) => {
                 let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
@@ -563,26 +579,30 @@ impl PaxChassisWeb {
                 false
             }
             NativeInterrupt::Click(args) => {
-                let topmost_node = engine
+                if let Some(topmost_node) = engine
                     .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                let args_click = Click {
-                    mouse: MouseEventArgs {
-                        x: args.x,
-                        y: args.y,
-                        button: MouseButton::from(args.button.clone()),
-                        modifiers: args
-                            .modifiers
-                            .iter()
-                            .map(|x| ModifierKey::from(x))
-                            .collect(),
-                    },
-                };
-                topmost_node.dispatch_click(
-                    Event::new(args_click),
-                    &globals,
-                    &engine.runtime_context,
-                )
+                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+                {
+                    let args_click = Click {
+                        mouse: MouseEventArgs {
+                            x: args.x,
+                            y: args.y,
+                            button: MouseButton::from(args.button.clone()),
+                            modifiers: args
+                                .modifiers
+                                .iter()
+                                .map(|x| ModifierKey::from(x))
+                                .collect(),
+                        },
+                    };
+                    topmost_node.dispatch_click(
+                        Event::new(args_click),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    false
+                }
             }
             NativeInterrupt::ScrollerPosition(args) => {
                 let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
@@ -616,53 +636,73 @@ impl PaxChassisWeb {
             }
             NativeInterrupt::Scroll(_) => false,
             NativeInterrupt::Clap(args) => {
-                let topmost_node = engine
+                if let Some(topmost_node) = engine
                     .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                let args_clap = Clap {
-                    x: args.x,
-                    y: args.y,
-                };
-                topmost_node.dispatch_clap(Event::new(args_clap), &globals, &engine.runtime_context)
+                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+                {
+                    let args_clap = Clap {
+                        x: args.x,
+                        y: args.y,
+                    };
+                    topmost_node.dispatch_clap(
+                        Event::new(args_clap),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    false
+                }
             }
             NativeInterrupt::TouchStart(args) => {
                 let first_touch = args.touches.get(0).unwrap();
-                let topmost_node = engine
+                if let Some(topmost_node) = engine
                     .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
-                let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
-                let args_touch_start = TouchStart { touches };
-                topmost_node.dispatch_touch_start(
-                    Event::new(args_touch_start),
-                    &globals,
-                    &engine.runtime_context,
-                )
+                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y))
+                {
+                    let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
+                    let args_touch_start = TouchStart { touches };
+                    topmost_node.dispatch_touch_start(
+                        Event::new(args_touch_start),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    false
+                }
             }
             NativeInterrupt::TouchMove(args) => {
                 let first_touch = args.touches.get(0).unwrap();
-                let topmost_node = engine
+                if let Some(topmost_node) = engine
                     .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
-                let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
-                let args_touch_move = TouchMove { touches };
-                topmost_node.dispatch_touch_move(
-                    Event::new(args_touch_move),
-                    &globals,
-                    &engine.runtime_context,
-                )
+                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y))
+                {
+                    let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
+                    let args_touch_move = TouchMove { touches };
+                    topmost_node.dispatch_touch_move(
+                        Event::new(args_touch_move),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    false
+                }
             }
             NativeInterrupt::TouchEnd(args) => {
                 let first_touch = args.touches.get(0).unwrap();
-                let topmost_node = engine
+                if let Some(topmost_node) = engine
                     .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y));
-                let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
-                let args_touch_end = TouchEnd { touches };
-                topmost_node.dispatch_touch_end(
-                    Event::new(args_touch_end),
-                    &globals,
-                    &engine.runtime_context,
-                )
+                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y))
+                {
+                    let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
+                    let args_touch_end = TouchEnd { touches };
+                    topmost_node.dispatch_touch_end(
+                        Event::new(args_touch_end),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    false
+                }
             }
             NativeInterrupt::KeyDown(args) => {
                 let modifiers = args
@@ -710,139 +750,163 @@ impl PaxChassisWeb {
                 engine.global_dispatch_key_press(args_key_press)
             }
             NativeInterrupt::DoubleClick(args) => {
-                let topmost_node = engine
+                if let Some(topmost_node) = engine
                     .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                let args_double_click = DoubleClick {
-                    mouse: MouseEventArgs {
-                        x: args.x,
-                        y: args.y,
-                        button: MouseButton::from(args.button.clone()),
-                        modifiers: args
-                            .modifiers
-                            .iter()
-                            .map(|x| ModifierKey::from(x))
-                            .collect(),
-                    },
-                };
-                topmost_node.dispatch_double_click(
-                    Event::new(args_double_click),
-                    &globals,
-                    &engine.runtime_context,
-                )
+                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+                {
+                    let args_double_click = DoubleClick {
+                        mouse: MouseEventArgs {
+                            x: args.x,
+                            y: args.y,
+                            button: MouseButton::from(args.button.clone()),
+                            modifiers: args
+                                .modifiers
+                                .iter()
+                                .map(|x| ModifierKey::from(x))
+                                .collect(),
+                        },
+                    };
+                    topmost_node.dispatch_double_click(
+                        Event::new(args_double_click),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    false
+                }
             }
             NativeInterrupt::SelectStart(_args) => {
                 engine.global_dispatch_select_start(SelectStart {})
             }
             NativeInterrupt::MouseMove(args) => {
-                let topmost_node = engine
+                if let Some(topmost_node) = engine
                     .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                let args_mouse_move = MouseMove {
-                    mouse: MouseEventArgs {
-                        x: args.x,
-                        y: args.y,
-                        button: MouseButton::from(args.button.clone()),
-                        modifiers: args
-                            .modifiers
-                            .iter()
-                            .map(|x| ModifierKey::from(x))
-                            .collect(),
-                    },
-                };
-                topmost_node.dispatch_mouse_move(
-                    Event::new(args_mouse_move),
-                    &globals,
-                    &engine.runtime_context,
-                )
+                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+                {
+                    let args_mouse_move = MouseMove {
+                        mouse: MouseEventArgs {
+                            x: args.x,
+                            y: args.y,
+                            button: MouseButton::from(args.button.clone()),
+                            modifiers: args
+                                .modifiers
+                                .iter()
+                                .map(|x| ModifierKey::from(x))
+                                .collect(),
+                        },
+                    };
+                    topmost_node.dispatch_mouse_move(
+                        Event::new(args_mouse_move),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    false
+                }
             }
             NativeInterrupt::Wheel(args) => {
-                let topmost_node = engine
+                if let Some(topmost_node) = engine
                     .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                let modifiers = args
-                    .modifiers
-                    .iter()
-                    .map(|x| ModifierKey::from(x))
-                    .collect();
-                let args_wheel = Wheel {
-                    x: args.x,
-                    y: args.y,
-                    delta_x: args.delta_x,
-                    delta_y: args.delta_y,
-                    modifiers,
-                };
-                topmost_node.dispatch_wheel(
-                    Event::new(args_wheel),
-                    &globals,
-                    &engine.runtime_context,
-                )
+                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+                {
+                    let modifiers = args
+                        .modifiers
+                        .iter()
+                        .map(|x| ModifierKey::from(x))
+                        .collect();
+                    let args_wheel = Wheel {
+                        x: args.x,
+                        y: args.y,
+                        delta_x: args.delta_x,
+                        delta_y: args.delta_y,
+                        modifiers,
+                    };
+                    topmost_node.dispatch_wheel(
+                        Event::new(args_wheel),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    false
+                }
             }
             NativeInterrupt::MouseDown(args) => {
-                let topmost_node = engine
+                if let Some(topmost_node) = engine
                     .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                let args_mouse_down = MouseDown {
-                    mouse: MouseEventArgs {
-                        x: args.x,
-                        y: args.y,
-                        button: MouseButton::from(args.button.clone()),
-                        modifiers: args
-                            .modifiers
-                            .iter()
-                            .map(|x| ModifierKey::from(x))
-                            .collect(),
-                    },
-                };
-                topmost_node.dispatch_mouse_down(
-                    Event::new(args_mouse_down),
-                    &globals,
-                    &engine.runtime_context,
-                )
+                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+                {
+                    let args_mouse_down = MouseDown {
+                        mouse: MouseEventArgs {
+                            x: args.x,
+                            y: args.y,
+                            button: MouseButton::from(args.button.clone()),
+                            modifiers: args
+                                .modifiers
+                                .iter()
+                                .map(|x| ModifierKey::from(x))
+                                .collect(),
+                        },
+                    };
+                    topmost_node.dispatch_mouse_down(
+                        Event::new(args_mouse_down),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    false
+                }
             }
             NativeInterrupt::MouseUp(args) => {
-                let topmost_node = engine
+                if let Some(topmost_node) = engine
                     .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                let args_mouse_up = MouseUp {
-                    mouse: MouseEventArgs {
-                        x: args.x,
-                        y: args.y,
-                        button: MouseButton::from(args.button.clone()),
-                        modifiers: args
-                            .modifiers
-                            .iter()
-                            .map(|x| ModifierKey::from(x))
-                            .collect(),
-                    },
-                };
-                topmost_node.dispatch_mouse_up(
-                    Event::new(args_mouse_up),
-                    &globals,
-                    &engine.runtime_context,
-                )
+                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+                {
+                    let args_mouse_up = MouseUp {
+                        mouse: MouseEventArgs {
+                            x: args.x,
+                            y: args.y,
+                            button: MouseButton::from(args.button.clone()),
+                            modifiers: args
+                                .modifiers
+                                .iter()
+                                .map(|x| ModifierKey::from(x))
+                                .collect(),
+                        },
+                    };
+                    topmost_node.dispatch_mouse_up(
+                        Event::new(args_mouse_up),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    false
+                }
             }
             NativeInterrupt::ContextMenu(args) => {
-                let topmost_node = engine
+                if let Some(topmost_node) = engine
                     .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y));
-                let args_context_menu = ContextMenu {
-                    mouse: MouseEventArgs {
-                        x: args.x,
-                        y: args.y,
-                        button: MouseButton::from(args.button.clone()),
-                        modifiers: args
-                            .modifiers
-                            .iter()
-                            .map(|x| ModifierKey::from(x))
-                            .collect(),
-                    },
-                };
-                topmost_node.dispatch_context_menu(
-                    Event::new(args_context_menu),
-                    &globals,
-                    &engine.runtime_context,
-                )
+                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+                {
+                    let args_context_menu = ContextMenu {
+                        mouse: MouseEventArgs {
+                            x: args.x,
+                            y: args.y,
+                            button: MouseButton::from(args.button.clone()),
+                            modifiers: args
+                                .modifiers
+                                .iter()
+                                .map(|x| ModifierKey::from(x))
+                                .collect(),
+                        },
+                    };
+                    topmost_node.dispatch_context_menu(
+                        Event::new(args_context_menu),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    false
+                }
             }
             NativeInterrupt::Screenshot(args) => {
                 let data = Uint8Array::new(additional_payload).to_vec();
@@ -865,14 +929,7 @@ impl PaxChassisWeb {
         InterruptResult { prevent_default }
     }
 
-    pub fn deallocate(&mut self, slice: MemorySlice) {
-        let layout = std::alloc::Layout::from_size_align(slice.len(), 1).unwrap();
-        unsafe {
-            std::alloc::dealloc(slice.ptr() as *mut u8, layout);
-        }
-    }
-
-    pub fn tick(&mut self) -> MemorySlice {
+    pub fn tick(&mut self) -> JsValue {
         #[cfg(feature = "designtime")]
         self.designtime_tick();
 
@@ -884,9 +941,6 @@ impl PaxChassisWeb {
                     .mark_canvas_nodes_on_layer_dirty(layer_id);
                 engine.runtime_context.set_canvas_dirty(layer_id);
             }
-            let native_interrupt =
-                format!(r#"{{"AddedLayer":{{"num_layers_added":1,"layer_id":{layer_id}}}}}"#);
-            let _ = self.interrupt(native_interrupt, &JsValue::UNDEFINED);
         }
         for layer_id in self.render_context.take_replay_canvas_layers() {
             // A retained surface was reused for a different tile origin; force the runtime to
@@ -899,26 +953,7 @@ impl PaxChassisWeb {
         }
 
         let message_queue = borrow_mut!(self.engine).tick();
-
-        // Serialize data to a JSON string
-        let json_string = serde_json::to_string(&message_queue).unwrap();
-
-        // Convert the string into bytes
-        let bytes = json_string.as_bytes();
-
-        // Allocate space in the WebAssembly memory
-        let layout = std::alloc::Layout::from_size_align(bytes.len(), 1).unwrap();
-        let ptr = unsafe { std::alloc::alloc(layout) as *mut u8 };
-
-        // Copy the data into the WebAssembly memory
-        unsafe {
-            std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr, bytes.len());
-        }
-
-        MemorySlice {
-            ptr: ptr as *const u8,
-            len: bytes.len(),
-        }
+        js_value_serde::to_value(&message_queue)
     }
 
     pub fn render(&mut self) {
@@ -997,7 +1032,7 @@ impl PaxChassisWeb {
             return JsValue::NULL;
         };
 
-        serde_wasm_bindgen::to_value(&plan).unwrap_or(JsValue::NULL)
+        js_value_serde::to_value(&plan)
     }
 
     pub fn request_layer_screenshot(&mut self, layer: usize, request_id: u32) {
@@ -1008,7 +1043,7 @@ impl PaxChassisWeb {
     pub fn take_layer_screenshot(&mut self, layer: usize, request_id: u32) -> JsValue {
         self.render_context
             .take_layer_screenshot(layer, request_id)
-            .and_then(|capture| serde_wasm_bindgen::to_value(&capture).ok())
+            .map(|capture| js_value_serde::to_value(&capture))
             .unwrap_or(JsValue::NULL)
     }
 
@@ -1023,6 +1058,707 @@ impl PaxChassisWeb {
 
     pub fn image_loaded(&mut self, path: &str) -> bool {
         self.render_context.image_loaded(path)
+    }
+}
+
+fn js_field(value: &JsValue, field: &str) -> JsValue {
+    Reflect::get(value, &JsValue::from_str(field)).unwrap()
+}
+
+fn js_variant(value: &JsValue, variant: &str) -> Option<JsValue> {
+    let payload = js_field(value, variant);
+    if payload.is_undefined() {
+        None
+    } else {
+        Some(payload)
+    }
+}
+
+fn js_f64(value: &JsValue, field: &str) -> f64 {
+    js_field(value, field).as_f64().unwrap()
+}
+
+fn js_u32(value: &JsValue, field: &str) -> u32 {
+    js_f64(value, field) as u32
+}
+
+fn js_u64(value: &JsValue, field: &str) -> u64 {
+    js_f64(value, field) as u64
+}
+
+fn js_usize(value: &JsValue, field: &str) -> usize {
+    js_f64(value, field) as usize
+}
+
+fn js_i64(value: &JsValue, field: &str) -> i64 {
+    js_f64(value, field) as i64
+}
+
+fn js_bool(value: &JsValue, field: &str) -> bool {
+    js_field(value, field).as_bool().unwrap()
+}
+
+fn js_string(value: &JsValue, field: &str) -> String {
+    js_field(value, field).as_string().unwrap()
+}
+
+fn js_optional_f64(value: &JsValue, field: &str) -> Option<f64> {
+    let field = js_field(value, field);
+    if field.is_undefined() || field.is_null() {
+        None
+    } else {
+        field.as_f64()
+    }
+}
+
+fn js_optional_u32(value: &JsValue, field: &str) -> Option<u32> {
+    js_optional_f64(value, field).map(|value| value as u32)
+}
+
+fn js_array(value: &JsValue, field: &str) -> Array {
+    Array::from(&js_field(value, field))
+}
+
+fn parse_mouse_button(value: &JsValue) -> MouseButtonMessage {
+    match value.as_string().unwrap().as_str() {
+        "Left" => MouseButtonMessage::Left,
+        "Right" => MouseButtonMessage::Right,
+        "Middle" => MouseButtonMessage::Middle,
+        "Unknown" => MouseButtonMessage::Unknown,
+        _ => panic!("unknown mouse button"),
+    }
+}
+
+fn parse_modifier(value: &JsValue) -> ModifierKeyMessage {
+    match value.as_string().unwrap().as_str() {
+        "Shift" => ModifierKeyMessage::Shift,
+        "Control" => ModifierKeyMessage::Control,
+        "Alt" => ModifierKeyMessage::Alt,
+        "Command" => ModifierKeyMessage::Command,
+        _ => panic!("unknown modifier"),
+    }
+}
+
+fn parse_modifiers(payload: &JsValue) -> Vec<ModifierKeyMessage> {
+    let modifiers = js_array(payload, "modifiers");
+    let mut out = Vec::with_capacity(modifiers.length() as usize);
+    for index in 0..modifiers.length() {
+        out.push(parse_modifier(&modifiers.get(index)));
+    }
+    out
+}
+
+fn parse_touch(value: JsValue) -> TouchMessage {
+    TouchMessage {
+        x: js_f64(&value, "x"),
+        y: js_f64(&value, "y"),
+        identifier: js_i64(&value, "identifier"),
+        delta_x: js_f64(&value, "delta_x"),
+        delta_y: js_f64(&value, "delta_y"),
+    }
+}
+
+fn parse_touches(payload: &JsValue) -> Vec<TouchMessage> {
+    let touches = js_array(payload, "touches");
+    let mut out = Vec::with_capacity(touches.length() as usize);
+    for index in 0..touches.length() {
+        out.push(parse_touch(touches.get(index)));
+    }
+    out
+}
+
+fn parse_mouse_event(payload: &JsValue) -> (f64, f64, MouseButtonMessage, Vec<ModifierKeyMessage>) {
+    (
+        js_f64(payload, "x"),
+        js_f64(payload, "y"),
+        parse_mouse_button(&js_field(payload, "button")),
+        parse_modifiers(payload),
+    )
+}
+
+fn parse_image_load_interrupt(payload: &JsValue) -> ImageLoadInterruptArgs {
+    if let Some(data) = js_variant(payload, "Data") {
+        ImageLoadInterruptArgs::Data(ImageDataArgs {
+            id: js_u32(&data, "id"),
+            path: js_string(&data, "path"),
+            width: js_usize(&data, "width"),
+            height: js_usize(&data, "height"),
+        })
+    } else if let Some(reference) = js_variant(payload, "Reference") {
+        ImageLoadInterruptArgs::Reference(ImagePointerArgs {
+            id: js_u32(&reference, "id"),
+            path: js_string(&reference, "path"),
+            image_data: js_u64(&reference, "image_data"),
+            image_data_length: js_usize(&reference, "image_data_length"),
+            width: js_usize(&reference, "width"),
+            height: js_usize(&reference, "height"),
+        })
+    } else {
+        panic!("unknown image interrupt payload")
+    }
+}
+
+fn native_interrupt_from_js(value: JsValue) -> NativeInterrupt {
+    if let Some(payload) = js_variant(&value, "ChassisResizeRequestCollection") {
+        let collection = Array::from(&payload);
+        let mut out = Vec::with_capacity(collection.length() as usize);
+        for index in 0..collection.length() {
+            let item = collection.get(index);
+            out.push(ChassisResizeRequestArgs {
+                id: js_u32(&item, "id"),
+                width: js_f64(&item, "width"),
+                height: js_f64(&item, "height"),
+            });
+        }
+        NativeInterrupt::ChassisResizeRequestCollection(out)
+    } else if js_variant(&value, "SelectStart").is_some() {
+        NativeInterrupt::SelectStart(SelectStartArgs {})
+    } else if js_variant(&value, "Focus").is_some() {
+        NativeInterrupt::Focus(FocusInterruptArgs {})
+    } else if let Some(payload) = js_variant(&value, "Clap") {
+        NativeInterrupt::Clap(ClapInterruptArgs {
+            x: js_f64(&payload, "x"),
+            y: js_f64(&payload, "y"),
+        })
+    } else if let Some(payload) = js_variant(&value, "Scroll") {
+        NativeInterrupt::Scroll(ScrollInterruptArgs {
+            delta_x: js_f64(&payload, "delta_x"),
+            delta_y: js_f64(&payload, "delta_y"),
+        })
+    } else if let Some(payload) = js_variant(&value, "TouchStart") {
+        NativeInterrupt::TouchStart(TouchStartInterruptArgs {
+            touches: parse_touches(&payload),
+        })
+    } else if let Some(payload) = js_variant(&value, "TouchMove") {
+        NativeInterrupt::TouchMove(TouchMoveInterruptArgs {
+            touches: parse_touches(&payload),
+        })
+    } else if let Some(payload) = js_variant(&value, "TouchEnd") {
+        NativeInterrupt::TouchEnd(TouchEndInterruptArgs {
+            touches: parse_touches(&payload),
+        })
+    } else if let Some(payload) = js_variant(&value, "KeyDown") {
+        NativeInterrupt::KeyDown(KeyDownInterruptArgs {
+            key: js_string(&payload, "key"),
+            modifiers: parse_modifiers(&payload),
+            is_repeat: js_bool(&payload, "is_repeat"),
+        })
+    } else if let Some(payload) = js_variant(&value, "KeyUp") {
+        NativeInterrupt::KeyUp(KeyUpInterruptArgs {
+            key: js_string(&payload, "key"),
+            modifiers: parse_modifiers(&payload),
+            is_repeat: js_bool(&payload, "is_repeat"),
+        })
+    } else if let Some(payload) = js_variant(&value, "KeyPress") {
+        NativeInterrupt::KeyPress(KeyPressInterruptArgs {
+            key: js_string(&payload, "key"),
+            modifiers: parse_modifiers(&payload),
+            is_repeat: js_bool(&payload, "is_repeat"),
+        })
+    } else if let Some(payload) = js_variant(&value, "Click") {
+        let (x, y, button, modifiers) = parse_mouse_event(&payload);
+        NativeInterrupt::Click(ClickInterruptArgs {
+            x,
+            y,
+            button,
+            modifiers,
+        })
+    } else if let Some(payload) = js_variant(&value, "DoubleClick") {
+        let (x, y, button, modifiers) = parse_mouse_event(&payload);
+        NativeInterrupt::DoubleClick(DoubleClickInterruptArgs {
+            x,
+            y,
+            button,
+            modifiers,
+        })
+    } else if let Some(payload) = js_variant(&value, "MouseMove") {
+        let (x, y, button, modifiers) = parse_mouse_event(&payload);
+        NativeInterrupt::MouseMove(MouseMoveInterruptArgs {
+            x,
+            y,
+            button,
+            modifiers,
+        })
+    } else if let Some(payload) = js_variant(&value, "Wheel") {
+        NativeInterrupt::Wheel(WheelInterruptArgs {
+            x: js_f64(&payload, "x"),
+            y: js_f64(&payload, "y"),
+            delta_x: js_f64(&payload, "delta_x"),
+            delta_y: js_f64(&payload, "delta_y"),
+            modifiers: parse_modifiers(&payload),
+        })
+    } else if let Some(payload) = js_variant(&value, "MouseDown") {
+        let (x, y, button, modifiers) = parse_mouse_event(&payload);
+        NativeInterrupt::MouseDown(MouseDownInterruptArgs {
+            x,
+            y,
+            button,
+            modifiers,
+        })
+    } else if let Some(payload) = js_variant(&value, "MouseUp") {
+        let (x, y, button, modifiers) = parse_mouse_event(&payload);
+        NativeInterrupt::MouseUp(MouseUpInterruptArgs {
+            x,
+            y,
+            button,
+            modifiers,
+        })
+    } else if let Some(payload) = js_variant(&value, "ContextMenu") {
+        let (x, y, button, modifiers) = parse_mouse_event(&payload);
+        NativeInterrupt::ContextMenu(ContextMenuInterruptArgs {
+            x,
+            y,
+            button,
+            modifiers,
+        })
+    } else if let Some(payload) = js_variant(&value, "Image") {
+        NativeInterrupt::Image(parse_image_load_interrupt(&payload))
+    } else if let Some(payload) = js_variant(&value, "AddedLayer") {
+        NativeInterrupt::AddedLayer(AddedLayerArgs {
+            num_layers_added: js_u32(&payload, "num_layers_added"),
+            layer_id: js_optional_u32(&payload, "layer_id"),
+        })
+    } else if let Some(payload) = js_variant(&value, "TextInput") {
+        NativeInterrupt::TextInput(TextInputArgs {
+            text: js_string(&payload, "text"),
+            id: js_u32(&payload, "id"),
+        })
+    } else if let Some(payload) = js_variant(&value, "FormCheckboxToggle") {
+        NativeInterrupt::FormCheckboxToggle(FormCheckboxToggleArgs {
+            state: js_bool(&payload, "state"),
+            id: js_u32(&payload, "id"),
+        })
+    } else if let Some(payload) = js_variant(&value, "FormDropdownChange") {
+        NativeInterrupt::FormDropdownChange(FormDropdownChangeArgs {
+            id: js_u32(&payload, "id"),
+            selected_id: js_u32(&payload, "selected_id"),
+        })
+    } else if let Some(payload) = js_variant(&value, "FormSliderChange") {
+        NativeInterrupt::FormSliderChange(FormSliderChangeArgs {
+            id: js_u32(&payload, "id"),
+            value: js_f64(&payload, "value"),
+        })
+    } else if let Some(payload) = js_variant(&value, "FormRadioListChange") {
+        NativeInterrupt::FormRadioListChange(FormRadioListChangeArgs {
+            id: js_u32(&payload, "id"),
+            selected_id: js_u32(&payload, "selected_id"),
+        })
+    } else if let Some(payload) = js_variant(&value, "FormTextboxChange") {
+        NativeInterrupt::FormTextboxChange(FormTextboxChangeArgs {
+            text: js_string(&payload, "text"),
+            id: js_u32(&payload, "id"),
+        })
+    } else if let Some(payload) = js_variant(&value, "FormTextboxInput") {
+        NativeInterrupt::FormTextboxInput(FormTextboxInputArgs {
+            text: js_string(&payload, "text"),
+            id: js_u32(&payload, "id"),
+        })
+    } else if let Some(payload) = js_variant(&value, "FormButtonClick") {
+        NativeInterrupt::FormButtonClick(FormButtonClickArgs {
+            id: js_u32(&payload, "id"),
+        })
+    } else if let Some(payload) =
+        js_variant(&value, "ScrollerPosition").or_else(|| js_variant(&value, "Scrollbar"))
+    {
+        NativeInterrupt::ScrollerPosition(ScrollerPositionInterruptArgs {
+            id: js_u32(&payload, "id"),
+            scroll_x: js_f64(&payload, "scroll_x"),
+            scroll_y: js_f64(&payload, "scroll_y"),
+            presentation_scroll_x: js_optional_f64(&payload, "presentation_scroll_x"),
+            presentation_scroll_y: js_optional_f64(&payload, "presentation_scroll_y"),
+        })
+    } else if let Some(payload) = js_variant(&value, "BrowserConfig") {
+        NativeInterrupt::BrowserConfig(BrowserConfigInterruptArgs {
+            allow_scroller_vector_layers: js_bool(&payload, "allow_scroller_vector_layers"),
+            allow_nested_scroller_vector_layers: js_bool(
+                &payload,
+                "allow_nested_scroller_vector_layers",
+            ),
+        })
+    } else if let Some(payload) = js_variant(&value, "VisualViewportUpdate") {
+        NativeInterrupt::VisualViewportUpdate(VisualViewportUpdateArgs {
+            width: js_f64(&payload, "width"),
+            height: js_f64(&payload, "height"),
+            offset_x: js_f64(&payload, "offset_x"),
+            offset_y: js_f64(&payload, "offset_y"),
+            page_scroll_x: js_f64(&payload, "page_scroll_x"),
+            page_scroll_y: js_f64(&payload, "page_scroll_y"),
+        })
+    } else if let Some(payload) = js_variant(&value, "DropFile") {
+        NativeInterrupt::DropFile(DropFileArgs {
+            x: js_f64(&payload, "x"),
+            y: js_f64(&payload, "y"),
+            name: js_string(&payload, "name"),
+            mime_type: js_string(&payload, "mime_type"),
+            size: js_u64(&payload, "size"),
+        })
+    } else if let Some(payload) = js_variant(&value, "Screenshot") {
+        NativeInterrupt::Screenshot(parse_image_load_interrupt(&payload))
+    } else {
+        panic!("unknown native interrupt")
+    }
+}
+
+mod js_value_serde {
+    use super::*;
+    use pax_message::serde::ser::{
+        self, SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant, SerializeTuple,
+        SerializeTupleStruct, SerializeTupleVariant,
+    };
+    use pax_message::serde::Serialize;
+    use std::fmt;
+
+    #[derive(Debug)]
+    pub struct JsSerializeError;
+
+    impl ser::Error for JsSerializeError {
+        fn custom<T: fmt::Display>(_msg: T) -> Self {
+            JsSerializeError
+        }
+    }
+
+    impl fmt::Display for JsSerializeError {
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter.write_str("failed to serialize value to JsValue")
+        }
+    }
+
+    impl std::error::Error for JsSerializeError {}
+
+    type Result<T> = std::result::Result<T, JsSerializeError>;
+
+    pub fn to_value<T: Serialize + ?Sized>(value: &T) -> JsValue {
+        value.serialize(&JsSerializer).unwrap_or(JsValue::NULL)
+    }
+
+    struct JsSerializer;
+
+    fn set_field(target: &Object, key: &str, value: JsValue) -> Result<()> {
+        Reflect::set(target.as_ref(), &JsValue::from_str(key), &value)
+            .map(|_| ())
+            .map_err(|_| JsSerializeError)
+    }
+
+    fn variant_object(variant: &'static str, value: JsValue) -> Result<JsValue> {
+        let object = Object::new();
+        set_field(&object, variant, value)?;
+        Ok(object.into())
+    }
+
+    pub struct JsArraySerializer {
+        array: Array,
+    }
+
+    impl JsArraySerializer {
+        fn new() -> Self {
+            Self {
+                array: Array::new(),
+            }
+        }
+
+        fn push<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<()> {
+            self.array.push(&value.serialize(&JsSerializer)?);
+            Ok(())
+        }
+
+        fn into_js(self) -> JsValue {
+            self.array.into()
+        }
+    }
+
+    impl SerializeSeq for JsArraySerializer {
+        type Ok = JsValue;
+        type Error = JsSerializeError;
+
+        fn serialize_element<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<()> {
+            self.push(value)
+        }
+
+        fn end(self) -> Result<JsValue> {
+            Ok(self.into_js())
+        }
+    }
+
+    impl SerializeTuple for JsArraySerializer {
+        type Ok = JsValue;
+        type Error = JsSerializeError;
+
+        fn serialize_element<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<()> {
+            self.push(value)
+        }
+
+        fn end(self) -> Result<JsValue> {
+            Ok(self.into_js())
+        }
+    }
+
+    impl SerializeTupleStruct for JsArraySerializer {
+        type Ok = JsValue;
+        type Error = JsSerializeError;
+
+        fn serialize_field<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<()> {
+            self.push(value)
+        }
+
+        fn end(self) -> Result<JsValue> {
+            Ok(self.into_js())
+        }
+    }
+
+    pub struct JsTupleVariantSerializer {
+        variant: &'static str,
+        inner: JsArraySerializer,
+    }
+
+    impl SerializeTupleVariant for JsTupleVariantSerializer {
+        type Ok = JsValue;
+        type Error = JsSerializeError;
+
+        fn serialize_field<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<()> {
+            self.inner.push(value)
+        }
+
+        fn end(self) -> Result<JsValue> {
+            variant_object(self.variant, self.inner.into_js())
+        }
+    }
+
+    pub struct JsObjectSerializer {
+        object: Object,
+    }
+
+    impl JsObjectSerializer {
+        fn new() -> Self {
+            Self {
+                object: Object::new(),
+            }
+        }
+    }
+
+    impl SerializeStruct for JsObjectSerializer {
+        type Ok = JsValue;
+        type Error = JsSerializeError;
+
+        fn serialize_field<T: ?Sized + Serialize>(
+            &mut self,
+            key: &'static str,
+            value: &T,
+        ) -> Result<()> {
+            set_field(&self.object, key, value.serialize(&JsSerializer)?)
+        }
+
+        fn end(self) -> Result<JsValue> {
+            Ok(self.object.into())
+        }
+    }
+
+    pub struct JsStructVariantSerializer {
+        variant: &'static str,
+        inner: JsObjectSerializer,
+    }
+
+    impl SerializeStructVariant for JsStructVariantSerializer {
+        type Ok = JsValue;
+        type Error = JsSerializeError;
+
+        fn serialize_field<T: ?Sized + Serialize>(
+            &mut self,
+            key: &'static str,
+            value: &T,
+        ) -> Result<()> {
+            self.inner.serialize_field(key, value)
+        }
+
+        fn end(self) -> Result<JsValue> {
+            variant_object(self.variant, self.inner.end()?)
+        }
+    }
+
+    pub struct JsMapSerializer {
+        object: Object,
+        next_key: Option<String>,
+    }
+
+    impl JsMapSerializer {
+        fn new() -> Self {
+            Self {
+                object: Object::new(),
+                next_key: None,
+            }
+        }
+    }
+
+    impl SerializeMap for JsMapSerializer {
+        type Ok = JsValue;
+        type Error = JsSerializeError;
+
+        fn serialize_key<T: ?Sized + Serialize>(&mut self, key: &T) -> Result<()> {
+            self.next_key = key.serialize(&JsSerializer)?.as_string();
+            if self.next_key.is_some() {
+                Ok(())
+            } else {
+                Err(JsSerializeError)
+            }
+        }
+
+        fn serialize_value<T: ?Sized + Serialize>(&mut self, value: &T) -> Result<()> {
+            let key = self.next_key.take().ok_or(JsSerializeError)?;
+            set_field(&self.object, &key, value.serialize(&JsSerializer)?)
+        }
+
+        fn end(self) -> Result<JsValue> {
+            Ok(self.object.into())
+        }
+    }
+
+    macro_rules! serialize_number {
+        ($($name:ident($ty:ty);)*) => {
+            $(
+                fn $name(self, value: $ty) -> Result<JsValue> {
+                    Ok(JsValue::from_f64(value as f64))
+                }
+            )*
+        };
+    }
+
+    impl ser::Serializer for &JsSerializer {
+        type Ok = JsValue;
+        type Error = JsSerializeError;
+        type SerializeSeq = JsArraySerializer;
+        type SerializeTuple = JsArraySerializer;
+        type SerializeTupleStruct = JsArraySerializer;
+        type SerializeTupleVariant = JsTupleVariantSerializer;
+        type SerializeMap = JsMapSerializer;
+        type SerializeStruct = JsObjectSerializer;
+        type SerializeStructVariant = JsStructVariantSerializer;
+
+        fn serialize_bool(self, value: bool) -> Result<JsValue> {
+            Ok(JsValue::from_bool(value))
+        }
+
+        serialize_number! {
+            serialize_i8(i8);
+            serialize_i16(i16);
+            serialize_i32(i32);
+            serialize_i64(i64);
+            serialize_i128(i128);
+            serialize_u8(u8);
+            serialize_u16(u16);
+            serialize_u32(u32);
+            serialize_u64(u64);
+            serialize_u128(u128);
+            serialize_f32(f32);
+            serialize_f64(f64);
+        }
+
+        fn serialize_char(self, value: char) -> Result<JsValue> {
+            Ok(JsValue::from_str(&value.to_string()))
+        }
+
+        fn serialize_str(self, value: &str) -> Result<JsValue> {
+            Ok(JsValue::from_str(value))
+        }
+
+        fn serialize_bytes(self, value: &[u8]) -> Result<JsValue> {
+            let array = Array::new();
+            for byte in value {
+                array.push(&JsValue::from_f64(*byte as f64));
+            }
+            Ok(array.into())
+        }
+
+        fn serialize_none(self) -> Result<JsValue> {
+            Ok(JsValue::NULL)
+        }
+
+        fn serialize_some<T: ?Sized + Serialize>(self, value: &T) -> Result<JsValue> {
+            value.serialize(self)
+        }
+
+        fn serialize_unit(self) -> Result<JsValue> {
+            Ok(JsValue::NULL)
+        }
+
+        fn serialize_unit_struct(self, _name: &'static str) -> Result<JsValue> {
+            Ok(JsValue::NULL)
+        }
+
+        fn serialize_unit_variant(
+            self,
+            _name: &'static str,
+            _variant_index: u32,
+            variant: &'static str,
+        ) -> Result<JsValue> {
+            Ok(JsValue::from_str(variant))
+        }
+
+        fn serialize_newtype_struct<T: ?Sized + Serialize>(
+            self,
+            _name: &'static str,
+            value: &T,
+        ) -> Result<JsValue> {
+            value.serialize(self)
+        }
+
+        fn serialize_newtype_variant<T: ?Sized + Serialize>(
+            self,
+            _name: &'static str,
+            _variant_index: u32,
+            variant: &'static str,
+            value: &T,
+        ) -> Result<JsValue> {
+            variant_object(variant, value.serialize(self)?)
+        }
+
+        fn serialize_seq(self, _len: Option<usize>) -> Result<JsArraySerializer> {
+            Ok(JsArraySerializer::new())
+        }
+
+        fn serialize_tuple(self, _len: usize) -> Result<JsArraySerializer> {
+            Ok(JsArraySerializer::new())
+        }
+
+        fn serialize_tuple_struct(
+            self,
+            _name: &'static str,
+            _len: usize,
+        ) -> Result<JsArraySerializer> {
+            Ok(JsArraySerializer::new())
+        }
+
+        fn serialize_tuple_variant(
+            self,
+            _name: &'static str,
+            _variant_index: u32,
+            variant: &'static str,
+            _len: usize,
+        ) -> Result<JsTupleVariantSerializer> {
+            Ok(JsTupleVariantSerializer {
+                variant,
+                inner: JsArraySerializer::new(),
+            })
+        }
+
+        fn serialize_map(self, _len: Option<usize>) -> Result<JsMapSerializer> {
+            Ok(JsMapSerializer::new())
+        }
+
+        fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<JsObjectSerializer> {
+            Ok(JsObjectSerializer::new())
+        }
+
+        fn serialize_struct_variant(
+            self,
+            _name: &'static str,
+            _variant_index: u32,
+            variant: &'static str,
+            _len: usize,
+        ) -> Result<JsStructVariantSerializer> {
+            Ok(JsStructVariantSerializer {
+                variant,
+                inner: JsObjectSerializer::new(),
+            })
+        }
     }
 }
 
@@ -1052,21 +1788,4 @@ fn parse_user_agent_str(user_agent: &str) -> Option<OS> {
         }
     }
     None
-}
-
-#[wasm_bindgen]
-pub struct MemorySlice {
-    ptr: *const u8,
-    len: usize,
-}
-
-#[wasm_bindgen]
-impl MemorySlice {
-    pub fn ptr(&self) -> *const u8 {
-        self.ptr
-    }
-
-    pub fn len(&self) -> usize {
-        self.len
-    }
 }

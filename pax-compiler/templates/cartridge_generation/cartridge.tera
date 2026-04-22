@@ -17,8 +17,12 @@ fn init_cartridge() -> Box<dyn {{ engine_import_path }}::pax_runtime::cartridge:
 }
 
 fn init_manifest() -> pax_manifest::PaxManifest {
+    {% if use_rust_manifest -%}
+    let manifest : {{ engine_import_path }}::pax_manifest::PaxManifest = {{ userland_manifest_rust }};
+    {% else -%}
     let userland_manifest_json = r#######"{{userland_manifest_json}}"#######;
     let manifest : {{ engine_import_path }}::pax_manifest::PaxManifest = {{ engine_import_path }}::serde_json::from_str(userland_manifest_json).expect("Failed to deserialize manifest");
+    {% endif -%}
     manifest
 }
 
@@ -41,13 +45,17 @@ impl {{ engine_import_path }}::pax_runtime::cartridge::PaxCartridge for {{ cartr
     {{ macros::render_component_factory(component=c, engine_import_path=engine_import_path) }}
 {%- endfor %}
 
-trait TypeFactory {
-    type Output: Default + Clone;
+static ComponentDescriptorRegistry: [{{ engine_import_path }}::pax_runtime::ComponentDescriptorRegistryEntry; {{ components | length }}] = [
+    {% for component in components %}
+    {{ engine_import_path }}::pax_runtime::ComponentDescriptorRegistryEntry::new(
+        "{{component.type_id._type_id}}",
+        &{{component.pascal_identifier}}ErasedComponentDescriptor,
+    ),
+    {% endfor %}
+];
 
-    fn build_type(&self, args: &{{ engine_import_path }}::pax_manifest::LiteralBlockDefinition, stack_frame: std::rc::Rc<{{ engine_import_path }}::pax_runtime::RuntimePropertiesStackFrame>) -> Self::Output;
-}
 {% for key, value in type_table -%}
-    {{ macros::render_type_factory(type_table=type_table, active_type=value, engine_import_path=engine_import_path) }}
+    {{ macros::render_type_descriptor(type_table=type_table, active_type=value, engine_import_path=engine_import_path) }}
 {%- endfor %}
 
 
@@ -65,19 +73,8 @@ pub struct {{ definition_to_instance_traverser_struct_id }} {
 
 impl {{ engine_import_path }}::pax_runtime::DefinitionToInstanceTraverser for {{ definition_to_instance_traverser_struct_id }} {
 
-    fn get_component_factory(&self, type_id: &{{ engine_import_path }}::pax_manifest::TypeId) -> Option<Box<dyn {{ engine_import_path }}::pax_runtime::cartridge::ComponentFactory>> {
-        if type_id.is_blank_component() {
-            return Some(Box::new(BlankComponentFactory{}) as Box<dyn {{ engine_import_path }}::pax_runtime::ComponentFactory>);
-        }
-
-        match type_id.get_unique_identifier().as_str() {
-            {% for component in components %}
-            "{{component.type_id._type_id}}" => {
-                Some(Box::new({{component.pascal_identifier}}Factory{}) as Box<dyn {{ engine_import_path }}::pax_runtime::ComponentFactory>)
-            },
-            {% endfor %}
-            _ => None
-        }
+    fn get_component_descriptor(&self, type_id: &{{ engine_import_path }}::pax_manifest::TypeId) -> Option<&'static {{ engine_import_path }}::pax_runtime::ErasedComponentDescriptor> {
+        {{ engine_import_path }}::pax_runtime::resolve_component_descriptor(&ComponentDescriptorRegistry, type_id)
     }
 
     #[cfg(not(feature = "designtime"))]

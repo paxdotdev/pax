@@ -48,14 +48,14 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
                 "modifiers": convertModifiers(evt)
             }
         };
-        let r1 = chassis.interrupt(JSON.stringify(clickEvent), []);
+        let r1 = chassis.interrupt(clickEvent, []);
         let clapEvent = {
             "Clap": {
                 "x": evt.clientX,
                 "y": evt.clientY,
             }
         };
-        let r2 = chassis.interrupt(JSON.stringify(clapEvent), []);
+        let r2 = chassis.interrupt(clapEvent, []);
         if (r1.prevent_default || r2.prevent_default) {
             evt.preventDefault();
         }
@@ -69,7 +69,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
                 "modifiers": convertModifiers(evt)
             }
         };
-        let res = chassis.interrupt(JSON.stringify(event), []);
+        let res = chassis.interrupt(event, []);
         if (res.prevent_default) {
             evt.preventDefault();
         }
@@ -86,7 +86,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         let event = {
             "SelectStart": {}
         };
-        let res = chassis.interrupt(JSON.stringify(event), []);
+        let res = chassis.interrupt(event, []);
         if (res.prevent_default) {
             evt.preventDefault();
         }
@@ -102,7 +102,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
                 "modifiers": convertModifiers(evt)
             }
         };
-        let res = chassis.interrupt(JSON.stringify(event), []);
+        let res = chassis.interrupt(event, []);
         if (res.prevent_default) {
             evt.preventDefault();
         }
@@ -117,7 +117,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
                 "modifiers": convertModifiers(evt)
             }
         };
-        let res = chassis.interrupt(JSON.stringify(event), []);
+        let res = chassis.interrupt(event, []);
         if (res.prevent_default) {
             evt.preventDefault();
         }
@@ -134,7 +134,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
                 "modifiers": convertModifiers(evt)
             }
         };
-        let res = chassis.interrupt(JSON.stringify(event), []);
+        let res = chassis.interrupt(event, []);
         if (res.prevent_default) {
             evt.preventDefault();
         }
@@ -148,7 +148,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
                 "modifiers": convertModifiers(evt)
             }
         };
-        let res = chassis.interrupt(JSON.stringify(event), []);
+        let res = chassis.interrupt(event, []);
         if (res.prevent_default) {
             evt.preventDefault();
         }
@@ -162,7 +162,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
                 "modifiers": convertModifiers(evt)
             }
         };
-        let res = chassis.interrupt(JSON.stringify(event), []);
+        let res = chassis.interrupt(event, []);
         if (res.prevent_default) {
             evt.preventDefault();
         }
@@ -176,7 +176,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         Array.from(evt.changedTouches).forEach(touch => {
             lastPositions.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
         });
-        let r1 = chassis.interrupt(JSON.stringify(event), []);
+        let r1 = chassis.interrupt(event, []);
 
         let clapEvent = {
             "Clap": {
@@ -184,7 +184,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
                 "y": evt.touches[0].clientY,
             }
         };
-        let r2 = chassis.interrupt(JSON.stringify(clapEvent), []);
+        let r2 = chassis.interrupt(clapEvent, []);
         if (r1.prevent_default || r2.prevent_default) {
             evt.preventDefault();
         }
@@ -196,7 +196,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
                 "touches": touches
             }
         };
-        let res = chassis.interrupt(JSON.stringify(event), []);
+        let res = chassis.interrupt(event, []);
         if (res.prevent_default) {
             evt.preventDefault();
         }
@@ -208,7 +208,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
                 "touches": getTouchMessages(evt.changedTouches)
             }
         };
-        let res = chassis.interrupt(JSON.stringify(event), []);
+        let res = chassis.interrupt(event, []);
         if (res.prevent_default) {
             evt.preventDefault();
         }
@@ -230,7 +230,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
                 "is_repeat": evt.repeat
             }
         };
-        let res = chassis.interrupt(JSON.stringify(event), []);
+        let res = chassis.interrupt(event, []);
         if (res.prevent_default && !dom_node_selected) {
             evt.preventDefault();
         }
@@ -246,7 +246,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
                 "is_repeat": evt.repeat
             }
         };
-        let res = chassis.interrupt(JSON.stringify(event), []);
+        let res = chassis.interrupt(event, []);
         if (res.prevent_default) {
             evt.preventDefault();
         }
@@ -262,7 +262,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
                 "is_repeat": evt.repeat
             }
         };
-        let res = chassis.interrupt(JSON.stringify(event), []);
+        let res = chassis.interrupt(event, []);
         if (res.prevent_default) {
             evt.preventDefault();
         }
@@ -274,7 +274,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         let event = {
             "Focus": {}
         };
-        let res = chassis.interrupt(JSON.stringify(event), []);
+        let res = chassis.interrupt(event, []);
         if (res.prevent_default) {
             evt.preventDefault();
         }
@@ -296,7 +296,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
                 "size": file.size,
             }
         };
-        let res = chassis.interrupt(JSON.stringify(event), bytes);
+        let res = chassis.interrupt(event, bytes);
         if (res.prevent_default) {
             evt.preventDefault();
         }

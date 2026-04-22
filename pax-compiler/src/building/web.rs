@@ -12,9 +12,11 @@ use color_eyre::eyre;
 use flate2::{write::GzEncoder, Compression};
 use std::fs;
 use std::io::Write;
+use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
+use toml_edit::Document;
 
 use dotenv::dotenv;
 use eyre::eyre;
@@ -66,7 +68,7 @@ fn collect_bundle_stat(
     }))
 }
 
-fn print_web_bundle_stats(build_dest: &std::path::Path, is_release: bool) {
+fn print_web_bundle_stats(build_dest: &std::path::Path, build_mode_name: &str) {
     let stats_result = [
         "pax-cartridge_bg.wasm",
         "pax-cartridge.js",
@@ -96,7 +98,9 @@ fn print_web_bundle_stats(build_dest: &std::path::Path, is_release: bool) {
     println!(
         "{}    {}",
         *PAX_BADGE,
-        if is_release {
+        if build_mode_name == "profiling" {
+            "PROFILING MODE"
+        } else if build_mode_name == "release" {
             "RELEASE MODE"
         } else {
             "DEBUG MODE"
@@ -124,6 +128,196 @@ fn print_web_bundle_stats(build_dest: &std::path::Path, is_release: bool) {
     );
 }
 
+fn manifest_has_table_key(document: &Document, table: &str, key: &str) -> bool {
+    document
+        .get(table)
+        .and_then(|item| item.as_table())
+        .map(|table| table.contains_key(key))
+        .unwrap_or(false)
+}
+
+fn webgl_feature_selector(ctx: &RunContext) -> &'static str {
+    let manifest_path = ctx.project_path.join("Cargo.toml");
+    let Some(document) = fs::read_to_string(&manifest_path)
+        .ok()
+        .and_then(|contents| contents.parse::<Document>().ok())
+    else {
+        return "webgl";
+    };
+
+    if manifest_has_table_key(&document, "features", "webgl") {
+        "webgl"
+    } else if manifest_has_table_key(&document, "dependencies", "pax-kit") {
+        "pax-kit/webgl"
+    } else if manifest_has_table_key(&document, "dependencies", "pax-engine") {
+        "pax-engine/webgl"
+    } else {
+        "webgl"
+    }
+}
+
+fn web_cargo_features(ctx: &RunContext) -> String {
+    let mut features = vec!["web"];
+    if ctx.webgl {
+        features.push(webgl_feature_selector(ctx));
+    }
+    features.join(",")
+}
+
+fn apply_release_size_profile(cmd: &mut Command, preserve_wasm_names: bool) {
+    cmd.env("CARGO_PROFILE_RELEASE_OPT_LEVEL", "z")
+        .env("CARGO_PROFILE_RELEASE_LTO", "true")
+        .env("CARGO_PROFILE_RELEASE_CODEGEN_UNITS", "1")
+        .env("CARGO_PROFILE_RELEASE_PANIC", "abort");
+
+    if preserve_wasm_names {
+        cmd.env("CARGO_PROFILE_RELEASE_DEBUG", "true")
+            .env("CARGO_PROFILE_RELEASE_SPLIT_DEBUGINFO", "off");
+    } else if std::env::var_os("PAX_RELEASE_KEEP_SYMBOLS").is_none() {
+        cmd.env("CARGO_PROFILE_RELEASE_STRIP", "symbols");
+    }
+}
+
+fn wasm_opt_binary_name() -> &'static str {
+    if cfg!(windows) {
+        "wasm-opt.exe"
+    } else {
+        "wasm-opt"
+    }
+}
+
+fn find_executable_on_path(name: &str) -> Option<PathBuf> {
+    let path = std::env::var_os("PATH")?;
+    std::env::split_paths(&path)
+        .map(|entry| entry.join(name))
+        .find(|candidate| candidate.is_file())
+}
+
+fn wasm_pack_cache_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+        roots.push(home.join("Library/Caches/.wasm-pack"));
+        roots.push(home.join(".cache/.wasm-pack"));
+        roots.push(home.join(".wasm-pack"));
+    }
+    if let Some(local_app_data) = std::env::var_os("LOCALAPPDATA").map(PathBuf::from) {
+        roots.push(local_app_data.join(".wasm-pack"));
+    }
+    roots
+}
+
+fn find_cached_wasm_pack_wasm_opt(name: &str) -> Option<PathBuf> {
+    for root in wasm_pack_cache_roots() {
+        let Ok(entries) = fs::read_dir(root) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+                continue;
+            };
+            if !file_name.starts_with("wasm-opt-") {
+                continue;
+            }
+            let candidate = path.join("bin").join(name);
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+    }
+    None
+}
+
+fn find_wasm_opt() -> Option<PathBuf> {
+    let name = wasm_opt_binary_name();
+    std::env::var_os("PAX_WASM_OPT")
+        .or_else(|| std::env::var_os("WASM_OPT"))
+        .map(PathBuf::from)
+        .filter(|candidate| candidate.is_file())
+        .or_else(|| find_executable_on_path(name))
+        .or_else(|| find_cached_wasm_pack_wasm_opt(name))
+}
+
+fn optimize_web_wasm(
+    wasm_path: &Path,
+    process_child_ids: &Arc<Mutex<Vec<u64>>>,
+    preserve_wasm_names: bool,
+) -> Result<(), eyre::Report> {
+    let Some(wasm_opt) = find_wasm_opt() else {
+        println!(
+            "{} 🗜️  Skipping wasm-opt transfer-size candidate; install Binaryen or set PAX_WASM_OPT=/path/to/wasm-opt to enable it",
+            *PAX_BADGE
+        );
+        return Ok(());
+    };
+
+    let original_bytes = fs::read(wasm_path)?;
+    let original_raw_size = original_bytes.len() as u64;
+    let original_gzip_size = gzip_size(&original_bytes)?;
+
+    let optimized_path = wasm_path.with_extension("wasm-opt.wasm");
+    let mut cmd = Command::new(&wasm_opt);
+    cmd.arg(wasm_path)
+        .arg("-o")
+        .arg(&optimized_path)
+        .arg("-Oz")
+        .arg("--enable-bulk-memory")
+        .arg("--enable-nontrapping-float-to-int")
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit());
+    if preserve_wasm_names {
+        cmd.arg("-g").arg("--strip-dwarf");
+    }
+
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(crate::pre_exec_hook);
+    }
+
+    println!(
+        "{} 🗜️  Optimizing wasm with `{}`",
+        *PAX_BADGE,
+        wasm_opt.display()
+    );
+    let child = cmd
+        .spawn()
+        .map_err(|err| eyre!("failed to run wasm-opt at {}: {}", wasm_opt.display(), err))?;
+    let output = wait_with_output(process_child_ids, child);
+    if !output.status.success() {
+        let _ = fs::remove_file(&optimized_path);
+        return Err(eyre!("failed to optimize wasm with wasm-opt"));
+    }
+
+    let optimized_bytes = fs::read(&optimized_path)?;
+    let optimized_raw_size = optimized_bytes.len() as u64;
+    let optimized_gzip_size = gzip_size(&optimized_bytes)?;
+    let keep_optimized = optimized_gzip_size < original_gzip_size
+        || (optimized_gzip_size == original_gzip_size && optimized_raw_size < original_raw_size);
+
+    if keep_optimized {
+        fs::copy(&optimized_path, wasm_path)?;
+        println!(
+            "{} 🗜️  Keeping wasm-opt output: gzip {} -> {}, raw {} -> {}",
+            *PAX_BADGE,
+            format_bytes(original_gzip_size),
+            format_bytes(optimized_gzip_size),
+            format_bytes(original_raw_size),
+            format_bytes(optimized_raw_size),
+        );
+    } else {
+        println!(
+            "{} 🗜️  Keeping pre-wasm-opt wasm for transfer size: gzip {} -> {}, raw {} -> {}",
+            *PAX_BADGE,
+            format_bytes(original_gzip_size),
+            format_bytes(optimized_gzip_size),
+            format_bytes(original_raw_size),
+            format_bytes(optimized_raw_size),
+        );
+    }
+    fs::remove_file(&optimized_path)?;
+    Ok(())
+}
+
 pub fn build_web_project_with_cartridge(
     ctx: &RunContext,
     pax_dir: &PathBuf,
@@ -136,8 +330,15 @@ pub fn build_web_project_with_cartridge(
     let target_str_lower = &target_str.to_lowercase();
 
     let is_release: bool = ctx.is_release;
+    let is_profiling = ctx.profile_wasm_size;
 
-    let build_mode_name: &str = if is_release { "release" } else { "debug" };
+    let build_mode_name: &str = if is_profiling {
+        "profiling"
+    } else if is_release {
+        "release"
+    } else {
+        "debug"
+    };
 
     let interface_path = pax_dir.join(INTERFACE_DIR_NAME).join("web");
 
@@ -157,13 +358,19 @@ pub fn build_web_project_with_cartridge(
                 .to_str()
                 .unwrap(),
         )
-        .arg("--features=web")
+        .arg(format!("--features={}", web_cargo_features(ctx)))
         .env("PAX_DIR", &pax_dir)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
 
-    if is_release {
+    if is_profiling {
+        cmd.arg("--profiling");
+        cmd.arg("--no-opt");
+        apply_release_size_profile(&mut cmd, true);
+    } else if is_release {
         cmd.arg("--release");
+        cmd.arg("--no-opt");
+        apply_release_size_profile(&mut cmd, false);
     } else {
         cmd.arg("--dev");
     }
@@ -188,6 +395,14 @@ pub fn build_web_project_with_cartridge(
     let output = wait_with_output(&process_child_ids, child);
     if !output.status.success() {
         return Err(eyre!("failed to compile project with wasm-pack"));
+    }
+
+    if is_release {
+        optimize_web_wasm(
+            &interface_path.join("pax-cartridge_bg.wasm"),
+            &process_child_ids,
+            is_profiling,
+        )?;
     }
 
     // Copy assets
@@ -231,7 +446,7 @@ pub fn build_web_project_with_cartridge(
         );
     }
 
-    print_web_bundle_stats(&build_dest, is_release);
+    print_web_bundle_stats(&build_dest, build_mode_name);
 
     // Start local server if this is a `run` rather than a `build`
     if ctx.should_also_run {

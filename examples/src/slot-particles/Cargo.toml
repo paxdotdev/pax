@@ -28,6 +28,7 @@ designtime = ["pax-kit/designtime", "fireworks/designtime"]
 designer = ["designtime", "pax-kit/designer", "fireworks/designer"]
 parser = ["pax-kit/parser", "fireworks/parser"]
 web = ["pax-kit/web"]
+webgl = ["pax-kit/webgl"]
 macos = ["pax-kit/macos"]
 ios = ["pax-kit/ios"]
 

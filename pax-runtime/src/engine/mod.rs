@@ -106,7 +106,7 @@ impl std::fmt::Debug for Globals {
 /// Singleton struct storing everything related to properties computation & rendering
 pub struct PaxEngine {
     pub runtime_context: Rc<RuntimeContext>,
-    pub root_expanded_node: Rc<ExpandedNode>,
+    pub root_expanded_node: Option<Rc<ExpandedNode>>,
     pub scroller_tiling_policy: layer_tiling::ScrollerTilingPolicy,
 }
 
@@ -162,21 +162,19 @@ impl Default for HandlerRegistry {
 ///
 impl PaxEngine {
     #[cfg(not(feature = "designtime"))]
-    pub fn new(
-        main_component_instance: Rc<ComponentInstance>,
+    fn build_globals(
         viewport_size: (f64, f64),
         platform: Platform,
         os: OS,
         get_elapsed_millis: Box<dyn Fn() -> u128>,
-        scroller_tiling_policy: layer_tiling::ScrollerTilingPolicy,
-    ) -> Self {
+    ) -> Globals {
         use crate::api::math::Transform2;
         use pax_runtime_api::{properties, Functions};
         Functions::register_all_functions();
 
         let frames_elapsed = Property::new(0);
         properties::register_time(&frames_elapsed);
-        let globals = Globals {
+        Globals {
             frames_elapsed,
             viewport: Property::new(TransformAndBounds {
                 transform: Transform2::identity(),
@@ -187,17 +185,132 @@ impl PaxEngine {
             platform,
             os,
             get_elapsed_millis: Rc::from(get_elapsed_millis),
-        };
-        let runtime_context = Rc::new(RuntimeContext::new(globals));
-        let root_node =
-            ExpandedNode::initialize_root(Rc::clone(&main_component_instance), &runtime_context);
-        runtime_context.register_root_expanded_node(&root_node);
+        }
+    }
 
+    #[cfg(feature = "designtime")]
+    fn build_globals(
+        viewport_size: (f64, f64),
+        designtime: Rc<RefCell<DesigntimeManager>>,
+        platform: Platform,
+        os: OS,
+        get_elapsed_millis: Box<dyn Fn() -> u128>,
+    ) -> Globals {
+        use pax_runtime_api::{math::Transform2, properties, Functions};
+        Functions::register_all_functions();
+
+        let frames_elapsed = Property::new(0);
+        properties::register_time(&frames_elapsed);
+        Globals {
+            frames_elapsed,
+            viewport: Property::new(TransformAndBounds {
+                transform: Transform2::identity(),
+                bounds: viewport_size,
+            }),
+            browser_allows_scroller_vector_layers: Property::new(true),
+            browser_allows_nested_scroller_vector_layers: Property::new(true),
+            platform,
+            os,
+            designtime: designtime.clone(),
+            get_elapsed_millis: Rc::from(get_elapsed_millis),
+        }
+    }
+
+    #[cfg(feature = "designtime")]
+    pub fn new_empty_with_designtime(
+        viewport_size: (f64, f64),
+        designtime: Rc<RefCell<DesigntimeManager>>,
+        platform: Platform,
+        os: OS,
+        get_elapsed_millis: Box<dyn Fn() -> u128>,
+        scroller_tiling_policy: layer_tiling::ScrollerTilingPolicy,
+    ) -> Self {
+        let globals =
+            Self::build_globals(viewport_size, designtime, platform, os, get_elapsed_millis);
+        let runtime_context = Rc::new(RuntimeContext::new_empty(globals));
         PaxEngine {
             runtime_context,
-            root_expanded_node: root_node,
+            root_expanded_node: None,
             scroller_tiling_policy,
         }
+    }
+
+    #[cfg(not(feature = "designtime"))]
+    pub fn new_empty(
+        viewport_size: (f64, f64),
+        platform: Platform,
+        os: OS,
+        get_elapsed_millis: Box<dyn Fn() -> u128>,
+        scroller_tiling_policy: layer_tiling::ScrollerTilingPolicy,
+    ) -> Self {
+        let globals = Self::build_globals(viewport_size, platform, os, get_elapsed_millis);
+        let runtime_context = Rc::new(RuntimeContext::new(globals));
+        PaxEngine {
+            runtime_context,
+            root_expanded_node: None,
+            scroller_tiling_policy,
+        }
+    }
+
+    /// Mount a root component tree into an existing runtime kernel.
+    pub fn mount_root_component(
+        &mut self,
+        main_component_instance: Rc<ComponentInstance>,
+    ) -> Rc<ExpandedNode> {
+        self.unmount();
+        let root_node = ExpandedNode::initialize_root(
+            Rc::clone(&main_component_instance),
+            &self.runtime_context,
+        );
+        self.runtime_context.register_root_expanded_node(&root_node);
+        self.root_expanded_node = Some(Rc::clone(&root_node));
+        root_node
+    }
+
+    /// Detach the mounted root component tree, leaving the runtime kernel empty.
+    pub fn unmount(&mut self) {
+        let Some(root_expanded_node) = self.root_expanded_node.take() else {
+            return;
+        };
+
+        #[cfg(feature = "designtime")]
+        let root_id = root_expanded_node.id;
+        root_expanded_node.recurse_unmount(&self.runtime_context);
+        self.runtime_context.clear_root_expanded_node();
+        self.runtime_context.layer_count.set(0);
+        self.runtime_context.clear_layer_scroller_owners();
+        self.runtime_context.set_root_scroller_id(None);
+        self.runtime_context.clear_visual_viewport_state();
+
+        #[cfg(feature = "designtime")]
+        if self
+            .runtime_context
+            .get_userland_root_expanded_node()
+            .as_ref()
+            .is_some_and(|node| node.id == root_id)
+        {
+            self.runtime_context.set_userland_root_expanded_node(None);
+        }
+    }
+
+    #[cfg(not(feature = "designtime"))]
+    pub fn new(
+        main_component_instance: Rc<ComponentInstance>,
+        viewport_size: (f64, f64),
+        platform: Platform,
+        os: OS,
+        get_elapsed_millis: Box<dyn Fn() -> u128>,
+        scroller_tiling_policy: layer_tiling::ScrollerTilingPolicy,
+    ) -> Self {
+        let mut engine = Self::new_empty(
+            viewport_size,
+            platform,
+            os,
+            get_elapsed_millis,
+            scroller_tiling_policy,
+        );
+        engine.mount_root_component(main_component_instance);
+        engine
     }
 
     #[cfg(feature = "designtime")]
@@ -210,43 +323,22 @@ impl PaxEngine {
         get_elapsed_millis: Box<dyn Fn() -> u128>,
         scroller_tiling_policy: layer_tiling::ScrollerTilingPolicy,
     ) -> Self {
-        use pax_runtime_api::{math::Transform2, properties, Functions};
-        Functions::register_all_functions();
-
-        let frames_elapsed = Property::new(0);
-        properties::register_time(&frames_elapsed);
-        let globals = Globals {
-            frames_elapsed,
-            viewport: Property::new(TransformAndBounds {
-                transform: Transform2::identity(),
-                bounds: viewport_size,
-            }),
-            browser_allows_scroller_vector_layers: Property::new(true),
-            browser_allows_nested_scroller_vector_layers: Property::new(true),
+        let mut engine = Self::new_empty_with_designtime(
+            viewport_size,
+            designtime,
             platform,
             os,
-            designtime: designtime.clone(),
-            get_elapsed_millis: Rc::from(get_elapsed_millis),
-        };
-
-        let mut runtime_context = Rc::new(RuntimeContext::new(
-            globals,
-            userland_main_component_instance.clone(),
-        ));
-
-        let root_expanded_node = ExpandedNode::initialize_root(
-            Rc::clone(&userland_main_component_instance),
-            &mut runtime_context,
-        );
-        *borrow_mut!(runtime_context.userland_root_expanded_node) =
-            Some(Rc::clone(&root_expanded_node));
-        runtime_context.register_root_expanded_node(&root_expanded_node);
-
-        PaxEngine {
-            runtime_context,
-            root_expanded_node,
+            get_elapsed_millis,
             scroller_tiling_policy,
-        }
+        );
+        engine
+            .runtime_context
+            .set_userland_root_instance_node(Some(userland_main_component_instance.clone()));
+        let root_expanded_node = engine.mount_root_component(userland_main_component_instance);
+        engine
+            .runtime_context
+            .set_userland_root_expanded_node(Some(root_expanded_node));
+        engine
     }
 
     #[cfg(feature = "designtime")]
@@ -260,41 +352,19 @@ impl PaxEngine {
         get_elapsed_millis: Box<dyn Fn() -> u128>,
         scroller_tiling_policy: layer_tiling::ScrollerTilingPolicy,
     ) -> Self {
-        use pax_runtime_api::{math::Transform2, properties, Functions};
-        Functions::register_all_functions();
-
-        let frames_elapsed = Property::new(0);
-        properties::register_time(&frames_elapsed);
-        let globals = Globals {
-            frames_elapsed,
-            viewport: Property::new(TransformAndBounds {
-                transform: Transform2::identity(),
-                bounds: viewport_size,
-            }),
-            browser_allows_scroller_vector_layers: Property::new(true),
-            browser_allows_nested_scroller_vector_layers: Property::new(true),
+        let mut engine = Self::new_empty_with_designtime(
+            viewport_size,
+            designtime,
             platform,
             os,
-            designtime: designtime.clone(),
-            get_elapsed_millis: Rc::from(get_elapsed_millis),
-        };
-
-        let mut runtime_context = Rc::new(RuntimeContext::new(
-            globals,
-            userland_main_component_instance,
-        ));
-
-        let root_expanded_node = ExpandedNode::initialize_root(
-            Rc::clone(&designer_main_component_instance),
-            &mut runtime_context,
-        );
-        runtime_context.register_root_expanded_node(&root_expanded_node);
-
-        PaxEngine {
-            runtime_context,
-            root_expanded_node,
+            get_elapsed_millis,
             scroller_tiling_policy,
-        }
+        );
+        engine
+            .runtime_context
+            .set_userland_root_instance_node(Some(userland_main_component_instance));
+        engine.mount_root_component(designer_main_component_instance);
+        engine
     }
 
     #[cfg(feature = "designtime")]
@@ -321,7 +391,7 @@ impl PaxEngine {
             .map(Rc::clone)
             .unwrap();
         *borrow_mut!(self.runtime_context.userland_frame_instance_node) =
-            Rc::clone(&new_userland_instance);
+            Some(Rc::clone(&new_userland_instance));
         node.fully_recreate_with_new_data(new_userland_instance.clone(), &self.runtime_context);
     }
 
@@ -338,6 +408,14 @@ impl PaxEngine {
     ///     a. find lowest node (last child of last node)
     ///     b. start rendering, from lowest node on-up, throughout tree
     pub fn tick(&mut self) -> Vec<NativeMessage> {
+        //
+        // 1. UPDATE NODES (properties, etc.). This part we should be able to
+        // completely remove once reactive properties dirty-dag is a thing.
+        //
+        if let Some(root_expanded_node) = &self.root_expanded_node {
+            root_expanded_node.recurse_update(&self.runtime_context);
+        }
+
         let ctx = &self.runtime_context;
         self.run_lifecycle_handlers(TICK_HANDLERS, ctx.tick_handler_nodes());
         ctx.drain_node_effects();
@@ -345,7 +423,9 @@ impl PaxEngine {
         ctx.drain_node_effects();
 
         if ctx.take_occlusion_dirty() {
-            occlusion::update_node_occlusion(&self.root_expanded_node, ctx);
+            if let Some(root_expanded_node) = &self.root_expanded_node {
+                occlusion::update_node_occlusion(root_expanded_node, ctx);
+            }
             ctx.drain_node_effects();
         }
         let time = &ctx.globals().frames_elapsed;
@@ -395,8 +475,9 @@ impl PaxEngine {
 
         // This is pretty useful during debugging - left it here since I use it often. /Sam
         // crate::api::log(&format!("tree: {:#?}", self.root_node));
-        self.root_expanded_node
-            .recurse_render_queue(&mut self.runtime_context, rcs);
+        if let Some(root_expanded_node) = &self.root_expanded_node {
+            root_expanded_node.recurse_render_queue(&self.runtime_context, rcs);
+        }
         self.runtime_context.recurse_flush_queued_renders(rcs);
 
         self.runtime_context.clear_all_dirty_canvases();
@@ -441,67 +522,145 @@ impl PaxEngine {
     }
 
     pub fn global_dispatch_focus(&self, args: Focus) -> bool {
+        let Some(root_expanded_node) = &self.root_expanded_node else {
+            return false;
+        };
         let mut prevent_default = false;
-        self.root_expanded_node
-            .recurse_visit_postorder(&mut |expanded_node| {
-                prevent_default |= expanded_node.dispatch_focus(
-                    Event::new(args.clone()),
-                    &self.runtime_context.globals(),
-                    &self.runtime_context,
-                );
-            });
+        root_expanded_node.recurse_visit_postorder(&mut |expanded_node| {
+            prevent_default |= expanded_node.dispatch_focus(
+                Event::new(args.clone()),
+                &self.runtime_context.globals(),
+                &self.runtime_context,
+            );
+        });
         prevent_default
     }
 
     pub fn global_dispatch_select_start(&self, args: SelectStart) -> bool {
+        let Some(root_expanded_node) = &self.root_expanded_node else {
+            return false;
+        };
         let mut prevent_default = false;
-        self.root_expanded_node
-            .recurse_visit_postorder(&mut |expanded_node| {
-                prevent_default |= expanded_node.dispatch_select_start(
-                    Event::new(args.clone()),
-                    &self.runtime_context.globals(),
-                    &self.runtime_context,
-                );
-            });
+        root_expanded_node.recurse_visit_postorder(&mut |expanded_node| {
+            prevent_default |= expanded_node.dispatch_select_start(
+                Event::new(args.clone()),
+                &self.runtime_context.globals(),
+                &self.runtime_context,
+            );
+        });
         prevent_default
     }
 
     pub fn global_dispatch_key_down(&self, args: KeyDown) -> bool {
+        let Some(root_expanded_node) = &self.root_expanded_node else {
+            return false;
+        };
         let mut prevent_default = false;
-        self.root_expanded_node
-            .recurse_visit_postorder(&mut |expanded_node| {
-                prevent_default |= expanded_node.dispatch_key_down(
-                    Event::new(args.clone()),
-                    &self.runtime_context.globals(),
-                    &self.runtime_context,
-                );
-            });
+        root_expanded_node.recurse_visit_postorder(&mut |expanded_node| {
+            prevent_default |= expanded_node.dispatch_key_down(
+                Event::new(args.clone()),
+                &self.runtime_context.globals(),
+                &self.runtime_context,
+            );
+        });
         prevent_default
     }
 
     pub fn global_dispatch_key_up(&self, args: KeyUp) -> bool {
+        let Some(root_expanded_node) = &self.root_expanded_node else {
+            return false;
+        };
         let mut prevent_default = false;
-        self.root_expanded_node
-            .recurse_visit_postorder(&mut |expanded_node| {
-                prevent_default |= expanded_node.dispatch_key_up(
-                    Event::new(args.clone()),
-                    &self.runtime_context.globals(),
-                    &self.runtime_context,
-                );
-            });
+        root_expanded_node.recurse_visit_postorder(&mut |expanded_node| {
+            prevent_default |= expanded_node.dispatch_key_up(
+                Event::new(args.clone()),
+                &self.runtime_context.globals(),
+                &self.runtime_context,
+            );
+        });
         prevent_default
     }
 
     pub fn global_dispatch_key_press(&self, args: KeyPress) -> bool {
+        let Some(root_expanded_node) = &self.root_expanded_node else {
+            return false;
+        };
         let mut prevent_default = false;
-        self.root_expanded_node
-            .recurse_visit_postorder(&mut |expanded_node| {
-                prevent_default |= expanded_node.dispatch_key_press(
-                    Event::new(args.clone()),
-                    &self.runtime_context.globals(),
-                    &self.runtime_context,
-                );
-            });
+        root_expanded_node.recurse_visit_postorder(&mut |expanded_node| {
+            prevent_default |= expanded_node.dispatch_key_press(
+                Event::new(args.clone()),
+                &self.runtime_context.globals(),
+                &self.runtime_context,
+            );
+        });
         prevent_default
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{InstanceNode, InstantiationArgs};
+    use pax_runtime_api::pax_value::{PaxAny, PaxValue};
+    use std::cell::RefCell;
+
+    fn empty_component() -> Rc<ComponentInstance> {
+        <ComponentInstance as InstanceNode>::instantiate(InstantiationArgs {
+            prototypical_common_properties: crate::CommonPropertiesInit::Default,
+            prototypical_properties: crate::PropertiesInit::Factory(Box::new(|_, _| {
+                Some(Rc::new(RefCell::new(PaxAny::Builtin(PaxValue::default()))))
+            })),
+            handler_registry: None,
+            children: None,
+            component_template: None,
+            template_node_identifier: None,
+            properties_scope: crate::PropertiesScopeInit::None,
+        })
+    }
+
+    #[test]
+    fn empty_engine_can_tick_and_mount_later() {
+        let mut engine = PaxEngine::new_empty(
+            (320.0, 240.0),
+            Platform::Web,
+            OS::Mac,
+            Box::new(|| 0),
+            layer_tiling::ScrollerTilingPolicy::default(),
+        );
+
+        assert!(engine.root_expanded_node.is_none());
+        assert!(engine.runtime_context.get_root_expanded_node().is_none());
+        assert!(engine.tick().is_empty());
+
+        let root = engine.mount_root_component(empty_component());
+        assert_eq!(
+            engine.root_expanded_node.as_ref().map(|node| node.id),
+            Some(root.id)
+        );
+        assert_eq!(
+            engine
+                .runtime_context
+                .get_root_expanded_node()
+                .map(|node| node.id),
+            Some(root.id)
+        );
+        let _ = engine.tick();
+    }
+
+    #[test]
+    fn unmount_clears_registered_root() {
+        let mut engine = PaxEngine::new_empty(
+            (320.0, 240.0),
+            Platform::Web,
+            OS::Mac,
+            Box::new(|| 0),
+            layer_tiling::ScrollerTilingPolicy::default(),
+        );
+
+        engine.mount_root_component(empty_component());
+        engine.unmount();
+
+        assert!(engine.root_expanded_node.is_none());
+        assert!(engine.runtime_context.get_root_expanded_node().is_none());
     }
 }

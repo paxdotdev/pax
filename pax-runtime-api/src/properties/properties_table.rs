@@ -5,7 +5,9 @@ use std::{
     rc::Rc,
 };
 
-use slotmap::{SlotMap, SparseSecondaryMap};
+use slotmap::SlotMap;
+#[cfg(debug_assertions)]
+use slotmap::SparseSecondaryMap;
 
 use crate::{Property, TransitionManager, TransitionQueueEntry};
 
@@ -66,6 +68,7 @@ pub(crate) struct PropertyTable {
     // Main property table containing property data
     // Box<dyn Any> is of type Box<Entry<T>> where T is the proptype
     pub(crate) property_map: RefCell<SlotMap<PropertyId, Entry>>,
+    #[cfg(debug_assertions)]
     debug_names: RefCell<SparseSecondaryMap<PropertyId, String>>,
     effect_properties: RefCell<HashSet<PropertyId>>,
     queued_effects: RefCell<VecDeque<PropertyId>>,
@@ -117,12 +120,18 @@ impl PropertyTable {
         data: PropertyType<T>,
         debug_name: Option<&str>,
     ) -> PropertyId {
+        #[cfg(not(debug_assertions))]
+        let _ = debug_name;
+
         let id = {
             let Ok(mut sm) = self.property_map.try_borrow_mut() else {
+                #[cfg(debug_assertions)]
                 panic!(
                     "couldn't create new property \"{}\"- table already borrowed",
                     debug_name.unwrap_or("<no name>")
                 );
+                #[cfg(not(debug_assertions))]
+                panic!("couldn't create new property - table already borrowed");
             };
             let entry = Entry {
                 ref_count: 1,
@@ -139,8 +148,11 @@ impl PropertyTable {
             };
             sm.insert(entry)
         };
-        if let Some(name) = debug_name {
-            self.debug_names.borrow_mut().insert(id, name.to_owned());
+        #[cfg(debug_assertions)]
+        {
+            if let Some(name) = debug_name {
+                self.debug_names.borrow_mut().insert(id, name.to_owned());
+            }
         }
         self.connect_inbound(id);
         id
@@ -276,10 +288,13 @@ impl PropertyTable {
         // know that something has changed
         self.dirtify_outbound(source_id);
 
-        // overwrite with more descriptive name
-        let target_name = self.debug_name(target_id);
-        let mut names = self.debug_names.borrow_mut();
-        names.insert(source_id, format!("{}", target_name));
+        #[cfg(debug_assertions)]
+        {
+            // overwrite with more descriptive name
+            let target_name = self.debug_name(target_id);
+            let mut names = self.debug_names.borrow_mut();
+            names.insert(source_id, format!("{}", target_name));
+        }
 
         self.enqueue_effect_if_registered(source_id);
     }
@@ -339,10 +354,13 @@ impl PropertyTable {
             self.disconnect_outbound(id);
             self.disconnect_inbound(id);
             let Ok(mut sm) = self.property_map.try_borrow_mut() else {
+                #[cfg(debug_assertions)]
                 panic!(
                     "failed to remove property \"{}\" - propertytable already borrowed",
                     self.debug_name(id),
                 );
+                #[cfg(not(debug_assertions))]
+                panic!("failed to remove property - propertytable already borrowed");
             };
             sm.remove(id).expect("tried to remove non-existent prop")
         };
@@ -350,6 +368,7 @@ impl PropertyTable {
     }
 
     // Returns a human-readable name for diagnostics, falling back to the raw id.
+    #[cfg(debug_assertions)]
     pub fn debug_name(&self, id: PropertyId) -> String {
         self.debug_names
             .borrow()

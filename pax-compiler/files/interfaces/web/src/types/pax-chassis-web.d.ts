@@ -6,19 +6,6 @@
 export function wasm_memory(): any;
 /**
 */
-export class MemorySlice {
-  free(): void;
-/**
-* @returns {number}
-*/
-  ptr(): number;
-/**
-* @returns {number}
-*/
-  len(): number;
-}
-/**
-*/
 export class PaxChassisWeb {
   free(): void;
 /**
@@ -42,15 +29,11 @@ export class PaxChassisWeb {
 */
   get_dirty_canvases(): [number];
 /**
-* @param {string} native_interrupt
+* @param {any} native_interrupt
 * @param {any} additional_payload
 * @returns {InterruptResult}
 */
-  interrupt(native_interrupt: string, additional_payload: any): InterruptResult;
-/**
-* @param {MemorySlice} slice
-*/
-  deallocate(slice: MemorySlice): void;
+  interrupt(native_interrupt: any, additional_payload: any): InterruptResult;
 /**
 */
   update_userland_component(): void;
@@ -61,9 +44,9 @@ export class PaxChassisWeb {
 */
   designtime_tick(): void;
 /**
-* @returns {MemorySlice}
+* @returns {any}
 */
-  tick(): MemorySlice;
+  tick(): any;
 /**
 */
   render(): void;
@@ -120,8 +103,7 @@ export interface InitOutput {
   readonly paxchassisweb_refresh_render_surfaces: (a: number) => void;
   readonly paxchassisweb_refresh_render_surfaces_for_layers: (a: number, b: number, c: number) => void;
   readonly paxchassisweb_get_dirty_canvases: (a: number, b: number) => void;
-  readonly paxchassisweb_interrupt: (a: number, b: number, c: number, d: number) => number;
-  readonly paxchassisweb_deallocate: (a: number, b: number) => void;
+  readonly paxchassisweb_interrupt: (a: number, b: number, c: number) => number;
   readonly paxchassisweb_update_userland_component: (a: number) => void;
   readonly paxchassisweb_handle_recv_designtime: (a: number) => void;
   readonly paxchassisweb_designtime_tick: (a: number) => void;
@@ -133,9 +115,6 @@ export interface InitOutput {
   readonly paxchassisweb_take_layer_screenshot: (a: number, b: number, c: number) => number;
   readonly paxchassisweb_take_layer_surface_screenshots: (a: number, b: number, c: number) => number;
   readonly paxchassisweb_image_loaded: (a: number, b: number, c: number) => number;
-  readonly __wbg_memoryslice_free: (a: number, b: number) => void;
-  readonly memoryslice_ptr: (a: number) => number;
-  readonly memoryslice_len: (a: number) => number;
   readonly slugify: (a: number, b: number, c: number) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

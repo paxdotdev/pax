@@ -65,6 +65,18 @@ fn main() -> Result<(), Report> {
         .help("Build in Release mode, with appropriate platform-specific optimizations.");
 
     #[allow(non_snake_case)]
+    let ARG_PROFILING = Arg::with_name("profiling")
+        .long("profiling")
+        .takes_value(false)
+        .help("Build an optimized web bundle with Wasm names preserved for size profiling.");
+
+    #[allow(non_snake_case)]
+    let ARG_WEBGL = Arg::with_name("webgl")
+        .long("webgl")
+        .takes_value(false)
+        .help("Include the WebGL fallback renderer in web builds. This increases WASM size and is intended for iOS Safari/WebKit targets.");
+
+    #[allow(non_snake_case)]
     let ARG_NO_DESIGNER = Arg::with_name("no-designer")
         .long("no-designer")
         .takes_value(false)
@@ -115,6 +127,7 @@ fn main() -> Result<(), Report> {
                 .arg( ARG_IOS_DEVELOPMENT_TEAM.clone() )
                 .arg( ARG_VERBOSE.clone() )
                 .arg( ARG_LIBDEV.clone() )
+                .arg( ARG_WEBGL.clone() )
         )
         .subcommand(
             App::new("build")
@@ -128,6 +141,8 @@ fn main() -> Result<(), Report> {
                 .arg( ARG_VERBOSE.clone() )
                 .arg( ARG_LIBDEV.clone() )
                 .arg( ARG_RELEASE.clone() )
+                .arg( ARG_PROFILING.clone() )
+                .arg( ARG_WEBGL.clone() )
         )
         .subcommand(
             App::new("clean")
@@ -251,6 +266,7 @@ fn perform_nominal_action(
             let ios_device = args.value_of("ios-device").map(str::to_string);
             let ios_development_team = args.value_of("ios-development-team").map(str::to_string);
             let (should_run_designtime, should_run_designer) = resolve_dev_options(args, true)?;
+            let webgl = args.is_present("webgl");
 
             let _ = pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
@@ -262,6 +278,8 @@ fn perform_nominal_action(
                 should_run_designtime,
                 should_run_designer,
                 is_release: false,
+                profile_wasm_size: false,
+                webgl,
                 ios_device,
                 ios_development_team,
             })?;
@@ -273,11 +291,19 @@ fn perform_nominal_action(
             let path = args.value_of("path").unwrap().to_string(); //default value "."
             let verbose = args.is_present("verbose");
             let is_libdev_mode = args.is_present("libdev");
-            let is_release = args.is_present("release");
+            let profile_wasm_size = args.is_present("profiling");
+            let is_release = args.is_present("release") || profile_wasm_size;
             let ios_device = args.value_of("ios-device").map(str::to_string);
             let ios_development_team = args.value_of("ios-development-team").map(str::to_string);
             let (should_run_designtime, should_run_designer) =
                 resolve_dev_options(args, !is_release)?;
+            let webgl = args.is_present("webgl");
+
+            if profile_wasm_size && target != "web" {
+                return Err(eyre!(
+                    "--profiling is currently only supported for web builds"
+                ));
+            }
 
             let _ = pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
@@ -289,6 +315,8 @@ fn perform_nominal_action(
                 is_libdev_mode,
                 process_child_ids,
                 is_release,
+                profile_wasm_size,
+                webgl,
                 ios_device,
                 ios_development_team,
             })?;
@@ -331,6 +359,8 @@ fn perform_nominal_action(
                 is_libdev_mode,
                 process_child_ids,
                 is_release: false,
+                profile_wasm_size: false,
+                webgl: false,
                 ios_device: None,
                 ios_development_team: None,
             })?;

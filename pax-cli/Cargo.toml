@@ -22,7 +22,7 @@ pax-compiler = {path = "../pax-compiler", version = "0.38.3"}
 pax-docs = {path = "../pax-docs", version = "0.38.3"}
 pax-language = {path = "../pax-language", version = "0.38.3"}
 pax-language-server = {path = "../pax-language-server", version = "0.38.3"}
-pax-manifest = {path = "../pax-manifest", version = "0.38.3"}
+pax-manifest = {path = "../pax-manifest", version = "0.38.3", features=["json"]}
 reqwest = "0.11.18"
 rustc_version = "0.4.0"
 serde = { version = "1.0.196", features = ["derive"] }

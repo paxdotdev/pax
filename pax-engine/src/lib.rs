@@ -29,6 +29,7 @@ pub use {pax_chassis_web, wasm_bindgen, wasm_bindgen_futures};
 #[cfg(any(feature = "macos", feature = "ios"))]
 pub use pax_chassis_common;
 
+#[cfg(feature = "json")]
 pub use serde_json;
 
 mod declarative_macros {

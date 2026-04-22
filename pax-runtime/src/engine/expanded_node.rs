@@ -304,20 +304,21 @@ impl ExpandedNode {
             env
         };
 
-        let properties =
-            (&template.base().instance_prototypical_properties_factory)(env.clone(), None).unwrap();
+        let properties = template
+            .base()
+            .instance_prototypical_properties
+            .materialize(env.clone(), None)
+            .unwrap();
 
-        let common_properties =
-            (&template
-                .base()
-                .instance_prototypical_common_properties_factory)(env.clone(), None)
+        let common_properties = template
+            .base()
+            .instance_prototypical_common_properties
+            .materialize(env.clone(), None)
             .unwrap();
 
         let mut property_scope = borrow!(*common_properties).retrieve_property_scope();
 
-        if let Some(scope) = &template.base().properties_scope_factory {
-            property_scope.extend(scope(properties.clone()));
-        }
+        property_scope.extend(template.base().properties_scope.build(properties.clone()));
 
         let id = context.gen_uid();
         let res = Rc::new(ExpandedNode {
@@ -380,16 +381,14 @@ impl ExpandedNode {
         context: &Rc<RuntimeContext>,
     ) {
         *borrow_mut!(self.instance_node) = Rc::clone(&template);
-        (&template
+        template
             .base()
-            .instance_prototypical_common_properties_factory)(
-            Rc::clone(&self.stack),
-            Some(Rc::clone(&self)),
-        );
-        (&template.base().instance_prototypical_properties_factory)(
-            Rc::clone(&self.stack),
-            Some(Rc::clone(&self)),
-        );
+            .instance_prototypical_common_properties
+            .materialize(Rc::clone(&self.stack), Some(Rc::clone(&self)));
+        template
+            .base()
+            .instance_prototypical_properties
+            .materialize(Rc::clone(&self.stack), Some(Rc::clone(&self)));
         self.bind_to_parent_bounds(context);
         self.bind_occlusion_listener(context);
         context.mark_occlusion_dirty();

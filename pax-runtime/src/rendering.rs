@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use std::iter;
 use std::rc::Rc;
@@ -16,27 +16,142 @@ use crate::api::{Layer, Scroll, Window};
 use crate::{
     ContentChildrenSource, ExpandedNode, HandlerRegistry, RuntimeContext,
     RuntimePropertiesStackFrame,
+    create_new_common_properties, update_existing_common_properties, ErasedComponentDescriptor,
 };
+use pax_manifest::ValueDefinition;
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for instance nodes.
 pub type InstanceNodePtr = Rc<dyn InstanceNode>;
 pub type InstanceNodePtrList = RefCell<Vec<InstanceNodePtr>>;
+pub type CommonPropertiesFactory = Box<
+    dyn Fn(
+        Rc<RuntimePropertiesStackFrame>,
+        Option<Rc<ExpandedNode>>,
+    ) -> Option<Rc<RefCell<CommonProperties>>>,
+>;
+pub type PropertiesFactory = Box<
+    dyn Fn(
+        Rc<RuntimePropertiesStackFrame>,
+        Option<Rc<ExpandedNode>>,
+    ) -> Option<Rc<RefCell<PaxAny>>>,
+>;
+pub type PropertiesScopeFactory = Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, Variable>>;
+
+/// Structured initialization for node-local common properties.
+pub enum CommonPropertiesInit {
+    Default,
+    Inline {
+        defined_properties: BTreeMap<String, ValueDefinition>,
+    },
+    Factory(CommonPropertiesFactory),
+}
+
+impl CommonPropertiesInit {
+    pub fn materialize(
+        &self,
+        stack_frame: Rc<RuntimePropertiesStackFrame>,
+        expanded_node: Option<Rc<ExpandedNode>>,
+    ) -> Option<Rc<RefCell<CommonProperties>>> {
+        match self {
+            CommonPropertiesInit::Default => expanded_node
+                .is_none()
+                .then(|| Rc::new(RefCell::new(CommonProperties::default()))),
+            CommonPropertiesInit::Inline { defined_properties } => {
+                if let Some(expanded_node) = expanded_node {
+                    update_existing_common_properties(
+                        &expanded_node,
+                        defined_properties,
+                        &stack_frame,
+                    );
+                    None
+                } else {
+                    Some(create_new_common_properties(
+                        defined_properties,
+                        &stack_frame,
+                    ))
+                }
+            }
+            CommonPropertiesInit::Factory(factory) => factory(stack_frame, expanded_node),
+        }
+    }
+}
+
+/// Structured initialization for node-local typed properties.
+pub enum PropertiesInit {
+    DescriptorDefault(&'static ErasedComponentDescriptor),
+    DescriptorInline {
+        descriptor: &'static ErasedComponentDescriptor,
+        defined_properties: BTreeMap<String, ValueDefinition>,
+    },
+    Factory(PropertiesFactory),
+}
+
+impl PropertiesInit {
+    pub fn materialize(
+        &self,
+        stack_frame: Rc<RuntimePropertiesStackFrame>,
+        expanded_node: Option<Rc<ExpandedNode>>,
+    ) -> Option<Rc<RefCell<PaxAny>>> {
+        match self {
+            PropertiesInit::DescriptorDefault(descriptor) => expanded_node
+                .is_none()
+                .then(|| Rc::new(RefCell::new((descriptor.create_properties)()))),
+            PropertiesInit::DescriptorInline {
+                descriptor,
+                defined_properties,
+            } => {
+                if let Some(expanded_node) = expanded_node {
+                    let outer_ref = expanded_node.properties.borrow();
+                    let rc = Rc::clone(&outer_ref);
+                    let mut inner_ref = (*rc).borrow_mut();
+                    (descriptor.apply_defined_properties)(
+                        descriptor.typed_descriptor,
+                        &mut inner_ref,
+                        defined_properties,
+                        &stack_frame,
+                    );
+                    None
+                } else {
+                    let mut properties = (descriptor.create_properties)();
+                    (descriptor.apply_defined_properties)(
+                        descriptor.typed_descriptor,
+                        &mut properties,
+                        defined_properties,
+                        &stack_frame,
+                    );
+                    Some(Rc::new(RefCell::new(properties)))
+                }
+            }
+            PropertiesInit::Factory(factory) => factory(stack_frame, expanded_node),
+        }
+    }
+}
+
+/// How an expanded node should expose component-local symbols into scope.
+pub enum PropertiesScopeInit {
+    None,
+    Descriptor(&'static ErasedComponentDescriptor),
+    Factory(PropertiesScopeFactory),
+}
+
+impl PropertiesScopeInit {
+    pub fn build(&self, properties: Rc<RefCell<PaxAny>>) -> HashMap<String, Variable> {
+        match self {
+            PropertiesScopeInit::None => HashMap::new(),
+            PropertiesScopeInit::Descriptor(descriptor) => {
+                let props_ref = borrow!(properties.as_ref());
+                (descriptor.build_property_scope)(descriptor.typed_descriptor, &props_ref)
+            }
+            PropertiesScopeInit::Factory(factory) => factory(properties),
+        }
+    }
+}
 
 /// Construction payload used when compiler-generated code instantiates an `InstanceNode`.
 pub struct InstantiationArgs {
-    pub prototypical_common_properties_factory: Box<
-        dyn Fn(
-            Rc<RuntimePropertiesStackFrame>,
-            Option<Rc<ExpandedNode>>,
-        ) -> Option<Rc<RefCell<CommonProperties>>>,
-    >,
-    pub prototypical_properties_factory: Box<
-        dyn Fn(
-            Rc<RuntimePropertiesStackFrame>,
-            Option<Rc<ExpandedNode>>,
-        ) -> Option<Rc<RefCell<PaxAny>>>,
-    >,
+    pub prototypical_common_properties: CommonPropertiesInit,
+    pub prototypical_properties: PropertiesInit,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub children: Option<InstanceNodePtrList>,
     pub component_template: Option<InstanceNodePtrList>,
@@ -44,8 +159,7 @@ pub struct InstantiationArgs {
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     pub transition_config: ComponentTransitionConfig,
     // Used by RuntimePropertyStackFrame to pull out struct's properties based on their names
-    pub properties_scope_factory:
-        Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, Variable>>>,
+    pub properties_scope: PropertiesScopeInit,
 }
 
 /// Lightweight clone of reusable base-node data for helper constructors.
@@ -270,22 +384,11 @@ pub trait InstanceNode {
 /// Shared storage carried by every concrete `InstanceNode`.
 pub struct BaseInstance {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
-    pub instance_prototypical_properties_factory: Box<
-        dyn Fn(
-            Rc<RuntimePropertiesStackFrame>,
-            Option<Rc<ExpandedNode>>,
-        ) -> Option<Rc<RefCell<PaxAny>>>,
-    >,
-    pub instance_prototypical_common_properties_factory: Box<
-        dyn Fn(
-            Rc<RuntimePropertiesStackFrame>,
-            Option<Rc<ExpandedNode>>,
-        ) -> Option<Rc<RefCell<CommonProperties>>>,
-    >,
+    pub instance_prototypical_properties: PropertiesInit,
+    pub instance_prototypical_common_properties: CommonPropertiesInit,
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
-    pub properties_scope_factory:
-        Option<Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, Variable>>>,
     pub transition_config: ComponentTransitionConfig,
+    pub properties_scope: PropertiesScopeInit,
     instance_children: InstanceNodePtrList,
     flags: InstanceFlags,
 }
@@ -319,14 +422,13 @@ impl BaseInstance {
     pub fn new(args: InstantiationArgs, flags: InstanceFlags) -> Self {
         BaseInstance {
             handler_registry: args.handler_registry,
-            instance_prototypical_common_properties_factory: args
-                .prototypical_common_properties_factory,
-            instance_prototypical_properties_factory: args.prototypical_properties_factory,
+            instance_prototypical_common_properties: args.prototypical_common_properties,
+            instance_prototypical_properties: args.prototypical_properties,
             instance_children: args.children.unwrap_or_default(),
             flags,
             template_node_identifier: args.template_node_identifier,
-            properties_scope_factory: args.properties_scope_factory,
             transition_config: args.transition_config,
+            properties_scope: args.properties_scope,
         }
     }
 

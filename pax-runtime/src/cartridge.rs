@@ -1,7 +1,7 @@
 use_RefCell!();
 use crate::api::NodeContext;
 use crate::{
-    ConditionalProperties, ExpandedNode, HandlerRegistry, InstanceNode, InstantiationArgs,
+    ConditionalProperties, ExpandedNode, Handler, HandlerRegistry, InstanceNode, InstantiationArgs,
     ReusableInstanceNodeArgs, RuntimePropertiesStackFrame,
 };
 use pax_language::Computable;
@@ -13,18 +13,441 @@ use pax_manifest::{
     ExpressionInfo, LiteralBlockDefinition, SettingElement, TimelineKeyframe, TimelineMarker,
     TimelineTrackDefinition, TimelineTrackElement, TransitionDefinition, TypeId, ValueDefinition,
 };
-use pax_message::borrow;
+use pax_message::{borrow, borrow_mut};
 use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::{PropertyValue, UntypedProperty};
 use pax_runtime_api::{
     use_RefCell, CommonProperties, EasingCurve, Numeric, PaxValue, Property, Variable,
 };
-use serde::de::DeserializeOwned;
+use std::any::Any;
 use std::borrow::Borrow;
 use std::collections::{BTreeMap, HashMap};
+use std::marker::PhantomData;
 use std::rc::Rc;
 
 pub trait PaxCartridge {}
+pub struct HandlerDescriptor {
+    pub name: &'static str,
+    pub function: fn(Rc<RefCell<PaxAny>>, &NodeContext, Option<PaxAny>),
+}
+
+impl HandlerDescriptor {
+    pub const fn new(
+        name: &'static str,
+        function: fn(Rc<RefCell<PaxAny>>, &NodeContext, Option<PaxAny>),
+    ) -> Self {
+        Self { name, function }
+    }
+}
+
+pub struct PropertyScopeDescriptor<T> {
+    pub name: &'static str,
+    pub variable: fn(&T) -> Variable,
+    marker: PhantomData<fn(&T)>,
+}
+
+impl<T> PropertyScopeDescriptor<T> {
+    pub const fn new(name: &'static str, variable: fn(&T) -> Variable) -> Self {
+        Self {
+            name,
+            variable,
+            marker: PhantomData,
+        }
+    }
+}
+
+pub struct ComponentPropertyDescriptor<T> {
+    pub name: &'static str,
+    pub apply: fn(
+        &mut T,
+        &ValueDefinition,
+        &Rc<RuntimePropertiesStackFrame>,
+        Rc<RuntimePropertiesStackFrame>,
+    ),
+    marker: PhantomData<fn(&T)>,
+}
+
+impl<T> ComponentPropertyDescriptor<T> {
+    pub const fn new(
+        name: &'static str,
+        apply: fn(
+            &mut T,
+            &ValueDefinition,
+            &Rc<RuntimePropertiesStackFrame>,
+            Rc<RuntimePropertiesStackFrame>,
+        ),
+    ) -> Self {
+        Self {
+            name,
+            apply,
+            marker: PhantomData,
+        }
+    }
+}
+
+pub struct ComponentDescriptor<T: Default + ToFromPaxAny + 'static> {
+    pub type_id: &'static str,
+    pub property_scope_descriptors: &'static [PropertyScopeDescriptor<T>],
+    pub property_descriptors: &'static [ComponentPropertyDescriptor<T>],
+    pub handler_descriptors: &'static [HandlerDescriptor],
+    pub instantiate: fn(InstantiationArgs) -> Rc<dyn InstanceNode>,
+    marker: PhantomData<fn(&T)>,
+}
+
+impl<T: Default + ToFromPaxAny + 'static> ComponentDescriptor<T> {
+    pub const fn new(
+        type_id: &'static str,
+        property_scope_descriptors: &'static [PropertyScopeDescriptor<T>],
+        property_descriptors: &'static [ComponentPropertyDescriptor<T>],
+        handler_descriptors: &'static [HandlerDescriptor],
+        instantiate: fn(InstantiationArgs) -> Rc<dyn InstanceNode>,
+    ) -> Self {
+        Self {
+            type_id,
+            property_scope_descriptors,
+            property_descriptors,
+            handler_descriptors,
+            instantiate,
+            marker: PhantomData,
+        }
+    }
+}
+
+pub struct ErasedComponentDescriptor {
+    pub type_id: &'static str,
+    pub typed_descriptor: &'static (dyn Any + Sync),
+    pub create_properties: fn() -> PaxAny,
+    pub apply_defined_properties: fn(
+        &'static (dyn Any + Sync),
+        &mut PaxAny,
+        &BTreeMap<String, ValueDefinition>,
+        &Rc<RuntimePropertiesStackFrame>,
+    ),
+    pub build_property_scope: fn(&'static (dyn Any + Sync), &PaxAny) -> HashMap<String, Variable>,
+    pub handler_descriptors: &'static [HandlerDescriptor],
+    pub instantiate: fn(InstantiationArgs) -> Rc<dyn InstanceNode>,
+}
+
+impl ErasedComponentDescriptor {
+    pub const fn new(
+        type_id: &'static str,
+        typed_descriptor: &'static (dyn Any + Sync),
+        create_properties: fn() -> PaxAny,
+        apply_defined_properties: fn(
+            &'static (dyn Any + Sync),
+            &mut PaxAny,
+            &BTreeMap<String, ValueDefinition>,
+            &Rc<RuntimePropertiesStackFrame>,
+        ),
+        build_property_scope: fn(&'static (dyn Any + Sync), &PaxAny) -> HashMap<String, Variable>,
+        handler_descriptors: &'static [HandlerDescriptor],
+        instantiate: fn(InstantiationArgs) -> Rc<dyn InstanceNode>,
+    ) -> Self {
+        Self {
+            type_id,
+            typed_descriptor,
+            create_properties,
+            apply_defined_properties,
+            build_property_scope,
+            handler_descriptors,
+            instantiate,
+        }
+    }
+}
+
+pub struct ComponentDescriptorRegistryEntry {
+    pub type_id: &'static str,
+    pub descriptor: &'static ErasedComponentDescriptor,
+}
+
+impl ComponentDescriptorRegistryEntry {
+    pub const fn new(
+        type_id: &'static str,
+        descriptor: &'static ErasedComponentDescriptor,
+    ) -> Self {
+        Self {
+            type_id,
+            descriptor,
+        }
+    }
+}
+
+pub struct TypeFieldDescriptor<T> {
+    pub name: &'static str,
+    pub apply: fn(&mut T, &ValueDefinition, &Rc<RuntimePropertiesStackFrame>),
+    pub dependency: Option<fn(&T) -> UntypedProperty>,
+    pub touch: Option<fn(&T)>,
+    marker: PhantomData<fn(&T)>,
+}
+
+impl<T> TypeFieldDescriptor<T> {
+    pub const fn new(
+        name: &'static str,
+        apply: fn(&mut T, &ValueDefinition, &Rc<RuntimePropertiesStackFrame>),
+    ) -> Self {
+        Self {
+            name,
+            apply,
+            dependency: None,
+            touch: None,
+            marker: PhantomData,
+        }
+    }
+
+    pub const fn with_property_dependency(
+        name: &'static str,
+        apply: fn(&mut T, &ValueDefinition, &Rc<RuntimePropertiesStackFrame>),
+        dependency: fn(&T) -> UntypedProperty,
+        touch: fn(&T),
+    ) -> Self {
+        Self {
+            name,
+            apply,
+            dependency: Some(dependency),
+            touch: Some(touch),
+            marker: PhantomData,
+        }
+    }
+}
+
+pub struct TypeDescriptor<T: 'static> {
+    pub name: &'static str,
+    pub fields: &'static [TypeFieldDescriptor<T>],
+    marker: PhantomData<fn(&T)>,
+}
+
+impl<T> TypeDescriptor<T> {
+    pub const fn new(name: &'static str, fields: &'static [TypeFieldDescriptor<T>]) -> Self {
+        Self {
+            name,
+            fields,
+            marker: PhantomData,
+        }
+    }
+}
+
+fn missing_handler(_: Rc<RefCell<PaxAny>>, _: &NodeContext, _: Option<PaxAny>) {}
+
+pub fn resolve_handler(
+    descriptors: &[HandlerDescriptor],
+    fn_name: &str,
+) -> fn(Rc<RefCell<PaxAny>>, &NodeContext, Option<PaxAny>) {
+    descriptors
+        .iter()
+        .find(|descriptor| descriptor.name == fn_name)
+        .map(|descriptor| descriptor.function)
+        .unwrap_or_else(|| {
+            log::warn!("Unknown handler name {}", fn_name);
+            missing_handler
+        })
+}
+
+pub fn build_component_handler_registry(
+    descriptors: &[HandlerDescriptor],
+    handlers: Vec<(String, Vec<String>)>,
+) -> Rc<RefCell<HandlerRegistry>> {
+    let mut handler_registry = HandlerRegistry::default();
+    for (event, functions) in handlers {
+        handler_registry.handlers.insert(
+            event,
+            functions
+                .iter()
+                .map(|fn_name| {
+                    Handler::new_component_handler(resolve_handler(descriptors, fn_name))
+                })
+                .collect(),
+        );
+    }
+    Rc::new(RefCell::new(handler_registry))
+}
+
+pub fn add_inline_handlers_from_descriptors(
+    descriptors: &[HandlerDescriptor],
+    handlers: Vec<(String, String)>,
+    registry: Rc<RefCell<HandlerRegistry>>,
+) -> Rc<RefCell<HandlerRegistry>> {
+    {
+        let mut registry_mut = borrow_mut!(registry);
+        for (event, fn_name) in handlers {
+            let handler_vec = registry_mut.handlers.entry(event).or_insert_with(Vec::new);
+            handler_vec.push(Handler::new_inline_handler(resolve_handler(
+                descriptors,
+                &fn_name,
+            )));
+        }
+    }
+    registry
+}
+
+pub fn build_property_scope<T>(
+    properties: &T,
+    descriptors: &[PropertyScopeDescriptor<T>],
+) -> HashMap<String, Variable> {
+    descriptors
+        .iter()
+        .map(|descriptor| {
+            (
+                descriptor.name.to_string(),
+                (descriptor.variable)(properties),
+            )
+        })
+        .collect()
+}
+
+pub fn apply_component_descriptor_properties<T: Default + ToFromPaxAny + 'static>(
+    properties: &mut T,
+    descriptor: &'static ComponentDescriptor<T>,
+    defined_properties: &BTreeMap<String, ValueDefinition>,
+    stack_frame: &Rc<RuntimePropertiesStackFrame>,
+) {
+    for property_descriptor in descriptor.property_descriptors {
+        if let Some(value_definition) = defined_properties.get(property_descriptor.name) {
+            let timeline_stack = if let ValueDefinition::Timeline(track) = value_definition {
+                if track.use_local_property_scope {
+                    stack_frame.push(build_property_scope(
+                        properties,
+                        descriptor.property_scope_descriptors,
+                    ))
+                } else {
+                    stack_frame.clone()
+                }
+            } else {
+                stack_frame.clone()
+            };
+            (property_descriptor.apply)(properties, value_definition, stack_frame, timeline_stack);
+        }
+    }
+}
+
+pub fn resolve_component_descriptor(
+    entries: &[ComponentDescriptorRegistryEntry],
+    type_id: &TypeId,
+) -> Option<&'static ErasedComponentDescriptor> {
+    let identifier = type_id.get_unique_identifier();
+    entries
+        .iter()
+        .find(|entry| entry.type_id == identifier)
+        .map(|entry| entry.descriptor)
+}
+
+pub fn erased_create_properties<T: Default + ToFromPaxAny + 'static>() -> PaxAny {
+    T::default().to_pax_any()
+}
+
+pub fn erased_apply_defined_properties<T: Default + ToFromPaxAny + 'static>(
+    typed_descriptor: &'static (dyn Any + Sync),
+    pax_any: &mut PaxAny,
+    defined_properties: &BTreeMap<String, ValueDefinition>,
+    stack_frame: &Rc<RuntimePropertiesStackFrame>,
+) {
+    let descriptor = (typed_descriptor as &dyn Any)
+        .downcast_ref::<ComponentDescriptor<T>>()
+        .expect("Failed to downcast erased component descriptor");
+    let properties = T::mut_from_pax_any(pax_any).unwrap_or_else(|err| {
+        panic!(
+            "Failed to downcast properties to {}: {}",
+            descriptor.type_id, err
+        )
+    });
+    apply_component_descriptor_properties(properties, descriptor, defined_properties, stack_frame);
+}
+
+pub fn erased_build_property_scope<T: Default + ToFromPaxAny + 'static>(
+    typed_descriptor: &'static (dyn Any + Sync),
+    pax_any: &PaxAny,
+) -> HashMap<String, Variable> {
+    let descriptor = (typed_descriptor as &dyn Any)
+        .downcast_ref::<ComponentDescriptor<T>>()
+        .expect("Failed to downcast erased component descriptor");
+    let properties = T::ref_from_pax_any(pax_any).unwrap_or_else(|err| {
+        panic!(
+            "Failed to downcast properties to {}: {}",
+            descriptor.type_id, err
+        )
+    });
+    build_property_scope(properties, descriptor.property_scope_descriptors)
+}
+
+pub fn build_component_handler_registry_for_descriptor(
+    descriptor: &'static ErasedComponentDescriptor,
+    handlers: Vec<(String, Vec<String>)>,
+) -> Rc<RefCell<HandlerRegistry>> {
+    build_component_handler_registry(descriptor.handler_descriptors, handlers)
+}
+
+pub fn add_inline_handlers_from_component_descriptor(
+    descriptor: &'static ErasedComponentDescriptor,
+    handlers: Vec<(String, String)>,
+    registry: Rc<RefCell<HandlerRegistry>>,
+) -> Rc<RefCell<HandlerRegistry>> {
+    add_inline_handlers_from_descriptors(descriptor.handler_descriptors, handlers, registry)
+}
+
+pub fn instantiate_component_from_descriptor(
+    descriptor: &'static ErasedComponentDescriptor,
+    args: InstantiationArgs,
+) -> Rc<dyn InstanceNode> {
+    (descriptor.instantiate)(args)
+}
+
+pub fn build_literal_block_property<T: PropertyValue>(
+    descriptor: &'static TypeDescriptor<T>,
+    args: &LiteralBlockDefinition,
+    stack_frame: Rc<RuntimePropertiesStackFrame>,
+) -> Property<T> {
+    if descriptor.fields.is_empty() {
+        for setting in &args.elements {
+            if let SettingElement::Setting(k, _) = setting {
+                panic!("Unknown property name {}", k.token_value);
+            }
+        }
+        return Property::new_with_name(Default::default(), descriptor.name);
+    }
+
+    let mut properties = T::default();
+    for setting in &args.elements {
+        if let SettingElement::Setting(k, value_definition) = setting {
+            let field_descriptor = descriptor
+                .fields
+                .iter()
+                .find(|descriptor| descriptor.name == k.token_value)
+                .unwrap_or_else(|| panic!("Unknown property name {}", k.token_value));
+            (field_descriptor.apply)(&mut properties, value_definition, &stack_frame);
+        }
+    }
+
+    let dependents: Vec<_> = descriptor
+        .fields
+        .iter()
+        .filter_map(|descriptor| {
+            descriptor
+                .dependency
+                .map(|dependency| dependency(&properties))
+        })
+        .collect();
+
+    if dependents.is_empty() {
+        return Property::new_with_name(properties, descriptor.name);
+    }
+
+    let touchers: Vec<_> = descriptor
+        .fields
+        .iter()
+        .filter_map(|descriptor| descriptor.touch)
+        .collect();
+    let computed_properties = properties.clone();
+    Property::computed_with_name(
+        move || {
+            let cloned_properties = computed_properties.clone();
+            for touch in &touchers {
+                touch(&cloned_properties);
+            }
+            cloned_properties
+        },
+        &dependents,
+        descriptor.name,
+    )
+}
 
 fn build_conditional_branch_property(
     branch_kind: pax_manifest::ControlFlowConditionalBranchKind,
@@ -109,17 +532,17 @@ pub trait DefinitionToInstanceTraverser {
         &mut self,
         type_id: &pax_manifest::TypeId,
     ) -> std::rc::Rc<dyn crate::rendering::InstanceNode> {
-        let factory = self
-            .get_component_factory(type_id)
-            .expect("Failed to get component factory");
+        let descriptor = self
+            .get_component_descriptor(type_id)
+            .expect("Failed to get component descriptor");
         let args = self.build_component_args(type_id);
-        factory.build_component(args)
+        instantiate_component_from_descriptor(descriptor, args)
     }
 
-    fn get_component_factory(
+    fn get_component_descriptor(
         &self,
         type_id: &pax_manifest::TypeId,
-    ) -> Option<Box<dyn crate::ComponentFactory>>;
+    ) -> Option<&'static ErasedComponentDescriptor>;
 
     fn build_component_args(
         &self,
@@ -130,15 +553,17 @@ pub trait DefinitionToInstanceTraverser {
             panic!("Components with type_id {} not found in manifest", type_id);
         }
         let component = manifest.components.get(type_id).unwrap();
-        let factory = self
-            .get_component_factory(&type_id)
-            .expect(&format!("No component factory for type: {}", type_id));
-        let prototypical_common_properties_factory = factory.build_default_common_properties();
-        let mut prototypical_properties_factory = factory.build_default_properties();
+        let descriptor = self
+            .get_component_descriptor(&type_id)
+            .expect(&format!("No component descriptor for type: {}", type_id));
+        let prototypical_common_properties = crate::CommonPropertiesInit::Default;
+        let mut prototypical_properties = crate::PropertiesInit::DescriptorDefault(descriptor);
 
         // pull handlers for this component
         let handlers = manifest.get_component_handlers(type_id);
-        let handler_registry = Some(factory.build_component_handlers(handlers));
+        let handler_registry = Some(build_component_handler_registry_for_descriptor(
+            descriptor, handlers,
+        ));
 
         let mut component_template = None;
         if let Some(template) = &component.template {
@@ -167,19 +592,21 @@ pub trait DefinitionToInstanceTraverser {
             &mut component_self_timeline_properties,
         );
         if !component_self_timeline_properties.is_empty() {
-            prototypical_properties_factory =
-                factory.build_inline_properties(component_self_timeline_properties);
+            prototypical_properties = crate::PropertiesInit::DescriptorInline {
+                descriptor,
+                defined_properties: component_self_timeline_properties,
+            };
         }
 
         crate::rendering::InstantiationArgs {
-            prototypical_common_properties_factory,
-            prototypical_properties_factory,
+            prototypical_common_properties,
+            prototypical_properties,
             handler_registry,
             component_template,
             children: None,
             template_node_identifier: None,
             transition_config: manifest.get_component_transition_config(type_id),
-            properties_scope_factory: Some(factory.get_properties_scope_factory()),
+            properties_scope: crate::PropertiesScopeInit::Descriptor(descriptor),
         }
     }
 
@@ -190,8 +617,7 @@ pub trait DefinitionToInstanceTraverser {
         prior_node: Option<ReusableInstanceNodeArgs>,
     ) -> std::rc::Rc<dyn crate::rendering::InstanceNode> {
         let manifest = self.get_manifest();
-        let prototypical_common_properties_factory =
-            Box::new(|_, _| Some(std::rc::Rc::new(RefCell::new(CommonProperties::default()))));
+        let prototypical_common_properties = crate::CommonPropertiesInit::Default;
 
         let containing_component = manifest
             .components
@@ -307,14 +733,16 @@ pub trait DefinitionToInstanceTraverser {
                 });
                 crate::ConditionalInstance::instantiate_with_branch_child_ranges(
                     crate::rendering::InstantiationArgs {
-                        prototypical_common_properties_factory,
-                        prototypical_properties_factory,
+                        prototypical_common_properties,
+                        prototypical_properties: crate::PropertiesInit::Factory(
+                            prototypical_properties_factory,
+                        ),
                         handler_registry: None,
                         component_template: None,
                         children: Some(children),
                         template_node_identifier: Some(unique_identifier),
                         transition_config: Default::default(),
-                        properties_scope_factory: None,
+                        properties_scope: crate::PropertiesScopeInit::None,
                     },
                     branch_child_ranges,
                 )
@@ -412,14 +840,16 @@ pub trait DefinitionToInstanceTraverser {
                     })))
                 });
                 crate::SlotInstance::instantiate(crate::rendering::InstantiationArgs {
-                    prototypical_common_properties_factory,
-                    prototypical_properties_factory,
+                    prototypical_common_properties,
+                    prototypical_properties: crate::PropertiesInit::Factory(
+                        prototypical_properties_factory,
+                    ),
                     handler_registry: None,
                     component_template: None,
                     children: Some(children),
                     template_node_identifier: Some(unique_identifier),
                     transition_config: Default::default(),
-                    properties_scope_factory: None,
+                    properties_scope: crate::PropertiesScopeInit::None,
                 })
             }
             pax_manifest::PaxType::Repeat => {
@@ -525,14 +955,16 @@ pub trait DefinitionToInstanceTraverser {
                     })))
                 });
                 crate::RepeatInstance::instantiate(crate::rendering::InstantiationArgs {
-                    prototypical_common_properties_factory,
-                    prototypical_properties_factory,
+                    prototypical_common_properties,
+                    prototypical_properties: crate::PropertiesInit::Factory(
+                        prototypical_properties_factory,
+                    ),
                     handler_registry: None,
                     component_template: None,
                     children: Some(children),
                     template_node_identifier: Some(unique_identifier),
                     transition_config: Default::default(),
-                    properties_scope_factory: None,
+                    properties_scope: crate::PropertiesScopeInit::None,
                 })
             }
             _ => {
@@ -594,12 +1026,12 @@ pub trait DefinitionToInstanceTraverser {
             .unwrap();
         let containing_template = containing_component.template.as_ref().unwrap();
         let node = containing_template.get_node(node_id).unwrap();
-        let containing_component_factory = self
-            .get_component_factory(containing_component_type_id)
+        let containing_component_descriptor = self
+            .get_component_descriptor(containing_component_type_id)
             .unwrap();
 
         let mut args = self.build_component_args(&node.type_id);
-        let node_component_factory = self.get_component_factory(&node.type_id).unwrap();
+        let node_component_descriptor = self.get_component_descriptor(&node.type_id).unwrap();
 
         if let Some(prior_node) = prior_node {
             args.handler_registry = prior_node.handler_registry;
@@ -608,9 +1040,14 @@ pub trait DefinitionToInstanceTraverser {
         } else {
             let handlers_from_tnd = manifest.get_inline_event_handlers(node);
             let updated_registry = if let Some(registry) = args.handler_registry {
-                containing_component_factory.add_inline_handlers(handlers_from_tnd, registry)
+                add_inline_handlers_from_component_descriptor(
+                    containing_component_descriptor,
+                    handlers_from_tnd,
+                    registry,
+                )
             } else {
-                containing_component_factory.add_inline_handlers(
+                add_inline_handlers_from_component_descriptor(
+                    containing_component_descriptor,
                     handlers_from_tnd,
                     std::rc::Rc::new(RefCell::new(crate::HandlerRegistry::default())),
                 )
@@ -636,16 +1073,17 @@ pub trait DefinitionToInstanceTraverser {
             manifest.get_inline_properties(containing_component_type_id, node);
         manifest
             .merge_component_self_timelines_with_properties(&node.type_id, &mut inline_properties);
-        let updated_properties =
-            node_component_factory.build_inline_properties(inline_properties.clone());
-        args.prototypical_properties_factory = updated_properties;
+        args.prototypical_properties = crate::PropertiesInit::DescriptorInline {
+            descriptor: node_component_descriptor,
+            defined_properties: inline_properties.clone(),
+        };
 
         // update common properties from tnd
-        let updated_common_properties =
-            node_component_factory.build_inline_common_properties(inline_properties);
-        args.prototypical_common_properties_factory = updated_common_properties;
+        args.prototypical_common_properties = crate::CommonPropertiesInit::Inline {
+            defined_properties: inline_properties,
+        };
 
-        node_component_factory.build_component(args)
+        instantiate_component_from_descriptor(node_component_descriptor, args)
     }
 
     fn get_template_node_by_id(
@@ -720,7 +1158,7 @@ pub trait DefinitionToInstanceTraverser {
     }
 }
 
-fn resolve_property<T: CoercionRules + PropertyValue + DeserializeOwned>(
+fn resolve_property<T: CoercionRules + PropertyValue>(
     name: &str,
     defined_properties: &BTreeMap<String, ValueDefinition>,
     stack: &Rc<RuntimePropertiesStackFrame>,
@@ -953,34 +1391,51 @@ fn timeline_marker_to_frame(marker: &TimelineMarker, total_frames: f64) -> f64 {
     }
 }
 
-fn coerce_timeline_value<T: CoercionRules + PropertyValue>(
-    value_definition: &ValueDefinition,
-    stack: &Rc<RuntimePropertiesStackFrame>,
-) -> Option<T> {
-    let value = evaluate_value_definition_to_pax_value(value_definition, stack)?;
-    T::try_coerce(value).ok()
+fn timeline_value_passes_coercion<T: CoercionRules>(value: &PaxValue) -> bool {
+    T::try_coerce(value.clone()).is_ok()
 }
 
-fn loop_target_value<T: CoercionRules + PropertyValue>(
-    track: &TimelineTrackDefinition,
-    first_keyframe: &ResolvedTimelineKeyframe<T>,
+fn evaluate_valid_timeline_value(
+    value_definition: &ValueDefinition,
     stack: &Rc<RuntimePropertiesStackFrame>,
-) -> T {
+    is_valid_value: fn(&PaxValue) -> bool,
+) -> Option<PaxValue> {
+    let value = evaluate_value_definition_to_pax_value(value_definition, stack)?;
+    is_valid_value(&value).then_some(value)
+}
+
+fn loop_target_value(
+    track: &TimelineTrackDefinition,
+    first_keyframe: &ResolvedTimelineKeyframe,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+    is_valid_value: fn(&PaxValue) -> bool,
+) -> PaxValue {
     if first_keyframe.frame == 0.0 {
         first_keyframe.value.clone()
     } else {
         track
             .starting_value
             .as_ref()
-            .and_then(|value| coerce_timeline_value(value, stack))
+            .and_then(|value| evaluate_valid_timeline_value(value, stack, is_valid_value))
             .unwrap_or_else(|| first_keyframe.value.clone())
     }
 }
 
-struct ResolvedTimelineKeyframe<T> {
+struct ResolvedTimelineKeyframe {
     frame: f64,
-    value: T,
+    source_order: usize,
+    value: PaxValue,
     easing: Option<String>,
+}
+
+enum TimelineSample {
+    Value(PaxValue),
+    Interpolated {
+        current: PaxValue,
+        next: PaxValue,
+        easing: Option<String>,
+        progress: f64,
+    },
 }
 
 fn sample_timeline_playhead(
@@ -1014,20 +1469,24 @@ fn sample_timeline_playhead(
     raw_playhead.rem_euclid(cycle_len)
 }
 
-fn sample_timeline_track<T: CoercionRules + PropertyValue>(
+fn resolve_timeline_sample(
     track: &TimelineTrackDefinition,
     stack: &Rc<RuntimePropertiesStackFrame>,
-) -> Option<T> {
+    is_valid_value: fn(&PaxValue) -> bool,
+) -> Option<TimelineSample> {
     let total_frames = timeline_total_frames(track);
     let repeat = track.repeat.unwrap_or(true);
     let sample_frame = sample_timeline_playhead(track, stack, total_frames);
 
-    let mut resolved_keyframes: Vec<ResolvedTimelineKeyframe<T>> = track
+    let mut resolved_keyframes: Vec<ResolvedTimelineKeyframe> = track
         .keyframes()
-        .filter_map(|keyframe: &TimelineKeyframe| {
+        .enumerate()
+        .filter_map(|(source_order, keyframe): (usize, &TimelineKeyframe)| {
+            let value = evaluate_valid_timeline_value(&keyframe.value, stack, is_valid_value)?;
             Some(ResolvedTimelineKeyframe {
                 frame: timeline_marker_to_frame(&keyframe.marker, total_frames),
-                value: coerce_timeline_value(&keyframe.value, stack)?,
+                source_order,
+                value,
                 easing: keyframe
                     .easing
                     .as_ref()
@@ -1036,20 +1495,23 @@ fn sample_timeline_track<T: CoercionRules + PropertyValue>(
         })
         .collect();
 
-    resolved_keyframes.sort_by(|lhs, rhs| {
+    resolved_keyframes.sort_unstable_by(|lhs, rhs| {
         lhs.frame
             .partial_cmp(&rhs.frame)
             .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| lhs.source_order.cmp(&rhs.source_order))
     });
 
     let first_keyframe = resolved_keyframes.first()?;
 
     if sample_frame < first_keyframe.frame {
-        return track
-            .starting_value
-            .as_ref()
-            .and_then(|value| coerce_timeline_value(value, stack))
-            .or_else(|| Some(first_keyframe.value.clone()));
+        return Some(TimelineSample::Value(
+            track
+                .starting_value
+                .as_ref()
+                .and_then(|value| evaluate_valid_timeline_value(value, stack, is_valid_value))
+                .unwrap_or_else(|| first_keyframe.value.clone()),
+        ));
     }
 
     for keyframes in resolved_keyframes.windows(2) {
@@ -1057,31 +1519,59 @@ fn sample_timeline_track<T: CoercionRules + PropertyValue>(
         let next = &keyframes[1];
         if sample_frame <= next.frame {
             if sample_frame <= current.frame {
-                return Some(current.value.clone());
+                return Some(TimelineSample::Value(current.value.clone()));
             }
             let span = next.frame - current.frame;
             if span <= f64::EPSILON {
-                return Some(next.value.clone());
+                return Some(TimelineSample::Value(next.value.clone()));
             }
             let progress = (sample_frame - current.frame) / span;
-            let curve = easing_curve_from_name(current.easing.as_deref());
-            return Some(curve.interpolate(&current.value, &next.value, progress));
+            return Some(TimelineSample::Interpolated {
+                current: current.value.clone(),
+                next: next.value.clone(),
+                easing: current.easing.clone(),
+                progress,
+            });
         }
     }
 
     let last_keyframe = resolved_keyframes.last()?;
     if sample_frame <= last_keyframe.frame || !repeat || total_frames <= last_keyframe.frame {
-        return Some(last_keyframe.value.clone());
+        return Some(TimelineSample::Value(last_keyframe.value.clone()));
     }
 
-    let loop_target = loop_target_value(track, first_keyframe, stack);
+    let loop_target = loop_target_value(track, first_keyframe, stack, is_valid_value);
     let span = total_frames - last_keyframe.frame;
     if span <= f64::EPSILON {
-        return Some(loop_target);
+        return Some(TimelineSample::Value(loop_target));
     }
     let progress = (sample_frame - last_keyframe.frame) / span;
-    let curve = easing_curve_from_name(last_keyframe.easing.as_deref());
-    Some(curve.interpolate(&last_keyframe.value, &loop_target, progress))
+    Some(TimelineSample::Interpolated {
+        current: last_keyframe.value.clone(),
+        next: loop_target,
+        easing: last_keyframe.easing.clone(),
+        progress,
+    })
+}
+
+fn sample_timeline_track<T: CoercionRules + PropertyValue>(
+    track: &TimelineTrackDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+) -> Option<T> {
+    match resolve_timeline_sample(track, stack, timeline_value_passes_coercion::<T>)? {
+        TimelineSample::Value(value) => T::try_coerce(value).ok(),
+        TimelineSample::Interpolated {
+            current,
+            next,
+            easing,
+            progress,
+        } => {
+            let current = T::try_coerce(current).ok()?;
+            let next = T::try_coerce(next).ok()?;
+            let curve = easing_curve_from_name(easing.as_deref());
+            Some(curve.interpolate(&current, &next, progress))
+        }
+    }
 }
 
 pub fn build_timeline_property<T: CoercionRules + PropertyValue>(
@@ -1120,7 +1610,8 @@ fn coerce_transition_starting_value<T: CoercionRules + PropertyValue>(
     transition
         .starting_value
         .as_ref()
-        .and_then(|value| coerce_timeline_value(value, stack))
+        .and_then(|value| evaluate_value_definition_to_pax_value(value, stack))
+        .and_then(|value| T::try_coerce(value).ok())
 }
 
 fn sample_transition_track<T: CoercionRules + PropertyValue>(
@@ -1178,6 +1669,92 @@ pub fn build_transition_property<T: CoercionRules + PropertyValue>(
         &dependents,
         name,
     )
+}
+
+pub fn apply_component_property<T>(
+    property: &mut Property<T>,
+    name: &str,
+    value_definition: &ValueDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+    timeline_stack: Rc<RuntimePropertiesStackFrame>,
+    build_block: fn(&LiteralBlockDefinition, Rc<RuntimePropertiesStackFrame>) -> Property<T>,
+) where
+    T: CoercionRules + PropertyValue,
+{
+    match value_definition {
+        ValueDefinition::LiteralValue(lv) => {
+            let value = T::try_coerce(lv.clone()).unwrap_or_else(|err| {
+                log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                Default::default()
+            });
+            property.replace_with(Property::new_with_name(value, name));
+        }
+        ValueDefinition::DoubleBinding(identifier) => {
+            if let Some(untyped_property) =
+                stack.resolve_symbol_as_erased_property(&identifier.name)
+            {
+                *property = Property::new_from_untyped(untyped_property.clone());
+            } else {
+                log::warn!("Failed to resolve identifier: {}", &identifier.name);
+            }
+        }
+        ValueDefinition::Identifier(ident) => {
+            if let Some(variable) = stack.resolve_symbol_as_variable(&ident.name) {
+                let name = ident.name.clone();
+                let untyped = variable.get_untyped_property().clone();
+                let cloned_variable = variable.clone();
+                *property = Property::computed_with_name(
+                    move || {
+                        let new_value = cloned_variable.get_as_pax_value();
+                        T::try_coerce(new_value).unwrap_or_else(|err| {
+                            log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                            Default::default()
+                        })
+                    },
+                    &[untyped],
+                    &name,
+                );
+            } else {
+                log::warn!("Failed to resolve symbol {}", ident.name);
+            }
+        }
+        ValueDefinition::Expression(info) => {
+            let mut dependents = vec![];
+            for dependency in &info.dependencies {
+                if let Some(p) = stack.resolve_symbol_as_erased_property(dependency) {
+                    dependents.push(p);
+                } else {
+                    log::warn!("Failed to resolve symbol {}", dependency);
+                }
+            }
+            let cloned_stack = stack.clone();
+            let cloned_ast = info.expression.clone();
+            let expression_label = cloned_ast.to_string();
+            *property = Property::computed_with_name(
+                move || {
+                    let new_value = cloned_ast
+                        .compute(cloned_stack.clone())
+                        .unwrap_or_else(|_| {
+                            log::warn!("Failed to compute expr: {}", expression_label);
+                            Default::default()
+                        });
+                    T::try_coerce(new_value.clone()).unwrap_or_else(|err| {
+                        log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                        Default::default()
+                    })
+                },
+                &dependents,
+                name,
+            );
+        }
+        ValueDefinition::Timeline(track) => {
+            *property = build_timeline_property(name, track, timeline_stack);
+        }
+        ValueDefinition::Block(block) => {
+            property.replace_with(build_block(block, stack.clone()));
+        }
+        _ => unreachable!("Invalid value definition for {name}"),
+    }
 }
 
 #[cfg(test)]
@@ -1360,7 +1937,6 @@ mod timeline_tests {
         playhead.set(10.0);
         assert!((property.get() - 10.0).abs() < 0.0001);
     }
-
     #[test]
     fn transition_property_switches_between_enter_and_exit_tracks() {
         let phase = Property::new(0_u64);
@@ -1437,94 +2013,43 @@ mod timeline_tests {
         playhead.set(10.0);
         assert_eq!(property.get(), 0.0);
     }
-}
 
-pub trait ComponentFactory {
-    /// Returns the default CommonProperties factory
-    fn build_default_common_properties(
-        &self,
-    ) -> Box<
-        dyn Fn(
-            Rc<RuntimePropertiesStackFrame>,
-            Option<Rc<ExpandedNode>>,
-        ) -> Option<Rc<RefCell<CommonProperties>>>,
-    > {
-        Box::new(|_, _| Some(Rc::new(RefCell::new(CommonProperties::default()))))
-    }
+    #[test]
+    fn timeline_property_skips_keyframes_that_fail_typed_coercion() {
+        let frames_elapsed = Property::new(0_u64);
+        let stack = build_stack(&frames_elapsed);
+        let track = TimelineTrackDefinition {
+            elements: vec![
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(0),
+                    value: ValueDefinition::LiteralValue(PaxValue::Numeric(0.0.into())),
+                    easing: Some(Token::new_without_location("Linear".to_string())),
+                }),
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(50),
+                    value: ValueDefinition::LiteralValue(PaxValue::String("bad".to_string())),
+                    easing: Some(Token::new_without_location("Linear".to_string())),
+                }),
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(100),
+                    value: ValueDefinition::LiteralValue(PaxValue::Numeric(100.0.into())),
+                    easing: None,
+                }),
+            ],
+            playhead: None,
+            frames: Some(100),
+            repeat: Some(false),
+            starting_value: None,
+            use_local_property_scope: false,
+        };
+        let property = build_timeline_property::<f64>("progress", &track, stack);
 
-    /// Returns the default properties factory for this component
-    fn build_default_properties(
-        &self,
-    ) -> Box<
-        dyn Fn(
-            Rc<RuntimePropertiesStackFrame>,
-            Option<Rc<ExpandedNode>>,
-        ) -> Option<Rc<RefCell<PaxAny>>>,
-    >;
-
-    fn build_inline_common_properties(
-        &self,
-        defined_properties: BTreeMap<String, pax_manifest::ValueDefinition>,
-    ) -> Box<
-        dyn Fn(
-            Rc<RuntimePropertiesStackFrame>,
-            Option<Rc<ExpandedNode>>,
-        ) -> Option<Rc<RefCell<CommonProperties>>>,
-    > {
-        Box::new(move |stack_frame, expanded_node| {
-            if let Some(expanded_node) = &expanded_node {
-                update_existing_common_properties(expanded_node, &defined_properties, &stack_frame);
-                None
-            } else {
-                Some(create_new_common_properties(
-                    &defined_properties,
-                    &stack_frame,
-                ))
-            }
-        })
-    }
-
-    /// Returns the properties factory based on the defined properties
-    fn build_inline_properties(
-        &self,
-        defined_properties: BTreeMap<String, ValueDefinition>,
-    ) -> Box<
-        dyn Fn(
-            Rc<RuntimePropertiesStackFrame>,
-            Option<Rc<ExpandedNode>>,
-        ) -> Option<Rc<RefCell<PaxAny>>>,
-    >;
-
-    /// Returns the requested closure for the handler registry based on the defined handlers for this component
-    /// The argument type is extrapolated based on how the handler was used in the initial compiled template
-    fn build_handler(&self, fn_name: &str)
-        -> fn(Rc<RefCell<PaxAny>>, &NodeContext, Option<PaxAny>);
-
-    /// Returns the handler registry based on the defined handlers for this component
-    fn build_component_handlers(
-        &self,
-        handlers: Vec<(String, Vec<String>)>,
-    ) -> Rc<RefCell<HandlerRegistry>>;
-
-    // Takes a handler registry and adds the given inline handlers to it
-    fn add_inline_handlers(
-        &self,
-        handlers: Vec<(String, String)>,
-        registry: Rc<RefCell<HandlerRegistry>>,
-    ) -> Rc<RefCell<HandlerRegistry>>;
-
-    // Calls the instantiation function for the component
-    fn build_component(&self, args: InstantiationArgs) -> Rc<dyn InstanceNode>;
-
-    // Returns the property scope for the component
-    fn get_properties_scope_factory(
-        &self,
-    ) -> Box<dyn Fn(Rc<RefCell<PaxAny>>) -> HashMap<String, Variable>> {
-        Box::new(|_| HashMap::new())
+        frames_elapsed.set(75);
+        assert!((property.get() - 75.0).abs() < 0.0001);
     }
 }
 
-fn update_existing_common_properties(
+pub fn update_existing_common_properties(
     expanded_node: &Rc<ExpandedNode>,
     defined_properties: &BTreeMap<String, pax_manifest::ValueDefinition>,
     stack_frame: &Rc<RuntimePropertiesStackFrame>,
@@ -1551,7 +2076,7 @@ fn create_id_property(
     )
 }
 
-fn create_new_common_properties(
+pub fn create_new_common_properties(
     defined_properties: &BTreeMap<String, pax_manifest::ValueDefinition>,
     stack_frame: &Rc<RuntimePropertiesStackFrame>,
 ) -> Rc<RefCell<CommonProperties>> {

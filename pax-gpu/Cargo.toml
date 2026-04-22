@@ -19,9 +19,28 @@ web-sys = { version = "0.3.64", features = ["HtmlCanvasElement"] }
 js-sys = "0.3.64"
 wasm-bindgen-futures = "0.4.38"
 
-[dependencies.wgpu]
+[features]
+default = []
+webgl = ["wgpu/webgl"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.wgpu]
 version = "28.0.0"
+default-features = false
 features = [
-    "webgpu",     # Required for WebGPU support
-    "webgl",      # Runtime fallback when WebGPU is unavailable in the browser
+    "std",
+    "wgsl",
+    "webgpu",
+]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.wgpu]
+version = "28.0.0"
+default-features = false
+features = [
+    "std",
+    "parking_lot",
+    "dx12",
+    "metal",
+    "gles",
+    "vulkan",
+    "wgsl",
 ]

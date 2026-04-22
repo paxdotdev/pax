@@ -1,28 +1,41 @@
+#[cfg(feature = "parser")]
 use pest::error::Error;
+#[cfg(feature = "parser")]
 pub use pest::iterators::{Pair, Pairs};
 
+#[cfg(feature = "parser")]
 pub use pest::pratt_parser::{Assoc, Op, PrattParser};
+#[cfg(feature = "parser")]
 pub use pest::{Parser, Span};
+#[cfg(feature = "parser")]
 pub use pest_derive::Parser;
 
+#[cfg(feature = "parser")]
 mod parsing;
+#[cfg(feature = "parser")]
 pub use parsing::get_pax_pratt_parser;
+#[cfg(feature = "parser")]
 pub mod formatting;
 
+#[cfg(feature = "parser")]
 pub mod deserializer;
 pub mod interpreter;
+#[cfg(feature = "parser")]
 pub use deserializer::from_pax;
+#[cfg(feature = "parser")]
 pub mod helpers;
 
-pub use interpreter::{
-    computable::Computable, parse_pax_expression, property_resolution::DependencyCollector,
-};
+#[cfg(feature = "parser")]
+pub use interpreter::parse_pax_expression;
+pub use interpreter::{computable::Computable, property_resolution::DependencyCollector};
 
 /// Pest parser generated from the Pax grammar.
+#[cfg(feature = "parser")]
 #[derive(Parser)]
 #[grammar = "pax.pest"]
 pub struct PaxParser;
 
+#[cfg(feature = "parser")]
 fn renamed_rules(rule: &Rule) -> String {
     match rule {
         Rule::EOI => "end of file".to_string(),
@@ -147,6 +160,7 @@ fn renamed_rules(rule: &Rule) -> String {
 }
 
 /// Parse a string against a single Pax grammar rule, returning a human-readable error string.
+#[cfg(feature = "parser")]
 pub fn parse_pax_str(expected_rule: Rule, input: &str) -> Result<Pair<'_, Rule>, String> {
     let pairs = PaxParser::parse(expected_rule, input);
     match pairs {
@@ -162,6 +176,7 @@ pub fn parse_pax_str(expected_rule: Rule, input: &str) -> Result<Pair<'_, Rule>,
 }
 
 /// Parse a string against a Pax grammar rule, preserving the structured pest error.
+#[cfg(feature = "parser")]
 pub fn parse_pax_err(expected_rule: Rule, input: &str) -> Result<Pair<'_, Rule>, Error<Rule>> {
     let pairs = PaxParser::parse(expected_rule, input);
     match pairs {
@@ -177,6 +192,7 @@ pub fn parse_pax_err(expected_rule: Rule, input: &str) -> Result<Pair<'_, Rule>,
 }
 
 /// Parse a string into pest pairs for a Pax grammar rule.
+#[cfg(feature = "parser")]
 pub fn parse_pax_pairs(expected_rule: Rule, input: &str) -> Result<Pairs<'_, Rule>, Error<Rule>> {
     let pairs = PaxParser::parse(expected_rule, input);
     match pairs {

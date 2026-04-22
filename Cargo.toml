@@ -5,6 +5,7 @@ authors = ["Zack Brown <zack@pax.dev>", "Warfa Jibril <warfa@pax.dev>", "Samuel 
 edition = "2021"
 
 [workspace]
+resolver = "2"
 members = [
     "pax-chassis-common",
     "pax-chassis-ios",

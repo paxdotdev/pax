@@ -9,25 +9,117 @@ use pax_language::DependencyCollector;
 use pax_message::serde::{Deserialize, Serialize};
 pub use pax_runtime_api;
 use pax_runtime_api::{CoercionRules, HelperFunctions, Interpolatable, PaxValue, ToPaxValue};
+pub mod binary;
+#[cfg(feature = "parsing")]
 pub mod parsing;
+pub mod program_ir;
+#[cfg(feature = "server")]
 pub mod server;
 
 #[cfg(feature = "parsing")]
 pub mod utils;
 
 pub mod cartridge_generation;
+#[cfg(feature = "code_serialization")]
 pub mod code_serialization;
 pub mod constants;
+#[cfg(feature = "compiler")]
+pub mod rust_manifest;
+
+#[cfg(feature = "json")]
+mod json_map_keys {
+    use std::collections::{BTreeMap, HashMap};
+    use std::hash::Hash;
+
+    use pax_message::serde::de::{DeserializeOwned, Error as DeError};
+    use pax_message::serde::ser::{Error as SerError, SerializeMap};
+    use pax_message::serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize_btree_map<K, V, S>(
+        map: &BTreeMap<K, V>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        K: Serialize,
+        V: Serialize,
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_map(Some(map.len()))?;
+        for (key, value) in map {
+            let key = serde_json::to_string(key).map_err(S::Error::custom)?;
+            state.serialize_entry(&key, value)?;
+        }
+        state.end()
+    }
+
+    pub fn deserialize_btree_map<'de, K, V, D>(deserializer: D) -> Result<BTreeMap<K, V>, D::Error>
+    where
+        K: DeserializeOwned + Ord,
+        V: Deserialize<'de>,
+        D: Deserializer<'de>,
+    {
+        let raw = BTreeMap::<String, V>::deserialize(deserializer)?;
+        raw.into_iter()
+            .map(|(key, value)| {
+                let key = serde_json::from_str(&key).map_err(D::Error::custom)?;
+                Ok((key, value))
+            })
+            .collect()
+    }
+
+    pub fn serialize_hash_map<K, V, S>(
+        map: &HashMap<K, V>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        K: Serialize,
+        V: Serialize,
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_map(Some(map.len()))?;
+        for (key, value) in map {
+            let key = serde_json::to_string(key).map_err(S::Error::custom)?;
+            state.serialize_entry(&key, value)?;
+        }
+        state.end()
+    }
+
+    pub fn deserialize_hash_map<'de, K, V, D>(deserializer: D) -> Result<HashMap<K, V>, D::Error>
+    where
+        K: DeserializeOwned + Eq + Hash,
+        V: Deserialize<'de>,
+        D: Deserializer<'de>,
+    {
+        let raw = HashMap::<String, V>::deserialize(deserializer)?;
+        raw.into_iter()
+            .map(|(key, value)| {
+                let key = serde_json::from_str(&key).map_err(D::Error::custom)?;
+                Ok((key, value))
+            })
+            .collect()
+    }
+}
 
 /// Definition container for an entire Pax cartridge
-#[serde_with::serde_as]
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(crate = "pax_message::serde")]
 pub struct PaxManifest {
-    #[serde_as(as = "BTreeMap<serde_with::json::JsonString, _>")]
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            serialize_with = "json_map_keys::serialize_btree_map",
+            deserialize_with = "json_map_keys::deserialize_btree_map"
+        )
+    )]
     pub components: BTreeMap<TypeId, ComponentDefinition>,
     pub main_component_type_id: TypeId,
-    #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            serialize_with = "json_map_keys::serialize_hash_map",
+            deserialize_with = "json_map_keys::deserialize_hash_map"
+        )
+    )]
     pub type_table: TypeTable,
     /// Compiler metadata: list of fully qualified asset directories, gathered during compiletime,
     /// from which assets will be copied for bundling into executable binaries
@@ -1011,15 +1103,26 @@ impl Ord for NodeLocation {
     }
 }
 
-#[serde_with::serde_as]
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(crate = "pax_message::serde")]
 pub struct ComponentTemplate {
     containing_component: TypeId,
     root: VecDeque<TemplateNodeId>,
-    #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            serialize_with = "json_map_keys::serialize_hash_map",
+            deserialize_with = "json_map_keys::deserialize_hash_map"
+        )
+    )]
     children: HashMap<TemplateNodeId, VecDeque<TemplateNodeId>>,
-    #[serde_as(as = "HashMap<serde_with::json::JsonString, _>")]
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            serialize_with = "json_map_keys::serialize_hash_map",
+            deserialize_with = "json_map_keys::deserialize_hash_map"
+        )
+    )]
     nodes: HashMap<TemplateNodeId, TemplateNodeDefinition>,
     next_id: usize,
     template_source_file_path: Option<String>,
@@ -1033,6 +1136,25 @@ impl ComponentTemplate {
             children: HashMap::new(),
             nodes: HashMap::new(),
             next_id: 0,
+            template_source_file_path,
+        }
+    }
+
+    /// Construct a component template from already-materialized storage.
+    pub fn from_parts(
+        containing_component: TypeId,
+        root: VecDeque<TemplateNodeId>,
+        children: HashMap<TemplateNodeId, VecDeque<TemplateNodeId>>,
+        nodes: HashMap<TemplateNodeId, TemplateNodeDefinition>,
+        next_id: usize,
+        template_source_file_path: Option<String>,
+    ) -> Self {
+        Self {
+            containing_component,
+            root,
+            children,
+            nodes,
+            next_id,
             template_source_file_path,
         }
     }

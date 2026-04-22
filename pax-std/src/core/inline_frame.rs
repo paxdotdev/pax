@@ -1,5 +1,5 @@
 use pax_engine::pax;
-use pax_message::{borrow, borrow_mut};
+use pax_message::borrow_mut;
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
@@ -61,7 +61,12 @@ impl InstanceNode for InlineFrameInstance {
     }
 
     fn handle_mount(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, ctx: &Rc<RuntimeContext>) {
-        let instance_node = Rc::clone(&*borrow!(ctx.userland_frame_instance_node));
+        let Some(instance_node) = ctx.get_userland_root_instance_node() else {
+            log::warn!("inline frame mounted without a userland instance node");
+            expanded_node.children.set(Vec::new());
+            *borrow_mut!(ctx.userland_root_expanded_node) = None;
+            return;
+        };
         let children_with_envs = vec![(instance_node, ctx.globals().stack_frame())];
         let new_children = expanded_node.generate_children(
             children_with_envs,
@@ -69,7 +74,7 @@ impl InstanceNode for InlineFrameInstance {
             &expanded_node.parent_frame,
             true,
         );
-        *borrow_mut!(ctx.userland_root_expanded_node) = Some(Rc::clone(&new_children[0].clone()));
+        *borrow_mut!(ctx.userland_root_expanded_node) = new_children.first().cloned();
         expanded_node.children.set(new_children);
     }
 }

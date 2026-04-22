@@ -34,6 +34,8 @@ Because this is a foundation library and because we're focused on performance an
 
 New features are often proven on one "chassis" at a time (platform target.)  In the course of working on a chassis, if you discover a feature that seems to be missing support, do NOT hack a shortcut -- ask the user for clarification, as we may need to detour and implement a missing feature correctly.
 
+**Binary baking maintenance callout** -- release builds now rely on baked program representations, not just the rich in-memory manifest.  Rule of thumb: if you touch manifest de/serialize behavior for anything the runtime needs in order to execute a program, audit the release cartridge path too unless the change is clearly debug-only or source-only.  More broadly, if you add or change anything that crosses the compiler/runtime boundary, expect to update the binary baking path as well.  Typical triggers include: new manifest fields that affect runtime behavior; new node kinds, control-flow semantics, property/value shapes, expression/PAXEL forms, timelines, event bindings, handler metadata, or asset references; and any change to component/type descriptors used by cartridge generation.  In practice, that usually means checking `pax-manifest`'s `program_ir`, `binary`, and `rust_manifest` paths, plus the compiler's cartridge generation/templates and the corresponding roundtrip tests.  Designtime-only/source-only metadata should usually stay out of the release-baked format unless the runtime truly needs it.
+
 ## Writing Pax
 
 * Authoring Pax happens in two layers:
@@ -108,4 +110,4 @@ Before commits, the user may ask for a cleanup pass.  Follow this protocol at th
 
 ## Collaboration
 
-- Whenever relevant, run a web build of the currently focused project (e.g. current example) and provide it to the user at the end of every iteration.  If we're developing for e.g. iOS or macOS per context, then run the appropriate target accordingly.  
+- Whenever relevant, run a web build of the currently focused project (e.g. current example) and provide it to the user at the end of every iteration.  If we're developing for e.g. iOS or macOS per context, then run the appropriate target accordingly.

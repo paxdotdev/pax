@@ -117,9 +117,9 @@ export class NativeElementPool {
                 }
                 resize_requests.push(message);
             }
-            this.chassis!.interrupt!(JSON.stringify({
+            this.chassis!.interrupt({
                 "ChassisResizeRequestCollection": resize_requests,
-            }), undefined);
+            }, undefined);
         });
     }
 
@@ -238,7 +238,7 @@ export class NativeElementPool {
                     "state": is_checked,
                 }
             }
-            this.chassis!.interrupt(JSON.stringify(message), undefined);
+            this.chassis!.interrupt(message, undefined);
         });
 
         let checkbox_div: HTMLDivElement = this.objectManager.getFromPool(DIV);
@@ -398,7 +398,7 @@ export class NativeElementPool {
                     "text": textbox.value,
                 }
             }
-            this.chassis!.interrupt(JSON.stringify(message), undefined);
+            this.chassis!.interrupt(message, undefined);
         });
 
         textbox.addEventListener("change", (_event) => {
@@ -408,7 +408,7 @@ export class NativeElementPool {
                     "text": textbox.value,
                 }
             }
-            this.chassis!.interrupt(JSON.stringify(message), undefined);
+            this.chassis!.interrupt(message, undefined);
         });
         
 
@@ -529,7 +529,7 @@ export class NativeElementPool {
                         "selected_id": index,
                     }
                 }
-                this.chassis!.interrupt(JSON.stringify(message), undefined);
+                this.chassis!.interrupt(message, undefined);
             }
         });
 
@@ -625,7 +625,7 @@ export class NativeElementPool {
                     "value": parseFloat(slider.value),
                 }
             }
-            this.chassis!.interrupt(JSON.stringify(message), undefined);
+            this.chassis!.interrupt(message, undefined);
         });
 
         let sliderDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
@@ -697,7 +697,7 @@ export class NativeElementPool {
                     "selected_id": (event.target! as any).selectedIndex,
                 }
             }
-            this.chassis!.interrupt(JSON.stringify(message), undefined);
+            this.chassis!.interrupt(message, undefined);
         });
 
 
@@ -783,7 +783,7 @@ export class NativeElementPool {
                     "id": patch.id!,
                 }
             }
-            this.chassis!.interrupt(JSON.stringify(message), undefined);
+            this.chassis!.interrupt(message, undefined);
         });
 
         let buttonDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
@@ -877,7 +877,7 @@ export class NativeElementPool {
               }
             };
 
-            this.chassis!.interrupt(JSON.stringify(message), undefined);
+            this.chassis!.interrupt(message, undefined);
         });
         textDiv.appendChild(textChild);
         textDiv.setAttribute("class", NATIVE_LEAF_CLASS)
@@ -1757,7 +1757,7 @@ export class NativeElementPool {
         let approvedScrollX = pageScroll.scrollX;
         let approvedScrollY = pageScroll.scrollY;
 
-        this.chassis?.interrupt(JSON.stringify({
+        this.chassis?.interrupt({
             "VisualViewportUpdate": {
                 "width": visibleViewport.width,
                 "height": visibleViewport.height,
@@ -1766,7 +1766,7 @@ export class NativeElementPool {
                 "page_scroll_x": pageScroll.scrollX,
                 "page_scroll_y": pageScroll.scrollY,
             },
-        }), undefined);
+        }, undefined);
 
         if (this.mount != null) {
             this.mount.dataset.viewportWidth = String(visibleViewport.width);
@@ -1922,7 +1922,7 @@ export class NativeElementPool {
             this.setDocumentPageScrollMode(false);
             let visibleViewport = this.readVisiblePageViewport();
             let pageScroll = this.readPageScrollPosition();
-            this.chassis?.interrupt(JSON.stringify({
+            this.chassis?.interrupt({
                 "VisualViewportUpdate": {
                     "width": visibleViewport.width,
                     "height": visibleViewport.height,
@@ -1931,7 +1931,7 @@ export class NativeElementPool {
                     "page_scroll_x": pageScroll.scrollX,
                     "page_scroll_y": pageScroll.scrollY,
                 },
-            }), undefined);
+            }, undefined);
         }
 
         state.delegatesToPageScroll = active;
@@ -2138,7 +2138,7 @@ export class NativeElementPool {
                 "presentation_scroll_y": measurement.presentationScrollY,
             }
         };
-        this.chassis!.interrupt(JSON.stringify(message), undefined);
+        this.chassis!.interrupt(message, undefined);
     }
 
     private activateScrollerMeasurement(id: number) {
@@ -2662,7 +2662,7 @@ export class NativeElementPool {
                 }
             };
 
-            chassis.interrupt(JSON.stringify(message), pixels);
+            chassis.interrupt(message, pixels);
             responded = true;
         };
 
@@ -2938,7 +2938,7 @@ export class NativeElementPool {
                 }
             }
         }
-        chassis.interrupt(JSON.stringify(message), image_data.pixels);
+        chassis.interrupt(message, image_data.pixels);
     }
 
     navigate(patch: NavigationPatch) {

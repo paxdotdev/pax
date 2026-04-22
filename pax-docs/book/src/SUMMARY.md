@@ -14,6 +14,7 @@
 - [Animation & Motion](animation-motion.md)
 - [Compositing & Effects](compositing-effects.md)
 - [Scrolling & Viewports](scrolling-viewports.md)
+- [Architecture: Runtime & Cartridge](architecture-runtime-cartridge.md)
 - [API Docs](api/index.md)
   <!-- API-START -->
   - [pax-runtime-api](api/pax-runtime-api/index.md)

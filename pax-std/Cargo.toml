@@ -14,7 +14,7 @@ kurbo = "0.11.1"
 lazy_static = "1.4.0"
 log = "0.4.20"
 pax-engine = {path = "../pax-engine", version="0.38.3"}
-pax-language = {path = "../pax-language", version="0.38.3"}
+pax-language = {path = "../pax-language", version="0.38.3", default-features = false}
 pax-manifest = {path = "../pax-manifest", version="0.38.3"}
 pax-message = {path = "../pax-message", version="0.38.3"}
 pax-runtime = {path = "../pax-runtime", version="0.38.3"}
@@ -24,5 +24,5 @@ serde = { version = "1.0.159", features=["derive"]}
 serde_json = {version="1.0.95", optional = true}
 
 [features]
-parser = ["dep:serde_json"]
-designtime = ["pax-engine/designtime", "pax-runtime/designtime"]
+parser = ["dep:serde_json", "pax-language/parser", "pax-engine/json", "pax-manifest/parsing"]
+designtime = ["pax-language/parser", "pax-engine/designtime", "pax-runtime/designtime"]

@@ -26,6 +26,7 @@ path = "bin/run.rs"
 designtime = ["pax-kit/designtime"]
 parser = ["pax-kit/parser"]
 web = ["pax-kit/web"]
+webgl = ["pax-kit/webgl"]
 macos = ["pax-kit/macos"]
 ios = ["pax-kit/ios"]
 

@@ -1,14 +1,19 @@
+#[cfg(feature = "parser")]
 use computable::Computable;
 use pax_runtime_api::PaxValue;
+#[cfg(feature = "parser")]
 use pest::{
     iterators::{Pair, Pairs},
     pratt_parser::PrattParser,
 };
+#[cfg(feature = "parser")]
 use property_resolution::IdentifierResolver;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+#[cfg(feature = "parser")]
 use std::rc::Rc;
 
+#[cfg(feature = "parser")]
 use crate::{deserializer::from_pax_ast, get_pax_pratt_parser, parse_pax_pairs, Rule};
 
 pub(crate) mod computable;
@@ -30,6 +35,54 @@ pub enum PaxExpression {
 impl Default for PaxExpression {
     fn default() -> Self {
         Self::Primary(Box::new(PaxPrimary::default()))
+    }
+}
+
+impl PaxExpression {
+    /// Construct a prefix expression.
+    pub fn prefix(operator: impl Into<String>, rhs: PaxExpression) -> Self {
+        Self::Prefix(Box::new(PaxPrefix {
+            operator: PaxOperator::new(operator),
+            rhs: Box::new(rhs),
+        }))
+    }
+
+    /// Construct an infix expression.
+    pub fn infix(lhs: PaxExpression, operator: impl Into<String>, rhs: PaxExpression) -> Self {
+        Self::Infix(Box::new(PaxInfix {
+            operator: PaxOperator::new(operator),
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        }))
+    }
+
+    /// Construct a postfix expression.
+    pub fn postfix(lhs: PaxExpression, operator: impl Into<String>) -> Self {
+        Self::Postfix(Box::new(PaxPostfix {
+            operator: PaxOperator::new(operator),
+            lhs: Box::new(lhs),
+        }))
+    }
+
+    /// Construct a ternary expression.
+    pub fn ternary(
+        condition: PaxExpression,
+        then_branch: PaxExpression,
+        else_branch: PaxExpression,
+    ) -> Self {
+        Self::Ternary(Box::new(PaxTernary {
+            condition: Box::new(condition),
+            then_branch: Box::new(then_branch),
+            else_branch: Box::new(else_branch),
+        }))
+    }
+
+    /// Construct a null-coalescing expression.
+    pub fn null_coalesce(lhs: PaxExpression, rhs: PaxExpression) -> Self {
+        Self::NullCoalesce(Box::new(PaxNullCoalesce {
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        }))
     }
 }
 
@@ -181,6 +234,18 @@ pub struct PaxPrefix {
     rhs: Box<PaxExpression>,
 }
 
+impl PaxPrefix {
+    /// Name of the prefix operator.
+    pub fn operator_name(&self) -> &str {
+        &self.operator.name
+    }
+
+    /// Right-hand expression.
+    pub fn rhs(&self) -> &PaxExpression {
+        &self.rhs
+    }
+}
+
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 /// Binary infix operation with left and right expression operands.
 pub struct PaxInfix {
@@ -189,11 +254,40 @@ pub struct PaxInfix {
     rhs: Box<PaxExpression>,
 }
 
+impl PaxInfix {
+    /// Name of the infix operator.
+    pub fn operator_name(&self) -> &str {
+        &self.operator.name
+    }
+
+    /// Left-hand expression.
+    pub fn lhs(&self) -> &PaxExpression {
+        &self.lhs
+    }
+
+    /// Right-hand expression.
+    pub fn rhs(&self) -> &PaxExpression {
+        &self.rhs
+    }
+}
+
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 /// Postfix operation node.
 pub struct PaxPostfix {
     operator: PaxOperator,
     lhs: Box<PaxExpression>,
+}
+
+impl PaxPostfix {
+    /// Name of the postfix operator.
+    pub fn operator_name(&self) -> &str {
+        &self.operator.name
+    }
+
+    /// Left-hand expression.
+    pub fn lhs(&self) -> &PaxExpression {
+        &self.lhs
+    }
 }
 
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
@@ -213,10 +307,51 @@ pub struct PaxNullCoalesce {
     rhs: Box<PaxExpression>,
 }
 
+impl PaxTernary {
+    /// Condition expression.
+    pub fn condition(&self) -> &PaxExpression {
+        &self.condition
+    }
+
+    /// Expression evaluated when the condition is true.
+    pub fn then_branch(&self) -> &PaxExpression {
+        &self.then_branch
+    }
+
+    /// Expression evaluated when the condition is false.
+    pub fn else_branch(&self) -> &PaxExpression {
+        &self.else_branch
+    }
+}
+
+impl PaxNullCoalesce {
+    /// Left-hand expression.
+    pub fn lhs(&self) -> &PaxExpression {
+        &self.lhs
+    }
+
+    /// Right-hand fallback expression.
+    pub fn rhs(&self) -> &PaxExpression {
+        &self.rhs
+    }
+}
+
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
 /// Parsed operator token, stored by display name.
 pub struct PaxOperator {
     name: String,
+}
+
+impl PaxOperator {
+    /// Construct an operator from its source spelling.
+    pub fn new(name: impl Into<String>) -> Self {
+        Self { name: name.into() }
+    }
+
+    /// Source spelling for this operator.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
 }
 
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
@@ -241,6 +376,7 @@ impl PaxIdentifier {
 }
 
 /// Parse a pax expression into a computable AST
+#[cfg(feature = "parser")]
 pub fn parse_pax_expression(expr: &str) -> Result<PaxExpression, String> {
     let parsed_expr = parse_pax_pairs(Rule::expression_body, expr)
         .map_err(|e| format!("Failed to parse expression: {}", e))?;
@@ -249,11 +385,13 @@ pub fn parse_pax_expression(expr: &str) -> Result<PaxExpression, String> {
 }
 
 /// Parse an already-produced pest pair into a PAXEL expression AST.
+#[cfg(feature = "parser")]
 pub fn parse_pax_expression_from_pair(expr: Pair<Rule>) -> Result<PaxExpression, String> {
     let pratt_parser = get_pax_pratt_parser();
     recurse_pratt_parse(Pairs::single(expr), &pratt_parser)
 }
 
+#[cfg(feature = "parser")]
 fn recurse_pratt_parse(
     expr: Pairs<Rule>,
     pratt_parser: &PrattParser<Rule>,
@@ -550,6 +688,7 @@ fn recurse_pratt_parse(
 }
 
 /// Compute a pax expression to a PaxValue
+#[cfg(feature = "parser")]
 pub fn compute_paxel(expr: &str, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String> {
     let expr = parse_pax_expression(expr)?;
     expr.compute(idr)

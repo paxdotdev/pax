@@ -8,7 +8,7 @@ description = "Debug-mode-style extension to the Pax Engine runtime, enabling ru
 license = "MIT OR Apache-2.0"
 
 [features]
-default = ["serde", "serde_json", "pax-manifest/parsing"]
+default = ["serde", "serde_json", "pax-manifest/designtime"]
 
 [dependencies]
 anyhow = "1.0.79"

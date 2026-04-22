@@ -42,9 +42,7 @@ import { NativeMaskUpdatePatch } from "./classes/messages/native-mask-update-pat
 import { isIOSWebKitBrowser } from "./classes/surface-host-policy";
 
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
-let messages : any[];
 let nativePool = new NativeElementPool(objectManager);
-let textDecoder = new TextDecoder();
 let initializedChassis = false;
 let renderLoopStarting = false;
 let renderLoopStarted = false;
@@ -96,7 +94,7 @@ export function mount(selector_or_element: string | Element, extensionlessUrl: s
     }
 }
 
-async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxChassisWeb, get_latest_memory: ()=>any }> {
+async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxChassisWeb }> {
     try {
         const glueCodeModule = await import(`${extensionlessUrl}.js`) as typeof import("./types/pax-cartridge");
 
@@ -107,9 +105,7 @@ async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxC
         let chassis = await glueCodeModule.pax_init();
         window.chassis = chassis;
 
-        let get_latest_memory = glueCodeModule.wasm_memory;
-
-        return { chassis, get_latest_memory };
+        return { chassis };
     } catch (err) {
         throw new Error(`Failed to load WASM module: ${err}`);
     }
@@ -121,12 +117,12 @@ async function startRenderLoop(extensionlessUrl: string, mount: Element) {
     }
     renderLoopStarting = true;
     try {
-        let {chassis, get_latest_memory} = await loadWasmModule(extensionlessUrl);
+        let {chassis} = await loadWasmModule(extensionlessUrl);
         nativePool.attach(chassis, mount);
         initializeChassis(chassis, mount);
         renderLoopStarted = true;
         renderLoopStarting = false;
-        requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, get_latest_memory));
+        requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount));
     } catch (error) {
         renderLoopStarting = false;
         console.error("Failed to load or instantiate Wasm module:", error);
@@ -137,12 +133,12 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
     if (initializedChassis) {
         return;
     }
-    chassis.interrupt(JSON.stringify({
+    chassis.interrupt({
         "BrowserConfig": {
             "allow_scroller_vector_layers": true,
             "allow_nested_scroller_vector_layers": true,
         },
-    }), []);
+    }, []);
     let lastViewportWidth = -1;
     let lastViewportHeight = -1;
     let resizeHandler = () => {
@@ -177,20 +173,11 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
     initializedChassis = true;
 }
 
-function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: ()=>any) {
+function renderLoop (chassis: PaxChassisWeb, mount: Element) {
     initializeChassis(chassis, mount);
     withProfileMeasure("renderLoopFrame", () => {
         nativePool.sampleFrameInputs();
-        const memorySliceSpec = withProfileMeasure("tick", () => chassis.tick());
-        const latestMemory : WebAssembly.Memory = get_latest_memory();
-        const memoryBuffer = new Uint8Array(latestMemory.buffer);
-
-        // Extract the serialized data directly from memory
-        const jsonString = withProfileMeasure("decodeMessages", () =>
-            textDecoder.decode(memoryBuffer.subarray(memorySliceSpec.ptr(), memorySliceSpec.ptr() + memorySliceSpec.len())),
-        );
-        messages = withProfileMeasure("parseMessages", () => JSON.parse(jsonString));
-
+        const messages = withProfileMeasure("tick", () => chassis.tick());
         withProfileMeasure("processMessages", () => {
             processMessages(messages, chassis, objectManager);
         });
@@ -202,13 +189,9 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
             chassis.render();
         });
 
-        //necessary manual cleanup
-        withProfileMeasure("deallocateMessages", () => {
-            chassis.deallocate(memorySliceSpec);
-        });
     });
 
-    requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, get_latest_memory));
+    requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount));
 }
 
 

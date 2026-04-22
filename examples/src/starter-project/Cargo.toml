@@ -29,6 +29,7 @@ designtime = ["pax-kit/designtime"]
 designer = ["designtime", "pax-kit/designer"]
 parser = ["pax-kit/parser", "fireworks/parser", "color-picker/parser", "breakout/parser", "space-game/parser"]
 web = ["pax-kit/web"]
+webgl = ["pax-kit/webgl"]
 macos = ["pax-kit/macos"]
 ios = ["pax-kit/ios"]
 
