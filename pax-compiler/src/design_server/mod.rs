@@ -18,7 +18,7 @@ use crate::{RunContext, RunTarget};
 use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use pax_manifest::PaxManifest;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -43,6 +43,7 @@ pub struct AppState {
     active_websocket_client: Mutex<Option<ActiveWebsocketClient>>,
     websocket_client_counter: Mutex<usize>,
     request_id_counter: Mutex<usize>,
+    in_flight_dev_requests: Mutex<HashSet<String>>,
     manifest: Mutex<Option<PaxManifest>>,
     last_written_timestamp: Mutex<SystemTime>,
     dev_session: Mutex<Option<DevSession>>,
@@ -57,6 +58,7 @@ impl AppState {
             active_websocket_client: Mutex::new(None),
             websocket_client_counter: Mutex::new(0),
             request_id_counter: Mutex::new(0),
+            in_flight_dev_requests: Mutex::new(HashSet::new()),
             manifest: Mutex::new(None),
             last_written_timestamp: Mutex::new(UNIX_EPOCH),
             dev_session: Mutex::new(None),
@@ -75,6 +77,7 @@ impl AppState {
             active_websocket_client: Mutex::new(None),
             websocket_client_counter: Mutex::new(0),
             request_id_counter: Mutex::new(0),
+            in_flight_dev_requests: Mutex::new(HashSet::new()),
             manifest: Mutex::new(Some(manifest)),
             last_written_timestamp: Mutex::new(SystemTime::now()),
             dev_session: Mutex::new(dev_session),

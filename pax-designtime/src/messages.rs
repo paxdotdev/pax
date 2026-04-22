@@ -57,6 +57,7 @@ pub struct DevClientLookRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DevClientRawCapture {
     pub rgba_bytes: Vec<u8>,
+    pub compression: Option<String>,
     pub width: usize,
     pub height: usize,
     pub captured_at_ms: u128,

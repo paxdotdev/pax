@@ -20,6 +20,24 @@ export async function readImageToByteBuffer(imagePath: string): Promise<{ pixels
     return Promise.reject('Failed to fetch image after maximum retries.')
 }
 
+export const HIDDEN_TAB_FRAME_FALLBACK_MS = 250;
+
+export function waitForDocumentFrame(
+    targetDocument: Document = document,
+    hiddenDelayMs: number = HIDDEN_TAB_FRAME_FALLBACK_MS,
+): Promise<void> {
+    const view = targetDocument.defaultView;
+    const hidden = targetDocument.hidden || targetDocument.visibilityState === "hidden";
+    return new Promise<void>((resolve) => {
+        if (!hidden && view != null && typeof view.requestAnimationFrame === "function") {
+            view.requestAnimationFrame(() => resolve());
+            return;
+        }
+        const scheduleTimeout = view?.setTimeout?.bind(view) ?? globalThis.setTimeout.bind(globalThis);
+        scheduleTimeout(() => resolve(), hiddenDelayMs);
+    });
+}
+
 //Required due to Safari bug, unable to clip DOM elements to SVG=>`transform: matrix(...)` elements; see https://bugs.webkit.org/show_bug.cgi?id=126207
 //  and repro in this repo: `878576bf0e9`
 //Work-around is to manually affine-multiply coordinates of relevant elements and plot as `Path`s (without `transform`) in SVG.

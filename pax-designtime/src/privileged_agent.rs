@@ -8,13 +8,19 @@ use crate::{
 use anyhow::{anyhow, Result};
 use ewebsock::{WsEvent, WsMessage};
 use pax_manifest::{ComponentDefinition, PaxManifest};
+use std::time::{Duration, Instant};
 use url::Url;
 
+const WEBSOCKET_RECONNECT_DELAY: Duration = Duration::from_millis(500);
+
 pub struct WebSocketConnection {
-    sender: ewebsock::WsSender,
-    recver: ewebsock::WsReceiver,
+    url: String,
+    sender: Option<ewebsock::WsSender>,
+    recver: Option<ewebsock::WsReceiver>,
     label: String,
     pub alive: bool,
+    connecting: bool,
+    next_reconnect_at: Option<Instant>,
 }
 
 impl WebSocketConnection {
@@ -23,43 +29,27 @@ impl WebSocketConnection {
         versioning_prefix: Option<&str>,
         label: impl Into<String>,
     ) -> Result<Self> {
-        // Parse the address as a URL
-        let mut url = Url::parse(addr).map_err(|e| anyhow!("Invalid URL: {}", e))?;
-
-        // Change the scheme to 'ws' or 'wss' depending on the original scheme
-        let ws_scheme = match url.scheme() {
-            "http" => "ws",
-            "https" => "wss",
-            "ws" | "wss" => url.scheme(),
-            _ => return Err(anyhow!("Unsupported URL scheme: {}", url.scheme())),
-        }
-        .to_owned();
-
-        url.set_scheme(&ws_scheme)
-            .map_err(|_| anyhow!("Failed to set URL scheme"))?;
-
-        // Append the versioning prefix and '/ws' to the path
-        let versioning_prefix = versioning_prefix.unwrap_or("");
-        let new_path = format!("{}/ws", versioning_prefix);
-        url.set_path(&new_path);
-
-        let url_str = url.to_string();
-
-        // Connect using ewebsock
-        let (sender, recver) =
-            ewebsock::connect(url_str).map_err(|_| anyhow!("Couldn't create socket connection"))?;
+        let url = build_socket_url(addr, versioning_prefix)?;
+        let (sender, recver) = connect_socket(&url)?;
 
         Ok(Self {
-            sender,
-            recver,
+            url,
+            sender: Some(sender),
+            recver: Some(recver),
             label: label.into(),
+            // ewebsock can buffer outbound frames before the Opened event arrives, and existing
+            // designtime flows rely on being able to send immediately after constructing the socket.
             alive: true,
+            connecting: true,
+            next_reconnect_at: None,
         })
     }
 
     pub fn send_manifest_load_request(&mut self) -> Result<()> {
         let msg_bytes = rmp_serde::to_vec(&AgentMessage::LoadManifestRequest)?;
-        self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
+        self.sender()
+            .ok_or_else(|| anyhow!("design-server socket is not connected"))?
+            .send(ewebsock::WsMessage::Binary(msg_bytes));
         Ok(())
     }
 
@@ -69,7 +59,9 @@ impl WebSocketConnection {
             let msg_bytes = rmp_serde::to_vec(&AgentMessage::ComponentSerializationRequest(
                 ComponentSerializationRequest { component_bytes },
             ))?;
-            self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
+            self.sender()
+                .ok_or_else(|| anyhow!("design-server socket is not connected"))?
+                .send(ewebsock::WsMessage::Binary(msg_bytes));
             Ok(())
         } else {
             Err(anyhow!(
@@ -81,7 +73,9 @@ impl WebSocketConnection {
     pub fn send_llm_request(&mut self, llm_request: LLMRequest) -> Result<()> {
         if self.alive {
             let msg_bytes = rmp_serde::to_vec(&AgentMessage::LLMRequest(llm_request))?;
-            self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
+            self.sender()
+                .ok_or_else(|| anyhow!("pub pax socket is not connected"))?
+                .send(ewebsock::WsMessage::Binary(msg_bytes));
             Ok(())
         } else {
             Err(anyhow!(
@@ -98,7 +92,9 @@ impl WebSocketConnection {
                     data,
                 },
             ))?;
-            self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
+            self.sender()
+                .ok_or_else(|| anyhow!("design-server socket is not connected"))?
+                .send(ewebsock::WsMessage::Binary(msg_bytes));
             Ok(())
         } else {
             Err(anyhow!(
@@ -110,7 +106,9 @@ impl WebSocketConnection {
     pub fn send_dev_client_response(&mut self, response: DevClientResponse) -> Result<()> {
         if self.alive {
             let msg_bytes = rmp_serde::to_vec(&AgentMessage::DevClientResponse(response))?;
-            self.sender.send(ewebsock::WsMessage::Binary(msg_bytes));
+            self.sender()
+                .ok_or_else(|| anyhow!("design-server socket is not connected"))?
+                .send(ewebsock::WsMessage::Binary(msg_bytes));
             Ok(())
         } else {
             Err(anyhow!(
@@ -120,10 +118,15 @@ impl WebSocketConnection {
     }
 
     pub fn handle_recv(&mut self, manager: &mut PaxManifestORM) -> Result<Vec<AgentMessage>> {
+        self.reconnect_if_needed();
+
         let mut passthrough_messages = vec![];
-        while let Some(event) = self.recver.try_recv() {
+        while let Some(event) = self.recver.as_ref().and_then(|recver| recver.try_recv()) {
             match event {
                 WsEvent::Opened => {
+                    self.alive = true;
+                    self.connecting = false;
+                    self.next_reconnect_at = None;
                     self.send_manifest_load_request()?;
                 }
                 WsEvent::Message(message) => {
@@ -157,13 +160,117 @@ impl WebSocketConnection {
                         }
                     }
                 }
-                WsEvent::Error(e) => log::warn!("{} web socket error: {e}", self.label),
+                WsEvent::Error(e) => {
+                    log::warn!("{} web socket error: {e}", self.label);
+                    self.schedule_reconnect();
+                }
                 WsEvent::Closed => {
-                    self.alive = false;
-                    log::warn!("{} web socket was closed", self.label)
+                    log::warn!("{} web socket was closed", self.label);
+                    self.schedule_reconnect();
                 }
             }
         }
         Ok(passthrough_messages)
+    }
+
+    fn sender(&mut self) -> Option<&mut ewebsock::WsSender> {
+        self.sender.as_mut()
+    }
+
+    fn schedule_reconnect(&mut self) {
+        self.sender = None;
+        self.recver = None;
+        self.alive = false;
+        self.connecting = false;
+        if self.next_reconnect_at.is_none() {
+            self.next_reconnect_at = Some(Instant::now() + WEBSOCKET_RECONNECT_DELAY);
+        }
+    }
+
+    fn reconnect_if_needed(&mut self) {
+        if self.alive || self.connecting {
+            return;
+        }
+        let Some(next_reconnect_at) = self.next_reconnect_at else {
+            return;
+        };
+        if Instant::now() < next_reconnect_at {
+            return;
+        }
+
+        match connect_socket(&self.url) {
+            Ok((sender, recver)) => {
+                self.sender = Some(sender);
+                self.recver = Some(recver);
+                // Preserve immediate-send behavior across reconnect attempts as well.
+                self.alive = true;
+                self.connecting = true;
+                self.next_reconnect_at = None;
+                log::info!("{} reconnecting to {}", self.label, self.url);
+            }
+            Err(err) => {
+                log::warn!("{} reconnect failed: {err}", self.label);
+                self.next_reconnect_at = Some(Instant::now() + WEBSOCKET_RECONNECT_DELAY);
+            }
+        }
+    }
+}
+
+fn build_socket_url(addr: &str, versioning_prefix: Option<&str>) -> Result<String> {
+    let mut url = Url::parse(addr).map_err(|e| anyhow!("Invalid URL: {}", e))?;
+
+    let ws_scheme = match url.scheme() {
+        "http" => "ws",
+        "https" => "wss",
+        "ws" | "wss" => url.scheme(),
+        _ => return Err(anyhow!("Unsupported URL scheme: {}", url.scheme())),
+    }
+    .to_owned();
+
+    url.set_scheme(&ws_scheme)
+        .map_err(|_| anyhow!("Failed to set URL scheme"))?;
+
+    let versioning_prefix = versioning_prefix.unwrap_or("");
+    let new_path = format!("{}/ws", versioning_prefix);
+    url.set_path(&new_path);
+
+    Ok(url.to_string())
+}
+
+fn connect_socket(url: &str) -> Result<(ewebsock::WsSender, ewebsock::WsReceiver)> {
+    ewebsock::connect_with_wakeup(url.to_owned(), wake_designtime_loop)
+        .map_err(|err| anyhow!("Couldn't create socket connection: {err}"))
+}
+
+#[cfg(target_arch = "wasm32")]
+fn wake_designtime_loop() {
+    if let Some(window) = web_sys::window() {
+        if let Ok(event) = web_sys::Event::new("pax-designtime-wakeup") {
+            let _ = window.dispatch_event(&event);
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn wake_designtime_loop() {}
+
+#[cfg(test)]
+mod tests {
+    use super::build_socket_url;
+
+    #[test]
+    fn builds_websocket_url_from_http_origin() {
+        assert_eq!(
+            build_socket_url("http://127.0.0.1:8080", None).unwrap(),
+            "ws://127.0.0.1:8080/ws"
+        );
+    }
+
+    #[test]
+    fn preserves_version_prefix_when_building_websocket_url() {
+        assert_eq!(
+            build_socket_url("https://pub.pax.dev", Some("/v0")).unwrap(),
+            "wss://pub.pax.dev/v0/ws"
+        );
     }
 }

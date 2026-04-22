@@ -22,9 +22,11 @@ import {
 } from "../pools/supported-objects";
 import {
     affineMultiply,
+    HIDDEN_TAB_FRAME_FALLBACK_MS,
     invertAffineCoeffs,
     packAffineCoeffsIntoMatrix3DString,
     readImageToByteBuffer,
+    waitForDocumentFrame,
 } from "../utils/helpers";
 import {
     ColorGroup,
@@ -87,6 +89,7 @@ export class NativeElementPool {
     private pageSnapOwnerScrollerId?: number;
     private pageScrollActivityListenersInstalled = false;
     private readonly pageScrollActivityListener: () => void;
+    private postAsyncInterruptFlush?: () => void;
     private objectManager: ObjectManager;
     private resizeObserver: ResizeObserver;
     registeredFontFaces: Set<string>;
@@ -133,6 +136,10 @@ export class NativeElementPool {
         );
         this.canvasPool.attach(mount);
         this.layers.attach(mount, this.canvases, this.canvasPool);
+    }
+
+    setPostAsyncInterruptFlush(callback: (() => void) | undefined) {
+        this.postAsyncInterruptFlush = callback;
     }
 
     hasActivePageScrollDelegation() {
@@ -2664,6 +2671,9 @@ export class NativeElementPool {
 
             chassis.interrupt(message, pixels);
             responded = true;
+            if (document.hidden) {
+                this.postAsyncInterruptFlush?.();
+            }
         };
 
         try {
@@ -2677,6 +2687,7 @@ export class NativeElementPool {
             canvas = document.createElement('canvas');
             canvas.width = Math.max(1, Math.round(mount.clientWidth * scale));
             canvas.height = Math.max(1, Math.round(mount.clientHeight * scale));
+            const useHiddenTabCanvasFallback = document.hidden;
 
             ctx = canvas.getContext('2d');
             if (!ctx) {
@@ -2705,24 +2716,27 @@ export class NativeElementPool {
                 }, [])
                 .sort(compareScreenshotCanvasLayers);
 
-            const requestId = patch.id!;
             const canvasLayerKeys = new Map<number, Set<string>>();
-            for (const { layerId, key } of canvasLayers) {
-                let layerKeys = canvasLayerKeys.get(layerId);
-                if (layerKeys == null) {
-                    layerKeys = new Set<string>();
-                    canvasLayerKeys.set(layerId, layerKeys);
+            const requestId = patch.id!;
+            if (!useHiddenTabCanvasFallback) {
+                for (const { layerId, key } of canvasLayers) {
+                    let layerKeys = canvasLayerKeys.get(layerId);
+                    if (layerKeys == null) {
+                        layerKeys = new Set<string>();
+                        canvasLayerKeys.set(layerId, layerKeys);
+                    }
+                    layerKeys.add(key);
                 }
-                layerKeys.add(key);
             }
 
             for (const layerId of canvasLayerKeys.keys()) {
                 chassis.request_layer_screenshot(layerId, requestId);
             }
 
-            const nextAnimationFrame = () => new Promise<void>((resolve) => {
-                window.requestAnimationFrame(() => resolve());
-            });
+            const nextAnimationFrame = () => waitForDocumentFrame(
+                document,
+                HIDDEN_TAB_FRAME_FALLBACK_MS,
+            );
             const waitForPaint = async (frames: number = 1) => {
                 for (let frame = 0; frame < frames; frame += 1) {
                     await nextAnimationFrame();
@@ -2861,26 +2875,35 @@ export class NativeElementPool {
                 return captures;
             };
 
-            await waitForRegisteredFonts();
-            await waitForPaint(2);
-
-            const surfaceScreenshots = new Map<string, LayerSurfaceScreenshotData>();
-            for (const [layerId, expectedKeys] of canvasLayerKeys) {
-                const screenshots = await waitForLayerSurfaceScreenshots(layerId, expectedKeys);
-                screenshots.forEach((screenshot, key) => {
-                    surfaceScreenshots.set(layerSurfaceScreenshotKey(layerId, key), screenshot);
-                });
-            }
-
-            for (const layer of canvasLayers) {
-                const screenshot = surfaceScreenshots.get(
-                    layerSurfaceScreenshotKey(layer.layerId, layer.key),
-                );
-                if (screenshot === undefined) {
+            if (useHiddenTabCanvasFallback) {
+                // Hidden tabs can stop servicing off-screen render/screenshot requests. Fall back to
+                // the mounted DOM canvases plus native/text fallbacks, which preserves the last
+                // active visual state without depending on background rendering support.
+                for (const layer of canvasLayers) {
                     drawLayerCanvasFallback(layer);
-                    continue;
                 }
-                drawLayerSurfaceScreenshot(layer, screenshot);
+            } else {
+                await waitForRegisteredFonts();
+                await waitForPaint(2);
+
+                const surfaceScreenshots = new Map<string, LayerSurfaceScreenshotData>();
+                for (const [layerId, expectedKeys] of canvasLayerKeys) {
+                    const screenshots = await waitForLayerSurfaceScreenshots(layerId, expectedKeys);
+                    screenshots.forEach((screenshot, key) => {
+                        surfaceScreenshots.set(layerSurfaceScreenshotKey(layerId, key), screenshot);
+                    });
+                }
+
+                for (const layer of canvasLayers) {
+                    const screenshot = surfaceScreenshots.get(
+                        layerSurfaceScreenshotKey(layer.layerId, layer.key),
+                    );
+                    if (screenshot === undefined) {
+                        drawLayerCanvasFallback(layer);
+                        continue;
+                    }
+                    drawLayerSurfaceScreenshot(layer, screenshot);
+                }
             }
 
             const hasNativeOverlayContent = Array
@@ -2888,20 +2911,24 @@ export class NativeElementPool {
                 .some((element) => element.childElementCount > 0);
 
             if (hasNativeOverlayContent) {
-                const overlayRoot = Array
-                    .from(mount.children)
-                    .find((element) => element instanceof HTMLElement && element.classList.contains(NATIVE_OVERLAY_CLASS));
-                const overlayCanvas = await captureTransparentNativeOverlay(
-                    (overlayRoot ?? mount) as HTMLElement,
-                    mount,
-                    scale,
-                ).catch((err) => {
-                    console.warn('Proceeding without native overlay capture', err);
-                    return null;
-                });
-                if (overlayCanvas) {
-                    ctx.drawImage(overlayCanvas, 0, 0, canvas.width, canvas.height);
+                if (!document.hidden) {
+                    const overlayRoot = Array
+                        .from(mount.children)
+                        .find((element) => element instanceof HTMLElement && element.classList.contains(NATIVE_OVERLAY_CLASS));
+                    const overlayCanvas = await captureTransparentNativeOverlay(
+                        (overlayRoot ?? mount) as HTMLElement,
+                        mount,
+                        scale,
+                    ).catch((err) => {
+                        console.warn('Proceeding without native overlay capture', err);
+                        return null;
+                    });
+                    if (overlayCanvas) {
+                        ctx.drawImage(overlayCanvas, 0, 0, canvas.width, canvas.height);
+                    }
                 }
+                // html2canvas can stall in background tabs; the control/text fallbacks keep `pax dev look`
+                // responsive even when the inspected page is hidden.
                 drawNativeControlFallbacks(ctx, mount, canvas.width, canvas.height);
                 drawPlainTextNativeLeaves(ctx, mount, canvas.width, canvas.height);
             }
@@ -3479,14 +3506,7 @@ function restoreClonedScrollerPositions(
 }
 
 function waitForClonedAnimationFrame(clonedDocument: Document) {
-    const view = clonedDocument.defaultView;
-    return new Promise<void>((resolve) => {
-        if (view == null || typeof view.requestAnimationFrame !== "function") {
-            resolve();
-            return;
-        }
-        view.requestAnimationFrame(() => resolve());
-    });
+    return waitForDocumentFrame(clonedDocument, HIDDEN_TAB_FRAME_FALLBACK_MS);
 }
 
 function reconstructTransparentOverlay(

@@ -14,6 +14,7 @@ use pax_runtime::designtime_support::{
 
 use crate::read_dev_console_entries_json;
 use crate::PaxChassisWeb;
+use miniz_oxide::deflate::compress_to_vec_zlib;
 
 pub(super) struct PendingWebDevLookRequest {
     pub request: DevClientLookRequest,
@@ -234,8 +235,15 @@ impl PaxChassisWeb {
 
             pending_request.capture_in_flight = None;
             let captured_at_ms = web_dev_now_ms();
+            let compressed_bytes = compress_to_vec_zlib(&screenshot.data, 6);
+            let (rgba_bytes, compression) = if compressed_bytes.len() < screenshot.data.len() {
+                (compressed_bytes, Some("zlib".to_string()))
+            } else {
+                (screenshot.data, None)
+            };
             pending_request.captures.push(DevClientRawCapture {
-                rgba_bytes: screenshot.data,
+                rgba_bytes,
+                compression,
                 width: screenshot.width,
                 height: screenshot.height,
                 captured_at_ms,

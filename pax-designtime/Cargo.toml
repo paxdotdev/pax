@@ -35,6 +35,8 @@ url = "^2"
 version = "0.3.4"
 features = [
   'Headers',
+  'Event',
+  'EventTarget',
   'Request',
   'RequestInit',
   'RequestMode',

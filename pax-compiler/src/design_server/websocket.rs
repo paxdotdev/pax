@@ -16,6 +16,7 @@ use actix_web_actors::ws::{self};
 use image::codecs::jpeg::JpegEncoder;
 use image::codecs::png::PngEncoder;
 use image::{ColorType, ImageBuffer, ImageEncoder, Rgba};
+use miniz_oxide::inflate::decompress_to_vec_zlib;
 use pax_designtime::messages::{
     AgentMessage, ComponentSerializationRequest, DevClientInspectTreeRequest, DevClientLogsRequest,
     DevClientLookRequest, DevClientRayCastRequest, DevClientReplaceNodeRequest, DevClientResponse,
@@ -23,16 +24,27 @@ use pax_designtime::messages::{
     LoadManifestResponse, ManifestSerializationRequest, UpdateTemplateRequest,
 };
 use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
-use std::{collections::HashMap, fs, io::BufWriter, path::Path, time::Duration};
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    fs,
+    io::BufWriter,
+    path::Path,
+    time::{Duration, Instant},
+};
 
 pub mod socket_message_accumulator;
 
 pub use socket_message_accumulator::SocketMessageAccumulator;
 
+const WEBSOCKET_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
+const WEBSOCKET_CLIENT_TIMEOUT: Duration = Duration::from_secs(15);
+
 pub struct PrivilegedAgentWebSocket {
     state: Data<AppState>,
     socket_msg_accum: SocketMessageAccumulator,
     connection_id: Option<usize>,
+    last_heartbeat: Instant,
 }
 
 struct DisconnectSuperseded;
@@ -47,6 +59,7 @@ impl PrivilegedAgentWebSocket {
             state,
             socket_msg_accum: SocketMessageAccumulator::new(),
             connection_id: None,
+            last_heartbeat: Instant::now(),
         }
     }
 
@@ -114,6 +127,15 @@ impl PrivilegedAgentWebSocket {
                 .and_then(|value| value.to_str())
                 .unwrap_or("unknown-request")
                 .to_string();
+            if self
+                .state
+                .in_flight_dev_requests
+                .lock()
+                .unwrap()
+                .contains(&request_id)
+            {
+                continue;
+            }
             let request_bytes = match fs::read(&path) {
                 Ok(request_bytes) => request_bytes,
                 Err(err) => {
@@ -303,7 +325,11 @@ impl PrivilegedAgentWebSocket {
             match rmp_serde::to_vec(&forwarded_message) {
                 Ok(serialized_message) => {
                     ctx.binary(serialized_message);
-                    let _ = fs::remove_file(&path);
+                    self.state
+                        .in_flight_dev_requests
+                        .lock()
+                        .unwrap()
+                        .insert(request_envelope.request_id.clone());
                 }
                 Err(err) => {
                     let _ = write_dev_error_response(
@@ -349,6 +375,19 @@ impl Actor for PrivilegedAgentWebSocket {
         }
 
         self.refresh_dev_session_registration();
+        ctx.run_interval(WEBSOCKET_HEARTBEAT_INTERVAL, |actor, ctx| {
+            if Instant::now().duration_since(actor.last_heartbeat) > WEBSOCKET_CLIENT_TIMEOUT {
+                log::warn!("timed out waiting for a heartbeat from the Pax dev browser client");
+                ctx.close(Some(ws::CloseReason {
+                    code: ws::CloseCode::Policy,
+                    description: Some("Timed out waiting for websocket heartbeat".to_string()),
+                }));
+                ctx.stop();
+                return;
+            }
+
+            ctx.ping(b"pax-dev-heartbeat");
+        });
         ctx.run_interval(Duration::from_millis(50), |actor, ctx| {
             actor.poll_dev_requests(ctx);
         });
@@ -368,6 +407,7 @@ impl Actor for PrivilegedAgentWebSocket {
         drop(active_client);
 
         if was_active_client {
+            self.state.in_flight_dev_requests.lock().unwrap().clear();
             if let Some(dev_session) = self.state.dev_session.lock().unwrap().as_ref() {
                 let _ = dev_session::remove_registered_session(&dev_session.session_id);
             }
@@ -458,6 +498,25 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
             eprintln!("failed to receive on socket");
             return;
         };
+
+        match &msg {
+            ws::Message::Ping(bytes) => {
+                self.last_heartbeat = Instant::now();
+                ctx.pong(bytes);
+                return;
+            }
+            ws::Message::Pong(_) => {
+                self.last_heartbeat = Instant::now();
+                return;
+            }
+            ws::Message::Close(reason) => {
+                self.last_heartbeat = Instant::now();
+                ctx.close(reason.clone());
+                ctx.stop();
+                return;
+            }
+            _ => {}
+        }
 
         let processed_message = self.socket_msg_accum.process(msg);
         if let Ok(Some(bin_data)) = processed_message {
@@ -605,7 +664,8 @@ fn handle_dev_client_response(
             })?;
 
             let captures = write_dev_look_capture_files(&pending_request, &response.captures)?;
-            write_dev_json_response(
+            write_and_finalize_dev_response(
+                state,
                 &dev_session,
                 &request_id,
                 &DevLookResponse {
@@ -618,7 +678,8 @@ fn handle_dev_client_response(
         }
         DevClientResponse::InspectTree(response) => {
             let request_id = response.request_id.clone();
-            write_dev_json_response(
+            write_and_finalize_dev_response(
+                state,
                 &dev_session,
                 &request_id,
                 &DevInspectTreeResponse {
@@ -632,7 +693,8 @@ fn handle_dev_client_response(
         }
         DevClientResponse::RayCast(response) => {
             let request_id = response.request_id.clone();
-            write_dev_json_response(
+            write_and_finalize_dev_response(
+                state,
                 &dev_session,
                 &request_id,
                 &DevRayCastResponse {
@@ -649,7 +711,8 @@ fn handle_dev_client_response(
         }
         DevClientResponse::SelectorQuery(response) => {
             let request_id = response.request_id.clone();
-            write_dev_json_response(
+            write_and_finalize_dev_response(
+                state,
                 &dev_session,
                 &request_id,
                 &DevSelectorQueryResponse {
@@ -664,7 +727,8 @@ fn handle_dev_client_response(
         }
         DevClientResponse::ReplaceNode(response) => {
             let request_id = response.request_id.clone();
-            write_dev_json_response(
+            write_and_finalize_dev_response(
+                state,
                 &dev_session,
                 &request_id,
                 &DevReplaceNodeResponse {
@@ -681,7 +745,8 @@ fn handle_dev_client_response(
         }
         DevClientResponse::Logs(response) => {
             let request_id = response.request_id.clone();
-            write_dev_json_response(
+            write_and_finalize_dev_response(
+                state,
                 &dev_session,
                 &request_id,
                 &DevLogsResponse {
@@ -706,6 +771,42 @@ fn handle_dev_client_response(
     }
 }
 
+fn finalize_in_flight_dev_request(
+    state: &Data<AppState>,
+    dev_session: &crate::dev_session::DevSession,
+    request_id: &str,
+) -> std::io::Result<()> {
+    let request_path = session_request_dir(dev_session)
+        .map_err(report_to_io)?
+        .join(format!("{request_id}.json"));
+    let _ = fs::remove_file(request_path);
+    state
+        .in_flight_dev_requests
+        .lock()
+        .unwrap()
+        .remove(request_id);
+    Ok(())
+}
+
+fn write_and_finalize_dev_response<T: serde::Serialize>(
+    state: &Data<AppState>,
+    dev_session: &crate::dev_session::DevSession,
+    request_id: &str,
+    response: &T,
+) -> std::io::Result<()> {
+    match write_dev_json_response(dev_session, request_id, response) {
+        Ok(()) => finalize_in_flight_dev_request(state, dev_session, request_id),
+        Err(err) => {
+            state
+                .in_flight_dev_requests
+                .lock()
+                .unwrap()
+                .remove(request_id);
+            Err(err)
+        }
+    }
+}
+
 fn write_dev_look_capture_files(
     request: &DevLookRequest,
     raw_captures: &[pax_designtime::messages::DevClientRawCapture],
@@ -722,9 +823,10 @@ fn write_dev_look_capture_files(
         let capture_path = request
             .output_dir
             .join(format!("{capture_index:04}.{extension}"));
+        let rgba_bytes = decode_dev_capture_rgba(raw_capture)?;
         write_encoded_capture_file(
             &capture_path,
-            &raw_capture.rgba_bytes,
+            rgba_bytes.as_ref(),
             raw_capture.width,
             raw_capture.height,
             &request.format,
@@ -739,6 +841,26 @@ fn write_dev_look_capture_files(
     }
 
     Ok(captures)
+}
+
+fn decode_dev_capture_rgba(
+    raw_capture: &pax_designtime::messages::DevClientRawCapture,
+) -> std::io::Result<Cow<'_, [u8]>> {
+    match raw_capture.compression.as_deref() {
+        None => Ok(Cow::Borrowed(&raw_capture.rgba_bytes)),
+        Some("zlib") => decompress_to_vec_zlib(&raw_capture.rgba_bytes)
+            .map(Cow::Owned)
+            .map_err(|err| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("failed to inflate zlib-compressed capture: {err}"),
+                )
+            }),
+        Some(other) => Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("unsupported dev capture compression: {other}"),
+        )),
+    }
 }
 
 fn write_encoded_capture_file(

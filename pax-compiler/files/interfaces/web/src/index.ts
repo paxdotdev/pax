@@ -40,12 +40,16 @@ import { YoutubeVideoUpdatePatch } from "./classes/messages/youtube-video-update
 import { ScreenshotPatch } from "./classes/messages/screenshot-patch";
 import { NativeMaskUpdatePatch } from "./classes/messages/native-mask-update-patch";
 import { isIOSWebKitBrowser } from "./classes/surface-host-policy";
+import { HIDDEN_TAB_FRAME_FALLBACK_MS } from "./utils/helpers";
 
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let nativePool = new NativeElementPool(objectManager);
 let initializedChassis = false;
 let renderLoopStarting = false;
 let renderLoopStarted = false;
+let frameInProgress = false;
+let hiddenTabPumpHandle: number | null = null;
+let pendingAsyncInterruptFlush = false;
 const perfTraceEnabled = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("pax_scroll_perf");
 let perfTraceSequence = 0;
 
@@ -119,7 +123,9 @@ async function startRenderLoop(extensionlessUrl: string, mount: Element) {
     try {
         let {chassis} = await loadWasmModule(extensionlessUrl);
         nativePool.attach(chassis, mount);
+        nativePool.setPostAsyncInterruptFlush(() => requestFrameFlush(chassis, mount));
         initializeChassis(chassis, mount);
+        ensureHiddenTabPump(chassis, mount);
         renderLoopStarted = true;
         renderLoopStarting = false;
         requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount));
@@ -173,23 +179,72 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
     initializedChassis = true;
 }
 
+function ensureHiddenTabPump(chassis: PaxChassisWeb, mount: Element) {
+    if (hiddenTabPumpHandle !== null) {
+        return;
+    }
+
+    // Background tabs can throttle requestAnimationFrame heavily enough that designtime websocket
+    // requests appear to hang. Keep a lightweight timer-driven pump alive so `pax dev` stays
+    // responsive even when the inspected tab is not frontmost.
+    const pumpHiddenFrame = () => {
+        if (!document.hidden) {
+            return;
+        }
+        requestFrameFlush(chassis, mount);
+    };
+
+    document.addEventListener("visibilitychange", pumpHiddenFrame);
+    window.addEventListener("pax-designtime-wakeup", () => {
+        if (!document.hidden) {
+            return;
+        }
+        requestFrameFlush(chassis, mount);
+    });
+    hiddenTabPumpHandle = window.setInterval(pumpHiddenFrame, HIDDEN_TAB_FRAME_FALLBACK_MS);
+}
+
+function requestFrameFlush(chassis: PaxChassisWeb, mount: Element) {
+    if (frameInProgress) {
+        pendingAsyncInterruptFlush = true;
+        return;
+    }
+    runFrame(chassis, mount);
+}
+
+function runFrame(chassis: PaxChassisWeb, mount: Element) {
+    if (frameInProgress) {
+        return;
+    }
+    frameInProgress = true;
+    try {
+        initializeChassis(chassis, mount);
+        withProfileMeasure("renderLoopFrame", () => {
+            nativePool.sampleFrameInputs();
+            const messages = withProfileMeasure("tick", () => chassis.tick());
+            withProfileMeasure("processMessages", () => {
+                processMessages(messages, chassis, objectManager);
+            });
+            withProfileMeasure("syncRenderSurfaceLayoutsPhase", () => {
+                nativePool.syncRenderSurfaceLayouts();
+            });
+            // draw canvas elements
+            withProfileMeasure("render", () => {
+                chassis.render();
+            });
+        });
+    } finally {
+        frameInProgress = false;
+        if (pendingAsyncInterruptFlush) {
+            pendingAsyncInterruptFlush = false;
+            queueMicrotask(() => requestFrameFlush(chassis, mount));
+        }
+    }
+}
+
 function renderLoop (chassis: PaxChassisWeb, mount: Element) {
     initializeChassis(chassis, mount);
-    withProfileMeasure("renderLoopFrame", () => {
-        nativePool.sampleFrameInputs();
-        const messages = withProfileMeasure("tick", () => chassis.tick());
-        withProfileMeasure("processMessages", () => {
-            processMessages(messages, chassis, objectManager);
-        });
-        withProfileMeasure("syncRenderSurfaceLayoutsPhase", () => {
-            nativePool.syncRenderSurfaceLayouts();
-        });
-        //draw canvas elements
-        withProfileMeasure("render", () => {
-            chassis.render();
-        });
-
-    });
+    runFrame(chassis, mount);
 
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount));
 }
