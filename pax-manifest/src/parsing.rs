@@ -44,13 +44,11 @@ fn recurse_visit_tag_pairs_for_template(
         Rule::matched_tag => {
             //matched_tag => open_tag > pascal_identifier
             let matched_tag = any_tag_pair;
-            let mut open_tag = matched_tag
-                .clone()
-                .into_inner()
-                .next()
-                .unwrap()
-                .into_inner();
+            let open_tag_pair = matched_tag.clone().into_inner().next().unwrap();
+            let source_location = Some(span_to_location(&open_tag_pair.as_span()));
+            let mut open_tag = open_tag_pair.into_inner();
             let pascal_identifier = open_tag.next().unwrap().as_str();
+            let settings = parse_inline_attribute_from_final_pairs_of_tag(open_tag);
 
             let template_node = TemplateNodeDefinition {
                 type_id: TypeId::build_singleton(
@@ -60,7 +58,11 @@ fn recurse_visit_tag_pairs_for_template(
                         .to_string(),
                     Some(&pascal_identifier.to_string()),
                 ),
-                settings: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
+                settings: settings.clone(),
+                selector_info: TemplateNodeSelectorInfo::from_inline_settings(
+                    source_location,
+                    &settings,
+                ),
                 raw_comment_string: None,
                 control_flow_settings: None,
             };
@@ -90,6 +92,7 @@ fn recurse_visit_tag_pairs_for_template(
             }
         }
         Rule::self_closing_tag => {
+            let source_location = Some(span_to_location(&any_tag_pair.as_span()));
             let mut tag_pairs = any_tag_pair.into_inner();
             let pascal_identifier = tag_pairs.next().unwrap().as_str();
 
@@ -100,9 +103,14 @@ fn recurse_visit_tag_pairs_for_template(
             } else {
                 TypeId::build_blank_component(pascal_identifier)
             };
+            let settings = parse_inline_attribute_from_final_pairs_of_tag(tag_pairs);
             let template_node = TemplateNodeDefinition {
                 type_id,
-                settings: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs),
+                settings: settings.clone(),
+                selector_info: TemplateNodeSelectorInfo::from_inline_settings(
+                    source_location,
+                    &settings,
+                ),
                 raw_comment_string: None,
                 control_flow_settings: None,
             };
@@ -122,6 +130,7 @@ fn recurse_visit_tag_pairs_for_template(
                         control_flow_settings: Some(ControlFlowSettingsDefinition::default()),
                         type_id: TypeId::build_if(),
                         settings: None,
+                        selector_info: Default::default(),
                         raw_comment_string: None,
                     };
 
@@ -262,6 +271,7 @@ fn recurse_visit_tag_pairs_for_template(
                         type_id: TypeId::build_repeat(),
                         control_flow_settings: Some(cfavd),
                         settings: None,
+                        selector_info: Default::default(),
                         raw_comment_string: None,
                     };
 
@@ -298,6 +308,7 @@ fn recurse_visit_tag_pairs_for_template(
                         }),
                         type_id: TypeId::build_slot(),
                         settings: None,
+                        selector_info: Default::default(),
                         raw_comment_string: None,
                     };
 
@@ -316,6 +327,7 @@ fn recurse_visit_tag_pairs_for_template(
                 control_flow_settings: None,
                 type_id: TypeId::build_comment(),
                 settings: None,
+                selector_info: Default::default(),
                 raw_comment_string: Some(any_tag_pair.as_str().to_string()),
             };
             let _ = match location {

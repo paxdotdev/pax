@@ -155,6 +155,11 @@ fn sanitize_template_node(node: &TemplateNodeDefinition) -> Option<TemplateNodeD
         type_id: node.type_id.clone(),
         control_flow_settings: node.control_flow_settings.clone(),
         settings: node.settings.as_ref().map(sanitize_setting_elements),
+        selector_info: crate::TemplateNodeSelectorInfo {
+            source_location: node.selector_info.source_location.clone(),
+            id: node.selector_info.id.as_ref().map(strip_token),
+            classes: node.selector_info.classes.iter().map(strip_token).collect(),
+        },
         raw_comment_string: None,
     })
 }
@@ -360,6 +365,7 @@ mod tests {
             type_id: TypeId::build_comment(),
             control_flow_settings: None,
             settings: None,
+            selector_info: Default::default(),
             raw_comment_string: Some("// comment".to_string()),
         });
 
@@ -385,6 +391,7 @@ mod tests {
                     }),
                 ),
             ]),
+            selector_info: Default::default(),
             raw_comment_string: None,
         });
 

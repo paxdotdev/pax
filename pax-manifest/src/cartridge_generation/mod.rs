@@ -3,9 +3,9 @@ use std::collections::{BTreeMap, HashMap};
 
 use crate::{
     constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_TYPE},
-    PaxManifest, PropertyDefinition, SettingElement, SettingsBlockElement, TemplateNodeDefinition,
-    TimelineBlockElement, TimelineDefinition, TimelineSelectorElement, TransitionDefinition,
-    TypeId, ValueDefinition,
+    PaxManifest, PropertyDefinition, SelectorExpr, SettingElement, SettingsBlockElement,
+    TemplateNodeDefinition, TimelineBlockElement, TimelineDefinition, TimelineSelectorElement,
+    TransitionDefinition, TypeId, ValueDefinition,
 };
 
 pub const TRANSITION_PHASE_IDLE: u64 = 0;
@@ -193,8 +193,7 @@ impl PaxManifest {
         tnd: &TemplateNodeDefinition,
     ) -> BTreeMap<String, ValueDefinition> {
         let component = self.components.get(&containing_component_type_id).unwrap();
-        let settings =
-            Self::merge_inline_settings_with_settings_block(&tnd.settings, &component.settings);
+        let settings = Self::merge_inline_settings_with_settings_block(tnd, &component.settings);
         let mut map = BTreeMap::new();
         if let Some(settings) = &settings {
             for setting in settings {
@@ -229,8 +228,7 @@ impl PaxManifest {
         tnd: &TemplateNodeDefinition,
     ) -> BTreeMap<String, ValueDefinition> {
         let component = self.components.get(containing_component_type_id).unwrap();
-        let settings =
-            Self::merge_inline_settings_with_settings_block(&tnd.settings, &component.settings);
+        let settings = Self::merge_inline_settings_with_settings_block(tnd, &component.settings);
         let mut map = BTreeMap::new();
         if let Some(settings) = &settings {
             for setting in settings {
@@ -308,22 +306,52 @@ impl PaxManifest {
 
     fn pull_settings_with_selector(
         settings: &Option<Vec<SettingsBlockElement>>,
-        selector: String,
-    ) -> Option<Vec<SettingElement>> {
-        settings.as_ref().and_then(|val| {
-            let mut merged_setting = Vec::new();
-            for settings_value in val.iter() {
-                match settings_value {
-                    SettingsBlockElement::SelectorBlock(token, value) => {
-                        if token.token_value == selector {
-                            merged_setting.extend(value.elements.clone());
-                        }
+        selector: &SelectorExpr,
+    ) -> Vec<SettingElement> {
+        settings
+            .as_ref()
+            .map(|val| {
+                let mut merged_setting = Vec::new();
+                for settings_value in val.iter() {
+                    let SettingsBlockElement::SelectorBlock(token, value) = settings_value else {
+                        continue;
+                    };
+                    let Ok(candidate) = SelectorExpr::parse(&token.token_value) else {
+                        continue;
+                    };
+                    if &candidate == selector {
+                        merged_setting.extend(value.elements.clone());
                     }
-                    _ => {}
                 }
-            }
-            (!merged_setting.is_empty()).then(|| merged_setting)
-        })
+                merged_setting
+            })
+            .unwrap_or_default()
+    }
+
+    fn pull_type_settings_for_node(
+        settings: &Option<Vec<SettingsBlockElement>>,
+        tnd: &TemplateNodeDefinition,
+    ) -> Vec<SettingElement> {
+        settings
+            .as_ref()
+            .map(|val| {
+                let mut merged_setting = Vec::new();
+                for settings_value in val.iter() {
+                    let SettingsBlockElement::SelectorBlock(token, value) = settings_value else {
+                        continue;
+                    };
+                    let Ok(selector) = SelectorExpr::parse(&token.token_value) else {
+                        continue;
+                    };
+                    if matches!(selector, SelectorExpr::Type(_))
+                        && tnd.selector_info.matches(&tnd.type_id, &selector)
+                    {
+                        merged_setting.extend(value.elements.clone());
+                    }
+                }
+                merged_setting
+            })
+            .unwrap_or_default()
     }
 
     fn has_inline_property(
@@ -699,39 +727,40 @@ impl PaxManifest {
     }
 
     pub fn merge_inline_settings_with_settings_block(
-        inline_settings: &Option<Vec<SettingElement>>,
+        tnd: &TemplateNodeDefinition,
         settings_block: &Option<Vec<SettingsBlockElement>>,
     ) -> Option<Vec<SettingElement>> {
-        // collect id settings
-        let ids = Self::pull_matched_identifiers_from_inline(&inline_settings, "id".to_string());
+        let inline_settings = &tnd.settings;
 
+        let type_settings = Self::pull_type_settings_for_node(settings_block, tnd);
+
+        // collect id settings
         let mut id_settings = Vec::new();
-        if ids.len() == 1 {
-            if let Some(settings) =
-                Self::pull_settings_with_selector(&settings_block, format!("#{}", ids[0]))
-            {
-                id_settings.extend(settings.clone());
-            }
-        } else if ids.len() > 1 {
-            panic!("Specified more than one id inline!");
+        if let Some(id) = &tnd.selector_info.id {
+            id_settings.extend(Self::pull_settings_with_selector(
+                settings_block,
+                &SelectorExpr::Id(id.token_value.clone()),
+            ));
         }
 
         // collect all class settings
-        let classes =
-            Self::pull_matched_identifiers_from_inline(&inline_settings, "class".to_string());
-
         let mut class_settings = Vec::new();
-        for class in classes {
-            if let Some(settings) =
-                Self::pull_settings_with_selector(&settings_block, format!(".{}", class))
-            {
-                class_settings.extend(settings.clone());
-            }
+        for class in &tnd.selector_info.classes {
+            class_settings.extend(Self::pull_settings_with_selector(
+                settings_block,
+                &SelectorExpr::Class(class.token_value.clone()),
+            ));
         }
 
         let mut map = BTreeMap::new();
 
-        // Iterate in reverse order of priority (class, then id, then inline)
+        // Iterate in reverse order of priority (type, then class, then id, then inline)
+        for e in type_settings.into_iter() {
+            if let SettingElement::Setting(key, _) = e.clone() {
+                map.insert(key, e);
+            }
+        }
+
         for e in class_settings.into_iter() {
             if let SettingElement::Setting(key, _) = e.clone() {
                 map.insert(key, e);

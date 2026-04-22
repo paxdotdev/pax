@@ -787,6 +787,7 @@ mod tests {
                     }),
                 ),
             ]),
+            selector_info: Default::default(),
             raw_comment_string: None,
         });
 
@@ -986,5 +987,100 @@ mod tests {
         assert!(bindings.contains(&("tick".to_string(), "tick".to_string())));
 
         fs::remove_file(rust_source).expect("temporary Rust source should be removable");
+    }
+
+    #[test]
+    fn test_runtime_settings_merge_uses_selector_metadata_precedence() {
+        let mut node = TemplateNodeDefinition {
+            type_id: TypeId::build_singleton("example::Text", Some("Text")),
+            control_flow_settings: None,
+            settings: Some(vec![
+                SettingElement::Setting(
+                    Token::new_without_location("class".to_string()),
+                    ValueDefinition::Identifier(PaxIdentifier::new("headline")),
+                ),
+                SettingElement::Setting(
+                    Token::new_without_location("id".to_string()),
+                    ValueDefinition::Identifier(PaxIdentifier::new("hero")),
+                ),
+                SettingElement::Setting(
+                    Token::new_without_location("fill".to_string()),
+                    ValueDefinition::LiteralValue(PaxValue::Numeric(4.into())),
+                ),
+            ]),
+            selector_info: Default::default(),
+            raw_comment_string: None,
+        };
+        node.normalize_selector_info();
+
+        let settings = Some(vec![
+            SettingsBlockElement::SelectorBlock(
+                Token::new_without_location("Text".to_string()),
+                pax_manifest::LiteralBlockDefinition::new(vec![
+                    SettingElement::Setting(
+                        Token::new_without_location("width".to_string()),
+                        ValueDefinition::LiteralValue(PaxValue::Numeric(1.into())),
+                    ),
+                    SettingElement::Setting(
+                        Token::new_without_location("fill".to_string()),
+                        ValueDefinition::LiteralValue(PaxValue::Numeric(1.into())),
+                    ),
+                ]),
+            ),
+            SettingsBlockElement::SelectorBlock(
+                Token::new_without_location(".headline".to_string()),
+                pax_manifest::LiteralBlockDefinition::new(vec![
+                    SettingElement::Setting(
+                        Token::new_without_location("height".to_string()),
+                        ValueDefinition::LiteralValue(PaxValue::Numeric(2.into())),
+                    ),
+                    SettingElement::Setting(
+                        Token::new_without_location("fill".to_string()),
+                        ValueDefinition::LiteralValue(PaxValue::Numeric(2.into())),
+                    ),
+                ]),
+            ),
+            SettingsBlockElement::SelectorBlock(
+                Token::new_without_location("#hero".to_string()),
+                pax_manifest::LiteralBlockDefinition::new(vec![
+                    SettingElement::Setting(
+                        Token::new_without_location("opacity".to_string()),
+                        ValueDefinition::LiteralValue(PaxValue::Numeric(3.into())),
+                    ),
+                    SettingElement::Setting(
+                        Token::new_without_location("fill".to_string()),
+                        ValueDefinition::LiteralValue(PaxValue::Numeric(3.into())),
+                    ),
+                ]),
+            ),
+        ]);
+
+        let merged =
+            PaxManifest::merge_inline_settings_with_settings_block(&node, &settings).unwrap();
+
+        let merged_map = merged
+            .into_iter()
+            .filter_map(|setting| match setting {
+                SettingElement::Setting(token, value) => Some((token.token_value, value)),
+                SettingElement::Comment(_) => None,
+            })
+            .collect::<HashMap<_, _>>();
+
+        assert_eq!(
+            merged_map.get("width"),
+            Some(&ValueDefinition::LiteralValue(PaxValue::Numeric(1.into())))
+        );
+        assert_eq!(
+            merged_map.get("height"),
+            Some(&ValueDefinition::LiteralValue(PaxValue::Numeric(2.into())))
+        );
+        assert_eq!(
+            merged_map.get("opacity"),
+            Some(&ValueDefinition::LiteralValue(PaxValue::Numeric(3.into())))
+        );
+        assert_eq!(
+            merged_map.get("fill"),
+            Some(&ValueDefinition::LiteralValue(PaxValue::Numeric(4.into())))
+        );
     }
 }

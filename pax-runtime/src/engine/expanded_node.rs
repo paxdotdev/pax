@@ -33,6 +33,7 @@ use pax_manifest::cartridge_generation::{
     TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT, TRANSITION_PHASE_IDLE, TRANSITION_PHASE_SYMBOL,
     TRANSITION_PLAYHEAD_SYMBOL,
 };
+use pax_manifest::{SelectorExpr, TypeId};
 
 use crate::{
     apply_container_frame, compute_tab, project_child_layout_hull_to_parent_space,
@@ -98,6 +99,8 @@ pub struct ExpandedNode {
     /// Measured bounds reported by chassis/native layout or by container-owned bottom-up layout.
     /// When width/height are omitted, these values are used as the fallback concrete size.
     pub measured_size: Property<Option<(f64, f64)>>,
+    /// Selector-facing metadata used by runtime and designtime queries.
+    pub selector_metadata: RefCell<RuntimeSelectorMetadata>,
 
     /// The layout information (width, height, transform) used to render this node.
     /// computed property based on parent bounds + common properties
@@ -209,6 +212,52 @@ impl Interpolatable for Occlusion {}
 
 impl ImplToFromPaxAny for ExpandedNode {}
 impl Interpolatable for ExpandedNode {}
+
+#[derive(Clone)]
+pub struct RuntimeSelectorMetadata {
+    pub type_id: TypeId,
+    pub id: Property<Option<String>>,
+    pub classes: Property<Vec<String>>,
+}
+
+impl RuntimeSelectorMetadata {
+    fn from_base(
+        base: &crate::rendering::BaseInstance,
+        common_properties: &Rc<RefCell<CommonProperties>>,
+    ) -> Self {
+        let classes = base
+            .template_node_selector_info
+            .as_ref()
+            .map(|info| {
+                info.classes
+                    .iter()
+                    .map(|token| token.token_value.clone())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
+        Self {
+            type_id: base.template_node_type_id.clone().unwrap_or_default(),
+            id: common_properties.borrow().id.clone(),
+            classes: Property::new_with_name(classes, "selector classes"),
+        }
+    }
+
+    pub fn matches(&self, selector: &SelectorExpr) -> bool {
+        match selector {
+            SelectorExpr::Id(id) => self.id.get().as_deref() == Some(id.as_str()),
+            SelectorExpr::Class(class_name) => self
+                .classes
+                .get()
+                .into_iter()
+                .any(|node_class| node_class == *class_name),
+            SelectorExpr::Type(type_name) => {
+                self.type_id.to_string() == *type_name
+                    || self.type_id.get_pascal_identifier().as_deref() == Some(type_name.as_str())
+            }
+        }
+    }
+}
 
 macro_rules! dispatch_event_handler {
     ($fn_name:ident, $arg_type:ty, $handler_key:ident, $recurse:expr) => {
@@ -326,6 +375,8 @@ impl ExpandedNode {
             .instance_prototypical_common_properties
             .materialize(env.clone(), None)
             .unwrap();
+        let selector_metadata =
+            RuntimeSelectorMetadata::from_base(template.base(), &common_properties);
 
         let mut property_scope = borrow!(*common_properties).retrieve_property_scope();
 
@@ -340,6 +391,7 @@ impl ExpandedNode {
             properties: RefCell::new(properties),
             common_properties: RefCell::new(common_properties),
             measured_size: Property::default(),
+            selector_metadata: RefCell::new(selector_metadata),
 
             // these two refer to their rendering parent, not their
             // template parent
@@ -406,6 +458,9 @@ impl ExpandedNode {
             .base()
             .instance_prototypical_properties
             .materialize(Rc::clone(&self.stack), Some(Rc::clone(&self)));
+        let common_properties = Rc::clone(&*borrow!(self.common_properties));
+        *self.selector_metadata.borrow_mut() =
+            RuntimeSelectorMetadata::from_base(template.base(), &common_properties);
         self.bind_to_parent_bounds(context);
         self.bind_occlusion_listener(context);
         context.mark_occlusion_dirty();
@@ -430,6 +485,8 @@ impl ExpandedNode {
         *borrow_mut!(self.properties_scope) = borrow!(new_expanded_node.properties_scope).clone();
         *borrow_mut!(self.common_properties) =
             Rc::clone(&*borrow!(new_expanded_node.common_properties));
+        *self.selector_metadata.borrow_mut() =
+            new_expanded_node.selector_metadata.borrow().clone();
         self.occlusion.set(Default::default());
 
         self.bind_to_parent_bounds(context);

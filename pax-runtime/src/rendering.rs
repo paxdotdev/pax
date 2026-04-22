@@ -5,7 +5,7 @@ use std::rc::Rc;
 use_RefCell!();
 use crate::api::{math::Point2, CommonProperties, RenderContext};
 use pax_manifest::cartridge_generation::ComponentTransitionConfig;
-use pax_manifest::UniqueTemplateNodeIdentifier;
+use pax_manifest::{TemplateNodeSelectorInfo, TypeId, UniqueTemplateNodeIdentifier};
 use pax_message::NativeInterrupt;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::{borrow, use_RefCell, Variable};
@@ -157,6 +157,8 @@ pub struct InstantiationArgs {
     pub component_template: Option<InstanceNodePtrList>,
 
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
+    pub template_node_type_id: Option<TypeId>,
+    pub template_node_selector_info: Option<TemplateNodeSelectorInfo>,
     pub transition_config: ComponentTransitionConfig,
     // Used by RuntimePropertyStackFrame to pull out struct's properties based on their names
     pub properties_scope: PropertiesScopeInit,
@@ -167,6 +169,8 @@ pub struct ReusableInstanceNodeArgs {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub children: InstanceNodePtrList,
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
+    pub template_node_type_id: Option<TypeId>,
+    pub template_node_selector_info: Option<TemplateNodeSelectorInfo>,
 }
 
 impl ReusableInstanceNodeArgs {
@@ -176,6 +180,8 @@ impl ReusableInstanceNodeArgs {
             handler_registry: base.handler_registry.clone(),
             children: base.instance_children.clone(),
             template_node_identifier: base.template_node_identifier.clone(),
+            template_node_type_id: base.template_node_type_id.clone(),
+            template_node_selector_info: base.template_node_selector_info.clone(),
         }
     }
 }
@@ -387,6 +393,8 @@ pub struct BaseInstance {
     pub instance_prototypical_properties: PropertiesInit,
     pub instance_prototypical_common_properties: CommonPropertiesInit,
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
+    pub template_node_type_id: Option<TypeId>,
+    pub template_node_selector_info: Option<TemplateNodeSelectorInfo>,
     pub transition_config: ComponentTransitionConfig,
     pub properties_scope: PropertiesScopeInit,
     instance_children: InstanceNodePtrList,
@@ -427,6 +435,8 @@ impl BaseInstance {
             instance_children: args.children.unwrap_or_default(),
             flags,
             template_node_identifier: args.template_node_identifier,
+            template_node_type_id: args.template_node_type_id,
+            template_node_selector_info: args.template_node_selector_info,
             transition_config: args.transition_config,
             properties_scope: args.properties_scope,
         }

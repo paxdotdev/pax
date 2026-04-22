@@ -128,12 +128,23 @@ impl RustManifestWriter {
 
     fn template_node_definition(&self, node: &TemplateNodeDefinition) -> String {
         format!(
-            "{mp}::TemplateNodeDefinition {{ type_id: {type_id}, control_flow_settings: {control_flow_settings}, settings: {settings}, raw_comment_string: {raw_comment_string} }}",
+            "{mp}::TemplateNodeDefinition {{ type_id: {type_id}, control_flow_settings: {control_flow_settings}, settings: {settings}, selector_info: {selector_info}, raw_comment_string: {raw_comment_string} }}",
             mp = self.manifest_path,
             type_id = self.type_id(&node.type_id),
             control_flow_settings = self.option(&node.control_flow_settings, |value| self.control_flow_settings_definition(value)),
             settings = self.option(&node.settings, |value| self.vec(value, |element| self.setting_element(element))),
+            selector_info = self.template_node_selector_info(&node.selector_info),
             raw_comment_string = self.option(&node.raw_comment_string, |value| rust_string(value)),
+        )
+    }
+
+    fn template_node_selector_info(&self, info: &crate::TemplateNodeSelectorInfo) -> String {
+        format!(
+            "{mp}::TemplateNodeSelectorInfo {{ source_location: {source_location}, id: {id}, classes: {classes} }}",
+            mp = self.manifest_path,
+            source_location = self.option(&info.source_location, |value| self.location_info(value)),
+            id = self.option(&info.id, |value| self.token(value)),
+            classes = self.vec(&info.classes, |token| self.token(token)),
         )
     }
 

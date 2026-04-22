@@ -13,6 +13,7 @@ pub mod binary;
 #[cfg(feature = "parsing")]
 pub mod parsing;
 pub mod program_ir;
+pub mod selectors;
 #[cfg(feature = "server")]
 pub mod server;
 
@@ -25,6 +26,7 @@ pub mod code_serialization;
 pub mod constants;
 #[cfg(feature = "compiler")]
 pub mod rust_manifest;
+pub use selectors::{SelectorExpr, TemplateNodeSelectorInfo};
 
 #[cfg(feature = "json")]
 mod json_map_keys {
@@ -1227,6 +1229,8 @@ impl ComponentTemplate {
         &mut self,
         tnd: TemplateNodeDefinition,
     ) -> UniqueTemplateNodeIdentifier {
+        let mut tnd = tnd;
+        tnd.normalize_selector_info();
         let id = self.consume_next_id();
         self.root.push_front(id.clone());
         self.nodes.insert(id.clone(), tnd);
@@ -1237,6 +1241,8 @@ impl ComponentTemplate {
         &mut self,
         tnd: TemplateNodeDefinition,
     ) -> UniqueTemplateNodeIdentifier {
+        let mut tnd = tnd;
+        tnd.normalize_selector_info();
         let id = self.consume_next_id();
         self.root.push_back(id.clone());
         self.nodes.insert(id.clone(), tnd);
@@ -1248,6 +1254,8 @@ impl ComponentTemplate {
         index: usize,
         tnd: TemplateNodeDefinition,
     ) -> UniqueTemplateNodeIdentifier {
+        let mut tnd = tnd;
+        tnd.normalize_selector_info();
         let id = self.consume_next_id();
         self.root.insert(index, id.clone());
         self.children
@@ -1267,6 +1275,8 @@ impl ComponentTemplate {
         tnd: TemplateNodeDefinition,
     ) -> UniqueTemplateNodeIdentifier {
         if let Some(_) = self.nodes.get_mut(&id) {
+            let mut tnd = tnd;
+            tnd.normalize_selector_info();
             let child_id = self.consume_next_id();
             if let Some(children) = self.children.get_mut(&id) {
                 children.push_front(child_id.clone());
@@ -1289,6 +1299,8 @@ impl ComponentTemplate {
         tnd: TemplateNodeDefinition,
     ) -> UniqueTemplateNodeIdentifier {
         if let Some(_) = self.nodes.get_mut(&id) {
+            let mut tnd = tnd;
+            tnd.normalize_selector_info();
             let child_id = self.consume_next_id();
             if let Some(children) = self.children.get_mut(&id) {
                 children.push_back(child_id.clone());
@@ -1312,6 +1324,8 @@ impl ComponentTemplate {
         tnd: TemplateNodeDefinition,
     ) -> UniqueTemplateNodeIdentifier {
         if let Some(_) = self.nodes.get_mut(&id) {
+            let mut tnd = tnd;
+            tnd.normalize_selector_info();
             let child_id = self.consume_next_id();
             if let Some(children) = self.children.get_mut(&id) {
                 children.insert(index, child_id.clone());
@@ -1395,6 +1409,8 @@ impl ComponentTemplate {
     }
 
     pub fn set_node(&mut self, id: TemplateNodeId, tnd: TemplateNodeDefinition) {
+        let mut tnd = tnd;
+        tnd.normalize_selector_info();
         self.nodes.insert(id, tnd);
     }
 
@@ -1641,9 +1657,10 @@ impl ComponentTemplate {
     pub fn merge_with_settings(&mut self, settings_block: &Option<Vec<SettingsBlockElement>>) {
         for node in self.get_nodes_mut() {
             node.settings = PaxManifest::merge_inline_settings_with_settings_block(
-                &mut node.settings,
+                node,
                 settings_block,
             );
+            node.normalize_selector_info();
         }
     }
 }
@@ -1661,6 +1678,9 @@ pub struct TemplateNodeDefinition {
     pub control_flow_settings: Option<ControlFlowSettingsDefinition>,
     /// IFF this TND is NOT a control-flow node: parsed key-value store of attribute definitions (like `some_key="some_value"`)
     pub settings: Option<Vec<SettingElement>>,
+    /// Normalized selector metadata preserved for runtime/designtime matching.
+    #[serde(default)]
+    pub selector_info: TemplateNodeSelectorInfo,
     /// IFF this TND is a comment node: raw comment string
     pub raw_comment_string: Option<String>,
 }
@@ -1676,6 +1696,13 @@ impl TemplateNodeDefinition {
         } else {
             panic!("Invalid TemplateNodeDefinition");
         }
+    }
+
+    pub fn normalize_selector_info(&mut self) {
+        self.selector_info = TemplateNodeSelectorInfo::from_inline_settings(
+            self.selector_info.source_location.clone(),
+            &self.settings,
+        );
     }
 }
 

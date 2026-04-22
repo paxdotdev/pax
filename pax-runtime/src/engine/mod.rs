@@ -614,6 +614,8 @@ mod tests {
             children: None,
             component_template: None,
             template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
             transition_config: Default::default(),
             properties_scope: crate::PropertiesScopeInit::None,
         })

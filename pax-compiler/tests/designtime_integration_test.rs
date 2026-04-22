@@ -30,6 +30,7 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
         type_id: special_component_type_id,
         control_flow_settings: None,
         settings: None,
+        selector_info: Default::default(),
         raw_comment_string: None,
     });
 
@@ -38,6 +39,7 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
         type_id: TypeId::build_comment(),
         control_flow_settings: None,
         settings: None,
+        selector_info: Default::default(),
         raw_comment_string: Some("// Hello world\n".to_owned()),
     });
 

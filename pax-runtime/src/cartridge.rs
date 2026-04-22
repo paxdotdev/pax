@@ -605,6 +605,8 @@ pub trait DefinitionToInstanceTraverser {
             component_template,
             children: None,
             template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
             transition_config: manifest.get_component_transition_config(type_id),
             properties_scope: crate::PropertiesScopeInit::Descriptor(descriptor),
         }
@@ -741,6 +743,8 @@ pub trait DefinitionToInstanceTraverser {
                         component_template: None,
                         children: Some(children),
                         template_node_identifier: Some(unique_identifier),
+                        template_node_type_id: Some(tnd.type_id.clone()),
+                        template_node_selector_info: Some(tnd.selector_info.clone()),
                         transition_config: Default::default(),
                         properties_scope: crate::PropertiesScopeInit::None,
                     },
@@ -848,6 +852,8 @@ pub trait DefinitionToInstanceTraverser {
                     component_template: None,
                     children: Some(children),
                     template_node_identifier: Some(unique_identifier),
+                    template_node_type_id: Some(tnd.type_id.clone()),
+                    template_node_selector_info: Some(tnd.selector_info.clone()),
                     transition_config: Default::default(),
                     properties_scope: crate::PropertiesScopeInit::None,
                 })
@@ -963,6 +969,8 @@ pub trait DefinitionToInstanceTraverser {
                     component_template: None,
                     children: Some(children),
                     template_node_identifier: Some(unique_identifier),
+                    template_node_type_id: Some(tnd.type_id.clone()),
+                    template_node_selector_info: Some(tnd.selector_info.clone()),
                     transition_config: Default::default(),
                     properties_scope: crate::PropertiesScopeInit::None,
                 })
@@ -1037,6 +1045,8 @@ pub trait DefinitionToInstanceTraverser {
             args.handler_registry = prior_node.handler_registry;
             args.children = Some(prior_node.children);
             args.template_node_identifier = prior_node.template_node_identifier;
+            args.template_node_type_id = prior_node.template_node_type_id;
+            args.template_node_selector_info = prior_node.template_node_selector_info;
         } else {
             let handlers_from_tnd = manifest.get_inline_event_handlers(node);
             let updated_registry = if let Some(registry) = args.handler_registry {
@@ -1066,6 +1076,8 @@ pub trait DefinitionToInstanceTraverser {
                     containing_component_type_id.clone(),
                     node_id.clone(),
                 ));
+            args.template_node_type_id = Some(node.type_id.clone());
+            args.template_node_selector_info = Some(node.selector_info.clone());
         }
 
         // update properties from tnd
