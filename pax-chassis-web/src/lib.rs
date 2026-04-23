@@ -3,8 +3,8 @@
 
 use js_sys::{Array, Object, Reflect, Uint32Array, Uint8Array};
 use pax_message::{
-    AddedLayerArgs, BrowserConfigInterruptArgs, ChassisResizeRequestArgs, ClapInterruptArgs,
-    ClickInterruptArgs, ContextMenuInterruptArgs, DoubleClickInterruptArgs, DropFileArgs,
+    AddedLayerArgs, BrowserConfigInterruptArgs, ChassisResizeRequestArgs, ClickInterruptArgs,
+    ClickOrTapInterruptArgs, ContextMenuInterruptArgs, DoubleClickInterruptArgs, DropFileArgs,
     FocusInterruptArgs, FormButtonClickArgs, FormCheckboxToggleArgs, FormDropdownChangeArgs,
     FormRadioListChangeArgs, FormSliderChangeArgs, FormTextboxChangeArgs, FormTextboxInputArgs,
     ImageDataArgs, ImageLoadInterruptArgs, ImagePointerArgs, KeyDownInterruptArgs,
@@ -45,7 +45,7 @@ use web_sys::window;
 pub use {console_error_panic_hook, console_log};
 
 use pax_runtime::api::{
-    Clap, Click, ContextMenu, DoubleClick, Drop, KeyDown, KeyPress, KeyUp, KeyboardEventArgs,
+    Click, ClickOrTap, ContextMenu, DoubleClick, Drop, KeyDown, KeyPress, KeyUp, KeyboardEventArgs,
     ModifierKey, MouseButton, MouseDown, MouseEventArgs, MouseMove, MouseUp, Touch, TouchEnd,
     TouchMove, TouchStart, Wheel,
 };
@@ -635,17 +635,17 @@ impl PaxChassisWeb {
                 false
             }
             NativeInterrupt::Scroll(_) => false,
-            NativeInterrupt::Clap(args) => {
+            NativeInterrupt::ClickOrTap(args) => {
                 if let Some(topmost_node) = engine
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
                 {
-                    let args_clap = Clap {
+                    let args_click_or_tap = ClickOrTap {
                         x: args.x,
                         y: args.y,
                     };
-                    topmost_node.dispatch_clap(
-                        Event::new(args_clap),
+                    topmost_node.dispatch_click_or_tap(
+                        Event::new(args_click_or_tap),
                         &globals,
                         &engine.runtime_context,
                     )
@@ -1215,8 +1215,8 @@ fn native_interrupt_from_js(value: JsValue) -> NativeInterrupt {
         NativeInterrupt::SelectStart(SelectStartArgs {})
     } else if js_variant(&value, "Focus").is_some() {
         NativeInterrupt::Focus(FocusInterruptArgs {})
-    } else if let Some(payload) = js_variant(&value, "Clap") {
-        NativeInterrupt::Clap(ClapInterruptArgs {
+    } else if let Some(payload) = js_variant(&value, "ClickOrTap") {
+        NativeInterrupt::ClickOrTap(ClickOrTapInterruptArgs {
             x: js_f64(&payload, "x"),
             y: js_f64(&payload, "y"),
         })

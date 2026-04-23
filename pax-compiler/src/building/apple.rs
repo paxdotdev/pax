@@ -115,14 +115,16 @@ fn select_apple_target_mappings(
                 }
             }
         }
-        RunTarget::iOS => match ios_build_destination(is_release, resolved_ios_device) {
-            IosDeviceKind::Physical => vec![IOS_DEVICE_ARM64_TARGET],
-            IosDeviceKind::Simulator => match host_arch {
-                "x86_64" => vec![IOS_SIMULATOR_X86_64_TARGET],
-                "aarch64" | "arm64" => vec![IOS_SIMULATOR_ARM64_TARGET],
-                _ => vec![IOS_SIMULATOR_ARM64_TARGET, IOS_SIMULATOR_X86_64_TARGET],
-            },
-        },
+        RunTarget::iOS | RunTarget::iPadOS => {
+            match ios_build_destination(is_release, resolved_ios_device) {
+                IosDeviceKind::Physical => vec![IOS_DEVICE_ARM64_TARGET],
+                IosDeviceKind::Simulator => match host_arch {
+                    "x86_64" => vec![IOS_SIMULATOR_X86_64_TARGET],
+                    "aarch64" | "arm64" => vec![IOS_SIMULATOR_ARM64_TARGET],
+                    _ => vec![IOS_SIMULATOR_ARM64_TARGET, IOS_SIMULATOR_X86_64_TARGET],
+                },
+            }
+        }
         RunTarget::Web => vec![],
     }
 }
@@ -308,6 +310,12 @@ enum IosDeviceKind {
     Physical,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AppleMobileTarget {
+    Phone,
+    Tablet,
+}
+
 #[derive(Clone)]
 struct ResolvedIosDevice {
     kind: IosDeviceKind,
@@ -326,6 +334,14 @@ struct PhysicalDevice {
     identifier: String,
 }
 
+fn apple_mobile_target(target: &RunTarget) -> Option<AppleMobileTarget> {
+    match target {
+        RunTarget::iOS => Some(AppleMobileTarget::Phone),
+        RunTarget::iPadOS => Some(AppleMobileTarget::Tablet),
+        _ => None,
+    }
+}
+
 pub fn build_apple_project_with_cartridge(
     ctx: &RunContext,
     pax_dir: &PathBuf,
@@ -340,17 +356,18 @@ pub fn build_apple_project_with_cartridge(
     let project_path = ctx.project_path.clone();
 
     let is_release: bool = ctx.is_release;
-    let is_ios = if let RunTarget::iOS = target {
-        true
-    } else {
-        false
-    };
+    let apple_mobile_target = apple_mobile_target(target);
 
-    let resolved_ios_device = if is_ios && (ctx.should_also_run || ctx.ios_device.is_some()) {
-        Some(resolve_ios_device(
-            ctx.ios_device.as_deref(),
-            &process_child_ids,
-        )?)
+    let resolved_ios_device = if let Some(apple_mobile_target) = apple_mobile_target {
+        if ctx.should_also_run || ctx.ios_device.is_some() {
+            Some(resolve_ios_device(
+                ctx.ios_device.as_deref(),
+                apple_mobile_target,
+                &process_child_ids,
+            )?)
+        } else {
+            None
+        }
     } else {
         None
     };
@@ -559,7 +576,7 @@ pub fn build_apple_project_with_cartridge(
         normalize_macos_framework_bundle(&macos_framework_dir)?;
     }
 
-    if is_release || is_ios {
+    if is_release || apple_mobile_target.is_some() {
         // Merge architecture-specific binaries with `lipo` (this is an undocumented requirement
         // of multi-arch builds + xcframeworks for the Apple toolchain; we cannot bundle two
         // macos arch .frameworks in an xcframework; they must lipo'd into a single .framework + dylib.
@@ -646,7 +663,7 @@ pub fn build_apple_project_with_cartridge(
         )?;
     }
 
-    if is_release && is_ios {
+    if is_release && apple_mobile_target.is_some() {
         unimplemented!("\n\n\
 Release builds for Pax iOS are not yet supported because configuration has not been exposed for development teams or code-signing.\n
 You can build a release build manually by configuring the generated xcodeproject in `.pax/pkg/pax-chassis-ios/interface` with your development team and codesigning configuration.\n
@@ -725,7 +742,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
         Some(IosDeviceKind::Physical)
     );
 
-    let sdk = if let RunTarget::iOS = target {
+    let sdk = if apple_mobile_target.is_some() {
         if build_for_physical_device || (is_release && resolved_ios_device.is_none()) {
             "iphoneos"
         } else {
@@ -734,7 +751,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
     } else {
         "macosx"
     };
-    let xcode_archs = if let RunTarget::iOS = target {
+    let xcode_archs = if apple_mobile_target.is_some() {
         Some(xcode_archs_for_target_mappings(&target_mappings))
     } else {
         None
@@ -1057,6 +1074,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
 
 fn resolve_ios_device(
     selector: Option<&str>,
+    apple_mobile_target: AppleMobileTarget,
     process_child_ids: &Arc<Mutex<Vec<u64>>>,
 ) -> Result<ResolvedIosDevice, eyre::Report> {
     let selector = selector.map(str::trim).filter(|value| !value.is_empty());
@@ -1064,7 +1082,9 @@ fn resolve_ios_device(
 
     match query {
         None => match kind_hint.unwrap_or(IosDeviceKind::Simulator) {
-            IosDeviceKind::Simulator => choose_best_simulator(process_child_ids),
+            IosDeviceKind::Simulator => {
+                choose_best_simulator(apple_mobile_target, process_child_ids)
+            }
             IosDeviceKind::Physical => choose_single_physical_device(process_child_ids),
         },
         Some(query) => resolve_named_ios_device(kind_hint, &query, process_child_ids),
@@ -1095,40 +1115,19 @@ fn parse_ios_device_selector(selector: Option<&str>) -> (Option<IosDeviceKind>, 
 }
 
 fn choose_best_simulator(
+    apple_mobile_target: AppleMobileTarget,
     process_child_ids: &Arc<Mutex<Vec<u64>>>,
 ) -> Result<ResolvedIosDevice, eyre::Report> {
     let simulators = list_available_ios_simulators(process_child_ids)?;
-    let mut best_choice: Option<(i32, SimulatorVariantRank, bool, &SimulatorDevice)> = None;
-
-    for simulator in &simulators {
-        let Some((generation, variant_rank)) = parse_iphone_simulator_preference(&simulator.name)
-        else {
-            continue;
+    let Some(simulator) = best_simulator_for_target(&simulators, apple_mobile_target) else {
+        let simulator_label = match apple_mobile_target {
+            AppleMobileTarget::Phone => "iPhone",
+            AppleMobileTarget::Tablet => "iPad",
         };
-
-        let candidate = (
-            generation,
-            variant_rank,
-            simulator.state == "Booted",
-            simulator,
-        );
-        if best_choice
-            .as_ref()
-            .map(|best| {
-                candidate.0 > best.0
-                    || (candidate.0 == best.0
-                        && (candidate.1 > best.1
-                            || (candidate.1 == best.1 && candidate.2 && !best.2)))
-            })
-            .unwrap_or(true)
-        {
-            best_choice = Some(candidate);
-        }
-    }
-
-    let Some((_, _, _, simulator)) = best_choice else {
         return Err(eyre!(
-            "No installed iOS simulators found on this system. Install at least one iPhone simulator through Xcode and try again."
+            "No installed {} simulators found on this system. Install at least one {} simulator through Xcode and try again.",
+            simulator_label,
+            simulator_label,
         ));
     };
 
@@ -1297,6 +1296,64 @@ fn list_available_ios_simulators(
 }
 
 fn list_connected_physical_devices(
+    process_child_ids: &Arc<Mutex<Vec<u64>>>,
+) -> Result<Vec<PhysicalDevice>, eyre::Report> {
+    if let Ok(devices) = list_connected_physical_devices_via_xcdevice(process_child_ids) {
+        if !devices.is_empty() {
+            return Ok(devices);
+        }
+    }
+
+    list_connected_physical_devices_via_xctrace(process_child_ids)
+}
+
+fn list_connected_physical_devices_via_xcdevice(
+    process_child_ids: &Arc<Mutex<Vec<u64>>>,
+) -> Result<Vec<PhysicalDevice>, eyre::Report> {
+    let mut cmd = Command::new("xcrun");
+    cmd.arg("xcdevice")
+        .arg("list")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(crate::pre_exec_hook);
+    }
+    let child = cmd.spawn().expect(ERR_SPAWN);
+    let output = wait_with_output(process_child_ids, child);
+    if !output.status.success() {
+        return Err(eyre!("Failed to list connected iOS devices with xcrun xcdevice list."));
+    }
+
+    let output_str = std::str::from_utf8(&output.stdout)
+        .map_err(|_| eyre!("Failed to parse stdout for xcrun xcdevice list"))?;
+    let parsed: Value = serde_json::from_str(output_str)
+        .map_err(|err| eyre!("Failed to parse xcrun xcdevice list JSON: {}", err))?;
+
+    let devices = parsed
+        .as_array()
+        .ok_or_else(|| eyre!("Unexpected xcdevice list output format"))?
+        .iter()
+        .filter(|device| device.get("simulator").and_then(Value::as_bool) == Some(false))
+        .filter(|device| {
+            device.get("platform").and_then(Value::as_str) == Some("com.apple.platform.iphoneos")
+        })
+        .filter(|device| device.get("available").and_then(Value::as_bool).unwrap_or(false))
+        .filter_map(|device| {
+            let name = device.get("name").and_then(Value::as_str)?;
+            let identifier = device.get("identifier").and_then(Value::as_str)?;
+            Some(PhysicalDevice {
+                name: name.to_string(),
+                identifier: identifier.to_string(),
+            })
+        })
+        .collect::<Vec<_>>();
+
+    Ok(devices)
+}
+
+fn list_connected_physical_devices_via_xctrace(
     process_child_ids: &Arc<Mutex<Vec<u64>>>,
 ) -> Result<Vec<PhysicalDevice>, eyre::Report> {
     let mut cmd = Command::new("xcrun");
@@ -1630,6 +1687,89 @@ fn resolve_dylib_file_name(project_path: &PathBuf) -> Result<String, eyre::Repor
     Ok(format!("lib{}.dylib", dylib_target.name.replace('-', "_")))
 }
 
+fn best_simulator_for_target<'a>(
+    simulators: &'a [SimulatorDevice],
+    apple_mobile_target: AppleMobileTarget,
+) -> Option<&'a SimulatorDevice> {
+    match apple_mobile_target {
+        AppleMobileTarget::Phone => best_phone_simulator(simulators),
+        AppleMobileTarget::Tablet => best_tablet_simulator(simulators),
+    }
+}
+
+fn best_phone_simulator(simulators: &[SimulatorDevice]) -> Option<&SimulatorDevice> {
+    let mut best_choice: Option<(i32, SimulatorVariantRank, bool, &SimulatorDevice)> = None;
+
+    for simulator in simulators {
+        let Some((generation, variant_rank)) = parse_iphone_simulator_preference(&simulator.name)
+        else {
+            continue;
+        };
+
+        let candidate = (
+            generation,
+            variant_rank,
+            simulator.state == "Booted",
+            simulator,
+        );
+        if best_choice
+            .as_ref()
+            .map(|best| {
+                candidate.0 > best.0
+                    || (candidate.0 == best.0
+                        && (candidate.1 > best.1
+                            || (candidate.1 == best.1 && candidate.2 && !best.2)))
+            })
+            .unwrap_or(true)
+        {
+            best_choice = Some(candidate);
+        }
+    }
+
+    best_choice.map(|(_, _, _, simulator)| simulator)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum TabletVariantRank {
+    Other = 0,
+    Mini = 1,
+    Base = 2,
+    Air = 3,
+    Pro = 4,
+}
+
+fn best_tablet_simulator(simulators: &[SimulatorDevice]) -> Option<&SimulatorDevice> {
+    let mut best_choice: Option<(TabletVariantRank, i32, bool, &SimulatorDevice)> = None;
+
+    for simulator in simulators {
+        let Some((variant_rank, revision)) = parse_ipad_simulator_preference(&simulator.name)
+        else {
+            continue;
+        };
+
+        let candidate = (
+            variant_rank,
+            revision,
+            simulator.state == "Booted",
+            simulator,
+        );
+        if best_choice
+            .as_ref()
+            .map(|best| {
+                candidate.0 > best.0
+                    || (candidate.0 == best.0
+                        && (candidate.1 > best.1
+                            || (candidate.1 == best.1 && candidate.2 && !best.2)))
+            })
+            .unwrap_or(true)
+        {
+            best_choice = Some(candidate);
+        }
+    }
+
+    best_choice.map(|(_, _, _, simulator)| simulator)
+}
+
 fn parse_iphone_simulator_preference(name: &str) -> Option<(i32, SimulatorVariantRank)> {
     let rest = name.strip_prefix("iPhone ")?;
     let generation_end = rest.find(|ch: char| !ch.is_ascii_digit())?;
@@ -1642,6 +1782,46 @@ fn parse_iphone_simulator_preference(name: &str) -> Option<(i32, SimulatorVarian
         _ => SimulatorVariantRank::Other,
     };
     Some((generation, rank))
+}
+
+fn parse_ipad_simulator_preference(name: &str) -> Option<(TabletVariantRank, i32)> {
+    if !name.starts_with("iPad") {
+        return None;
+    }
+
+    let rank = if name.starts_with("iPad Pro") {
+        TabletVariantRank::Pro
+    } else if name.starts_with("iPad Air") {
+        TabletVariantRank::Air
+    } else if name.starts_with("iPad mini") {
+        TabletVariantRank::Mini
+    } else if name.starts_with("iPad ") {
+        TabletVariantRank::Base
+    } else {
+        TabletVariantRank::Other
+    };
+
+    extract_last_numeric_token(name).map(|revision| (rank, revision))
+}
+
+fn extract_last_numeric_token(input: &str) -> Option<i32> {
+    let mut last_token = None;
+    let mut current_token = String::new();
+
+    for ch in input.chars() {
+        if ch.is_ascii_digit() {
+            current_token.push(ch);
+        } else if !current_token.is_empty() {
+            last_token = current_token.parse::<i32>().ok();
+            current_token.clear();
+        }
+    }
+
+    if !current_token.is_empty() {
+        last_token = current_token.parse::<i32>().ok();
+    }
+
+    last_token
 }
 
 fn normalize_apple_package_paths(xcodeproj_path: &PathBuf) -> Result<(), eyre::Report> {
@@ -1889,6 +2069,14 @@ mod tests {
             .collect()
     }
 
+    fn simulator(name: &str, state: &str) -> SimulatorDevice {
+        SimulatorDevice {
+            name: name.to_string(),
+            udid: name.to_string(),
+            state: state.to_string(),
+        }
+    }
+
     #[test]
     fn ios_debug_without_destination_builds_host_simulator_arch() {
         let target_mappings = select_apple_target_mappings(&RunTarget::iOS, false, None, "aarch64");
@@ -1941,5 +2129,44 @@ mod tests {
             rust_targets(&target_mappings),
             vec!["aarch64-apple-darwin", "x86_64-apple-darwin"]
         );
+    }
+
+    #[test]
+    fn ipados_target_builds_same_simulator_arch_as_ios() {
+        let target_mappings =
+            select_apple_target_mappings(&RunTarget::iPadOS, false, None, "aarch64");
+
+        assert_eq!(
+            rust_targets(&target_mappings),
+            vec!["aarch64-apple-ios-sim"]
+        );
+    }
+
+    #[test]
+    fn ipados_default_prefers_ipad_simulators_over_booted_iphones() {
+        let simulators = vec![
+            simulator("iPhone 17 Pro", "Booted"),
+            simulator("iPad Pro 13-inch (M5)", "Shutdown"),
+            simulator("iPad Air 11-inch (M4)", "Shutdown"),
+        ];
+
+        let best = best_simulator_for_target(&simulators, AppleMobileTarget::Tablet)
+            .expect("expected an iPad simulator");
+
+        assert_eq!(best.name, "iPad Pro 13-inch (M5)");
+    }
+
+    #[test]
+    fn ipados_default_prefers_latest_base_ipad_over_older_models() {
+        let simulators = vec![
+            simulator("iPad (10th generation)", "Shutdown"),
+            simulator("iPad (A16)", "Shutdown"),
+            simulator("iPad (9th generation)", "Shutdown"),
+        ];
+
+        let best = best_simulator_for_target(&simulators, AppleMobileTarget::Tablet)
+            .expect("expected an iPad simulator");
+
+        assert_eq!(best.name, "iPad (A16)");
     }
 }

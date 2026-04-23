@@ -33,7 +33,7 @@ pub fn build_project_with_cartridge(
 
     //string together a shell call to build the userland project, with cartridge injected via macro
     match target {
-        RunTarget::macOS | RunTarget::iOS => {
+        RunTarget::macOS | RunTarget::iOS | RunTarget::iPadOS => {
             build_apple_project_with_cartridge(
                 ctx,
                 &pax_dir,

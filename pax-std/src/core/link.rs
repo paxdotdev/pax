@@ -1,7 +1,7 @@
 #![allow(unused)]
 use crate::Rectangle;
 use pax_engine::api::cursor::CursorStyle;
-use pax_engine::api::{Clap, MouseOut, MouseOver, Property};
+use pax_engine::api::{ClickOrTap, MouseOut, MouseOver, Property};
 use pax_engine::api::{Event, NavigationTarget};
 use pax_engine::*;
 use pax_runtime::api::NodeContext;
@@ -18,11 +18,11 @@ use pax_runtime::api::NodeContext;
         @mouse_over: self.mouse_over
         @mouse_out: self.mouse_out
         @mount: on_mount
-        @clap: on_clap
+        @click_or_tap: on_click_or_tap
     }
 
 )]
-/// Navigates to a URL when its slotted content is clapped/clicked.
+/// Navigates to a URL when its slotted content is clicked or tapped.
 pub struct Link {
     /// Destination URL.
     pub url: Property<String>,
@@ -61,7 +61,7 @@ impl Link {
             .replace_with(Property::computed(move || s.get(), &deps));
     }
     // Dispatches navigation through the active runtime context.
-    pub fn on_clap(&mut self, ctx: &NodeContext, _event: Event<Clap>) {
+    pub fn on_click_or_tap(&mut self, ctx: &NodeContext, _event: Event<ClickOrTap>) {
         ctx.navigate_to(&self.url.get(), self.target.get().into());
     }
 

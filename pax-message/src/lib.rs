@@ -65,7 +65,7 @@ pub enum NativeInterrupt {
     ChassisResizeRequestCollection(Vec<ChassisResizeRequestArgs>),
     SelectStart(SelectStartArgs),
     Focus(FocusInterruptArgs),
-    Clap(ClapInterruptArgs),
+    ClickOrTap(ClickOrTapInterruptArgs),
     Scroll(ScrollInterruptArgs),
     TouchStart(TouchStartInterruptArgs),
     TouchMove(TouchMoveInterruptArgs),
@@ -184,7 +184,7 @@ pub struct FormButtonClickArgs {
 #[derive(Deserialize)]
 #[repr(C)]
 /// Pointer tap/click payload normalized to window coordinates.
-pub struct ClapInterruptArgs {
+pub struct ClickOrTapInterruptArgs {
     pub x: f64,
     pub y: f64,
 }

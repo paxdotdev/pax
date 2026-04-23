@@ -49,13 +49,13 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             }
         };
         let r1 = chassis.interrupt(clickEvent, []);
-        let clapEvent = {
-            "Clap": {
+        let clickOrTapEvent = {
+            "ClickOrTap": {
                 "x": evt.clientX,
                 "y": evt.clientY,
             }
         };
-        let r2 = chassis.interrupt(clapEvent, []);
+        let r2 = chassis.interrupt(clickOrTapEvent, []);
         if (r1.prevent_default || r2.prevent_default) {
             evt.preventDefault();
         }
@@ -178,13 +178,13 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         });
         let r1 = chassis.interrupt(event, []);
 
-        let clapEvent = {
-            "Clap": {
+        let clickOrTapEvent = {
+            "ClickOrTap": {
                 "x": evt.touches[0].clientX,
                 "y": evt.touches[0].clientY,
             }
         };
-        let r2 = chassis.interrupt(clapEvent, []);
+        let r2 = chassis.interrupt(clickOrTapEvent, []);
         if (r1.prevent_default || r2.prevent_default) {
             evt.preventDefault();
         }

@@ -1,5 +1,5 @@
 pub const SCROLL_HANDLERS: &str = "scroll";
-pub const CLAP_HANDLERS: &str = "clap";
+pub const CLICK_OR_TAP_HANDLERS: &str = "click_or_tap";
 pub const TOUCH_START_HANDLERS: &str = "touch_start";
 pub const TOUCH_MOVE_HANDLERS: &str = "touch_move";
 pub const TOUCH_END_HANDLERS: &str = "touch_end";

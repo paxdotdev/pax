@@ -67,6 +67,22 @@ public final class NativeInterruptDispatcher {
     }
 }
 
+public struct TouchInterruptMessage {
+    public let x: Double
+    public let y: Double
+    public let identifier: Int64
+    public let deltaX: Double
+    public let deltaY: Double
+
+    public init(x: Double, y: Double, identifier: Int64, deltaX: Double, deltaY: Double) {
+        self.x = x
+        self.y = y
+        self.identifier = identifier
+        self.deltaX = deltaX
+        self.deltaY = deltaY
+    }
+}
+
 private final class PaxWebFontLoader {
     static let shared = PaxWebFontLoader()
 
@@ -234,6 +250,33 @@ private func dispatchNativeInterrupt(_ build: (FlexBufferMapBuilder) throws -> V
     NativeInterruptDispatcher.shared.send(buffer.data)
 }
 
+private func dispatchTouchInterrupt(type: String, touches: [TouchInterruptMessage]) {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey(type) { messageBuilder in
+            messageBuilder.addVectorWithStringKey("touches") { vectorBuilder in
+                for touch in touches {
+                    vectorBuilder.addMap { touchBuilder in
+                        touchBuilder.addWithStringKey("x", touch.x)
+                        touchBuilder.addWithStringKey("y", touch.y)
+                        touchBuilder.addWithStringKey("identifier", Int(touch.identifier))
+                        touchBuilder.addWithStringKey("delta_x", touch.deltaX)
+                        touchBuilder.addWithStringKey("delta_y", touch.deltaY)
+                    }
+                }
+            }
+        }
+    }
+}
+
+public func dispatchClickOrTap(x: Double, y: Double) {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey("ClickOrTap") { messageBuilder in
+            messageBuilder.addWithStringKey("x", x)
+            messageBuilder.addWithStringKey("y", y)
+        }
+    }
+}
+
 public func dispatchChassisResizeRequest(id: PaxNodeId, width: Double, height: Double) {
     dispatchNativeInterrupt { builder in
         builder.addVectorWithStringKey("ChassisResizeRequestCollection") { vectorBuilder in
@@ -244,6 +287,18 @@ public func dispatchChassisResizeRequest(id: PaxNodeId, width: Double, height: D
             }
         }
     }
+}
+
+public func dispatchTouchStart(touches: [TouchInterruptMessage]) {
+    dispatchTouchInterrupt(type: "TouchStart", touches: touches)
+}
+
+public func dispatchTouchMove(touches: [TouchInterruptMessage]) {
+    dispatchTouchInterrupt(type: "TouchMove", touches: touches)
+}
+
+public func dispatchTouchEnd(touches: [TouchInterruptMessage]) {
+    dispatchTouchInterrupt(type: "TouchEnd", touches: touches)
 }
 
 public func dispatchFormButtonClick(id: PaxNodeId) {

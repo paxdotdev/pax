@@ -8,7 +8,7 @@ use pax_runtime_api::{
 
 use crate::api::math::Point2;
 use crate::constants::{
-    BUTTON_CLICK_HANDLERS, CHECKBOX_CHANGE_HANDLERS, CLAP_HANDLERS, CLICK_HANDLERS,
+    BUTTON_CLICK_HANDLERS, CHECKBOX_CHANGE_HANDLERS, CLICK_HANDLERS, CLICK_OR_TAP_HANDLERS,
     CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, DROP_HANDLERS, FOCUSED_HANDLERS,
     KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS, KEY_UP_HANDLERS, MOUSE_DOWN_HANDLERS,
     MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS, MOUSE_OVER_HANDLERS, MOUSE_UP_HANDLERS,
@@ -24,8 +24,8 @@ use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use crate::api::{
-    ButtonClick, CheckboxChange, Clap, Click, CommonProperties, ContextMenu, DoubleClick, Drop,
-    Event, KeyDown, KeyPress, KeyUp, MouseDown, MouseMove, MouseOut, MouseOver, MouseUp,
+    ButtonClick, CheckboxChange, Click, ClickOrTap, CommonProperties, ContextMenu, DoubleClick,
+    Drop, Event, KeyDown, KeyPress, KeyUp, MouseDown, MouseMove, MouseOut, MouseOver, MouseUp,
     NodeContext, RenderContext, Scroll, Size, TextboxChange, TextboxInput, TouchEnd, TouchMove,
     TouchStart, Wheel, Window,
 };
@@ -1142,7 +1142,12 @@ impl ExpandedNode {
     }
 
     dispatch_event_handler!(dispatch_scroll, Scroll, SCROLL_HANDLERS, true);
-    dispatch_event_handler!(dispatch_clap, Clap, CLAP_HANDLERS, true);
+    dispatch_event_handler!(
+        dispatch_click_or_tap,
+        ClickOrTap,
+        CLICK_OR_TAP_HANDLERS,
+        true
+    );
     dispatch_event_handler!(dispatch_touch_start, TouchStart, TOUCH_START_HANDLERS, true);
 
     dispatch_event_handler!(dispatch_touch_move, TouchMove, TOUCH_MOVE_HANDLERS, true);

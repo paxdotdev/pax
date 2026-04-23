@@ -957,7 +957,7 @@ You can attach an input event handler to any node in a template with an inline b
 
 Pax supports the following input events:
 - Scroll (@scroll)
-- Clap (@clap)
+- ClickOrTap (@click_or_tap)
 - TouchStart (@touch_start)
 - TouchMove (@touch_move)
 - TouchEnd (@touch_end)

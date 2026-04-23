@@ -20,10 +20,14 @@ impl Example {
         self.ticks.set((old_ticks + 1) % 255);
     }
 
-    pub fn increment(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
+    pub fn increment(&mut self, _ctx: &NodeContext, _args: Event<ClickOrTap>) {
         let old_num_clicks = self.num_clicks.get();
         let new_val = old_num_clicks + 1;
         self.num_clicks.set(new_val);
-        self.current_rotation.ease_to(new_val as f64 * ROTATION_INCREMENT_DEGREES, ROTATION_EASING_DURATION_FRAMES, EasingCurve::OutQuad);
+        self.current_rotation.ease_to(
+            new_val as f64 * ROTATION_INCREMENT_DEGREES,
+            ROTATION_EASING_DURATION_FRAMES,
+            EasingCurve::OutQuad,
+        );
     }
 }

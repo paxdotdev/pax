@@ -4,7 +4,7 @@
 
 ## Structs
 ### `Link`
-Navigates to a URL when its slotted content is clapped/clicked.
+Navigates to a URL when its slotted content is clicked or tapped.
 
 #### Properties
 ##### `url`

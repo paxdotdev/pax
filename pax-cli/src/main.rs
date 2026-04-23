@@ -55,7 +55,7 @@ fn main() -> Result<(), Report> {
         .short("t")
         .long("target")
         .default_value(DEFAULT_TARGET)
-        .help("Specify the target platform on which to run.  Will run in platform-specific demo harness.")
+        .help("Specify the target platform on which to run. Supported targets include web, macos, ios, and ipados.")
         .takes_value(true);
 
     #[allow(non_snake_case)]
@@ -87,7 +87,7 @@ fn main() -> Result<(), Report> {
     let ARG_IOS_DEVICE = Arg::with_name("ios-device")
         .long("ios-device")
         .takes_value(true)
-        .help("Select the iOS destination. Use `simulator` (default for `run`), `device`, `simulator:<name-or-udid>`, `device:<name-or-udid>`, or an exact device name/UDID.");
+        .help("Select the iOS/iPadOS destination. Use `simulator` (default for `run`), `device`, `simulator:<name-or-udid>`, `device:<name-or-udid>`, or an exact device name/UDID.");
 
     #[allow(non_snake_case)]
     let ARG_IOS_DEVELOPMENT_TEAM = Arg::with_name("ios-development-team")

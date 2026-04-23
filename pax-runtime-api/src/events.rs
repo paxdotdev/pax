@@ -46,15 +46,15 @@ impl<T> Deref for Event<T> {
     }
 }
 
-/// A Clap describes either a "click" (mousedown followed by mouseup), OR a
+/// A ClickOrTap describes either a "click" (mousedown followed by mouseup), OR a
 /// "tap" with one finger (singular fingerdown event).
-/// Claps are a useful alternative to most kinds of `Click` or `Tap` events,
-/// when you want the same behavior for both to be contained in one place.
+/// ClickOrTap is useful when you want the same behavior for both to be contained
+/// in one place.
 #[derive(Clone)]
-pub struct Clap {
-    /// The x-coordinate of the clap in the receiving node's local coordinate space.
+pub struct ClickOrTap {
+    /// The x-coordinate of the click-or-tap in the receiving node's local coordinate space.
     pub x: f64,
-    /// The y-coordinate of the clap in the receiving node's local coordinate space.
+    /// The y-coordinate of the click-or-tap in the receiving node's local coordinate space.
     pub y: f64,
 }
 

@@ -87,6 +87,8 @@ pub enum RunTarget {
     Web,
     #[allow(non_camel_case_types)]
     iOS,
+    #[allow(non_camel_case_types)]
+    iPadOS,
 }
 
 /// For the specified file path or current working directory, first compile Pax project,
@@ -307,31 +309,53 @@ fn latest_web_interface_source_mtime(web_interface_root: &Path) -> Option<System
     latest_modified_at
 }
 
+fn build_interface_dir_name(target: &RunTarget) -> &'static str {
+    match target {
+        RunTarget::Web => "web",
+        RunTarget::macOS => "macos",
+        RunTarget::iOS | RunTarget::iPadOS => "ios",
+    }
+}
+
+fn custom_interface_dir_candidates(target: &RunTarget) -> &'static [&'static str] {
+    match target {
+        RunTarget::Web => &["web"],
+        RunTarget::macOS => &["macos"],
+        RunTarget::iOS => &["ios"],
+        RunTarget::iPadOS => &["ipados", "ios"],
+    }
+}
+
 fn copy_interface_files_for_target(ctx: &RunContext, pax_dir: &PathBuf) {
-    let target_str: &str = (&ctx.target).into();
-    let target_str_lower = &target_str.to_lowercase();
-    let interface_path = pax_dir.join(INTERFACE_DIR_NAME).join(target_str_lower);
+    let interface_path = pax_dir
+        .join(INTERFACE_DIR_NAME)
+        .join(build_interface_dir_name(&ctx.target));
 
     let _ = fs::remove_dir_all(&interface_path);
     let _ = fs::create_dir_all(&interface_path);
 
-    let mut custom_interface = pax_dir
-        .parent()
-        .unwrap()
-        .join("interfaces")
-        .join(target_str_lower);
-    if ctx.target == RunTarget::Web {
-        custom_interface = custom_interface.join("public");
-    }
+    let custom_interface = custom_interface_dir_candidates(&ctx.target)
+        .iter()
+        .map(|candidate| {
+            let mut interface_path = pax_dir.parent().unwrap().join("interfaces").join(candidate);
+            if ctx.target == RunTarget::Web {
+                interface_path = interface_path.join("public");
+            }
+            interface_path
+        })
+        .find(|path| path.exists());
 
-    if custom_interface.exists() {
+    if let Some(custom_interface) = custom_interface {
         copy_interface_files(&custom_interface, &interface_path);
     } else {
         copy_default_interface_files(&interface_path, ctx);
     }
 
     // Copy common files for macOS and iOS builds
-    if matches!(ctx.target, RunTarget::macOS | RunTarget::iOS) {
+    if matches!(
+        ctx.target,
+        RunTarget::macOS | RunTarget::iOS | RunTarget::iPadOS
+    ) {
         let common_dest = pax_dir.join(INTERFACE_DIR_NAME).join("common");
         copy_common_swift_files(ctx, &common_dest);
     }
@@ -353,7 +377,7 @@ fn copy_default_interface_files(interface_path: &Path, ctx: &RunContext) {
             .join("files")
             .join("interfaces")
             .join("macos"),
-        RunTarget::iOS => pax_compiler_root
+        RunTarget::iOS | RunTarget::iPadOS => pax_compiler_root
             .join("files")
             .join("interfaces")
             .join("ios"),
@@ -371,7 +395,7 @@ fn copy_default_interface_files(interface_path: &Path, ctx: &RunContext) {
             RunTarget::macOS => PAX_MACOS_INTERFACE_TEMPLATE
                 .extract(interface_path)
                 .expect("Failed to extract macos interface files"),
-            RunTarget::iOS => PAX_IOS_INTERFACE_TEMPLATE
+            RunTarget::iOS | RunTarget::iPadOS => PAX_IOS_INTERFACE_TEMPLATE
                 .extract(interface_path)
                 .expect("Failed to extract ios interface files"),
         }
@@ -430,7 +454,10 @@ fn vendor_apple_web_fonts(
     pax_dir: &Path,
     manifest: &PaxManifest,
 ) -> eyre::Result<(), Report> {
-    if !matches!(ctx.target, RunTarget::macOS | RunTarget::iOS) {
+    if !matches!(
+        ctx.target,
+        RunTarget::macOS | RunTarget::iOS | RunTarget::iPadOS
+    ) {
         return Ok(());
     }
 
@@ -976,7 +1003,7 @@ fn get_libdev_interface_path(ctx: &RunContext) -> PathBuf {
             .join("interfaces")
             .join("macos")
             .join("pax-app-macos"),
-        RunTarget::iOS => pax_compiler_root
+        RunTarget::iOS | RunTarget::iPadOS => pax_compiler_root
             .join("files")
             .join("interfaces")
             .join("ios")
@@ -988,7 +1015,7 @@ fn extract_interface_template(ctx: &RunContext, dest: &Path) -> Result<(), std::
     match ctx.target {
         RunTarget::Web => PAX_WEB_INTERFACE_TEMPLATE.extract(dest)?,
         RunTarget::macOS => PAX_MACOS_INTERFACE_TEMPLATE.extract(dest)?,
-        RunTarget::iOS => PAX_IOS_INTERFACE_TEMPLATE.extract(dest)?,
+        RunTarget::iOS | RunTarget::iPadOS => PAX_IOS_INTERFACE_TEMPLATE.extract(dest)?,
     }
     Ok(())
 }
@@ -1134,6 +1161,7 @@ impl From<&str> for RunTarget {
             "macos" => RunTarget::macOS,
             "web" => RunTarget::Web,
             "ios" => RunTarget::iOS,
+            "ipados" => RunTarget::iPadOS,
             _ => {
                 unreachable!()
             }
@@ -1147,6 +1175,7 @@ impl<'a> Into<&'a str> for &'a RunTarget {
             RunTarget::Web => "Web",
             RunTarget::macOS => "macOS",
             RunTarget::iOS => "iOS",
+            RunTarget::iPadOS => "iPadOS",
         }
     }
 }

@@ -809,6 +809,11 @@ public struct NativeRenderingLayer: View {
             layer.anchorPoint = CGPoint(x: 0.0, y: 0.0)
             configureNativeTransformLayer(layer)
         }
+
+        override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+            let hitView = super.hitTest(point, with: event)
+            return hitView === self ? nil : hitView
+        }
 #elseif os(macOS)
         override var isFlipped: Bool { true }
 
@@ -2573,9 +2578,30 @@ public struct NativeRenderingLayer: View {
         renderItem(element: element, kind: .eventBlocker(element))
     }
 
+    private func hasInteractiveNativeContent() -> Bool {
+        if textElements.elements.values.contains(where: { $0.editable || ($0.selectable && $0.clip) }) {
+            return true
+        }
+        if !buttonElements.elements.isEmpty
+            || !checkboxElements.elements.isEmpty
+            || !sliderElements.elements.isEmpty
+            || !dropdownElements.elements.isEmpty
+            || !radioListElements.elements.isEmpty
+            || !textboxElements.elements.isEmpty
+            || !youtubeVideoElements.elements.isEmpty
+            || !eventBlockerElements.elements.isEmpty
+        {
+            return true
+        }
+        return scrollerElements.elements.values.contains { scroller in
+            scroller.scrollEnabledX || scroller.scrollEnabledY
+        }
+    }
+
     public var body: some View {
         let generation = nativeSceneInvalidation.generation
         PlatformNativeSceneView(nodes: renderTree(for: generation))
+            .allowsHitTesting(hasInteractiveNativeContent())
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .transaction { transaction in
             transaction.animation = nil
@@ -2773,6 +2799,7 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
         isOpaque = false
         clipsToBounds = false
         layer.masksToBounds = false
+        isUserInteractionEnabled = false
 
         staticTextLayer.frame = bounds
         staticTextLayer.isWrapped = true
@@ -2806,6 +2833,8 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
         // When clip=false, prefer the static text layer even for selectable text so descenders and
         // other overflow can render outside the frame. Editing still requires the native text view.
         let useSelectableView = element.editable || (element.selectable && element.clip)
+        isUserInteractionEnabled = useSelectableView
+        selectableView.isUserInteractionEnabled = useSelectableView
         if useSelectableView != usingSelectableView {
             if useSelectableView {
                 staticTextLayer.isHidden = true

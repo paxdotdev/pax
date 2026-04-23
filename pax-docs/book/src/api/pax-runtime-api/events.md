@@ -21,22 +21,22 @@ The new checked state.
 
 ---
 
-### `Clap`
-A Clap describes either a "click" (mousedown followed by mouseup), OR a
+### `ClickOrTap`
+A ClickOrTap describes either a "click" (mousedown followed by mouseup), OR a
 "tap" with one finger (singular fingerdown event).
-Claps are a useful alternative to most kinds of `Click` or `Tap` events,
+ClickOrTap is a useful alternative to most kinds of `Click` or `Tap` events,
 when you want the same behavior for both to be contained in one place.
 
 #### Properties
 ##### `x`
 Type: `f64`
 
-The x-coordinate of the clap in the receiving node's local coordinate space.
+The x-coordinate of the click_or_tap in the receiving node's local coordinate space.
 
 ##### `y`
 Type: `f64`
 
-The y-coordinate of the clap in the receiving node's local coordinate space.
+The y-coordinate of the click_or_tap in the receiving node's local coordinate space.
 
 ---
 

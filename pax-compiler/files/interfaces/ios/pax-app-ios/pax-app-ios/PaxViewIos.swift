@@ -134,16 +134,21 @@ struct PaxViewIos: View {
         private var debugTickLogCount = 0
         private var debugHeadingLogCount = 0
         private let surfaceManager = SurfaceManager()
+        private var lastTouchPositions: [ObjectIdentifier: CGPoint] = [:]
 
         override init(frame: CGRect) {
             super.init(frame: frame)
-            isOpaque = false
-            createDisplayLink()
+            configureView()
         }
 
         required init?(coder: NSCoder) {
             super.init(coder: coder)
+            configureView()
+        }
+
+        private func configureView() {
             isOpaque = false
+            isMultipleTouchEnabled = true
             createDisplayLink()
         }
 
@@ -159,6 +164,90 @@ struct PaxViewIos: View {
 
         func requestAnimationFrame(_ closure: @escaping () -> Void) {
             requestAnimationFrameQueue.append(closure)
+        }
+
+        private func touchStorageKey(for touch: UITouch) -> ObjectIdentifier {
+            ObjectIdentifier(touch)
+        }
+
+        private func touchIdentifier(for touch: UITouch) -> Int64 {
+            Int64(bitPattern: UInt64(UInt(bitPattern: Unmanaged.passUnretained(touch).toOpaque())))
+        }
+
+        private func sortedTouches(_ touches: some Sequence<UITouch>) -> [UITouch] {
+            touches.sorted { touchIdentifier(for: $0) < touchIdentifier(for: $1) }
+        }
+
+        private func orderedActiveTouches(changedTouches: Set<UITouch>, event: UIEvent?) -> [UITouch] {
+            let changedTouchKeys = Set(changedTouches.map(touchStorageKey(for:)))
+            let activeTouches = event?.allTouches?.filter { touch in
+                touch.phase != .ended && touch.phase != .cancelled
+            } ?? Array(changedTouches)
+
+            let orderedChangedTouches = sortedTouches(changedTouches)
+            let orderedRemainingTouches = sortedTouches(activeTouches.filter { touch in
+                !changedTouchKeys.contains(touchStorageKey(for: touch))
+            })
+
+            return orderedChangedTouches + orderedRemainingTouches
+        }
+
+        private func touchMessages(from touches: [UITouch]) -> [TouchInterruptMessage] {
+            touches.map { touch in
+                let location = touch.preciseLocation(in: self)
+                let key = touchStorageKey(for: touch)
+                let lastPosition = lastTouchPositions[key] ?? location
+                let message = TouchInterruptMessage(
+                    x: Double(location.x),
+                    y: Double(location.y),
+                    identifier: touchIdentifier(for: touch),
+                    deltaX: Double(location.x - lastPosition.x),
+                    deltaY: Double(location.y - lastPosition.y)
+                )
+                lastTouchPositions[key] = location
+                return message
+            }
+        }
+
+        private func clearTouchPositions(for touches: [UITouch]) {
+            for touch in touches {
+                lastTouchPositions.removeValue(forKey: touchStorageKey(for: touch))
+            }
+        }
+
+        private func dispatchClickOrTapIfNeeded(changedTouches: Set<UITouch>, event: UIEvent?) {
+            let activeTouches = orderedActiveTouches(changedTouches: changedTouches, event: event)
+            guard activeTouches.count == 1, let touch = activeTouches.first else {
+                return
+            }
+
+            let location = touch.preciseLocation(in: self)
+            dispatchClickOrTap(x: Double(location.x), y: Double(location.y))
+        }
+
+        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+            dispatchTouchStart(touches: touchMessages(from: orderedActiveTouches(changedTouches: touches, event: event)))
+            dispatchClickOrTapIfNeeded(changedTouches: touches, event: event)
+            super.touchesBegan(touches, with: event)
+        }
+
+        override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+            dispatchTouchMove(touches: touchMessages(from: orderedActiveTouches(changedTouches: touches, event: event)))
+            super.touchesMoved(touches, with: event)
+        }
+
+        override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+            let orderedTouches = sortedTouches(touches)
+            dispatchTouchEnd(touches: touchMessages(from: orderedTouches))
+            clearTouchPositions(for: orderedTouches)
+            super.touchesEnded(touches, with: event)
+        }
+
+        override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+            let orderedTouches = sortedTouches(touches)
+            dispatchTouchEnd(touches: touchMessages(from: orderedTouches))
+            clearTouchPositions(for: orderedTouches)
+            super.touchesCancelled(touches, with: event)
         }
 
         private func currentScale() -> CGFloat {

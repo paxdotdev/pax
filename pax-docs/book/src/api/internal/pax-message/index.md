@@ -155,7 +155,7 @@ Style payload shared by checkbox-like controls.
 
 ---
 
-### `ClapInterruptArgs`
+### `ClickOrTapInterruptArgs`
 Pointer tap/click payload normalized to window coordinates.
 
 #### Properties
@@ -1416,7 +1416,7 @@ Events and data packets sent from the chassis back into the Pax runtime.
 ##### `ChassisResizeRequestCollection`(`Vec`<[`ChassisResizeRequestArgs`](/api/internal/pax-message/index.md#chassisresizerequestargs)>)
 ##### `SelectStart`([`SelectStartArgs`](/api/internal/pax-message/index.md#selectstartargs))
 ##### `Focus`([`FocusInterruptArgs`](/api/internal/pax-message/index.md#focusinterruptargs))
-##### `Clap`([`ClapInterruptArgs`](/api/internal/pax-message/index.md#clapinterruptargs))
+##### `ClickOrTap`([`ClickOrTapInterruptArgs`](/api/internal/pax-message/index.md#clickortapinterruptargs))
 ##### `Scroll`([`ScrollInterruptArgs`](/api/internal/pax-message/index.md#scrollinterruptargs))
 ##### `TouchStart`([`TouchStartInterruptArgs`](/api/internal/pax-message/index.md#touchstartinterruptargs))
 ##### `TouchMove`([`TouchMoveInterruptArgs`](/api/internal/pax-message/index.md#touchmoveinterruptargs))
