@@ -10,8 +10,9 @@ use pax_manifest::cartridge_generation::{
     TRANSITION_PLAYHEAD_SYMBOL,
 };
 use pax_manifest::{
-    ExpressionInfo, LiteralBlockDefinition, SettingElement, TimelineKeyframe, TimelineMarker,
-    TimelineTrackDefinition, TimelineTrackElement, TransitionDefinition, TypeId, ValueDefinition,
+    ExpressionInfo, LiteralBlockDefinition, SettingElement, SettingsBlockElement,
+    TemplateNodeDefinition, TimelineKeyframe, TimelineMarker, TimelineTrackDefinition,
+    TimelineTrackElement, TransitionDefinition, TypeId, ValueDefinition,
 };
 use pax_message::{borrow, borrow_mut};
 use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny};
@@ -26,6 +27,79 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 pub trait PaxCartridge {}
+
+fn settings_layers_for_node(
+    expanded_node: Option<&Rc<ExpandedNode>>,
+    containing_component_settings: &Option<Vec<SettingsBlockElement>>,
+) -> Vec<Option<Vec<SettingsBlockElement>>> {
+    let mut layers = vec![containing_component_settings.clone()];
+    let Some(expanded_node) = expanded_node else {
+        return layers;
+    };
+    if expanded_node.is_in_import_settings_subtree() {
+        return layers;
+    }
+    let Some(containing_component) = expanded_node.containing_component.upgrade() else {
+        return layers;
+    };
+    layers.extend(
+        borrow!(containing_component.imported_settings_layers)
+            .iter()
+            .cloned()
+            .map(Some),
+    );
+    layers
+}
+
+fn overlay_static_runtime_properties(
+    map: &mut BTreeMap<String, ValueDefinition>,
+    base_defined_properties: &BTreeMap<String, ValueDefinition>,
+) {
+    for (key, value) in base_defined_properties {
+        if matches!(
+            value,
+            ValueDefinition::Timeline(_) | ValueDefinition::Transition(_)
+        ) {
+            map.insert(key.clone(), value.clone());
+        }
+    }
+}
+
+fn resolve_defined_properties_for_node(
+    tnd: &TemplateNodeDefinition,
+    base_defined_properties: &BTreeMap<String, ValueDefinition>,
+    containing_component_settings: &Option<Vec<SettingsBlockElement>>,
+    expanded_node: Option<&Rc<ExpandedNode>>,
+) -> BTreeMap<String, ValueDefinition> {
+    let settings_layers = settings_layers_for_node(expanded_node, containing_component_settings);
+    if settings_layers.len() == 1 {
+        return base_defined_properties.clone();
+    }
+
+    let merged_settings =
+        pax_manifest::PaxManifest::merge_inline_settings_with_settings_layers(tnd, &settings_layers);
+    let mut map = BTreeMap::new();
+    if let Some(settings) = merged_settings {
+        for setting in settings {
+            if let SettingElement::Setting(key, value) = setting {
+                match value {
+                    ValueDefinition::LiteralValue(_)
+                    | ValueDefinition::Block(_)
+                    | ValueDefinition::Timeline(_)
+                    | ValueDefinition::Transition(_)
+                    | ValueDefinition::Expression(_)
+                    | ValueDefinition::Identifier(_)
+                    | ValueDefinition::DoubleBinding(_) => {
+                        map.insert(key.token_value.clone(), value.clone());
+                    }
+                    ValueDefinition::EventBindingTarget(_) | ValueDefinition::Undefined => {}
+                }
+            }
+        }
+    }
+    overlay_static_runtime_properties(&mut map, base_defined_properties);
+    map
+}
 pub struct HandlerDescriptor {
     pub name: &'static str,
     pub function: fn(Rc<RefCell<PaxAny>>, &NodeContext, Option<PaxAny>),
@@ -604,6 +678,7 @@ pub trait DefinitionToInstanceTraverser {
             handler_registry,
             component_template,
             children: None,
+            component_settings: component.settings.clone(),
             template_node_identifier: None,
             template_node_type_id: None,
             template_node_selector_info: None,
@@ -742,6 +817,7 @@ pub trait DefinitionToInstanceTraverser {
                         handler_registry: None,
                         component_template: None,
                         children: Some(children),
+                        component_settings: None,
                         template_node_identifier: Some(unique_identifier),
                         template_node_type_id: Some(tnd.type_id.clone()),
                         template_node_selector_info: Some(tnd.selector_info.clone()),
@@ -851,6 +927,7 @@ pub trait DefinitionToInstanceTraverser {
                     handler_registry: None,
                     component_template: None,
                     children: Some(children),
+                    component_settings: None,
                     template_node_identifier: Some(unique_identifier),
                     template_node_type_id: Some(tnd.type_id.clone()),
                     template_node_selector_info: Some(tnd.selector_info.clone()),
@@ -968,6 +1045,7 @@ pub trait DefinitionToInstanceTraverser {
                     handler_registry: None,
                     component_template: None,
                     children: Some(children),
+                    component_settings: None,
                     template_node_identifier: Some(unique_identifier),
                     template_node_type_id: Some(tnd.type_id.clone()),
                     template_node_selector_info: Some(tnd.selector_info.clone()),
@@ -1034,6 +1112,8 @@ pub trait DefinitionToInstanceTraverser {
             .unwrap();
         let containing_template = containing_component.template.as_ref().unwrap();
         let node = containing_template.get_node(node_id).unwrap();
+        let node = node.clone();
+        let containing_component_settings = containing_component.settings.clone();
         let containing_component_descriptor = self
             .get_component_descriptor(containing_component_type_id)
             .unwrap();
@@ -1048,7 +1128,7 @@ pub trait DefinitionToInstanceTraverser {
             args.template_node_type_id = prior_node.template_node_type_id;
             args.template_node_selector_info = prior_node.template_node_selector_info;
         } else {
-            let handlers_from_tnd = manifest.get_inline_event_handlers(node);
+            let handlers_from_tnd = manifest.get_inline_event_handlers(&node);
             let updated_registry = if let Some(registry) = args.handler_registry {
                 add_inline_handlers_from_component_descriptor(
                     containing_component_descriptor,
@@ -1082,18 +1162,70 @@ pub trait DefinitionToInstanceTraverser {
 
         // update properties from tnd
         let mut inline_properties =
-            manifest.get_inline_properties(containing_component_type_id, node);
+            manifest.get_inline_properties(containing_component_type_id, &node);
         manifest
             .merge_component_self_timelines_with_properties(&node.type_id, &mut inline_properties);
-        args.prototypical_properties = crate::PropertiesInit::DescriptorInline {
-            descriptor: node_component_descriptor,
-            defined_properties: inline_properties.clone(),
-        };
+        let base_defined_properties = inline_properties.clone();
+        let base_defined_properties_for_common = base_defined_properties.clone();
+        let properties_tnd = node.clone();
+        let properties_component_settings = containing_component_settings.clone();
+        args.prototypical_properties = crate::PropertiesInit::Factory(Box::new(
+            move |stack_frame, expanded_node| {
+                let defined_properties = resolve_defined_properties_for_node(
+                    &properties_tnd,
+                    &base_defined_properties,
+                    &properties_component_settings,
+                    expanded_node.as_ref(),
+                );
+                if let Some(expanded_node) = expanded_node {
+                    let outer_ref = expanded_node.properties.borrow();
+                    let rc = Rc::clone(&outer_ref);
+                    let mut inner_ref = (*rc).borrow_mut();
+                    (node_component_descriptor.apply_defined_properties)(
+                        node_component_descriptor.typed_descriptor,
+                        &mut inner_ref,
+                        &defined_properties,
+                        &stack_frame,
+                    );
+                    return None;
+                }
+
+                let mut properties = (node_component_descriptor.create_properties)();
+                (node_component_descriptor.apply_defined_properties)(
+                    node_component_descriptor.typed_descriptor,
+                    &mut properties,
+                    &defined_properties,
+                    &stack_frame,
+                );
+                Some(Rc::new(RefCell::new(properties)))
+            },
+        ));
 
         // update common properties from tnd
-        args.prototypical_common_properties = crate::CommonPropertiesInit::Inline {
-            defined_properties: inline_properties,
-        };
+        let common_tnd = node.clone();
+        let common_component_settings = containing_component_settings;
+        args.prototypical_common_properties = crate::CommonPropertiesInit::Factory(Box::new(
+            move |stack_frame, expanded_node| {
+                let defined_properties = resolve_defined_properties_for_node(
+                    &common_tnd,
+                    &base_defined_properties_for_common,
+                    &common_component_settings,
+                    expanded_node.as_ref(),
+                );
+                if let Some(expanded_node) = expanded_node {
+                    update_existing_common_properties(
+                        &expanded_node,
+                        &defined_properties,
+                        &stack_frame,
+                    );
+                    return None;
+                }
+                Some(create_new_common_properties(
+                    &defined_properties,
+                    &stack_frame,
+                ))
+            },
+        ));
 
         instantiate_component_from_descriptor(node_component_descriptor, args)
     }

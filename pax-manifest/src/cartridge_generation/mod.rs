@@ -726,15 +726,13 @@ impl PaxManifest {
         }
     }
 
-    pub fn merge_inline_settings_with_settings_block(
+    fn merge_settings_layer_into_map(
+        map: &mut BTreeMap<String, SettingElement>,
         tnd: &TemplateNodeDefinition,
         settings_block: &Option<Vec<SettingsBlockElement>>,
-    ) -> Option<Vec<SettingElement>> {
-        let inline_settings = &tnd.settings;
-
+    ) {
         let type_settings = Self::pull_type_settings_for_node(settings_block, tnd);
 
-        // collect id settings
         let mut id_settings = Vec::new();
         if let Some(id) = &tnd.selector_info.id {
             id_settings.extend(Self::pull_settings_with_selector(
@@ -743,7 +741,6 @@ impl PaxManifest {
             ));
         }
 
-        // collect all class settings
         let mut class_settings = Vec::new();
         for class in &tnd.selector_info.classes {
             class_settings.extend(Self::pull_settings_with_selector(
@@ -752,45 +749,58 @@ impl PaxManifest {
             ));
         }
 
-        let mut map = BTreeMap::new();
-
-        // Iterate in reverse order of priority (type, then class, then id, then inline)
         for e in type_settings.into_iter() {
             if let SettingElement::Setting(key, _) = e.clone() {
-                map.insert(key, e);
+                map.insert(key.token_value.clone(), e);
             }
         }
 
         for e in class_settings.into_iter() {
             if let SettingElement::Setting(key, _) = e.clone() {
-                map.insert(key, e);
+                map.insert(key.token_value.clone(), e);
             }
         }
 
         for e in id_settings.into_iter() {
             if let SettingElement::Setting(key, _) = e.clone() {
-                map.insert(key, e);
+                map.insert(key.token_value.clone(), e);
             }
+        }
+    }
+
+    pub fn merge_inline_settings_with_settings_layers(
+        tnd: &TemplateNodeDefinition,
+        settings_layers: &[Option<Vec<SettingsBlockElement>>],
+    ) -> Option<Vec<SettingElement>> {
+        let inline_settings = &tnd.settings;
+        let mut map = BTreeMap::new();
+        for settings_block in settings_layers {
+            Self::merge_settings_layer_into_map(&mut map, tnd, settings_block);
         }
 
         let mut merged = Vec::new();
         if let Some(inline) = inline_settings.clone() {
             for e in inline.iter() {
                 if let SettingElement::Setting(key, _) = e.clone() {
-                    map.remove(&key);
+                    map.remove(&key.token_value);
                 }
             }
-            let unique_setting_block_settings: Vec<SettingElement> =
-                map.values().cloned().collect();
             merged.extend(inline);
-            merged.extend(unique_setting_block_settings);
         }
+        merged.extend(map.into_values());
 
         if merged.len() > 0 {
             Some(merged)
         } else {
             None
         }
+    }
+
+    pub fn merge_inline_settings_with_settings_block(
+        tnd: &TemplateNodeDefinition,
+        settings_block: &Option<Vec<SettingsBlockElement>>,
+    ) -> Option<Vec<SettingElement>> {
+        Self::merge_inline_settings_with_settings_layers(tnd, &[settings_block.clone()])
     }
 }
 

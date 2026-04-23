@@ -1,0 +1,102 @@
+<Group />
+
+@settings {
+    .panel_surface {
+        corner_radii: {
+            top_left: 4
+            top_right: 4
+            bottom_left: 4
+            bottom_right: 4
+        }
+    }
+
+    .panel_shadow {
+        corner_radii: {
+            top_left: 4
+            top_right: 4
+            bottom_left: 4
+            bottom_right: 4
+        }
+    }
+
+    .control_card_surface {
+        corner_radii: {
+            top_left: 2
+            top_right: 2
+            bottom_left: 2
+            bottom_right: 2
+        }
+    }
+
+    .control_card_shadow {
+        corner_radii: {
+            top_left: 2
+            top_right: 2
+            bottom_left: 2
+            bottom_right: 2
+        }
+    }
+
+    .preview_card_surface {
+        corner_radii: {
+            top_left: 4
+            top_right: 4
+            bottom_left: 4
+            bottom_right: 4
+        }
+    }
+
+    .preview_card_shadow {
+        corner_radii: {
+            top_left: 4
+            top_right: 4
+            bottom_left: 4
+            bottom_right: 4
+        }
+    }
+
+    .preview_badge {
+        corner_radii: {
+            top_left: 3
+            top_right: 3
+            bottom_left: 3
+            bottom_right: 3
+        }
+    }
+
+    .preview_chip_primary {
+        corner_radii: {
+            top_left: 4
+            top_right: 4
+            bottom_left: 4
+            bottom_right: 4
+        }
+    }
+
+    .preview_chip_secondary {
+        corner_radii: {
+            top_left: 4
+            top_right: 4
+            bottom_left: 4
+            bottom_right: 4
+        }
+    }
+
+    .choice_button {
+        corner_radii: {
+            top_left: 4
+            top_right: 4
+            bottom_left: 4
+            bottom_right: 4
+        }
+    }
+
+    .choice_button_active {
+        corner_radii: {
+            top_left: 4
+            top_right: 4
+            bottom_left: 4
+            bottom_right: 4
+        }
+    }
+}

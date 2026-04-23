@@ -414,6 +414,7 @@ impl PaxEngine {
         //
         if let Some(root_expanded_node) = &self.root_expanded_node {
             root_expanded_node.recurse_update(&self.runtime_context);
+            root_expanded_node.recurse_sync_import_settings(&self.runtime_context);
         }
 
         let ctx = &self.runtime_context;

@@ -524,6 +524,12 @@ export class NativeElementPool {
         fields.style.border = "0";
         fields.style.margin = "0";
         fields.style.padding = "0";
+        fields.style.display = "flex";
+        fields.style.flexDirection = "column";
+        fields.style.justifyContent = "center";
+        fields.style.width = "100%";
+        fields.style.height = "100%";
+        fields.style.boxSizing = "border-box";
         fields.addEventListener('change', (event) => {
             let target = event.target as HTMLElement | undefined;
             if (target && target.matches("input[type='radio']")) {
@@ -566,27 +572,35 @@ export class NativeElementPool {
         let fields = leaf!.firstChild as HTMLFieldSetElement;
         if (patch.options != null) {
             fields!.innerHTML = "";
-            patch.options.forEach((optionText, _index) => {
-                let div = document.createElement('div') as HTMLDivElement;
-                div.style.alignItems = "center";
-                div.style.display = "flex";
-                div.style.marginBottom = "3px";
+            patch.options.forEach((optionText, index) => {
+                let row = document.createElement('label') as HTMLLabelElement;
+                row.style.alignItems = "center";
+                row.style.display = "flex";
+                row.style.flex = "1 1 auto";
+                row.style.width = "100%";
+                row.style.boxSizing = "border-box";
+                row.style.paddingRight = "12px";
+                row.style.cursor = "pointer";
+                row.style.userSelect = "none";
                 const option = document.createElement('input') as HTMLInputElement;
                 option.type = "radio";
                 option.name = `radio-${patch.id}`;
                 option.value = optionText.toString();
+                option.id = `radio-${patch.id}-${index}`;
                 option.setAttribute("class", RADIO_LIST_CLASS);
-                div.appendChild(option);
-                const label = document.createElement('label') as HTMLLabelElement;
-                label.innerHTML = optionText.toString();
-                div.appendChild(label);
-                fields.appendChild(div);
+                row.appendChild(option);
+                const labelText = document.createElement('span') as HTMLSpanElement;
+                labelText.textContent = optionText.toString();
+                labelText.style.flex = "1 1 auto";
+                row.appendChild(labelText);
+                fields.appendChild(row);
             });
         }
 
         if (patch.selected_id != null) {
-            let radio = fields.children[patch.selected_id].firstChild as HTMLInputElement;
-            if (radio.checked == false) {
+            let radio = fields.children[patch.selected_id]
+                ?.querySelector("input[type='radio']") as HTMLInputElement | null;
+            if (radio != null && radio.checked == false) {
                 radio.checked = true;
             }
         }
@@ -871,6 +885,7 @@ export class NativeElementPool {
         textDiv.style.overflow = "visible";
         textDiv.style.contain = "layout style";
         textChild.style.overflow = "visible";
+        textChild.setAttribute("contenteditable", "false");
         textDiv.addEventListener("click", (_event) => {
             if (textDiv.contentEditable != "false") {
                 textChild.focus();
@@ -902,6 +917,11 @@ export class NativeElementPool {
         let leaf = this.nodesLookup.get(patch.id!) as HTMLElement;
         let textChild = leaf!.firstChild as HTMLElement;
         this.applyLeafPlacement(leaf, patch);
+        const syncTextPointerEvents = () => {
+            const editable = textChild.getAttribute("contenteditable") !== "false";
+            const selectable = textChild.style.userSelect !== "none";
+            leaf.style.pointerEvents = editable || selectable ? "auto" : "none";
+        };
         const applyClip = (clip: boolean) => {
             const overflow = clip ? "hidden" : "visible";
             leaf.style.overflow = overflow;
@@ -967,10 +987,12 @@ export class NativeElementPool {
             } else {
                 textChild.setAttribute("contenteditable", "false");
             }
+            syncTextPointerEvents();
         }
 
         if (patch.selectable != null) {
             textChild.style.userSelect = patch.selectable ? "auto" : "none";
+            syncTextPointerEvents();
         }
 
         if (patch.clip != null) {

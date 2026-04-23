@@ -1,0 +1,225 @@
+<Group />
+
+@settings {
+    .hero_kicker {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold
+            )
+            font_size: 14px
+            fill: rgba(36, 41, 48, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .hero_title {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::ExtraBold
+            )
+            font_size: 42px
+            fill: rgba(28, 34, 40, 255)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .body_copy {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 16px
+            fill: rgba(51, 58, 64, 255)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .section_title {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold
+            )
+            font_size: 24px
+            fill: rgba(30, 36, 42, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .section_copy {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 14px
+            fill: rgba(72, 79, 86, 255)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .control_label {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::SemiBold
+            )
+            font_size: 13px
+            fill: rgba(48, 56, 62, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .preview_badge_text {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold
+            )
+            font_size: 12px
+            fill: rgba(43, 49, 56, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+            underline: false
+        }
+    }
+
+    .preview_title {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::ExtraBold
+            )
+            font_size: 28px
+            fill: rgba(28, 34, 40, 255)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .preview_body {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 15px
+            fill: rgba(59, 67, 74, 255)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .preview_chip_text {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::SemiBold
+            )
+            font_size: 14px
+            fill: rgba(42, 48, 54, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .preview_stat_label {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold
+            )
+            font_size: 12px
+            fill: rgba(85, 93, 101, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .preview_stat_value {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 15px
+            fill: rgba(44, 50, 58, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .choice_button_text {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::SemiBold
+            )
+            font_size: 14px
+            fill: rgba(41, 47, 54, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+            underline: false
+        }
+    }
+
+}

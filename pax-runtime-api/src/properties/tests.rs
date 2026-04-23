@@ -118,3 +118,31 @@ fn test_registered_effect_drains_when_dirty() {
     assert_eq!(seen_value.get(), 3);
     assert_eq!(drain_effects(10), 0);
 }
+
+#[test]
+fn test_set_if_neq_skips_noop_write() {
+    let source = Property::new(1);
+    let eval_count = Rc::new(Cell::new(0));
+
+    let source_for_effect = source.clone();
+    let eval_count_for_effect = Rc::clone(&eval_count);
+    let effect = Property::computed(
+        move || {
+            eval_count_for_effect.set(eval_count_for_effect.get() + 1);
+            let _ = source_for_effect.get();
+        },
+        &[source.untyped()],
+    );
+    register_effect_property(&effect);
+
+    assert_eq!(drain_effects(10), 1);
+    assert_eq!(eval_count.get(), 1);
+
+    assert!(!source.set_if_neq(1));
+    assert_eq!(drain_effects(10), 0);
+    assert_eq!(eval_count.get(), 1);
+
+    assert!(source.set_if_neq(2));
+    assert_eq!(drain_effects(10), 1);
+    assert_eq!(eval_count.get(), 2);
+}

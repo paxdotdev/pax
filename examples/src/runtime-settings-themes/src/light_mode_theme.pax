@@ -1,0 +1,79 @@
+<Group />
+
+@settings {
+    .scene_backdrop {
+        fill: Fill::linearGradient(
+            (0%, 0%),
+            (100%, 100%),
+            [
+                GradientStop::get(Color::rgba(247, 241, 229, 255), 0%),
+                GradientStop::get(Color::rgba(234, 228, 214, 255), 54%),
+                GradientStop::get(Color::rgba(221, 215, 202, 255), 100%)
+            ]
+        )
+    }
+
+    .panel_shadow {
+        fill: rgba(32, 38, 44, 34)
+    }
+
+    .panel_surface {
+        fill: rgba(251, 247, 240, 255)
+        stroke: {
+            color: rgba(176, 164, 146, 255)
+            width: 1px
+        }
+    }
+
+    .control_card_shadow {
+        fill: rgba(36, 46, 60, 22)
+    }
+
+    .control_card_surface {
+        fill: rgba(255, 252, 247, 255)
+        stroke: {
+            color: rgba(194, 182, 164, 255)
+            width: 1px
+        }
+    }
+
+    .preview_card_shadow {
+        fill: rgba(30, 40, 52, 26)
+    }
+
+    .preview_card_surface {
+        fill: rgba(255, 251, 246, 255)
+        stroke: {
+            color: rgba(196, 182, 162, 255)
+            width: 1px
+        }
+    }
+
+    .preview_badge {
+        fill: rgba(219, 206, 182, 255)
+    }
+
+    .preview_chip_primary {
+        fill: rgba(222, 213, 193, 255)
+    }
+
+    .preview_chip_secondary {
+        fill: rgba(236, 228, 216, 255)
+    }
+
+    .choice_button {
+        fill: rgba(248, 243, 236, 255)
+        stroke: {
+            color: rgba(176, 164, 146, 255)
+            width: 1px
+        }
+    }
+
+    .choice_button_active {
+        fill: rgba(203, 191, 170, 255)
+        stroke: {
+            color: rgba(133, 117, 93, 255)
+            width: 1px
+        }
+    }
+}

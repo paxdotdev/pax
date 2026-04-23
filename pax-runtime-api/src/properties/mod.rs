@@ -151,6 +151,22 @@ impl<T: PropertyValue> Property<T> {
         PROPERTY_TABLE.with(|t| t.set_value(self.untyped.id, val));
     }
 
+    /// Sets the value only when it differs from the current one.
+    ///
+    /// Returns `true` when the write changed the property and dirtied dependents.
+    pub fn set_if_neq(&self, val: T) -> bool
+    where
+        T: PartialEq,
+    {
+        let should_set = PROPERTY_TABLE.with(|t| t.read_value(self.untyped.id, |current: &T| {
+            current != &val
+        }));
+        if should_set {
+            self.set(val);
+        }
+        should_set
+    }
+
     /// Get access to a mutable reference to the inner value T.
     /// Will trigger updates for dependents of this property, regardless
     /// of if the value actually changed

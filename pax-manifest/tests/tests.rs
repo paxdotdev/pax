@@ -8,7 +8,6 @@ mod tests {
     use pax_language::{parse_pax_str, Rule};
     use pax_manifest::pax_runtime_api::PaxValue;
     use pax_manifest::{
-        code_serialization::press_code_serialization_template,
         parsing::{
             assemble_component_definition, parse_settings_from_component_definition_string,
             parse_timeline_from_component_definition_string, ParsingContext,
@@ -19,6 +18,9 @@ mod tests {
         TimelineKeyframe, TimelineMarker, TimelineSelectorBlockDefinition, TimelineSelectorElement,
         TimelineTrackDefinition, TimelineTrackElement, Token, TypeId, ValueDefinition,
     };
+
+    #[cfg(feature = "code_serialization")]
+    use pax_manifest::code_serialization::press_code_serialization_template;
 
     fn write_temp_rust_source(contents: &str) -> std::path::PathBuf {
         let unique_suffix = SystemTime::now()
@@ -446,6 +448,7 @@ mod tests {
             "crate",
             component_type_id,
             "example.pax",
+            file!(),
         );
 
         let template = component.template.unwrap();
@@ -470,6 +473,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "code_serialization")]
     fn test_serialize_keyed_for_template() {
         let component_type_id = TypeId::build_singleton("Example", Some("Example"));
         let text_type_id = TypeId::build_singleton("Text", Some("Text"));
@@ -490,6 +494,7 @@ mod tests {
             "crate",
             component_type_id.clone(),
             "example.pax",
+            file!(),
         );
 
         let rendered = press_code_serialization_template(component).unwrap();
@@ -503,6 +508,7 @@ mod tests {
             "crate",
             component_type_id,
             "example.pax",
+            file!(),
         );
         let template = parsed_component.template.unwrap();
         let repeat_id = template.get_root().remove(0);
@@ -513,6 +519,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "code_serialization")]
     fn test_serialize_if_else_if_else_template_branches() {
         let component_type_id = TypeId::build_singleton("Example", Some("Example"));
         let text_type_id = TypeId::build_singleton("Text", Some("Text"));
@@ -576,6 +583,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "code_serialization")]
     fn test_serialize_ternary_expression() {
         let component_type_id = TypeId::build_singleton("Example", Some("Example"));
         let rectangle_type_id = TypeId::build_singleton("Rectangle", Some("Rectangle"));
@@ -627,6 +635,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "code_serialization")]
     fn test_serialize_null_coalesce_expression() {
         let component_type_id = TypeId::build_singleton("Example", Some("Example"));
         let text_type_id = TypeId::build_singleton("Text", Some("Text"));
@@ -678,6 +687,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "code_serialization")]
     fn test_serialize_timeline_block() {
         let component = ComponentDefinition {
             type_id: TypeId::build_singleton("Example", Some("Example")),
@@ -740,6 +750,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "code_serialization")]
     fn test_round_trip_latest_timeline_syntax() {
         let component_type_id = TypeId::build_singleton("Example", Some("Example"));
         let text_type_id = TypeId::build_singleton("Text", Some("Text"));
@@ -1066,21 +1077,21 @@ mod tests {
             })
             .collect::<HashMap<_, _>>();
 
-        assert_eq!(
+        assert!(matches!(
             merged_map.get("width"),
-            Some(&ValueDefinition::LiteralValue(PaxValue::Numeric(1.into())))
-        );
-        assert_eq!(
+            Some(ValueDefinition::LiteralValue(PaxValue::Numeric(value))) if *value == 1.into()
+        ));
+        assert!(matches!(
             merged_map.get("height"),
-            Some(&ValueDefinition::LiteralValue(PaxValue::Numeric(2.into())))
-        );
-        assert_eq!(
+            Some(ValueDefinition::LiteralValue(PaxValue::Numeric(value))) if *value == 2.into()
+        ));
+        assert!(matches!(
             merged_map.get("opacity"),
-            Some(&ValueDefinition::LiteralValue(PaxValue::Numeric(3.into())))
-        );
-        assert_eq!(
+            Some(ValueDefinition::LiteralValue(PaxValue::Numeric(value))) if *value == 3.into()
+        ));
+        assert!(matches!(
             merged_map.get("fill"),
-            Some(&ValueDefinition::LiteralValue(PaxValue::Numeric(4.into())))
-        );
+            Some(ValueDefinition::LiteralValue(PaxValue::Numeric(value))) if *value == 4.into()
+        ));
     }
 }

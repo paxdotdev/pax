@@ -5,7 +5,9 @@ use std::rc::Rc;
 use_RefCell!();
 use crate::api::{math::Point2, CommonProperties, RenderContext};
 use pax_manifest::cartridge_generation::ComponentTransitionConfig;
-use pax_manifest::{TemplateNodeSelectorInfo, TypeId, UniqueTemplateNodeIdentifier};
+use pax_manifest::{
+    SettingsBlockElement, TemplateNodeSelectorInfo, TypeId, UniqueTemplateNodeIdentifier,
+};
 use pax_message::NativeInterrupt;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::{borrow, use_RefCell, Variable};
@@ -155,6 +157,7 @@ pub struct InstantiationArgs {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub children: Option<InstanceNodePtrList>,
     pub component_template: Option<InstanceNodePtrList>,
+    pub component_settings: Option<Vec<SettingsBlockElement>>,
 
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     pub template_node_type_id: Option<TypeId>,
@@ -392,6 +395,7 @@ pub struct BaseInstance {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub instance_prototypical_properties: PropertiesInit,
     pub instance_prototypical_common_properties: CommonPropertiesInit,
+    pub component_settings: Option<Vec<SettingsBlockElement>>,
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     pub template_node_type_id: Option<TypeId>,
     pub template_node_selector_info: Option<TemplateNodeSelectorInfo>,
@@ -432,6 +436,7 @@ impl BaseInstance {
             handler_registry: args.handler_registry,
             instance_prototypical_common_properties: args.prototypical_common_properties,
             instance_prototypical_properties: args.prototypical_properties,
+            component_settings: args.component_settings,
             instance_children: args.children.unwrap_or_default(),
             flags,
             template_node_identifier: args.template_node_identifier,
