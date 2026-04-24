@@ -24,36 +24,32 @@ private func registerPaxFontsIfNeeded() {
     let resourceURL = resourceBundle.resourceURL!
     let fontFileExtensions: Set<String> = ["ttf", "otf"]
 
-    do {
-        let enumerator = FileManager.default.enumerator(
-            at: resourceURL,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        )
-        while let fileURL = enumerator?.nextObject() as? URL {
-            let fileExtension = fileURL.pathExtension.lowercased()
-            if fontFileExtensions.contains(fileExtension) {
-                let fontDescriptors = CTFontManagerCreateFontDescriptorsFromURL(fileURL as CFURL) as! [CTFontDescriptor]
-                if let fontDescriptor = fontDescriptors.first,
-                   let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as? String,
-                   let fontFamily = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontFamilyNameAttribute) as? String {
-                    if !PaxFont.isFontRegistered(fontFamily: postscriptName) {
-                        var errorRef: Unmanaged<CFError>?
-                        if !CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {
-                            print("Error registering font: \(fontFamily) - PostScript name: \(postscriptName) - \(String(describing: errorRef))")
-                        } else {
-                            PaxFont.markFontRegistered(fontFamily: postscriptName)
-                            PaxFont.markFontRegistered(fontFamily: fontFamily)
-                        }
+    let enumerator = FileManager.default.enumerator(
+        at: resourceURL,
+        includingPropertiesForKeys: nil,
+        options: [.skipsHiddenFiles]
+    )
+    while let fileURL = enumerator?.nextObject() as? URL {
+        let fileExtension = fileURL.pathExtension.lowercased()
+        if fontFileExtensions.contains(fileExtension) {
+            let fontDescriptors = CTFontManagerCreateFontDescriptorsFromURL(fileURL as CFURL) as! [CTFontDescriptor]
+            if let fontDescriptor = fontDescriptors.first,
+               let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as? String,
+               let fontFamily = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontFamilyNameAttribute) as? String {
+                if !PaxFont.isFontRegistered(fontFamily: postscriptName) {
+                    var errorRef: Unmanaged<CFError>?
+                    if !CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {
+                        print("Error registering font: \(fontFamily) - PostScript name: \(postscriptName) - \(String(describing: errorRef))")
                     } else {
                         PaxFont.markFontRegistered(fontFamily: postscriptName)
                         PaxFont.markFontRegistered(fontFamily: fontFamily)
                     }
+                } else {
+                    PaxFont.markFontRegistered(fontFamily: postscriptName)
+                    PaxFont.markFontRegistered(fontFamily: fontFamily)
                 }
             }
         }
-    } catch {
-        print("Error reading font files from resources: \(error)")
     }
 }
 
