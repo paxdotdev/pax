@@ -147,6 +147,7 @@ impl ConditionalInstance {
         let branch_child_ranges = self.branch_child_ranges.clone();
 
         let old_active_branch = RefCell::new(None::<Option<usize>>);
+        let cached_children = RefCell::new(Vec::new());
         expanded_node
             .children
             .replace_with(Property::computed_with_name(
@@ -159,7 +160,11 @@ impl ConditionalInstance {
                         .enumerate()
                         .find_map(|(index, condition)| condition.get().then_some(index));
                     if *borrow!(old_active_branch) == Some(active_branch) {
-                        return cloned_expanded_node.current_attached_children();
+                        return if cloned_expanded_node.attached.get() > 0 {
+                            cloned_expanded_node.current_attached_children()
+                        } else {
+                            borrow!(cached_children).clone()
+                        };
                     }
                     *borrow_mut!(old_active_branch) = Some(active_branch);
 
@@ -183,10 +188,188 @@ impl ConditionalInstance {
                         &cloned_expanded_node.parent_frame,
                         is_mount,
                     );
+                    *borrow_mut!(cached_children) = ret.clone();
                     ret
                 },
                 &deps,
                 &format!("conditional_children (node id: {})", expanded_node.id.0),
             ));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::math::Transform2;
+    use crate::api::CommonProperties;
+    use crate::{
+        BaseInstance, ComponentInstance, Globals, InstanceFlags, RuntimePropertiesStackFrame,
+        TransformAndBounds,
+    };
+    use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
+    use pax_runtime_api::{Platform, Property, OS};
+    use std::cell::RefCell;
+
+    fn test_globals() -> Globals {
+        Globals {
+            frames_elapsed: Property::new(0),
+            viewport: Property::new(TransformAndBounds {
+                transform: Transform2::identity(),
+                bounds: (100.0, 100.0),
+            }),
+            browser_allows_scroller_vector_layers: Property::new(true),
+            browser_allows_nested_scroller_vector_layers: Property::new(true),
+            platform: Platform::Unknown,
+            os: OS::Unknown,
+            get_elapsed_millis: Rc::new(|| 0),
+        }
+    }
+
+    fn default_properties_factory() -> Box<
+        dyn Fn(
+            Rc<RuntimePropertiesStackFrame>,
+            Option<Rc<ExpandedNode>>,
+        ) -> Option<Rc<RefCell<PaxAny>>>,
+    > {
+        Box::new(|_, expanded_node| {
+            expanded_node.is_none().then(|| {
+                Rc::new(RefCell::new(PaxAny::Builtin(Default::default())))
+            })
+        })
+    }
+
+    fn default_common_properties_factory() -> Box<
+        dyn Fn(
+            Rc<RuntimePropertiesStackFrame>,
+            Option<Rc<ExpandedNode>>,
+        ) -> Option<Rc<RefCell<CommonProperties>>>,
+    > {
+        Box::new(|_, expanded_node| {
+            expanded_node
+                .is_none()
+                .then(|| Rc::new(RefCell::new(CommonProperties::default())))
+        })
+    }
+
+    fn component_args(template: Option<Vec<Rc<dyn InstanceNode>>>) -> InstantiationArgs {
+        InstantiationArgs {
+            prototypical_common_properties: crate::CommonPropertiesInit::Factory(
+                default_common_properties_factory(),
+            ),
+            prototypical_properties: crate::PropertiesInit::Factory(default_properties_factory()),
+            handler_registry: None,
+            children: None,
+            component_template: template.map(RefCell::new),
+            component_settings: None,
+            template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
+            transition_config: Default::default(),
+            properties_scope: crate::PropertiesScopeInit::None,
+        }
+    }
+
+    fn conditional_args(
+        condition: Property<bool>,
+        children: Vec<Rc<dyn InstanceNode>>,
+    ) -> InstantiationArgs {
+        InstantiationArgs {
+            prototypical_common_properties: crate::CommonPropertiesInit::Factory(
+                default_common_properties_factory(),
+            ),
+            prototypical_properties: crate::PropertiesInit::Factory(Box::new(
+                move |_, expanded_node| {
+                    expanded_node.is_none().then(|| {
+                        Rc::new(RefCell::new(
+                            ConditionalProperties {
+                                boolean_expression: condition.clone(),
+                                conditional_branches: Vec::new(),
+                            }
+                            .to_pax_any(),
+                        ))
+                    })
+                },
+            )),
+            handler_registry: None,
+            children: Some(RefCell::new(children)),
+            component_template: None,
+            component_settings: None,
+            template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
+            transition_config: Default::default(),
+            properties_scope: crate::PropertiesScopeInit::None,
+        }
+    }
+
+    struct TestLeaf {
+        base: BaseInstance,
+    }
+
+    impl InstanceNode for TestLeaf {
+        fn instantiate(args: InstantiationArgs) -> Rc<Self>
+        where
+            Self: Sized,
+        {
+            Rc::new(Self {
+                base: BaseInstance::new(
+                    args,
+                    InstanceFlags {
+                        invisible_to_slot: false,
+                        invisible_to_raycasting: true,
+                        layer: Layer::DontCare,
+                        is_component: false,
+                        is_slot: false,
+                    },
+                ),
+            })
+        }
+
+        fn resolve_debug(
+            &self,
+            f: &mut std::fmt::Formatter,
+            _expanded_node: Option<&ExpandedNode>,
+        ) -> std::fmt::Result {
+            f.debug_struct("TestLeaf").finish()
+        }
+
+        fn base(&self) -> &BaseInstance {
+            &self.base
+        }
+    }
+
+    #[test]
+    fn detached_conditional_keeps_cached_children_on_same_branch_recompute() {
+        let condition = Property::new(true);
+        let leaf: Rc<dyn InstanceNode> = TestLeaf::instantiate(component_args(Some(Vec::new())));
+        let conditional = ConditionalInstance::instantiate(conditional_args(
+            condition.clone(),
+            vec![leaf],
+        ));
+        let root_component = ComponentInstance::instantiate(component_args(None));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let root = ExpandedNode::initialize_root(root_component, &context);
+
+        let detached = root
+            .create_children_detached(
+                vec![(
+                    conditional.clone() as Rc<dyn InstanceNode>,
+                    Rc::clone(&root.stack),
+                )],
+                &context,
+                &Rc::downgrade(&root),
+            )
+            .remove(0);
+
+        conditional.clone().handle_setup(&detached, &context, false);
+
+        let initial = detached.children.get();
+        assert_eq!(initial.len(), 1);
+        let initial_id = initial[0].id;
+
+        condition.set(true);
+        let recomputed = detached.children.get();
+        assert_eq!(recomputed.len(), 1);
+        assert_eq!(recomputed[0].id, initial_id);
     }
 }

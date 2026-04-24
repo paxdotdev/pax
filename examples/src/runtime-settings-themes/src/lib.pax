@@ -7,9 +7,9 @@
         }
 
         if self.typography_mode == 0 {
-            <SansTypographyTheme />
+            <SansTypographyTheme is_dark={self.color_mode == 1} />
         } else {
-            <SerifTypographyTheme />
+            <SerifTypographyTheme is_dark={self.color_mode == 1} />
         }
 
         if self.corner_mode == 0 {
@@ -66,86 +66,47 @@
                 text="Color, typography, and corner shape each come from their own conditional provider."
             />
 
-            <Group x=24px y=128px width={100% - 48px} height=96px>
-                <Text class=control_label x=18px y=16px width={100% - 36px} height=18px text="Color Mode" />
-                if self.color_mode == 0 {
-                    <Group x=18px y=46px width={50% - 24px} height=34px @click=self.select_light>
-                        <Text class=choice_button_text x=0px y=0px width=100% height=100% selectable=false text="Light" />
-                        <Rectangle class=choice_button_active x=0px y=0px width=100% height=100% />
-                    </Group>
-                } else {
-                    <Group x=18px y=46px width={50% - 24px} height=34px @click=self.select_light>
-                        <Text class=choice_button_text x=0px y=0px width=100% height=100% selectable=false text="Light" />
-                        <Rectangle class=choice_button x=0px y=0px width=100% height=100% />
-                    </Group>
-                }
-                if self.color_mode == 1 {
-                    <Group x={50% + 6px} y=46px width={50% - 24px} height=34px @click=self.select_dark>
-                        <Text class=choice_button_text x=0px y=0px width=100% height=100% selectable=false text="Dark" />
-                        <Rectangle class=choice_button_active x=0px y=0px width=100% height=100% />
-                    </Group>
-                } else {
-                    <Group x={50% + 6px} y=46px width={50% - 24px} height=34px @click=self.select_dark>
-                        <Text class=choice_button_text x=0px y=0px width=100% height=100% selectable=false text="Dark" />
-                        <Rectangle class=choice_button x=0px y=0px width=100% height=100% />
-                    </Group>
-                }
+            <Group x=24px y=128px width={100% - 48px} height=124px>
+                <Text class=control_label x=18px y=18px width={100% - 36px} height=18px text="Color Mode" />
+                <RadioList
+                    class=theme_radio
+                    x=18px
+                    y=46px
+                    width={100% - 36px}
+                    height=62px
+                    selected_id=bind:color_mode
+                    options=["Light", "Dark"]
+                />
                 <Rectangle class=control_card_shadow x=6px y=8px width=100% height=100% />
                 <Rectangle class=control_card_surface x=0px y=0px width=100% height=100% />
             </Group>
 
-            <Group x=24px y=240px width={100% - 48px} height=96px>
-                <Text class=control_label x=18px y=16px width={100% - 36px} height=18px text="Typography" />
-                if self.typography_mode == 0 {
-                    <Group x=18px y=46px width={50% - 24px} height=34px @click=self.select_sans>
-                        <Text class=choice_button_text x=0px y=0px width=100% height=100% selectable=false text="Sans" />
-                        <Rectangle class=choice_button_active x=0px y=0px width=100% height=100% />
-                    </Group>
-                } else {
-                    <Group x=18px y=46px width={50% - 24px} height=34px @click=self.select_sans>
-                        <Text class=choice_button_text x=0px y=0px width=100% height=100% selectable=false text="Sans" />
-                        <Rectangle class=choice_button x=0px y=0px width=100% height=100% />
-                    </Group>
-                }
-                if self.typography_mode == 1 {
-                    <Group x={50% + 6px} y=46px width={50% - 24px} height=34px @click=self.select_serif>
-                        <Text class=choice_button_text x=0px y=0px width=100% height=100% selectable=false text="Serif" />
-                        <Rectangle class=choice_button_active x=0px y=0px width=100% height=100% />
-                    </Group>
-                } else {
-                    <Group x={50% + 6px} y=46px width={50% - 24px} height=34px @click=self.select_serif>
-                        <Text class=choice_button_text x=0px y=0px width=100% height=100% selectable=false text="Serif" />
-                        <Rectangle class=choice_button x=0px y=0px width=100% height=100% />
-                    </Group>
-                }
+            <Group x=24px y=268px width={100% - 48px} height=124px>
+                <Text class=control_label x=18px y=18px width={100% - 36px} height=18px text="Typography" />
+                <RadioList
+                    class=theme_radio
+                    x=18px
+                    y=46px
+                    width={100% - 36px}
+                    height=62px
+                    selected_id=bind:typography_mode
+                    options=["Sans", "Serif"]
+                />
                 <Rectangle class=control_card_shadow x=6px y=8px width=100% height=100% />
                 <Rectangle class=control_card_surface x=0px y=0px width=100% height=100% />
             </Group>
 
-            <Group x=24px y=352px width={100% - 48px} height=96px>
-                <Text class=control_label x=18px y=16px width={100% - 36px} height=18px text="Corners" />
-                if self.corner_mode == 0 {
-                    <Group x=18px y=46px width={50% - 24px} height=34px @click=self.select_rounded>
-                        <Text class=choice_button_text x=0px y=0px width=100% height=100% selectable=false text="Rounded" />
-                        <Rectangle class=choice_button_active x=0px y=0px width=100% height=100% />
-                    </Group>
-                } else {
-                    <Group x=18px y=46px width={50% - 24px} height=34px @click=self.select_rounded>
-                        <Text class=choice_button_text x=0px y=0px width=100% height=100% selectable=false text="Rounded" />
-                        <Rectangle class=choice_button x=0px y=0px width=100% height=100% />
-                    </Group>
-                }
-                if self.corner_mode == 1 {
-                    <Group x={50% + 6px} y=46px width={50% - 24px} height=34px @click=self.select_squared>
-                        <Text class=choice_button_text x=0px y=0px width=100% height=100% selectable=false text="Squared" />
-                        <Rectangle class=choice_button_active x=0px y=0px width=100% height=100% />
-                    </Group>
-                } else {
-                    <Group x={50% + 6px} y=46px width={50% - 24px} height=34px @click=self.select_squared>
-                        <Text class=choice_button_text x=0px y=0px width=100% height=100% selectable=false text="Squared" />
-                        <Rectangle class=choice_button x=0px y=0px width=100% height=100% />
-                    </Group>
-                }
+            <Group x=24px y=408px width={100% - 48px} height=124px>
+                <Text class=control_label x=18px y=18px width={100% - 36px} height=18px text="Corners" />
+                <RadioList
+                    class=theme_radio
+                    x=18px
+                    y=46px
+                    width={100% - 36px}
+                    height=62px
+                    selected_id=bind:corner_mode
+                    options=["Rounded", "Squared"]
+                />
                 <Rectangle class=control_card_shadow x=6px y=8px width=100% height=100% />
                 <Rectangle class=control_card_surface x=0px y=0px width=100% height=100% />
             </Group>
@@ -155,95 +116,159 @@
         </Group>
 
         <Group x=420px y=236px width={100% - 420px} height={100% - 236px}>
-            <Text
-                class=section_title
-                x=7%
-                y=8%
-                width=86%
-                height=8%
-                text="Preview Surface"
-            />
+            <Scroller
+                class=preview_scroller
+                x=40px
+                y=38px
+                width={100% - 80px}
+                height={100% - 76px}
+                scroll_width=100%
+                scroll_height=732px
+            >
+                <Group width=100% height=732px>
+                    <Group x=28px y=26px width={100% - 72px} height={100% - 52px}>
+                        <Text
+                            class=section_title
+                            x=0px
+                            y=0px
+                            width=100%
+                            height=32px
+                            text="Preview Surface"
+                        />
 
-            <Text
-                class=section_copy
-                x=7%
-                y=18%
-                width=86%
-                height=10%
-                text="These nodes are authored once in the root template, then decorated live by the imported selector blocks."
-            />
+                        <Text
+                            class=section_copy
+                            x=0px
+                            y=42px
+                            width=100%
+                            height=42px
+                            text="These nodes are authored once in the root template, then decorated live by the imported selector blocks."
+                        />
 
-            <Group x=7% y=31% width=170px height=34px>
-                <Text
-                    class=preview_badge_text
-                    x=14px
-                    y=7px
-                    width=142px
-                    height=20px
-                    text="ACTIVE THEME"
-                />
-                <Rectangle class=preview_badge x=0px y=0px width=100% height=100% />
-            </Group>
+                        <Group x=0px y=106px width=184px height=36px>
+                            <Text
+                                class=preview_badge_text
+                                x=16px
+                                y=8px
+                                width=152px
+                                height=20px
+                                text="ACTIVE THEME"
+                            />
+                            <Rectangle class=preview_badge x=0px y=0px width=100% height=100% />
+                        </Group>
 
-            <Text
-                class=preview_title
-                x=7%
-                y=44%
-                width=86%
-                height=18%
-                text="Selector classes stay on the nodes; only the imported providers swap."
-            />
+                        <Text
+                            class=preview_title
+                            x=0px
+                            y=164px
+                            width=100%
+                            height=92px
+                            text="Selector classes stay on the nodes; only the imported providers swap."
+                        />
 
-            <Text
-                class=preview_body
-                x=7%
-                y=64%
-                width=86%
-                height=12%
-                text="This example keeps the preview in the root template so the theme axes apply through class selectors rather than bespoke component wiring."
-            />
+                        <Text
+                            class=preview_body
+                            x=0px
+                            y=280px
+                            width=100%
+                            height=60px
+                            text="This example keeps the preview in the root template so the theme axes apply through class selectors rather than bespoke component wiring."
+                        />
 
-            <Text
-                class=preview_stat_label
-                x=7%
-                y=79%
-                width=180px
-                height=4%
-                text="MODE STACK"
-            />
+                        <Text
+                            class=preview_stat_label
+                            x=0px
+                            y=368px
+                            width=180px
+                            height=18px
+                            text="MODE STACK"
+                        />
 
-            <Text
-                class=preview_stat_value
-                x=7%
-                y=84%
-                width=86%
-                height=8%
-                text="Light or Dark + Sans or Serif + Rounded or Squared"
-            />
+                        <Text
+                            class=preview_stat_value
+                            x=0px
+                            y=394px
+                            width=100%
+                            height=24px
+                            text="Light or Dark + Sans or Serif + Rounded or Squared"
+                        />
 
-            <Group x=7% y=90% width=40% height=9%>
-                <Text
-                    class=preview_chip_text
-                    x=20px
-                    y=14px
-                    width={100% - 40px}
-                    height=24px
-                    text="Primary Surface"
-                />
-                <Rectangle class=preview_chip_primary x=0px y=0px width=100% height=100% />
-            </Group>
+                        <Text
+                            class=preview_stat_label
+                            x=0px
+                            y=454px
+                            width=200px
+                            height=18px
+                            text="SURFACE PALETTE"
+                        />
 
-            <Group x=53% y=90% width=40% height=9%>
-                <Text
-                    class=preview_chip_text
-                    x=20px
-                    y=14px
-                    width={100% - 40px}
-                    height=24px
-                    text="Secondary Surface"
-                />
-                <Rectangle class=preview_chip_secondary x=0px y=0px width=100% height=100% />
-            </Group>
+                        <Text
+                            class=section_copy
+                            x=0px
+                            y=480px
+                            width=100%
+                            height=42px
+                            text="Primary and secondary surfaces stay in the root template while imported selector layers restyle them live."
+                        />
+
+                        <Stacker
+                            x=0px
+                            y=540px
+                            width=100%
+                            height=108px
+                            direction=StackerDirection::Horizontal
+                            gutter=24px
+                            sizes=[None, None]
+                        >
+                            <Group width=100% height=100%>
+                                <Frame class=preview_chip_frame x=0px y=0px width=100% height=56px>
+                                    <Text
+                                        class=preview_chip_text
+                                        x=18px
+                                        y=16px
+                                        width={100% - 36px}
+                                        height=24px
+                                        text="Primary Surface"
+                                    />
+                                    <Rectangle class=preview_chip_primary x=0px y=0px width=100% height=100% />
+                                </Frame>
+                                <Text
+                                    class=section_copy
+                                    x=0px
+                                    y=70px
+                                    width=100%
+                                    height=36px
+                                    text="Panels, control cards, and the badge use this quieter fill."
+                                />
+                            </Group>
+
+                            <Group width=100% height=100%>
+                                <Frame class=preview_chip_frame x=0px y=0px width=100% height=56px>
+                                    <Text
+                                        class=preview_chip_text
+                                        x=18px
+                                        y=16px
+                                        width={100% - 36px}
+                                        height=24px
+                                        text="Secondary Surface"
+                                    />
+                                    <Rectangle class=preview_chip_secondary x=0px y=0px width=100% height=100% />
+                                </Frame>
+                                <Text
+                                    class=section_copy
+                                    x=0px
+                                    y=70px
+                                    width=100%
+                                    height=36px
+                                    text="Accent chips can get brighter or softer without moving any nodes."
+                                />
+                            </Group>
+                        </Stacker>
+                    </Group>
+
+                    <Rectangle class=preview_card_surface x=0px y=0px width=100% height=100% />
+                </Group>
+            </Scroller>
 
             <Rectangle class=panel_shadow x=12px y=14px width=100% height=100% />
             <Rectangle class=panel_surface x=0px y=0px width=100% height=100% />

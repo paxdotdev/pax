@@ -10,7 +10,7 @@
                 FontWeight::Bold
             )
             font_size: 14px
-            fill: rgba(36, 41, 48, 255)
+            fill: {self.is_dark ? rgba(194, 205, 218, 255) : rgba(36, 41, 48, 255)}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -27,7 +27,7 @@
                 FontWeight::ExtraBold
             )
             font_size: 42px
-            fill: rgba(28, 34, 40, 255)
+            fill: {self.is_dark ? rgba(239, 245, 250, 255) : rgba(28, 34, 40, 255)}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -44,7 +44,7 @@
                 FontWeight::Medium
             )
             font_size: 16px
-            fill: rgba(51, 58, 64, 255)
+            fill: {self.is_dark ? rgba(201, 210, 220, 255) : rgba(51, 58, 64, 255)}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -61,7 +61,7 @@
                 FontWeight::Bold
             )
             font_size: 24px
-            fill: rgba(30, 36, 42, 255)
+            fill: {self.is_dark ? rgba(239, 245, 251, 255) : rgba(30, 36, 42, 255)}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -78,7 +78,7 @@
                 FontWeight::Medium
             )
             font_size: 14px
-            fill: rgba(72, 79, 86, 255)
+            fill: {self.is_dark ? rgba(188, 198, 209, 255) : rgba(72, 79, 86, 255)}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -95,7 +95,7 @@
                 FontWeight::SemiBold
             )
             font_size: 13px
-            fill: rgba(48, 56, 62, 255)
+            fill: {self.is_dark ? rgba(222, 230, 238, 255) : rgba(48, 56, 62, 255)}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -112,7 +112,7 @@
                 FontWeight::Bold
             )
             font_size: 12px
-            fill: rgba(43, 49, 56, 255)
+            fill: {self.is_dark ? rgba(242, 247, 252, 255) : rgba(43, 49, 56, 255)}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center
@@ -129,7 +129,7 @@
                 FontWeight::ExtraBold
             )
             font_size: 28px
-            fill: rgba(28, 34, 40, 255)
+            fill: {self.is_dark ? rgba(243, 248, 252, 255) : rgba(28, 34, 40, 255)}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -146,7 +146,7 @@
                 FontWeight::Medium
             )
             font_size: 15px
-            fill: rgba(59, 67, 74, 255)
+            fill: {self.is_dark ? rgba(197, 207, 217, 255) : rgba(59, 67, 74, 255)}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -163,7 +163,7 @@
                 FontWeight::SemiBold
             )
             font_size: 14px
-            fill: rgba(42, 48, 54, 255)
+            fill: {self.is_dark ? rgba(237, 244, 250, 255) : rgba(42, 48, 54, 255)}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -180,7 +180,7 @@
                 FontWeight::Bold
             )
             font_size: 12px
-            fill: rgba(85, 93, 101, 255)
+            fill: {self.is_dark ? rgba(166, 179, 192, 255) : rgba(85, 93, 101, 255)}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -197,7 +197,7 @@
                 FontWeight::Medium
             )
             font_size: 15px
-            fill: rgba(44, 50, 58, 255)
+            fill: {self.is_dark ? rgba(223, 231, 239, 255) : rgba(44, 50, 58, 255)}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -205,7 +205,7 @@
         }
     }
 
-    .choice_button_text {
+    .theme_radio {
         style: TextStyle {
             font: Font::Web(
                 "Inter",
@@ -214,10 +214,10 @@
                 FontWeight::SemiBold
             )
             font_size: 14px
-            fill: rgba(41, 47, 54, 255)
+            fill: {self.is_dark ? rgba(238, 244, 250, 255) : rgba(41, 47, 54, 255)}
             align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Center
-            align_multiline: TextAlignHorizontal::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
             underline: false
         }
     }

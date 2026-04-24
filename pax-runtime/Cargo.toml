@@ -34,4 +34,4 @@ designer = []
 designtime = ["dep:pax-designtime", "dep:serde_json", "pax-language/parser", "pax-manifest/designtime"]
 
 [dev-dependencies]
-pax-language = {version="0.38.3", path = "../pax-language", features = ["parser"]}
+pax-language = {version="0.38.3", path = "../pax-language", default-features = false, features = ["parser"]}

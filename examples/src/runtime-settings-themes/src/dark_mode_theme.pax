@@ -6,9 +6,9 @@
             (0%, 0%),
             (100%, 100%),
             [
-                GradientStop::get(Color::rgba(24, 28, 36, 255), 0%),
-                GradientStop::get(Color::rgba(36, 43, 55, 255), 52%),
-                GradientStop::get(Color::rgba(49, 58, 71, 255), 100%)
+                GradientStop::get(Color::rgba(22, 26, 35, 255), 0%),
+                GradientStop::get(Color::rgba(30, 37, 48, 255), 54%),
+                GradientStop::get(Color::rgba(38, 46, 58, 255), 100%)
             ]
         )
     }
@@ -18,9 +18,9 @@
     }
 
     .panel_surface {
-        fill: rgba(231, 236, 240, 255)
+        fill: rgba(42, 49, 61, 255)
         stroke: {
-            color: rgba(112, 126, 142, 255)
+            color: rgba(92, 107, 124, 255)
             width: 1px
         }
     }
@@ -30,49 +30,34 @@
     }
 
     .control_card_surface {
-        fill: rgba(243, 247, 250, 255)
+        fill: rgba(56, 65, 79, 255)
         stroke: {
-            color: rgba(126, 138, 152, 255)
+            color: rgba(101, 114, 129, 255)
             width: 1px
         }
-    }
-
-    .preview_card_shadow {
-        fill: rgba(5, 10, 24, 104)
     }
 
     .preview_card_surface {
-        fill: rgba(239, 244, 248, 255)
-        stroke: {
-            color: rgba(124, 138, 154, 255)
-            width: 1px
-        }
+        fill: rgba(49, 57, 70, 255)
     }
 
     .preview_badge {
-        fill: rgba(176, 195, 208, 255)
+        fill: rgba(96, 121, 148, 255)
     }
 
     .preview_chip_primary {
-        fill: rgba(188, 204, 216, 255)
+        fill: rgba(78, 93, 112, 255)
     }
 
     .preview_chip_secondary {
-        fill: rgba(219, 228, 235, 255)
+        fill: rgba(62, 74, 90, 255)
     }
 
-    .choice_button {
-        fill: rgba(233, 239, 244, 255)
-        stroke: {
-            color: rgba(110, 124, 140, 255)
-            width: 1px
-        }
-    }
-
-    .choice_button_active {
-        fill: rgba(166, 183, 196, 255)
-        stroke: {
-            color: rgba(86, 99, 114, 255)
+    .theme_radio {
+        background: rgba(47, 58, 71, 255)
+        background_checked: rgba(107, 134, 162, 255)
+        outline: {
+            color: rgba(119, 136, 154, 255)
             width: 1px
         }
     }

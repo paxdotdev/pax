@@ -93,7 +93,11 @@ mod tests {
             Option<Rc<ExpandedNode>>,
         ) -> Option<Rc<RefCell<PaxAny>>>,
     > {
-        Box::new(|_, _| Some(Rc::new(RefCell::new(PaxAny::Builtin(PaxValue::default())))))
+        Box::new(|_, expanded_node| {
+            expanded_node
+                .is_none()
+                .then(|| Rc::new(RefCell::new(PaxAny::Builtin(PaxValue::default()))))
+        })
     }
 
     fn default_common_properties_factory() -> Box<
@@ -102,7 +106,11 @@ mod tests {
             Option<Rc<ExpandedNode>>,
         ) -> Option<Rc<RefCell<CommonProperties>>>,
     > {
-        Box::new(|_, _| Some(Rc::new(RefCell::new(CommonProperties::default()))))
+        Box::new(|_, expanded_node| {
+            expanded_node
+                .is_none()
+                .then(|| Rc::new(RefCell::new(CommonProperties::default())))
+        })
     }
 
     fn component_args(template: Option<Vec<Rc<dyn InstanceNode>>>) -> InstantiationArgs {
@@ -114,7 +122,10 @@ mod tests {
             handler_registry: None,
             children: None,
             component_template: template.map(RefCell::new),
+            component_settings: None,
             template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
             transition_config: Default::default(),
             properties_scope: crate::PropertiesScopeInit::None,
         }
@@ -129,7 +140,10 @@ mod tests {
             handler_registry: None,
             children: None,
             component_template: Some(RefCell::new(Vec::new())),
+            component_settings: None,
             template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
             transition_config,
             properties_scope: crate::PropertiesScopeInit::None,
         }
@@ -147,39 +161,26 @@ mod tests {
             ),
             prototypical_properties: crate::PropertiesInit::Factory(Box::new(
                 move |_, expanded_node| {
-                    if let Some(expanded_node) = expanded_node {
-                        expanded_node.with_properties_unwrapped(
-                            |properties: &mut RepeatProperties| {
-                                properties
-                                    .source_expression
-                                    .replace_with(source_for_factory.clone());
-                                properties
-                                    .iterator_i_symbol
-                                    .replace_with(Property::new(Some("i".to_string())));
-                                properties
-                                    .iterator_elem_symbol
-                                    .replace_with(Property::new(Some("item".to_string())));
-                                properties.repeat_key_expression = Some(key_expression.clone());
-                            },
-                        );
-                        return None;
-                    }
-
-                    Some(Rc::new(RefCell::new(
-                        RepeatProperties {
-                            source_expression: source_for_factory.clone(),
-                            iterator_i_symbol: Property::new(Some("i".to_string())),
-                            iterator_elem_symbol: Property::new(Some("item".to_string())),
-                            repeat_key_expression: Some(key_expression.clone()),
-                        }
-                        .to_pax_any(),
-                    )))
+                    expanded_node.is_none().then(|| {
+                        Rc::new(RefCell::new(
+                            RepeatProperties {
+                                source_expression: source_for_factory.clone(),
+                                iterator_i_symbol: Property::new(Some("i".to_string())),
+                                iterator_elem_symbol: Property::new(Some("item".to_string())),
+                                repeat_key_expression: Some(key_expression.clone()),
+                            }
+                            .to_pax_any(),
+                        ))
+                    })
                 },
             )),
             handler_registry: None,
             children: Some(RefCell::new(children)),
             component_template: None,
+            component_settings: None,
             template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
             transition_config: Default::default(),
             properties_scope: crate::PropertiesScopeInit::None,
         }
@@ -188,7 +189,10 @@ mod tests {
     fn positioned_leaf_args() -> InstantiationArgs {
         InstantiationArgs {
             prototypical_common_properties: crate::CommonPropertiesInit::Factory(Box::new(
-                |env, _| {
+                |env, expanded_node| {
+                    if expanded_node.is_some() {
+                        return None;
+                    }
                     let i_untyped = env.resolve_symbol_as_erased_property("i").unwrap();
                     let i = Property::<usize>::new_from_untyped(i_untyped.clone());
                     let deps = [i_untyped];
@@ -207,7 +211,10 @@ mod tests {
             handler_registry: None,
             children: None,
             component_template: Some(RefCell::new(Vec::new())),
+            component_settings: None,
             template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
             transition_config: Default::default(),
             properties_scope: crate::PropertiesScopeInit::None,
         }
@@ -229,7 +236,10 @@ mod tests {
         let expression = ExpressionInfo::new(parse_pax_expression(expr).unwrap());
         InstantiationArgs {
             prototypical_common_properties: crate::CommonPropertiesInit::Factory(Box::new(
-                move |env, _| {
+                move |env, expanded_node| {
+                    if expanded_node.is_some() {
+                        return None;
+                    }
                     let mut deps = Vec::new();
                     for dependency in &expression.dependencies {
                         let property = env
@@ -261,7 +271,10 @@ mod tests {
             handler_registry: None,
             children: None,
             component_template: Some(RefCell::new(Vec::new())),
+            component_settings: None,
             template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
             transition_config: Default::default(),
             properties_scope: crate::PropertiesScopeInit::None,
         }
@@ -677,6 +690,7 @@ impl RepeatInstance {
         let last_length = Rc::new(RefCell::new(0));
         let last_elem_sym = Rc::new(RefCell::new(None));
         let last_i_sym = Rc::new(RefCell::new(None));
+        let cached_children: Rc<RefCell<Vec<Rc<ExpandedNode>>>> = Default::default();
         let keyed_groups: Rc<RefCell<Vec<RepeatChildGroup>>> = Default::default();
 
         let children = Property::computed_with_name(
@@ -713,7 +727,11 @@ impl RepeatInstance {
                     && i_symbol.read(|i| i == &*borrow!(last_i_sym))
                     && elem_symbol.read(|e| e == &*borrow!(last_elem_sym))
                 {
-                    return cloned_expanded_node.current_attached_children();
+                    return if cloned_expanded_node.attached.get() > 0 {
+                        cloned_expanded_node.current_attached_children()
+                    } else {
+                        borrow!(cached_children).clone()
+                    };
                 }
                 *borrow_mut!(last_length) = source_len;
                 *borrow_mut!(last_i_sym) = i_symbol.get();
@@ -764,6 +782,7 @@ impl RepeatInstance {
                     &cloned_expanded_node.parent_frame,
                     is_mount,
                 );
+                *borrow_mut!(cached_children) = ret.clone();
                 ret
             },
             &deps,

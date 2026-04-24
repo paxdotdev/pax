@@ -20,7 +20,7 @@ use_RefCell!();
 use crate::{ExpandedNodeIdentifier, Globals, LayoutHull, LayoutProperties, TransformAndBounds};
 use core::fmt;
 use std::cell::Cell;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::rc::{Rc, Weak};
 
 use crate::api::{
@@ -33,13 +33,45 @@ use pax_manifest::cartridge_generation::{
     TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT, TRANSITION_PHASE_IDLE, TRANSITION_PHASE_SYMBOL,
     TRANSITION_PLAYHEAD_SYMBOL,
 };
-use pax_manifest::{SelectorExpr, SettingsBlockElement, TypeId};
+use pax_manifest::{SelectorExpr, SettingsBlockElement, TypeId, ValueDefinition};
 
 use crate::{
     apply_container_frame, compute_tab, project_child_layout_hull_to_parent_space,
     ComponentInstance, ContainerFrame, ContentChildrenSource, HandlerLocation, InstanceNode,
     InstanceNodePtr, RuntimeContext, RuntimePropertiesStackFrame,
 };
+
+#[derive(Clone, Debug)]
+pub struct RuntimeSettingsLayer {
+    pub provider_id: ExpandedNodeIdentifier,
+    pub provider_type_id: TypeId,
+    pub settings: Vec<SettingsBlockElement>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RuntimeSettingsSignatureEntry {
+    pub provider_id: ExpandedNodeIdentifier,
+    pub provider_type_id: TypeId,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RuntimeSettingsSource {
+    ComponentSettings,
+    ImportedLayer {
+        provider_id: ExpandedNodeIdentifier,
+        provider_type_id: TypeId,
+    },
+    Inline,
+}
+
+#[derive(Clone, Debug)]
+pub struct RuntimeResolvedPropertyEntry {
+    pub source: RuntimeSettingsSource,
+    pub selector: Option<SelectorExpr>,
+    pub value: ValueDefinition,
+}
+
+pub type RuntimeResolvedPropertyColumns = BTreeMap<String, Vec<RuntimeResolvedPropertyEntry>>;
 
 #[derive(Clone)]
 pub struct ExpandedNode {
@@ -197,9 +229,13 @@ pub struct ExpandedNode {
     /// Whether exit cleanup should do work on frame ticks.
     pub exit_cleanup_active: Cell<bool>,
     /// Imported provider layers currently active for this component instance.
-    pub imported_settings_layers: RefCell<Vec<Vec<SettingsBlockElement>>>,
+    pub imported_settings_layers: RefCell<Vec<RuntimeSettingsLayer>>,
     /// Ordered provider-node ids used to detect when the imported layer stack changed.
-    pub imported_settings_signature: RefCell<Vec<ExpandedNodeIdentifier>>,
+    pub imported_settings_signature: RefCell<Vec<RuntimeSettingsSignatureEntry>>,
+    /// Layered property entries ordered from lowest to highest precedence.
+    pub resolved_property_columns: RefCell<RuntimeResolvedPropertyColumns>,
+    /// Winning property entry per key after layering and inline override.
+    pub resolved_property_provenance: RefCell<BTreeMap<String, RuntimeResolvedPropertyEntry>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -443,6 +479,8 @@ impl ExpandedNode {
             exit_cleanup_active: Cell::new(false),
             imported_settings_layers: RefCell::new(Vec::new()),
             imported_settings_signature: RefCell::new(Vec::new()),
+            resolved_property_columns: RefCell::new(BTreeMap::new()),
+            resolved_property_provenance: RefCell::new(BTreeMap::new()),
         });
         template
             .base()
@@ -455,11 +493,7 @@ impl ExpandedNode {
         let common_properties = Rc::clone(&*borrow!(res.common_properties));
         *res.selector_metadata.borrow_mut() =
             RuntimeSelectorMetadata::from_base(template.base(), &common_properties);
-        let mut refreshed_scope = borrow!(*common_properties).retrieve_property_scope();
-        refreshed_scope.extend(template.base().properties_scope.build(Rc::clone(
-            &*borrow!(res.properties),
-        )));
-        *borrow_mut!(res.properties_scope) = refreshed_scope;
+        res.refresh_properties_scope(&template);
         res.bind_occlusion_listener(context);
         res.bind_children_listener(context);
         res.bind_subtree_layout_hull(context);
@@ -483,6 +517,7 @@ impl ExpandedNode {
         let common_properties = Rc::clone(&*borrow!(self.common_properties));
         *self.selector_metadata.borrow_mut() =
             RuntimeSelectorMetadata::from_base(template.base(), &common_properties);
+        self.refresh_properties_scope(&template);
         self.bind_to_parent_bounds(context);
         self.bind_occlusion_listener(context);
         context.mark_occlusion_dirty();
@@ -531,6 +566,15 @@ impl ExpandedNode {
         for child in borrow!(self.sidecar_children).iter() {
             child.recurse_emit_mount_updates();
         }
+    }
+
+    fn refresh_properties_scope(self: &Rc<Self>, template: &Rc<dyn InstanceNode>) {
+        let common_properties = Rc::clone(&*borrow!(self.common_properties));
+        let mut refreshed_scope = borrow!(*common_properties).retrieve_property_scope();
+        refreshed_scope.extend(template.base().properties_scope.build(Rc::clone(
+            &*borrow!(self.properties),
+        )));
+        *borrow_mut!(self.properties_scope) = refreshed_scope;
     }
 
     /// Returns whether this node is a descendant of the ExpandedNode described by `other_expanded_node_id` (id)
@@ -1019,6 +1063,37 @@ impl ExpandedNode {
         }
     }
 
+    fn recurse_reapply_runtime_settings_for_component_owner(
+        self: &Rc<Self>,
+        owner_component_id: ExpandedNodeIdentifier,
+        context: &Rc<RuntimeContext>,
+    ) {
+        if self.is_import_settings_node() {
+            return;
+        }
+
+        let owned_by_component = self
+            .containing_component
+            .upgrade()
+            .map(|component| component.id == owner_component_id)
+            .unwrap_or(false);
+
+        if owned_by_component {
+            let instance = borrow!(self.instance_node).clone();
+            self.recreate_with_new_data(instance, context);
+        }
+
+        let children = self.children.get();
+        for child in children.iter() {
+            child.recurse_reapply_runtime_settings_for_component_owner(owner_component_id, context);
+        }
+
+        let sidecar_children = borrow!(self.sidecar_children).clone();
+        for child in sidecar_children.iter() {
+            child.recurse_reapply_runtime_settings_for_component_owner(owner_component_id, context);
+        }
+    }
+
     pub fn recurse_control_flow_expansion(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
         borrow!(self.instance_node)
             .clone()
@@ -1107,6 +1182,8 @@ impl ExpandedNode {
             borrow_mut!(self.mounted_children).clear();
             borrow_mut!(self.imported_settings_layers).clear();
             borrow_mut!(self.imported_settings_signature).clear();
+            borrow_mut!(self.resolved_property_columns).clear();
+            borrow_mut!(self.resolved_property_provenance).clear();
             self.exit_cleanup_active.set(false);
             self.exit_cleanup_listener.replace_with(Property::default());
         }
@@ -1136,62 +1213,99 @@ impl ExpandedNode {
     fn collect_imported_settings_from_node(
         node: &Rc<Self>,
         in_import_settings: bool,
-        providers: &mut Vec<(ExpandedNodeIdentifier, Vec<SettingsBlockElement>)>,
+        descend_components: bool,
+        providers: &mut Vec<RuntimeSettingsLayer>,
     ) {
         if node.is_import_settings_node() {
-            for child in borrow!(node.sidecar_children).iter() {
-                Self::collect_imported_settings_from_node(child, true, providers);
+            let sidecar_children = borrow!(node.sidecar_children).clone();
+            for child in sidecar_children.iter() {
+                Self::collect_imported_settings_from_node(child, true, true, providers);
             }
             return;
         }
 
         if borrow!(node.instance_node).base().flags().is_component {
             if in_import_settings {
-                if let Some(settings) = borrow!(node.instance_node).base().component_settings.clone()
-                {
+                let base = borrow!(node.instance_node);
+                let component_settings = base.base().component_settings.clone();
+                let provider_type_id = base.base().template_node_type_id.clone().unwrap_or_default();
+                drop(base);
+                if let Some(settings) = component_settings {
                     if !settings.is_empty() {
-                        providers.push((node.id, settings));
+                        providers.push(RuntimeSettingsLayer {
+                            provider_id: node.id,
+                            provider_type_id,
+                            settings,
+                        });
                     }
                 }
+                let children = node.children.get();
+                for child in children.iter() {
+                    Self::collect_imported_settings_from_node(child, false, true, providers);
+                }
+                let sidecar_children = borrow!(node.sidecar_children).clone();
+                for child in sidecar_children.iter() {
+                    Self::collect_imported_settings_from_node(child, false, true, providers);
+                }
+                return;
             }
-            return;
+            if !descend_components {
+                return;
+            }
         }
 
-        for child in node.children.get().iter() {
-            Self::collect_imported_settings_from_node(child, in_import_settings, providers);
+        let children = node.children.get();
+        for child in children.iter() {
+            Self::collect_imported_settings_from_node(
+                child,
+                in_import_settings,
+                descend_components,
+                providers,
+            );
         }
-        for child in borrow!(node.sidecar_children).iter() {
-            Self::collect_imported_settings_from_node(child, in_import_settings, providers);
+        let sidecar_children = borrow!(node.sidecar_children).clone();
+        for child in sidecar_children.iter() {
+            Self::collect_imported_settings_from_node(
+                child,
+                in_import_settings,
+                descend_components,
+                providers,
+            );
         }
     }
 
     pub fn sync_imported_settings(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
         let mut providers = Vec::new();
-        for child in self.children.get().iter() {
-            Self::collect_imported_settings_from_node(child, false, &mut providers);
+        let children = self.children.get();
+        for child in children.iter() {
+            Self::collect_imported_settings_from_node(child, false, false, &mut providers);
         }
-        for child in borrow!(self.sidecar_children).iter() {
-            Self::collect_imported_settings_from_node(child, false, &mut providers);
+        let sidecar_children = borrow!(self.sidecar_children).clone();
+        for child in sidecar_children.iter() {
+            Self::collect_imported_settings_from_node(child, false, false, &mut providers);
         }
 
-        let signature = providers.iter().map(|(id, _)| *id).collect::<Vec<_>>();
+        let signature = providers
+            .iter()
+            .map(|layer| RuntimeSettingsSignatureEntry {
+                provider_id: layer.provider_id,
+                provider_type_id: layer.provider_type_id.clone(),
+            })
+            .collect::<Vec<_>>();
         if *borrow!(self.imported_settings_signature) == signature {
             return;
         }
 
         *borrow_mut!(self.imported_settings_signature) = signature;
-        *borrow_mut!(self.imported_settings_layers) =
-            providers.into_iter().map(|(_, settings)| settings).collect();
+        *borrow_mut!(self.imported_settings_layers) = providers;
 
         let root_children = self.children.get();
         for child in root_children.iter() {
-            if child.is_import_settings_node()
-                || borrow!(child.instance_node).base().flags().is_component
-            {
+            if child.is_import_settings_node() {
                 continue;
             }
-            let instance = borrow!(child.instance_node).clone();
-            child.fully_recreate_with_new_data(instance, context);
+            child.recurse_reapply_runtime_settings_for_component_owner(self.id, context);
+            child.recurse_emit_mount_updates();
         }
     }
 

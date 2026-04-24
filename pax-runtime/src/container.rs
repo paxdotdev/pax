@@ -309,7 +309,11 @@ mod tests {
             Option<Rc<ExpandedNode>>,
         ) -> Option<Rc<RefCell<PaxAny>>>,
     > {
-        Box::new(|_, _| Some(Rc::new(RefCell::new(PaxAny::Builtin(Default::default())))))
+        Box::new(|_, expanded_node| {
+            expanded_node.is_none().then(|| {
+                Rc::new(RefCell::new(PaxAny::Builtin(Default::default())))
+            })
+        })
     }
 
     fn default_common_properties_factory() -> Box<
@@ -318,7 +322,11 @@ mod tests {
             Option<Rc<ExpandedNode>>,
         ) -> Option<Rc<RefCell<CommonProperties>>>,
     > {
-        Box::new(|_, _| Some(Rc::new(RefCell::new(CommonProperties::default()))))
+        Box::new(|_, expanded_node| {
+            expanded_node
+                .is_none()
+                .then(|| Rc::new(RefCell::new(CommonProperties::default())))
+        })
     }
 
     fn component_args(
@@ -333,7 +341,10 @@ mod tests {
             handler_registry: None,
             children: children.map(RefCell::new),
             component_template: template.map(RefCell::new),
+            component_settings: None,
             template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
             transition_config: Default::default(),
             properties_scope: crate::PropertiesScopeInit::None,
         }
@@ -348,7 +359,10 @@ mod tests {
             handler_registry: None,
             children: Some(RefCell::new(children)),
             component_template: None,
+            component_settings: None,
             template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
             transition_config: Default::default(),
             properties_scope: crate::PropertiesScopeInit::None,
         }

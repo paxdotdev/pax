@@ -2,7 +2,8 @@ use_RefCell!();
 use crate::api::NodeContext;
 use crate::{
     ConditionalProperties, ExpandedNode, Handler, HandlerRegistry, InstanceNode, InstantiationArgs,
-    ReusableInstanceNodeArgs, RuntimePropertiesStackFrame,
+    ReusableInstanceNodeArgs, RuntimePropertiesStackFrame, RuntimeResolvedPropertyColumns,
+    RuntimeResolvedPropertyEntry, RuntimeSettingsLayer, RuntimeSettingsSource,
 };
 use pax_language::Computable;
 use pax_manifest::cartridge_generation::{
@@ -28,11 +29,18 @@ use std::rc::Rc;
 
 pub trait PaxCartridge {}
 
-fn settings_layers_for_node(
+struct ResolvedRuntimeSettings {
+    defined_properties: BTreeMap<String, ValueDefinition>,
+    columns: RuntimeResolvedPropertyColumns,
+    provenance: BTreeMap<String, RuntimeResolvedPropertyEntry>,
+}
+
+fn imported_settings_layers_for_node(
     expanded_node: Option<&Rc<ExpandedNode>>,
-    containing_component_settings: &Option<Vec<SettingsBlockElement>>,
-) -> Vec<Option<Vec<SettingsBlockElement>>> {
-    let mut layers = vec![containing_component_settings.clone()];
+)
+    -> Vec<RuntimeSettingsLayer>
+{
+    let mut layers = Vec::new();
     let Some(expanded_node) = expanded_node else {
         return layers;
     };
@@ -42,17 +50,116 @@ fn settings_layers_for_node(
     let Some(containing_component) = expanded_node.containing_component.upgrade() else {
         return layers;
     };
-    layers.extend(
-        borrow!(containing_component.imported_settings_layers)
-            .iter()
-            .cloned()
-            .map(Some),
-    );
+    layers.extend(borrow!(containing_component.imported_settings_layers).iter().cloned());
     layers
 }
 
+fn append_resolved_property_entry(
+    columns: &mut RuntimeResolvedPropertyColumns,
+    key: &str,
+    entry: RuntimeResolvedPropertyEntry,
+) {
+    columns.entry(key.to_string()).or_default().push(entry);
+}
+
+fn append_setting_elements(
+    columns: &mut RuntimeResolvedPropertyColumns,
+    elements: &[SettingElement],
+    source: RuntimeSettingsSource,
+    selector: Option<pax_manifest::SelectorExpr>,
+) {
+    for element in elements {
+        let SettingElement::Setting(key, value) = element else {
+            continue;
+        };
+        match value {
+            ValueDefinition::LiteralValue(_)
+            | ValueDefinition::Block(_)
+            | ValueDefinition::Timeline(_)
+            | ValueDefinition::Transition(_)
+            | ValueDefinition::Expression(_)
+            | ValueDefinition::Identifier(_)
+            | ValueDefinition::DoubleBinding(_) => {
+                append_resolved_property_entry(
+                    columns,
+                    &key.token_value,
+                    RuntimeResolvedPropertyEntry {
+                        source: source.clone(),
+                        selector: selector.clone(),
+                        value: value.clone(),
+                    },
+                );
+            }
+            ValueDefinition::EventBindingTarget(_) | ValueDefinition::Undefined => {}
+        }
+    }
+}
+
+fn append_selector_layer_entries(
+    columns: &mut RuntimeResolvedPropertyColumns,
+    tnd: &TemplateNodeDefinition,
+    settings_block: &Option<Vec<SettingsBlockElement>>,
+    source: RuntimeSettingsSource,
+) {
+    let Some(settings_block) = settings_block else {
+        return;
+    };
+
+    for settings_value in settings_block.iter() {
+        let SettingsBlockElement::SelectorBlock(token, value) = settings_value else {
+            continue;
+        };
+        let Ok(selector) = pax_manifest::SelectorExpr::parse(&token.token_value) else {
+            continue;
+        };
+        if matches!(selector, pax_manifest::SelectorExpr::Type(_))
+            && tnd.selector_info.matches(&tnd.type_id, &selector)
+        {
+            append_setting_elements(
+                columns,
+                &value.elements,
+                source.clone(),
+                Some(selector),
+            );
+        }
+    }
+
+    for class in &tnd.selector_info.classes {
+        let selector = pax_manifest::SelectorExpr::Class(class.token_value.clone());
+        let mut matched = Vec::new();
+        for settings_value in settings_block.iter() {
+            let SettingsBlockElement::SelectorBlock(token, value) = settings_value else {
+                continue;
+            };
+            let Ok(candidate) = pax_manifest::SelectorExpr::parse(&token.token_value) else {
+                continue;
+            };
+            if candidate == selector {
+                matched.extend(value.elements.clone());
+            }
+        }
+        append_setting_elements(columns, &matched, source.clone(), Some(selector));
+    }
+    if let Some(id) = &tnd.selector_info.id {
+        let selector = pax_manifest::SelectorExpr::Id(id.token_value.clone());
+        let mut matched = Vec::new();
+        for settings_value in settings_block.iter() {
+            let SettingsBlockElement::SelectorBlock(token, value) = settings_value else {
+                continue;
+            };
+            let Ok(candidate) = pax_manifest::SelectorExpr::parse(&token.token_value) else {
+                continue;
+            };
+            if candidate == selector {
+                matched.extend(value.elements.clone());
+            }
+        }
+        append_setting_elements(columns, &matched, source, Some(selector));
+    }
+}
+
 fn overlay_static_runtime_properties(
-    map: &mut BTreeMap<String, ValueDefinition>,
+    columns: &mut RuntimeResolvedPropertyColumns,
     base_defined_properties: &BTreeMap<String, ValueDefinition>,
 ) {
     for (key, value) in base_defined_properties {
@@ -60,9 +167,84 @@ fn overlay_static_runtime_properties(
             value,
             ValueDefinition::Timeline(_) | ValueDefinition::Transition(_)
         ) {
-            map.insert(key.clone(), value.clone());
+            append_resolved_property_entry(
+                columns,
+                key,
+                RuntimeResolvedPropertyEntry {
+                    source: RuntimeSettingsSource::Inline,
+                    selector: None,
+                    value: value.clone(),
+                },
+            );
         }
     }
+}
+
+fn resolve_runtime_settings_with_layers_for_node(
+    tnd: &TemplateNodeDefinition,
+    base_defined_properties: &BTreeMap<String, ValueDefinition>,
+    containing_component_settings: &Option<Vec<SettingsBlockElement>>,
+    imported_layers: &[RuntimeSettingsLayer],
+) -> ResolvedRuntimeSettings {
+    let mut columns = BTreeMap::new();
+
+    append_selector_layer_entries(
+        &mut columns,
+        tnd,
+        containing_component_settings,
+        RuntimeSettingsSource::ComponentSettings,
+    );
+    for layer in imported_layers {
+        append_selector_layer_entries(
+            &mut columns,
+            tnd,
+            &Some(layer.settings.clone()),
+            RuntimeSettingsSource::ImportedLayer {
+                provider_id: layer.provider_id,
+                provider_type_id: layer.provider_type_id.clone(),
+            },
+        );
+    }
+    if let Some(inline_settings) = &tnd.settings {
+        append_setting_elements(
+            &mut columns,
+            inline_settings,
+            RuntimeSettingsSource::Inline,
+            None,
+        );
+    }
+    overlay_static_runtime_properties(&mut columns, base_defined_properties);
+
+    let mut defined_properties = BTreeMap::new();
+    let mut provenance = BTreeMap::new();
+    for (key, entries) in &columns {
+        let Some(last_entry) = entries.last() else {
+            continue;
+        };
+        defined_properties.insert(key.clone(), last_entry.value.clone());
+        provenance.insert(key.clone(), last_entry.clone());
+    }
+
+    ResolvedRuntimeSettings {
+        defined_properties,
+        columns,
+        provenance,
+    }
+}
+
+fn resolve_runtime_settings_for_node(
+    tnd: &TemplateNodeDefinition,
+    base_defined_properties: &BTreeMap<String, ValueDefinition>,
+    containing_component_settings: &Option<Vec<SettingsBlockElement>>,
+    expanded_node: Option<&Rc<ExpandedNode>>,
+) -> ResolvedRuntimeSettings {
+    let imported_layers = imported_settings_layers_for_node(expanded_node);
+    resolve_runtime_settings_with_layers_for_node(
+        tnd,
+        base_defined_properties,
+        containing_component_settings,
+        &imported_layers,
+    )
 }
 
 fn resolve_defined_properties_for_node(
@@ -71,34 +253,17 @@ fn resolve_defined_properties_for_node(
     containing_component_settings: &Option<Vec<SettingsBlockElement>>,
     expanded_node: Option<&Rc<ExpandedNode>>,
 ) -> BTreeMap<String, ValueDefinition> {
-    let settings_layers = settings_layers_for_node(expanded_node, containing_component_settings);
-    if settings_layers.len() == 1 {
-        return base_defined_properties.clone();
+    let resolved = resolve_runtime_settings_for_node(
+        tnd,
+        base_defined_properties,
+        containing_component_settings,
+        expanded_node,
+    );
+    if let Some(expanded_node) = expanded_node {
+        *expanded_node.resolved_property_columns.borrow_mut() = resolved.columns.clone();
+        *expanded_node.resolved_property_provenance.borrow_mut() = resolved.provenance.clone();
     }
-
-    let merged_settings =
-        pax_manifest::PaxManifest::merge_inline_settings_with_settings_layers(tnd, &settings_layers);
-    let mut map = BTreeMap::new();
-    if let Some(settings) = merged_settings {
-        for setting in settings {
-            if let SettingElement::Setting(key, value) = setting {
-                match value {
-                    ValueDefinition::LiteralValue(_)
-                    | ValueDefinition::Block(_)
-                    | ValueDefinition::Timeline(_)
-                    | ValueDefinition::Transition(_)
-                    | ValueDefinition::Expression(_)
-                    | ValueDefinition::Identifier(_)
-                    | ValueDefinition::DoubleBinding(_) => {
-                        map.insert(key.token_value.clone(), value.clone());
-                    }
-                    ValueDefinition::EventBindingTarget(_) | ValueDefinition::Undefined => {}
-                }
-            }
-        }
-    }
-    overlay_static_runtime_properties(&mut map, base_defined_properties);
-    map
+    resolved.defined_properties
 }
 pub struct HandlerDescriptor {
     pub name: &'static str,
@@ -2305,4 +2470,151 @@ fn update_common_properties(
         defined_properties,
         stack_frame,
     ));
+}
+
+#[cfg(test)]
+mod runtime_settings_tests {
+    use super::resolve_runtime_settings_with_layers_for_node;
+    use crate::{ExpandedNodeIdentifier, RuntimeSettingsLayer, RuntimeSettingsSource};
+    use pax_manifest::{
+        LiteralBlockDefinition, PaxIdentifier, SettingElement, SettingsBlockElement,
+        TemplateNodeDefinition, Token, TypeId, ValueDefinition,
+    };
+    use pax_runtime_api::PaxValue;
+    use std::collections::BTreeMap;
+
+    fn setting(name: &str, value: i32) -> SettingElement {
+        SettingElement::Setting(
+            Token::new_without_location(name.to_string()),
+            ValueDefinition::LiteralValue(PaxValue::Numeric(value.into())),
+        )
+    }
+
+    fn selector_block(selector: &str, elements: Vec<SettingElement>) -> SettingsBlockElement {
+        SettingsBlockElement::SelectorBlock(
+            Token::new_without_location(selector.to_string()),
+            LiteralBlockDefinition::new(elements),
+        )
+    }
+
+    #[test]
+    fn runtime_settings_resolve_columns_and_provenance_by_layer() {
+        let mut node = TemplateNodeDefinition {
+            type_id: TypeId::build_singleton("example::Text", Some("Text")),
+            control_flow_settings: None,
+            settings: Some(vec![
+                SettingElement::Setting(
+                    Token::new_without_location("class".to_string()),
+                    ValueDefinition::Identifier(PaxIdentifier::new("headline")),
+                ),
+                SettingElement::Setting(
+                    Token::new_without_location("id".to_string()),
+                    ValueDefinition::Identifier(PaxIdentifier::new("hero")),
+                ),
+                setting("fill", 4),
+            ]),
+            selector_info: Default::default(),
+            raw_comment_string: None,
+        };
+        node.normalize_selector_info();
+
+        let component_settings = Some(vec![selector_block(
+            "Text",
+            vec![setting("width", 1), setting("fill", 1)],
+        )]);
+        let imported_layers = vec![
+            RuntimeSettingsLayer {
+                provider_id: ExpandedNodeIdentifier(10),
+                provider_type_id: TypeId::build_singleton("example::BaseTheme", Some("BaseTheme")),
+                settings: vec![selector_block(
+                    "Text",
+                    vec![setting("height", 2), setting("fill", 2)],
+                )],
+            },
+            RuntimeSettingsLayer {
+                provider_id: ExpandedNodeIdentifier(11),
+                provider_type_id: TypeId::build_singleton(
+                    "example::AccentTheme",
+                    Some("AccentTheme"),
+                ),
+                settings: vec![selector_block(
+                    ".headline",
+                    vec![setting("opacity", 3), setting("fill", 3)],
+                )],
+            },
+        ];
+
+        let resolved = resolve_runtime_settings_with_layers_for_node(
+            &node,
+            &BTreeMap::new(),
+            &component_settings,
+            &imported_layers,
+        );
+
+        assert!(matches!(
+            resolved.defined_properties.get("width"),
+            Some(ValueDefinition::LiteralValue(PaxValue::Numeric(value))) if *value == 1.into()
+        ));
+        assert!(matches!(
+            resolved.defined_properties.get("height"),
+            Some(ValueDefinition::LiteralValue(PaxValue::Numeric(value))) if *value == 2.into()
+        ));
+        assert!(matches!(
+            resolved.defined_properties.get("opacity"),
+            Some(ValueDefinition::LiteralValue(PaxValue::Numeric(value))) if *value == 3.into()
+        ));
+        assert!(matches!(
+            resolved.defined_properties.get("fill"),
+            Some(ValueDefinition::LiteralValue(PaxValue::Numeric(value))) if *value == 4.into()
+        ));
+
+        let fill_column = resolved.columns.get("fill").expect("fill column should exist");
+        assert_eq!(fill_column.len(), 4);
+        assert!(matches!(
+            fill_column[0].source,
+            RuntimeSettingsSource::ComponentSettings
+        ));
+        assert!(matches!(
+            fill_column[1].source,
+            RuntimeSettingsSource::ImportedLayer { provider_id, .. } if provider_id == ExpandedNodeIdentifier(10)
+        ));
+        assert!(matches!(
+            fill_column[2].source,
+            RuntimeSettingsSource::ImportedLayer { provider_id, .. } if provider_id == ExpandedNodeIdentifier(11)
+        ));
+        assert!(matches!(fill_column[3].source, RuntimeSettingsSource::Inline));
+
+        let width_source = resolved
+            .provenance
+            .get("width")
+            .expect("width provenance should exist");
+        assert!(matches!(
+            width_source.source,
+            RuntimeSettingsSource::ComponentSettings
+        ));
+        assert!(matches!(
+            width_source.selector,
+            Some(pax_manifest::SelectorExpr::Type(ref selector)) if selector == "Text"
+        ));
+
+        let opacity_source = resolved
+            .provenance
+            .get("opacity")
+            .expect("opacity provenance should exist");
+        assert!(matches!(
+            opacity_source.source,
+            RuntimeSettingsSource::ImportedLayer { provider_id, .. } if provider_id == ExpandedNodeIdentifier(11)
+        ));
+        assert!(matches!(
+            opacity_source.selector,
+            Some(pax_manifest::SelectorExpr::Class(ref selector)) if selector == "headline"
+        ));
+
+        let fill_source = resolved
+            .provenance
+            .get("fill")
+            .expect("fill provenance should exist");
+        assert!(matches!(fill_source.source, RuntimeSettingsSource::Inline));
+        assert!(fill_source.selector.is_none());
+    }
 }

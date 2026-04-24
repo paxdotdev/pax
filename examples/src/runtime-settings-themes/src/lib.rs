@@ -17,30 +17,6 @@ impl Example {
         self.typography_mode.set(0);
         self.corner_mode.set(0);
     }
-
-    pub fn select_light(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        self.color_mode.set_if_neq(0);
-    }
-
-    pub fn select_dark(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        self.color_mode.set_if_neq(1);
-    }
-
-    pub fn select_sans(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        self.typography_mode.set_if_neq(0);
-    }
-
-    pub fn select_serif(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        self.typography_mode.set_if_neq(1);
-    }
-
-    pub fn select_rounded(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        self.corner_mode.set_if_neq(0);
-    }
-
-    pub fn select_squared(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        self.corner_mode.set_if_neq(1);
-    }
 }
 
 #[pax]
@@ -53,11 +29,15 @@ pub struct DarkModeTheme {}
 
 #[pax]
 #[file("sans_typography_theme.pax")]
-pub struct SansTypographyTheme {}
+pub struct SansTypographyTheme {
+    pub is_dark: Property<bool>,
+}
 
 #[pax]
 #[file("serif_typography_theme.pax")]
-pub struct SerifTypographyTheme {}
+pub struct SerifTypographyTheme {
+    pub is_dark: Property<bool>,
+}
 
 #[pax]
 #[file("rounded_corner_theme.pax")]

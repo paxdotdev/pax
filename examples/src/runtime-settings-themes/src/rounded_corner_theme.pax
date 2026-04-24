@@ -37,16 +37,11 @@
         }
     }
 
-    .preview_card_surface {
-        corner_radii: {
-            top_left: 24
-            top_right: 24
-            bottom_left: 24
-            bottom_right: 24
-        }
+    .preview_scroller {
+        border_radius: 24
     }
 
-    .preview_card_shadow {
+    .preview_card_surface {
         corner_radii: {
             top_left: 24
             top_right: 24
@@ -64,6 +59,10 @@
         }
     }
 
+    .preview_chip_frame {
+        border_radius: 18
+    }
+
     .preview_chip_primary {
         corner_radii: {
             top_left: 18
@@ -74,24 +73,6 @@
     }
 
     .preview_chip_secondary {
-        corner_radii: {
-            top_left: 18
-            top_right: 18
-            bottom_left: 18
-            bottom_right: 18
-        }
-    }
-
-    .choice_button {
-        corner_radii: {
-            top_left: 18
-            top_right: 18
-            bottom_left: 18
-            bottom_right: 18
-        }
-    }
-
-    .choice_button_active {
         corner_radii: {
             top_left: 18
             top_right: 18

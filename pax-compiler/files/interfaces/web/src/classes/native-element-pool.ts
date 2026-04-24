@@ -63,6 +63,7 @@ import type { LayerCanvasPlan } from "./surface-host-policy";
 import { CanvasPool } from "./canvas-pool";
 
 const SCREENSHOT_FONT_STYLE_ATTRIBUTE = 'data-pax-screenshot-font-style';
+const SCROLLER_CHROME_STYLE_ATTRIBUTE = 'data-pax-scroller-chrome-style';
 const SCREENSHOT_OVERLAY_BLACK = '#000000';
 const SCREENSHOT_OVERLAY_WHITE = '#ffffff';
 
@@ -129,6 +130,7 @@ export class NativeElementPool {
     attach(chassis: PaxChassisWeb, mount: Element){
         this.chassis = chassis;
         this.mount = mount instanceof HTMLElement ? mount : undefined;
+        injectScrollerChromeCss(mount.ownerDocument ?? document);
         this.canvasPool = new CanvasPool(
             this.objectManager,
             browserCanvasPoolBudget(),
@@ -2295,6 +2297,10 @@ export class NativeElementPool {
         let scrollerId = patch.id!;
         let vectorIslandEnabled = browserOwnedVectorScrollerIslandsEnabled();
         innerPane.setAttribute("class", INNER_PANE);
+        scrollerDiv.style.background = "transparent";
+        scrollerDiv.style.backgroundColor = "transparent";
+        innerPane.style.background = "transparent";
+        innerPane.style.backgroundColor = "transparent";
         snapHost.dataset.role = "scroller-snap-host";
         snapHost.style.position = "absolute";
         snapHost.style.top = "0";
@@ -2303,6 +2309,8 @@ export class NativeElementPool {
         snapHost.style.height = "100%";
         snapHost.style.pointerEvents = "none";
         snapHost.style.zIndex = "0";
+        snapHost.style.background = "transparent";
+        snapHost.style.backgroundColor = "transparent";
         canvasHost.dataset.role = "scroller-canvas-host";
         canvasHost.dataset.scrollerId = String(scrollerId);
         canvasHost.style.position = "absolute";
@@ -2313,6 +2321,8 @@ export class NativeElementPool {
         canvasHost.style.pointerEvents = "none";
         canvasHost.style.overflow = "visible";
         canvasHost.style.zIndex = "0";
+        canvasHost.style.background = "transparent";
+        canvasHost.style.backgroundColor = "transparent";
         canvasHost.dataset.viewportWidth = "0";
         canvasHost.dataset.viewportHeight = "0";
         canvasHost.dataset.approvedScrollX = "0";
@@ -2329,6 +2339,8 @@ export class NativeElementPool {
         contentHost.style.height = "100%";
         contentHost.style.transformOrigin = "top left";
         contentHost.style.pointerEvents = "none";
+        contentHost.style.background = "transparent";
+        contentHost.style.backgroundColor = "transparent";
         // Keep the native overlay host above the canvas host inside browser-owned scroller
         // islands. Individual layer canvases/native elements can still order locally within those
         // hosts, but the hosts themselves should never invert.
@@ -3993,6 +4005,40 @@ function injectRegisteredFontCssIntoElement(targetDocument: Document, targetElem
     style.setAttribute(SCREENSHOT_FONT_STYLE_ATTRIBUTE, 'true');
     style.textContent = fontCss;
     targetElement.prepend(style);
+}
+
+function injectScrollerChromeCss(targetDocument: Document) {
+    if (targetDocument.head?.querySelector(`style[${SCROLLER_CHROME_STYLE_ATTRIBUTE}]`)) {
+        return;
+    }
+
+    const style = targetDocument.createElement('style');
+    style.setAttribute(SCROLLER_CHROME_STYLE_ATTRIBUTE, 'true');
+    style.textContent = `
+        .${SCROLLER_CONTAINER} {
+            scrollbar-color: rgba(128, 138, 150, 0.72) transparent;
+            scrollbar-width: thin;
+        }
+
+        .${SCROLLER_CONTAINER}::-webkit-scrollbar {
+            width: 12px;
+            height: 12px;
+            background: transparent;
+        }
+
+        .${SCROLLER_CONTAINER}::-webkit-scrollbar-track,
+        .${SCROLLER_CONTAINER}::-webkit-scrollbar-corner {
+            background: transparent;
+        }
+
+        .${SCROLLER_CONTAINER}::-webkit-scrollbar-thumb {
+            background-color: rgba(128, 138, 150, 0.72);
+            border-radius: 999px;
+            border: 3px solid transparent;
+            background-clip: padding-box;
+        }
+    `;
+    (targetDocument.head ?? targetDocument.documentElement).appendChild(style);
 }
 
 function getElementComputedStyle(element: Element): CSSStyleDeclaration | null {

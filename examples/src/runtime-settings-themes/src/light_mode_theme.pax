@@ -37,16 +37,8 @@
         }
     }
 
-    .preview_card_shadow {
-        fill: rgba(30, 40, 52, 26)
-    }
-
     .preview_card_surface {
         fill: rgba(255, 251, 246, 255)
-        stroke: {
-            color: rgba(196, 182, 162, 255)
-            width: 1px
-        }
     }
 
     .preview_badge {
@@ -61,18 +53,11 @@
         fill: rgba(236, 228, 216, 255)
     }
 
-    .choice_button {
-        fill: rgba(248, 243, 236, 255)
-        stroke: {
+    .theme_radio {
+        background: rgba(248, 243, 236, 255)
+        background_checked: rgba(203, 191, 170, 255)
+        outline: {
             color: rgba(176, 164, 146, 255)
-            width: 1px
-        }
-    }
-
-    .choice_button_active {
-        fill: rgba(203, 191, 170, 255)
-        stroke: {
-            color: rgba(133, 117, 93, 255)
             width: 1px
         }
     }

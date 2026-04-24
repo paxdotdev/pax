@@ -31,7 +31,10 @@ pub mod piet_render_context;
 /// `ExpandedNode`s are architecturally "type-blind" — while they store typed data e.g. inside `computed_properties` and `computed_common_properties`,
 /// they require coordinating with their "type-aware" [`InstanceNode`] to perform operations on those properties.
 mod expanded_node;
-pub use expanded_node::ExpandedNode;
+pub use expanded_node::{
+    ExpandedNode, RuntimeResolvedPropertyColumns, RuntimeResolvedPropertyEntry,
+    RuntimeSettingsLayer, RuntimeSettingsSignatureEntry, RuntimeSettingsSource,
+};
 
 use self::node_interface::NodeLocal;
 
@@ -614,6 +617,7 @@ mod tests {
             handler_registry: None,
             children: None,
             component_template: None,
+            component_settings: None,
             template_node_identifier: None,
             template_node_type_id: None,
             template_node_selector_info: None,
