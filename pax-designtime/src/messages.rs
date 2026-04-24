@@ -15,6 +15,7 @@ pub enum AgentMessage {
     // sent from designtime to design-server
     LoadManifestRequest,
     LoadManifestResponse(LoadManifestResponse),
+    DisconnectNotification(DisconnectNotification),
     ComponentSerializationRequest(ComponentSerializationRequest),
     UpdateTemplateRequest(Box<UpdateTemplateRequest>),
     LoadFileToStaticDirRequest(LoadFileToStaticDirRequest),
@@ -269,6 +270,12 @@ pub struct LoadManifestRequest {}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LoadManifestResponse {
     pub manifest: Vec<u8>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DisconnectNotification {
+    pub allow_reconnect: bool,
+    pub reason: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

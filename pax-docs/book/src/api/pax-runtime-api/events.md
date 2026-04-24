@@ -258,10 +258,10 @@ Common mouse event data.
 ---
 
 ### `Scroll`
-Scroll occurs when a frame is translated vertically or horizontally
-Can be both by touch, mouse or keyboard
-The contained `delta_x` and `delta_y` describe the horizontal and vertical translation of
-the frame
+Scroll is the shared delta-based path for wheel scrolling, touch swipe gestures, and
+read-only native scroller position changes.
+Use `Wheel` or `TouchMove` when you need platform-specific details instead of the normalized
+delta stream.
 
 #### Properties
 ##### `delta_x`

@@ -14,9 +14,9 @@ use piet::{Color, StrokeStyle};
 use crate::api::{Layer, Scroll, Window};
 
 use crate::{
-    ContentChildrenSource, ExpandedNode, HandlerRegistry, RuntimeContext,
+    create_new_common_properties, update_existing_common_properties, ContentChildrenSource,
+    ErasedComponentDescriptor, ExpandedNode, HandlerRegistry, RuntimeContext,
     RuntimePropertiesStackFrame,
-    create_new_common_properties, update_existing_common_properties, ErasedComponentDescriptor,
 };
 use pax_manifest::ValueDefinition;
 

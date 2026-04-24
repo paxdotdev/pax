@@ -55,7 +55,8 @@ fn main() -> Result<(), Report> {
         .short("t")
         .long("target")
         .default_value(DEFAULT_TARGET)
-        .help("Specify the target platform on which to run. Supported targets include web, macos, ios, and ipados.")
+        .possible_values(&["web", "macos", "ios", "ipados", "ipad"])
+        .help("Specify the target platform on which to run. Supported targets include web, macos, ios, and ipados (`ipad` is accepted as an alias).")
         .takes_value(true);
 
     #[allow(non_snake_case)]
@@ -269,7 +270,7 @@ fn perform_nominal_action(
             let webgl = args.is_present("webgl");
 
             let _ = pax_compiler::perform_build(&RunContext {
-                target: RunTarget::from(target.as_str()),
+                target: parse_run_target(&target)?,
                 project_path: PathBuf::from(path),
                 verbose,
                 should_also_run: true,
@@ -306,7 +307,7 @@ fn perform_nominal_action(
             }
 
             let _ = pax_compiler::perform_build(&RunContext {
-                target: RunTarget::from(target.as_str()),
+                target: parse_run_target(&target)?,
                 project_path: PathBuf::from(path),
                 should_also_run: false,
                 should_run_designtime,
@@ -350,7 +351,7 @@ fn perform_nominal_action(
             let is_libdev_mode = args.is_present("libdev");
 
             let _ = pax_compiler::perform_eject(&RunContext {
-                target: RunTarget::from(target.as_str()),
+                target: parse_run_target(&target)?,
                 project_path: PathBuf::from("."),
                 should_also_run: false,
                 should_run_designtime: false,
@@ -436,6 +437,10 @@ fn perform_nominal_action(
         ("dev", Some(args)) => dev::handle(args, process_child_ids),
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable
     }
+}
+
+fn parse_run_target(target: &str) -> Result<RunTarget, Report> {
+    RunTarget::parse(target).map_err(|error| eyre!(error))
 }
 
 fn normalize_designer_args(args: Vec<String>) -> Result<Vec<String>, Report> {

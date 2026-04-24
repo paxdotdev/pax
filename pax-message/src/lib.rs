@@ -191,8 +191,10 @@ pub struct ClickOrTapInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
-/// Wheel or gesture scroll delta payload.
+/// Location-targeted scroll delta payload.
 pub struct ScrollInterruptArgs {
+    pub x: f64,
+    pub y: f64,
     pub delta_x: f64,
     pub delta_y: f64,
 }

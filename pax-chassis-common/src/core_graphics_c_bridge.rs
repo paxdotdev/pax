@@ -3,7 +3,6 @@
 extern crate core;
 
 use std::cell::RefCell;
-#[cfg(not(any(target_os = "ios", target_os = "macos")))]
 use std::collections::HashMap;
 use std::ffi::{c_void, CStr};
 use std::mem::{transmute, ManuallyDrop};
@@ -20,7 +19,7 @@ use pax_gpu::{Transform2D, WgpuRenderer};
 use pax_runtime::api::math::Point2;
 use pax_runtime::api::{
     ButtonClick, Click, ClickOrTap, Event, Focus, ModifierKey, MouseButton, MouseEventArgs,
-    RenderContext, SelectStart, TextboxChange, Touch, TouchEnd, TouchMove, TouchStart,
+    RenderContext, Scroll, SelectStart, TextboxChange, Touch, TouchEnd, TouchMove, TouchStart,
 };
 use pax_runtime::engine::layer_tiling::{scroller_canvas_plan_with_policy, ScrollerTilingPolicy};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -53,6 +52,28 @@ use pax_runtime::designtime_support::{
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`
 //in order to be visible to Swift
 pub use pax_message::*;
+
+#[derive(Clone, Copy)]
+struct SyntheticScrollGesture {
+    touch_identifier: i64,
+    target_id: pax_runtime::ExpandedNodeIdentifier,
+}
+
+thread_local! {
+    static SYNTHETIC_SCROLL_GESTURE: RefCell<Option<SyntheticScrollGesture>> = RefCell::new(None);
+    static NATIVE_SCROLLER_POSITIONS: RefCell<HashMap<u32, (f64, f64)>> = RefCell::new(HashMap::new());
+}
+
+fn node_is_in_scroller_subtree(node: &Rc<pax_runtime::ExpandedNode>) -> bool {
+    let mut current = Some(Rc::clone(node));
+    while let Some(candidate) = current {
+        if borrow!(candidate.instance_node).scrolls_content(&candidate) {
+            return true;
+        }
+        current = candidate.template_parent.upgrade();
+    }
+    false
+}
 
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
 struct ImgData<'a> {
@@ -664,12 +685,21 @@ pub extern "C" fn pax_interrupt(
             }
         }
         NativeInterrupt::TouchStart(args) => {
+            SYNTHETIC_SCROLL_GESTURE.with(|gesture| *gesture.borrow_mut() = None);
             if let Some(first_touch) = args.touches.first() {
                 let touches = args.touches.iter().map(Touch::from).collect();
                 if let Some(topmost_node) = engine
                     .runtime_context
                     .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y))
                 {
+                    if args.touches.len() == 1 && !node_is_in_scroller_subtree(&topmost_node) {
+                        SYNTHETIC_SCROLL_GESTURE.with(|gesture| {
+                            *gesture.borrow_mut() = Some(SyntheticScrollGesture {
+                                touch_identifier: first_touch.identifier,
+                                target_id: topmost_node.id,
+                            });
+                        });
+                    }
                     topmost_node.dispatch_touch_start(
                         Event::new(TouchStart { touches }),
                         &globals,
@@ -691,9 +721,49 @@ pub extern "C" fn pax_interrupt(
                         &engine.runtime_context,
                     );
                 }
+                if args.touches.len() == 1 {
+                    let gesture = SYNTHETIC_SCROLL_GESTURE.with(|gesture| *gesture.borrow());
+                    if let Some(gesture) = gesture {
+                        if let Some(active_touch) = args
+                            .touches
+                            .iter()
+                            .find(|touch| touch.identifier == gesture.touch_identifier)
+                        {
+                            if let Some(target_node) = engine.get_expanded_node(gesture.target_id) {
+                                target_node.dispatch_scroll(
+                                    Event::new(Scroll {
+                                        delta_x: active_touch.delta_x,
+                                        delta_y: active_touch.delta_y,
+                                    }),
+                                    &globals,
+                                    &engine.runtime_context,
+                                );
+                            } else {
+                                SYNTHETIC_SCROLL_GESTURE
+                                    .with(|gesture| *gesture.borrow_mut() = None);
+                            }
+                        } else {
+                            SYNTHETIC_SCROLL_GESTURE.with(|gesture| *gesture.borrow_mut() = None);
+                        }
+                    }
+                } else {
+                    SYNTHETIC_SCROLL_GESTURE.with(|gesture| *gesture.borrow_mut() = None);
+                }
+            } else {
+                SYNTHETIC_SCROLL_GESTURE.with(|gesture| *gesture.borrow_mut() = None);
             }
         }
         NativeInterrupt::TouchEnd(args) => {
+            let gesture = SYNTHETIC_SCROLL_GESTURE.with(|gesture| *gesture.borrow());
+            if let Some(gesture) = gesture {
+                if args
+                    .touches
+                    .iter()
+                    .any(|touch| touch.identifier == gesture.touch_identifier)
+                {
+                    SYNTHETIC_SCROLL_GESTURE.with(|gesture| *gesture.borrow_mut() = None);
+                }
+            }
             if let Some(first_touch) = args.touches.first() {
                 let touches = args.touches.iter().map(Touch::from).collect();
                 if let Some(topmost_node) = engine
@@ -774,10 +844,46 @@ pub extern "C" fn pax_interrupt(
         NativeInterrupt::ScrollerPosition(args) => {
             let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
             if let Some(node) = node {
+                let presentation_scroll_x = args.presentation_scroll_x.unwrap_or(args.scroll_x);
+                let presentation_scroll_y = args.presentation_scroll_y.unwrap_or(args.scroll_y);
+                let previous = NATIVE_SCROLLER_POSITIONS.with(|positions| {
+                    positions
+                        .borrow_mut()
+                        .insert(args.id, (presentation_scroll_x, presentation_scroll_y))
+                });
                 borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
+                if let Some((previous_x, previous_y)) = previous {
+                    let delta_x = presentation_scroll_x - previous_x;
+                    let delta_y = presentation_scroll_y - previous_y;
+                    if delta_x.abs() > f64::EPSILON || delta_y.abs() > f64::EPSILON {
+                        node.dispatch_scroll(
+                            Event::new(Scroll { delta_x, delta_y }),
+                            &globals,
+                            &engine.runtime_context,
+                        );
+                    }
+                }
+            } else {
+                NATIVE_SCROLLER_POSITIONS.with(|positions| {
+                    positions.borrow_mut().remove(&args.id);
+                });
             }
         }
-        NativeInterrupt::Scroll(_args) => {}
+        NativeInterrupt::Scroll(args) => {
+            if let Some(topmost_node) = engine
+                .runtime_context
+                .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+            {
+                topmost_node.dispatch_scroll(
+                    Event::new(Scroll {
+                        delta_x: args.delta_x,
+                        delta_y: args.delta_y,
+                    }),
+                    &globals,
+                    &engine.runtime_context,
+                );
+            }
+        }
         NativeInterrupt::VisualViewportUpdate(_args) => {}
         NativeInterrupt::AddedLayer(args) => {
             if let Some(layer_id) = args.layer_id.map(|layer| layer as usize) {

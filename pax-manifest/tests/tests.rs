@@ -10,8 +10,7 @@ mod tests {
     use pax_manifest::{
         code_serialization::press_code_serialization_template,
         parsing::{
-            assemble_component_definition,
-            parse_settings_from_component_definition_string,
+            assemble_component_definition, parse_settings_from_component_definition_string,
             parse_timeline_from_component_definition_string, ParsingContext,
         },
         utils, ComponentDefinition, ComponentTemplate, ControlFlowConditionalBranchKind,

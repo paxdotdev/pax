@@ -1323,7 +1323,9 @@ fn list_connected_physical_devices_via_xcdevice(
     let child = cmd.spawn().expect(ERR_SPAWN);
     let output = wait_with_output(process_child_ids, child);
     if !output.status.success() {
-        return Err(eyre!("Failed to list connected iOS devices with xcrun xcdevice list."));
+        return Err(eyre!(
+            "Failed to list connected iOS devices with xcrun xcdevice list."
+        ));
     }
 
     let output_str = std::str::from_utf8(&output.stdout)
@@ -1339,7 +1341,12 @@ fn list_connected_physical_devices_via_xcdevice(
         .filter(|device| {
             device.get("platform").and_then(Value::as_str) == Some("com.apple.platform.iphoneos")
         })
-        .filter(|device| device.get("available").and_then(Value::as_bool).unwrap_or(false))
+        .filter(|device| {
+            device
+                .get("available")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+        })
         .filter_map(|device| {
             let name = device.get("name").and_then(Value::as_str)?;
             let identifier = device.get("identifier").and_then(Value::as_str)?;

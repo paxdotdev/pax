@@ -869,9 +869,15 @@ Type: `Option`<`f64`>
 ---
 
 ### `ScrollInterruptArgs`
-Wheel or gesture scroll delta payload.
+Location-targeted scroll delta payload.
 
 #### Properties
+##### `x`
+Type: `f64`
+
+##### `y`
+Type: `f64`
+
 ##### `delta_x`
 Type: `f64`
 

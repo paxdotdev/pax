@@ -20,8 +20,9 @@ use miniz_oxide::inflate::decompress_to_vec_zlib;
 use pax_designtime::messages::{
     AgentMessage, ComponentSerializationRequest, DevClientInspectTreeRequest, DevClientLogsRequest,
     DevClientLookRequest, DevClientRayCastRequest, DevClientReplaceNodeRequest, DevClientResponse,
-    DevClientSelectorQueryRequest, FileChangedNotification, LoadFileToStaticDirRequest,
-    LoadManifestResponse, ManifestSerializationRequest, UpdateTemplateRequest,
+    DevClientSelectorQueryRequest, DisconnectNotification, FileChangedNotification,
+    LoadFileToStaticDirRequest, LoadManifestResponse, ManifestSerializationRequest,
+    UpdateTemplateRequest,
 };
 use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
 use std::{
@@ -39,6 +40,7 @@ pub use socket_message_accumulator::SocketMessageAccumulator;
 
 const WEBSOCKET_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const WEBSOCKET_CLIENT_TIMEOUT: Duration = Duration::from_secs(15);
+const SUPERSEDED_CLIENT_CLOSE_DELAY: Duration = Duration::from_millis(50);
 
 pub struct PrivilegedAgentWebSocket {
     state: Data<AppState>,
@@ -348,11 +350,19 @@ impl Handler<DisconnectSuperseded> for PrivilegedAgentWebSocket {
     type Result = ();
 
     fn handle(&mut self, _msg: DisconnectSuperseded, ctx: &mut Self::Context) -> Self::Result {
-        ctx.close(Some(ws::CloseReason {
-            code: ws::CloseCode::Normal,
-            description: Some("Superseded by a newer Pax dev browser client".to_string()),
-        }));
-        ctx.stop();
+        let reason = "Superseded by a newer Pax dev browser client";
+        let notification = AgentMessage::DisconnectNotification(DisconnectNotification {
+            allow_reconnect: false,
+            reason: reason.to_string(),
+        });
+        ctx.binary(rmp_serde::to_vec(&notification).unwrap());
+        ctx.run_later(SUPERSEDED_CLIENT_CLOSE_DELAY, move |_actor, ctx| {
+            ctx.close(Some(ws::CloseReason {
+                code: ws::CloseCode::Normal,
+                description: Some(reason.to_string()),
+            }));
+            ctx.stop();
+        });
     }
 }
 

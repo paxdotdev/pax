@@ -8,8 +8,12 @@ use crate::{
 use anyhow::{anyhow, Result};
 use ewebsock::{WsEvent, WsMessage};
 use pax_manifest::{ComponentDefinition, PaxManifest};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use url::Url;
+#[cfg(target_arch = "wasm32")]
+use web_time::Instant;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
 
 const WEBSOCKET_RECONNECT_DELAY: Duration = Duration::from_millis(500);
 
@@ -20,6 +24,7 @@ pub struct WebSocketConnection {
     label: String,
     pub alive: bool,
     connecting: bool,
+    allow_reconnect: bool,
     next_reconnect_at: Option<Instant>,
 }
 
@@ -41,6 +46,7 @@ impl WebSocketConnection {
             // designtime flows rely on being able to send immediately after constructing the socket.
             alive: true,
             connecting: true,
+            allow_reconnect: true,
             next_reconnect_at: None,
         })
     }
@@ -137,6 +143,16 @@ impl WebSocketConnection {
                                 let manifest: PaxManifest = rmp_serde::from_slice(&resp.manifest)?;
                                 manager.set_manifest(manifest);
                             }
+                            AgentMessage::DisconnectNotification(notification) => {
+                                self.allow_reconnect = notification.allow_reconnect;
+                                if !notification.allow_reconnect {
+                                    log::info!(
+                                        "{} reconnect disabled by server: {}",
+                                        self.label,
+                                        notification.reason
+                                    );
+                                }
+                            }
                             AgentMessage::UpdateTemplateRequest(resp) => {
                                 manager
                                     .replace_template(
@@ -182,6 +198,10 @@ impl WebSocketConnection {
         self.recver = None;
         self.alive = false;
         self.connecting = false;
+        if !self.allow_reconnect {
+            self.next_reconnect_at = None;
+            return;
+        }
         if self.next_reconnect_at.is_none() {
             self.next_reconnect_at = Some(Instant::now() + WEBSOCKET_RECONNECT_DELAY);
         }

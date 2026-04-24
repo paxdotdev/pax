@@ -80,7 +80,7 @@ struct WebFontSource {
     url: String,
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum RunTarget {
     #[allow(non_camel_case_types)]
     macOS,
@@ -956,6 +956,18 @@ mod tests {
             "https://fonts.gstatic.com/s/oxanium/v20/RrQQboN_4yJ0JmiMe2zE0Q.woff2"
         );
     }
+
+    #[test]
+    fn ipad_alias_maps_to_ipados_target() {
+        assert_eq!(RunTarget::parse("ipad"), Ok(RunTarget::iPadOS));
+        assert_eq!(RunTarget::parse("ipados"), Ok(RunTarget::iPadOS));
+    }
+
+    #[test]
+    fn invalid_target_returns_error_instead_of_unreachable() {
+        let error = RunTarget::parse("fridge").expect_err("expected invalid target");
+        assert!(error.contains("unsupported target `fridge`"));
+    }
 }
 
 /// Ejects the interface files for the specified target platform
@@ -1155,17 +1167,23 @@ pub fn run_parser_binary(
     output
 }
 
+impl RunTarget {
+    pub fn parse(input: &str) -> Result<Self, String> {
+        match input.to_lowercase().as_str() {
+            "macos" => Ok(RunTarget::macOS),
+            "web" => Ok(RunTarget::Web),
+            "ios" => Ok(RunTarget::iOS),
+            "ipados" | "ipad" => Ok(RunTarget::iPadOS),
+            _ => Err(format!(
+                "unsupported target `{input}`; expected one of: web, macos, ios, ipados"
+            )),
+        }
+    }
+}
+
 impl From<&str> for RunTarget {
     fn from(input: &str) -> Self {
-        match input.to_lowercase().as_str() {
-            "macos" => RunTarget::macOS,
-            "web" => RunTarget::Web,
-            "ios" => RunTarget::iOS,
-            "ipados" => RunTarget::iPadOS,
-            _ => {
-                unreachable!()
-            }
-        }
+        Self::parse(input).unwrap_or_else(|error| panic!("{error}"))
     }
 }
 

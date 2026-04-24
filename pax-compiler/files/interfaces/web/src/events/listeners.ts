@@ -201,7 +201,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
 
-    }, {"passive": true, "capture": true});
+    }, {"passive": false, "capture": true});
     window.addEventListener('touchend', (evt) => {
         let event = {
             "TouchEnd": {

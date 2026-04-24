@@ -36,7 +36,6 @@ pub mod web_render_contexts;
 
 use crate::browser_surface_policy::BrowserSurfacePolicy;
 use pax_runtime::PaxEngine;
-#[cfg(feature = "designtime")]
 use std::collections::HashMap;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
@@ -46,8 +45,8 @@ pub use {console_error_panic_hook, console_log};
 
 use pax_runtime::api::{
     Click, ClickOrTap, ContextMenu, DoubleClick, Drop, KeyDown, KeyPress, KeyUp, KeyboardEventArgs,
-    ModifierKey, MouseButton, MouseDown, MouseEventArgs, MouseMove, MouseUp, Touch, TouchEnd,
-    TouchMove, TouchStart, Wheel,
+    ModifierKey, MouseButton, MouseDown, MouseEventArgs, MouseMove, MouseUp, Scroll, Touch,
+    TouchEnd, TouchMove, TouchStart, Wheel,
 };
 
 #[cfg(feature = "designtime")]
@@ -59,6 +58,23 @@ const DESIGNER_COMPONENT_ROOT: &str = "DESIGNER_COMPONENT_ROOT";
 
 #[cfg(feature = "designtime")]
 mod dev;
+
+#[derive(Clone, Copy)]
+struct SyntheticScrollGesture {
+    touch_identifier: i64,
+    target_id: pax_runtime::ExpandedNodeIdentifier,
+}
+
+fn node_is_in_scroller_subtree(node: &Rc<pax_runtime::ExpandedNode>) -> bool {
+    let mut current = Some(Rc::clone(node));
+    while let Some(candidate) = current {
+        if borrow!(candidate.instance_node).scrolls_content(&candidate) {
+            return true;
+        }
+        current = candidate.template_parent.upgrade();
+    }
+    false
+}
 
 #[wasm_bindgen(inline_js = r#"
 const PAX_DEV_CONSOLE_TAP_KEY = "__paxDevConsoleTap";
@@ -205,6 +221,8 @@ pub(crate) fn read_dev_console_entries_json(since_seq: Option<u64>, limit: usize
 pub struct PaxChassisWeb {
     render_context: Box<dyn RenderContext>,
     engine: Rc<RefCell<PaxEngine>>,
+    native_scroller_positions: HashMap<u32, (f64, f64)>,
+    synthetic_scroll_gesture: Option<SyntheticScrollGesture>,
     #[cfg(feature = "designtime")]
     userland_definition_to_instance_traverser:
         Box<dyn pax_runtime::cartridge::DefinitionToInstanceTraverser>,
@@ -260,6 +278,8 @@ impl PaxChassisWeb {
         Self {
             engine: engine_container,
             render_context: renderer,
+            native_scroller_positions: HashMap::new(),
+            synthetic_scroll_gesture: None,
             userland_definition_to_instance_traverser,
             designtime_manager,
             pending_dev_look_requests: HashMap::new(),
@@ -298,6 +318,8 @@ impl PaxChassisWeb {
         Self {
             engine: engine_container,
             render_context: renderer,
+            native_scroller_positions: HashMap::new(),
+            synthetic_scroll_gesture: None,
             userland_definition_to_instance_traverser,
             designtime_manager,
             pending_dev_look_requests: HashMap::new(),
@@ -327,6 +349,8 @@ impl PaxChassisWeb {
         Self {
             engine: engine_container,
             render_context: renderer,
+            native_scroller_positions: HashMap::new(),
+            synthetic_scroll_gesture: None,
         }
     }
 
@@ -607,9 +631,31 @@ impl PaxChassisWeb {
             NativeInterrupt::ScrollerPosition(args) => {
                 let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
                 if let Some(node) = node {
+                    let presentation_scroll_x = args.presentation_scroll_x.unwrap_or(args.scroll_x);
+                    let presentation_scroll_y = args.presentation_scroll_y.unwrap_or(args.scroll_y);
+                    let previous = self
+                        .native_scroller_positions
+                        .insert(args.id, (presentation_scroll_x, presentation_scroll_y));
                     borrow!(node.instance_node).handle_native_interrupt(&node, &x);
+                    if let Some((previous_x, previous_y)) = previous {
+                        let delta_x = presentation_scroll_x - previous_x;
+                        let delta_y = presentation_scroll_y - previous_y;
+                        if delta_x.abs() > f64::EPSILON || delta_y.abs() > f64::EPSILON {
+                            node.dispatch_scroll(
+                                Event::new(Scroll { delta_x, delta_y }),
+                                &globals,
+                                &engine.runtime_context,
+                            )
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    self.native_scroller_positions.remove(&args.id);
+                    false
                 }
-                false
             }
             NativeInterrupt::BrowserConfig(args) => {
                 globals
@@ -634,7 +680,23 @@ impl PaxChassisWeb {
                 );
                 false
             }
-            NativeInterrupt::Scroll(_) => false,
+            NativeInterrupt::Scroll(args) => {
+                if let Some(topmost_node) = engine
+                    .runtime_context
+                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+                {
+                    topmost_node.dispatch_scroll(
+                        Event::new(Scroll {
+                            delta_x: args.delta_x,
+                            delta_y: args.delta_y,
+                        }),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    false
+                }
+            }
             NativeInterrupt::ClickOrTap(args) => {
                 if let Some(topmost_node) = engine
                     .runtime_context
@@ -654,52 +716,107 @@ impl PaxChassisWeb {
                 }
             }
             NativeInterrupt::TouchStart(args) => {
-                let first_touch = args.touches.get(0).unwrap();
-                if let Some(topmost_node) = engine
-                    .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y))
-                {
-                    let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
-                    let args_touch_start = TouchStart { touches };
-                    topmost_node.dispatch_touch_start(
-                        Event::new(args_touch_start),
-                        &globals,
-                        &engine.runtime_context,
-                    )
+                self.synthetic_scroll_gesture = None;
+                if let Some(first_touch) = args.touches.first() {
+                    if let Some(topmost_node) = engine
+                        .runtime_context
+                        .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y))
+                    {
+                        if args.touches.len() == 1 && !node_is_in_scroller_subtree(&topmost_node) {
+                            self.synthetic_scroll_gesture = Some(SyntheticScrollGesture {
+                                touch_identifier: first_touch.identifier,
+                                target_id: topmost_node.id,
+                            });
+                        }
+                        let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
+                        let args_touch_start = TouchStart { touches };
+                        topmost_node.dispatch_touch_start(
+                            Event::new(args_touch_start),
+                            &globals,
+                            &engine.runtime_context,
+                        )
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }
             }
             NativeInterrupt::TouchMove(args) => {
-                let first_touch = args.touches.get(0).unwrap();
-                if let Some(topmost_node) = engine
-                    .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y))
-                {
-                    let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
-                    let args_touch_move = TouchMove { touches };
-                    topmost_node.dispatch_touch_move(
-                        Event::new(args_touch_move),
-                        &globals,
-                        &engine.runtime_context,
-                    )
+                if let Some(first_touch) = args.touches.first() {
+                    let mut prevented = if let Some(topmost_node) = engine
+                        .runtime_context
+                        .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y))
+                    {
+                        let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
+                        let args_touch_move = TouchMove { touches };
+                        topmost_node.dispatch_touch_move(
+                            Event::new(args_touch_move),
+                            &globals,
+                            &engine.runtime_context,
+                        )
+                    } else {
+                        false
+                    };
+                    if args.touches.len() == 1 {
+                        if let Some(gesture) = self.synthetic_scroll_gesture {
+                            if let Some(active_touch) = args
+                                .touches
+                                .iter()
+                                .find(|touch| touch.identifier == gesture.touch_identifier)
+                            {
+                                if let Some(target_node) =
+                                    engine.get_expanded_node(gesture.target_id)
+                                {
+                                    prevented |= target_node.dispatch_scroll(
+                                        Event::new(Scroll {
+                                            delta_x: active_touch.delta_x,
+                                            delta_y: active_touch.delta_y,
+                                        }),
+                                        &globals,
+                                        &engine.runtime_context,
+                                    );
+                                } else {
+                                    self.synthetic_scroll_gesture = None;
+                                }
+                            } else {
+                                self.synthetic_scroll_gesture = None;
+                            }
+                        }
+                    } else {
+                        self.synthetic_scroll_gesture = None;
+                    }
+                    prevented
                 } else {
+                    self.synthetic_scroll_gesture = None;
                     false
                 }
             }
             NativeInterrupt::TouchEnd(args) => {
-                let first_touch = args.touches.get(0).unwrap();
-                if let Some(topmost_node) = engine
-                    .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y))
-                {
-                    let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
-                    let args_touch_end = TouchEnd { touches };
-                    topmost_node.dispatch_touch_end(
-                        Event::new(args_touch_end),
-                        &globals,
-                        &engine.runtime_context,
-                    )
+                if let Some(gesture) = self.synthetic_scroll_gesture {
+                    if args
+                        .touches
+                        .iter()
+                        .any(|touch| touch.identifier == gesture.touch_identifier)
+                    {
+                        self.synthetic_scroll_gesture = None;
+                    }
+                }
+                if let Some(first_touch) = args.touches.first() {
+                    if let Some(topmost_node) = engine
+                        .runtime_context
+                        .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y))
+                    {
+                        let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
+                        let args_touch_end = TouchEnd { touches };
+                        topmost_node.dispatch_touch_end(
+                            Event::new(args_touch_end),
+                            &globals,
+                            &engine.runtime_context,
+                        )
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }
@@ -821,11 +938,22 @@ impl PaxChassisWeb {
                         delta_y: args.delta_y,
                         modifiers,
                     };
-                    topmost_node.dispatch_wheel(
+                    let mut prevented = topmost_node.dispatch_wheel(
                         Event::new(args_wheel),
                         &globals,
                         &engine.runtime_context,
-                    )
+                    );
+                    if !node_is_in_scroller_subtree(&topmost_node) {
+                        prevented |= topmost_node.dispatch_scroll(
+                            Event::new(Scroll {
+                                delta_x: args.delta_x,
+                                delta_y: args.delta_y,
+                            }),
+                            &globals,
+                            &engine.runtime_context,
+                        );
+                    }
+                    prevented
                 } else {
                     false
                 }
@@ -1222,6 +1350,8 @@ fn native_interrupt_from_js(value: JsValue) -> NativeInterrupt {
         })
     } else if let Some(payload) = js_variant(&value, "Scroll") {
         NativeInterrupt::Scroll(ScrollInterruptArgs {
+            x: js_f64(&payload, "x"),
+            y: js_f64(&payload, "y"),
             delta_x: js_f64(&payload, "delta_x"),
             delta_y: js_f64(&payload, "delta_y"),
         })
