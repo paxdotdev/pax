@@ -1,7 +1,7 @@
 use crate::{
     messages::{
         AgentMessage, ComponentSerializationRequest, DevClientResponse, LLMRequest,
-        LoadFileToStaticDirRequest,
+        LoadFileToStaticDirRequest, UserlandSourceUpdateRequest,
     },
     orm::PaxManifestORM,
 };
@@ -23,8 +23,8 @@ pub struct WebSocketConnection {
     recver: Option<ewebsock::WsReceiver>,
     label: String,
     pub alive: bool,
-    connecting: bool,
     allow_reconnect: bool,
+    connecting: bool,
     next_reconnect_at: Option<Instant>,
 }
 
@@ -45,8 +45,8 @@ impl WebSocketConnection {
             // ewebsock can buffer outbound frames before the Opened event arrives, and existing
             // designtime flows rely on being able to send immediately after constructing the socket.
             alive: true,
-            connecting: true,
             allow_reconnect: true,
+            connecting: true,
             next_reconnect_at: None,
         })
     }
@@ -123,6 +123,23 @@ impl WebSocketConnection {
         }
     }
 
+    pub fn send_userland_source_update_request(
+        &mut self,
+        request: UserlandSourceUpdateRequest,
+    ) -> Result<()> {
+        if self.alive {
+            let msg_bytes = rmp_serde::to_vec(&AgentMessage::UserlandSourceUpdateRequest(request))?;
+            self.sender()
+                .ok_or_else(|| anyhow!("design-server socket is not connected"))?
+                .send(ewebsock::WsMessage::Binary(msg_bytes));
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "couldn't send userland source update: connection to design-server was lost"
+            ))
+        }
+    }
+
     pub fn handle_recv(&mut self, manager: &mut PaxManifestORM) -> Result<Vec<AgentMessage>> {
         self.reconnect_if_needed();
 
@@ -136,44 +153,57 @@ impl WebSocketConnection {
                     self.send_manifest_load_request()?;
                 }
                 WsEvent::Message(message) => {
-                    if let WsMessage::Binary(msg_bytes) = message {
-                        let msg: AgentMessage = rmp_serde::from_slice(&msg_bytes)?;
-                        match msg {
-                            AgentMessage::LoadManifestResponse(resp) => {
-                                let manifest: PaxManifest = rmp_serde::from_slice(&resp.manifest)?;
-                                manager.set_manifest(manifest);
-                            }
-                            AgentMessage::DisconnectNotification(notification) => {
-                                self.allow_reconnect = notification.allow_reconnect;
-                                if !notification.allow_reconnect {
-                                    log::info!(
-                                        "{} reconnect disabled by server: {}",
-                                        self.label,
-                                        notification.reason
+                    match message {
+                        WsMessage::Binary(msg_bytes) => {
+                            let msg: AgentMessage = rmp_serde::from_slice(&msg_bytes)?;
+                            match msg {
+                                AgentMessage::LoadManifestResponse(resp) => {
+                                    let manifest: PaxManifest =
+                                        rmp_serde::from_slice(&resp.manifest)?;
+                                    manager.set_manifest(manifest);
+                                }
+                                AgentMessage::UpdateTemplateRequest(resp) => {
+                                    manager
+                                        .replace_template(
+                                            resp.type_id,
+                                            resp.new_template,
+                                            resp.settings_block,
+                                        )
+                                        .map_err(|e| anyhow!(e))?;
+                                }
+                                AgentMessage::LLMPartialResponse(partial) => {
+                                    manager.add_new_message(
+                                        partial.request_id,
+                                        partial.message,
+                                        None,
                                     );
                                 }
+                                AgentMessage::LLMFinalResponse(final_response) => {
+                                    manager.add_new_message(
+                                        final_response.request_id,
+                                        final_response.message,
+                                        Some(final_response.component_definition),
+                                    );
+                                }
+                                AgentMessage::DisconnectNotification(notification) => {
+                                    self.allow_reconnect = notification.allow_reconnect;
+                                    if !notification.allow_reconnect {
+                                        log::info!(
+                                            "{} reconnect disabled by server: {}",
+                                            self.label,
+                                            notification.reason
+                                        );
+                                    }
+                                }
+                                other => passthrough_messages.push(other),
                             }
-                            AgentMessage::UpdateTemplateRequest(resp) => {
-                                manager
-                                    .replace_template(
-                                        resp.type_id,
-                                        resp.new_template,
-                                        resp.settings_block,
-                                    )
-                                    .map_err(|e| anyhow!(e))?;
-                            }
-                            AgentMessage::LLMPartialResponse(partial) => {
-                                manager.add_new_message(partial.request_id, partial.message, None);
-                            }
-                            AgentMessage::LLMFinalResponse(final_response) => {
-                                manager.add_new_message(
-                                    final_response.request_id,
-                                    final_response.message,
-                                    Some(final_response.component_definition),
-                                );
-                            }
-                            other => passthrough_messages.push(other),
                         }
+                        WsMessage::Ping(data) => {
+                            if let Some(sender) = self.sender() {
+                                sender.send(WsMessage::Pong(data));
+                            }
+                        }
+                        WsMessage::Pong(_) | WsMessage::Text(_) | WsMessage::Unknown(_) => {}
                     }
                 }
                 WsEvent::Error(e) => {
@@ -194,6 +224,9 @@ impl WebSocketConnection {
     }
 
     fn schedule_reconnect(&mut self) {
+        if !self.allow_reconnect {
+            return;
+        }
         self.sender = None;
         self.recver = None;
         self.alive = false;
@@ -208,6 +241,9 @@ impl WebSocketConnection {
     }
 
     fn reconnect_if_needed(&mut self) {
+        if !self.allow_reconnect {
+            return;
+        }
         if self.alive || self.connecting {
             return;
         }
@@ -233,6 +269,18 @@ impl WebSocketConnection {
                 self.next_reconnect_at = Some(Instant::now() + WEBSOCKET_RECONNECT_DELAY);
             }
         }
+    }
+
+    pub fn shutdown_permanently(&mut self) {
+        self.allow_reconnect = false;
+        if let Some(sender) = self.sender.as_mut() {
+            let _ = sender.close();
+        }
+        self.sender = None;
+        self.recver = None;
+        self.alive = false;
+        self.connecting = false;
+        self.next_reconnect_at = None;
     }
 }
 

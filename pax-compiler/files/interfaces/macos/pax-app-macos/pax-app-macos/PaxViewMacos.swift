@@ -7,12 +7,364 @@
 
 import SwiftUI
 import Foundation
+import Darwin
 import QuartzCore
 import FlexBuffers
 import Messages
 import Rendering
 import PaxCartridgeAssets
 import PaxCartridge
+
+fileprivate struct LoadedPaxCartridgeAPI {
+    typealias PaxInit = @convention(c) (Float, Float) -> OpaquePointer?
+    typealias PaxDeallocEngine = @convention(c) (OpaquePointer?) -> Void
+    typealias PaxInterrupt = @convention(c) (OpaquePointer?, UnsafeRawPointer?) -> Void
+    typealias PaxTick = @convention(c) (
+        OpaquePointer?,
+        UnsafeMutableRawPointer?,
+        Float,
+        Float,
+        Float
+    ) -> UnsafeMutablePointer<NativeMessageQueue>?
+    typealias PaxGetLayerCanvasPlan = @convention(c) (
+        OpaquePointer?,
+        UInt32,
+        Float
+    ) -> UnsafeMutablePointer<NativeMessageQueue>?
+    typealias PaxSurfaceRegistryBeginFrame = @convention(c) (OpaquePointer?, UInt32) -> Void
+    typealias PaxSurfaceRegistrySetLayerActive = @convention(c) (OpaquePointer?, UInt32, Bool) -> Void
+    typealias PaxSurfaceRegistryRegisterSurface = @convention(c) (
+        OpaquePointer?,
+        UInt32,
+        UnsafePointer<CChar>?,
+        UnsafePointer<CChar>?,
+        Float,
+        Float,
+        Int32,
+        Float,
+        Float,
+        UInt32,
+        UInt32,
+        Float,
+        Float,
+        UnsafeMutableRawPointer?
+    ) -> Void
+    typealias PaxRefreshRenderSurfaces = @convention(c) (OpaquePointer?) -> Void
+    typealias PaxRender = @convention(c) (OpaquePointer?) -> Void
+    typealias PaxDesigntimeInspectTree = @convention(c) (
+        OpaquePointer?,
+        Int64
+    ) -> UnsafeMutablePointer<NativeMessageQueue>?
+    typealias PaxDesigntimeInterrupt = @convention(c) (
+        OpaquePointer?,
+        UnsafePointer<InterruptBuffer>?
+    ) -> UnsafeMutablePointer<NativeMessageQueue>?
+    typealias PaxDeallocMessageQueue = @convention(c) (UnsafeMutablePointer<NativeMessageQueue>?) -> Void
+
+    let handle: UnsafeMutableRawPointer
+    let sourcePath: String
+    let paxInit: PaxInit
+    let paxDeallocEngine: PaxDeallocEngine
+    let paxInterrupt: PaxInterrupt
+    let paxTick: PaxTick
+    let paxGetLayerCanvasPlan: PaxGetLayerCanvasPlan
+    let paxSurfaceRegistryBeginFrame: PaxSurfaceRegistryBeginFrame
+    let paxSurfaceRegistrySetLayerActive: PaxSurfaceRegistrySetLayerActive
+    let paxSurfaceRegistryRegisterSurface: PaxSurfaceRegistryRegisterSurface
+    let paxRefreshRenderSurfaces: PaxRefreshRenderSurfaces
+    let paxRender: PaxRender
+    let paxDesigntimeInspectTree: PaxDesigntimeInspectTree
+    let paxDesigntimeRayCast: PaxDesigntimeInterrupt
+    let paxDesigntimeSelectorQuery: PaxDesigntimeInterrupt
+    let paxDesigntimeReplaceNode: PaxDesigntimeInterrupt
+    let paxDeallocMessageQueue: PaxDeallocMessageQueue
+}
+
+final class PaxCartridgeRuntime {
+    static let shared = PaxCartridgeRuntime()
+
+    private var api: LoadedPaxCartridgeAPI?
+    private var retiredAPIs: [LoadedPaxCartridgeAPI] = []
+
+    private init() {}
+
+    private func defaultCartridgePath() throws -> String {
+        if let frameworksURL = Bundle.main.privateFrameworksURL {
+            let frameworkURL = frameworksURL
+                .appendingPathComponent("PaxCartridge.framework", isDirectory: true)
+                .appendingPathComponent("PaxCartridge", isDirectory: false)
+            if FileManager.default.fileExists(atPath: frameworkURL.path) {
+                return frameworkURL.path
+            }
+        }
+
+        let fallbackURL = Bundle.main.bundleURL
+            .appendingPathComponent("Contents/Frameworks/PaxCartridge.framework/PaxCartridge")
+            .standardizedFileURL
+        if FileManager.default.fileExists(atPath: fallbackURL.path) {
+            return fallbackURL.path
+        }
+
+        throw NSError(
+            domain: "PaxCartridgeRuntime",
+            code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "Could not locate the bundled PaxCartridge dylib"]
+        )
+    }
+
+    private func resolveSymbol<T>(
+        handle: UnsafeMutableRawPointer,
+        name: String,
+        as type: T.Type
+    ) throws -> T {
+        dlerror()
+        guard let symbol = dlsym(handle, name) else {
+            let detail = dlerror().map { String(cString: $0) } ?? "missing symbol"
+            throw NSError(
+                domain: "PaxCartridgeRuntime",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to resolve \(name): \(detail)"]
+            )
+        }
+        return unsafeBitCast(symbol, to: T.self)
+    }
+
+    private func openAPI(at path: String) throws -> LoadedPaxCartridgeAPI {
+        guard let handle = dlopen(path, RTLD_NOW | RTLD_LOCAL) else {
+            let detail = dlerror().map { String(cString: $0) } ?? "dlopen failed"
+            throw NSError(
+                domain: "PaxCartridgeRuntime",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to open \(path): \(detail)"]
+            )
+        }
+
+        do {
+            return LoadedPaxCartridgeAPI(
+                handle: handle,
+                sourcePath: path,
+                paxInit: try resolveSymbol(handle: handle, name: "pax_init", as: LoadedPaxCartridgeAPI.PaxInit.self),
+                paxDeallocEngine: try resolveSymbol(handle: handle, name: "pax_dealloc_engine", as: LoadedPaxCartridgeAPI.PaxDeallocEngine.self),
+                paxInterrupt: try resolveSymbol(handle: handle, name: "pax_interrupt", as: LoadedPaxCartridgeAPI.PaxInterrupt.self),
+                paxTick: try resolveSymbol(handle: handle, name: "pax_tick", as: LoadedPaxCartridgeAPI.PaxTick.self),
+                paxGetLayerCanvasPlan: try resolveSymbol(handle: handle, name: "pax_get_layer_canvas_plan", as: LoadedPaxCartridgeAPI.PaxGetLayerCanvasPlan.self),
+                paxSurfaceRegistryBeginFrame: try resolveSymbol(handle: handle, name: "pax_surface_registry_begin_frame", as: LoadedPaxCartridgeAPI.PaxSurfaceRegistryBeginFrame.self),
+                paxSurfaceRegistrySetLayerActive: try resolveSymbol(handle: handle, name: "pax_surface_registry_set_layer_active", as: LoadedPaxCartridgeAPI.PaxSurfaceRegistrySetLayerActive.self),
+                paxSurfaceRegistryRegisterSurface: try resolveSymbol(handle: handle, name: "pax_surface_registry_register_surface", as: LoadedPaxCartridgeAPI.PaxSurfaceRegistryRegisterSurface.self),
+                paxRefreshRenderSurfaces: try resolveSymbol(handle: handle, name: "pax_refresh_render_surfaces", as: LoadedPaxCartridgeAPI.PaxRefreshRenderSurfaces.self),
+                paxRender: try resolveSymbol(handle: handle, name: "pax_render", as: LoadedPaxCartridgeAPI.PaxRender.self),
+                paxDesigntimeInspectTree: try resolveSymbol(handle: handle, name: "pax_designtime_inspect_tree", as: LoadedPaxCartridgeAPI.PaxDesigntimeInspectTree.self),
+                paxDesigntimeRayCast: try resolveSymbol(handle: handle, name: "pax_designtime_ray_cast", as: LoadedPaxCartridgeAPI.PaxDesigntimeInterrupt.self),
+                paxDesigntimeSelectorQuery: try resolveSymbol(handle: handle, name: "pax_designtime_selector_query", as: LoadedPaxCartridgeAPI.PaxDesigntimeInterrupt.self),
+                paxDesigntimeReplaceNode: try resolveSymbol(handle: handle, name: "pax_designtime_replace_node", as: LoadedPaxCartridgeAPI.PaxDesigntimeInterrupt.self),
+                paxDeallocMessageQueue: try resolveSymbol(handle: handle, name: "pax_dealloc_message_queue", as: LoadedPaxCartridgeAPI.PaxDeallocMessageQueue.self)
+            )
+        } catch {
+            dlclose(handle)
+            throw error
+        }
+    }
+
+    private func currentAPI() throws -> LoadedPaxCartridgeAPI {
+        if let api {
+            return api
+        }
+        let loaded = try openAPI(at: try defaultCartridgePath())
+        api = loaded
+        return loaded
+    }
+
+    fileprivate func prepareReload(from path: String) throws -> LoadedPaxCartridgeAPI {
+        try openAPI(at: path)
+    }
+
+    fileprivate func abandonPreparedAPI(_ prepared: LoadedPaxCartridgeAPI) {
+        dlclose(prepared.handle)
+    }
+
+    fileprivate func activatePreparedAPI(_ prepared: LoadedPaxCartridgeAPI) {
+        if let current = api {
+            retiredAPIs.append(current)
+        }
+        api = prepared
+    }
+
+    func initEngine(width: Float, height: Float) -> OpaquePointer? {
+        do {
+            return try currentAPI().paxInit(width, height)
+        } catch {
+            print("Failed to initialize Pax cartridge: \(error)")
+            return nil
+        }
+    }
+
+    func deallocEngine(_ engineContainer: OpaquePointer?) {
+        guard let api else {
+            return
+        }
+        api.paxDeallocEngine(engineContainer)
+    }
+
+    func interrupt(_ engineContainer: OpaquePointer?, _ interrupt: UnsafeRawPointer?) {
+        do {
+            try currentAPI().paxInterrupt(engineContainer, interrupt)
+        } catch {
+            print("Failed to send Pax interrupt: \(error)")
+        }
+    }
+
+    func tick(
+        _ engineContainer: OpaquePointer?,
+        cgContext: UnsafeMutableRawPointer?,
+        width: Float,
+        height: Float,
+        scale: Float
+    ) -> UnsafeMutablePointer<NativeMessageQueue>? {
+        do {
+            return try currentAPI().paxTick(engineContainer, cgContext, width, height, scale)
+        } catch {
+            print("Failed to tick Pax cartridge: \(error)")
+            return nil
+        }
+    }
+
+    func getLayerCanvasPlan(
+        _ engineContainer: OpaquePointer?,
+        layerId: UInt32,
+        scale: Float
+    ) -> UnsafeMutablePointer<NativeMessageQueue>? {
+        do {
+            return try currentAPI().paxGetLayerCanvasPlan(engineContainer, layerId, scale)
+        } catch {
+            print("Failed to fetch layer canvas plan: \(error)")
+            return nil
+        }
+    }
+
+    func surfaceRegistryBeginFrame(_ engineContainer: OpaquePointer?, layerCount: UInt32) {
+        guard let api = try? currentAPI() else {
+            return
+        }
+        api.paxSurfaceRegistryBeginFrame(engineContainer, layerCount)
+    }
+
+    func surfaceRegistrySetLayerActive(
+        _ engineContainer: OpaquePointer?,
+        layerId: UInt32,
+        active: Bool
+    ) {
+        guard let api = try? currentAPI() else {
+            return
+        }
+        api.paxSurfaceRegistrySetLayerActive(engineContainer, layerId, active)
+    }
+
+    func surfaceRegistryRegisterSurface(
+        _ engineContainer: OpaquePointer?,
+        layerId: UInt32,
+        key: UnsafePointer<CChar>?,
+        hostSignature: UnsafePointer<CChar>?,
+        originX: Float,
+        originY: Float,
+        replayPriority: Int32,
+        logicalWidth: Float,
+        logicalHeight: Float,
+        surfaceWidth: UInt32,
+        surfaceHeight: UInt32,
+        dprX: Float,
+        dprY: Float,
+        layerPointer: UnsafeMutableRawPointer?
+    ) {
+        guard let api = try? currentAPI() else {
+            return
+        }
+        api.paxSurfaceRegistryRegisterSurface(
+            engineContainer,
+            layerId,
+            key,
+            hostSignature,
+            originX,
+            originY,
+            replayPriority,
+            logicalWidth,
+            logicalHeight,
+            surfaceWidth,
+            surfaceHeight,
+            dprX,
+            dprY,
+            layerPointer
+        )
+    }
+
+    func refreshRenderSurfaces(_ engineContainer: OpaquePointer?) {
+        guard let api = try? currentAPI() else {
+            return
+        }
+        api.paxRefreshRenderSurfaces(engineContainer)
+    }
+
+    func render(_ engineContainer: OpaquePointer?) {
+        guard let api = try? currentAPI() else {
+            return
+        }
+        api.paxRender(engineContainer)
+    }
+
+    func designtimeInspectTree(
+        _ engineContainer: OpaquePointer?,
+        maxDepth: Int64
+    ) -> UnsafeMutablePointer<NativeMessageQueue>? {
+        do {
+            return try currentAPI().paxDesigntimeInspectTree(engineContainer, maxDepth)
+        } catch {
+            print("Failed to inspect Pax tree: \(error)")
+            return nil
+        }
+    }
+
+    func designtimeRayCast(
+        _ engineContainer: OpaquePointer?,
+        request: UnsafePointer<InterruptBuffer>?
+    ) -> UnsafeMutablePointer<NativeMessageQueue>? {
+        do {
+            return try currentAPI().paxDesigntimeRayCast(engineContainer, request)
+        } catch {
+            print("Failed to perform Pax ray-cast: \(error)")
+            return nil
+        }
+    }
+
+    func designtimeSelectorQuery(
+        _ engineContainer: OpaquePointer?,
+        request: UnsafePointer<InterruptBuffer>?
+    ) -> UnsafeMutablePointer<NativeMessageQueue>? {
+        do {
+            return try currentAPI().paxDesigntimeSelectorQuery(engineContainer, request)
+        } catch {
+            print("Failed to perform Pax selector query: \(error)")
+            return nil
+        }
+    }
+
+    func designtimeReplaceNode(
+        _ engineContainer: OpaquePointer?,
+        request: UnsafePointer<InterruptBuffer>?
+    ) -> UnsafeMutablePointer<NativeMessageQueue>? {
+        do {
+            return try currentAPI().paxDesigntimeReplaceNode(engineContainer, request)
+        } catch {
+            print("Failed to replace Pax node: \(error)")
+            return nil
+        }
+    }
+
+    func deallocMessageQueue(_ queue: UnsafeMutablePointer<NativeMessageQueue>?) {
+        guard let api = try? currentAPI() else {
+            return
+        }
+        api.paxDeallocMessageQueue(queue)
+    }
+}
 
 private func sendInterruptToEngine(data: Data) {
     data.withUnsafeBytes { ptr in
@@ -21,7 +373,7 @@ private func sendInterruptToEngine(data: Data) {
             return
         }
         withUnsafePointer(to: &ffiContainer) { ffiContainerPtr in
-            pax_interrupt(engineContainer, ffiContainerPtr)
+            PaxCartridgeRuntime.shared.interrupt(engineContainer, ffiContainerPtr)
         }
     }
 }
@@ -163,6 +515,19 @@ private struct PaxDevReplaceNodeResponse: Codable {
     let error: String?
 }
 
+private struct PaxDevReloadLogicRequest: Codable {
+    let request_id: String
+    let kind: String
+    let dylib_path: String
+}
+
+private struct PaxDevReloadLogicResponse: Codable {
+    let request_id: String
+    let status: String
+    let dylib_path: String?
+    let error: String?
+}
+
 private struct PaxDevSessionRegistration: Codable {
     let session_id: String
     let platform: String
@@ -214,7 +579,7 @@ struct PaxViewMacos: View {
                 }
 
                 withUnsafePointer(to: &ffi_container) {ffi_container_ptr in
-                    pax_interrupt(engineContainer, ffi_container_ptr)
+                    PaxCartridgeRuntime.shared.interrupt(engineContainer, ffi_container_ptr)
                 }
             })
         })
@@ -231,37 +596,33 @@ struct PaxViewMacos: View {
         
         let fontFileExtensions: Set<String> = ["ttf", "otf"]
 
-        do {
-            let enumerator = FileManager.default.enumerator(
-                at: resourceURL,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-            )
-            while let fileURL = enumerator?.nextObject() as? URL {
-                let fileExtension = fileURL.pathExtension.lowercased()
-                if fontFileExtensions.contains(fileExtension) {
-                    let fontDescriptors = CTFontManagerCreateFontDescriptorsFromURL(fileURL as CFURL) as! [CTFontDescriptor]
-                    if let fontDescriptor = fontDescriptors.first,
-                       let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as? String,
-                       let fontFamily = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontFamilyNameAttribute) as? String {
-                        if !PaxFont.isFontRegistered(fontFamily: postscriptName) {
-                            var errorRef: Unmanaged<CFError>?
-                            if !CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {
-                                print("Error registering font: \(fontFamily) - PostScript name: \(postscriptName) - \(String(describing: errorRef))")
-                            } else {
-                                PaxFont.markFontRegistered(fontFamily: postscriptName)
-                                PaxFont.markFontRegistered(fontFamily: fontFamily)
-                            }
+        let enumerator = FileManager.default.enumerator(
+            at: resourceURL,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )
+        while let fileURL = enumerator?.nextObject() as? URL {
+            let fileExtension = fileURL.pathExtension.lowercased()
+            if fontFileExtensions.contains(fileExtension) {
+                let fontDescriptors = CTFontManagerCreateFontDescriptorsFromURL(fileURL as CFURL) as! [CTFontDescriptor]
+                if let fontDescriptor = fontDescriptors.first,
+                   let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as? String,
+                   let fontFamily = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontFamilyNameAttribute) as? String {
+                    if !PaxFont.isFontRegistered(fontFamily: postscriptName) {
+                        var errorRef: Unmanaged<CFError>?
+                        if !CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {
+                            print("Error registering font: \(fontFamily) - PostScript name: \(postscriptName) - \(String(describing: errorRef))")
                         } else {
                             PaxFont.markFontRegistered(fontFamily: postscriptName)
                             PaxFont.markFontRegistered(fontFamily: fontFamily)
-                            print("Font already registered: \(fontFamily) - PostScript name: \(postscriptName)")
                         }
+                    } else {
+                        PaxFont.markFontRegistered(fontFamily: postscriptName)
+                        PaxFont.markFontRegistered(fontFamily: fontFamily)
+                        print("Font already registered: \(fontFamily) - PostScript name: \(postscriptName)")
                     }
                 }
             }
-        } catch {
-            print("Error reading font files from resources: \(error)")
         }
     }
 
@@ -304,6 +665,7 @@ struct PaxViewMacos: View {
 
         private var displayLink: CVDisplayLink?
         private var isShuttingDown = false
+        private var isReloadingLogic = false
         private let tickStateLock = NSLock()
         private var tickScheduled = false
         private let surfaceManager = SurfaceManager()
@@ -429,6 +791,7 @@ struct PaxViewMacos: View {
 
         private func tick() {
             guard !isShuttingDown else { return }
+            guard !isReloadingLogic else { return }
             guard bounds.width > 0, bounds.height > 0 else { return }
 
             let scale = currentScale()
@@ -436,28 +799,33 @@ struct PaxViewMacos: View {
             let height = Float(bounds.height)
 
             if PaxEngineContainer.paxEngineContainer == nil {
-                PaxEngineContainer.paxEngineContainer = pax_init(width, height)
+                PaxEngineContainer.paxEngineContainer = PaxCartridgeRuntime.shared.initEngine(
+                    width: width,
+                    height: height
+                )
             }
 
             guard let engineContainer = PaxEngineContainer.paxEngineContainer else { return }
 
-            let nativeMessageQueue = pax_tick(
+            guard let nativeMessageQueue = PaxCartridgeRuntime.shared.tick(
                 engineContainer,
-                nil,
-                width,
-                height,
-                Float(scale)
-            )
-            let queue = nativeMessageQueue.unsafelyUnwrapped.pointee
+                cgContext: nil,
+                width: width,
+                height: height,
+                scale: Float(scale)
+            ) else {
+                return
+            }
+            let queue = nativeMessageQueue.pointee
             let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
             processNativeMessageQueueData(Data(buffer: buffer))
-            pax_dealloc_message_queue(nativeMessageQueue)
+            PaxCartridgeRuntime.shared.deallocMessageQueue(nativeMessageQueue)
             surfaceManager.sync(
                 engineContainer: engineContainer,
                 rootView: self,
                 scale: scale
             )
-            pax_render(engineContainer)
+            PaxCartridgeRuntime.shared.render(engineContainer)
             processDevRequestsIfNeeded()
         }
 
@@ -629,7 +997,10 @@ struct PaxViewMacos: View {
                 buffer.data.withUnsafeBytes { ptr in
                     var ffi_container = InterruptBuffer(data_ptr: ptr.baseAddress!, length: UInt64(ptr.count))
                     withUnsafePointer(to: &ffi_container) { ffi_container_ptr in
-                        pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
+                        PaxCartridgeRuntime.shared.interrupt(
+                            PaxEngineContainer.paxEngineContainer!,
+                            ffi_container_ptr
+                        )
                     }
                 }
             } catch {
@@ -704,6 +1075,7 @@ struct PaxViewMacos: View {
                     do {
                         let requestData = try Data(contentsOf: requestFile)
                         let envelope = try JSONDecoder().decode(PaxDevRequestEnvelope.self, from: requestData)
+                        try? FileManager.default.removeItem(at: requestFile)
                         switch envelope.kind {
                         case "look":
                             let request = try JSONDecoder().decode(PaxDevLookRequest.self, from: requestData)
@@ -727,6 +1099,9 @@ struct PaxViewMacos: View {
                         case "replace-node":
                             let request = try JSONDecoder().decode(PaxDevReplaceNodeRequest.self, from: requestData)
                             try performReplaceNode(request: request, responseDir: responseDir)
+                        case "reload-logic":
+                            let request = try JSONDecoder().decode(PaxDevReloadLogicRequest.self, from: requestData)
+                            try performReloadLogic(request: request, responseDir: responseDir)
                         default:
                             try writePaxDevErrorResponse(
                                 requestId: envelope.request_id,
@@ -734,7 +1109,6 @@ struct PaxViewMacos: View {
                                 to: responseDir
                             )
                         }
-                        try? FileManager.default.removeItem(at: requestFile)
                     } catch {
                         try writePaxDevErrorResponse(
                             requestId: requestId,
@@ -838,10 +1212,13 @@ struct PaxViewMacos: View {
                 throw NSError(domain: "", code: 208, userInfo: [NSLocalizedDescriptionKey: "Pax engine is not initialized"])
             }
 
-            guard let payloadQueue = pax_designtime_inspect_tree(engineContainer, Int64(request.max_depth ?? -1)) else {
+            guard let payloadQueue = PaxCartridgeRuntime.shared.designtimeInspectTree(
+                engineContainer,
+                maxDepth: Int64(request.max_depth ?? -1)
+            ) else {
                 throw NSError(domain: "", code: 209, userInfo: [NSLocalizedDescriptionKey: "inspect tree returned no payload"])
             }
-            defer { pax_dealloc_message_queue(payloadQueue) }
+            defer { PaxCartridgeRuntime.shared.deallocMessageQueue(payloadQueue) }
 
             let queue = payloadQueue.pointee
             let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
@@ -878,14 +1255,14 @@ struct PaxViewMacos: View {
                 }
                 var ffiBuffer = InterruptBuffer(data_ptr: baseAddress, length: UInt64(rawBuffer.count))
                 return withUnsafePointer(to: &ffiBuffer) { ffiBufferPtr in
-                    pax_designtime_ray_cast(engineContainer, ffiBufferPtr)
+                    PaxCartridgeRuntime.shared.designtimeRayCast(engineContainer, request: ffiBufferPtr)
                 }
             }
 
             guard let responseQueue else {
                 throw NSError(domain: "", code: 215, userInfo: [NSLocalizedDescriptionKey: "ray-cast returned no payload"])
             }
-            defer { pax_dealloc_message_queue(responseQueue) }
+            defer { PaxCartridgeRuntime.shared.deallocMessageQueue(responseQueue) }
 
             let queue = responseQueue.pointee
             let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
@@ -921,14 +1298,14 @@ struct PaxViewMacos: View {
                 }
                 var ffiBuffer = InterruptBuffer(data_ptr: baseAddress, length: UInt64(rawBuffer.count))
                 return withUnsafePointer(to: &ffiBuffer) { ffiBufferPtr in
-                    pax_designtime_selector_query(engineContainer, ffiBufferPtr)
+                    PaxCartridgeRuntime.shared.designtimeSelectorQuery(engineContainer, request: ffiBufferPtr)
                 }
             }
 
             guard let responseQueue else {
                 throw NSError(domain: "", code: 218, userInfo: [NSLocalizedDescriptionKey: "selector returned no payload"])
             }
-            defer { pax_dealloc_message_queue(responseQueue) }
+            defer { PaxCartridgeRuntime.shared.deallocMessageQueue(responseQueue) }
 
             let queue = responseQueue.pointee
             let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
@@ -966,14 +1343,14 @@ struct PaxViewMacos: View {
                 }
                 var ffiBuffer = InterruptBuffer(data_ptr: baseAddress, length: UInt64(rawBuffer.count))
                 return withUnsafePointer(to: &ffiBuffer) { ffiBufferPtr in
-                    pax_designtime_replace_node(engineContainer, ffiBufferPtr)
+                    PaxCartridgeRuntime.shared.designtimeReplaceNode(engineContainer, request: ffiBufferPtr)
                 }
             }
 
             guard let responseQueue else {
                 throw NSError(domain: "", code: 212, userInfo: [NSLocalizedDescriptionKey: "replace-node returned no payload"])
             }
-            defer { pax_dealloc_message_queue(responseQueue) }
+            defer { PaxCartridgeRuntime.shared.deallocMessageQueue(responseQueue) }
 
             let queue = responseQueue.pointee
             let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
@@ -993,6 +1370,59 @@ struct PaxViewMacos: View {
                 requestId: request.request_id,
                 to: responseDir
             )
+        }
+
+        private func performReloadLogic(request: PaxDevReloadLogicRequest, responseDir: URL) throws {
+            guard bounds.width > 0, bounds.height > 0 else {
+                throw NSError(domain: "", code: 219, userInfo: [NSLocalizedDescriptionKey: "Cannot reload while the Pax view has no size"])
+            }
+
+            let runtime = PaxCartridgeRuntime.shared
+            let preparedAPI = try runtime.prepareReload(from: request.dylib_path)
+
+            isReloadingLogic = true
+            tickStateLock.lock()
+            tickScheduled = false
+            tickStateLock.unlock()
+            stopDisplayLink()
+
+            let previousEngine = PaxEngineContainer.paxEngineContainer
+            PaxEngineContainer.paxEngineContainer = nil
+            surfaceManager.reset()
+            PaxNativeHostState.reset()
+
+            if let previousEngine {
+                runtime.deallocEngine(previousEngine)
+            }
+
+            guard let reloadedEngine = preparedAPI.paxInit(Float(bounds.width), Float(bounds.height)) else {
+                runtime.abandonPreparedAPI(preparedAPI)
+                isReloadingLogic = false
+                if !isShuttingDown {
+                    createDisplayLink()
+                }
+                throw NSError(domain: "", code: 220, userInfo: [NSLocalizedDescriptionKey: "Reloaded Pax cartridge failed to initialize"])
+            }
+
+            runtime.activatePreparedAPI(preparedAPI)
+            PaxEngineContainer.paxEngineContainer = reloadedEngine
+            isReloadingLogic = false
+
+            if !isShuttingDown {
+                createDisplayLink()
+            }
+
+            try writePaxDevResponse(
+                PaxDevReloadLogicResponse(
+                    request_id: request.request_id,
+                    status: "ok",
+                    dylib_path: request.dylib_path,
+                    error: nil
+                ),
+                requestId: request.request_id,
+                to: responseDir
+            )
+            tick()
         }
 
         private func sendScreenshotInterrupt(id: UInt32) {
@@ -1020,7 +1450,7 @@ struct PaxViewMacos: View {
                             return
                         }
                         withUnsafePointer(to: &ffiContainer) { ffiContainerPtr in
-                            pax_interrupt(engineContainer, ffiContainerPtr)
+                            PaxCartridgeRuntime.shared.interrupt(engineContainer, ffiContainerPtr)
                         }
                     }
                 }
@@ -1259,7 +1689,7 @@ struct PaxViewMacos: View {
                     return
                 }
                 withUnsafePointer(to: &ffi_container) {ffi_container_ptr in
-                    pax_interrupt(engineContainer, ffi_container_ptr)
+                    PaxCartridgeRuntime.shared.interrupt(engineContainer, ffi_container_ptr)
                 }
             })
         }

@@ -1,11 +1,12 @@
-use crate::design_server::{ActiveWebsocketClient, AppState, FileContent, WatcherFileChanged};
+use crate::design_server::{
+    schedule_native_logic_reload, ActiveWebsocketClient, AppState, FileContent, WatcherFileChanged,
+};
 use crate::dev_session::{
     self, session_request_dir, session_response_dir, write_registered_session, DevCapture,
     DevInspectTreeResponse, DevLogsRequest, DevLogsResponse, DevLookRequest, DevLookResponse,
     DevRayCastRequest, DevRayCastResponse, DevReplaceNodeRequest, DevReplaceNodeResponse,
     DevRequestEnvelope, DevSelectorQueryRequest, DevSelectorQueryResponse,
 };
-
 use pax_manifest::{
     code_serialization::serialize_component_to_file, parsing::TemplateNodeParseContext,
 };
@@ -22,15 +23,17 @@ use pax_designtime::messages::{
     DevClientLookRequest, DevClientRayCastRequest, DevClientReplaceNodeRequest, DevClientResponse,
     DevClientSelectorQueryRequest, DisconnectNotification, FileChangedNotification,
     LoadFileToStaticDirRequest, LoadManifestResponse, ManifestSerializationRequest,
-    UpdateTemplateRequest,
+    UpdateTemplateRequest, UserlandSourceUpdateRequest, UserlandSourceUpdateResponse,
 };
 use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
 use std::{
+    any::Any,
     borrow::Cow,
     collections::HashMap,
     fs,
     io::BufWriter,
-    path::Path,
+    panic::{catch_unwind, AssertUnwindSafe},
+    path::{Component, Path, PathBuf},
     time::{Duration, Instant},
 };
 
@@ -52,6 +55,14 @@ pub struct PrivilegedAgentWebSocket {
 struct DisconnectSuperseded;
 
 impl actix::Message for DisconnectSuperseded {
+    type Result = ();
+}
+
+struct SendAgentMessage {
+    message: AgentMessage,
+}
+
+impl actix::Message for SendAgentMessage {
     type Result = ();
 }
 
@@ -366,6 +377,20 @@ impl Handler<DisconnectSuperseded> for PrivilegedAgentWebSocket {
     }
 }
 
+impl Handler<SendAgentMessage> for PrivilegedAgentWebSocket {
+    type Result = ();
+
+    fn handle(&mut self, msg: SendAgentMessage, ctx: &mut Self::Context) -> Self::Result {
+        if !self.is_active_client() {
+            return;
+        }
+        match rmp_serde::to_vec(&msg.message) {
+            Ok(serialized) => ctx.binary(serialized),
+            Err(err) => eprintln!("failed to serialize outbound agent message: {err}"),
+        }
+    }
+}
+
 impl Actor for PrivilegedAgentWebSocket {
     type Context = ws::WebsocketContext<Self>;
 
@@ -430,68 +455,27 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
     type Result = ();
 
     fn handle(&mut self, msg: WatcherFileChanged, ctx: &mut Self::Context) -> Self::Result {
-        println!("File changed: {:?}", msg.path);
+        let WatcherFileChanged { contents, path } = msg;
+        println!("File changed: {:?}", path);
         if self.is_active_client() {
-            if let FileContent::Pax(content) = msg.contents {
-                if let Some(manifest) = self.state.manifest.lock().unwrap().as_mut() {
-                    let mut template_map: HashMap<String, TypeId> = HashMap::new();
-                    let mut matched_component: Option<TypeId> = None;
-                    let mut original_template: Option<ComponentTemplate> = None;
-
-                    // Search for component that was changed, while building a template map for the parse context
-                    for (type_id, component) in manifest.components.iter() {
-                        template_map
-                            .insert(type_id.get_pascal_identifier().unwrap(), type_id.clone());
-                        if let Some(template) = &component.template {
-                            if let Some(file_path) = template.get_file_path() {
-                                if file_path == msg.path {
-                                    matched_component = Some(type_id.clone());
-                                    original_template = Some(template.clone());
-                                }
-                            }
+            match contents {
+                FileContent::Pax(content) => match apply_pax_source_update(&self.state, &path, &content)
+                {
+                    Ok(update_request) => {
+                        let msg = AgentMessage::UpdateTemplateRequest(Box::new(update_request));
+                        match rmp_serde::to_vec(&msg) {
+                            Ok(serialized_msg) => ctx.binary(serialized_msg),
+                            Err(err) => eprintln!(
+                                "failed to serialize pax template update for watcher change: {err}"
+                            ),
                         }
                     }
-
-                    if let Some(self_type_id) = matched_component {
-                        let original_template = original_template.unwrap();
-                        let mut tpc = TemplateNodeParseContext {
-                            pascal_identifier_to_type_id_map: template_map,
-                            template: ComponentTemplate::new(
-                                self_type_id.clone(),
-                                original_template.get_file_path(),
-                            ),
-                        };
-
-                        let ast = pax_language::parse_pax_str(
-                            pax_language::Rule::pax_component_definition,
-                            &content,
-                        )
-                        .expect("Unsuccessful parse");
-                        let settings =
-                            pax_manifest::parsing::parse_settings_from_component_definition_string(
-                                ast.clone(),
-                            );
-                        pax_manifest::parsing::parse_template_from_component_definition_string(
-                            &mut tpc,
-                            &content,
-                            ast.clone(),
-                        );
-
-                        let new_template = tpc.template;
-
-                        // update the manifest with this new template
-                        let comp = manifest.components.get_mut(&self_type_id).unwrap();
-                        comp.template = Some(new_template.clone());
-                        let msg =
-                            AgentMessage::UpdateTemplateRequest(Box::new(UpdateTemplateRequest {
-                                type_id: self_type_id,
-                                new_template,
-                                settings_block: settings,
-                            }));
-                        let serialized_msg = rmp_serde::to_vec(&msg).unwrap();
-                        ctx.binary(serialized_msg);
+                    Err(err) => {
+                        eprintln!("ignoring invalid Pax watcher update for {path}: {err}");
                     }
-                }
+                },
+                FileContent::Rust(_) => schedule_native_logic_reload(self.state.clone()),
+                FileContent::Unknown => {}
             }
         }
         let serialized_notification = rmp_serde::to_vec(
@@ -587,6 +571,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                         eprintln!("server couldn't write to served folder: {:?}", path);
                     };
                 }
+                Ok(AgentMessage::UserlandSourceUpdateRequest(request)) => {
+                    handle_userland_source_update_request(self.state.clone(), request, ctx);
+                }
                 Ok(AgentMessage::DevClientResponse(response)) => {
                     if let Err(err) = handle_dev_client_response(&self.state, response) {
                         eprintln!("failed to handle web dev response: {err}");
@@ -648,6 +635,676 @@ fn handle_manifest_serialization_request(
             }
         }
     }
+}
+
+fn handle_userland_source_update_request(
+    state: Data<AppState>,
+    request: UserlandSourceUpdateRequest,
+    ctx: &mut ws::WebsocketContext<PrivilegedAgentWebSocket>,
+) {
+    let resolved_path = match resolve_userland_source_path(&state, &request.path) {
+        Ok(resolved_path) => resolved_path,
+        Err(err) => {
+            send_userland_source_update_response_in_context(
+                ctx,
+                UserlandSourceUpdateResponse {
+                    request_id: request.request_id,
+                    path: request.path,
+                    status: "error".to_string(),
+                    error: Some(err),
+                },
+            );
+            return;
+        }
+    };
+
+    match resolved_path.extension().and_then(|extension| extension.to_str()) {
+        Some("pax") => {
+            let update_request = {
+                let manifest = state.manifest.lock().unwrap();
+                let Some(manifest) = manifest.as_ref() else {
+                    send_userland_source_update_response_in_context(
+                        ctx,
+                        UserlandSourceUpdateResponse {
+                            request_id: request.request_id,
+                            path: request.path,
+                            status: "error".to_string(),
+                            error: Some("design server manifest is unavailable".to_string()),
+                        },
+                    );
+                    return;
+                };
+                let project_root = state.userland_project_root.lock().unwrap().clone();
+                match parse_pax_source_update(
+                    manifest,
+                    &resolved_path.to_string_lossy(),
+                    &request.contents,
+                    &project_root,
+                ) {
+                    Ok(update_request) => update_request,
+                    Err(err) => {
+                        send_userland_source_update_response_in_context(
+                            ctx,
+                            UserlandSourceUpdateResponse {
+                                request_id: request.request_id,
+                                path: request.path,
+                                status: "error".to_string(),
+                                error: Some(err),
+                            },
+                        );
+                        return;
+                    }
+                }
+            };
+
+            state.update_last_written_timestamp();
+            if let Err(err) = fs::write(&resolved_path, &request.contents) {
+                send_userland_source_update_response_in_context(
+                    ctx,
+                    UserlandSourceUpdateResponse {
+                        request_id: request.request_id,
+                        path: request.path,
+                        status: "error".to_string(),
+                        error: Some(format!("failed to write Pax source: {err}")),
+                    },
+                );
+                return;
+            }
+
+            if let Err(err) = commit_pax_source_update(&state, &update_request) {
+                send_userland_source_update_response_in_context(
+                    ctx,
+                    UserlandSourceUpdateResponse {
+                        request_id: request.request_id,
+                        path: request.path,
+                        status: "error".to_string(),
+                        error: Some(err),
+                    },
+                );
+                return;
+            }
+
+            if let Ok(serialized_update) = rmp_serde::to_vec(&AgentMessage::UpdateTemplateRequest(
+                Box::new(update_request),
+            )) {
+                ctx.binary(serialized_update);
+            } else {
+                send_userland_source_update_response_in_context(
+                    ctx,
+                    UserlandSourceUpdateResponse {
+                        request_id: request.request_id,
+                        path: request.path,
+                        status: "error".to_string(),
+                        error: Some("failed to serialize template update".to_string()),
+                    },
+                );
+                return;
+            }
+
+            send_userland_source_update_response_in_context(
+                ctx,
+                UserlandSourceUpdateResponse {
+                    request_id: request.request_id,
+                    path: request.path,
+                    status: "ok".to_string(),
+                    error: None,
+                },
+            );
+        }
+        Some("rs") => {
+            let request_id = request.request_id.clone();
+            let request_path = request.path.clone();
+            state.update_last_written_timestamp();
+            if let Err(err) = fs::write(&resolved_path, &request.contents) {
+                send_userland_source_update_response_in_context(
+                    ctx,
+                    UserlandSourceUpdateResponse {
+                        request_id,
+                        path: request_path,
+                        status: "error".to_string(),
+                        error: Some(format!("failed to write Rust source: {err}")),
+                    },
+                );
+                return;
+            }
+
+            if let Err(err) = spawn_userland_rust_source_update(state, request_id.clone(), request_path.clone()) {
+                send_userland_source_update_response_in_context(
+                    ctx,
+                    UserlandSourceUpdateResponse {
+                        request_id,
+                        path: request_path,
+                        status: "error".to_string(),
+                        error: Some(err),
+                    },
+                );
+            }
+        }
+        _ => {
+            send_userland_source_update_response_in_context(
+                ctx,
+                UserlandSourceUpdateResponse {
+                    request_id: request.request_id,
+                    path: request.path,
+                    status: "error".to_string(),
+                    error: Some("only .rs and .pax source updates are supported".to_string()),
+                },
+            );
+        }
+    }
+}
+
+fn send_userland_source_update_response_in_context(
+    ctx: &mut ws::WebsocketContext<PrivilegedAgentWebSocket>,
+    response: UserlandSourceUpdateResponse,
+) {
+    let message = AgentMessage::UserlandSourceUpdateResponse(response);
+    match rmp_serde::to_vec(&message) {
+        Ok(serialized) => ctx.binary(serialized),
+        Err(err) => eprintln!("failed to serialize userland source update response: {err}"),
+    }
+}
+
+fn send_agent_message_to_active_client(state: &Data<AppState>, message: AgentMessage) {
+    let active_client = state.active_websocket_client.lock().unwrap().clone();
+    if let Some(active_client) = active_client {
+        active_client.addr.do_send(SendAgentMessage { message });
+    }
+}
+
+fn send_userland_source_update_response(
+    state: &Data<AppState>,
+    request_id: String,
+    path: String,
+    status: &str,
+    error: Option<String>,
+) {
+    send_agent_message_to_active_client(
+        state,
+        AgentMessage::UserlandSourceUpdateResponse(UserlandSourceUpdateResponse {
+            request_id,
+            path,
+            status: status.to_string(),
+            error,
+        }),
+    );
+}
+
+fn resolve_userland_source_path(
+    state: &Data<AppState>,
+    requested_path: &str,
+) -> Result<PathBuf, String> {
+    let requested_path = Path::new(requested_path);
+    if requested_path.is_absolute() {
+        return Err("absolute source paths are not allowed".to_string());
+    }
+    if requested_path.components().any(|component| {
+        matches!(
+            component,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_)
+        )
+    }) {
+        return Err("source path must stay inside the project root".to_string());
+    }
+
+    let resolved_path = state.userland_project_root.lock().unwrap().join(requested_path);
+    match resolved_path.extension().and_then(|extension| extension.to_str()) {
+        Some("rs") | Some("pax") => Ok(resolved_path),
+        _ => Err("only .rs and .pax source updates are supported".to_string()),
+    }
+}
+
+fn apply_pax_source_update(
+    state: &Data<AppState>,
+    source_path: &str,
+    content: &str,
+) -> Result<UpdateTemplateRequest, String> {
+    let update_request = {
+        let manifest = state.manifest.lock().unwrap();
+        let manifest = manifest
+            .as_ref()
+            .ok_or_else(|| "design server manifest is unavailable".to_string())?;
+        let project_root = state.userland_project_root.lock().unwrap().clone();
+        parse_pax_source_update(manifest, source_path, content, &project_root)?
+    };
+    commit_pax_source_update(state, &update_request)?;
+    Ok(update_request)
+}
+
+fn parse_pax_source_update(
+    manifest: &PaxManifest,
+    source_path: &str,
+    content: &str,
+    project_root: &Path,
+) -> Result<UpdateTemplateRequest, String> {
+    let mut template_map = HashMap::new();
+    let mut matched_component: Option<TypeId> = None;
+    let mut matched_component_module_path: Option<String> = None;
+    let mut original_template: Option<ComponentTemplate> = None;
+
+    for (type_id, component) in manifest.components.iter() {
+        if let Some(identifier) = type_id.get_pascal_identifier() {
+            template_map.insert(identifier, type_id.clone());
+        }
+        if let Some(template) = &component.template {
+            if template
+                .get_file_path()
+                .as_ref()
+                .is_some_and(|file_path| source_paths_match(file_path, source_path, project_root))
+            {
+                matched_component = Some(type_id.clone());
+                matched_component_module_path = Some(component.module_path.clone());
+                original_template = Some(template.clone());
+            }
+        }
+    }
+
+    let self_type_id = matched_component.ok_or_else(|| {
+        format!("no component in the manifest is backed by source path {source_path}")
+    })?;
+    let component_module_path = matched_component_module_path
+        .ok_or_else(|| "component definition is missing a module path".to_string())?;
+    let original_template =
+        original_template.ok_or_else(|| "component template is missing a file path".to_string())?;
+
+    catch_unwind(AssertUnwindSafe(|| {
+        let mut tpc = TemplateNodeParseContext {
+            pascal_identifier_to_type_id_map: template_map,
+            template: ComponentTemplate::new(self_type_id.clone(), original_template.get_file_path()),
+        };
+
+        let ast = pax_language::parse_pax_str(
+            pax_language::Rule::pax_component_definition,
+            content,
+        )
+        .map_err(|err| format!("failed to parse Pax source: {err}"))?;
+        let mut settings =
+            pax_manifest::parsing::parse_settings_from_component_definition_string(ast.clone());
+        if let Some(rust_source_path) =
+            resolve_component_rust_source_path(project_root, &component_module_path)
+        {
+            pax_manifest::parsing::augment_settings_with_implicit_lifecycle_handlers(
+                &mut settings,
+                &component_module_path,
+                &self_type_id,
+                &rust_source_path.to_string_lossy(),
+            );
+        }
+        pax_manifest::parsing::parse_template_from_component_definition_string(
+            &mut tpc,
+            content,
+            ast,
+        );
+
+        Ok(UpdateTemplateRequest {
+            type_id: self_type_id,
+            new_template: tpc.template,
+            settings_block: settings,
+        })
+    }))
+    .map_err(panic_payload_to_string)?
+}
+
+fn source_paths_match(manifest_path: &str, source_path: &str, project_root: &Path) -> bool {
+    let manifest_path = Path::new(manifest_path);
+    let source_path = Path::new(source_path);
+
+    if manifest_path == source_path {
+        return true;
+    }
+
+    let manifest_relative = project_relative_path(manifest_path, project_root);
+    let source_relative = project_relative_path(source_path, project_root);
+    if manifest_relative == source_relative {
+        return true;
+    }
+
+    let manifest_absolute = project_absolute_path(manifest_path, project_root);
+    let source_absolute = project_absolute_path(source_path, project_root);
+    if manifest_absolute == source_absolute {
+        return true;
+    }
+
+    match (manifest_absolute.canonicalize(), source_absolute.canonicalize()) {
+        (Ok(manifest_canonical), Ok(source_canonical)) => manifest_canonical == source_canonical,
+        _ => false,
+    }
+}
+
+fn project_relative_path<'a>(path: &'a Path, project_root: &Path) -> Cow<'a, Path> {
+    if let Ok(relative_path) = path.strip_prefix(project_root) {
+        return Cow::Borrowed(relative_path);
+    }
+
+    if let Ok(current_dir) = std::env::current_dir() {
+        let absolute_project_root = if project_root.is_absolute() {
+            project_root.to_path_buf()
+        } else {
+            current_dir.join(project_root)
+        };
+
+        if path.is_absolute() {
+            if let Ok(relative_path) = path.strip_prefix(&absolute_project_root) {
+                return Cow::Owned(relative_path.to_path_buf());
+            }
+        } else {
+            let absolute_path = current_dir.join(path);
+            if let Ok(relative_path) = absolute_path.strip_prefix(&absolute_project_root) {
+                return Cow::Owned(relative_path.to_path_buf());
+            }
+        }
+    }
+
+    if path.is_absolute() {
+        Cow::Borrowed(path)
+    } else {
+        Cow::Borrowed(path)
+    }
+}
+
+fn project_absolute_path(path: &Path, project_root: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        project_root.join(path)
+    }
+}
+
+fn resolve_component_rust_source_path(project_root: &Path, module_path: &str) -> Option<PathBuf> {
+    let cleaned_module_path = pax_manifest::parsing::clean_module_path(module_path);
+    let mut module_segments: Vec<&str> = cleaned_module_path.split("::").collect();
+    if module_segments.first().copied() == Some("crate") {
+        module_segments.remove(0);
+    }
+
+    let src_dir = project_root.join("src");
+    let candidates = if module_segments.is_empty() {
+        vec![src_dir.join("lib.rs"), src_dir.join("main.rs"), src_dir.join("mod.rs")]
+    } else {
+        let mut path = src_dir;
+        for segment in &module_segments {
+            path.push(segment);
+        }
+        vec![path.with_extension("rs"), path.join("mod.rs")]
+    };
+
+    candidates.into_iter().find(|candidate| candidate.is_file())
+}
+
+fn commit_pax_source_update(
+    state: &Data<AppState>,
+    update_request: &UpdateTemplateRequest,
+) -> Result<(), String> {
+    let mut manifest = state.manifest.lock().unwrap();
+    let manifest = manifest
+        .as_mut()
+        .ok_or_else(|| "design server manifest is unavailable".to_string())?;
+    let component = manifest
+        .components
+        .get_mut(&update_request.type_id)
+        .ok_or_else(|| format!("missing component {}", update_request.type_id))?;
+    component.template = Some(update_request.new_template.clone());
+    component.settings = Some(update_request.settings_block.clone());
+    Ok(())
+}
+
+fn panic_payload_to_string(payload: Box<dyn Any + Send>) -> String {
+    if let Some(message) = payload.downcast_ref::<String>() {
+        format!("failed to parse Pax source: {message}")
+    } else if let Some(message) = payload.downcast_ref::<&'static str>() {
+        format!("failed to parse Pax source: {message}")
+    } else {
+        "failed to parse Pax source".to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_pax_source_update, resolve_component_rust_source_path, source_paths_match};
+    use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, SettingsBlockElement, TypeId};
+    use std::{collections::{BTreeMap, HashMap}, fs};
+    use std::path::Path;
+    use tempfile::tempdir;
+
+    #[test]
+    fn source_paths_match_relative_manifest_to_absolute_request() {
+        let temp_dir = tempdir().unwrap();
+        let project_root = temp_dir.path();
+        let source_path = project_root.join("src/lib.pax");
+        fs::create_dir_all(source_path.parent().unwrap()).unwrap();
+        fs::write(&source_path, "<Group/>").unwrap();
+
+        assert!(source_paths_match(
+            "src/lib.pax",
+            &source_path.to_string_lossy(),
+            project_root,
+        ));
+    }
+
+    #[test]
+    fn source_paths_match_absolute_manifest_to_relative_request() {
+        let temp_dir = tempdir().unwrap();
+        let project_root = temp_dir.path();
+        let source_path = project_root.join("src/lib.pax");
+        fs::create_dir_all(source_path.parent().unwrap()).unwrap();
+        fs::write(&source_path, "<Group/>").unwrap();
+
+        assert!(source_paths_match(
+            &source_path.to_string_lossy(),
+            "src/lib.pax",
+            project_root,
+        ));
+    }
+
+    #[test]
+    fn source_paths_match_relative_project_prefixed_request_path() {
+        let temp_dir = tempdir().unwrap();
+        let cwd = temp_dir.path();
+        let project_root = cwd.join("examples/src/dynamic-linking-lab");
+        let source_path = project_root.join("src/lib.pax");
+        fs::create_dir_all(source_path.parent().unwrap()).unwrap();
+        fs::write(&source_path, "<Group/>").unwrap();
+
+        let previous_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(cwd).unwrap();
+
+        let matches = source_paths_match(
+            "src/lib.pax",
+            "examples/src/dynamic-linking-lab/src/lib.pax",
+            Path::new("examples/src/dynamic-linking-lab"),
+        );
+
+        std::env::set_current_dir(previous_dir).unwrap();
+
+        assert!(matches);
+    }
+
+    #[test]
+    fn resolve_component_rust_source_path_finds_root_lib() {
+        let temp_dir = tempdir().unwrap();
+        let project_root = temp_dir.path();
+        let rust_source = project_root.join("src/lib.rs");
+        fs::create_dir_all(rust_source.parent().unwrap()).unwrap();
+        fs::write(&rust_source, "pub struct Example;").unwrap();
+
+        assert_eq!(
+            resolve_component_rust_source_path(project_root, "crate").as_deref(),
+            Some(rust_source.as_path())
+        );
+    }
+
+    #[test]
+    fn parse_pax_source_update_preserves_implicit_lifecycle_handlers() {
+        let temp_dir = tempdir().unwrap();
+        let project_root = temp_dir.path();
+        let rust_source = project_root.join("src/lib.rs");
+        let pax_source = project_root.join("src/lib.pax");
+        fs::create_dir_all(pax_source.parent().unwrap()).unwrap();
+        fs::write(
+            &rust_source,
+            r#"
+            pub struct Example;
+
+            impl Example {
+                pub fn on_mount(&mut self, _ctx: &NodeContext) {}
+                pub fn on_pre_render(&mut self, _ctx: &NodeContext) {}
+            }
+            "#,
+        )
+        .unwrap();
+        fs::write(&pax_source, "<Group />").unwrap();
+
+        let example_type_id = TypeId::build_singleton("crate::Example", Some("Example"));
+        let group_type_id = TypeId::build_singleton("Group", Some("Group"));
+        let mut components = BTreeMap::new();
+        components.insert(
+            example_type_id.clone(),
+            ComponentDefinition {
+                type_id: example_type_id.clone(),
+                is_main_component: true,
+                is_primitive: false,
+                is_struct_only_component: false,
+                module_path: "crate".to_string(),
+                primitive_instance_import_path: None,
+                template: Some(ComponentTemplate::new(
+                    example_type_id.clone(),
+                    Some("src/lib.pax".to_string()),
+                )),
+                settings: Some(vec![]),
+                timelines: vec![],
+            },
+        );
+        components.insert(
+            group_type_id.clone(),
+            ComponentDefinition {
+                type_id: group_type_id.clone(),
+                is_main_component: false,
+                is_primitive: true,
+                is_struct_only_component: false,
+                module_path: "crate".to_string(),
+                primitive_instance_import_path: None,
+                template: None,
+                settings: None,
+                timelines: vec![],
+            },
+        );
+        let manifest = PaxManifest {
+            components,
+            main_component_type_id: example_type_id.clone(),
+            type_table: HashMap::new(),
+            assets_dirs: vec![],
+            engine_import_path: "pax_kit".to_string(),
+        };
+
+        let update = parse_pax_source_update(
+            &manifest,
+            &pax_source.to_string_lossy(),
+            "<Group />",
+            project_root,
+        )
+        .unwrap();
+
+        let bindings = update
+            .settings_block
+            .iter()
+            .filter_map(|setting| match setting {
+                SettingsBlockElement::Handler(key, values) => values
+                    .first()
+                    .map(|value| (key.token_value.clone(), value.token_value.clone())),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert!(bindings.contains(&("mount".to_string(), "on_mount".to_string())));
+        assert!(bindings.contains(&("pre_render".to_string(), "on_pre_render".to_string())));
+    }
+}
+
+fn spawn_userland_rust_source_update(
+    state: Data<AppState>,
+    request_id: String,
+    path: String,
+) -> Result<(), String> {
+    let config = {
+        let mut native_logic_reload = state.native_logic_reload.lock().unwrap();
+        let reload_state = native_logic_reload
+            .as_mut()
+            .ok_or_else(|| "native logic reload is unavailable for this session".to_string())?;
+        if reload_state.build_in_progress {
+            return Err("a logic rebuild is already in progress".to_string());
+        }
+        reload_state.build_in_progress = true;
+        reload_state.rebuild_pending = false;
+        reload_state.config.clone()
+    };
+
+    std::thread::spawn(move || {
+        let project_root = state.userland_project_root.lock().unwrap().clone();
+        let build_result = crate::building::apple::rebuild_staged_macos_logic_dylib(
+            &project_root,
+            &config.session_dir,
+            config.should_run_designer,
+        );
+
+        match build_result {
+            Ok(build) => {
+                let crate::building::apple::MacosLogicReloadBuild {
+                    manifest,
+                    dylib_path,
+                } = build;
+                *state.manifest.lock().unwrap() = Some(manifest);
+                if let Err(err) =
+                    super::enqueue_native_logic_reload_request(&state, &config, dylib_path.as_path())
+                {
+                    send_userland_source_update_response(
+                        &state,
+                        request_id.clone(),
+                        path.clone(),
+                        "error",
+                        Some(format!("failed to queue logic reload: {err}")),
+                    );
+                } else {
+                    send_userland_source_update_response(
+                        &state,
+                        request_id.clone(),
+                        path.clone(),
+                        "ok",
+                        None,
+                    );
+                }
+            }
+            Err(err) => {
+                send_userland_source_update_response(
+                    &state,
+                    request_id.clone(),
+                    path.clone(),
+                    "error",
+                    Some(format!("{err}")),
+                );
+            }
+        }
+
+        let should_repeat = {
+            let mut native_logic_reload = state.native_logic_reload.lock().unwrap();
+            let Some(reload_state) = native_logic_reload.as_mut() else {
+                return;
+            };
+            if reload_state.rebuild_pending {
+                reload_state.rebuild_pending = false;
+                true
+            } else {
+                reload_state.build_in_progress = false;
+                false
+            }
+        };
+
+        if should_repeat {
+            let state_for_repeat = state.clone();
+            std::thread::spawn(move || super::run_native_logic_reload_loop(state_for_repeat));
+        }
+    });
+
+    Ok(())
 }
 
 fn handle_dev_client_response(

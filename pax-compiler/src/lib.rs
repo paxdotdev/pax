@@ -156,12 +156,44 @@ fn seconds(duration: Duration) -> f64 {
     duration.as_secs_f64()
 }
 
+pub(crate) struct PreparedCartridgeSources {
+    pub pax_dir: PathBuf,
+    pub userland_manifest: PaxManifest,
+    pub assets_dirs: Vec<String>,
+}
+
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
 pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<PathBuf>), Report> {
     let mut timings = BuildTimings::start();
+    let prepared = prepare_cartridge_sources_with_timings(ctx, &mut timings)?;
 
+    //7. Build full project from source
+    println!("{} 🧱 Building project with `cargo`", *PAX_BADGE);
+    let build_dir = build_project_with_cartridge(
+        &prepared.pax_dir,
+        &ctx,
+        Arc::clone(&ctx.process_child_ids),
+        prepared.assets_dirs,
+        prepared.userland_manifest.clone(),
+        &mut timings,
+    )?;
+
+    Ok((prepared.userland_manifest, build_dir))
+}
+
+pub(crate) fn prepare_cartridge_sources(
+    ctx: &RunContext,
+) -> eyre::Result<PreparedCartridgeSources, Report> {
+    let mut timings = BuildTimings::start();
+    prepare_cartridge_sources_with_timings(ctx, &mut timings)
+}
+
+fn prepare_cartridge_sources_with_timings(
+    ctx: &RunContext,
+    timings: &mut BuildTimings,
+) -> eyre::Result<PreparedCartridgeSources, Report> {
     if ctx.target == RunTarget::Web {
         timings.record("web interface", || ensure_default_web_interface_bundle(ctx));
     }
@@ -264,20 +296,11 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
             ctx.is_release && !ctx.should_run_designtime && !ctx.should_run_designer,
         );
     });
-    // source_map.extract_ranges_from_generated_code(cartridge_path.to_str().unwrap());
-
-    //7. Build full project from source
-    println!("{} 🧱 Building project with `cargo`", *PAX_BADGE);
-    let build_dir = build_project_with_cartridge(
-        &pax_dir,
-        &ctx,
-        Arc::clone(&ctx.process_child_ids),
-        merged_manifest.assets_dirs,
-        userland_manifest.clone(),
-        &mut timings,
-    )?;
-
-    Ok((userland_manifest, build_dir))
+    Ok(PreparedCartridgeSources {
+        pax_dir,
+        userland_manifest,
+        assets_dirs: merged_manifest.assets_dirs,
+    })
 }
 
 fn run_and_parse_parser_binary(ctx: &RunContext) -> eyre::Result<Vec<PaxManifest>, Report> {

@@ -506,6 +506,10 @@ public final class NativeLayerCountTracker {
     public func update(_ count: Int) {
         layerCount = max(count, 1)
     }
+
+    public func reset() {
+        layerCount = 1
+    }
 }
 
 public final class NativeScrollerHostRegistry {
@@ -539,6 +543,30 @@ public final class NativeScrollerHostRegistry {
 
     public func contentHost(for id: PaxNodeId) -> HostView? {
         hosts[id]?.contentHost
+    }
+
+    public func reset() {
+        hosts.removeAll()
+    }
+}
+
+public enum PaxNativeHostState {
+    public static func reset() {
+        TextElements.singleton.reset()
+        FrameElements.singleton.reset()
+        ButtonElements.singleton.reset()
+        CheckboxElements.singleton.reset()
+        NativeImageElements.singleton.reset()
+        YoutubeVideoElements.singleton.reset()
+        DropdownElements.singleton.reset()
+        RadioListElements.singleton.reset()
+        SliderElements.singleton.reset()
+        TextboxElements.singleton.reset()
+        EventBlockerElements.singleton.reset()
+        ScrollerElements.singleton.reset()
+        NativeScrollerHostRegistry.shared.reset()
+        NativeLayerCountTracker.shared.reset()
+        NativeSceneInvalidation.singleton.invalidate()
     }
 }
 
@@ -2758,7 +2786,7 @@ fileprivate extension NativeRenderingLayer {
             (view as? PaxNativeRadioListView)?.apply(element: element)
         case .textbox(let element):
             if element.isTextArea {
-                (view as? PaxNativeTextboxAreaView)?.apply(element: element)
+                (view as? PaxNativeTextboxAreaView)?.apply(element: element, size: size)
             } else {
                 (view as? PaxNativeTextboxFieldView)?.apply(element: element)
             }
@@ -3699,8 +3727,23 @@ private final class PaxNativeTextboxAreaView: NSScrollView, NSTextViewDelegate {
         hasHorizontalScroller = false
         textView.drawsBackground = false
         textView.delegate = self
+        textView.isEditable = true
+        textView.isSelectable = true
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+        textView.minSize = .zero
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.textContainerInset = NSSize(width: 4, height: 6)
         textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.heightTracksTextView = false
+        textView.textContainer?.containerSize = NSSize(
+            width: frameRect.width,
+            height: CGFloat.greatestFiniteMagnitude
+        )
         documentView = textView
         wantsLayer = true
     }
@@ -3709,13 +3752,21 @@ private final class PaxNativeTextboxAreaView: NSScrollView, NSTextViewDelegate {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func apply(element: TextboxElement) {
+    func apply(element: TextboxElement, size: CGSize) {
         nodeId = element.id
         isProgrammaticChange = true
         if textView.string != element.text {
             textView.string = element.text
         }
         isProgrammaticChange = false
+        let visibleSize = NSSize(width: max(size.width, 0), height: max(size.height, 0))
+        textView.minSize = NSSize(width: 0, height: visibleSize.height)
+        textView.textContainer?.containerSize = NSSize(
+            width: visibleSize.width,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        textView.frame = NSRect(origin: .zero, size: visibleSize)
+        textView.bounds = NSRect(origin: .zero, size: visibleSize)
         textView.font = element.style.font.getNSFont(size: element.style.font_size)
         textView.textColor = platformColor(element.style.fill)
         textView.alignment = platformTextAlignment(element.style.alignmentMultiline)
@@ -4050,6 +4101,10 @@ public class TextElements: ObservableObject {
     public func remove(id: PaxNodeId) {
         elements.removeValue(forKey: id)
     }
+
+    public func reset() {
+        elements.removeAll()
+    }
 }
 
 public class FrameElements: ObservableObject {
@@ -4067,6 +4122,10 @@ public class FrameElements: ObservableObject {
     public func get(id: PaxNodeId) -> FrameElement? {
         elements[id]
     }
+
+    public func reset() {
+        elements.removeAll()
+    }
 }
 
 public class ButtonElements: ObservableObject {
@@ -4079,6 +4138,10 @@ public class ButtonElements: ObservableObject {
 
     public func remove(id: PaxNodeId) {
         elements.removeValue(forKey: id)
+    }
+
+    public func reset() {
+        elements.removeAll()
     }
 }
 
@@ -4093,6 +4156,10 @@ public class CheckboxElements: ObservableObject {
     public func remove(id: PaxNodeId) {
         elements.removeValue(forKey: id)
     }
+
+    public func reset() {
+        elements.removeAll()
+    }
 }
 
 public class NativeImageElements: ObservableObject {
@@ -4105,6 +4172,10 @@ public class NativeImageElements: ObservableObject {
 
     public func remove(id: PaxNodeId) {
         elements.removeValue(forKey: id)
+    }
+
+    public func reset() {
+        elements.removeAll()
     }
 }
 
@@ -4119,6 +4190,10 @@ public class YoutubeVideoElements: ObservableObject {
     public func remove(id: PaxNodeId) {
         elements.removeValue(forKey: id)
     }
+
+    public func reset() {
+        elements.removeAll()
+    }
 }
 
 public class DropdownElements: ObservableObject {
@@ -4131,6 +4206,10 @@ public class DropdownElements: ObservableObject {
 
     public func remove(id: PaxNodeId) {
         elements.removeValue(forKey: id)
+    }
+
+    public func reset() {
+        elements.removeAll()
     }
 }
 
@@ -4145,6 +4224,10 @@ public class RadioListElements: ObservableObject {
     public func remove(id: PaxNodeId) {
         elements.removeValue(forKey: id)
     }
+
+    public func reset() {
+        elements.removeAll()
+    }
 }
 
 public class SliderElements: ObservableObject {
@@ -4157,6 +4240,10 @@ public class SliderElements: ObservableObject {
 
     public func remove(id: PaxNodeId) {
         elements.removeValue(forKey: id)
+    }
+
+    public func reset() {
+        elements.removeAll()
     }
 }
 
@@ -4171,6 +4258,10 @@ public class TextboxElements: ObservableObject {
     public func remove(id: PaxNodeId) {
         elements.removeValue(forKey: id)
     }
+
+    public func reset() {
+        elements.removeAll()
+    }
 }
 
 public class EventBlockerElements: ObservableObject {
@@ -4183,6 +4274,10 @@ public class EventBlockerElements: ObservableObject {
 
     public func remove(id: PaxNodeId) {
         elements.removeValue(forKey: id)
+    }
+
+    public func reset() {
+        elements.removeAll()
     }
 }
 
@@ -4200,5 +4295,9 @@ public class ScrollerElements: ObservableObject {
 
     public func get(id: PaxNodeId) -> ScrollerElement? {
         elements[id]
+    }
+
+    public func reset() {
+        elements.removeAll()
     }
 }

@@ -35,6 +35,8 @@ pub struct Textbox {
     pub outline: Property<Stroke>,
     /// Requests focus when the textbox mounts.
     pub focus_on_mount: Property<bool>,
+    /// Renders the textbox as a multiline text area when supported by the chassis.
+    pub multiline: Property<bool>,
 }
 
 impl Default for Textbox {
@@ -64,6 +66,7 @@ impl Default for Textbox {
                 align_vertical: Property::new(TextAlignVertical::Center),
             }),
             focus_on_mount: Property::new(false),
+            multiline: Property::new(false),
         }
     }
 }
@@ -191,6 +194,11 @@ impl InstanceNode for TextboxInstance {
                                 &mut old_state.focus_on_mount,
                                 &mut patch.focus_on_mount,
                                 properties.focus_on_mount.get(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.is_text_area,
+                                &mut patch.is_text_area,
+                                properties.multiline.get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.placeholder,

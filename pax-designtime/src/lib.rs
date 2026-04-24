@@ -10,7 +10,10 @@ pub mod messages;
 pub mod serde_pax;
 
 use messages::LLMRequest;
-use messages::{DevClientRequest, DevClientResponse};
+use messages::{
+    DevClientRequest, DevClientResponse, UserlandSourceUpdateRequest,
+    UserlandSourceUpdateResponse,
+};
 use orm::{MessageType, ReloadType};
 use pax_manifest::pax_runtime_api::Property;
 use pax_message::ScreenshotData;
@@ -38,6 +41,7 @@ pub struct DesigntimeManager {
     project_query: Option<String>,
     response_queue: Rc<RefCell<Vec<DesigntimeResponseMessage>>>,
     pending_dev_client_requests: Rc<RefCell<Vec<DevClientRequest>>>,
+    pending_userland_source_update_responses: Rc<RefCell<Vec<UserlandSourceUpdateResponse>>>,
     last_rendered_manifest_version: Property<usize>,
     pub publish_state: Property<Option<PublishResponse>>,
     enqueued_llm_request: Option<LLMRequest>,
@@ -51,6 +55,12 @@ pub enum DesigntimeResponseMessage {
 impl Debug for DesigntimeManager {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DesigntimeManager").finish()
+    }
+}
+
+impl Drop for DesigntimeManager {
+    fn drop(&mut self) {
+        self.shutdown();
     }
 }
 
@@ -95,6 +105,7 @@ impl DesigntimeManager {
             project_query: None,
             response_queue: Rc::new(RefCell::new(Vec::new())),
             pending_dev_client_requests: Rc::new(RefCell::new(Vec::new())),
+            pending_userland_source_update_responses: Rc::new(RefCell::new(Vec::new())),
             last_rendered_manifest_version: Property::new(0),
             publish_state: Default::default(),
             enqueued_llm_request: None,
@@ -237,6 +248,20 @@ impl DesigntimeManager {
             .send_dev_client_response(response)
     }
 
+    pub fn send_userland_source_update(
+        &mut self,
+        request: UserlandSourceUpdateRequest,
+    ) -> anyhow::Result<()> {
+        self.privileged_agent_connection
+            .borrow_mut()
+            .send_userland_source_update_request(request)
+    }
+
+    pub fn take_userland_source_update_responses(&mut self) -> Vec<UserlandSourceUpdateResponse> {
+        let mut responses = self.pending_userland_source_update_responses.borrow_mut();
+        responses.drain(..).collect()
+    }
+
     pub fn get_orm(&self) -> &PaxManifestORM {
         &self.orm
     }
@@ -266,8 +291,16 @@ impl DesigntimeManager {
             .borrow_mut()
             .handle_recv(&mut self.orm)?;
         for message in privileged_agent_messages {
-            if let crate::messages::AgentMessage::DevClientRequest(request) = message {
-                self.pending_dev_client_requests.borrow_mut().push(request);
+            match message {
+                crate::messages::AgentMessage::DevClientRequest(request) => {
+                    self.pending_dev_client_requests.borrow_mut().push(request);
+                }
+                crate::messages::AgentMessage::UserlandSourceUpdateResponse(response) => {
+                    self.pending_userland_source_update_responses
+                        .borrow_mut()
+                        .push(response);
+                }
+                _ => {}
             }
         }
 
@@ -312,6 +345,15 @@ impl DesigntimeManager {
                 log::info!("received publish response");
                 self.publish_state.set(Some(response));
             }
+        }
+    }
+
+    pub fn shutdown(&mut self) {
+        self.privileged_agent_connection
+            .borrow_mut()
+            .shutdown_permanently();
+        if let Some(pub_pax_connection) = &self.pub_pax_connection {
+            pub_pax_connection.borrow_mut().shutdown_permanently();
         }
     }
 }

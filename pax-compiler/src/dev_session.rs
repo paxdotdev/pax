@@ -118,6 +118,21 @@ pub struct DevReplaceNodeResponse {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DevReloadLogicRequest {
+    pub request_id: String,
+    pub kind: String,
+    pub dylib_path: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DevReloadLogicResponse {
+    pub request_id: String,
+    pub status: String,
+    pub dylib_path: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DevLogsRequest {
     pub request_id: String,
     pub kind: String,
@@ -299,6 +314,19 @@ pub fn session_response_dir(session: &DevSession) -> Result<PathBuf, Report> {
         )
     })?;
     Ok(session_dir.join("responses"))
+}
+
+pub fn write_session_request_json<T: Serialize>(
+    session_dir: &Path,
+    request_id: &str,
+    value: &T,
+) -> Result<(), Report> {
+    atomic_write_json(
+        &session_dir
+            .join("requests")
+            .join(format!("{request_id}.json")),
+        value,
+    )
 }
 
 fn read_json_if_exists<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Option<T>, Report> {

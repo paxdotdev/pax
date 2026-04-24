@@ -9,7 +9,10 @@ use crate::dev_session::{
 use crate::helpers::{
     BUILD_DIR_NAME, DIR_IGNORE_LIST_MACOS, ERR_SPAWN, INTERFACE_DIR_NAME, PAX_BADGE,
 };
-use crate::{copy_dir_recursively, wait_with_output, BuildTimings, RunContext, RunTarget};
+use crate::{
+    copy_dir_recursively, prepare_cartridge_sources, wait_with_output, BuildTimings, RunContext,
+    RunTarget,
+};
 
 use color_eyre::eyre;
 use eyre::eyre;
@@ -340,6 +343,11 @@ fn apple_mobile_target(target: &RunTarget) -> Option<AppleMobileTarget> {
         RunTarget::iPadOS => Some(AppleMobileTarget::Tablet),
         _ => None,
     }
+}
+
+pub struct MacosLogicReloadBuild {
+    pub manifest: PaxManifest,
+    pub dylib_path: PathBuf,
 }
 
 pub fn build_apple_project_with_cartridge(
@@ -944,6 +952,8 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     &pax_dir,
                     &project_path,
                     &manifest,
+                    session.session_dir.as_ref().unwrap(),
+                    ctx.should_run_designer,
                     &ready_file,
                     process_child_ids.clone(),
                 )?);
@@ -1778,6 +1788,132 @@ fn best_tablet_simulator(simulators: &[SimulatorDevice]) -> Option<&SimulatorDev
     best_choice.map(|(_, _, _, simulator)| simulator)
 }
 
+pub fn rebuild_staged_macos_logic_dylib(
+    project_root: &PathBuf,
+    session_dir: &Path,
+    should_run_designer: bool,
+) -> Result<MacosLogicReloadBuild, eyre::Report> {
+    let process_child_ids = Arc::new(Mutex::new(vec![]));
+    let ctx = RunContext {
+        target: RunTarget::macOS,
+        project_path: project_root.clone(),
+        verbose: false,
+        should_also_run: false,
+        is_libdev_mode: false,
+        process_child_ids: process_child_ids.clone(),
+        should_run_designtime: true,
+        should_run_designer,
+        is_release: false,
+        profile_wasm_size: false,
+        webgl: false,
+        ios_device: None,
+        ios_development_team: None,
+    };
+
+    let prepared = prepare_cartridge_sources(&ctx)?;
+    let manifest_path = project_designtime_manifest_file(&prepared.pax_dir);
+    if let Some(parent) = manifest_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(
+        &manifest_path,
+        serde_json::to_vec(&prepared.userland_manifest)?,
+    )?;
+
+    let target_mapping =
+        select_apple_target_mappings(&RunTarget::macOS, false, None, std::env::consts::ARCH)
+            .into_iter()
+            .next()
+            .ok_or_else(|| eyre!("no macOS target mapping available for staged logic reload"))?;
+    let dylib_file_name = resolve_dylib_file_name(project_root)?;
+
+    let mut cmd = Command::new("cargo");
+    cmd.current_dir(project_root)
+        .arg("build")
+        .arg("--color")
+        .arg("always")
+        .arg("--target")
+        .arg(target_mapping.rust_target)
+        .arg("--features=macos")
+        .env("PAX_DIR", &prepared.pax_dir)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    if should_run_designer {
+        cmd.arg("--features").arg("designer");
+    } else {
+        cmd.arg("--features").arg("designtime");
+    }
+
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(crate::pre_exec_hook);
+    }
+
+    let child = cmd.spawn().expect(ERR_SPAWN);
+    let output = wait_with_output(&process_child_ids, child);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if !stdout.trim().is_empty() {
+        println!("{}", stdout);
+    }
+    if !stderr.trim().is_empty() {
+        eprintln!("{}", stderr);
+    }
+    if !output.status.success() {
+        return Err(eyre!(
+            "failed to rebuild the macOS logic dylib for hot reload"
+        ));
+    }
+
+    let dylib_src = project_root
+        .join("target")
+        .join(target_mapping.rust_target)
+        .join("debug")
+        .join(&dylib_file_name);
+    if !dylib_src.exists() {
+        return Err(eyre!(
+            "logic reload build succeeded but dylib was missing at {:?}",
+            dylib_src
+        ));
+    }
+
+    let staged_dir = session_dir.join("logic-modules");
+    fs::create_dir_all(&staged_dir)?;
+    let staged_dylib_path = staged_dir.join(format!(
+        "{}-{}.dylib",
+        dylib_file_name.trim_end_matches(".dylib"),
+        now_ms()
+    ));
+    fs::copy(&dylib_src, &staged_dylib_path)?;
+
+    let mut install_name_cmd = Command::new("install_name_tool");
+    install_name_cmd
+        .arg("-id")
+        .arg(&staged_dylib_path)
+        .arg(&staged_dylib_path)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    #[cfg(unix)]
+    unsafe {
+        install_name_cmd.pre_exec(crate::pre_exec_hook);
+    }
+
+    let child = install_name_cmd.spawn().expect(ERR_SPAWN);
+    let output = wait_with_output(&process_child_ids, child);
+    if !output.status.success() {
+        return Err(eyre!(
+            "failed to rewrite the staged macOS logic dylib install name"
+        ));
+    }
+
+    Ok(MacosLogicReloadBuild {
+        manifest: prepared.userland_manifest,
+        dylib_path: staged_dylib_path,
+    })
+}
+
 fn parse_iphone_simulator_preference(name: &str) -> Option<(i32, SimulatorVariantRank)> {
     let rest = name.strip_prefix("iPhone ")?;
     let generation_end = rest.find(|ch: char| !ch.is_ascii_digit())?;
@@ -1981,6 +2117,8 @@ fn spawn_designtime_server_process(
     pax_dir: &PathBuf,
     project_root: &PathBuf,
     manifest: &PaxManifest,
+    session_dir: &PathBuf,
+    should_run_designer: bool,
     ready_file: &PathBuf,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
 ) -> Result<Child, eyre::Report> {
@@ -1997,6 +2135,10 @@ fn spawn_designtime_server_process(
         .arg(project_root)
         .arg("--manifest-path")
         .arg(manifest_path)
+        .arg("--macos-session-dir")
+        .arg(session_dir)
+        .arg("--hot-reload-designer")
+        .arg(if should_run_designer { "true" } else { "false" })
         .arg("--port")
         .arg("0")
         .arg("--ready-file")

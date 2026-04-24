@@ -222,6 +222,19 @@ fn main() -> Result<(), Report> {
                         .required(true),
                 )
                 .arg(
+                    Arg::with_name("macos-session-dir")
+                        .long("macos-session-dir")
+                        .takes_value(true)
+                        .hidden(true),
+                )
+                .arg(
+                    Arg::with_name("hot-reload-designer")
+                        .long("hot-reload-designer")
+                        .takes_value(true)
+                        .default_value("false")
+                        .hidden(true),
+                )
+                .arg(
                     Arg::with_name("port")
                         .long("port")
                         .takes_value(true)
@@ -433,6 +446,15 @@ fn perform_nominal_action(
                 .map_err(|_| eyre!("--port must be an unsigned 16-bit integer"))?;
             let ready_file = args.value_of("ready-file").map(PathBuf::from);
             let show_address_log = !args.is_present("suppress-address-log");
+            let native_logic_reload = args.value_of("macos-session-dir").map(|session_dir| {
+                pax_compiler::design_server::NativeLogicReloadConfig {
+                    session_dir: PathBuf::from(session_dir),
+                    should_run_designer: args
+                        .value_of("hot-reload-designer")
+                        .map(|value| value == "true")
+                        .unwrap_or(false),
+                }
+            });
             pax_compiler::design_server::start_server(
                 serve_dir,
                 watch_dir,
@@ -441,6 +463,7 @@ fn perform_nominal_action(
                 ready_file,
                 show_address_log,
                 None,
+                native_logic_reload,
             )?;
             Ok(())
         }

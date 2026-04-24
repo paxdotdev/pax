@@ -19,6 +19,8 @@ pub enum AgentMessage {
     ComponentSerializationRequest(ComponentSerializationRequest),
     UpdateTemplateRequest(Box<UpdateTemplateRequest>),
     LoadFileToStaticDirRequest(LoadFileToStaticDirRequest),
+    UserlandSourceUpdateRequest(UserlandSourceUpdateRequest),
+    UserlandSourceUpdateResponse(UserlandSourceUpdateResponse),
     DevClientRequest(DevClientRequest),
     DevClientResponse(DevClientResponse),
     // LLM Requests to pub.pax.dev
@@ -250,6 +252,23 @@ impl LLMFinalResponse {
 pub struct LoadFileToStaticDirRequest {
     pub name: String,
     pub data: Vec<u8>,
+}
+
+/// A request from userland to replace a project source file during designtime.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UserlandSourceUpdateRequest {
+    pub request_id: String,
+    pub path: String,
+    pub contents: String,
+}
+
+/// A response to a userland source replacement request.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UserlandSourceUpdateResponse {
+    pub request_id: String,
+    pub path: String,
+    pub status: String,
+    pub error: Option<String>,
 }
 
 /// A notification indicating that a project file has changed.

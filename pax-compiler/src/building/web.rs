@@ -503,6 +503,7 @@ pub fn build_web_project_with_cartridge(
                 None,
                 true,
                 Some(dev_session.clone()),
+                None,
             );
             cleanup_web_dev_session(pax_dir, &dev_session)?;
         } else if ctx.should_run_designtime {
@@ -518,6 +519,7 @@ pub fn build_web_project_with_cartridge(
                 None,
                 true,
                 Some(dev_session.clone()),
+                None,
             );
             cleanup_web_dev_session(pax_dir, &dev_session)?;
         } else {

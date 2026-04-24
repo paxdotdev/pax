@@ -20,6 +20,7 @@ use pax_runtime::api::math::Point2;
 use pax_runtime::api::{
     ButtonClick, Click, ClickOrTap, Event, Focus, ModifierKey, MouseButton, MouseEventArgs,
     RenderContext, Scroll, SelectStart, TextboxChange, Touch, TouchEnd, TouchMove, TouchStart,
+    TextboxInput,
 };
 use pax_runtime::engine::layer_tiling::{scroller_canvas_plan_with_policy, ScrollerTilingPolicy};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -596,6 +597,8 @@ pub extern "C" fn pax_dealloc_engine(container: *mut PaxEngineContainer) {
 
     unsafe {
         let container = Box::from_raw(container);
+        #[cfg(feature = "designtime")]
+        container.designtime_manager.borrow_mut().shutdown();
         if !container._engine.is_null() {
             drop(Box::from_raw(container._engine));
         }
@@ -812,6 +815,13 @@ pub extern "C" fn pax_interrupt(
                 engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
             {
                 borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
+                node.dispatch_textbox_input(
+                    Event::new(TextboxInput {
+                        text: args.text.clone(),
+                    }),
+                    &globals,
+                    &engine.runtime_context,
+                );
             }
         }
         NativeInterrupt::TextInput(args) => {

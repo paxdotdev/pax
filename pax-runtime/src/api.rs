@@ -14,7 +14,13 @@ use pax_runtime_api::{cursor::CursorStyle, math::Point2, properties::UntypedProp
 
 use crate::node_interface::NodeInterface;
 #[cfg(feature = "designtime")]
-use {pax_designtime::DesigntimeManager, pax_manifest::UniqueTemplateNodeIdentifier};
+use {
+    pax_designtime::{
+        messages::{UserlandSourceUpdateRequest, UserlandSourceUpdateResponse},
+        DesigntimeManager,
+    },
+    pax_manifest::UniqueTemplateNodeIdentifier,
+};
 
 #[derive(Clone)]
 /// Runtime context passed into user component lifecycle methods and event handlers.
@@ -210,6 +216,30 @@ impl NodeContext {
 
 #[cfg(feature = "designtime")]
 impl NodeContext {
+    /// Send updated project source to the design server for designtime-only application.
+    pub fn submit_userland_source_update(
+        &self,
+        request_id: String,
+        path: String,
+        contents: String,
+    ) -> Result<(), String> {
+        self.designtime
+            .borrow_mut()
+            .send_userland_source_update(UserlandSourceUpdateRequest {
+                request_id,
+                path,
+                contents,
+            })
+            .map_err(|err| err.to_string())
+    }
+
+    /// Drain any queued responses from designtime source update requests.
+    pub fn take_userland_source_update_responses(&self) -> Vec<UserlandSourceUpdateResponse> {
+        self.designtime
+            .borrow_mut()
+            .take_userland_source_update_responses()
+    }
+
     pub fn raycast(&self, point: Point2<Window>, hit_invisible: bool) -> Vec<NodeInterface> {
         let expanded_nodes = self.runtime_context.get_elements_beneath_ray(
             self.runtime_context.get_userland_root_expanded_node(),

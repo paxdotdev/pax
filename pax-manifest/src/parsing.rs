@@ -902,6 +902,21 @@ fn add_implicit_lifecycle_handlers(
     }
 }
 
+pub fn augment_settings_with_implicit_lifecycle_handlers(
+    settings: &mut Vec<SettingsBlockElement>,
+    module_path: &str,
+    self_type_id: &TypeId,
+    rust_source_file_path: &str,
+) {
+    let modified_module_path = clean_module_path(module_path);
+    add_implicit_lifecycle_handlers(
+        settings,
+        &modified_module_path,
+        self_type_id,
+        rust_source_file_path,
+    );
+}
+
 fn collect_component_lifecycle_handler_names(
     target_module_path: &str,
     self_type_id: &TypeId,

@@ -92,9 +92,22 @@ final class SurfaceManager {
     private var layerStates: [UInt32: LayerState] = [:]
     private var lastLayerCount: Int = 0
 
+    func reset() {
+        for state in layerStates.values {
+            for view in state.surfaceViews.values {
+                view.removeFromSuperview()
+            }
+        }
+        layerStates.removeAll()
+        lastLayerCount = 0
+    }
+
     func sync(engineContainer: OpaquePointer, rootView: NSView, scale: CGFloat) {
         let layerCount = NativeLayerCountTracker.shared.layerCount
-        pax_surface_registry_begin_frame(engineContainer, UInt32(layerCount))
+        PaxCartridgeRuntime.shared.surfaceRegistryBeginFrame(
+            engineContainer,
+            layerCount: UInt32(layerCount)
+        )
 
         var needsRefresh = layerCount != lastLayerCount
 
@@ -133,7 +146,7 @@ final class SurfaceManager {
         lastLayerCount = layerCount
 
         if needsRefresh {
-            pax_refresh_render_surfaces(engineContainer)
+            PaxCartridgeRuntime.shared.refreshRenderSurfaces(engineContainer)
         }
     }
 
@@ -142,10 +155,14 @@ final class SurfaceManager {
         layerId: UInt32,
         scale: CGFloat
     ) -> LayerCanvasPlan? {
-        guard let planQueue = pax_get_layer_canvas_plan(engineContainer, layerId, Float(scale)) else {
+        guard let planQueue = PaxCartridgeRuntime.shared.getLayerCanvasPlan(
+            engineContainer,
+            layerId: layerId,
+            scale: Float(scale)
+        ) else {
             return nil
         }
-        defer { pax_dealloc_message_queue(planQueue) }
+        defer { PaxCartridgeRuntime.shared.deallocMessageQueue(planQueue) }
         let queue = planQueue.pointee
         guard let dataPtr = queue.data_ptr else {
             return nil
@@ -202,21 +219,21 @@ final class SurfaceManager {
 
                 descriptor.key.withCString { keyPtr in
                     descriptor.hostSignature.withCString { hostPtr in
-                        pax_surface_registry_register_surface(
+                        PaxCartridgeRuntime.shared.surfaceRegistryRegisterSurface(
                             engineContainer,
-                            layerId,
-                            keyPtr,
-                            hostPtr,
-                            Float(descriptor.left),
-                            Float(descriptor.top),
-                            descriptor.replayPriority,
-                            Float(descriptor.width),
-                            Float(descriptor.height),
-                            UInt32(pixelWidth),
-                            UInt32(pixelHeight),
-                            Float(scale),
-                            Float(scale),
-                            Unmanaged.passUnretained(surfaceView.metalLayer).toOpaque()
+                            layerId: layerId,
+                            key: keyPtr,
+                            hostSignature: hostPtr,
+                            originX: Float(descriptor.left),
+                            originY: Float(descriptor.top),
+                            replayPriority: descriptor.replayPriority,
+                            logicalWidth: Float(descriptor.width),
+                            logicalHeight: Float(descriptor.height),
+                            surfaceWidth: UInt32(pixelWidth),
+                            surfaceHeight: UInt32(pixelHeight),
+                            dprX: Float(scale),
+                            dprY: Float(scale),
+                            layerPointer: Unmanaged.passUnretained(surfaceView.metalLayer).toOpaque()
                         )
                     }
                 }
@@ -237,7 +254,11 @@ final class SurfaceManager {
             active = false
         }
 
-        pax_surface_registry_set_layer_active(engineContainer, layerId, active)
+        PaxCartridgeRuntime.shared.surfaceRegistrySetLayerActive(
+            engineContainer,
+            layerId: layerId,
+            active: active
+        )
         return planSignature(layerId: layerId, active: active, surfaces: registered)
     }
 

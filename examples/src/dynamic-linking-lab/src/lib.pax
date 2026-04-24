@@ -1,0 +1,327 @@
+<Group width=100% height=100%>
+    <Group x=20px y=20px width=560px height={100% - 40px}>
+        <Text class=eyebrow text="Phase 10 Dynamic Linking"/>
+        <Text class=hero_title text="Dynamic Linking Lab"/>
+        <Text
+            class=hero_copy
+            text="Edit Rust constants to force a dylib rebuild, or edit this Pax template to exercise the existing designtime reload path."/>
+
+        <Group x=28px y=182px width={100% - 56px} height=258px>
+            <Button
+                x=24px
+                y=196px
+                width={100% - 48px}
+                height=42px
+                color=bind:accent_color
+                hover_color=rgba(32, 52, 96, 255)
+                label={logic_button_label}
+                @button_click=self.run_logic/>
+            <Text class=card_meta x=24px y=160px width={100% - 48px} height=22px text={"Logic clicks: " + logic_clicks}/>
+            <Text class=card_copy x=24px y=96px width={100% - 48px} height=58px text={logic_message}/>
+            <Text class=card_title x=24px y=54px width={100% - 48px} height=36px text="Live Preview"/>
+            <Rectangle x=24px y=26px width=92px height=12px fill={accent_color} corner_radii={RectangleCornerRadii::radii(6.0, 6.0, 6.0, 6.0)}/>
+            <Rectangle
+                width=100%
+                height=100%
+                fill=rgba(255, 247, 236, 255)
+                stroke={
+                    color: rgba(212, 191, 160, 255)
+                    width: 1px
+                }
+                corner_radii={RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)}/>
+        </Group>
+
+        <Group x=28px y=468px width={100% - 56px} height=122px>
+            <Text class=status_title x=18px y=16px width={100% - 36px} height=18px text="Rust Status"/>
+            <Text class=status_body x=18px y=42px width={100% - 36px} height=64px text={rust_status}/>
+            <Rectangle
+                width=100%
+                height=100%
+                fill=rgba(249, 241, 228, 255)
+                stroke={
+                    color: rgba(212, 191, 160, 255)
+                    width: 1px
+                }
+                corner_radii={RectangleCornerRadii::radii(20.0, 20.0, 20.0, 20.0)}/>
+        </Group>
+
+        <Group x=28px y=608px width={100% - 56px} height=132px>
+            <Text class=status_title x=18px y=16px width={100% - 36px} height=18px text="Pax Status"/>
+            <Text class=status_body x=18px y=42px width={100% - 36px} height=72px text={pax_status}/>
+            <Rectangle
+                width=100%
+                height=100%
+                fill=rgba(249, 241, 228, 255)
+                stroke={
+                    color: rgba(212, 191, 160, 255)
+                    width: 1px
+                }
+                corner_radii={RectangleCornerRadii::radii(20.0, 20.0, 20.0, 20.0)}/>
+        </Group>
+
+        <Button
+            x=28px
+            y=760px
+            width={100% - 56px}
+            height=48px
+            label="Recompile Rust"
+            color=rgba(28, 33, 43, 255)
+            hover_color=rgba(52, 60, 77, 255)
+            @button_click=self.recompile_rust/>
+        <Rectangle
+            width=100%
+            height=100%
+            fill=rgba(255, 251, 245, 242)
+            stroke={
+                color: rgba(192, 170, 140, 255)
+                width: 1px
+            }
+            corner_radii={RectangleCornerRadii::radii(30.0, 30.0, 30.0, 30.0)}/>
+    </Group>
+
+    <Group x=612px y=20px width={100% - 632px} height={100% - 40px}>
+        <Stacker
+            width=100%
+            height=100%
+            direction=StackerDirection::Vertical
+            gutter=20px
+            sizes=[None, None]
+        >
+            <Group width=100% height=100%>
+                <Stacker
+                    x=24px
+                    y=20px
+                    width={100% - 48px}
+                    height={100% - 40px}
+                    direction=StackerDirection::Vertical
+                    gutter=14px
+                    sizes=[Some(24px), Some(18px), None]
+                >
+                    <Text class=editor_title width=100% height=100% text="src/lib.rs"/>
+                    <Text width=100% height=100% class=editor_hint text="Change LOGIC_BUTTON_LABEL, LOGIC_MESSAGE, or LOGIC_ACCENT_RGBA, then press Recompile Rust."/>
+                    <Textbox
+                        width=100%
+                        height=100%
+                        multiline=true
+                        text={rust_source}
+                        background=rgba(17, 23, 34, 255)
+                        border_radius=18.0
+                        outline={
+                            color: rgba(59, 73, 97, 255)
+                            width: 1px
+                        }
+                        stroke={
+                            color: rgba(59, 73, 97, 255)
+                            width: 1px
+                        }
+                        style={
+                            font: Font::Web("JetBrains Mono", "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+                            font_size: 13px
+                            fill: rgba(231, 236, 245, 255)
+                            align_vertical: TextAlignVertical::Top
+                            align_horizontal: TextAlignHorizontal::Left
+                            align_multiline: TextAlignHorizontal::Left
+                            underline: false
+                        }
+                        @textbox_input=self.update_rust_source/>
+                </Stacker>
+                <Rectangle
+                    width=100%
+                    height=100%
+                    fill=rgba(28, 34, 46, 245)
+                    stroke={
+                        color: rgba(69, 82, 107, 255)
+                        width: 1px
+                    }
+                    corner_radii={RectangleCornerRadii::radii(30.0, 30.0, 30.0, 30.0)}/>
+            </Group>
+
+            <Group width=100% height=100%>
+                <Stacker
+                    x=24px
+                    y=20px
+                    width={100% - 48px}
+                    height={100% - 40px}
+                    direction=StackerDirection::Vertical
+                    gutter=14px
+                    sizes=[Some(24px), Some(18px), None]
+                >
+                    <Text class=editor_title width=100% height=100% text="src/lib.pax"/>
+                    <Text width=100% height=100% class=editor_hint text="Valid Pax edits auto-apply after a short debounce through the standard designtime template update path."/>
+                    <Textbox
+                        width=100%
+                        height=100%
+                        multiline=true
+                        text={pax_source}
+                        background=rgba(17, 23, 34, 255)
+                        border_radius=18.0
+                        outline={
+                            color: rgba(59, 73, 97, 255)
+                            width: 1px
+                        }
+                        stroke={
+                            color: rgba(59, 73, 97, 255)
+                            width: 1px
+                        }
+                        style={
+                            font: Font::Web("JetBrains Mono", "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+                            font_size: 13px
+                            fill: rgba(231, 236, 245, 255)
+                            align_vertical: TextAlignVertical::Top
+                            align_horizontal: TextAlignHorizontal::Left
+                            align_multiline: TextAlignHorizontal::Left
+                            underline: false
+                        }
+                        @textbox_input=self.update_pax_source/>
+                </Stacker>
+                <Rectangle
+                    width=100%
+                    height=100%
+                    fill=rgba(28, 34, 46, 245)
+                    stroke={
+                        color: rgba(69, 82, 107, 255)
+                        width: 1px
+                    }
+                    corner_radii={RectangleCornerRadii::radii(30.0, 30.0, 30.0, 30.0)}/>
+            </Group>
+        </Stacker>
+    </Group>
+
+    <Ellipse x=92% y=10% width=420px height=420px fill=rgba(232, 204, 146, 120)/>
+    <Ellipse x=6% y=92% width=360px height=360px fill=rgba(112, 154, 255, 60)/>
+    <Rectangle width=100% height=100% fill=rgba(244, 239, 230, 255)/>
+</Group>
+
+@settings {
+    .eyebrow {
+        x: 28px
+        y: 28px
+        width: {100% - 56px}
+        height: 18px
+        style: {
+            font: Font::Web("Azeret Mono", "https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 12px
+            fill: rgba(121, 88, 40, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .hero_title {
+        x: 28px
+        y: 58px
+        width: {100% - 56px}
+        height: 56px
+        style: {
+            font: Font::Web("Fraunces", "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,650;9..144,850&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 38px
+            fill: rgba(34, 36, 38, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .hero_copy {
+        x: 28px
+        y: 124px
+        width: {100% - 56px}
+        height: 48px
+        style: {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font_size: 15px
+            fill: rgba(94, 83, 69, 255)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .card_title {
+        style: {
+            font: Font::Web("Fraunces", "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 26px
+            fill: rgba(34, 36, 38, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .card_copy {
+        style: {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font_size: 16px
+            fill: rgba(68, 67, 65, 255)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .card_meta {
+        style: {
+            font: Font::Web("Azeret Mono", "https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 12px
+            fill: rgba(113, 99, 82, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .status_title {
+        style: {
+            font: Font::Web("Azeret Mono", "https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 12px
+            fill: rgba(121, 88, 40, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .status_body {
+        style: {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font_size: 14px
+            fill: rgba(68, 67, 65, 255)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .editor_title {
+        style: {
+            font: Font::Web("Azeret Mono", "https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 13px
+            fill: rgba(255, 225, 181, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .editor_hint {
+        style: {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font_size: 13px
+            fill: rgba(190, 201, 224, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+}
