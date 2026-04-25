@@ -9,7 +9,7 @@ use crate::dev_session::{
 use crate::helpers::{
     BUILD_DIR_NAME, DIR_IGNORE_LIST_MACOS, ERR_SPAWN, INTERFACE_DIR_NAME, PAX_BADGE,
 };
-use crate::{copy_dir_recursively, wait_with_output, RunContext, RunTarget};
+use crate::{copy_dir_recursively, wait_with_output, BuildTimings, RunContext, RunTarget};
 
 use color_eyre::eyre;
 use eyre::eyre;
@@ -348,6 +348,7 @@ pub fn build_apple_project_with_cartridge(
     process_child_ids: Arc<Mutex<Vec<u64>>>,
     assets_dirs: Vec<String>,
     manifest: PaxManifest,
+    _timings: &mut BuildTimings,
 ) -> Result<(), eyre::Report> {
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();

@@ -6,7 +6,7 @@ use crate::helpers::{
     wait_with_output, ASSETS_DIR_NAME, BUILD_DIR_NAME, DIR_IGNORE_LIST_WEB, INTERFACE_DIR_NAME,
     PAX_BADGE,
 };
-use crate::{copy_dir_recursively, RunContext, RunTarget};
+use crate::{copy_dir_recursively, BuildTimings, RunContext, RunTarget};
 
 use color_eyre::eyre;
 use flate2::{write::GzEncoder, Compression};
@@ -27,7 +27,7 @@ use std::os::unix::process::CommandExt;
 struct BundleStat {
     label: &'static str,
     raw_size: u64,
-    gzip_size: u64,
+    gzip_size: Option<u64>,
 }
 
 fn gzip_size(bytes: &[u8]) -> Result<u64, eyre::Report> {
@@ -55,20 +55,27 @@ fn collect_bundle_stat(
     build_dest: &std::path::Path,
     label: &'static str,
     filename: &'static str,
+    include_gzip: bool,
 ) -> Result<Option<BundleStat>, eyre::Report> {
     let path = build_dest.join(filename);
     if !path.exists() {
         return Ok(None);
     }
     let bytes = fs::read(path)?;
+    let gzip_size = if include_gzip {
+        Some(gzip_size(&bytes)?)
+    } else {
+        None
+    };
     Ok(Some(BundleStat {
         label,
         raw_size: bytes.len() as u64,
-        gzip_size: gzip_size(&bytes)?,
+        gzip_size,
     }))
 }
 
 fn print_web_bundle_stats(build_dest: &std::path::Path, build_mode_name: &str) {
+    let include_gzip = build_mode_name != "debug";
     let stats_result = [
         "pax-cartridge_bg.wasm",
         "pax-cartridge.js",
@@ -76,7 +83,9 @@ fn print_web_bundle_stats(build_dest: &std::path::Path, build_mode_name: &str) {
     ]
     .into_iter()
     .zip(["wasm", "cartridge js", "interface js"])
-    .filter_map(|(filename, label)| collect_bundle_stat(build_dest, label, filename).transpose())
+    .filter_map(|(filename, label)| {
+        collect_bundle_stat(build_dest, label, filename, include_gzip).transpose()
+    })
     .collect::<Result<Vec<_>, _>>();
 
     let stats = match stats_result {
@@ -110,22 +119,40 @@ fn print_web_bundle_stats(build_dest: &std::path::Path, build_mode_name: &str) {
     let mut total_gzip = 0u64;
     for stat in &stats {
         total_raw += stat.raw_size;
-        total_gzip += stat.gzip_size;
+        if let Some(gzip_size) = stat.gzip_size {
+            total_gzip += gzip_size;
+            println!(
+                "{}    {:<12} {:>9} emitted  {:>9} gzip",
+                *PAX_BADGE,
+                stat.label,
+                format_bytes(stat.raw_size),
+                format_bytes(gzip_size),
+            );
+        } else {
+            println!(
+                "{}    {:<12} {:>9} emitted",
+                *PAX_BADGE,
+                stat.label,
+                format_bytes(stat.raw_size),
+            );
+        }
+    }
+    if include_gzip {
         println!(
             "{}    {:<12} {:>9} emitted  {:>9} gzip",
             *PAX_BADGE,
-            stat.label,
-            format_bytes(stat.raw_size),
-            format_bytes(stat.gzip_size),
+            "total",
+            format_bytes(total_raw),
+            format_bytes(total_gzip),
+        );
+    } else {
+        println!(
+            "{}    {:<12} {:>9} emitted",
+            *PAX_BADGE,
+            "total",
+            format_bytes(total_raw),
         );
     }
-    println!(
-        "{}    {:<12} {:>9} emitted  {:>9} gzip",
-        *PAX_BADGE,
-        "total",
-        format_bytes(total_raw),
-        format_bytes(total_gzip),
-    );
 }
 
 fn manifest_has_table_key(document: &Document, table: &str, key: &str) -> bool {
@@ -324,6 +351,7 @@ pub fn build_web_project_with_cartridge(
     process_child_ids: Arc<Mutex<Vec<u64>>>,
     assets_dirs: Vec<String>,
     manifest: PaxManifest, //used by designtime
+    timings: &mut BuildTimings,
 ) -> Result<PathBuf, eyre::Report> {
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
@@ -385,45 +413,51 @@ pub fn build_web_project_with_cartridge(
         cmd.pre_exec(crate::pre_exec_hook);
     }
 
-    let child = cmd.spawn().expect(
-        r#"failed to run wasm-pack, is it:
+    // Execute wasm-pack build
+    let output = timings.record("cargo/wasm-pack", || {
+        let child = cmd.spawn().expect(
+            r#"failed to run wasm-pack, is it:
 - installed?
 - present in PATH?"#,
-    );
-
-    // Execute wasm-pack build
-    let output = wait_with_output(&process_child_ids, child);
+        );
+        wait_with_output(&process_child_ids, child)
+    });
     if !output.status.success() {
         return Err(eyre!("failed to compile project with wasm-pack"));
     }
 
     if is_release {
-        optimize_web_wasm(
-            &interface_path.join("pax-cartridge_bg.wasm"),
-            &process_child_ids,
-            is_profiling,
-        )?;
+        timings.record("wasm-opt", || {
+            optimize_web_wasm(
+                &interface_path.join("pax-cartridge_bg.wasm"),
+                &process_child_ids,
+                is_profiling,
+            )
+        })?;
     }
 
-    // Copy assets
-    let asset_dest = interface_path.join(ASSETS_DIR_NAME);
+    timings.record("copy assets", || {
+        // Copy assets
+        let asset_dest = interface_path.join(ASSETS_DIR_NAME);
 
-    // Create target assets directory
-    if let Err(e) = fs::create_dir_all(&asset_dest) {
-        return Err(eyre!("Error creating directory {:?}: {}", asset_dest, e));
-    }
+        // Create target assets directory
+        if let Err(e) = fs::create_dir_all(&asset_dest) {
+            return Err(eyre!("Error creating directory {:?}: {}", asset_dest, e));
+        }
 
-    // `asset_dirs` gets collected by detecting #[pax]#[main] through compiletime
-    for asset_src in assets_dirs {
-        let asset_src = PathBuf::from(asset_src);
-        // Check if the asset_src directory exists before attempting the copy
-        if asset_src.exists() {
-            // Perform recursive copy from userland `assets/` to built `assets/`
-            if let Err(e) = copy_dir_recursively(&asset_src, &asset_dest, &vec![]) {
-                return Err(eyre!("Error copying assets: {}", e));
+        // `asset_dirs` gets collected by detecting #[pax]#[main] through compiletime
+        for asset_src in assets_dirs {
+            let asset_src = PathBuf::from(asset_src);
+            // Check if the asset_src directory exists before attempting the copy
+            if asset_src.exists() {
+                // Perform recursive copy from userland `assets/` to built `assets/`
+                if let Err(e) = copy_dir_recursively(&asset_src, &asset_dest, &vec![]) {
+                    return Err(eyre!("Error copying assets: {}", e));
+                }
             }
         }
-    }
+        Ok(())
+    })?;
 
     //Copy fully built project into .pax/build/web, ready for e.g. publishing
     let build_src = interface_path.clone();
@@ -432,21 +466,27 @@ pub fn build_web_project_with_cartridge(
         .join(build_mode_name)
         .join(target_str_lower);
 
-    // Clean build dir
-    let _ = fs::remove_dir_all(&build_dest);
+    timings.record("copy build output", || {
+        // Clean build dir
+        let _ = fs::remove_dir_all(&build_dest);
 
-    // Copy files to build dir
-    let res = copy_dir_recursively(&build_src, &build_dest, &DIR_IGNORE_LIST_WEB);
-    if let Err(e) = res {
-        eprintln!(
-            "Failed to copy built files from {} to {}.  {:?}",
-            &build_src.to_str().unwrap(),
-            &build_dest.to_str().unwrap(),
-            e
-        );
-    }
+        // Copy files to build dir
+        let res = copy_dir_recursively(&build_src, &build_dest, &DIR_IGNORE_LIST_WEB);
+        if let Err(e) = res {
+            eprintln!(
+                "Failed to copy built files from {} to {}.  {:?}",
+                &build_src.to_str().unwrap(),
+                &build_dest.to_str().unwrap(),
+                e
+            );
+        }
+    });
 
-    print_web_bundle_stats(&build_dest, build_mode_name);
+    timings.record("bundle stats", || {
+        print_web_bundle_stats(&build_dest, build_mode_name)
+    });
+
+    timings.print_summary();
 
     // Start local server if this is a `run` rather than a `build`
     if ctx.should_also_run {

@@ -11,7 +11,7 @@ use std::{
 use color_eyre::eyre;
 use pax_manifest::PaxManifest;
 
-use crate::{RunContext, RunTarget};
+use crate::{BuildTimings, RunContext, RunTarget};
 
 use self::{apple::build_apple_project_with_cartridge, web::build_web_project_with_cartridge};
 
@@ -27,6 +27,7 @@ pub fn build_project_with_cartridge(
     process_child_ids: Arc<Mutex<Vec<u64>>>,
     assets_dirs: Vec<String>,
     manifest: PaxManifest,
+    timings: &mut BuildTimings,
 ) -> Result<Option<PathBuf>, eyre::Report> {
     let target: &RunTarget = &ctx.target;
     let pax_dir = PathBuf::from(pax_dir.to_str().unwrap());
@@ -40,6 +41,7 @@ pub fn build_project_with_cartridge(
                 process_child_ids,
                 assets_dirs,
                 manifest,
+                timings,
             )?;
             Ok(None)
         }
@@ -50,6 +52,7 @@ pub fn build_project_with_cartridge(
                 process_child_ids,
                 assets_dirs,
                 manifest,
+                timings,
             )?;
             Ok(Some(fs))
         }

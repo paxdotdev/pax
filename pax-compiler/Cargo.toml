@@ -73,6 +73,7 @@ wasm-bindgen = { version = "0.2.92", features=["serde-serialize"] }
 [dev-dependencies]
 actix-test = "0.1.2"
 awc = "3.3.0"
+filetime = "0.2.25"
 futures-util = "0.3.30"
 tempfile = "3.9.0"
 serde_json = { version = "1.0.95"}

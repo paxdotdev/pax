@@ -4,10 +4,11 @@
 //! from Pax Manifests. The `generate_and_overwrite_cartridge` function is the main entrypoint.
 
 use std::fs;
+use std::io;
 
 use pax_manifest::{cartridge_generation::CommonProperty, PaxManifest};
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub mod templating;
 
@@ -54,6 +55,55 @@ pub fn generate_cartridge_partial_rs(
     );
 
     let path = pax_dir.join(CARTRIDGE_PARTIAL_PATH);
-    fs::write(path.clone(), generated_lib_rs).unwrap();
+    write_if_changed(&path, generated_lib_rs.as_bytes()).unwrap();
     path
+}
+
+fn write_if_changed(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    if let Ok(existing) = fs::read(path) {
+        if existing == bytes {
+            return Ok(());
+        }
+    }
+
+    fs::write(path, bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, SystemTime};
+
+    #[test]
+    fn write_if_changed_preserves_mtime_when_contents_match() {
+        let dir = tempfile::tempdir().expect("tempdir should be created");
+        let path = dir.path().join("cartridge.partial.rs");
+        fs::write(&path, b"same").expect("initial write should succeed");
+        let old_mtime = SystemTime::now() - Duration::from_secs(60);
+        filetime::set_file_mtime(&path, filetime::FileTime::from_system_time(old_mtime))
+            .expect("mtime should be settable");
+        let expected_mtime = fs::metadata(&path)
+            .expect("metadata should be readable")
+            .modified()
+            .expect("mtime should be readable");
+
+        write_if_changed(&path, b"same").expect("matching write should succeed");
+
+        let actual_mtime = fs::metadata(&path)
+            .expect("metadata should be readable")
+            .modified()
+            .expect("mtime should be readable");
+        assert_eq!(actual_mtime, expected_mtime);
+    }
+
+    #[test]
+    fn write_if_changed_updates_contents_when_they_differ() {
+        let dir = tempfile::tempdir().expect("tempdir should be created");
+        let path = dir.path().join("cartridge.partial.rs");
+        fs::write(&path, b"old").expect("initial write should succeed");
+
+        write_if_changed(&path, b"new").expect("changed write should succeed");
+
+        assert_eq!(fs::read(&path).expect("file should be readable"), b"new");
+    }
 }

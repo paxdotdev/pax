@@ -36,7 +36,7 @@ use serde_json::Value as JsonValue;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashSet;
 use std::fs;
-use std::io::Write;
+use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 
 #[cfg(unix)]
@@ -48,7 +48,7 @@ use crate::cartridge_generation::generate_cartridge_partial_rs;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use std::time::SystemTime;
+use std::time::{Duration, Instant};
 use walkdir::WalkDir;
 
 use crate::helpers::{
@@ -91,45 +91,117 @@ pub enum RunTarget {
     iPadOS,
 }
 
+const WEB_INTERFACE_BUNDLE_FILE: &str = "public/pax-interface-web.js";
+const WEB_INTERFACE_FINGERPRINT_FILE: &str = ".pax-interface-web.fingerprint";
+const WEB_INTERFACE_HASH_OFFSET: u64 = 0xcbf29ce484222325;
+const WEB_INTERFACE_HASH_PRIME: u64 = 0x100000001b3;
+
+pub(crate) struct BuildTimings {
+    total_start: Instant,
+    phases: Vec<BuildTimingPhase>,
+}
+
+struct BuildTimingPhase {
+    label: &'static str,
+    duration: Duration,
+}
+
+impl BuildTimings {
+    fn start() -> Self {
+        Self {
+            total_start: Instant::now(),
+            phases: Vec::new(),
+        }
+    }
+
+    fn record<T>(&mut self, label: &'static str, operation: impl FnOnce() -> T) -> T {
+        let start = Instant::now();
+        let result = operation();
+        self.phases.push(BuildTimingPhase {
+            label,
+            duration: start.elapsed(),
+        });
+        result
+    }
+
+    pub(crate) fn print_summary(&self) {
+        let total = self.total_start.elapsed();
+        let measured = self
+            .phases
+            .iter()
+            .map(|phase| phase.duration)
+            .fold(Duration::ZERO, |sum, duration| sum + duration);
+        let other = total.saturating_sub(measured);
+
+        println!(
+            "{} ⏱️  Build completed in {:.2}s",
+            *PAX_BADGE,
+            seconds(total)
+        );
+        for phase in &self.phases {
+            println!(
+                "{}    {:<24} {:.2}s",
+                *PAX_BADGE,
+                phase.label,
+                seconds(phase.duration)
+            );
+        }
+        if seconds(other) >= 0.005 {
+            println!("{}    {:<24} {:.2}s", *PAX_BADGE, "other", seconds(other));
+        }
+    }
+}
+
+fn seconds(duration: Duration) -> f64 {
+    duration.as_secs_f64()
+}
+
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
 pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<PathBuf>), Report> {
+    let mut timings = BuildTimings::start();
+
     if ctx.target == RunTarget::Web {
-        ensure_default_web_interface_bundle(ctx);
+        timings.record("web interface", || ensure_default_web_interface_bundle(ctx));
     }
 
     let pax_dir = get_or_create_pax_directory(&ctx.project_path);
 
     // Copy interface files for relevant path
-    copy_interface_files_for_target(ctx, &pax_dir);
+    timings.record("copy interface", || {
+        copy_interface_files_for_target(ctx, &pax_dir)
+    });
 
-    let mut manifests: Vec<PaxManifest> = if ctx.should_run_designer {
-        println!(
-            "{} 🔎 Static analysis disabled for designer builds; falling back to parser binary",
-            *PAX_BADGE
-        );
-        run_and_parse_parser_binary(ctx)?
-    } else {
-        match static_analysis::build_manifest_with_options(
-            &ctx.project_path,
-            static_analysis::BuildManifestOptions {
-                is_designtime: ctx.should_run_designtime,
-            },
-        ) {
-            Ok(manifest) => {
-                println!("{} 🔎 Built manifest via static analysis", *PAX_BADGE);
-                vec![manifest]
-            }
-            Err(err) => {
+    let mut manifests: Vec<PaxManifest> =
+        timings.record("manifest", || -> eyre::Result<Vec<PaxManifest>, Report> {
+            if ctx.should_run_designer {
                 println!(
-                    "{} 🔎 Static analysis fell back to parser binary: {}",
-                    *PAX_BADGE, err
+                    "{} 🔎 Static analysis disabled for designer builds; falling back to parser binary",
+                    *PAX_BADGE
                 );
-                run_and_parse_parser_binary(ctx)?
+                run_and_parse_parser_binary(ctx)
+            } else {
+                match static_analysis::build_manifest_with_options(
+                    &ctx.project_path,
+                    static_analysis::BuildManifestOptions {
+                        is_designtime: ctx.should_run_designtime,
+                    },
+                ) {
+                    Ok(manifest) => {
+                        println!("{} 🔎 Built manifest via static analysis", *PAX_BADGE);
+                        Ok(vec![manifest])
+                    }
+                    Err(err) => {
+                        println!(
+                            "{} 🔎 Static analysis fell back to parser binary: {}",
+                            *PAX_BADGE, err
+                        );
+                        run_and_parse_parser_binary(ctx)
+                    }
+                }
             }
-        }
-    };
+        })?;
 
     // Simple starting convention: first manifest is userland, second manifest is designer; other schemas are undefined
     let mut userland_manifest = manifests.remove(0);
@@ -173,16 +245,25 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
         None
     };
 
-    vendor_apple_web_fonts(ctx, &pax_dir, &merged_manifest)?;
+    if matches!(
+        ctx.target,
+        RunTarget::macOS | RunTarget::iOS | RunTarget::iPadOS
+    ) {
+        timings.record("apple web fonts", || {
+            vendor_apple_web_fonts(ctx, &pax_dir, &merged_manifest)
+        })?;
+    }
 
     println!("{} 🦀 Generating Rust", *PAX_BADGE);
-    generate_cartridge_partial_rs(
-        &pax_dir,
-        &merged_manifest,
-        &userland_manifest,
-        designer_manifest,
-        ctx.is_release && !ctx.should_run_designtime && !ctx.should_run_designer,
-    );
+    timings.record("generate rust", || {
+        generate_cartridge_partial_rs(
+            &pax_dir,
+            &merged_manifest,
+            &userland_manifest,
+            designer_manifest,
+            ctx.is_release && !ctx.should_run_designtime && !ctx.should_run_designer,
+        );
+    });
     // source_map.extract_ranges_from_generated_code(cartridge_path.to_str().unwrap());
 
     //7. Build full project from source
@@ -193,6 +274,7 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
         Arc::clone(&ctx.process_child_ids),
         merged_manifest.assets_dirs,
         userland_manifest.clone(),
+        &mut timings,
     )?;
 
     Ok((userland_manifest, build_dir))
@@ -258,55 +340,148 @@ fn ensure_default_web_interface_bundle(ctx: &RunContext) {
             web_interface_root
         );
     }
+
+    if ctx.is_libdev_mode {
+        if let Err(err) = write_web_interface_fingerprint(&web_interface_root) {
+            eprintln!(
+                "{} ⚠️  Failed to write web interface fingerprint: {}",
+                *PAX_BADGE, err
+            );
+        }
+    }
 }
 
-fn web_interface_bundle_needs_rebuild(web_interface_root: &Path, force_rebuild: bool) -> bool {
-    if force_rebuild {
+fn web_interface_bundle_needs_rebuild(web_interface_root: &Path, is_libdev_mode: bool) -> bool {
+    if !web_interface_root.join(WEB_INTERFACE_BUNDLE_FILE).is_file() {
         return true;
     }
-
-    let bundle_path = web_interface_root
-        .join("public")
-        .join("pax-interface-web.js");
-    let bundle_modified_at = fs::metadata(&bundle_path)
-        .and_then(|metadata| metadata.modified())
-        .unwrap_or(SystemTime::UNIX_EPOCH);
-    if bundle_modified_at == SystemTime::UNIX_EPOCH {
-        return true;
+    if !is_libdev_mode {
+        return false;
     }
 
-    latest_web_interface_source_mtime(web_interface_root)
-        .map(|source_modified_at| source_modified_at > bundle_modified_at)
+    current_web_interface_fingerprint(web_interface_root)
+        .and_then(|current| {
+            fs::read_to_string(web_interface_fingerprint_path(web_interface_root))
+                .map(|stored| stored.trim() != current)
+        })
         .unwrap_or(true)
 }
 
-fn latest_web_interface_source_mtime(web_interface_root: &Path) -> Option<SystemTime> {
-    let mut latest_modified_at: Option<SystemTime> = None;
-    for path in [
-        web_interface_root.join("package.json"),
-        web_interface_root.join("tsconfig.json"),
-        web_interface_root.join("src"),
-    ] {
-        if path.is_dir() {
-            for entry in WalkDir::new(&path).into_iter().flatten() {
-                if !entry.file_type().is_file() {
-                    continue;
-                }
-                let modified_at = fs::metadata(entry.path()).ok()?.modified().ok()?;
-                latest_modified_at = Some(match latest_modified_at {
-                    Some(current_latest) => current_latest.max(modified_at),
-                    None => modified_at,
-                });
+fn write_web_interface_fingerprint(web_interface_root: &Path) -> io::Result<()> {
+    let fingerprint = current_web_interface_fingerprint(web_interface_root)?;
+    fs::write(
+        web_interface_fingerprint_path(web_interface_root),
+        format!("{fingerprint}\n"),
+    )
+}
+
+fn web_interface_fingerprint_path(web_interface_root: &Path) -> PathBuf {
+    web_interface_root.join(WEB_INTERFACE_FINGERPRINT_FILE)
+}
+
+fn current_web_interface_fingerprint(web_interface_root: &Path) -> io::Result<String> {
+    let mut hasher = WebInterfaceStableHasher::new();
+    hasher.write(b"pax-web-interface-fingerprint-v1\0");
+
+    for input in web_interface_fingerprint_inputs(web_interface_root)? {
+        hasher.write(input.relative_path.as_bytes());
+        hasher.write(b"\0");
+        match input.path {
+            Some(path) => {
+                let bytes = fs::read(path)?;
+                hasher.write(b"file\0");
+                hasher.write(&(bytes.len() as u64).to_le_bytes());
+                hasher.write(&bytes);
             }
-        } else if path.is_file() {
-            let modified_at = fs::metadata(&path).ok()?.modified().ok()?;
-            latest_modified_at = Some(match latest_modified_at {
-                Some(current_latest) => current_latest.max(modified_at),
-                None => modified_at,
+            None => hasher.write(b"missing\0"),
+        }
+        hasher.write(b"\0");
+    }
+
+    Ok(format!("{:016x}", hasher.finish()))
+}
+
+struct WebInterfaceFingerprintInput {
+    relative_path: String,
+    path: Option<PathBuf>,
+}
+
+fn web_interface_fingerprint_inputs(
+    web_interface_root: &Path,
+) -> io::Result<Vec<WebInterfaceFingerprintInput>> {
+    let mut inputs = Vec::new();
+
+    for relative_path in ["build-interface.sh", "package.json", "tsconfig.json"] {
+        let path = web_interface_root.join(relative_path);
+        inputs.push(WebInterfaceFingerprintInput {
+            relative_path: relative_path.to_string(),
+            path: path.is_file().then_some(path),
+        });
+    }
+
+    let src_path = web_interface_root.join("src");
+    if src_path.is_dir() {
+        for entry in WalkDir::new(&src_path) {
+            let entry = entry.map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let relative_path = entry
+                .path()
+                .strip_prefix(web_interface_root)
+                .map_err(|err| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!(
+                            "failed to make web interface path relative to {}: {err}",
+                            web_interface_root.display()
+                        ),
+                    )
+                })?;
+            inputs.push(WebInterfaceFingerprintInput {
+                relative_path: normalized_relative_path(relative_path),
+                path: Some(entry.path().to_path_buf()),
             });
         }
+    } else {
+        inputs.push(WebInterfaceFingerprintInput {
+            relative_path: "src".to_string(),
+            path: None,
+        });
     }
-    latest_modified_at
+
+    inputs.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    Ok(inputs)
+}
+
+fn normalized_relative_path(path: &Path) -> String {
+    path.components()
+        .map(|component| component.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+struct WebInterfaceStableHasher {
+    state: u64,
+}
+
+impl WebInterfaceStableHasher {
+    fn new() -> Self {
+        Self {
+            state: WEB_INTERFACE_HASH_OFFSET,
+        }
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        for byte in bytes {
+            self.state ^= *byte as u64;
+            self.state = self.state.wrapping_mul(WEB_INTERFACE_HASH_PRIME);
+        }
+    }
+
+    fn finish(&self) -> u64 {
+        self.state
+    }
 }
 
 fn build_interface_dir_name(target: &RunTarget) -> &'static str {
@@ -955,6 +1130,81 @@ mod tests {
             urls[1].as_str(),
             "https://fonts.gstatic.com/s/oxanium/v20/RrQQboN_4yJ0JmiMe2zE0Q.woff2"
         );
+    }
+
+    #[test]
+    fn web_interface_bundle_rebuilds_when_bundle_is_missing() {
+        let dir = web_interface_fixture();
+        fs::remove_file(dir.path().join(WEB_INTERFACE_BUNDLE_FILE))
+            .expect("bundle should be removable");
+
+        assert!(web_interface_bundle_needs_rebuild(dir.path(), true));
+    }
+
+    #[test]
+    fn web_interface_bundle_skips_fingerprint_check_for_non_libdev_cached_bundle() {
+        let dir = web_interface_fixture();
+
+        assert!(!web_interface_bundle_needs_rebuild(dir.path(), false));
+    }
+
+    #[test]
+    fn web_interface_bundle_rebuilds_when_libdev_fingerprint_is_missing() {
+        let dir = web_interface_fixture();
+
+        assert!(web_interface_bundle_needs_rebuild(dir.path(), true));
+    }
+
+    #[test]
+    fn web_interface_bundle_skips_rebuild_when_libdev_fingerprint_matches() {
+        let dir = web_interface_fixture();
+        write_web_interface_fingerprint(dir.path()).expect("fingerprint should be written");
+
+        assert!(!web_interface_bundle_needs_rebuild(dir.path(), true));
+    }
+
+    #[test]
+    fn web_interface_bundle_rebuilds_when_source_content_changes() {
+        let dir = web_interface_fixture();
+        write_web_interface_fingerprint(dir.path()).expect("fingerprint should be written");
+        write_file(&dir.path().join("src/index.ts"), b"console.log('changed');");
+
+        assert!(web_interface_bundle_needs_rebuild(dir.path(), true));
+    }
+
+    #[test]
+    fn web_interface_bundle_rebuilds_when_source_file_is_added() {
+        let dir = web_interface_fixture();
+        write_web_interface_fingerprint(dir.path()).expect("fingerprint should be written");
+        write_file(&dir.path().join("src/extra.ts"), b"console.log('extra');");
+
+        assert!(web_interface_bundle_needs_rebuild(dir.path(), true));
+    }
+
+    #[test]
+    fn web_interface_bundle_rebuilds_when_source_file_is_deleted() {
+        let dir = web_interface_fixture();
+        write_web_interface_fingerprint(dir.path()).expect("fingerprint should be written");
+        fs::remove_file(dir.path().join("src/index.ts")).expect("source file should be removable");
+
+        assert!(web_interface_bundle_needs_rebuild(dir.path(), true));
+    }
+
+    fn web_interface_fixture() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().expect("tempdir should be created");
+        write_file(&dir.path().join("build-interface.sh"), b"#!/bin/sh\n");
+        write_file(&dir.path().join("package.json"), b"{}");
+        write_file(&dir.path().join("tsconfig.json"), b"{}");
+        write_file(&dir.path().join("src/index.ts"), b"console.log('pax');");
+        write_file(&dir.path().join(WEB_INTERFACE_BUNDLE_FILE), b"bundle");
+        dir
+    }
+
+    fn write_file(path: &Path, bytes: &[u8]) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("fixture parent should be created");
+        }
+        fs::write(path, bytes).expect("fixture file should be written");
     }
 
     #[test]
