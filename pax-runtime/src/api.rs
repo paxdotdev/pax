@@ -5,8 +5,8 @@ use std::{
 
 use_RefCell!();
 use crate::{
-    node_interface::NodeLocal, ExpandedNode, RuntimeContext, RuntimePropertiesStackFrame,
-    TransformAndBounds,
+    node_interface::NodeLocal, ExpandedNode, LayoutHull, RuntimeContext,
+    RuntimePropertiesStackFrame, TransformAndBounds,
 };
 
 pub use pax_runtime_api::*;
@@ -32,6 +32,10 @@ pub struct NodeContext {
     pub bounds_parent: Property<(f64, f64)>,
     /// The bounds of this element in px
     pub bounds_self: Property<(f64, f64)>,
+    /// Measured bounds resolved by the chassis or container layout for this node.
+    pub measured_size: Property<Option<(f64, f64)>>,
+    /// Node-local subtree layout hull published by the engine for container measurement.
+    pub subtree_layout_hull: Property<LayoutHull>,
     /// Current platform (Web/Native) this app is running on
     pub platform: Platform,
     /// Current os (Android/Windows/Mac/Linux) this app is running on

@@ -20,6 +20,26 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Size`](/api/pa
 
 Spacing between cells
 
+##### `autosize`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+
+When true, the stacker uses content-child bounds to autosize its cells and,
+when possible, its own bounds as well.
+
+`Stacker` interprets plain `autosize=true` as "autosize the extending axis
+only" (`y` for vertical stackers, `x` for horizontal stackers). Use
+`autosize_x` / `autosize_y` to override those per-axis defaults.
+
+##### `autosize_x`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<`bool`>>
+
+Optional override for whether autosize manages the `x` axis.
+
+##### `autosize_y`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<`bool`>>
+
+Optional override for whether autosize manages the `y` axis.
+
 ##### `sizes`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Vec`<`Option`<[`Size`](/api/pax-runtime-api/layout.md#size)>>>
 

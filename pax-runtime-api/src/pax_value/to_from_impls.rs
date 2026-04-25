@@ -16,6 +16,7 @@ use crate::Color;
 use crate::ColorChannel;
 use crate::Fill;
 use crate::GradientStop;
+use crate::LayoutRole;
 use crate::LinearGradient;
 use crate::Opacity;
 use crate::PathElement;
@@ -60,6 +61,20 @@ impl_to_pax_value!(Numeric, PaxValue::Numeric);
 impl_to_pax_value!(Size, PaxValue::Size);
 impl_to_pax_value!(Rotation, PaxValue::Rotation);
 impl_to_pax_value!(Percent, PaxValue::Percent);
+
+impl ToPaxValue for LayoutRole {
+    fn to_pax_value(self) -> PaxValue {
+        let variant = match self {
+            LayoutRole::Default => "Default",
+            LayoutRole::Breakout => "Breakout",
+        };
+        PaxValue::Enum(Box::new((
+            "LayoutRole".to_string(),
+            variant.to_string(),
+            vec![],
+        )))
+    }
+}
 
 impl ToPaxValue for PathElement {
     fn to_pax_value(self) -> PaxValue {

@@ -17,17 +17,17 @@ use crate::constants::{
     TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use_RefCell!();
-use crate::{ExpandedNodeIdentifier, Globals, LayoutProperties, TransformAndBounds};
+use crate::{ExpandedNodeIdentifier, Globals, LayoutHull, LayoutProperties, TransformAndBounds};
 use core::fmt;
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use crate::api::{
-    ButtonClick, CheckboxChange, Click, ClickOrTap, CommonProperties, ContextMenu, DoubleClick,
-    Drop, Event, KeyDown, KeyPress, KeyUp, MouseDown, MouseMove, MouseOut, MouseOver, MouseUp,
-    NodeContext, RenderContext, Scroll, Size, TextboxChange, TextboxInput, TouchEnd, TouchMove,
-    TouchStart, Wheel, Window,
+    Axis, ButtonClick, CheckboxChange, Click, ClickOrTap, CommonProperties, ContextMenu,
+    DoubleClick, Drop, Event, KeyDown, KeyPress, KeyUp, LayoutRole, MouseDown, MouseMove, MouseOut,
+    MouseOver, MouseUp, NodeContext, RenderContext, Scroll, Size, TextboxChange, TextboxInput,
+    TouchEnd, TouchMove, TouchStart, Wheel, Window,
 };
 use pax_manifest::cartridge_generation::{
     TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT, TRANSITION_PHASE_IDLE, TRANSITION_PHASE_SYMBOL,
@@ -35,8 +35,9 @@ use pax_manifest::cartridge_generation::{
 };
 
 use crate::{
-    apply_container_frame, compute_tab, ComponentInstance, ContainerFrame, ContentChildrenSource,
-    HandlerLocation, InstanceNode, InstanceNodePtr, RuntimeContext, RuntimePropertiesStackFrame,
+    apply_container_frame, compute_tab, project_child_layout_hull_to_parent_space,
+    ComponentInstance, ContainerFrame, ContentChildrenSource, HandlerLocation, InstanceNode,
+    InstanceNodePtr, RuntimeContext, RuntimePropertiesStackFrame,
 };
 
 #[derive(Clone)]
@@ -94,13 +95,15 @@ pub struct ExpandedNode {
 
     /// Each ExpandedNode has unique, computed `CommonProperties`
     pub common_properties: RefCell<Rc<RefCell<CommonProperties>>>,
-    /// Set by chassis, for for example text nodes that get resize info from an interrupt
-    /// if a node doesn't have fixed bounds(width/height specified), this value is used instead.
-    pub rendered_size: Property<Option<(f64, f64)>>,
+    /// Measured bounds reported by chassis/native layout or by container-owned bottom-up layout.
+    /// When width/height are omitted, these values are used as the fallback concrete size.
+    pub measured_size: Property<Option<(f64, f64)>>,
 
     /// The layout information (width, height, transform) used to render this node.
     /// computed property based on parent bounds + common properties
     pub transform_and_bounds: Property<TransformAndBounds<NodeLocal, Window>>,
+    /// Engine-owned subtree hull used by container measurement.
+    pub subtree_layout_hull: Property<LayoutHull>,
     /// Optional container-assigned virtual wrapper frame applied before this node's own layout.
     pub container_frame: Property<Option<ContainerFrame>>,
 
@@ -163,6 +166,14 @@ pub struct ExpandedNode {
 
     /// Pulls the node's children property only when its upstream dependencies changed.
     pub children_listener: Property<()>,
+    /// Rebinds `subtree_layout_hull` when the child list changes.
+    pub subtree_layout_hull_listener: Property<()>,
+    /// Reactive content-measurement effect used by autosize-style container features.
+    pub content_measurement_listener: Property<()>,
+    /// Rebinds `content_measurement_listener` when the content child list changes.
+    pub content_measurement_rebind_listener: Property<()>,
+    /// Guards one-time setup of the reactive content-measurement listener pair.
+    pub content_measurement_bound: Cell<bool>,
 
     /// used to know when a slot child is attached
     pub slot_child_attached_listener: Property<()>,
@@ -328,7 +339,7 @@ impl ExpandedNode {
             attached: Cell::new(0),
             properties: RefCell::new(properties),
             common_properties: RefCell::new(common_properties),
-            rendered_size: Property::default(),
+            measured_size: Property::default(),
 
             // these two refer to their rendering parent, not their
             // template parent
@@ -346,6 +357,7 @@ impl ExpandedNode {
             exiting_children: RefCell::new(Vec::new()),
             sidecar_children: RefCell::new(Vec::new()),
             transform_and_bounds: Property::new(TransformAndBounds::default()),
+            subtree_layout_hull: Property::new(LayoutHull::default()),
             container_frame: Property::new(None),
             computed_opacity: Property::new(1.0),
             expanded_slot_children: Default::default(),
@@ -361,6 +373,10 @@ impl ExpandedNode {
             changed_listener: Property::default(),
             occlusion_listener: Property::default(),
             children_listener: Property::default(),
+            subtree_layout_hull_listener: Property::default(),
+            content_measurement_listener: Property::default(),
+            content_measurement_rebind_listener: Property::default(),
+            content_measurement_bound: Cell::new(false),
             slot_child_attached_listener: Property::default(),
             subscriptions: Default::default(),
             transition_phase,
@@ -372,6 +388,7 @@ impl ExpandedNode {
         });
         res.bind_occlusion_listener(context);
         res.bind_children_listener(context);
+        res.bind_subtree_layout_hull(context);
         res
     }
 
@@ -747,6 +764,74 @@ impl ExpandedNode {
         ctx.register_node_effect_property(self.id, &self.children_listener);
     }
 
+    fn bind_subtree_layout_hull(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
+        self.rebind_subtree_layout_hull();
+        let deps = [self.children.untyped()];
+        let weak_self = Rc::downgrade(self);
+        self.subtree_layout_hull_listener
+            .replace_with(Property::computed_with_name(
+                move || {
+                    let Some(node) = weak_self.upgrade() else {
+                        return;
+                    };
+                    let _ = node.children.get();
+                    node.rebind_subtree_layout_hull();
+                },
+                &deps,
+                "subtree layout hull listener",
+            ));
+        ctx.register_node_effect_property(self.id, &self.subtree_layout_hull_listener);
+    }
+
+    fn rebind_subtree_layout_hull(self: &Rc<Self>) {
+        let self_transform_and_bounds = self.transform_and_bounds.clone();
+        let layout_properties = self.layout_properties();
+        let children = self.children.get();
+        let mut deps = vec![
+            self_transform_and_bounds.untyped(),
+            layout_properties.untyped(),
+        ];
+        for child in children.iter() {
+            let child_cp = child.get_common_properties();
+            deps.push(borrow!(child_cp).layout_role.untyped());
+            deps.push(child.transform_and_bounds.untyped());
+            deps.push(child.subtree_layout_hull.untyped());
+        }
+
+        let property_name = format!("subtree layout hull (node id: {})", self.id.0);
+        self.subtree_layout_hull
+            .replace_with(Property::computed_with_name(
+                move || {
+                    let self_tab = self_transform_and_bounds.get();
+                    let layout_properties = layout_properties.get();
+                    let mut hull = LayoutHull::from_axis_ranges(
+                        layout_axis_can_contribute(&layout_properties, Axis::X)
+                            .then_some((0.0, self_tab.bounds.0)),
+                        layout_axis_can_contribute(&layout_properties, Axis::Y)
+                            .then_some((0.0, self_tab.bounds.1)),
+                    );
+
+                    for child in children.iter() {
+                        if child.is_layout_breakout() {
+                            // Breakout descendants are rendered and hit-tested normally but do
+                            // not participate in ancestor layout hull aggregation.
+                            continue;
+                        }
+                        let projected_hull = project_child_layout_hull_to_parent_space(
+                            self_tab,
+                            child.transform_and_bounds.get(),
+                            child.subtree_layout_hull.get(),
+                        );
+                        hull = hull.union(projected_hull);
+                    }
+
+                    hull
+                },
+                &deps,
+                &property_name,
+            ));
+    }
+
     pub fn inherit_suspend(self: &Rc<Self>, node: &Rc<Self>) {
         let cp = self.get_common_properties();
         let self_suspended = borrow!(cp)._suspended.clone();
@@ -812,7 +897,6 @@ impl ExpandedNode {
         // trigger native message sending
         self.changed_listener.get();
         self.occlusion_listener.get();
-
         self.run_lifecycle_handlers(PRE_RENDER_HANDLERS, context);
         for subscription in &*borrow!(self.subscriptions) {
             // fire dirty bit if present
@@ -1076,6 +1160,8 @@ impl ExpandedNode {
             frames_elapsed: frames_elapsed_frozen_if_suspended,
             bounds_self,
             bounds_parent,
+            measured_size: self.measured_size.clone(),
+            subtree_layout_hull: self.subtree_layout_hull.clone(),
             runtime_context: ctx.clone(),
             platform: globals.platform.clone(),
             os: globals.os.clone(),
@@ -1094,6 +1180,12 @@ impl ExpandedNode {
 
     pub fn get_common_properties(&self) -> Rc<RefCell<CommonProperties>> {
         Rc::clone(&*borrow!(self.common_properties))
+    }
+
+    pub fn is_layout_breakout(&self) -> bool {
+        let common_props = self.get_common_properties();
+        let is_breakout = borrow!(common_props).layout_role.get() == Some(LayoutRole::Breakout);
+        is_breakout
     }
 
     /// Determines whether the provided ray, orthogonal to the view plane,
@@ -1236,11 +1328,14 @@ impl ExpandedNode {
         Ok(())
     }
 
-    // fired if the chassis thinks this element should be a different size (in pixels).
-    // usually, this is something the engine has asked for, ie. text nodes
-    // changing size.
+    // Sets measured bounds when the chassis or container layout resolves them empirically.
+    pub fn set_measured_size(self: &Rc<ExpandedNode>, width: f64, height: f64) {
+        self.measured_size.set(Some((width, height)));
+    }
+
+    // Backward-compatible alias used by chassis interrupt plumbing.
     pub fn chassis_resize_request(self: &Rc<ExpandedNode>, width: f64, height: f64) {
-        self.rendered_size.set(Some((width, height)));
+        self.set_measured_size(width, height);
     }
 
     /// Helper method that returns a collection of common properties
@@ -1260,7 +1355,7 @@ impl ExpandedNode {
         let cp_rotate = common_props.rotate.clone();
         let cp_x = common_props.x.clone();
         let cp_y = common_props.y.clone();
-        let rendered_size = self.rendered_size.clone();
+        let measured_size = self.measured_size.clone();
         let deps = [
             cp_width.untyped(),
             cp_height.untyped(),
@@ -1274,13 +1369,13 @@ impl ExpandedNode {
             cp_rotate.untyped(),
             cp_x.untyped(),
             cp_y.untyped(),
-            rendered_size.untyped(),
+            measured_size.untyped(),
         ];
 
         Property::computed(
             move || {
                 // Used for auto sized text, might be used for other things later
-                let fallback = rendered_size.get();
+                let fallback = measured_size.get();
                 let (w_fallback, h_fallback) = match fallback {
                     Some((wf, hf)) => (Some(wf), Some(hf)),
                     None => (None, None),
@@ -1311,6 +1406,28 @@ impl ExpandedNode {
             },
             &deps,
         )
+    }
+}
+
+fn layout_axis_can_contribute(layout: &LayoutProperties, axis: Axis) -> bool {
+    let size = match axis {
+        Axis::X => layout.width,
+        Axis::Y => layout.height,
+    };
+    let position = match axis {
+        Axis::X => layout.x,
+        Axis::Y => layout.y,
+    };
+
+    size.is_some_and(|size| !size_depends_on_parent(size))
+        && !position.is_some_and(size_depends_on_parent)
+}
+
+fn size_depends_on_parent(size: Size) -> bool {
+    match size {
+        Size::Pixels(_) => false,
+        Size::Percent(percent) => percent.to_float().abs() > f64::EPSILON,
+        Size::Combined(_, percent) => percent.to_float().abs() > f64::EPSILON,
     }
 }
 

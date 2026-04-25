@@ -17,6 +17,21 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Target`](/api/
 
 Whether to open the URL in the current or a new browsing context.
 
+##### `autosize`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+
+Automatically sizes the link wrapper to its slotted content when possible.
+
+##### `autosize_x`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<`bool`>>
+
+Optional override for whether autosize manages the `x` axis.
+
+##### `autosize_y`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<`bool`>>
+
+Optional override for whether autosize manages the `y` axis.
+
 ## Enums
 ### `Target`
 Navigation target for `Link`.

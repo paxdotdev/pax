@@ -10,9 +10,9 @@ use pax_message::{
     ImageDataArgs, ImageLoadInterruptArgs, ImagePointerArgs, KeyDownInterruptArgs,
     KeyPressInterruptArgs, KeyUpInterruptArgs, ModifierKeyMessage, MouseButtonMessage,
     MouseDownInterruptArgs, MouseMoveInterruptArgs, MouseUpInterruptArgs, NativeInterrupt,
-    ScreenshotData, ScrollInterruptArgs, ScrollerPositionInterruptArgs, SelectStartArgs,
-    TextInputArgs, TouchEndInterruptArgs, TouchMessage, TouchMoveInterruptArgs,
-    TouchStartInterruptArgs, VisualViewportUpdateArgs, WheelInterruptArgs,
+    RenderSurfaceUpdateArgs, ScreenshotData, ScrollInterruptArgs, ScrollerPositionInterruptArgs,
+    SelectStartArgs, TextInputArgs, TouchEndInterruptArgs, TouchMessage, TouchMoveInterruptArgs,
+    TouchStartInterruptArgs, ViewportResizeArgs, VisualViewportUpdateArgs, WheelInterruptArgs,
 };
 use pax_runtime::api::borrow;
 use pax_runtime::api::borrow_mut;
@@ -243,6 +243,45 @@ pub struct InterruptResult {
 //                  the second for FFI-exposed functions
 
 impl PaxChassisWeb {
+    fn drain_render_surface_updates(&mut self) {
+        for layer_id in self.render_context.take_ready_canvas_layers() {
+            let engine = borrow!(self.engine);
+            engine
+                .runtime_context
+                .mark_canvas_nodes_on_layer_dirty(layer_id);
+            engine.runtime_context.set_canvas_dirty(layer_id);
+        }
+        for layer_id in self.render_context.take_replay_canvas_layers() {
+            // A retained surface was reused for a different tile origin or resized host; force the
+            // runtime to replay that layer's canvas nodes before the frame renders.
+            let engine = borrow!(self.engine);
+            engine
+                .runtime_context
+                .mark_canvas_nodes_on_layer_dirty(layer_id);
+            engine.runtime_context.set_canvas_dirty(layer_id);
+        }
+    }
+
+    fn refresh_render_surface(&mut self, layer_id: Option<u32>) {
+        let engine = borrow!(self.engine);
+        if let Some(layer_id) = layer_id.map(|layer| layer as usize) {
+            self.render_context.refresh_layers(&[layer_id]);
+            engine.runtime_context.set_canvas_dirty(layer_id);
+            engine
+                .runtime_context
+                .mark_canvas_nodes_on_layer_dirty(layer_id);
+        } else {
+            let window = window().unwrap();
+            let width = window.inner_width().unwrap().as_f64().unwrap_or(0.0);
+            let height = window.inner_height().unwrap().as_f64().unwrap_or(0.0);
+            self.render_context.resize(width as usize, height as usize);
+            engine.runtime_context.set_all_canvases_dirty();
+            engine.runtime_context.mark_all_canvas_nodes_dirty();
+        }
+        drop(engine);
+        self.drain_render_surface_updates();
+    }
+
     #[cfg(feature = "designtime")]
     pub async fn new_designer(
         userland_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
@@ -450,7 +489,7 @@ impl PaxChassisWeb {
     ) -> InterruptResult {
         let x = native_interrupt_from_js(native_interrupt);
 
-        let engine = borrow_mut!(self.engine);
+        let mut engine = borrow_mut!(self.engine);
         let ctx = &engine.runtime_context;
         let globals = ctx.globals();
         let prevent_default = match &x {
@@ -591,15 +630,13 @@ impl PaxChassisWeb {
             }
 
             NativeInterrupt::AddedLayer(args) => {
-                if let Some(layer_id) = args.layer_id.map(|layer| layer as usize) {
-                    engine.runtime_context.set_canvas_dirty(layer_id);
-                    engine
-                        .runtime_context
-                        .mark_canvas_nodes_on_layer_dirty(layer_id);
-                } else {
-                    engine.runtime_context.set_all_canvases_dirty();
-                    engine.runtime_context.mark_all_canvas_nodes_dirty();
-                }
+                drop(engine);
+                self.refresh_render_surface(args.layer_id);
+                false
+            }
+            NativeInterrupt::RenderSurfaceUpdate(args) => {
+                drop(engine);
+                self.refresh_render_surface(args.layer_id);
                 false
             }
             NativeInterrupt::Click(args) => {
@@ -665,6 +702,13 @@ impl PaxChassisWeb {
                     .browser_allows_nested_scroller_vector_layers
                     .set(args.allow_nested_scroller_vector_layers);
                 engine.runtime_context.mark_occlusion_dirty();
+                false
+            }
+            NativeInterrupt::ViewportResize(args) => {
+                engine.runtime_context.set_all_canvases_dirty();
+                self.render_context
+                    .resize(args.width as usize, args.height as usize);
+                engine.set_viewport_size((args.width, args.height));
                 false
             }
             NativeInterrupt::VisualViewportUpdate(args) => {
@@ -1061,24 +1105,7 @@ impl PaxChassisWeb {
         #[cfg(feature = "designtime")]
         self.designtime_tick();
 
-        for layer_id in self.render_context.take_ready_canvas_layers() {
-            {
-                let engine = borrow!(self.engine);
-                engine
-                    .runtime_context
-                    .mark_canvas_nodes_on_layer_dirty(layer_id);
-                engine.runtime_context.set_canvas_dirty(layer_id);
-            }
-        }
-        for layer_id in self.render_context.take_replay_canvas_layers() {
-            // A retained surface was reused for a different tile origin; force the runtime to
-            // replay that layer's canvas nodes so the browser tile does not stay blank.
-            let engine = borrow!(self.engine);
-            engine
-                .runtime_context
-                .mark_canvas_nodes_on_layer_dirty(layer_id);
-            engine.runtime_context.set_canvas_dirty(layer_id);
-        }
+        self.drain_render_surface_updates();
 
         let message_queue = borrow_mut!(self.engine).tick();
         js_value_serde::to_value(&message_queue)
@@ -1504,6 +1531,15 @@ fn native_interrupt_from_js(value: JsValue) -> NativeInterrupt {
                 &payload,
                 "allow_nested_scroller_vector_layers",
             ),
+        })
+    } else if let Some(payload) = js_variant(&value, "RenderSurfaceUpdate") {
+        NativeInterrupt::RenderSurfaceUpdate(RenderSurfaceUpdateArgs {
+            layer_id: js_optional_u32(&payload, "layer_id"),
+        })
+    } else if let Some(payload) = js_variant(&value, "ViewportResize") {
+        NativeInterrupt::ViewportResize(ViewportResizeArgs {
+            width: js_f64(&payload, "width"),
+            height: js_f64(&payload, "height"),
         })
     } else if let Some(payload) = js_variant(&value, "VisualViewportUpdate") {
         NativeInterrupt::VisualViewportUpdate(VisualViewportUpdateArgs {

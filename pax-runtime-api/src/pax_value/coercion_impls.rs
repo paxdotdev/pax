@@ -7,8 +7,9 @@ use std::ops::Range;
 use crate::{
     impl_default_coercion_rule,
     math::{Transform2, Vector2},
-    Color, ColorChannel, Fill, GradientStop, LinearGradient, Numeric, Opacity, PathElement,
-    PaxValue, Percent, Property, RadialGradient, Rotation, Size, Stroke, StrokeCap, Transform2D,
+    Color, ColorChannel, Fill, GradientStop, LayoutRole, LinearGradient, Numeric, Opacity,
+    PathElement, PaxValue, Percent, Property, RadialGradient, Rotation, Size, Stroke, StrokeCap,
+    Transform2D,
 };
 
 // Default coercion rules:
@@ -30,6 +31,38 @@ impl_default_coercion_rule!(f64, PaxValue::Numeric);
 
 impl_default_coercion_rule!(isize, PaxValue::Numeric);
 impl_default_coercion_rule!(usize, PaxValue::Numeric);
+
+impl CoercionRules for LayoutRole {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::Enum(contents) => {
+                let (_, variant, args) = *contents;
+                if !args.is_empty() {
+                    return Err(format!(
+                        "failed to coerce LayoutRole: expected no enum args, got {:?}",
+                        args
+                    ));
+                }
+                match variant.as_str() {
+                    "Default" => Ok(LayoutRole::Default),
+                    "Breakout" => Ok(LayoutRole::Breakout),
+                    _ => Err(format!(
+                        "failed to coerce LayoutRole: unknown enum variant {:?}",
+                        variant
+                    )),
+                }
+            }
+            PaxValue::Option(o) => {
+                if let Some(o) = *o {
+                    LayoutRole::try_coerce(o)
+                } else {
+                    Err("failed to coerce LayoutRole".to_string())
+                }
+            }
+            _ => Err("failed to coerce LayoutRole".to_string()),
+        }
+    }
+}
 
 /// Attempts to coerce a dynamic `PaxValue` into a concrete Rust type.
 ///

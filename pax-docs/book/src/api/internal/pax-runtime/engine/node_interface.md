@@ -7,8 +7,8 @@
 Designer/runtime inspection handle for an expanded node.
 
 #### Implementations
-##### `auto_size`
-<pre><code class="api-signature language-rust ignore">pub fn auto_size(&amp;self) -&gt; Option&lt;(f64, f64)&gt;</code></pre>
+##### `autosize`
+<pre><code class="api-signature language-rust ignore">pub fn autosize(&amp;self) -&gt; Option&lt;(f64, f64)&gt;</code></pre>
 
 Auto-sized bounds reported by a native or text-backed node.
 

@@ -6,7 +6,7 @@ use pax_runtime_api::{borrow, pax_value::ToFromPaxAny, Interpolatable};
 
 use crate::{
     api::{math::Space, Window},
-    ExpandedNode, LayoutProperties, TransformAndBounds,
+    ExpandedNode, LayoutHull, LayoutProperties, TransformAndBounds,
 };
 use crate::{ExpandedNodeIdentifier, InstanceFlags};
 
@@ -75,9 +75,19 @@ impl NodeInterface {
         self.inner.layout_properties().get()
     }
 
-    /// Auto-sized bounds reported by a native or text-backed node.
-    pub fn auto_size(&self) -> Option<(f64, f64)> {
-        self.inner.rendered_size.get()
+    /// Measured bounds reported by a native or text-backed node.
+    pub fn measured_size(&self) -> Option<(f64, f64)> {
+        self.inner.measured_size.get()
+    }
+
+    /// Node-local subtree hull published by the engine for container measurement.
+    pub fn subtree_layout_hull(&self) -> Property<LayoutHull> {
+        self.inner.subtree_layout_hull.clone()
+    }
+
+    #[deprecated(note = "use measured_size() instead")]
+    pub fn autosize(&self) -> Option<(f64, f64)> {
+        self.measured_size()
     }
 
     /// Borrow the node's typed property object if it has the requested type.

@@ -1,0 +1,678 @@
+<Scroller width=100% height=100% autosize=true>
+    <Text
+        x=24px
+        y=24px
+        width={100% - 48px}
+        height=44px
+        text="Auto-sized containers"
+        selectable=false
+        style={
+            font_size: 28px
+            fill: rgb(27, 38, 59)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }/>
+
+    <Text
+        x=24px
+        y=64px
+        width={100% - 48px}
+        height=40px
+        text="This scene exercises every current autosize surface: Scroller, Stacker, Group, Frame, Link, and Tooltip. Filler rectangles at the end keep the outer scroller well beyond a single viewport."
+        selectable=false
+        style={
+            font_size: 14px
+            fill: rgb(90, 106, 133)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }/>
+
+    <Stacker x=24px y=120px width={100% - 48px} autosize=true gutter=20px>
+        <Group height=92px>
+            <Text
+                x=20px
+                y=18px
+                width={100% - 40px}
+                height=24px
+                text="Scroller autosize=true"
+                selectable=false
+                style={
+                    font_size: 20px
+                    fill: rgb(28, 44, 74)
+                    align_vertical: TextAlignVertical::Center
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+            <Text
+                x=20px
+                y=46px
+                width={100% - 40px}
+                height=28px
+                text="The root scroller omits manual scroll metrics and derives them from the measured hull of everything below."
+                selectable=false
+                style={
+                    font_size: 15px
+                    fill: rgb(82, 98, 125)
+                    align_vertical: TextAlignVertical::Top
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+            <Rectangle
+                width=100%
+                height=100%
+                fill=rgb(235, 244, 255)
+                corner_radii={RectangleCornerRadii::radii(24.0, 24.0, 24.0, 24.0)}/>
+        </Group>
+
+        <Stacker width=100% autosize=true gutter=12px>
+            <Group height=88px>
+                <Text
+                    x=20px
+                    y=18px
+                    width={100% - 40px}
+                    height=24px
+                    text="Stacker autosize=true"
+                    selectable=false
+                    style={
+                        font_size: 20px
+                        fill: rgb(122, 56, 0)
+                        align_vertical: TextAlignVertical::Center
+                        align_horizontal: TextAlignHorizontal::Left
+                        align_multiline: TextAlignHorizontal::Left
+                        underline: false
+                    }/>
+                <Text
+                    x=20px
+                    y=46px
+                    width={100% - 40px}
+                    height=24px
+                    text="Varied child heights drive this inner stack's total measured height."
+                    selectable=false
+                    style={
+                        font_size: 15px
+                        fill: rgb(139, 79, 24)
+                        align_vertical: TextAlignVertical::Top
+                        align_horizontal: TextAlignHorizontal::Left
+                        align_multiline: TextAlignHorizontal::Left
+                        underline: false
+                    }/>
+                <Rectangle
+                    width=100%
+                    height=100%
+                    fill=rgb(255, 240, 226)
+                    corner_radii={RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)}/>
+            </Group>
+
+            <Group height=104px>
+                <Text
+                    x=20px
+                    y=18px
+                    width={100% - 40px}
+                    height=56px
+                    text="No explicit stack height is set here. The gutter and the four child cards determine it."
+                    selectable=false
+                    style={
+                        font_size: 18px
+                        fill: rgb(19, 89, 57)
+                        align_vertical: TextAlignVertical::Top
+                        align_horizontal: TextAlignHorizontal::Left
+                        align_multiline: TextAlignHorizontal::Left
+                        underline: false
+                    }/>
+                <Rectangle
+                    width=100%
+                    height=100%
+                    fill=rgb(232, 249, 242)
+                    corner_radii={RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)}/>
+            </Group>
+
+            <Group height=136px>
+                <Text
+                    x=20px
+                    y=22px
+                    width={100% - 40px}
+                    height=78px
+                    text="This taller card makes the autosized main axis easy to inspect without relying on percentage-based filler."
+                    selectable=false
+                    style={
+                        font_size: 18px
+                        fill: rgb(84, 36, 130)
+                        align_vertical: TextAlignVertical::Top
+                        align_horizontal: TextAlignHorizontal::Left
+                        align_multiline: TextAlignHorizontal::Left
+                        underline: false
+                    }/>
+                <Rectangle
+                    width=100%
+                    height=100%
+                    fill=rgb(243, 236, 255)
+                    corner_radii={RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)}/>
+            </Group>
+
+            <Group height=92px>
+                <Text
+                    x=20px
+                    y=18px
+                    width={100% - 40px}
+                    height=48px
+                    text="Short finishing card"
+                    selectable=false
+                    style={
+                        font_size: 20px
+                        fill: rgb(140, 41, 80)
+                        align_vertical: TextAlignVertical::Center
+                        align_horizontal: TextAlignHorizontal::Left
+                        align_multiline: TextAlignHorizontal::Left
+                        underline: false
+                    }/>
+                <Rectangle
+                    width=100%
+                    height=100%
+                    fill=rgb(255, 240, 245)
+                    corner_radii={RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)}/>
+            </Group>
+        </Stacker>
+
+        <Group autosize=true>
+            <Text
+                x=18px
+                y=16px
+                width=168px
+                height=24px
+                text="Group autosize=true"
+                selectable=false
+                style={
+                    font_size: 18px
+                    fill: rgb(56, 63, 140)
+                    align_vertical: TextAlignVertical::Center
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+            <Text
+                x=18px
+                y=42px
+                width=190px
+                height=18px
+                text="Two offset children define the hull."
+                selectable=false
+                style={
+                    font_size: 13px
+                    fill: rgb(104, 110, 169)
+                    align_vertical: TextAlignVertical::Top
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+            <Text
+                x=292px
+                y=28px
+                width=92px
+                height=18px
+                text="badge"
+                selectable=false
+                style={
+                    font_size: 14px
+                    fill: rgb(41, 74, 145)
+                    align_vertical: TextAlignVertical::Center
+                    align_horizontal: TextAlignHorizontal::Center
+                    align_multiline: TextAlignHorizontal::Center
+                    underline: false
+                }/>
+            <Rectangle
+                x=272px
+                y=18px
+                width=132px
+                height=40px
+                fill=rgb(215, 227, 255)
+                corner_radii={RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)}/>
+            <Rectangle
+                width=248px
+                height=76px
+                fill=rgb(246, 248, 255)
+                corner_radii={RectangleCornerRadii::radii(20.0, 20.0, 20.0, 20.0)}/>
+        </Group>
+
+        <Frame autosize=true border_radius=22.0>
+            <Text
+                x=20px
+                y=18px
+                width=220px
+                height=24px
+                text="Frame autosize=true"
+                selectable=false
+                style={
+                    font_size: 18px
+                    fill: rgb(21, 93, 61)
+                    align_vertical: TextAlignVertical::Center
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+            <Text
+                x=20px
+                y=48px
+                width=246px
+                height=54px
+                text="The frame measures its direct children first, then uses that measured size as its clip boundary."
+                selectable=false
+                style={
+                    font_size: 15px
+                    fill: rgb(54, 110, 83)
+                    align_vertical: TextAlignVertical::Top
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+            <Rectangle
+                x=278px
+                y=84px
+                width=66px
+                height=30px
+                fill=rgb(190, 233, 215)
+                corner_radii={RectangleCornerRadii::radii(15.0, 15.0, 15.0, 15.0)}/>
+            <Rectangle
+                width=364px
+                height=136px
+                fill=rgb(236, 250, 244)
+                corner_radii={RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)}/>
+        </Frame>
+
+        <Link autosize=true url="https://pax.dev" target=Target::Current>
+            <Group>
+                <Text
+                    x=20px
+                    y=18px
+                    width=220px
+                    height=24px
+                    text="Link autosize=true"
+                    selectable=false
+                    style={
+                        font_size: 18px
+                        fill: rgb(23, 73, 132)
+                        align_vertical: TextAlignVertical::Center
+                        align_horizontal: TextAlignHorizontal::Left
+                        align_multiline: TextAlignHorizontal::Left
+                        underline: false
+                    }/>
+                <Text
+                    x=20px
+                    y=44px
+                    width=220px
+                    height=18px
+                    text="Tap to open pax.dev in-place"
+                    selectable=false
+                    style={
+                        font_size: 14px
+                        fill: rgb(73, 113, 167)
+                        align_vertical: TextAlignVertical::Top
+                        align_horizontal: TextAlignHorizontal::Left
+                        align_multiline: TextAlignHorizontal::Left
+                        underline: false
+                    }/>
+                <Text
+                    x=284px
+                    y=26px
+                    width=28px
+                    height=20px
+                    text="↗"
+                    selectable=false
+                    style={
+                        font_size: 20px
+                        fill: rgb(23, 73, 132)
+                        align_vertical: TextAlignVertical::Center
+                        align_horizontal: TextAlignHorizontal::Center
+                        align_multiline: TextAlignHorizontal::Center
+                        underline: false
+                    }/>
+                <Rectangle
+                    width=332px
+                    height=72px
+                    fill=rgb(233, 244, 255)
+                    corner_radii={RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)}/>
+            </Group>
+        </Link>
+
+        <Tooltip autosize=true tip="This tooltip follows hover or tap, sits just below the trigger, and grows vertically to fit the copy.">
+            <Group>
+                <Text
+                    x=20px
+                    y=18px
+                    width=220px
+                    height=24px
+                    text="Tooltip autosize=true"
+                    selectable=false
+                    style={
+                        font_size: 18px
+                        fill: rgb(146, 82, 20)
+                        align_vertical: TextAlignVertical::Center
+                        align_horizontal: TextAlignHorizontal::Left
+                        align_multiline: TextAlignHorizontal::Left
+                        underline: false
+                    }/>
+                <Text
+                    x=204px
+                    y=22px
+                    width=66px
+                    height=16px
+                    text="tap / hover"
+                    selectable=false
+                    style={
+                        font_size: 12px
+                        fill: rgb(181, 118, 58)
+                        align_vertical: TextAlignVertical::Center
+                        align_horizontal: TextAlignHorizontal::Center
+                        align_multiline: TextAlignHorizontal::Center
+                        underline: false
+                    }/>
+                <Rectangle
+                    width=290px
+                    height=60px
+                    fill=rgb(255, 244, 233)
+                    corner_radii={RectangleCornerRadii::radii(20.0, 20.0, 20.0, 20.0)}/>
+            </Group>
+        </Tooltip>
+
+        <Group height=184px>
+            <Text
+                x=20px
+                y=18px
+                width=220px
+                height=22px
+                text="Status board"
+                selectable=false
+                style={
+                    font_size: 18px
+                    fill: rgb(61, 84, 132)
+                    align_vertical: TextAlignVertical::Center
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+            <Text
+                x=20px
+                y=48px
+                width=220px
+                height=18px
+                text="Six cards below keep the root scroller tall."
+                selectable=false
+                style={
+                    font_size: 14px
+                    fill: rgb(95, 113, 148)
+                    align_vertical: TextAlignVertical::Top
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+            <Button
+                x=20px
+                y=90px
+                width=132px
+                height=36px
+                label={self.primary_action_label}
+                @button_click=self.record_control_tap/>
+            <Slider
+                x=168px
+                y=96px
+                width=164px
+                height=26px
+                value=bind:board_gain
+                min=0.0
+                max=1.0
+                step=0.01
+                accent=rgb(96, 132, 217)
+                background=rgb(226, 235, 255)
+                border_radius=13/>
+            <Text
+                x=20px
+                y=142px
+                width=220px
+                height=18px
+                text={"gain " + self.board_gain}
+                selectable=false
+                style={
+                    font_size: 13px
+                    fill: rgb(95, 113, 148)
+                    align_vertical: TextAlignVertical::Top
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+            <Rectangle
+                width=100%
+                height=184px
+                fill=rgb(241, 245, 255)
+                corner_radii={RectangleCornerRadii::radii(24.0, 24.0, 24.0, 24.0)}/>
+        </Group>
+
+        <Group height=184px>
+            <Text
+                x=20px
+                y=18px
+                width=240px
+                height=22px
+                text="Notes"
+                selectable=false
+                style={
+                    font_size: 18px
+                    fill: rgb(136, 57, 89)
+                    align_vertical: TextAlignVertical::Center
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+            <Text
+                x=20px
+                y=50px
+                width=286px
+                height=74px
+                text="Autosized wrappers now share the same content-hull plumbing while stackers and scrollers interpret their default axes semantically."
+                selectable=false
+                style={
+                    font_size: 15px
+                    fill: rgb(155, 83, 110)
+                    align_vertical: TextAlignVertical::Top
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+            <Rectangle x=20px y=136px width=132px height=20px fill=rgb(255, 220, 231) corner_radii={RectangleCornerRadii::radii(10.0, 10.0, 10.0, 10.0)}/>
+            <Rectangle x=162px y=136px width=96px height=20px fill=rgb(255, 226, 235) corner_radii={RectangleCornerRadii::radii(10.0, 10.0, 10.0, 10.0)}/>
+            <Rectangle
+                width=100%
+                height=184px
+                fill=rgb(255, 241, 244)
+                corner_radii={RectangleCornerRadii::radii(24.0, 24.0, 24.0, 24.0)}/>
+        </Group>
+
+        <Group height=168px>
+            <Text
+                x=20px
+                y=18px
+                width=200px
+                height=22px
+                text="Palette"
+                selectable=false
+                style={
+                    font_size: 18px
+                    fill: rgb(29, 106, 73)
+                    align_vertical: TextAlignVertical::Center
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+            <Rectangle x=20px y=56px width=56px height=56px fill=rgb(188, 230, 208) corner_radii={RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)}/>
+            <Rectangle x=88px y=56px width=56px height=56px fill=rgb(204, 238, 219) corner_radii={RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)}/>
+            <Rectangle x=156px y=56px width=56px height=56px fill=rgb(217, 244, 229) corner_radii={RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)}/>
+            <Rectangle x=224px y=56px width=56px height=56px fill=rgb(227, 247, 236) corner_radii={RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)}/>
+            <Slider
+                x=20px
+                y=132px
+                width=260px
+                height=24px
+                value=bind:palette_mix
+                min=0.0
+                max=1.0
+                step=0.01
+                accent=rgb(59, 134, 96)
+                background=rgb(214, 241, 226)
+                border_radius=12/>
+            <Rectangle
+                width=100%
+                height=168px
+                fill=rgb(235, 249, 243)
+                corner_radii={RectangleCornerRadii::radii(24.0, 24.0, 24.0, 24.0)}/>
+        </Group>
+
+        <Group height=208px>
+            <Text
+                x=20px
+                y=18px
+                width=220px
+                height=22px
+                text="Timeline snapshot"
+                selectable=false
+                style={
+                    font_size: 18px
+                    fill: rgb(96, 58, 156)
+                    align_vertical: TextAlignVertical::Center
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+            <Rectangle x=20px y=60px width=292px height=10px fill=rgb(225, 210, 255) corner_radii={RectangleCornerRadii::radii(5.0, 5.0, 5.0, 5.0)}/>
+            <Rectangle x=20px y=88px width=188px height=10px fill=rgb(202, 176, 255) corner_radii={RectangleCornerRadii::radii(5.0, 5.0, 5.0, 5.0)}/>
+            <Rectangle x=20px y=116px width=242px height=10px fill=rgb(185, 154, 250) corner_radii={RectangleCornerRadii::radii(5.0, 5.0, 5.0, 5.0)}/>
+            <Button
+                x=20px
+                y=146px
+                width=146px
+                height=34px
+                label={self.armed_label}
+                @button_click=self.toggle_controls_armed/>
+            <Text
+                x=182px
+                y=152px
+                width=260px
+                height=24px
+                text="The outer scroller remains comfortably beyond one viewport."
+                selectable=false
+                style={
+                    font_size: 14px
+                    fill: rgb(123, 95, 171)
+                    align_vertical: TextAlignVertical::Top
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+            <Rectangle
+                width=100%
+                height=208px
+                fill=rgb(255, 247, 224)
+                corner_radii={RectangleCornerRadii::radii(24.0, 24.0, 24.0, 24.0)}/>
+        </Group>
+
+        <Group height=176px>
+            <Text
+                x=20px
+                y=18px
+                width=220px
+                height=22px
+                text="Checklist"
+                selectable=false
+                style={
+                    font_size: 18px
+                    fill: rgb(110, 92, 152)
+                    align_vertical: TextAlignVertical::Center
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+            <Text
+                x=20px
+                y=50px
+                width=250px
+                height=18px
+                text="Axis defaults"
+                selectable=false
+                style={font_size: 14px fill: rgb(133, 116, 175) align_vertical: TextAlignVertical::Top align_horizontal: TextAlignHorizontal::Left align_multiline: TextAlignHorizontal::Left underline: false}/>
+            <Text
+                x=20px
+                y=78px
+                width=250px
+                height=18px
+                text="Wrapper overrides"
+                selectable=false
+                style={font_size: 14px fill: rgb(133, 116, 175) align_vertical: TextAlignVertical::Top align_horizontal: TextAlignHorizontal::Left align_multiline: TextAlignHorizontal::Left underline: false}/>
+            <Text
+                x=20px
+                y=106px
+                width=250px
+                height=18px
+                text="Touch demo polish"
+                selectable=false
+                style={font_size: 14px fill: rgb(133, 116, 175) align_vertical: TextAlignVertical::Top align_horizontal: TextAlignHorizontal::Left align_multiline: TextAlignHorizontal::Left underline: false}/>
+            <Button
+                x=278px
+                y=54px
+                width=126px
+                height=36px
+                label="Nudge"
+                @button_click=self.record_control_tap/>
+            <Rectangle
+                width=100%
+                height=176px
+                fill=rgb(238, 240, 255)
+                corner_radii={RectangleCornerRadii::radii(24.0, 24.0, 24.0, 24.0)}/>
+        </Group>
+
+        <Group height=188px>
+            <Text
+                x=20px
+                y=18px
+                width=220px
+                height=22px
+                text="Closing panel"
+                selectable=false
+                style={
+                    font_size: 18px
+                    fill: rgb(54, 93, 145)
+                    align_vertical: TextAlignVertical::Center
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+            <Text
+                x=20px
+                y=50px
+                width=250px
+                height=44px
+                text="Everything after the autosize showcase is just ordinary content inside the same measured scroll pane."
+                selectable=false
+                style={
+                    font_size: 14px
+                    fill: rgb(89, 117, 158)
+                    align_vertical: TextAlignVertical::Top
+                    align_horizontal: TextAlignHorizontal::Left
+                    align_multiline: TextAlignHorizontal::Left
+                    underline: false
+                }/>
+            <Rectangle x=20px y=114px width=150px height=18px fill=rgb(216, 230, 255) corner_radii={RectangleCornerRadii::radii(9.0, 9.0, 9.0, 9.0)}/>
+            <Rectangle
+                width=100%
+                height=188px
+                fill=rgb(231, 245, 255)
+                corner_radii={RectangleCornerRadii::radii(24.0, 24.0, 24.0, 24.0)}/>
+        </Group>
+    </Stacker>
+</Scroller>
+
+@settings {
+    @mount: on_mount
+}

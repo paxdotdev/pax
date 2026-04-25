@@ -1,6 +1,8 @@
+use pax_engine::api::Property;
 use pax_engine::pax;
 use pax_runtime::api::{borrow, Layer};
 use pax_runtime::{
+    bind_content_measurement_effect, resolve_axis_autosize, sync_content_autosize_with_axes,
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 use std::iter;
@@ -10,8 +12,26 @@ use std::rc::Rc;
 /// useful for composing transforms and simplifying render trees.
 #[pax]
 #[engine_import_path("pax_engine")]
+#[custom(Default)]
 #[primitive("pax_std::core::group::GroupInstance")]
-pub struct Group {}
+pub struct Group {
+    /// Automatically sizes the group to its direct content children when possible.
+    pub autosize: Property<bool>,
+    /// Optional override for whether autosize manages the `x` axis.
+    pub autosize_x: Property<Option<bool>>,
+    /// Optional override for whether autosize manages the `y` axis.
+    pub autosize_y: Property<Option<bool>>,
+}
+
+impl Default for Group {
+    fn default() -> Self {
+        Self {
+            autosize: Property::new(false),
+            autosize_x: Property::new(None),
+            autosize_y: Property::new(None),
+        }
+    }
+}
 
 // Runtime instance backing `<Group>`.
 pub struct GroupInstance {
@@ -51,6 +71,37 @@ impl InstanceNode for GroupInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
+    }
+
+    fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
+        let ctx = expanded_node.get_node_context(context);
+        let (autosize, autosize_x, autosize_y) =
+            expanded_node.with_properties_unwrapped(|group: &mut Group| {
+                (
+                    group.autosize.clone(),
+                    group.autosize_x.clone(),
+                    group.autosize_y.clone(),
+                )
+            });
+        let deps = [
+            autosize.untyped(),
+            autosize_x.untyped(),
+            autosize_y.untyped(),
+        ];
+        bind_content_measurement_effect(
+            expanded_node,
+            &ctx,
+            "group autosize",
+            &deps,
+            move |node, node_ctx| {
+                sync_content_autosize_with_axes(
+                    node,
+                    node_ctx,
+                    resolve_axis_autosize(autosize.get(), autosize_x.get(), true),
+                    resolve_axis_autosize(autosize.get(), autosize_y.get(), true),
+                );
+            },
+        );
     }
 
     fn handle_control_flow_node_expansion(

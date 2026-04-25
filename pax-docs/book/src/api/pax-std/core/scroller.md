@@ -28,10 +28,23 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Size`](/api/pa
 
 Height of the scrollable content pane.
 
-##### `auto_size`
+##### `autosize`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
 
-Automatically sizes the scroll pane to its slotted children when possible.
+Automatically sizes the scroll pane on its default axes when possible.
+
+For `Scroller`, the default autosized axis is `y`; `x` remains bound to
+`scroll_width` unless `autosize_x` explicitly opts in.
+
+##### `autosize_x`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<`bool`>>
+
+Optional override for whether autosize manages the `x` axis.
+
+##### `autosize_y`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<`bool`>>
+
+Optional override for whether autosize manages the `y` axis.
 
 ##### `border_radius`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`f64`>

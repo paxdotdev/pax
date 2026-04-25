@@ -318,9 +318,10 @@ async fn wait_for_canvas_layout_settle(window: &Window, document: &Document, lay
             .collect::<Vec<_>>()
             .join("|");
         let has_size = !canvases.is_empty()
-            && canvases
-                .iter()
-                .all(|canvas| canvas.offset_width() > 0 && canvas.offset_height() > 0);
+            && canvases.iter().all(|canvas| {
+                planned_canvas_logical_width(canvas) > 0.0
+                    && planned_canvas_logical_height(canvas) > 0.0
+            });
         if has_size && signature == last_signature {
             stable_frames += 1;
         } else {
@@ -427,8 +428,8 @@ fn query_layer_canvas_targets(
                     desired_dpr
                 };
             let surface = compute_surface_metrics(
-                canvas.client_width() as f64,
-                canvas.client_height() as f64,
+                planned_canvas_logical_width(&canvas),
+                planned_canvas_logical_height(&canvas),
                 surface_desired_dpr,
                 max_surface_dimension,
                 minimum_dpr,
@@ -536,11 +537,11 @@ fn parse_tile_key(canvas: &HtmlCanvasElement) -> (i32, i32) {
 
 #[cfg(not(feature = "piet"))]
 fn canvas_layout_signature(canvas: &HtmlCanvasElement) -> String {
-    let host_signature = canvas_host_signature(canvas);
+    let host_signature = attached_canvas_host_signature(canvas);
     format!(
         "{}x{}@{}",
-        canvas.client_width(),
-        canvas.client_height(),
+        planned_canvas_logical_width(canvas),
+        planned_canvas_logical_height(canvas),
         host_signature,
     )
 }
@@ -580,6 +581,46 @@ fn canvas_host_signature(canvas: &HtmlCanvasElement) -> String {
         })
         .or_else(|| parent.as_ref().and_then(|node| node.get_attribute("class")))
         .unwrap_or_default()
+}
+
+#[cfg(not(feature = "piet"))]
+fn planned_canvas_logical_width(canvas: &HtmlCanvasElement) -> f64 {
+    canvas
+        .get_attribute("data-logical-width")
+        .and_then(|value| value.parse::<f64>().ok())
+        .unwrap_or(canvas.client_width() as f64)
+}
+
+#[cfg(not(feature = "piet"))]
+fn planned_canvas_logical_height(canvas: &HtmlCanvasElement) -> f64 {
+    canvas
+        .get_attribute("data-logical-height")
+        .and_then(|value| value.parse::<f64>().ok())
+        .unwrap_or(canvas.client_height() as f64)
+}
+
+#[cfg(not(feature = "piet"))]
+fn attached_canvas_host_signature(canvas: &HtmlCanvasElement) -> String {
+    let parent = canvas.parent_element();
+    let parent_role = parent
+        .as_ref()
+        .and_then(|node| node.get_attribute("data-role"));
+    let scroller_id = parent
+        .as_ref()
+        .and_then(|node| node.get_attribute("data-scroller-id"));
+    if let (Some(role), Some(scroller_id)) = (parent_role, scroller_id) {
+        return format!("{role}:{scroller_id}");
+    }
+    parent
+        .as_ref()
+        .and_then(|node| node.get_attribute("data-role"))
+        .or_else(|| {
+            parent
+                .as_ref()
+                .and_then(|node| node.get_attribute("pax_id"))
+        })
+        .or_else(|| parent.as_ref().and_then(|node| node.get_attribute("class")))
+        .unwrap_or_else(|| canvas_host_signature(canvas))
 }
 
 #[cfg(not(feature = "piet"))]

@@ -42,6 +42,15 @@ Type: `bool`
 
 ---
 
+### `RenderSurfaceUpdateArgs`
+Browser notification that a retained render surface must be reconfigured.
+
+#### Properties
+##### `layer_id`
+Type: `Option`<`u32`>
+
+---
+
 ### `ButtonPatch`
 Create/update patch for a native button.
 
@@ -1254,6 +1263,18 @@ Type: `Vec`<[`TouchMessage`](/api/internal/pax-message/index.md#touchmessage)>
 
 ---
 
+### `ViewportResizeArgs`
+Layout viewport resize payload for the root app surface.
+
+#### Properties
+##### `width`
+Type: `f64`
+
+##### `height`
+Type: `f64`
+
+---
+
 ### `VisualViewportUpdateArgs`
 Browser visual viewport payload for page-scroll-backed root scrollers.
 
@@ -1449,6 +1470,8 @@ Events and data packets sent from the chassis back into the Pax runtime.
 ##### `FormButtonClick`([`FormButtonClickArgs`](/api/internal/pax-message/index.md#formbuttonclickargs))
 ##### `ScrollerPosition`([`ScrollerPositionInterruptArgs`](/api/internal/pax-message/index.md#scrollerpositioninterruptargs))
 ##### `BrowserConfig`([`BrowserConfigInterruptArgs`](/api/internal/pax-message/index.md#browserconfiginterruptargs))
+##### `RenderSurfaceUpdate`([`RenderSurfaceUpdateArgs`](/api/internal/pax-message/index.md#rendersurfaceupdateargs))
+##### `ViewportResize`([`ViewportResizeArgs`](/api/internal/pax-message/index.md#viewportresizeargs))
 ##### `VisualViewportUpdate`([`VisualViewportUpdateArgs`](/api/internal/pax-message/index.md#visualviewportupdateargs))
 ##### `DropFile`([`DropFileArgs`](/api/internal/pax-message/index.md#dropfileargs))
 ##### `Screenshot`([`ImageLoadInterruptArgs`](/api/internal/pax-message/index.md#imageloadinterruptargs))

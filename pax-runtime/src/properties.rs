@@ -10,6 +10,7 @@ use pax_runtime_api::{
     RenderContext, Store, Variable,
 };
 use_RefCell!();
+use kurbo::Affine;
 use std::any::{Any, TypeId};
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
@@ -580,6 +581,16 @@ impl RuntimeContext {
         mut accum: Vec<Rc<ExpandedNode>>,
         hit_invisible: bool,
     ) -> Vec<Rc<ExpandedNode>> {
+        fn clamp_offset(value: f64, content: f64, viewport: f64) -> f64 {
+            if content <= viewport {
+                return 0.0;
+            }
+            if !value.is_finite() {
+                return 0.0;
+            }
+            value.max(0.0).min((content - viewport).max(0.0))
+        }
+
         //Traverse all elements in render tree sorted by z-index (highest-to-lowest)
         //First: check whether events are suppressed
         //Next: check whether ancestral clipping bounds (hit_test) are satisfied
@@ -588,11 +599,90 @@ impl RuntimeContext {
         let Some(root_node) = root.or_else(|| borrow!(self.root_expanded_node).upgrade()) else {
             return accum;
         };
-        let mut to_process = vec![(root_node, false)];
-        while let Some((node, clipped)) = to_process.pop() {
+        let mut to_process = vec![(root_node, false, Affine::IDENTITY)];
+        while let Some((node, clipped, active_scroll_transform)) = to_process.pop() {
             // make sure slot sources are updated for this node
             node.compute_flattened_slot_children();
-            let hit = node.ray_cast_test(ray);
+            // Browser-composited scrollers move descendants outside the engine transform tree.
+            // Fold active scroll offsets into hit-testing so event rays line up with presented content.
+            let (scroll_transform, clips_content) = {
+                let instance_node = borrow!(node.instance_node);
+                let scrolls_content = instance_node.scrolls_content(&node);
+                let scroll_transform = if scrolls_content {
+                    let root_delegates_to_page_scroll = self.get_root_scroller_id()
+                        == Some(node.id.to_u32())
+                        && self.get_visual_viewport_state().is_some();
+                    if root_delegates_to_page_scroll {
+                        Affine::IDENTITY
+                    } else {
+                        let (scroll_x, scroll_y) =
+                            if self.get_root_scroller_id() == Some(node.id.to_u32()) {
+                                if let Some(visual) = self.get_visual_viewport_state() {
+                                    let visual_x = visual.page_scroll_x + visual.offset_x;
+                                    let visual_y = visual.page_scroll_y + visual.offset_y;
+                                    if visual_x.is_finite() && visual_y.is_finite() {
+                                        if let Some(state) =
+                                            self.get_scroller_surface_state(node.id.to_u32())
+                                        {
+                                            let viewport_width = if visual.width.is_finite() {
+                                                visual.width
+                                            } else {
+                                                state.viewport_width
+                                            };
+                                            let viewport_height = if visual.height.is_finite() {
+                                                visual.height
+                                            } else {
+                                                state.viewport_height
+                                            };
+                                            (
+                                                clamp_offset(
+                                                    visual_x,
+                                                    state.content_width,
+                                                    viewport_width,
+                                                ),
+                                                clamp_offset(
+                                                    visual_y,
+                                                    state.content_height,
+                                                    viewport_height,
+                                                ),
+                                            )
+                                        } else {
+                                            (visual_x, visual_y)
+                                        }
+                                    } else {
+                                        instance_node
+                                            .resolve_scroll_offset(&node)
+                                            .unwrap_or((0.0, 0.0))
+                                    }
+                                } else {
+                                    instance_node
+                                        .resolve_scroll_offset(&node)
+                                        .unwrap_or((0.0, 0.0))
+                                }
+                            } else {
+                                instance_node
+                                    .resolve_scroll_offset(&node)
+                                    .unwrap_or((0.0, 0.0))
+                            };
+                        if scroll_x.abs() > f64::EPSILON || scroll_y.abs() > f64::EPSILON {
+                            let world_transform =
+                                Affine::from(node.transform_and_bounds.get().transform);
+                            let inverse_world =
+                                Affine::from(node.transform_and_bounds.get().transform.inverse());
+                            world_transform
+                                * Affine::translate((-scroll_x, -scroll_y))
+                                * inverse_world
+                        } else {
+                            Affine::IDENTITY
+                        }
+                    }
+                } else {
+                    Affine::IDENTITY
+                };
+                (scroll_transform, instance_node.clips_content(&node))
+            };
+            let descendant_scroll_transform = active_scroll_transform * scroll_transform;
+            let hit = node.ray_cast_test(active_scroll_transform.inverse() * ray);
             if hit && !clipped {
                 if hit_invisible
                     || !borrow!(node.instance_node)
@@ -609,7 +699,7 @@ impl RuntimeContext {
                     accum.push(Rc::clone(&node));
                 }
             }
-            let clipped = clipped || (!hit && borrow!(node.instance_node).clips_content(&node));
+            let clipped = clipped || (!hit && clips_content);
             to_process.extend(
                 node.children
                     .get()
@@ -618,7 +708,7 @@ impl RuntimeContext {
                     .map(|v| {
                         let cp = v.get_common_properties();
                         let unclippable = borrow!(cp).unclippable.get().unwrap_or(false);
-                        (v, clipped && !unclippable)
+                        (v, clipped && !unclippable, descendant_scroll_transform)
                     })
                     .rev(),
             )
@@ -640,22 +730,22 @@ impl RuntimeContext {
             return None;
         };
 
-        //send mouse over/out events if the hit element is different than last
+        // Send mouse over/out events if the hit element is different than last.
+        // Use template ancestry rather than containing-component ancestry so
+        // wrappers around slotted content can own hover affordances.
         let last_topmost = borrow!(self.last_topmost_element).upgrade();
-        let new_topmost_comp = new_topmost.containing_component.upgrade();
-        if new_topmost_comp.as_ref().map(|n| n.id) != last_topmost.as_ref().map(|n| n.id) {
-            let (leaving, entering) =
-                find_paths_to_common_ancestor(&last_topmost, &new_topmost_comp);
+        if Some(new_topmost.id) != last_topmost.as_ref().map(|n| n.id) {
+            let (leaving, entering) = find_template_paths_to_common_ancestor(
+                &last_topmost,
+                &Some(Rc::clone(&new_topmost)),
+            );
             for leave in leaving {
                 leave.dispatch_mouse_out(Event::new(MouseOut {}), &self.globals(), self);
             }
             for enter in entering {
                 enter.dispatch_mouse_over(Event::new(MouseOver {}), &self.globals(), self);
             }
-            *borrow_mut!(self.last_topmost_element) = new_topmost_comp
-                .as_ref()
-                .map(Rc::downgrade)
-                .unwrap_or_default();
+            *borrow_mut!(self.last_topmost_element) = Rc::downgrade(&new_topmost);
         }
         Some(new_topmost)
     }
@@ -736,51 +826,34 @@ impl RuntimeContext {
     }
 }
 
-fn find_paths_to_common_ancestor(
+fn find_template_paths_to_common_ancestor(
     last_topmost: &Option<Rc<ExpandedNode>>,
-    new_topmost_comp: &Option<Rc<ExpandedNode>>,
+    new_topmost: &Option<Rc<ExpandedNode>>,
 ) -> (Vec<Rc<ExpandedNode>>, Vec<Rc<ExpandedNode>>) {
-    let mut last_path = Vec::new();
-    let mut new_path = Vec::new();
+    let mut last_path = template_path_from_root(last_topmost);
+    let mut new_path = template_path_from_root(new_topmost);
+    let common_prefix_len = last_path
+        .iter()
+        .zip(new_path.iter())
+        .take_while(|(last, new)| last.id == new.id)
+        .count();
 
-    // If either node is None, return empty paths
-    if last_topmost.is_none() || new_topmost_comp.is_none() {
-        return (last_path, new_path);
-    }
-
-    let mut last_node = last_topmost.clone();
-    let mut new_node = new_topmost_comp.clone();
-
-    // Build paths from nodes to root
-    while let Some(node) = last_node.clone() {
-        last_path.push(node.clone());
-        last_node = node.containing_component.upgrade();
-    }
-
-    while let Some(node) = new_node.clone() {
-        new_path.push(node.clone());
-        new_node = node.containing_component.upgrade();
-    }
-
-    // Reverse paths to start from root
-    last_path.reverse();
-    new_path.reverse();
-
-    // Find the last common node
-    let mut common_ancestor_index = 0;
-    for (i, (last, new)) in last_path.iter().zip(new_path.iter()).enumerate() {
-        if last.id == new.id {
-            common_ancestor_index = i;
-        } else {
-            break;
-        }
-    }
-
-    // Remove common ancestors from both paths
-    last_path.drain(0..=common_ancestor_index);
-    new_path.drain(0..=common_ancestor_index);
+    // Remove common ancestors from both paths.
+    last_path.drain(0..common_prefix_len);
+    new_path.drain(0..common_prefix_len);
 
     (last_path, new_path)
+}
+
+fn template_path_from_root(node: &Option<Rc<ExpandedNode>>) -> Vec<Rc<ExpandedNode>> {
+    let mut path = Vec::new();
+    let mut current = node.clone();
+    while let Some(node) = current {
+        path.push(Rc::clone(&node));
+        current = node.template_parent.upgrade();
+    }
+    path.reverse();
+    path
 }
 
 /// Data structure for a single frame of our runtime stack, including

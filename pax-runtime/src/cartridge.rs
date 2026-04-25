@@ -2093,6 +2093,7 @@ pub fn create_new_common_properties(
         rotate: resolve_property("rotate", defined_properties, stack_frame),
         transform: resolve_property("transform", defined_properties, stack_frame),
         opacity: resolve_property("opacity", defined_properties, stack_frame),
+        layout_role: resolve_property("layout_role", defined_properties, stack_frame),
         anchor_x: resolve_property("anchor_x", defined_properties, stack_frame),
         anchor_y: resolve_property("anchor_y", defined_properties, stack_frame),
         unclippable: resolve_property("unclippable", defined_properties, stack_frame),
@@ -2130,6 +2131,11 @@ fn update_common_properties(
     ));
     cp.opacity
         .replace_with(resolve_property("opacity", defined_properties, stack_frame));
+    cp.layout_role.replace_with(resolve_property(
+        "layout_role",
+        defined_properties,
+        stack_frame,
+    ));
     cp.anchor_x.replace_with(resolve_property(
         "anchor_x",
         defined_properties,

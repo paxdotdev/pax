@@ -158,6 +158,23 @@ pub enum Axis {
     Y,
 }
 
+/// Controls whether a node participates in parent layout measurement.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
+#[serde(crate = "crate::serde")]
+pub enum LayoutRole {
+    /// Normal layout behavior. The node contributes to parent hulls, autosize, and flow.
+    #[default]
+    Default,
+    /// Parent-local positioning that does not contribute to parent hulls, autosize, or flow.
+    ///
+    /// `Breakout` remains in the normal render, hit-test, scroll, and clipping trees; it does
+    /// not portal above ancestor frames, masks, or scrollers.
+    Breakout,
+}
+
+impl Interpolatable for LayoutRole {}
+impl HelperFunctions for LayoutRole {}
+
 impl Size {
     /// Evaluate a Size in the context of `bounds` and a target `axis`.
     /// Returns a `Pixel` value as a simple f64; calculates `Percent` with respect to `bounds` & `axis`
@@ -223,6 +240,8 @@ pub struct CommonProperties {
     pub transform: Property<Option<Transform2D>>,
     /// Node opacity, applied to the node and its descendants.
     pub opacity: Property<Option<Opacity>>,
+    /// Controls whether this node participates in parent layout measurement and flow.
+    pub layout_role: Property<Option<LayoutRole>>,
     /// Allows a node to render outside an ancestor clipping frame.
     pub unclippable: Property<Option<bool>>,
     // Internal hit-testing override, used by generated components and tooling.
@@ -286,6 +305,7 @@ impl CommonProperties {
             rotate,
             transform,
             opacity,
+            layout_role,
             unclippable,
             _raycastable,
             _suspended,
@@ -340,6 +360,10 @@ impl CommonProperties {
             (
                 "opacity".to_string(),
                 Variable::new_from_typed_property(opacity.clone()),
+            ),
+            (
+                "layout_role".to_string(),
+                Variable::new_from_typed_property(layout_role.clone()),
             ),
             (
                 "width".to_string(),

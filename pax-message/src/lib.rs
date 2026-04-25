@@ -94,6 +94,8 @@ pub enum NativeInterrupt {
     #[serde(alias = "Scrollbar")]
     ScrollerPosition(ScrollerPositionInterruptArgs),
     BrowserConfig(BrowserConfigInterruptArgs),
+    RenderSurfaceUpdate(RenderSurfaceUpdateArgs),
+    ViewportResize(ViewportResizeArgs),
     VisualViewportUpdate(VisualViewportUpdateArgs),
     DropFile(DropFileArgs),
     Screenshot(ImageLoadInterruptArgs),
@@ -216,6 +218,22 @@ pub struct ScrollerPositionInterruptArgs {
 pub struct BrowserConfigInterruptArgs {
     pub allow_scroller_vector_layers: bool,
     pub allow_nested_scroller_vector_layers: bool,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+/// Browser notification that a retained render surface must be reconfigured.
+pub struct RenderSurfaceUpdateArgs {
+    #[serde(default)]
+    pub layer_id: Option<u32>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+/// Layout viewport resize payload for the root app surface.
+pub struct ViewportResizeArgs {
+    pub width: f64,
+    pub height: f64,
 }
 
 #[derive(Deserialize)]

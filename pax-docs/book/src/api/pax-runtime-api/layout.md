@@ -82,6 +82,11 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<[`Opaci
 
 Node opacity, applied to the node and its descendants.
 
+##### `layout_role`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<[`LayoutRole`](/api/pax-runtime-api/layout.md#layoutrole)>>
+
+Controls whether this node participates in parent layout measurement and flow.
+
 ##### `unclippable`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<`bool`>>
 
@@ -97,6 +102,21 @@ Horizontal axis.
 
 ##### `Y`
 Vertical axis.
+
+---
+
+### `LayoutRole`
+Controls whether a node participates in parent layout measurement.
+
+#### Variants
+##### `Default`
+Normal layout behavior. The node contributes to parent hulls, autosize, and flow.
+
+##### `Breakout`
+Parent-local positioning that does not contribute to parent hulls, autosize, or flow.
+
+`Breakout` remains in the normal render, hit-test, scroll, and clipping trees; it does
+not portal above ancestor frames, masks, or scrollers.
 
 ---
 

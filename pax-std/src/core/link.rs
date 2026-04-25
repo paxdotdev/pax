@@ -5,6 +5,9 @@ use pax_engine::api::{ClickOrTap, MouseOut, MouseOver, Property};
 use pax_engine::api::{Event, NavigationTarget};
 use pax_engine::*;
 use pax_runtime::api::NodeContext;
+use pax_runtime::{
+    bind_content_measurement_effect, resolve_axis_autosize, sync_content_autosize_with_axes,
+};
 
 #[pax]
 #[engine_import_path("pax_engine")]
@@ -28,6 +31,12 @@ pub struct Link {
     pub url: Property<String>,
     /// Whether to open the URL in the current or a new browsing context.
     pub target: Property<Target>,
+    /// Automatically sizes the link wrapper to its slotted content when possible.
+    pub autosize: Property<bool>,
+    /// Optional override for whether autosize manages the `x` axis.
+    pub autosize_x: Property<Option<bool>>,
+    /// Optional override for whether autosize manages the `y` axis.
+    pub autosize_y: Property<Option<bool>>,
     // Number of slotted children to render.
     pub _slot_children: Property<usize>,
 }
@@ -53,13 +62,39 @@ impl From<Target> for NavigationTarget {
 }
 
 impl Link {
-    // Binds slot count for the generated inline template.
+    // Binds slot count and reactive autosize behavior for the generated inline template.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let s = ctx.slot_children_count.clone();
         let deps = [s.untyped()];
         self._slot_children
             .replace_with(Property::computed(move || s.get(), &deps));
+        let Some(expanded_node) = ctx.expanded_node.upgrade() else {
+            return;
+        };
+        let autosize = self.autosize.clone();
+        let autosize_x = self.autosize_x.clone();
+        let autosize_y = self.autosize_y.clone();
+        let deps = [
+            autosize.untyped(),
+            autosize_x.untyped(),
+            autosize_y.untyped(),
+        ];
+        bind_content_measurement_effect(
+            &expanded_node,
+            ctx,
+            "link autosize",
+            &deps,
+            move |node, node_ctx| {
+                sync_content_autosize_with_axes(
+                    node,
+                    node_ctx,
+                    resolve_axis_autosize(autosize.get(), autosize_x.get(), true),
+                    resolve_axis_autosize(autosize.get(), autosize_y.get(), true),
+                );
+            },
+        );
     }
+
     // Dispatches navigation through the active runtime context.
     pub fn on_click_or_tap(&mut self, ctx: &NodeContext, _event: Event<ClickOrTap>) {
         ctx.navigate_to(&self.url.get(), self.target.get().into());

@@ -1631,27 +1631,33 @@ export class NativeElementPool {
         this.lastCanvasTransformSignatures = nextTransformSignatures;
         this.lastCanvasLayerCounts = nextLayerCounts;
         if (surfaceChanged) {
-            // Browser-owned scroller hosts can resize independently of the retained scene. When
-            // that host signature changes, ask Rust to reconfigure the backing surfaces before the
-            // next render pass.
             this.surfaceRefreshPending = false;
             let layers = Array.from(surfaceChangedLayers).sort((left, right) => left - right);
-            if (layers.length > 0) {
-                this.chassis?.refresh_render_surfaces_for_layers(new Uint32Array(layers));
-            } else {
-                this.chassis?.refresh_render_surfaces();
-            }
+            this.requestLayerSurfaceRefresh(layers);
         } else if (transformChanged) {
-            // Sliding a keyed tile slot onto a new origin reuses the same browser surface, but the
-            // retained vector scene currently bakes per-node transforms/bounds against the prior
-            // slot origin. Refresh only the affected logical layers so outer seam crossings do not
-            // force a full-scene dirty/reconfigure pass across every warmed scroller island.
             let layers = Array.from(transformChangedLayers).sort((left, right) => left - right);
-            if (layers.length > 0) {
-                this.chassis?.refresh_render_surfaces_for_layers(new Uint32Array(layers));
-            } else {
-                this.chassis?.refresh_render_surfaces();
-            }
+            this.requestLayerSurfaceRefresh(layers);
+        }
+    }
+
+    private requestLayerSurfaceRefresh(layers: number[]) {
+        if (!this.chassis) {
+            return;
+        }
+        // Surface host/layout changes are fed back through the interrupt seam so the engine and
+        // render backend stay in lockstep.
+        if (layers.length === 0) {
+            this.chassis.interrupt({
+                "RenderSurfaceUpdate": {},
+            }, undefined);
+            return;
+        }
+        for (let layerId of layers) {
+            this.chassis.interrupt({
+                "RenderSurfaceUpdate": {
+                    "layer_id": layerId,
+                },
+            }, undefined);
         }
     }
 
@@ -2081,16 +2087,13 @@ export class NativeElementPool {
         if (!state.isRootScroller) {
             return false;
         }
-        if (state.delegatesToPageScroll) {
-            // Scroller updates are delta-shaped, so fields like contentLayerId may be omitted on
-            // ordinary scroll ticks. Once the root scroller has been promoted to page-scroll
-            // delegation, keep that ownership stable unless the scroller is recreated.
-            return true;
-        }
         if (state.contentLayerId == null) {
             return false;
         }
-        let shouldClip = patch.clipContent ?? true;
+        let shouldClip = patch.clipContent ?? state.clipContent;
+        if (shouldClip == null) {
+            return false;
+        }
         if (!shouldClip) {
             return false;
         }
@@ -2098,10 +2101,18 @@ export class NativeElementPool {
         if (!isViewportAnchoredTransform(transform)) {
             return false;
         }
-        let viewportWidth = (patch.sizeX ?? leaf.clientWidth) || 0;
-        let viewportHeight = (patch.sizeY ?? leaf.clientHeight) || 0;
-        let contentWidth = patch.sizeInnerPaneX ?? leaf.scrollWidth;
-        let contentHeight = patch.sizeInnerPaneY ?? leaf.scrollHeight;
+        let viewportWidth = patch.sizeX ?? state.viewportWidth;
+        let viewportHeight = patch.sizeY ?? state.viewportHeight;
+        let contentWidth = patch.sizeInnerPaneX ?? state.contentWidth;
+        let contentHeight = patch.sizeInnerPaneY ?? state.contentHeight;
+        if (
+            viewportWidth == null
+            || viewportHeight == null
+            || contentWidth == null
+            || contentHeight == null
+        ) {
+            return false;
+        }
         if (contentWidth > viewportWidth + 0.5) {
             // Defer to the scroller when horizontal overflow is involved.
             return false;
@@ -2407,11 +2418,13 @@ export class NativeElementPool {
             scrollerInner.style.width = patch.sizeInnerPaneX + "px";
             canvasHost.style.width = patch.sizeInnerPaneX + "px";
             contentHost.style.width = patch.sizeInnerPaneX + "px";
+            this.surfaceRefreshPending = true;
         }
         if (patch.sizeInnerPaneY != null) {
             scrollerInner.style.height = patch.sizeInnerPaneY + "px";
             canvasHost.style.height = patch.sizeInnerPaneY + "px";
             contentHost.style.height = patch.sizeInnerPaneY + "px";
+            this.surfaceRefreshPending = true;
         }
 
         const shouldClip = patch.clipContent ?? true;
@@ -2423,10 +2436,28 @@ export class NativeElementPool {
         let hosts = this.scrollerHosts.get(patch.id!);
         canvasHost.dataset.viewportWidth = String(viewportWidth);
         canvasHost.dataset.viewportHeight = String(viewportHeight);
-        // Scroller patches are delta-shaped. Remember the resolved content layer once it arrives so
-        // later scroll-only updates can keep root page-scroll delegation active.
-        if (state != null && patch.contentLayerId != null) {
-            state.contentLayerId = patch.contentLayerId;
+        if (state != null) {
+            // Scroller patches are delta-shaped, so root page-scroll delegation needs to remember
+            // the last engine-approved layout metrics instead of falling back to transient DOM
+            // scroll widths/heights during the first autosize settle.
+            if (patch.contentLayerId != null) {
+                state.contentLayerId = patch.contentLayerId;
+            }
+            if (patch.sizeX != null) {
+                state.viewportWidth = patch.sizeX;
+            }
+            if (patch.sizeY != null) {
+                state.viewportHeight = patch.sizeY;
+            }
+            if (patch.sizeInnerPaneX != null) {
+                state.contentWidth = patch.sizeInnerPaneX;
+            }
+            if (patch.sizeInnerPaneY != null) {
+                state.contentHeight = patch.sizeInnerPaneY;
+            }
+            if (patch.clipContent != null) {
+                state.clipContent = patch.clipContent;
+            }
         }
         if (hosts?.vectorIslandEnabled && patch.contentLayerId != null) {
             let claimed = this.layers.claimLayerForScrollerIsland(patch.contentLayerId, patch.id!);
@@ -4131,8 +4162,14 @@ type ScrollerMeasurementState = {
     delegatesToPageScroll: boolean;
     snapHostDelegatesToPageScroll: boolean;
     // `ScrollerUpdate` messages only include contentLayerId when it changes, but root page-scroll
-    // delegation needs to remember that layer identity across later scroll-only deltas.
+    // delegation also needs the last engine-approved viewport/content metrics across later
+    // scroll-only deltas.
     contentLayerId?: number;
+    viewportWidth?: number;
+    viewportHeight?: number;
+    contentWidth?: number;
+    contentHeight?: number;
+    clipContent?: boolean;
     transform: number[];
     lastMeasuredScrollX: number;
     lastMeasuredScrollY: number;

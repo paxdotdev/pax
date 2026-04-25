@@ -24,7 +24,7 @@ pub const TYPE_ID_SLOT: &str = "SLOT";
 pub const TYPE_ID_COMMENT: &str = "COMMENT";
 
 // Property names that every renderable node may accept.
-pub const COMMON_PROPERTIES: [&str; 14] = [
+pub const COMMON_PROPERTIES: [&str; 15] = [
     "id",
     "x",
     "y",
@@ -39,6 +39,7 @@ pub const COMMON_PROPERTIES: [&str; 14] = [
     "width",
     "height",
     "opacity",
+    "layout_role",
 ];
 
 // Checks whether contextual `into` inference should be attempted for a target type.
@@ -75,5 +76,6 @@ pub const COMMON_PROPERTIES_TYPE: &[(&str, &str)] = &[
     ("width", "pax_engine::api::Size"),
     ("height", "pax_engine::api::Size"),
     ("opacity", "pax_engine::api::Opacity"),
+    ("layout_role", "pax_engine::api::LayoutRole"),
     ("_raycastable", "bool"),
 ];

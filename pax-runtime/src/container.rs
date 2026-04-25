@@ -1,7 +1,9 @@
 use crate::api::math::Transform2;
-use crate::api::NodeContext;
+use crate::api::{borrow, NodeContext, Property};
 use crate::node_interface::NodeLocal;
-use pax_runtime_api::Interpolatable;
+use crate::{project_child_layout_hull_to_parent_space, ExpandedNode, LayoutHull};
+use pax_runtime_api::{properties::UntypedProperty, Interpolatable};
+use std::rc::Rc;
 
 /// Trait for nodes that semantically interpret child content.
 ///
@@ -9,6 +11,245 @@ use pax_runtime_api::Interpolatable;
 /// behavior on top of the runtime's normalized `content_children` view.
 pub trait Container {
     fn bind_container(&self, _ctx: &NodeContext) {}
+}
+
+/// Measure the aggregate layout hull contributed by `content_children` in the
+/// container's local coordinate space.
+///
+/// Empty content is treated as a zero-sized valid hull so autosized containers
+/// can collapse to `0x0` when they have no children.
+pub fn measure_content_children_layout_hull(ctx: &NodeContext) -> LayoutHull {
+    let content_children = ctx.content_children.get();
+    if content_children.is_empty() {
+        return LayoutHull::from_axis_ranges(Some((0.0, 0.0)), Some((0.0, 0.0)));
+    }
+
+    let mut hull: Option<LayoutHull> = None;
+    for child in content_children.iter() {
+        if child.is_layout_breakout() {
+            // Breakout nodes stay parent-local but are intentionally excluded
+            // from the parent's measured hull.
+            continue;
+        }
+        let projected_hull = project_child_layout_hull_to_parent_space(
+            ctx.node_transform_and_bounds,
+            child.transform_and_bounds.get(),
+            child.subtree_layout_hull.get(),
+        );
+        hull = Some(match hull {
+            Some(existing) => existing.union(projected_hull),
+            None => projected_hull,
+        });
+    }
+
+    hull.unwrap_or_else(|| LayoutHull::from_axis_ranges(Some((0.0, 0.0)), Some((0.0, 0.0))))
+}
+
+/// Measure forward autosize extents from `content_children`.
+pub fn measure_content_children_forward_extents(ctx: &NodeContext) -> (Option<f64>, Option<f64>) {
+    let hull = measure_content_children_layout_hull(ctx);
+    (hull.forward_extent_x(), hull.forward_extent_y())
+}
+
+/// Resolve one axis of autosize given the public `autosize` toggle plus an optional override.
+pub fn resolve_axis_autosize(
+    autosize: bool,
+    axis_override: Option<bool>,
+    default_when_enabled: bool,
+) -> bool {
+    axis_override.unwrap_or(autosize && default_when_enabled)
+}
+
+/// Resolve a node's measured size from its `content_children`.
+///
+/// Explicit axes keep their current container bounds; implicit axes use the
+/// measured forward extents when they are valid. If an implicit axis cannot be
+/// measured safely, this returns `None` so the caller can fall back.
+pub fn resolve_content_autosize_measurement(
+    ctx: &NodeContext,
+    width_explicit: bool,
+    height_explicit: bool,
+) -> Option<(f64, f64)> {
+    resolve_content_autosize_measurement_with_axes(ctx, width_explicit, height_explicit, true, true)
+}
+
+/// Resolve a node's measured size from `content_children` with explicit per-axis autosize control.
+pub fn resolve_content_autosize_measurement_with_axes(
+    ctx: &NodeContext,
+    width_explicit: bool,
+    height_explicit: bool,
+    autosize_width: bool,
+    autosize_height: bool,
+) -> Option<(f64, f64)> {
+    if width_explicit && height_explicit {
+        return None;
+    }
+    if !autosize_width && !autosize_height {
+        return None;
+    }
+
+    let bounds = ctx.bounds_self.get();
+    let (content_width, content_height) = measure_content_children_forward_extents(ctx);
+
+    Some((
+        if width_explicit || !autosize_width {
+            bounds.0
+        } else {
+            content_width?
+        },
+        if height_explicit || !autosize_height {
+            bounds.1
+        } else {
+            content_height?
+        },
+    ))
+}
+
+/// Update `measured_size` from `content_children` when autosize is enabled.
+pub fn sync_content_autosize(expanded_node: &Rc<ExpandedNode>, ctx: &NodeContext, enabled: bool) {
+    sync_content_autosize_with_axes(expanded_node, ctx, enabled, enabled);
+}
+
+/// Update `measured_size` from `content_children` with explicit per-axis autosize control.
+pub fn sync_content_autosize_with_axes(
+    expanded_node: &Rc<ExpandedNode>,
+    ctx: &NodeContext,
+    autosize_width: bool,
+    autosize_height: bool,
+) {
+    let measured_size = if autosize_width || autosize_height {
+        let common_props = expanded_node.get_common_properties();
+        let common_props = borrow!(common_props);
+        let width_explicit = common_props.width.get().is_some();
+        let height_explicit = common_props.height.get().is_some();
+        drop(common_props);
+
+        resolve_content_autosize_measurement_with_axes(
+            ctx,
+            width_explicit,
+            height_explicit,
+            autosize_width,
+            autosize_height,
+        )
+    } else {
+        None
+    };
+
+    match measured_size {
+        Some(measured_size) => {
+            if expanded_node.measured_size.get() != Some(measured_size) {
+                expanded_node.set_measured_size(measured_size.0, measured_size.1);
+            }
+        }
+        None => {
+            if expanded_node.measured_size.get().is_some() {
+                expanded_node.measured_size.set(None);
+            }
+        }
+    }
+}
+
+fn rebind_content_measurement_effect<F>(
+    expanded_node: &Rc<ExpandedNode>,
+    runtime_context: &Rc<crate::RuntimeContext>,
+    listener_name: &'static str,
+    extra_deps: &[UntypedProperty],
+    effect: F,
+) where
+    F: Fn(&Rc<ExpandedNode>, &NodeContext) + Clone + 'static,
+{
+    let common_props = expanded_node.get_common_properties();
+    let (width_prop, height_prop) = {
+        let common_props = borrow!(common_props);
+        (common_props.width.clone(), common_props.height.clone())
+    };
+    let node_ctx = expanded_node.get_node_context(runtime_context);
+    let mut deps = vec![
+        expanded_node.transform_and_bounds.untyped(),
+        width_prop.untyped(),
+        height_prop.untyped(),
+    ];
+    deps.extend(extra_deps.iter().cloned());
+    for child in node_ctx.content_children.get().iter() {
+        let child_cp = child.get_common_properties();
+        deps.push(borrow!(child_cp).layout_role.untyped());
+        deps.push(child.transform_and_bounds.untyped());
+        deps.push(child.subtree_layout_hull.untyped());
+    }
+
+    let weak_node = Rc::downgrade(expanded_node);
+    let runtime_context = Rc::clone(runtime_context);
+    expanded_node
+        .content_measurement_listener
+        .replace_with(Property::computed_with_name(
+            move || {
+                let Some(node) = weak_node.upgrade() else {
+                    return;
+                };
+                let node_ctx = node.get_node_context(&runtime_context);
+                effect(&node, &node_ctx);
+            },
+            &deps,
+            listener_name,
+        ));
+}
+
+/// Bind a reactive content-measurement effect to this node.
+///
+/// The effect is re-evaluated after the tree update pass, before occlusion and
+/// layer-plan generation, and its dependency list is rebound whenever the
+/// normalized `content_children` list changes.
+pub fn bind_content_measurement_effect<F>(
+    expanded_node: &Rc<ExpandedNode>,
+    ctx: &NodeContext,
+    listener_name: &'static str,
+    extra_deps: &[UntypedProperty],
+    effect: F,
+) where
+    F: Fn(&Rc<ExpandedNode>, &NodeContext) + Clone + 'static,
+{
+    if expanded_node.content_measurement_bound.replace(true) {
+        return;
+    }
+
+    rebind_content_measurement_effect(
+        expanded_node,
+        &ctx.runtime_context,
+        listener_name,
+        extra_deps,
+        effect.clone(),
+    );
+    ctx.runtime_context.register_node_effect_property(
+        expanded_node.id,
+        &expanded_node.content_measurement_listener,
+    );
+
+    let weak_node = Rc::downgrade(expanded_node);
+    let runtime_context = Rc::clone(&ctx.runtime_context);
+    let extra_deps = extra_deps.to_vec();
+    let rebind_name = format!("{listener_name} rebind");
+    expanded_node
+        .content_measurement_rebind_listener
+        .replace_with(Property::computed_with_name(
+            move || {
+                let Some(node) = weak_node.upgrade() else {
+                    return;
+                };
+                rebind_content_measurement_effect(
+                    &node,
+                    &runtime_context,
+                    listener_name,
+                    &extra_deps,
+                    effect.clone(),
+                );
+            },
+            &[ctx.content_children_changed.untyped()],
+            &rebind_name,
+        ));
+    ctx.runtime_context.register_node_effect_property(
+        expanded_node.id,
+        &expanded_node.content_measurement_rebind_listener,
+    );
 }
 
 /// Engine-internal selector for which child family should be normalized into
@@ -35,11 +276,11 @@ impl Interpolatable for ContainerFrame {}
 #[cfg(test)]
 mod tests {
     use crate::api::math::Transform2;
-    use crate::api::CommonProperties;
-    use crate::api::Layer;
+    use crate::api::{CommonProperties, Layer, LayoutRole};
     use crate::{
-        BaseInstance, ComponentInstance, ExpandedNode, Globals, InstanceFlags, InstanceNode,
-        InstantiationArgs, RuntimeContext, RuntimePropertiesStackFrame, TransformAndBounds,
+        sync_content_autosize, sync_content_autosize_with_axes, BaseInstance, ComponentInstance,
+        ExpandedNode, Globals, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
+        RuntimePropertiesStackFrame, TransformAndBounds,
     };
     use pax_runtime_api::pax_value::PaxAny;
     use pax_runtime_api::{Platform, Property, OS};
@@ -192,5 +433,67 @@ mod tests {
             component_node.expanded_and_flattened_slot_children.get()[0].id
         );
         assert_eq!(node_ctx.content_children_count.get(), 1);
+    }
+
+    #[test]
+    fn sync_content_autosize_collapses_empty_content() {
+        let direct: Rc<dyn InstanceNode> =
+            TestDirectNode::instantiate(direct_node_args(Vec::new()));
+        let root_component =
+            ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&direct)]), None));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let root = ExpandedNode::initialize_root(root_component, &context);
+
+        root.recurse_update(&context);
+        let direct_node = root.children.get().first().cloned().unwrap();
+        let node_ctx = direct_node.get_node_context(&context);
+
+        sync_content_autosize(&direct_node, &node_ctx, true);
+
+        assert_eq!(direct_node.measured_size.get(), Some((0.0, 0.0)));
+    }
+
+    #[test]
+    fn sync_content_autosize_with_axes_keeps_unmanaged_axis_at_layout_bounds() {
+        let direct: Rc<dyn InstanceNode> =
+            TestDirectNode::instantiate(direct_node_args(Vec::new()));
+        let root_component =
+            ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&direct)]), None));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let root = ExpandedNode::initialize_root(root_component, &context);
+
+        root.recurse_update(&context);
+        let direct_node = root.children.get().first().cloned().unwrap();
+        let node_ctx = direct_node.get_node_context(&context);
+
+        sync_content_autosize_with_axes(&direct_node, &node_ctx, false, true);
+
+        assert_eq!(direct_node.measured_size.get(), Some((100.0, 0.0)));
+    }
+
+    #[test]
+    fn sync_content_autosize_ignores_breakout_children() {
+        let leaf: Rc<dyn InstanceNode> = TestDirectNode::instantiate(direct_node_args(Vec::new()));
+        let direct: Rc<dyn InstanceNode> =
+            TestDirectNode::instantiate(direct_node_args(vec![leaf]));
+        let root_component =
+            ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&direct)]), None));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let root = ExpandedNode::initialize_root(root_component, &context);
+
+        root.recurse_update(&context);
+        let direct_node = root.children.get().first().cloned().unwrap();
+        let child = direct_node.children.get().first().cloned().unwrap();
+        child.set_measured_size(50.0, 60.0);
+        let child_common_props = child.get_common_properties();
+        child_common_props
+            .borrow()
+            .layout_role
+            .set(Some(LayoutRole::Breakout));
+
+        let node_ctx = direct_node.get_node_context(&context);
+        sync_content_autosize(&direct_node, &node_ctx, true);
+
+        assert_eq!(direct_node.measured_size.get(), Some((0.0, 0.0)));
     }
 }

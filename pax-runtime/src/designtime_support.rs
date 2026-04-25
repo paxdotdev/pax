@@ -97,6 +97,7 @@ struct DesigntimeInspectNodeFlags {
     invisible_to_raycasting: bool,
     is_component: bool,
     is_slot: bool,
+    layout_role: Option<String>,
     unclippable: Option<bool>,
     raycastable_override: Option<bool>,
     suspended_override: Option<bool>,
@@ -111,7 +112,7 @@ struct DesigntimeInspectNodeLayout {
     scale: [f64; 2],
     skew: [f64; 2],
     rotation: f64,
-    rendered_size: Option<[f64; 2]>,
+    measured_size: Option<[f64; 2]>,
 }
 
 #[cfg(feature = "designtime")]
@@ -663,6 +664,10 @@ fn serialize_designtime_inspect_tree_node(
     let common_properties = Rc::clone(&*node.common_properties.borrow());
     let common_properties = common_properties.borrow();
     let user_id = common_properties.id.get();
+    let layout_role = common_properties
+        .layout_role
+        .get()
+        .map(|layout_role| format!("{:?}", layout_role));
     let unclippable = common_properties.unclippable.get();
     let raycastable_override = common_properties._raycastable.get();
     let suspended_override = common_properties._suspended.get();
@@ -702,6 +707,7 @@ fn serialize_designtime_inspect_tree_node(
             invisible_to_raycasting: flags.invisible_to_raycasting,
             is_component: flags.is_component,
             is_slot: flags.is_slot,
+            layout_role,
             unclippable,
             raycastable_override,
             suspended_override,
@@ -713,8 +719,8 @@ fn serialize_designtime_inspect_tree_node(
             scale: [transform_parts.scale.x, transform_parts.scale.y],
             skew: [transform_parts.skew.x, transform_parts.skew.y],
             rotation: transform_parts.rotation,
-            rendered_size: node
-                .rendered_size
+            measured_size: node
+                .measured_size
                 .get()
                 .map(|(width, height)| [width, height]),
         },

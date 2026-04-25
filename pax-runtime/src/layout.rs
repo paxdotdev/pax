@@ -60,6 +60,147 @@ pub fn apply_container_frame(
     }
 }
 
+/// Per-axis local extents contributed by a node subtree for container measurement.
+///
+/// Coordinates are expressed in the node's local layout space. Validity is tracked
+/// per axis so parent-dependent axes can be ignored without discarding the entire
+/// subtree.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct LayoutHull {
+    pub min_x: f64,
+    pub max_x: f64,
+    pub min_y: f64,
+    pub max_y: f64,
+    pub valid_x: bool,
+    pub valid_y: bool,
+}
+
+impl Interpolatable for LayoutHull {}
+
+impl LayoutHull {
+    pub fn from_bounds(bounds: (f64, f64)) -> Self {
+        Self::from_axis_ranges(Some((0.0, bounds.0)), Some((0.0, bounds.1)))
+    }
+
+    pub fn from_axis_ranges(x: Option<(f64, f64)>, y: Option<(f64, f64)>) -> Self {
+        let (min_x, max_x, valid_x) = match x {
+            Some((min_x, max_x)) => {
+                let (min_x, max_x) = order_pair(min_x, max_x);
+                (min_x, max_x, true)
+            }
+            None => (0.0, 0.0, false),
+        };
+        let (min_y, max_y, valid_y) = match y {
+            Some((min_y, max_y)) => {
+                let (min_y, max_y) = order_pair(min_y, max_y);
+                (min_y, max_y, true)
+            }
+            None => (0.0, 0.0, false),
+        };
+        Self {
+            min_x,
+            max_x,
+            min_y,
+            max_y,
+            valid_x,
+            valid_y,
+        }
+    }
+
+    pub fn x_range(&self) -> Option<(f64, f64)> {
+        self.valid_x.then_some((self.min_x, self.max_x))
+    }
+
+    pub fn y_range(&self) -> Option<(f64, f64)> {
+        self.valid_y.then_some((self.min_y, self.max_y))
+    }
+
+    pub fn union(self, other: Self) -> Self {
+        Self::from_axis_ranges(
+            union_axis_ranges(self.x_range(), other.x_range()),
+            union_axis_ranges(self.y_range(), other.y_range()),
+        )
+    }
+
+    pub fn forward_extent_x(&self) -> Option<f64> {
+        self.x_range().map(|(_, max_x)| max_x.max(0.0))
+    }
+
+    pub fn forward_extent_y(&self) -> Option<f64> {
+        self.y_range().map(|(_, max_y)| max_y.max(0.0))
+    }
+}
+
+/// Project a local layout hull through the provided transform and return the
+/// axis-aligned hull in the destination coordinate space.
+pub fn project_layout_hull<F: Space, T: Space>(
+    transform: Transform2<F, T>,
+    hull: LayoutHull,
+) -> LayoutHull {
+    let mixes_axes = transform.m[1].abs() > f64::EPSILON || transform.m[2].abs() > f64::EPSILON;
+    if hull.valid_x && hull.valid_y {
+        let corners = [
+            transform * Point2::new(hull.min_x, hull.min_y),
+            transform * Point2::new(hull.min_x, hull.max_y),
+            transform * Point2::new(hull.max_x, hull.min_y),
+            transform * Point2::new(hull.max_x, hull.max_y),
+        ];
+        let (min_x, max_x) = corners.iter().fold(
+            (f64::INFINITY, f64::NEG_INFINITY),
+            |(min_x, max_x), point| (min_x.min(point.x), max_x.max(point.x)),
+        );
+        let (min_y, max_y) = corners.iter().fold(
+            (f64::INFINITY, f64::NEG_INFINITY),
+            |(min_y, max_y), point| (min_y.min(point.y), max_y.max(point.y)),
+        );
+        return LayoutHull::from_axis_ranges(Some((min_x, max_x)), Some((min_y, max_y)));
+    }
+
+    if mixes_axes {
+        return LayoutHull::default();
+    }
+
+    let x = hull
+        .x_range()
+        .map(|(min_x, max_x)| project_axis_range(min_x, max_x, transform.m[0], transform.m[4]));
+    let y = hull
+        .y_range()
+        .map(|(min_y, max_y)| project_axis_range(min_y, max_y, transform.m[3], transform.m[5]));
+    LayoutHull::from_axis_ranges(x, y)
+}
+
+/// Project a child's local hull into its parent's local layout space.
+pub fn project_child_layout_hull_to_parent_space(
+    parent: TransformAndBounds<NodeLocal, Window>,
+    child: TransformAndBounds<NodeLocal, Window>,
+    child_hull: LayoutHull,
+) -> LayoutHull {
+    let relative_transform = parent.transform.inverse() * child.transform;
+    project_layout_hull(relative_transform, child_hull)
+}
+
+fn order_pair(a: f64, b: f64) -> (f64, f64) {
+    if a <= b {
+        (a, b)
+    } else {
+        (b, a)
+    }
+}
+
+fn union_axis_ranges(lhs: Option<(f64, f64)>, rhs: Option<(f64, f64)>) -> Option<(f64, f64)> {
+    match (lhs, rhs) {
+        (Some((lhs_min, lhs_max)), Some((rhs_min, rhs_max))) => {
+            Some((lhs_min.min(rhs_min), lhs_max.max(rhs_max)))
+        }
+        (Some(range), None) | (None, Some(range)) => Some(range),
+        (None, None) => None,
+    }
+}
+
+fn project_axis_range(min: f64, max: f64, scale: f64, translate: f64) -> (f64, f64) {
+    order_pair(scale * min + translate, scale * max + translate)
+}
+
 /// Resolve one set of layout properties into concrete bounds and a window-space transform.
 pub fn calculate_transform_and_bounds(
     LayoutProperties {
@@ -379,6 +520,43 @@ fn test_apply_container_frame_uses_assigned_bounds() {
     assert_eq!(result.bounds, (30.0, 40.0));
     assert_eq!(result.transform.m[4], 60.0);
     assert_eq!(result.transform.m[5], 80.0);
+}
+
+#[test]
+fn test_project_layout_hull_with_translation_preserves_forward_extents() {
+    let hull = LayoutHull::from_axis_ranges(Some((-10.0, 40.0)), Some((0.0, 20.0)));
+    let projected = project_layout_hull(
+        Transform2::<Generic>::translate(Vector2::new(30.0, -5.0)),
+        hull,
+    );
+
+    assert_eq!(projected.x_range(), Some((20.0, 70.0)));
+    assert_eq!(projected.y_range(), Some((-5.0, 15.0)));
+    assert_eq!(projected.forward_extent_x(), Some(70.0));
+    assert_eq!(projected.forward_extent_y(), Some(15.0));
+}
+
+#[test]
+fn test_project_layout_hull_keeps_axis_independence_without_cross_axis_mixing() {
+    let hull = LayoutHull::from_axis_ranges(Some((10.0, 30.0)), None);
+    let projected = project_layout_hull(
+        Transform2::<Generic>::new([-2.0, 0.0, 0.0, 3.0, 5.0, 7.0]),
+        hull,
+    );
+
+    assert_eq!(projected.x_range(), Some((-55.0, -15.0)));
+    assert_eq!(projected.y_range(), None);
+}
+
+#[test]
+fn test_project_layout_hull_invalidates_partial_axes_when_transform_mixes_axes() {
+    let hull = LayoutHull::from_axis_ranges(Some((0.0, 20.0)), None);
+    let projected = project_layout_hull(
+        Transform2::<Generic>::rotate(std::f64::consts::FRAC_PI_4),
+        hull,
+    );
+
+    assert_eq!(projected, LayoutHull::default());
 }
 
 impl Interpolatable for LayoutProperties {}

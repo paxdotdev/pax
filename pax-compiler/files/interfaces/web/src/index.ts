@@ -147,13 +147,19 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
     }, []);
     let lastViewportWidth = -1;
     let lastViewportHeight = -1;
-    let resizeHandler = () => {
+    let measureViewport = () => {
         let root = document.documentElement;
+        let mountElement = mount as HTMLElement;
+        let rect = mountElement.getBoundingClientRect();
+        let width = rect.width || mountElement.clientWidth || root.clientWidth || window.innerWidth || 0;
+        let height = rect.height || mountElement.clientHeight || root.clientHeight || window.innerHeight || 0;
+        return { width, height };
+    };
+    let resizeHandler = () => {
         // Use the layout viewport as the authoritative app size. Do not relayout the entire scene
         // during iOS Safari toolbar collapse: delegated page scroll should reveal more of the page
         // through the browser-owned visual viewport, not by continuously changing engine layout.
-        let width = window.innerWidth ?? root.clientWidth ?? mount.clientWidth;
-        let height = window.innerHeight ?? root.clientHeight ?? mount.clientHeight;
+        let { width, height } = measureViewport();
         if (
             nativePool.hasActivePageScrollDelegation()
             && Math.abs(width - lastViewportWidth) <= 0.5
@@ -169,9 +175,18 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
         }
         lastViewportWidth = width;
         lastViewportHeight = height;
-        chassis.send_viewport_update(width, height);
+        chassis.interrupt({
+            "ViewportResize": {
+                "width": width,
+                "height": height,
+            },
+        }, undefined);
     };
     window.addEventListener('resize', resizeHandler);
+    let resizeObserver = new ResizeObserver(() => {
+        resizeHandler();
+    });
+    resizeObserver.observe(mount);
     // Initialize viewport-dependent layout before the first engine tick so native/scroller hosts do
     // not bootstrap against a transient 0x0 viewport.
     resizeHandler();

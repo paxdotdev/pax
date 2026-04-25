@@ -5,8 +5,9 @@ use pax_engine::*;
 use pax_message::{AnyCreatePatch, NativeInterrupt, ScrollerPatch};
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell, Layer, NodeContext};
 use pax_runtime::{
-    BaseInstance, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
-    InstantiationArgs, RuntimeContext, ScrollerSurfaceState,
+    bind_content_measurement_effect, measure_content_children_forward_extents, BaseInstance,
+    ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode, InstantiationArgs,
+    RuntimeContext, ScrollerSurfaceState,
 };
 use std::iter;
 use std::rc::Rc;
@@ -21,8 +22,8 @@ use_RefCell!();
     <ScrollerHost
         scroll_pos_x=bind:scroll_pos_x
         scroll_pos_y=bind:scroll_pos_y
-        scroll_width={self.scroll_width}
-        scroll_height={self.scroll_height}
+        scroll_width={self._resolved_scroll_width}
+        scroll_height={self._resolved_scroll_height}
         border_radius={self.border_radius}
         snap_positions_x={self.snap_positions_x}
         snap_positions_y={self.snap_positions_y}
@@ -35,7 +36,6 @@ use_RefCell!();
 
     @settings {
         @mount: on_mount
-        @pre_render: update,
     }
 
 )]
@@ -49,8 +49,15 @@ pub struct Scroller {
     pub scroll_width: Property<Size>,
     /// Height of the scrollable content pane.
     pub scroll_height: Property<Size>,
-    /// Automatically sizes the scroll pane to its slotted children when possible.
-    pub auto_size: Property<bool>,
+    /// Automatically sizes the scroll pane on its default axes when possible.
+    ///
+    /// For `Scroller`, the default autosized axis is `y`; `x` remains bound to
+    /// `scroll_width` unless `autosize_x` explicitly opts in.
+    pub autosize: Property<bool>,
+    /// Optional override for whether autosize manages the `x` axis.
+    pub autosize_x: Property<Option<bool>>,
+    /// Optional override for whether autosize manages the `y` axis.
+    pub autosize_y: Property<Option<bool>>,
     /// Corner radius for the scroller clipping region, in pixels.
     pub border_radius: Property<f64>,
     /// Scroll snap anchors expressed in px/% along each axis.
@@ -66,8 +73,10 @@ pub struct Scroller {
 
     // Private template bookkeeping.
     pub _slot_children_count: Property<usize>,
-    // Private guard that prevents repeatedly rebinding auto-size logic.
-    pub _auto_size_bound: Property<bool>,
+    // Host-facing resolved content width after applying autosize semantics.
+    pub _resolved_scroll_width: Property<Size>,
+    // Host-facing resolved content height after applying autosize semantics.
+    pub _resolved_scroll_height: Property<Size>,
 }
 
 impl Default for Scroller {
@@ -77,13 +86,16 @@ impl Default for Scroller {
             scroll_pos_y: Default::default(),
             scroll_width: Default::default(),
             scroll_height: Default::default(),
-            auto_size: Property::new(false),
+            autosize: Property::new(false),
+            autosize_x: Property::new(None),
+            autosize_y: Property::new(None),
             border_radius: Property::new(0.0),
             snap_positions_x: Default::default(),
             snap_positions_y: Default::default(),
             _clip_content: Property::new(true),
             _slot_children_count: Default::default(),
-            _auto_size_bound: Property::new(false),
+            _resolved_scroll_width: Default::default(),
+            _resolved_scroll_height: Default::default(),
         }
     }
 }
@@ -694,46 +706,115 @@ impl InstanceNode for ScrollerHostInstance {
 }
 
 impl Scroller {
-    // Binds slot count and optional auto-size computation for the inline template.
+    // Binds slot count and the reactive autosize measurement for the inline template.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let slot_children_count = ctx.slot_children_count.clone();
-        let deps = [slot_children_count.untyped()];
-        self._slot_children_count
-            .replace_with(Property::computed(move || slot_children_count.get(), &deps));
-    }
+        let content_children_count = ctx.content_children_count.clone();
+        let deps = [content_children_count.untyped()];
+        self._slot_children_count.replace_with(Property::computed(
+            move || content_children_count.get(),
+            &deps,
+        ));
 
-    fn bind_to_slot_children(&self, ctx: &NodeContext) {
-        let slot_children = ctx.slot_children.clone();
-        let self_transform = ctx.node_transform_and_bounds.clone();
-        let slot_children_attached_listener = ctx.slot_children_attached_listener.clone();
+        let Some(expanded_node) = ctx.expanded_node.upgrade() else {
+            return;
+        };
+
+        self._resolved_scroll_width.set(self.scroll_width.get());
+        self._resolved_scroll_height.set(self.scroll_height.get());
+
+        let autosize = self.autosize.clone();
+        let autosize_x = self.autosize_x.clone();
+        let autosize_y = self.autosize_y.clone();
+        let scroll_width = self.scroll_width.clone();
+        let scroll_height = self.scroll_height.clone();
+        let resolved_scroll_width = self._resolved_scroll_width.clone();
+        let resolved_scroll_height = self._resolved_scroll_height.clone();
         let deps = [
-            slot_children_attached_listener.untyped(),
-            slot_children.untyped(),
+            autosize.untyped(),
+            autosize_x.untyped(),
+            autosize_y.untyped(),
+            scroll_width.untyped(),
+            scroll_height.untyped(),
         ];
+        bind_content_measurement_effect(
+            &expanded_node,
+            ctx,
+            "scroller autosize",
+            &deps,
+            move |_node, node_ctx| {
+                sync_scroller_autosize(
+                    node_ctx,
+                    &autosize,
+                    &autosize_x,
+                    &autosize_y,
+                    &scroll_width,
+                    &scroll_height,
+                    &resolved_scroll_width,
+                    &resolved_scroll_height,
+                );
+            },
+        );
+    }
+}
 
-        if self.scroll_height.get() == Default::default() {
-            self.scroll_height.replace_with(Property::computed(
-                move || {
-                    let slot_children = slot_children.get();
-                    let mut max_height: f64 = 0.0;
-                    let parent_y = self_transform.transform.m[5];
-                    for child in slot_children.iter() {
-                        let tab = child.transform_and_bounds.get();
-                        let y = tab.transform.m[5] - parent_y;
-                        max_height = max_height.max(tab.bounds.1 + y);
-                    }
-                    Size::Pixels(max_height.into())
-                },
-                &deps,
-            ));
-        }
+fn resolve_axis_autosize(
+    autosize: bool,
+    axis_override: Option<bool>,
+    default_when_enabled: bool,
+) -> bool {
+    axis_override.unwrap_or(autosize && default_when_enabled)
+}
+
+fn sync_scroller_autosize(
+    ctx: &NodeContext,
+    autosize: &Property<bool>,
+    autosize_x: &Property<Option<bool>>,
+    autosize_y: &Property<Option<bool>>,
+    scroll_width: &Property<Size>,
+    scroll_height: &Property<Size>,
+    resolved_scroll_width: &Property<Size>,
+    resolved_scroll_height: &Property<Size>,
+) {
+    let (content_width, content_height) = measure_content_children_forward_extents(ctx);
+    let manage_width = resolve_axis_autosize(autosize.get(), autosize_x.get(), false);
+    let manage_height = resolve_axis_autosize(autosize.get(), autosize_y.get(), true);
+
+    let resolved_width = if manage_width {
+        content_width
+            .map(|width| Size::Pixels(width.into()))
+            .unwrap_or_else(|| scroll_width.get())
+    } else {
+        scroll_width.get()
+    };
+    if resolved_scroll_width.get() != resolved_width {
+        resolved_scroll_width.set(resolved_width);
     }
 
-    // Ensures deferred auto-size binding runs during pre-render.
-    pub fn update(&mut self, ctx: &NodeContext) {
-        if self.auto_size.get() && !self._auto_size_bound.get() {
-            self.bind_to_slot_children(ctx);
-            self._auto_size_bound.set(true);
-        }
+    let resolved_height = if manage_height {
+        content_height
+            .map(|height| Size::Pixels(height.into()))
+            .unwrap_or_else(|| scroll_height.get())
+    } else {
+        scroll_height.get()
+    };
+    if resolved_scroll_height.get() != resolved_height {
+        resolved_scroll_height.set(resolved_height);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_axis_autosize;
+
+    #[test]
+    fn autosize_defaults_only_manage_y_for_scroller() {
+        assert!(!resolve_axis_autosize(true, None, false));
+        assert!(resolve_axis_autosize(true, None, true));
+    }
+
+    #[test]
+    fn axis_override_precedence_beats_default_autosize_semantics() {
+        assert!(resolve_axis_autosize(false, Some(true), false));
+        assert!(!resolve_axis_autosize(true, Some(false), true));
     }
 }
