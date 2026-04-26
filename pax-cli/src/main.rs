@@ -2,7 +2,7 @@ use clap::{crate_version, App, AppSettings, Arg, ArgMatches};
 use color_eyre::config::HookBuilder;
 use colored::{ColoredString, Colorize};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::{process, thread};
@@ -107,8 +107,17 @@ fn main() -> Result<(), Report> {
     let ARG_LIBDEV = Arg::with_name("libdev")
         .long("libdev")
         .takes_value(false)
+        .conflicts_with("libdev-mode")
         .help("Signal to the compiler to run certain operations in libdev mode, offering certain ergonomic affordances for Pax library developers.")
         .hidden(true); //hidden because this is of negative value to end-users; things are expected to break when invoked outside of the pax monorepo
+
+    #[allow(non_snake_case)]
+    let ARG_LIBDEV_MODE = Arg::with_name("libdev-mode")
+        .long("libdev-mode")
+        .takes_value(true)
+        .possible_values(&["auto", "true", "false"])
+        .help("Controls libdev behavior. Auto enables libdev for Pax monorepo examples/tests only.")
+        .hidden(true);
 
     let matches = App::new("pax")
         .name("pax")
@@ -128,6 +137,7 @@ fn main() -> Result<(), Report> {
                 .arg( ARG_IOS_DEVELOPMENT_TEAM.clone() )
                 .arg( ARG_VERBOSE.clone() )
                 .arg( ARG_LIBDEV.clone() )
+                .arg( ARG_LIBDEV_MODE.clone() )
                 .arg( ARG_WEBGL.clone() )
         )
         .subcommand(
@@ -141,6 +151,7 @@ fn main() -> Result<(), Report> {
                 .arg( ARG_NO_DESIGNER.clone() )
                 .arg( ARG_VERBOSE.clone() )
                 .arg( ARG_LIBDEV.clone() )
+                .arg( ARG_LIBDEV_MODE.clone() )
                 .arg( ARG_RELEASE.clone() )
                 .arg( ARG_PROFILING.clone() )
                 .arg( ARG_WEBGL.clone() )
@@ -149,6 +160,7 @@ fn main() -> Result<(), Report> {
             App::new("clean")
                 .arg( ARG_PATH.clone() )
                 .arg( ARG_LIBDEV.clone() )
+                .arg( ARG_LIBDEV_MODE.clone() )
                 .about("Cleans the temporary files associated with the Pax project in the current working directory — notably, the temporary files generated into the .pax directory")
         )
         .subcommand(
@@ -160,6 +172,7 @@ fn main() -> Result<(), Report> {
                     .takes_value(true)
                     .index(1))  // Positional arg, `pax create positional_arg_here`
                 .arg( ARG_LIBDEV.clone())
+                .arg( ARG_LIBDEV_MODE.clone())
         )
         .subcommand(
             App::new("libdev")
@@ -185,6 +198,7 @@ fn main() -> Result<(), Report> {
                 .about("Ejects the chassis interface for the target platform")
                 .arg( ARG_TARGET.clone())
                 .arg( ARG_LIBDEV.clone())
+                .arg( ARG_LIBDEV_MODE.clone())
         )
         .subcommand(
             App::new("designtime-server")
@@ -227,12 +241,9 @@ fn main() -> Result<(), Report> {
         )
         .subcommand(docs::command())
         .subcommand(dev::command())
-        .get_matches_from(normalize_designer_args(std::env::args().collect())?);
+        .get_matches_from(normalize_cli_args(std::env::args().collect())?);
 
-    // Clap doesn't easily let us check a "global" arg without performing individual `match`es.
-    // Since we want to know at this top level whether `--libdev` is present, we will parse it manually.
-    let args: Vec<String> = std::env::args().collect();
-    let is_libdev_mode = args.contains(&"--libdev".to_string());
+    let is_libdev_mode = resolve_matches_libdev_mode(&matches)?;
 
     // Create a separate thread to handle signals e.g. via CTRL+C
 
@@ -263,7 +274,7 @@ fn perform_nominal_action(
             let target = args.value_of("target").unwrap().to_lowercase();
             let path = args.value_of("path").unwrap().to_string(); //default value "."
             let verbose = args.is_present("verbose");
-            let is_libdev_mode = args.is_present("libdev");
+            let is_libdev_mode = resolve_libdev_mode(args, Path::new(&path))?;
             let ios_device = args.value_of("ios-device").map(str::to_string);
             let ios_development_team = args.value_of("ios-development-team").map(str::to_string);
             let (should_run_designtime, should_run_designer) = resolve_dev_options(args, true)?;
@@ -291,7 +302,7 @@ fn perform_nominal_action(
             let target = args.value_of("target").unwrap().to_lowercase();
             let path = args.value_of("path").unwrap().to_string(); //default value "."
             let verbose = args.is_present("verbose");
-            let is_libdev_mode = args.is_present("libdev");
+            let is_libdev_mode = resolve_libdev_mode(args, Path::new(&path))?;
             let profile_wasm_size = args.is_present("profiling");
             let is_release = args.is_present("release") || profile_wasm_size;
             let ios_device = args.value_of("ios-device").map(str::to_string);
@@ -336,7 +347,7 @@ fn perform_nominal_action(
         }
         ("create", Some(args)) => {
             let path = args.value_of("path").unwrap().to_string(); //default value "."
-            let is_libdev_mode = args.is_present("libdev");
+            let is_libdev_mode = resolve_libdev_mode(args, Path::new(&path))?;
             let version = crate_version!().to_string(); // Note: this could also be parameterized, but an easy default is to clamp to the CLI version
 
             pax_compiler::perform_create(&CreateContext {
@@ -348,7 +359,7 @@ fn perform_nominal_action(
         }
         ("eject", Some(args)) => {
             let target = args.value_of("target").unwrap().to_lowercase();
-            let is_libdev_mode = args.is_present("libdev");
+            let is_libdev_mode = resolve_libdev_mode(args, Path::new("."))?;
 
             let _ = pax_compiler::perform_eject(&RunContext {
                 target: parse_run_target(&target)?,
@@ -443,7 +454,7 @@ fn parse_run_target(target: &str) -> Result<RunTarget, Report> {
     RunTarget::parse(target).map_err(|error| eyre!(error))
 }
 
-fn normalize_designer_args(args: Vec<String>) -> Result<Vec<String>, Report> {
+fn normalize_cli_args(args: Vec<String>) -> Result<Vec<String>, Report> {
     let mut normalized = Vec::with_capacity(args.len());
     let mut iter = args.into_iter().peekable();
 
@@ -471,12 +482,137 @@ fn normalize_designer_args(args: Vec<String>) -> Result<Vec<String>, Report> {
                     value
                 ));
             }
+        } else if arg == "--libdev" {
+            match iter.peek().map(String::as_str) {
+                Some("true") | Some("false") | Some("auto") => {
+                    let value = iter.next().unwrap();
+                    normalized.push(format!("--libdev-mode={value}"));
+                }
+                _ => normalized.push(arg),
+            }
+        } else if let Some(value) = arg.strip_prefix("--libdev=") {
+            if value == "true" || value == "false" || value == "auto" {
+                normalized.push(format!("--libdev-mode={value}"));
+            } else {
+                return Err(eyre!(
+                    "`--libdev` only accepts `true`, `false`, or `auto`, got `{}`",
+                    value
+                ));
+            }
         } else {
             normalized.push(arg);
         }
     }
 
     Ok(normalized)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LibdevMode {
+    Auto,
+    Enabled,
+    Disabled,
+}
+
+fn resolve_matches_libdev_mode(matches: &ArgMatches<'_>) -> Result<bool, Report> {
+    match matches.subcommand() {
+        ("run", Some(args)) | ("build", Some(args)) | ("clean", Some(args)) => {
+            let path = args.value_of("path").unwrap_or(".");
+            resolve_libdev_mode(args, Path::new(path))
+        }
+        ("create", Some(args)) => {
+            let path = args.value_of("path").unwrap_or(".");
+            resolve_libdev_mode(args, Path::new(path))
+        }
+        ("eject", Some(args)) => resolve_libdev_mode(args, Path::new(".")),
+        ("libdev", _) => Ok(true),
+        _ => Ok(false),
+    }
+}
+
+fn resolve_libdev_mode(args: &ArgMatches<'_>, project_path: &Path) -> Result<bool, Report> {
+    match parse_libdev_mode(args)? {
+        LibdevMode::Enabled => Ok(true),
+        LibdevMode::Disabled => Ok(false),
+        LibdevMode::Auto => Ok(auto_libdev_mode_for_project(project_path)),
+    }
+}
+
+fn parse_libdev_mode(args: &ArgMatches<'_>) -> Result<LibdevMode, Report> {
+    if args.is_present("libdev") {
+        return Ok(LibdevMode::Enabled);
+    }
+
+    match args.value_of("libdev-mode") {
+        Some("true") => Ok(LibdevMode::Enabled),
+        Some("false") => Ok(LibdevMode::Disabled),
+        Some("auto") | None => Ok(LibdevMode::Auto),
+        Some(value) => Err(eyre!(
+            "`--libdev` only accepts `true`, `false`, or `auto`, got `{}`",
+            value
+        )),
+    }
+}
+
+fn auto_libdev_mode_for_project(project_path: &Path) -> bool {
+    let Some(workspace_root) = local_pax_workspace_root() else {
+        return false;
+    };
+    let project_path = absolute_path(project_path);
+
+    [
+        workspace_root.join("examples").join("src"),
+        workspace_root.join("tests").join("src"),
+    ]
+    .iter()
+    .any(|libdev_root| project_path.starts_with(libdev_root))
+}
+
+fn local_pax_workspace_root() -> Option<PathBuf> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent()?;
+    let root = root.canonicalize().ok()?;
+
+    let required_members = [
+        "pax-cli",
+        "pax-compiler",
+        "pax-runtime",
+        "pax-std",
+        "pax-chassis-web",
+    ];
+    if !root.join("Cargo.toml").is_file()
+        || !required_members
+            .iter()
+            .all(|member| root.join(member).is_dir())
+    {
+        return None;
+    }
+
+    Some(root)
+}
+
+fn absolute_path(path: &Path) -> PathBuf {
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join(path)
+    };
+
+    if let Ok(canonical) = absolute.canonicalize() {
+        return canonical;
+    }
+
+    let Some(parent) = absolute.parent() else {
+        return absolute;
+    };
+    let Some(file_name) = absolute.file_name() else {
+        return absolute;
+    };
+    parent
+        .canonicalize()
+        .map(|parent| parent.join(file_name))
+        .unwrap_or(absolute)
 }
 
 fn resolve_dev_options(
@@ -633,5 +769,66 @@ fn kill_process(pid: u32) -> Result<(), std::io::Error> {
             std::io::ErrorKind::Other,
             "Failed to kill process",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_libdev_accepts_bare_flag() {
+        let normalized =
+            normalize_cli_args(vec!["pax-cli".into(), "build".into(), "--libdev".into()])
+                .expect("bare libdev should normalize");
+
+        assert_eq!(normalized, vec!["pax-cli", "build", "--libdev"]);
+    }
+
+    #[test]
+    fn normalize_libdev_accepts_explicit_value() {
+        let normalized = normalize_cli_args(vec![
+            "pax-cli".into(),
+            "build".into(),
+            "--libdev=false".into(),
+        ])
+        .expect("explicit libdev should normalize");
+
+        assert_eq!(normalized, vec!["pax-cli", "build", "--libdev-mode=false"]);
+    }
+
+    #[test]
+    fn normalize_libdev_preserves_following_positional_path() {
+        let normalized = normalize_cli_args(vec![
+            "pax-cli".into(),
+            "create".into(),
+            "--libdev".into(),
+            "my-project".into(),
+        ])
+        .expect("libdev should not consume non-mode positional values");
+
+        assert_eq!(
+            normalized,
+            vec!["pax-cli", "create", "--libdev", "my-project"]
+        );
+    }
+
+    #[test]
+    fn auto_libdev_detects_workspace_examples_and_tests_only() {
+        let workspace_root = local_pax_workspace_root().expect("test should run in Pax workspace");
+
+        assert!(auto_libdev_mode_for_project(
+            &workspace_root
+                .join("examples")
+                .join("src")
+                .join("starter-project")
+        ));
+        assert!(auto_libdev_mode_for_project(
+            &workspace_root.join("tests").join("src").join("path-test")
+        ));
+        assert!(!auto_libdev_mode_for_project(
+            &workspace_root.join("pax-cli")
+        ));
+        assert!(!auto_libdev_mode_for_project(&std::env::temp_dir()));
     }
 }
