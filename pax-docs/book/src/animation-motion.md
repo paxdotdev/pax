@@ -85,3 +85,35 @@ An `@out` transition plays when a component instance leaves the mounted tree, su
 Exiting instances remain mounted while their `@out` transition is running, then are removed.  If an exit transition cannot complete, Pax applies a default timeout so stale nodes are not retained indefinitely.
 
 Entering and exiting children run in parallel by default.  For repeated lists, use keyed `for` loops when the identity of an item should survive reordering or insertion; removed keys can then play `@out` while retained keys keep their existing component instances.
+
+## Container-owned Motion
+
+`@in` and `@out` define how a component animates itself.  Layout containers can also decide how sibling placement reacts while those transitions are running.
+
+For the runtime terms behind this behavior, especially `received_children` versus exit-retained payload, see [Runtime Child Ontology](runtime-child-ontology.md).
+
+`Stacker` exposes separate knobs for exit behavior and reflow behavior:
+- `exit_mode` controls whether exiting children remain in normal stack flow or hold their prior frames as ghosts
+- `reflow_transition` controls whether surviving children snap or ease into their new stack positions
+
+```pax
+<Stacker id=list gutter=12px>
+    for (item, i) in self.items key item.id {
+        <Chip label={item.label} />
+    }
+</Stacker>
+
+@settings {
+    #list {
+        exit_mode: ContainerExitMode::Ghost
+        reflow_transition: {
+            kind: ContainerReflowTransitionKind::Ease
+            frames: 18
+            curve: ContainerReflowCurve::OutQuad
+            name: ""
+        }
+    }
+}
+```
+
+With `exit_mode: ContainerExitMode::Ghost`, an exiting child can finish its `@out` transition from its previous stack frame while the retained children resolve layout without it.  `reflow_transition.kind: ContainerReflowTransitionKind::Ease` animates retained children between their previous and new stack frames; `Snap` switches immediately.  `Named` is reserved for a future current-component motion resource and is not wired yet.

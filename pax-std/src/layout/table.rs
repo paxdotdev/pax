@@ -45,10 +45,10 @@ impl Table {
             rows: self.rows.clone(),
             columns: self.columns.clone(),
         });
-        let slot_children = ctx.slot_children_count.clone();
-        let deps = [slot_children.untyped()];
+        let projected_children = ctx.projected_children_count.clone();
+        let deps = [projected_children.untyped()];
         self._slots
-            .replace_with(Property::computed(move || slot_children.get(), &deps));
+            .replace_with(Property::computed(move || projected_children.get(), &deps));
     }
 }
 
@@ -99,10 +99,10 @@ impl Row {
             ));
         })
         .expect("rows can not exist outside a table");
-        let slot_children = ctx.slot_children_count.clone();
-        let deps = [slot_children.untyped()];
+        let projected_children = ctx.projected_children_count.clone();
+        let deps = [projected_children.untyped()];
         self._slots
-            .replace_with(Property::computed(move || slot_children.get(), &deps));
+            .replace_with(Property::computed(move || projected_children.get(), &deps));
     }
 }
 
@@ -153,10 +153,10 @@ impl Col {
             ));
         })
         .expect("columns can not exist outside a table");
-        let slot_children = ctx.slot_children_count.clone();
-        let deps = [slot_children.untyped()];
+        let projected_children = ctx.projected_children_count.clone();
+        let deps = [projected_children.untyped()];
         self._slots
-            .replace_with(Property::computed(move || slot_children.get(), &deps));
+            .replace_with(Property::computed(move || projected_children.get(), &deps));
     }
 }
 
@@ -252,10 +252,10 @@ impl Span {
             ));
         })
         .expect("columns can not exist outside a table");
-        let slot_children = ctx.slot_children_count.clone();
-        let deps = [slot_children.untyped()];
+        let projected_children = ctx.projected_children_count.clone();
+        let deps = [projected_children.untyped()];
         self._slots
-            .replace_with(Property::computed(move || slot_children.get(), &deps));
+            .replace_with(Property::computed(move || projected_children.get(), &deps));
     }
 }
 
@@ -337,9 +337,9 @@ impl Cell {
             ));
         })
         .expect("columns can not exist outside a table");
-        let slot_children = ctx.slot_children_count.clone();
-        let deps = [slot_children.untyped()];
+        let projected_children = ctx.projected_children_count.clone();
+        let deps = [projected_children.untyped()];
         self._slots
-            .replace_with(Property::computed(move || slot_children.get(), &deps));
+            .replace_with(Property::computed(move || projected_children.get(), &deps));
     }
 }

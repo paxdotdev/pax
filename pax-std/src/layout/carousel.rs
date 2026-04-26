@@ -141,7 +141,7 @@ impl Carousel {
         let axis = self.axis.clone();
         let page_size = self.page_size.clone();
         let bounds = ctx.bounds_self.clone();
-        let slot_children_count = ctx.slot_children_count.clone();
+        let projected_children_count = ctx.projected_children_count.clone();
         let show_dots = self.show_dots.clone();
         let scroll_pos_x = self.scroll_pos_x.clone();
         let scroll_pos_y = self.scroll_pos_y.clone();
@@ -150,20 +150,20 @@ impl Carousel {
             axis.untyped(),
             page_size.untyped(),
             bounds.untyped(),
-            slot_children_count.untyped(),
+            projected_children_count.untyped(),
         ];
 
         let axis_pages = axis.clone();
         let page_size_pages = page_size.clone();
         let bounds_pages = bounds.clone();
-        let slot_children_count_pages = slot_children_count.clone();
+        let projected_children_count_pages = projected_children_count.clone();
         self._pages.replace_with(Property::computed(
             move || {
                 compute_layout(
                     axis_pages.get(),
                     page_size_pages.get(),
                     bounds_pages.get(),
-                    slot_children_count_pages.get(),
+                    projected_children_count_pages.get(),
                 )
                 .pages
             },
@@ -173,14 +173,14 @@ impl Carousel {
         let axis_width = axis.clone();
         let page_size_width = page_size.clone();
         let bounds_width = bounds.clone();
-        let slot_children_count_width = slot_children_count.clone();
+        let projected_children_count_width = projected_children_count.clone();
         self._page_width_px.replace_with(Property::computed(
             move || {
                 compute_layout(
                     axis_width.get(),
                     page_size_width.get(),
                     bounds_width.get(),
-                    slot_children_count_width.get(),
+                    projected_children_count_width.get(),
                 )
                 .page_width_px
             },
@@ -190,14 +190,14 @@ impl Carousel {
         let axis_height = axis.clone();
         let page_size_height = page_size.clone();
         let bounds_height = bounds.clone();
-        let slot_children_count_height = slot_children_count.clone();
+        let projected_children_count_height = projected_children_count.clone();
         self._page_height_px.replace_with(Property::computed(
             move || {
                 compute_layout(
                     axis_height.get(),
                     page_size_height.get(),
                     bounds_height.get(),
-                    slot_children_count_height.get(),
+                    projected_children_count_height.get(),
                 )
                 .page_height_px
             },
@@ -207,14 +207,14 @@ impl Carousel {
         let axis_scroll_width = axis.clone();
         let page_size_scroll_width = page_size.clone();
         let bounds_scroll_width = bounds.clone();
-        let slot_children_count_scroll_width = slot_children_count.clone();
+        let projected_children_count_scroll_width = projected_children_count.clone();
         self._scroll_width.replace_with(Property::computed(
             move || {
                 compute_layout(
                     axis_scroll_width.get(),
                     page_size_scroll_width.get(),
                     bounds_scroll_width.get(),
-                    slot_children_count_scroll_width.get(),
+                    projected_children_count_scroll_width.get(),
                 )
                 .scroll_width
             },
@@ -224,14 +224,14 @@ impl Carousel {
         let axis_scroll_height = axis.clone();
         let page_size_scroll_height = page_size.clone();
         let bounds_scroll_height = bounds.clone();
-        let slot_children_count_scroll_height = slot_children_count.clone();
+        let projected_children_count_scroll_height = projected_children_count.clone();
         self._scroll_height.replace_with(Property::computed(
             move || {
                 compute_layout(
                     axis_scroll_height.get(),
                     page_size_scroll_height.get(),
                     bounds_scroll_height.get(),
-                    slot_children_count_scroll_height.get(),
+                    projected_children_count_scroll_height.get(),
                 )
                 .scroll_height
             },
@@ -241,14 +241,14 @@ impl Carousel {
         let axis_snap_x = axis.clone();
         let page_size_snap_x = page_size.clone();
         let bounds_snap_x = bounds.clone();
-        let slot_children_count_snap_x = slot_children_count.clone();
+        let projected_children_count_snap_x = projected_children_count.clone();
         self._snap_positions_x.replace_with(Property::computed(
             move || {
                 compute_layout(
                     axis_snap_x.get(),
                     page_size_snap_x.get(),
                     bounds_snap_x.get(),
-                    slot_children_count_snap_x.get(),
+                    projected_children_count_snap_x.get(),
                 )
                 .snap_positions_x
             },
@@ -258,30 +258,30 @@ impl Carousel {
         let axis_snap_y = axis.clone();
         let page_size_snap_y = page_size.clone();
         let bounds_snap_y = bounds.clone();
-        let slot_children_count_snap_y = slot_children_count.clone();
+        let projected_children_count_snap_y = projected_children_count.clone();
         self._snap_positions_y.replace_with(Property::computed(
             move || {
                 compute_layout(
                     axis_snap_y.get(),
                     page_size_snap_y.get(),
                     bounds_snap_y.get(),
-                    slot_children_count_snap_y.get(),
+                    projected_children_count_snap_y.get(),
                 )
                 .snap_positions_y
             },
             &deps,
         ));
 
-        let slot_children_count_count = slot_children_count.clone();
+        let projected_children_count_count = projected_children_count.clone();
         self._page_count.replace_with(Property::computed(
-            move || slot_children_count_count.get(),
-            &[slot_children_count.untyped()],
+            move || projected_children_count_count.get(),
+            &[projected_children_count.untyped()],
         ));
 
         let axis_active = axis.clone();
         let page_size_active = page_size.clone();
         let bounds_active = bounds.clone();
-        let slot_children_count_active = slot_children_count.clone();
+        let projected_children_count_active = projected_children_count.clone();
         let scroll_pos_x_active = scroll_pos_x.clone();
         let scroll_pos_y_active = scroll_pos_y.clone();
         self._active_page.replace_with(Property::computed(
@@ -290,7 +290,7 @@ impl Carousel {
                     axis_active.get(),
                     page_size_active.get(),
                     bounds_active.get(),
-                    slot_children_count_active.get(),
+                    projected_children_count_active.get(),
                     scroll_pos_x_active.get(),
                     scroll_pos_y_active.get(),
                 )
@@ -299,26 +299,26 @@ impl Carousel {
                 axis.untyped(),
                 page_size.untyped(),
                 bounds.untyped(),
-                slot_children_count.untyped(),
+                projected_children_count.untyped(),
                 scroll_pos_x.untyped(),
                 scroll_pos_y.untyped(),
             ],
         ));
 
         let show_dots_prop = show_dots.clone();
-        let slot_children_count_dots = slot_children_count.clone();
+        let projected_children_count_dots = projected_children_count.clone();
         self._show_dots.replace_with(Property::computed(
-            move || show_dots_prop.get() && slot_children_count_dots.get() > 1,
-            &[show_dots.untyped(), slot_children_count.untyped()],
+            move || show_dots_prop.get() && projected_children_count_dots.get() > 1,
+            &[show_dots.untyped(), projected_children_count.untyped()],
         ));
 
         let axis_dots = axis.clone();
         let show_dots_specs = self._show_dots.clone();
         let active_page_specs = self._active_page.clone();
-        let slot_children_count_specs = slot_children_count.clone();
+        let projected_children_count_specs = projected_children_count.clone();
         self._dots.replace_with(Property::computed(
             move || {
-                let count = slot_children_count_specs.get();
+                let count = projected_children_count_specs.get();
                 if !show_dots_specs.get() || count <= 1 {
                     return vec![];
                 }
@@ -342,21 +342,24 @@ impl Carousel {
                 self._show_dots.untyped(),
                 self._active_page.untyped(),
                 axis.untyped(),
-                slot_children_count.untyped(),
+                projected_children_count.untyped(),
             ],
         ));
 
         let show_dots_width = self._show_dots.clone();
-        let slot_children_count_width = slot_children_count.clone();
+        let projected_children_count_width = projected_children_count.clone();
         self._dots_width.replace_with(Property::computed(
             move || {
-                let count = slot_children_count_width.get();
+                let count = projected_children_count_width.get();
                 if !show_dots_width.get() || count <= 1 {
                     return 0.0;
                 }
                 (count as f64 - 1.0) * (DOT_DIAMETER + DOT_GAP) + DOT_DIAMETER
             },
-            &[self._show_dots.untyped(), slot_children_count.untyped()],
+            &[
+                self._show_dots.untyped(),
+                projected_children_count.untyped(),
+            ],
         ));
 
         let axis_pill_width = axis.clone();
@@ -431,7 +434,7 @@ impl Carousel {
         if delta == 0 {
             return;
         }
-        let page_count = ctx.slot_children_count.get();
+        let page_count = ctx.projected_children_count.get();
         if page_count <= 1 {
             return;
         }

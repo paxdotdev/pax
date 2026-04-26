@@ -602,7 +602,7 @@ impl RuntimeContext {
         let mut to_process = vec![(root_node, false, Affine::IDENTITY)];
         while let Some((node, clipped, active_scroll_transform)) = to_process.pop() {
             // make sure slot sources are updated for this node
-            node.compute_flattened_slot_children();
+            node.compute_flattened_projected_children();
             // Browser-composited scrollers move descendants outside the engine transform tree.
             // Fold active scroll offsets into hit-testing so event rays line up with presented content.
             let (scroll_transform, clips_content) = {

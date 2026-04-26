@@ -24,6 +24,7 @@ pub struct ComponentTransitionBindingInfo {
 #[derive(Clone, Default, Debug)]
 pub struct ComponentTransitionConfig {
     pub has_enter: bool,
+    pub enter_frame_count: u64,
     pub has_exit: bool,
     pub exit_frame_count: u64,
     pub timeout_ms: u64,
@@ -480,6 +481,9 @@ impl PaxManifest {
             match Self::timeline_transition_kind(timeline, &bindings) {
                 Some(TRANSITION_PHASE_ENTER) => {
                     config.has_enter = true;
+                    config.enter_frame_count = config
+                        .enter_frame_count
+                        .max(Self::timeline_frame_count(timeline));
                 }
                 Some(TRANSITION_PHASE_EXIT) => {
                     config.has_exit = true;

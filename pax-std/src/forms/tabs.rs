@@ -48,11 +48,11 @@ pub struct Tabs {
 impl Tabs {
     // Mirrors slot count and derives fallback tab labels for the inline template.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let slot_count = ctx.slot_children_count.clone();
+        let slot_count = ctx.projected_children_count.clone();
         let deps = [slot_count.untyped()];
         self._slot_count
             .replace_with(Property::computed(move || slot_count.get(), &deps));
-        let slot_count = ctx.slot_children_count.clone();
+        let slot_count = ctx.projected_children_count.clone();
         let names = self.names.clone();
         let deps = [slot_count.untyped(), names.untyped()];
         self._names_filled.replace_with(Property::computed(

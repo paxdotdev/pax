@@ -37,8 +37,8 @@ use pax_manifest::{SelectorExpr, SettingsBlockElement, TypeId, ValueDefinition};
 
 use crate::{
     apply_container_frame, compute_tab, project_child_layout_hull_to_parent_space,
-    ComponentInstance, ContainerFrame, ContentChildrenSource, HandlerLocation, InstanceNode,
-    InstanceNodePtr, RuntimeContext, RuntimePropertiesStackFrame,
+    ComponentInstance, ContainerFrame, HandlerLocation, InstanceNode, InstanceNodePtr,
+    ReceivedChildrenSource, RuntimeContext, RuntimePropertiesStackFrame,
 };
 
 #[derive(Clone, Debug)]
@@ -97,8 +97,8 @@ pub struct ExpandedNode {
     /// to attach to
     pub parent_frame: Property<Option<ExpandedNodeIdentifier>>,
 
-    /// Reference to the _component for which this `ExpandedNode` is a template member._  Used at least for
-    /// getting a reference to slot_children for `slot`.  `Option`al because the very root instance node (root component, root instance node)
+    /// Reference to the _component for which this `ExpandedNode` is a template member._ Used at least for
+    /// resolving projected children for `slot`. `Option`al because the very root instance node (root component, root instance node)
     /// has a corollary "root component expanded node."  That very root expanded node _does not have_ a containing ExpandedNode component,
     /// thus `containing_component` is `Option`al.
     pub containing_component: Weak<ExpandedNode>,
@@ -108,17 +108,33 @@ pub struct ExpandedNode {
     /// explicitly updated to accommodate.)
     pub stack: Rc<RuntimePropertiesStackFrame>,
 
-    /// Pointers to the ExpandedNode beneath this one.  Used for e.g. rendering recursion.
+    /// Pointers to the ExpandedNode beneath this one. Used for rendering
+    /// recursion and other render-tree traversals.
     pub children: Property<Vec<Rc<ExpandedNode>>>,
 
-    /// A list of mounted children that need to be dismounted when children is recalculated
+    /// The concrete render-tree children currently attached beneath this node.
+    ///
+    /// This may temporarily include children retained for exit transitions, so
+    /// it should not be confused with the semantic payload exposed through
+    /// `NodeContext::received_children`.
     pub mounted_children: RefCell<Vec<Rc<ExpandedNode>>>,
 
     /// Children that represent the currently selected control-flow/template output.
+    ///
+    /// When this node's received-child source is `Owned`, this is the internal
+    /// source for `NodeContext::received_children`.
     pub active_children: RefCell<Vec<Rc<ExpandedNode>>>,
+    /// Reactive mirror of `active_children` for consumers that need the active
+    /// semantic set.
+    pub active_children_view: Property<Vec<Rc<ExpandedNode>>>,
 
     /// Children retained only so exit transitions can finish before unmount.
+    ///
+    /// When this node's received-child source is `Owned`, this is the internal
+    /// source for `NodeContext::retained_received_children`.
     pub exiting_children: RefCell<Vec<Rc<ExpandedNode>>>,
+    /// Reactive mirror of `exiting_children` for consumers that need retained exits.
+    pub exiting_children_view: Property<Vec<Rc<ExpandedNode>>>,
 
     /// Auxiliary children participate in update/layout but are not mounted or rendered directly.
     pub sidecar_children: RefCell<Vec<Rc<ExpandedNode>>>,
@@ -146,18 +162,21 @@ pub struct ExpandedNode {
     /// own common opacity value.
     pub computed_opacity: Property<f64>,
 
-    /// For component instances only, tracks the expanded slot_children in its
-    /// non-collapsed form (repeat and conditionals still present). This allows
-    /// repeat/conditionals to update their children (handled in component.rs
-    /// update_children method)
-    pub expanded_slot_children: RefCell<Option<Vec<Rc<ExpandedNode>>>>,
-    /// Flattened version of the above, where repeat/conditionals are removed
-    /// recursively and replaced by their children. This is re-computed each
-    /// frame from the non-collapsed expanded_slot_children after they have
-    /// been updated.
-    pub expanded_and_flattened_slot_children: Property<Vec<Rc<ExpandedNode>>>,
-    // Number of expanded and flattened slot children
-    pub flattened_slot_children_count: Property<usize>,
+    /// For nodes that own projection, tracks projected children in their
+    /// expanded, non-collapsed form.
+    ///
+    /// Projection is a transport detail used to deliver received payload into a
+    /// node's encapsulated implementation, typically for `slot(...)`.
+    /// Repeat/conditional descendants are still present here.
+    pub expanded_projected_children: RefCell<Option<Vec<Rc<ExpandedNode>>>>,
+    /// Flattened version of the projected children above, where repeat and
+    /// conditionals are recursively replaced by their current outputs.
+    ///
+    /// This is the raw projected family, not necessarily the same thing as the
+    /// semantic `received_children` view seen by all consumers.
+    pub expanded_and_flattened_projected_children: Property<Vec<Rc<ExpandedNode>>>,
+    /// Number of expanded and flattened projected children.
+    pub flattened_projected_children_count: Property<usize>,
 
     /// Flag that is > 0 if this node is part of the root tree. If it is,
     /// updates to this nodes children also marks them as attached (+1), triggering
@@ -210,8 +229,8 @@ pub struct ExpandedNode {
     /// Guards one-time setup of the reactive content-measurement listener pair.
     pub content_measurement_bound: Cell<bool>,
 
-    /// used to know when a slot child is attached
-    pub slot_child_attached_listener: Property<()>,
+    /// Dirty signal emitted when the projected child set changes structurally.
+    pub projected_children_changed: Property<()>,
 
     /// subscription properties: added to this expanded node by calling ctx.subscribe in a node event handler
     pub subscriptions: RefCell<Vec<Property<()>>>,
@@ -446,15 +465,17 @@ impl ExpandedNode {
             ),
             mounted_children: RefCell::new(Vec::new()),
             active_children: RefCell::new(Vec::new()),
+            active_children_view: Property::new(Vec::new()),
             exiting_children: RefCell::new(Vec::new()),
+            exiting_children_view: Property::new(Vec::new()),
             sidecar_children: RefCell::new(Vec::new()),
             transform_and_bounds: Property::new(TransformAndBounds::default()),
             subtree_layout_hull: Property::new(LayoutHull::default()),
             container_frame: Property::new(None),
             computed_opacity: Property::new(1.0),
-            expanded_slot_children: Default::default(),
-            expanded_and_flattened_slot_children: Default::default(),
-            flattened_slot_children_count: Property::new(0),
+            expanded_projected_children: Default::default(),
+            expanded_and_flattened_projected_children: Default::default(),
+            flattened_projected_children_count: Property::new(0),
             occlusion: Property::new(Occlusion::default()),
             native_mask_hash: Cell::new(0),
             browser_content_layer_id: Cell::new(None),
@@ -469,7 +490,7 @@ impl ExpandedNode {
             content_measurement_listener: Property::default(),
             content_measurement_rebind_listener: Property::default(),
             content_measurement_bound: Cell::new(false),
-            slot_child_attached_listener: Property::default(),
+            projected_children_changed: Property::default(),
             subscriptions: Default::default(),
             transition_phase,
             transition_origin_frame,
@@ -624,8 +645,12 @@ impl ExpandedNode {
     }
 
     fn sync_mounted_children_from_active_and_exiting(&self) -> Vec<Rc<ExpandedNode>> {
-        let mut combined = borrow!(self.exiting_children).clone();
-        combined.extend(borrow!(self.active_children).iter().cloned());
+        let active_children = borrow!(self.active_children).clone();
+        let exiting_children = borrow!(self.exiting_children).clone();
+        self.active_children_view.set(active_children.clone());
+        self.exiting_children_view.set(exiting_children.clone());
+        let mut combined = exiting_children;
+        combined.extend(active_children);
         *borrow_mut!(self.mounted_children) = combined.clone();
         combined
     }
@@ -777,6 +802,15 @@ impl ExpandedNode {
                 if Self::has_child(&new_children, child) {
                     continue;
                 }
+                if child.transition_phase.get() == TRANSITION_PHASE_EXIT {
+                    if child.exit_transition_tree_complete(context) {
+                        Rc::clone(child).recurse_unmount(context);
+                    } else {
+                        borrow_mut!(self.exiting_children).push(Rc::clone(child));
+                        self.enable_exit_cleanup_listener(context);
+                    }
+                    continue;
+                }
                 if child.start_exit_transition_tree(context) {
                     borrow_mut!(self.exiting_children).push(Rc::clone(child));
                     self.enable_exit_cleanup_listener(context);
@@ -891,9 +925,9 @@ impl ExpandedNode {
                 };
                 let _ = node.children.get();
                 if borrow!(node.instance_node).base().flags().is_component
-                    || borrow!(node.expanded_slot_children).is_some()
+                    || borrow!(node.expanded_projected_children).is_some()
                 {
-                    node.compute_flattened_slot_children();
+                    node.compute_flattened_projected_children();
                 }
                 context.mark_occlusion_dirty();
             },
@@ -1041,7 +1075,7 @@ impl ExpandedNode {
             subscription.get();
         }
         if borrow!(self.instance_node).base().flags().is_component {
-            self.compute_flattened_slot_children();
+            self.compute_flattened_projected_children();
         }
         for child in self.children.get().iter() {
             child.recurse_update(context);
@@ -1102,18 +1136,18 @@ impl ExpandedNode {
 
     pub fn recurse_mount(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
         if self.attached.get() == 0 {
-            // create slot children
+            // Materialize projected children before mount so Slot can resolve them.
             borrow!(self.instance_node)
                 .clone()
-                .handle_setup_slot_children(&self, context);
+                .handle_setup_projected_children(&self, context);
 
-            // a pre-mounting pass to make sure all slot children are expanded and we compute the correct flattened slot children
-            if let Some(slot_children) = borrow!(self.expanded_slot_children).as_ref() {
-                for slot_child in slot_children {
-                    slot_child.recurse_control_flow_expansion(context);
+            // Pre-mount pass to make sure projected children are expanded and we compute the correct flattened list.
+            if let Some(projected_children) = borrow!(self.expanded_projected_children).as_ref() {
+                for projected_child in projected_children {
+                    projected_child.recurse_control_flow_expansion(context);
                 }
-                // this is needed to reslove slot connections in a single tick
-                self.compute_flattened_slot_children();
+                // This is needed to resolve slot connections in a single tick.
+                self.compute_flattened_projected_children();
             }
             self.attached.set(self.attached.get() + 1);
             self.start_self_enter_transition(context);
@@ -1184,6 +1218,8 @@ impl ExpandedNode {
             borrow_mut!(self.imported_settings_signature).clear();
             borrow_mut!(self.resolved_property_columns).clear();
             borrow_mut!(self.resolved_property_provenance).clear();
+            self.active_children_view.set(Vec::new());
+            self.exiting_children_view.set(Vec::new());
             self.exit_cleanup_active.set(false);
             self.exit_cleanup_listener.replace_with(Property::default());
         }
@@ -1360,9 +1396,9 @@ impl ExpandedNode {
     }
 
     pub fn recurse_visit_postorder(self: &Rc<Self>, func: &mut impl FnMut(&Rc<Self>)) {
-        // NOTE: This is to make sure that the slot children list is updated before trying to access children,
+        // NOTE: This is to make sure the projected children list is updated before trying to access children,
         // to make stacker/scroller behave correctly when number of children is dynamic. (ex: tree view in designer)
-        self.compute_flattened_slot_children();
+        self.compute_flattened_projected_children();
         for child in self.children.get().iter().rev() {
             child.recurse_visit_postorder(func)
         }
@@ -1382,57 +1418,82 @@ impl ExpandedNode {
         let deps = [t_and_b_parent.untyped()];
         let bounds_parent = Property::computed(move || t_and_b_parent.get().bounds, &deps);
 
-        let slot_children_count = if borrow!(self.instance_node).base().flags().is_component {
-            self.flattened_slot_children_count.clone()
+        let owns_projected_children = borrow!(self.instance_node).base().flags().is_component
+            || borrow!(self.expanded_projected_children).is_some();
+
+        let projected_children_count = if owns_projected_children {
+            self.flattened_projected_children_count.clone()
         } else {
             self.containing_component
                 .upgrade()
-                .map(|v| v.flattened_slot_children_count.clone())
+                .map(|v| v.flattened_projected_children_count.clone())
                 .unwrap_or_default()
         };
 
-        let slot_children = if borrow!(self.instance_node).base().flags().is_component {
-            self.expanded_and_flattened_slot_children.clone()
+        let projected_children = if owns_projected_children {
+            self.expanded_and_flattened_projected_children.clone()
         } else {
             self.containing_component
                 .upgrade()
-                .map(|v| v.expanded_and_flattened_slot_children.clone())
+                .map(|v| v.expanded_and_flattened_projected_children.clone())
                 .unwrap_or_default()
         };
 
-        let slot_children_attached_listener =
-            if borrow!(self.instance_node).base().flags().is_component {
-                self.slot_child_attached_listener.clone()
-            } else {
-                self.containing_component
-                    .upgrade()
-                    .map(|v| v.slot_child_attached_listener.clone())
-                    .unwrap_or_default()
-            };
-        let content_children = match borrow!(self.instance_node).content_children_source() {
-            ContentChildrenSource::Direct => self.children.clone(),
-            ContentChildrenSource::Slot => {
-                if borrow!(self.instance_node).base().flags().is_component {
-                    self.expanded_and_flattened_slot_children.clone()
+        let projected_children_changed = if owns_projected_children {
+            self.projected_children_changed.clone()
+        } else {
+            self.containing_component
+                .upgrade()
+                .map(|v| v.projected_children_changed.clone())
+                .unwrap_or_default()
+        };
+        // Normalize semantic payload for container consumers. This hides the
+        // engine transport distinction (`Owned` vs `Projected`) behind the
+        // single concept "received children".
+        let received_children = match borrow!(self.instance_node).received_children_source() {
+            ReceivedChildrenSource::Owned => self.active_children_view.clone(),
+            ReceivedChildrenSource::Projected => {
+                if owns_projected_children {
+                    self.expanded_and_flattened_projected_children.clone()
                 } else {
                     self.containing_component
                         .upgrade()
-                        .map(|v| v.expanded_and_flattened_slot_children.clone())
+                        .map(|v| v.expanded_and_flattened_projected_children.clone())
                         .unwrap_or_default()
                 }
             }
         };
-        let content_children_count_source = content_children.clone();
-        let content_children_count = Property::computed(
-            move || content_children_count_source.get().len(),
-            &[content_children.untyped()],
+        let received_children_count_source = received_children.clone();
+        let received_children_count = Property::computed(
+            move || received_children_count_source.get().len(),
+            &[received_children.untyped()],
         );
-        let content_children_signal = content_children.clone();
-        let content_children_changed = Property::computed(
+        let received_children_signal = received_children.clone();
+        let received_children_changed = Property::computed(
             move || {
-                let _ = content_children_signal.get();
+                let _ = received_children_signal.get();
             },
-            &[content_children.untyped()],
+            &[received_children.untyped()],
+        );
+        // Normalize the corresponding exit-retained payload set. These nodes
+        // are no longer active content, but containers may still need them for
+        // ghosting or overlay placement while `@out` transitions finish.
+        let retained_received_children =
+            match borrow!(self.instance_node).received_children_source() {
+                ReceivedChildrenSource::Owned => self.exiting_children_view.clone(),
+                ReceivedChildrenSource::Projected
+                    if borrow!(self.expanded_projected_children).is_some() =>
+                {
+                    self.exiting_children_view.clone()
+                }
+                ReceivedChildrenSource::Projected => Property::default(),
+            };
+        let retained_received_children_signal = retained_received_children.clone();
+        let retained_received_children_changed = Property::computed(
+            move || {
+                let _ = retained_received_children_signal.get();
+            },
+            &[retained_received_children.untyped()],
         );
 
         let last_frame = Rc::new(RefCell::new(globals.frames_elapsed.get()));
@@ -1471,13 +1532,15 @@ impl ExpandedNode {
             platform: globals.platform.clone(),
             os: globals.os.clone(),
             get_elapsed_millis: globals.get_elapsed_millis,
-            slot_children_count,
-            slot_children,
+            projected_children_count,
+            projected_children,
             node_transform_and_bounds: self.transform_and_bounds.get(),
-            slot_children_attached_listener,
-            content_children,
-            content_children_count,
-            content_children_changed,
+            projected_children_changed,
+            received_children,
+            received_children_count,
+            received_children_changed,
+            retained_received_children,
+            retained_received_children_changed,
             #[cfg(feature = "designtime")]
             designtime: globals.designtime.clone(),
         }
@@ -1506,32 +1569,35 @@ impl ExpandedNode {
         borrow!(self.instance_node).ray_cast_test(self, ray)
     }
 
-    pub fn compute_flattened_slot_children(&self) {
+    pub fn compute_flattened_projected_children(&self) {
         // All of this should ideally be reactively updated,
         // but currently doesn't exist a way to "listen to"
         // an entire node tree, and generate the flattened list
         // only when changed.
-        if let Some(slot_children) = borrow!(self.expanded_slot_children).as_ref() {
-            let new_flattened = flatten_expanded_nodes_for_slot(&slot_children);
+        if let Some(projected_children) = borrow!(self.expanded_projected_children).as_ref() {
+            let new_flattened = flatten_expanded_nodes_for_projection(projected_children);
             let old_and_new_filtered_same =
-                self.expanded_and_flattened_slot_children.read(|flattened| {
-                    flattened
-                        .iter()
-                        .map(|n| n.id)
-                        .eq(new_flattened.iter().map(|n| n.id))
-                });
+                self.expanded_and_flattened_projected_children
+                    .read(|flattened| {
+                        flattened
+                            .iter()
+                            .map(|n| n.id)
+                            .eq(new_flattened.iter().map(|n| n.id))
+                    });
 
             if !old_and_new_filtered_same {
-                self.flattened_slot_children_count.set(new_flattened.len());
-                self.expanded_and_flattened_slot_children.set(new_flattened);
-                for (i, slot_child) in self
-                    .expanded_and_flattened_slot_children
+                self.flattened_projected_children_count
+                    .set(new_flattened.len());
+                self.expanded_and_flattened_projected_children
+                    .set(new_flattened);
+                for (i, projected_child) in self
+                    .expanded_and_flattened_projected_children
                     .get()
                     .iter()
                     .enumerate()
                 {
-                    if slot_child.slot_index.get() != Some(i) {
-                        slot_child.slot_index.set(Some(i));
+                    if projected_child.slot_index.get() != Some(i) {
+                        projected_child.slot_index.set(Some(i));
                     };
                 }
             }
@@ -1736,13 +1802,13 @@ fn size_depends_on_parent(size: Size) -> bool {
     }
 }
 
-/// Given some InstanceNodePtrList, distill away all "slot-invisible" nodes (namely, `if` and `for`)
-/// and return another InstanceNodePtrList with a flattened top-level list of nodes.
-fn flatten_expanded_nodes_for_slot(nodes: &[Rc<ExpandedNode>]) -> Vec<Rc<ExpandedNode>> {
+/// Given a projected child list, flatten away "slot-invisible" nodes (namely, `if` and `for`)
+/// and return a top-level list of renderable projected children.
+fn flatten_expanded_nodes_for_projection(nodes: &[Rc<ExpandedNode>]) -> Vec<Rc<ExpandedNode>> {
     let mut result: Vec<Rc<ExpandedNode>> = vec![];
     for node in nodes {
         if borrow!(node.instance_node).base().flags().invisible_to_slot {
-            result.extend(flatten_expanded_nodes_for_slot(
+            result.extend(flatten_expanded_nodes_for_projection(
                 node.children
                     .get()
                     .clone()
@@ -1784,9 +1850,9 @@ impl std::fmt::Debug for ExpandedNode {
             .field("transform_and_bounds", &self.transform_and_bounds)
             .field("children", &self.children.get().iter().collect::<Vec<_>>())
             .field(
-                "slot_children",
+                "projected_children",
                 &self
-                    .expanded_and_flattened_slot_children
+                    .expanded_and_flattened_projected_children
                     .get()
                     .iter()
                     .map(|v| v.id)

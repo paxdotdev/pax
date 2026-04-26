@@ -224,6 +224,7 @@ mod tests {
         let mut args = positioned_leaf_args();
         args.transition_config = ComponentTransitionConfig {
             has_enter: true,
+            enter_frame_count: 10,
             has_exit: true,
             exit_frame_count: 10,
             timeout_ms: 5_000,
@@ -284,6 +285,7 @@ mod tests {
         let mut args = expression_positioned_leaf_args(expr);
         args.transition_config = ComponentTransitionConfig {
             has_enter: true,
+            enter_frame_count: 10,
             has_exit: true,
             exit_frame_count: 10,
             timeout_ms: 5_000,

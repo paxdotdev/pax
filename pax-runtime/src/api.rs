@@ -18,6 +18,19 @@ use {pax_designtime::DesigntimeManager, pax_manifest::UniqueTemplateNodeIdentifi
 
 #[derive(Clone)]
 /// Runtime context passed into user component lifecycle methods and event handlers.
+///
+/// Child-related fields intentionally separate semantic payload from engine
+/// transport:
+///
+/// - `projected_children` is the raw transport family used by `Slot`
+/// - `received_children` is the normalized semantic payload that this node
+///   should treat as content from its caller
+/// - `retained_received_children` are former received children kept alive only
+///   so `@out` transitions can finish
+///
+/// A node's own private template or primitive-assembled structure is
+/// intentionally not surfaced here as a first-class "child family" for
+/// container consumers.
 pub struct NodeContext {
     pub expanded_node: Weak<ExpandedNode>,
     /// slot index of this node in its container
@@ -40,22 +53,45 @@ pub struct NodeContext {
     pub platform: Platform,
     /// Current os (Android/Windows/Mac/Linux) this app is running on
     pub os: OS,
-    /// The number of slot children provided to this component template
-    pub slot_children_count: Property<usize>,
+    /// The number of projected children available to this node.
+    ///
+    /// This is the raw transport count used by slot-driven implementations.
+    /// Container-style consumers usually want `received_children_count`
+    /// instead.
+    pub projected_children_count: Property<usize>,
     /// Borrow of the RuntimeContext, used at least for exposing raycasting to userland
     pub(crate) runtime_context: Rc<RuntimeContext>,
     /// The transform of this node in the global coordinate space
     pub node_transform_and_bounds: TransformAndBounds<NodeLocal, Window>,
-    /// Slot children of this node
-    pub slot_children: Property<Vec<Rc<ExpandedNode>>>,
-    /// A property that can be depended on to dirty when a slot child is attached
-    pub slot_children_attached_listener: Property<()>,
-    /// Normalized content children interpreted by this node when it acts as a container.
-    pub content_children: Property<Vec<Rc<ExpandedNode>>>,
-    /// Convenience count derived from `content_children`.
-    pub content_children_count: Property<usize>,
-    /// A structural invalidation signal for `content_children`.
-    pub content_children_changed: Property<()>,
+    /// Children projected into this node from the containing component.
+    ///
+    /// Projection is an engine transport mechanism. Consumers that want the
+    /// semantic payload owned by this node should prefer `received_children`.
+    pub projected_children: Property<Vec<Rc<ExpandedNode>>>,
+    /// A structural invalidation signal for projected children.
+    pub projected_children_changed: Property<()>,
+    /// Semantic payload children received by this node from its caller.
+    ///
+    /// This is the canonical "content" view for container-style logic. It
+    /// excludes private encapsulated implementation children and also excludes
+    /// exit-retained payload nodes, which instead appear in
+    /// `retained_received_children`.
+    pub received_children: Property<Vec<Rc<ExpandedNode>>>,
+    /// Convenience count derived from `received_children`.
+    pub received_children_count: Property<usize>,
+    /// A structural invalidation signal for `received_children`.
+    ///
+    /// Prefer this or `received_children` itself for structural subscriptions
+    /// that must react to reorders as well as insertions and removals.
+    pub received_children_changed: Property<()>,
+    /// Received children retained only so exit transitions can finish.
+    ///
+    /// These are no longer part of the active semantic payload, but some
+    /// containers still need to place them as ghosts or overlays while their
+    /// `@out` transitions run.
+    pub retained_received_children: Property<Vec<Rc<ExpandedNode>>>,
+    /// A structural invalidation signal for `retained_received_children`.
+    pub retained_received_children_changed: Property<()>,
 
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,

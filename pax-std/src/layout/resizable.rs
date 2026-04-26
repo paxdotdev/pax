@@ -77,7 +77,7 @@ pub struct Section {
 impl Resizable {
     // Computes section rectangles from divider positions and slot count.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let slot_count = ctx.slot_children_count.clone();
+        let slot_count = ctx.projected_children_count.clone();
         let dividers = self.dividers.clone();
         let direction = self.direction.clone();
         let deps = [

@@ -1,3 +1,20 @@
+//! Container-facing child ontology and geometry seams.
+//!
+//! The runtime carries several child concepts, but container consumers should
+//! reason about them on two axes:
+//!
+//! 1. Semantic role
+//!    - `received_children`: the payload a node received from its caller
+//!    - encapsulated implementation children: the node's own private template or
+//!      primitive-assembled structure
+//! 2. Lifecycle slice of the received payload
+//!    - active received children: present in `NodeContext::received_children`
+//!    - retained exiting received children: present in
+//!      `NodeContext::retained_received_children`
+//!
+//! Engine details such as projection still exist, but they are transport
+//! mechanisms rather than the primary semantic abstraction.
+
 use crate::api::math::Transform2;
 use crate::api::{borrow, NodeContext, Property};
 use crate::node_interface::NodeLocal;
@@ -7,19 +24,28 @@ use std::rc::Rc;
 
 /// Trait for nodes that semantically interpret child content.
 ///
+/// Containers should treat `NodeContext::received_children` as their canonical
+/// payload set and `NodeContext::retained_received_children` as the set of
+/// exit-retained payload nodes that may still need placement or transition
+/// handling.
+///
+/// Encapsulated implementation children remain a private detail of the node's
+/// own template or primitive assembly and should generally not drive container
+/// layout logic.
+///
 /// Containers can call this from their existing mount logic to install reactive
-/// behavior on top of the runtime's normalized `content_children` view.
+/// behavior on top of those normalized views.
 pub trait Container {
     fn bind_container(&self, _ctx: &NodeContext) {}
 }
 
-/// Measure the aggregate layout hull contributed by `content_children` in the
+/// Measure the aggregate layout hull contributed by received content in the
 /// container's local coordinate space.
 ///
 /// Empty content is treated as a zero-sized valid hull so autosized containers
 /// can collapse to `0x0` when they have no children.
 pub fn measure_content_children_layout_hull(ctx: &NodeContext) -> LayoutHull {
-    let content_children = ctx.content_children.get();
+    let content_children = ctx.received_children.get();
     if content_children.is_empty() {
         return LayoutHull::from_axis_ranges(Some((0.0, 0.0)), Some((0.0, 0.0)));
     }
@@ -45,7 +71,7 @@ pub fn measure_content_children_layout_hull(ctx: &NodeContext) -> LayoutHull {
     hull.unwrap_or_else(|| LayoutHull::from_axis_ranges(Some((0.0, 0.0)), Some((0.0, 0.0))))
 }
 
-/// Measure forward autosize extents from `content_children`.
+/// Measure forward autosize extents from received content.
 pub fn measure_content_children_forward_extents(ctx: &NodeContext) -> (Option<f64>, Option<f64>) {
     let hull = measure_content_children_layout_hull(ctx);
     (hull.forward_extent_x(), hull.forward_extent_y())
@@ -60,7 +86,7 @@ pub fn resolve_axis_autosize(
     axis_override.unwrap_or(autosize && default_when_enabled)
 }
 
-/// Resolve a node's measured size from its `content_children`.
+/// Resolve a node's measured size from its received content.
 ///
 /// Explicit axes keep their current container bounds; implicit axes use the
 /// measured forward extents when they are valid. If an implicit axis cannot be
@@ -73,7 +99,7 @@ pub fn resolve_content_autosize_measurement(
     resolve_content_autosize_measurement_with_axes(ctx, width_explicit, height_explicit, true, true)
 }
 
-/// Resolve a node's measured size from `content_children` with explicit per-axis autosize control.
+/// Resolve a node's measured size from received content with explicit per-axis autosize control.
 pub fn resolve_content_autosize_measurement_with_axes(
     ctx: &NodeContext,
     width_explicit: bool,
@@ -105,12 +131,12 @@ pub fn resolve_content_autosize_measurement_with_axes(
     ))
 }
 
-/// Update `measured_size` from `content_children` when autosize is enabled.
+/// Update `measured_size` from received content when autosize is enabled.
 pub fn sync_content_autosize(expanded_node: &Rc<ExpandedNode>, ctx: &NodeContext, enabled: bool) {
     sync_content_autosize_with_axes(expanded_node, ctx, enabled, enabled);
 }
 
-/// Update `measured_size` from `content_children` with explicit per-axis autosize control.
+/// Update `measured_size` from received content with explicit per-axis autosize control.
 pub fn sync_content_autosize_with_axes(
     expanded_node: &Rc<ExpandedNode>,
     ctx: &NodeContext,
@@ -170,7 +196,7 @@ fn rebind_content_measurement_effect<F>(
         height_prop.untyped(),
     ];
     deps.extend(extra_deps.iter().cloned());
-    for child in node_ctx.content_children.get().iter() {
+    for child in node_ctx.received_children.get().iter() {
         let child_cp = child.get_common_properties();
         deps.push(borrow!(child_cp).layout_role.untyped());
         deps.push(child.transform_and_bounds.untyped());
@@ -198,7 +224,7 @@ fn rebind_content_measurement_effect<F>(
 ///
 /// The effect is re-evaluated after the tree update pass, before occlusion and
 /// layer-plan generation, and its dependency list is rebound whenever the
-/// normalized `content_children` list changes.
+/// normalized received-child list changes.
 pub fn bind_content_measurement_effect<F>(
     expanded_node: &Rc<ExpandedNode>,
     ctx: &NodeContext,
@@ -243,7 +269,7 @@ pub fn bind_content_measurement_effect<F>(
                     effect.clone(),
                 );
             },
-            &[ctx.content_children_changed.untyped()],
+            &[ctx.received_children_changed.untyped()],
             &rebind_name,
         ));
     ctx.runtime_context.register_node_effect_property(
@@ -253,14 +279,23 @@ pub fn bind_content_measurement_effect<F>(
 }
 
 /// Engine-internal selector for which child family should be normalized into
-/// `NodeContext::content_children`.
+/// `NodeContext::received_children`.
+///
+/// This is a provenance selector, not the semantic API surface.
+///
+/// `Owned` means the node's received payload already lives in its active child
+/// tree.
+///
+/// `Projected` means the node receives payload from its caller and the runtime
+/// threads that payload through projection so it can be consumed by `slot(...)`
+/// within the node's encapsulated implementation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ContentChildrenSource {
-    Direct,
-    Slot,
+pub enum ReceivedChildrenSource {
+    Owned,
+    Projected,
 }
 
-/// Parent-local frame assigned by a container to one of its content children.
+/// Parent-local frame assigned by a container to one of its received children.
 ///
 /// This behaves like a virtual wrapper node inside the parent: the frame's
 /// transform is composed onto the parent transform and its bounds become the
@@ -271,7 +306,14 @@ pub struct ContainerFrame {
     pub bounds: (f64, f64),
 }
 
-impl Interpolatable for ContainerFrame {}
+impl Interpolatable for ContainerFrame {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Self {
+            transform: self.transform.interpolate(&other.transform, t),
+            bounds: self.bounds.interpolate(&other.bounds, t),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -405,7 +447,7 @@ mod tests {
     }
 
     #[test]
-    fn direct_content_children_reflect_mounted_children() {
+    fn owned_received_children_reflect_active_children() {
         let leaf: Rc<dyn InstanceNode> = TestDirectNode::instantiate(direct_node_args(Vec::new()));
         let direct: Rc<dyn InstanceNode> =
             TestDirectNode::instantiate(direct_node_args(vec![leaf]));
@@ -417,15 +459,16 @@ mod tests {
         root.recurse_update(&context);
         let direct_node = root.children.get().first().cloned().unwrap();
         let node_ctx = direct_node.get_node_context(&context);
-        let content_children = node_ctx.content_children.get();
+        let received_children = node_ctx.received_children.get();
 
-        assert_eq!(content_children.len(), 1);
-        assert_eq!(content_children[0].id, direct_node.children.get()[0].id);
-        assert_eq!(node_ctx.content_children_count.get(), 1);
+        assert_eq!(received_children.len(), 1);
+        assert_eq!(received_children[0].id, direct_node.children.get()[0].id);
+        assert_eq!(node_ctx.received_children_count.get(), 1);
+        assert!(node_ctx.retained_received_children.get().is_empty());
     }
 
     #[test]
-    fn slot_content_children_reflect_flattened_slot_children() {
+    fn projected_received_children_reflect_flattened_projected_children() {
         let leaf: Rc<dyn InstanceNode> = TestDirectNode::instantiate(direct_node_args(Vec::new()));
         let slotted_component: Rc<dyn InstanceNode> =
             ComponentInstance::instantiate(component_args(Some(Vec::new()), Some(vec![leaf])));
@@ -439,14 +482,18 @@ mod tests {
         root.recurse_update(&context);
         let component_node = root.children.get().first().cloned().unwrap();
         let node_ctx = component_node.get_node_context(&context);
-        let content_children = node_ctx.content_children.get();
+        let received_children = node_ctx.received_children.get();
 
-        assert_eq!(content_children.len(), 1);
+        assert_eq!(received_children.len(), 1);
         assert_eq!(
-            content_children[0].id,
-            component_node.expanded_and_flattened_slot_children.get()[0].id
+            received_children[0].id,
+            component_node
+                .expanded_and_flattened_projected_children
+                .get()[0]
+                .id
         );
-        assert_eq!(node_ctx.content_children_count.get(), 1);
+        assert_eq!(node_ctx.received_children_count.get(), 1);
+        assert!(node_ctx.retained_received_children.get().is_empty());
     }
 
     #[test]

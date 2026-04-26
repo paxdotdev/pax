@@ -12,7 +12,8 @@ use pax_designtime::{
 use pax_language::{parse_pax_str, Rule};
 #[cfg(feature = "designtime")]
 use pax_manifest::{
-    ComponentTemplate, PaxManifest, SelectorExpr, TypeId, UniqueTemplateNodeIdentifier,
+    ComponentTemplate, PaxManifest, SettingElement, TypeId, UniqueTemplateNodeIdentifier,
+    ValueDefinition,
 };
 #[cfg(feature = "designtime")]
 use serde::Serialize;
@@ -210,7 +211,7 @@ pub fn build_designtime_selector_query_payload(
 
     let manifest = definition_to_instance_traverser.get_manifest();
     let mut matches = vec![];
-    collect_designtime_selector_matches(&root, &selector, &mut matches);
+    collect_designtime_selector_matches(&root, &manifest, &selector, &mut matches);
     build_designtime_inspect_node_list_payload(matches, Some(&*manifest))
 }
 
@@ -762,18 +763,62 @@ fn inspect_layer_name(layer: crate::api::Layer) -> &'static str {
 }
 
 #[cfg(feature = "designtime")]
-fn parse_designtime_selector_query(selector: &str) -> Result<SelectorExpr, String> {
-    SelectorExpr::parse(selector)
+enum DesigntimeSelectorQuery {
+    Id(String),
+    Class(String),
+    Type(String),
+}
+
+#[cfg(feature = "designtime")]
+fn parse_designtime_selector_query(selector: &str) -> Result<DesigntimeSelectorQuery, String> {
+    let trimmed = selector.trim();
+    if trimmed.is_empty() {
+        return Err("selector cannot be empty".to_string());
+    }
+
+    if trimmed.starts_with('#') || trimmed.starts_with('.') {
+        parse_pax_str(Rule::selector, trimmed)
+            .map_err(|error| format!("selector failed to parse: {error}"))?;
+        let (prefix, value) = trimmed.split_at(1);
+        return match prefix {
+            "#" => Ok(DesigntimeSelectorQuery::Id(value.to_string())),
+            "." => Ok(DesigntimeSelectorQuery::Class(value.to_string())),
+            _ => unreachable!("validated selector must start with # or ."),
+        };
+    }
+
+    if trimmed
+        .split("::")
+        .all(|segment| !segment.is_empty() && is_designtime_identifier(segment))
+    {
+        return Ok(DesigntimeSelectorQuery::Type(trimmed.to_string()));
+    }
+
+    Err(
+        "selector must be an id (`#id`), class (`.class`), or element type (`Ellipse` or `crate::Example`)"
+            .to_string(),
+    )
+}
+
+#[cfg(feature = "designtime")]
+fn is_designtime_identifier(identifier: &str) -> bool {
+    let mut chars = identifier.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    (first.is_ascii_alphabetic() || first == '_')
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
 }
 
 #[cfg(feature = "designtime")]
 fn collect_designtime_selector_matches(
     node: &Rc<ExpandedNode>,
-    selector: &SelectorExpr,
+    manifest: &PaxManifest,
+    selector: &DesigntimeSelectorQuery,
     matches: &mut Vec<Rc<ExpandedNode>>,
 ) {
-    node.compute_flattened_slot_children();
-    if designtime_selector_matches_node(node, selector) {
+    node.compute_flattened_projected_children();
+    if designtime_selector_matches_node(node, manifest, selector) {
         matches.push(Rc::clone(node));
     }
 
@@ -784,14 +829,81 @@ fn collect_designtime_selector_matches(
         .cloned()
         .collect::<Vec<_>>();
     for child in children {
-        collect_designtime_selector_matches(&child, selector, matches);
+        collect_designtime_selector_matches(&child, manifest, selector, matches);
     }
 }
 
 #[cfg(feature = "designtime")]
 fn designtime_selector_matches_node(
     node: &Rc<ExpandedNode>,
-    selector: &SelectorExpr,
+    manifest: &PaxManifest,
+    selector: &DesigntimeSelectorQuery,
 ) -> bool {
-    node.selector_metadata.borrow().matches(selector)
+    match selector {
+        DesigntimeSelectorQuery::Id(id) => {
+            let common_properties = Rc::clone(&*node.common_properties.borrow());
+            let common_properties = common_properties.borrow();
+            common_properties.id.get().as_deref() == Some(id.as_str())
+        }
+        DesigntimeSelectorQuery::Class(class_name) => {
+            designtime_node_template_classes(node, manifest)
+                .into_iter()
+                .any(|node_class| node_class == class_name.as_str())
+        }
+        DesigntimeSelectorQuery::Type(type_name) => {
+            designtime_node_matches_type(node, manifest, type_name)
+        }
+    }
+}
+
+#[cfg(feature = "designtime")]
+fn designtime_node_template_classes<'a>(
+    node: &Rc<ExpandedNode>,
+    manifest: &'a PaxManifest,
+) -> Vec<&'a str> {
+    let global_id = {
+        let instance_node = node.instance_node.borrow();
+        instance_node.base().template_node_identifier.clone()
+    };
+    let Some(global_id) = global_id else {
+        return vec![];
+    };
+    let Some(template_node) = manifest.get_template_node(&global_id) else {
+        return vec![];
+    };
+    let Some(settings) = template_node.settings.as_ref() else {
+        return vec![];
+    };
+
+    settings
+        .iter()
+        .filter_map(|setting| match setting {
+            SettingElement::Setting(token, ValueDefinition::Identifier(identifier))
+                if token.token_value == "class" =>
+            {
+                Some(identifier.name.as_str())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[cfg(feature = "designtime")]
+fn designtime_node_matches_type(
+    node: &Rc<ExpandedNode>,
+    manifest: &PaxManifest,
+    type_name: &str,
+) -> bool {
+    let global_id = {
+        let instance_node = node.instance_node.borrow();
+        instance_node.base().template_node_identifier.clone()
+    };
+    let Some(global_id) = global_id else {
+        return false;
+    };
+    let Some(template_node) = manifest.get_template_node(&global_id) else {
+        return false;
+    };
+    template_node.type_id.to_string() == type_name
+        || template_node.type_id.get_pascal_identifier().as_deref() == Some(type_name)
 }

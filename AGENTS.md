@@ -87,7 +87,7 @@ When a task starts from Linear:
 - Keep changes scoped to the task. Do not mix opportunistic refactors with feature work unless the refactor is needed to make the feature correct.
 - Preserve user work. If the tree is dirty, inspect overlapping files before editing and do not revert unrelated changes.
 - The user will handle git commits and operations like rebases.
-- Squash commits follow a convention of "Summary commit message\n\ncommit 01's message\ncommit 02's message\n commit 03's message...
+- Squash commits follow a convention of "summary commit message\n\n0e1243 commit 01's message\n33efa2 commit 02's message\n aefe22 commit 03's message..."
 - Branches will generally be squashed before merging, to ease merge conflict management and reasoning.  Follow the squash convention above when the user requests a squash.
 - Include generated files only when they are required source artifacts for this repo. Remove build output, caches, screenshots, and throwaway experiment files before final status.
 - The User will occasional direct you to resolve a merge conflict.  When resolving conflicts, refer to your context for knowledge of intentional changes on the working branch.  Be sure to respect the changes made by the incoming branch, and splice logic to maintain both sets of intended changes (surfacing problematic areas for manual testing, if necessary). Don't allow work to be lost during merges, as this can be perniciously difficult to track down.

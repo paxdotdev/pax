@@ -3,6 +3,7 @@ pub mod cartridge;
 pub mod component;
 pub mod conditional;
 pub mod constants;
+/// Container-facing child ontology and geometry seams.
 pub mod container;
 #[cfg(feature = "designtime")]
 pub mod designtime_support;

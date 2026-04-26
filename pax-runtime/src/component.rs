@@ -14,8 +14,8 @@ use crate::{
     InstantiationArgs, RuntimeContext,
 };
 
-/// A render node with its own runtime context.  Will push a frame
-/// to the runtime stack including the specified `slot_children` and
+/// A render node with its own runtime context. Will push a frame
+/// to the runtime stack including the specified `projected_children` and
 /// a `PaxType` properties object.  `Component` is used at the root of
 /// applications, at the root of reusable components like `Stacker`, and
 /// in special applications like `Repeat` where it houses the `RepeatItem`
@@ -28,7 +28,7 @@ pub struct ComponentInstance {
 
 // #[derive(Default)]
 // pub struct ComponentProperties {
-//     pub slot_children: BTreeSet<Rc<ExpandedNode>>,
+//     pub projected_children: BTreeSet<Rc<ExpandedNode>>,
 // }
 
 impl InstanceNode for ComponentInstance {
@@ -52,7 +52,7 @@ impl InstanceNode for ComponentInstance {
         })
     }
 
-    fn handle_setup_slot_children(
+    fn handle_setup_projected_children(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
@@ -67,12 +67,12 @@ impl InstanceNode for ComponentInstance {
             };
             let children = borrow!(self.base().get_instance_children());
             let children_with_env = children.iter().cloned().zip(iter::repeat(env));
-            let new_slot_children = containing_component.create_children_detached(
+            let new_projected_children = containing_component.create_children_detached(
                 children_with_env,
                 context,
                 &Rc::downgrade(expanded_node),
             );
-            *borrow_mut!(expanded_node.expanded_slot_children) = Some(new_slot_children);
+            *borrow_mut!(expanded_node.expanded_projected_children) = Some(new_projected_children);
         }
     }
 
@@ -101,9 +101,11 @@ impl InstanceNode for ComponentInstance {
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
-        if let Some(slot_children) = borrow_mut!(expanded_node.expanded_slot_children).take() {
-            for slot_child in slot_children {
-                slot_child.recurse_unmount(context);
+        if let Some(projected_children) =
+            borrow_mut!(expanded_node.expanded_projected_children).take()
+        {
+            for projected_child in projected_children {
+                projected_child.recurse_unmount(context);
             }
         }
     }

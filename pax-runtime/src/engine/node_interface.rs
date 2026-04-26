@@ -153,7 +153,7 @@ impl NodeInterface {
     }
 
     /// Reactive count of slot children after repeat/conditional flattening.
-    pub fn flattened_slot_children_count(&self) -> Property<usize> {
-        self.inner.flattened_slot_children_count.clone()
+    pub fn flattened_projected_children_count(&self) -> Property<usize> {
+        self.inner.flattened_projected_children_count.clone()
     }
 }

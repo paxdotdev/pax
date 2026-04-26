@@ -5,53 +5,164 @@
         y=54px
         width=720px
         height=42px
-        text="Transition Grid"
+        text="Stacker Transition Demo"
         selectable=false
     />
 
     <Text
         id=subtitle
         x=50%
-        y=96px
+        y=98px
         width=720px
         height=24px
-        text={"Clicks " + total_clicks + " / Recycled " + recycle_count}
+        text={"Tiles " + cell_count + " / Clicks " + total_clicks + " / Recycled " + recycle_count + " / Exit " + exit_mode_label + " / Change " + reflow_mode_label}
         selectable=false
     />
 
     if show_hint {
         <HintPill
             x=50%
-            y=145px
-            width=460px
-            height=38px
+            y=150px
+            width=620px
+            height=42px
             anchor_x=50%
             anchor_y=50%
         />
     }
 
-    <Group
-        id=grid
+    <Stacker
         x=50%
-        y=55%
-        width=512px
-        height=336px
+        y=220px
+        width=720px
+        height=42px
+        anchor_x=50%
+        direction=StackerDirection::Horizontal
+        gutter=12px
+    >
+        <Group class=action_chip width=100% height=100% @click=self.handle_insert_top>
+            <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Insert Top" selectable=false />
+            <Rectangle width=100% height=100% fill=rgba(33, 118, 95, 255) corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)} />
+        </Group>
+        <Group class=action_chip width=100% height=100% @click=self.handle_remove_top>
+            <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Remove Top" selectable=false />
+            <Rectangle width=100% height=100% fill=rgba(33, 118, 95, 255) corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)} />
+        </Group>
+        <Group class=action_chip width=100% height=100% @click=self.handle_reverse_order>
+            <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Reverse Order" selectable=false />
+            <Rectangle width=100% height=100% fill=rgba(33, 118, 95, 255) corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)} />
+        </Group>
+    </Stacker>
+
+    <Text
+        id=exit_label
+        x={50% - 198px}
+        y=278px
+        width=236px
+        height=20px
         anchor_x=50%
         anchor_y=50%
+        selectable=false
+        text="Exit Handling"
+    />
+
+    <Stacker
+        x={50% - 198px}
+        y=304px
+        width=236px
+        height=42px
+        anchor_x=50%
+        direction=StackerDirection::Horizontal
+        gutter=12px
     >
-        for (cell, i) in self.cells key cell.id {
-            <CellButton
-                x={(cell.x)px}
-                y={(cell.y)px}
-                width=72px
-                height=72px
-                anchor_x=50%
-                anchor_y=50%
-                hue={cell.hue}
-                hits={cell.hits}
-                @click=self.handle_cell_click
-            />
-        }
+        <Group class=mode_chip width=100% height=100% @click=self.set_exit_flow>
+            <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Flow" selectable=false />
+            <Rectangle width=100% height=100% fill={exit_mode == ContainerExitMode::Flow ? rgba(49, 127, 110, 255) : rgba(139, 161, 186, 255)} corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)} />
+        </Group>
+        <Group class=mode_chip width=100% height=100% @click=self.set_exit_ghost>
+            <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Ghost" selectable=false />
+            <Rectangle width=100% height=100% fill={exit_mode == ContainerExitMode::Ghost ? rgba(49, 127, 110, 255) : rgba(139, 161, 186, 255)} corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)} />
+        </Group>
+    </Stacker>
+
+    <Text
+        id=change_label
+        x={50% + 198px}
+        y=278px
+        width=236px
+        height=20px
+        anchor_x=50%
+        anchor_y=50%
+        selectable=false
+        text="Reflow Motion"
+    />
+
+    <Stacker
+        x={50% + 198px}
+        y=304px
+        width=236px
+        height=42px
+        anchor_x=50%
+        direction=StackerDirection::Horizontal
+        gutter=12px
+    >
+        <Group class=mode_chip width=100% height=100% @click=self.set_change_snap>
+            <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Snap" selectable=false />
+            <Rectangle width=100% height=100% fill={reflow_kind == ContainerReflowTransitionKind::Snap ? rgba(92, 117, 187, 255) : rgba(139, 161, 186, 255)} corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)} />
+        </Group>
+        <Group class=mode_chip width=100% height=100% @click=self.set_change_ease>
+            <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Ease" selectable=false />
+            <Rectangle width=100% height=100% fill={reflow_kind == ContainerReflowTransitionKind::Ease ? rgba(92, 117, 187, 255) : rgba(139, 161, 186, 255)} corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)} />
+        </Group>
+    </Stacker>
+
+    <Group
+        x=50%
+        y=372px
+        width=484px
+        height=544px
+        anchor_x=50%
+    >
+        <Stacker
+            id=demo_stacker
+            x=18px
+            y=18px
+            width={100% - 36px}
+            height={100% - 36px}
+            direction=StackerDirection::Vertical
+            gutter=10px
+            sizes={cell_sizes}
+        >
+            for (cell, i) in self.cells key cell.id {
+                <CellButton
+                    width=100%
+                    height=100%
+                    label={cell.label}
+                    hue={cell.hue}
+                    hits={cell.hits}
+                    @click=self.handle_cell_click
+                />
+            }
+        </Stacker>
+
+        <Rectangle
+            x=18px
+            y=18px
+            width={100% - 36px}
+            height={100% - 36px}
+            fill=rgba(244, 249, 246, 255)
+            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+        />
+
+        <Rectangle
+            width=100%
+            height=100%
+            fill=rgba(255, 255, 255, 160)
+            stroke={
+                color: rgba(45, 73, 65, 255)
+                width: 1px
+            }
+            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+        />
     </Group>
 
     <Rectangle
@@ -71,6 +182,16 @@
 
 @settings {
     @mount: handle_mount
+
+    #demo_stacker {
+        exit_mode: {exit_mode}
+        reflow_transition: {
+            kind: {reflow_kind}
+            frames: 30
+            curve: {reflow_curve}
+            name: "stacker-demo"
+        }
+    }
 
     #title {
         style: TextStyle {
@@ -99,6 +220,57 @@
             )
             font_size: 15px
             fill: rgba(74, 92, 84, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+            underline: false
+        }
+    }
+
+    #exit_label {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::SemiBold
+            )
+            font_size: 13px
+            fill: rgba(74, 92, 84, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+            underline: false
+        }
+    }
+
+    #change_label {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::SemiBold
+            )
+            font_size: 13px
+            fill: rgba(74, 92, 84, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+            underline: false
+        }
+    }
+
+    .chip_label {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::SemiBold
+            )
+            font_size: 14px
+            fill: WHITE
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center

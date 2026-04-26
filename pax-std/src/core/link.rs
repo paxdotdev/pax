@@ -13,7 +13,7 @@ use pax_runtime::{
 #[engine_import_path("pax_engine")]
 #[inlined(
     <Rectangle id=_designer_raycast_ignore fill=TRANSPARENT/>
-    for i in 0..self._slot_children {
+    for i in 0..self._projected_children {
         slot(i)
     }
 
@@ -38,7 +38,7 @@ pub struct Link {
     /// Optional override for whether autosize manages the `y` axis.
     pub autosize_y: Property<Option<bool>>,
     // Number of slotted children to render.
-    pub _slot_children: Property<usize>,
+    pub _projected_children: Property<usize>,
 }
 
 /// Navigation target for `Link`.
@@ -64,9 +64,9 @@ impl From<Target> for NavigationTarget {
 impl Link {
     // Binds slot count and reactive autosize behavior for the generated inline template.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let s = ctx.slot_children_count.clone();
+        let s = ctx.projected_children_count.clone();
         let deps = [s.untyped()];
-        self._slot_children
+        self._projected_children
             .replace_with(Property::computed(move || s.get(), &deps));
         let Some(expanded_node) = ctx.expanded_node.upgrade() else {
             return;

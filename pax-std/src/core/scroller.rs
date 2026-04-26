@@ -29,7 +29,7 @@ use_RefCell!();
         snap_positions_y={self.snap_positions_y}
         _clip_content={!$suspended}
     >
-        for i in 0..self._slot_children_count {
+        for i in 0..self._projected_children_count {
             slot(i)
         }
     </ScrollerHost>
@@ -72,7 +72,7 @@ pub struct Scroller {
     pub _clip_content: Property<bool>,
 
     // Private template bookkeeping.
-    pub _slot_children_count: Property<usize>,
+    pub _projected_children_count: Property<usize>,
     // Host-facing resolved content width after applying autosize semantics.
     pub _resolved_scroll_width: Property<Size>,
     // Host-facing resolved content height after applying autosize semantics.
@@ -93,7 +93,7 @@ impl Default for Scroller {
             snap_positions_x: Default::default(),
             snap_positions_y: Default::default(),
             _clip_content: Property::new(true),
-            _slot_children_count: Default::default(),
+            _projected_children_count: Default::default(),
             _resolved_scroll_width: Default::default(),
             _resolved_scroll_height: Default::default(),
         }
@@ -708,12 +708,13 @@ impl InstanceNode for ScrollerHostInstance {
 impl Scroller {
     // Binds slot count and the reactive autosize measurement for the inline template.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let content_children_count = ctx.content_children_count.clone();
-        let deps = [content_children_count.untyped()];
-        self._slot_children_count.replace_with(Property::computed(
-            move || content_children_count.get(),
-            &deps,
-        ));
+        let projected_children_count = ctx.projected_children_count.clone();
+        let deps = [projected_children_count.untyped()];
+        self._projected_children_count
+            .replace_with(Property::computed(
+                move || projected_children_count.get(),
+                &deps,
+            ));
 
         let Some(expanded_node) = ctx.expanded_node.upgrade() else {
             return;

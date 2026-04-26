@@ -3,7 +3,6 @@
 use pax_kit::*;
 use rand::Rng;
 
-
 use std::rc::Rc;
 #[pax]
 #[file("slot_particles/mod.pax")]
@@ -18,7 +17,7 @@ pub struct SlotParticles {
 impl SlotParticles {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let tick = ctx.frames_elapsed.clone();
-        let num = ctx.slot_children_count.clone();
+        let num = ctx.projected_children_count.clone();
         let rng = Rc::new(std::cell::RefCell::new(rand::thread_rng()));
         let bounds = ctx.bounds_self.clone();
         let store = Rc::new(std::cell::RefCell::new(Vec::new()));

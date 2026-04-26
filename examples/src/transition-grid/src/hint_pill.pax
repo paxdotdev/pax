@@ -1,24 +1,33 @@
 <Group width=100% height=100%>
-    <Text
-        id=hint_text
+    <Group
+        id=pill_shell
         x=50%
         y=50%
-        width={100% - 34px}
-        height=22px
-        text="Click any tile. Fifth click recycles it."
-        selectable=false
-    />
-
-    <Rectangle
         width=100%
         height=100%
-        fill=rgba(255, 255, 255, 210)
-        stroke={
-            color: rgba(43, 73, 63, 255)
-            width: 1px
-        }
-        corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
-    />
+        anchor_x=50%
+        anchor_y=50%
+    >
+        <Text
+            id=hint_text
+            x=50%
+            y=50%
+            width={100% - 34px}
+            height=22px
+            text="Tap a tile to recolor it. Fifth tap sends a new tile to the tail. Use Insert Top, Remove Top, and Reverse Order to compare ghost vs flow and snap vs ease."
+            selectable=false
+        />
+        <Rectangle
+            width=100%
+            height=100%
+            fill=rgba(255, 255, 255, 210)
+            stroke={
+                color: rgba(43, 73, 63, 255)
+                width: 1px
+            }
+            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+        />
+    </Group>
 </Group>
 
 @settings {
@@ -44,25 +53,34 @@
 }
 
 @timeline enter {
-    frames: 18,
-    self {
+    frames: 26,
+    #pill_shell {
         scale_x: {
-            0: 20%, OutBack,
+            0: 78%, OutQuad,
+            100%: 100%,
+        },
+        scale_y: {
+            0: 88%, OutQuad,
             100%: 100%,
         },
         opacity: {
             0: 0,
+            35%: 0.76,
             100%: 1,
         },
     }
 }
 
 @timeline exit {
-    frames: 16,
-    self {
+    frames: 24,
+    #pill_shell {
         scale_x: {
-            0: 100%, InQuad,
-            100%: 20%,
+            0: 100%, InOutQuad,
+            100%: 82%,
+        },
+        scale_y: {
+            0: 100%, InOutQuad,
+            100%: 90%,
         },
         opacity: {
             0: 1,

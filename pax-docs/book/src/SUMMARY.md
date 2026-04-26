@@ -7,6 +7,7 @@
 - [Event Handling & Rust Logic](event-handling-rust.md)
 - [Control Flow in Templates](control-flow.md)
 - [Components & Composition](components-composition.md)
+- [Runtime Child Ontology](runtime-child-ontology.md)
 - [Layout & Responsiveness](layout-responsiveness.md)
 - [Text, Fonts & Images](text-fonts-images.md)
 - [Drawing & Styling](drawing-styling.md)

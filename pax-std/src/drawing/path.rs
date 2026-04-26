@@ -108,7 +108,7 @@ impl InstanceNode for PathInstance {
             );
             // set slot children to all to make children compute and update their slot index
             // (see expanded_node compute_expanded and flattened children)
-            *borrow_mut!(expanded_node.expanded_slot_children) = Some(new_children.clone());
+            *borrow_mut!(expanded_node.expanded_projected_children) = Some(new_children.clone());
             expanded_node.children.set(new_children);
         });
 
@@ -148,7 +148,7 @@ impl InstanceNode for PathInstance {
         // NOTE: do not update children here,
         // we know that all of the expanded and flattened children
         // are the same as the once being rendered
-        expanded_node.compute_flattened_slot_children();
+        expanded_node.compute_flattened_projected_children();
     }
 
     fn resolve_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {

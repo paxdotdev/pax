@@ -245,7 +245,6 @@ impl<T: ?Sized + Clone> Interpolatable for VecDeque<T> {}
 impl<T: ?Sized> Interpolatable for Rc<T> {}
 impl<T: Interpolatable> Interpolatable for Weak<T> {}
 impl<T1: Interpolatable, T2: Interpolatable> Interpolatable for (T1, T2) {}
-
 impl<I: Interpolatable> Interpolatable for Vec<I> {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
         //FUTURE: could revisit the following assertion/constraint, perhaps with a "don't-care" approach to disjoint vec elements
@@ -353,6 +352,16 @@ mod tests {
         assert!((first_quarter - 1.25).abs() < 0.0001);
         assert!((midpoint - 5.0).abs() < 0.0001);
         assert!((third_quarter - 8.75).abs() < 0.0001);
+    }
+
+    #[test]
+    fn option_interpolates_inner_value_when_both_sides_are_present() {
+        let start = Some(0.0f64);
+        let end = Some(10.0f64);
+
+        assert_eq!(start.interpolate(&end, 0.0), Some(0.0));
+        assert_eq!(start.interpolate(&end, 0.5), Some(5.0));
+        assert_eq!(start.interpolate(&end, 1.0), Some(10.0));
     }
 }
 

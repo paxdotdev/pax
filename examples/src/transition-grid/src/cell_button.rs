@@ -5,6 +5,7 @@ use pax_kit::*;
 #[pax]
 #[file("cell_button.pax")]
 pub struct CellButton {
+    pub label: Property<String>,
     pub hue: Property<Numeric>,
     pub hits: Property<usize>,
     pub display_hue: Property<Numeric>,

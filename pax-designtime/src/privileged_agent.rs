@@ -9,11 +9,11 @@ use anyhow::{anyhow, Result};
 use ewebsock::{WsEvent, WsMessage};
 use pax_manifest::{ComponentDefinition, PaxManifest};
 use std::time::Duration;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
 use url::Url;
 #[cfg(target_arch = "wasm32")]
 use web_time::Instant;
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Instant;
 
 const WEBSOCKET_RECONNECT_DELAY: Duration = Duration::from_millis(500);
 

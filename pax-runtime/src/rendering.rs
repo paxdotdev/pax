@@ -16,8 +16,8 @@ use piet::{Color, StrokeStyle};
 use crate::api::{Layer, Scroll, Window};
 
 use crate::{
-    create_new_common_properties, update_existing_common_properties, ContentChildrenSource,
-    ErasedComponentDescriptor, ExpandedNode, HandlerRegistry, RuntimeContext,
+    create_new_common_properties, update_existing_common_properties, ErasedComponentDescriptor,
+    ExpandedNode, HandlerRegistry, ReceivedChildrenSource, RuntimeContext,
     RuntimePropertiesStackFrame,
 };
 use pax_manifest::ValueDefinition;
@@ -345,13 +345,23 @@ pub trait InstanceNode {
         None
     }
 
-    /// Selects which child family should be normalized into `content_children`
-    /// for container-style consumers.
-    fn content_children_source(&self) -> ContentChildrenSource {
+    /// Selects which engine child family should be normalized into
+    /// `received_children` for semantic container-style consumers.
+    ///
+    /// This hook is about provenance, not semantics:
+    /// - `Owned` means the node's active child tree is already its received
+    ///   payload
+    /// - `Projected` means the node receives payload from its caller and the
+    ///   runtime delivers that payload through projection so `slot(...)` can
+    ///   consume it
+    ///
+    /// The default remains heuristic for now: components normalize projected
+    /// children, while other nodes normalize owned children.
+    fn received_children_source(&self) -> ReceivedChildrenSource {
         if self.base().flags().is_component {
-            ContentChildrenSource::Slot
+            ReceivedChildrenSource::Projected
         } else {
-            ContentChildrenSource::Direct
+            ReceivedChildrenSource::Owned
         }
     }
 
@@ -370,7 +380,7 @@ pub trait InstanceNode {
     ) {
     }
 
-    fn handle_setup_slot_children(
+    fn handle_setup_projected_children(
         self: Rc<Self>,
         _expanded_node: &Rc<ExpandedNode>,
         _context: &Rc<RuntimeContext>,
@@ -458,10 +468,11 @@ impl BaseInstance {
         }
     }
 
-    /// Return the list of instance nodes that are children of this one.  Intuitively, this will return
-    /// instance nodes mapping exactly to the template node definitions.
-    /// For `Component`s, `get_instance_children` returns the root(s) of its template, not its `slot_children`.
-    /// (see `get_slot_children` for the way to retrieve the latter.)
+    /// Return the list of instance nodes that are children of this one. Intuitively, this returns
+    /// the nodes owned directly by this instance's definition.
+    ///
+    /// For `Component`s, this returns the root(s) of the component template, not the
+    /// projected children supplied by the containing component.
     pub fn get_instance_children(&self) -> &InstanceNodePtrList {
         &self.instance_children
     }

@@ -15,7 +15,7 @@ use pax_runtime::{
         // Keep the trigger owned by Tooltip so hover/click reach the wrapper
         // even when the slotted content belongs to an outer component.
         <Rectangle width=100% height=100% fill=TRANSPARENT/>
-        for i in 0..self._slot_children_count {
+        for i in 0..self._projected_children_count {
             slot(i)
         }
     </Group>
@@ -65,16 +65,19 @@ pub struct Tooltip {
     // Private visibility flag driven by hover.
     pub _showing: Property<bool>,
     // Private slot count mirrored from `NodeContext`.
-    pub _slot_children_count: Property<usize>,
+    pub _projected_children_count: Property<usize>,
 }
 
 impl Tooltip {
     // Mirrors slot count and reactive autosize behavior for the inline template.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let slot_children_count = ctx.slot_children_count.clone();
-        let deps = [slot_children_count.untyped()];
-        self._slot_children_count
-            .replace_with(Property::computed(move || slot_children_count.get(), &deps));
+        let projected_children_count = ctx.projected_children_count.clone();
+        let deps = [projected_children_count.untyped()];
+        self._projected_children_count
+            .replace_with(Property::computed(
+                move || projected_children_count.get(),
+                &deps,
+            ));
         let Some(expanded_node) = ctx.expanded_node.upgrade() else {
             return;
         };

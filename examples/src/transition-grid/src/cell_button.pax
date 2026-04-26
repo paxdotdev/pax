@@ -1,41 +1,56 @@
 <Group width=100% height=100%>
-    if hits > 0 {
-        <Text
-            id=hit_count
-            x=50%
-            y=50%
-            width=52px
-            height=22px
-            text={hits + "/5"}
-            selectable=false
-        />
-    }
-
-    <Rectangle
-        x=50%
-        y=18%
-        width=62%
-        height=18%
-        anchor_x=50%
-        anchor_y=50%
-        fill=rgba(255, 255, 255, 62)
-        corner_radii={RectangleCornerRadii::radii(6.0, 6.0, 6.0, 6.0)}
-    />
-
-    <Rectangle
+    <Group
+        id=tile_shell
         x=50%
         y=50%
         width=100%
         height=100%
         anchor_x=50%
         anchor_y=50%
-        fill={hsl((display_hue)deg, 72%, 52%)}
-        stroke={
-            color: rgba(23, 42, 36, 255)
-            width: 2px
-        }
-        corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
-    />
+    >
+        <Text
+            id=label_text
+            x=64px
+            y=50%
+            width={100% - 168px}
+            height=24px
+            text={label}
+            selectable=false
+        />
+
+        <Text
+            id=hit_count
+            x={100% - 18px}
+            y=50%
+            width=84px
+            height=22px
+            anchor_x=100%
+            anchor_y=50%
+            text={hits + "/5"}
+            selectable=false
+        />
+
+        <Rectangle
+            x=18px
+            y=50%
+            width=30px
+            height=30px
+            anchor_y=50%
+            fill=rgba(255, 255, 255, 82)
+            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+        />
+
+        <Rectangle
+            width=100%
+            height=100%
+            fill={hsl((display_hue)deg, 72%, 52%)}
+            stroke={
+                color: rgba(23, 42, 36, 255)
+                width: 2px
+            }
+            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+        />
+    </Group>
 </Group>
 
 @settings {
@@ -44,7 +59,7 @@
     @in: enter
     @out: exit
 
-    #hit_count {
+    #label_text {
         style: TextStyle {
             font: Font::Web(
                 "Inter",
@@ -52,44 +67,62 @@
                 FontStyle::Normal,
                 FontWeight::ExtraBold
             )
-            font_size: 15px
+            font_size: 17px
             fill: rgba(255, 255, 255, 255)
             align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Center
-            align_multiline: TextAlignHorizontal::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    #hit_count {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::SemiBold
+            )
+            font_size: 14px
+            fill: rgba(255, 255, 255, 224)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Right
+            align_multiline: TextAlignHorizontal::Right
             underline: false
         }
     }
 }
 
 @timeline enter {
-    frames: 22,
-    self {
+    frames: 44,
+    #tile_shell {
         scale_x: {
-            0: 8%, OutBack,
+            0: 58%, OutQuad,
             100%: 100%,
         },
         scale_y: {
-            0: 8%, OutBack,
+            0: 58%, OutQuad,
             100%: 100%,
         },
         opacity: {
             0: 0,
+            30%: 0.74,
             100%: 1,
         },
     }
 }
 
 @timeline exit {
-    frames: 18,
-    self {
+    frames: 40,
+    #tile_shell {
         scale_x: {
-            0: 100%, InQuad,
-            100%: 8%,
+            0: 100%, InOutQuad,
+            100%: 58%,
         },
         scale_y: {
-            0: 100%, InQuad,
-            100%: 8%,
+            0: 100%, InOutQuad,
+            100%: 58%,
         },
         opacity: {
             0: 1,
