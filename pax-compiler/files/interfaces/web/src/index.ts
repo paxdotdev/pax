@@ -379,6 +379,9 @@ async function reloadMountedApp() {
             }
             try {
                 let { chassis } = await loadWasmModule(request.artifact_location);
+                // PAX-889 tracks the next hardening step here: keep the last
+                // known good chassis mounted until the replacement cartridge has
+                // attached cleanly, so a failed reload does not blank the tab.
                 disposeCurrentChassis();
                 resetHostState();
                 currentChassis = chassis;

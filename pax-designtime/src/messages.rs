@@ -32,6 +32,9 @@ pub enum AgentMessage {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ReloadAppRequest {
+    /// Artifact-oriented debug reload envelope shared by native and web hosts.
+    /// This is intentionally broader than a dylib-path swap, but it is not yet
+    /// the language-neutral logic-module ABI described in the hot-reload spec.
     pub request_id: String,
     pub build_id: String,
     pub artifact_kind: String,

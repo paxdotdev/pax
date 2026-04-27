@@ -223,6 +223,9 @@ pub(crate) fn perform_logic_reload(
                 AgentMessage::ReloadAppRequest(ReloadAppRequest {
                     request_id: format!("reload-app-{}", state.generate_request_id()),
                     build_id: build.build_id,
+                    // Keep the host protocol artifact-oriented so future
+                    // runtimes can extend this without inheriting dylib-shaped
+                    // assumptions from the native path.
                     artifact_kind: "web-cartridge".to_string(),
                     artifact_location: build.extensionless_url,
                 }),

@@ -46,6 +46,38 @@ There are also hard limits in the current implementation:
   in browsers is still a transpiled/polyfilled path rather than a native browser
   loading path at the time of writing.
 
+## Implementation Status
+
+As of April 2026, Phase 1 exists on two chassis:
+
+- **macOS**
+  - a stable native host stays alive
+  - Rust edits rebuild a fresh logic dylib under a unique path
+  - the host remounts userland against the new cartridge image
+- **web**
+  - a stable JavaScript host stays alive
+  - Rust edits rebuild a fresh JS + Wasm cartridge bundle under a unique served
+    path
+  - the host remounts a fresh Wasm app instance in the same tab
+
+The important point is that the semantic reload boundary is shared even though
+the artifact mechanics differ:
+
+- the host survives
+- `.pax` edits continue using the lighter designtime manifest-update path
+- logic edits produce a fresh artifact
+- the host remounts userland from that artifact
+
+What still does **not** exist is typed state transfer. Both chassis are Phase 1
+remount flows today.
+
+Web Phase 1 still has hardening follow-up work tracked in `PAX-889`:
+
+- preserve the last known good mounted app if a new reload artifact fails during
+  attach/init
+- prune staged `__reloads__` artifacts during long sessions
+- add automated smoke coverage for web hot reload
+
 ## Decision Summary
 
 The recommended direction is:
@@ -297,26 +329,28 @@ should be refactored into:
 The host shim should own the runtime kernel and hold function pointers or a
 vtable returned by the logic dylib.
 
-### Web: Follow-On Chassis
+### Web: Phase 1 Follow-On Chassis
 
-Web should not block the spec or the first implementation.
+Web no longer blocks the first implementation; it now has its own Phase 1 path.
 
 At the time of writing:
 
 - browsers natively run core Wasm modules well
 - browser-side component-model execution is still a transpiled or polyfilled
   workflow
+- Pax web hot reload is implemented today as a stable JS host remounting a
+  freshly built JS + Wasm app artifact
 
-So the web strategy should be:
+So the web strategy should remain:
 
-- keep current `.pax` designtime reload behavior
-- treat Rust hot reload as a follow-on track
-- evaluate two paths:
-  - dev-only full remount with state restore after a rebuilt core Wasm module
-  - component-model transpilation/polyfill experiments for richer linking later
+- keep current `.pax` designtime reload behavior for template-only edits
+- use the stable JS host as the durable boundary for Rust/code edits
+- treat future state restore as Phase 2 on top of that host boundary
+- evaluate component-model or richer linking experiments later, not as a Phase 1
+  prerequisite
 
-The first shipped version should not depend on native browser component-model
-support.
+The shipped web Phase 1 should continue to avoid native browser component-model
+support as a dependency.
 
 ### iOS: Later
 
@@ -335,6 +369,11 @@ Hot logic reload requires deliberate compiler output changes:
 - share boundary definitions with the release-cartridge architecture where
   possible, while keeping designtime-only metadata out of release payloads by
   default
+
+For web, the "swap-target artifact" is currently a rebuilt JS + Wasm cartridge
+served under a unique URL, not a lower-level dynamically linked Wasm side
+module. That is acceptable for Phase 1 as long as the host-side reload protocol
+remains artifact-oriented rather than hard-coding native dylib assumptions.
 
 This is debug-only metadata and should not leak into release artifacts unless
 the runtime truly needs it there.
@@ -378,6 +417,11 @@ New responsibilities:
 - remain the authoritative filesystem-facing coordinator for watch and build
   behavior
 
+The design-server-to-host payload should stay artifact-oriented. Today that
+means build id + artifact kind + artifact location. Future work may need to add
+versioning, integrity, or richer capability metadata, but that should extend the
+same envelope instead of forking native and web into unrelated protocols.
+
 `.pax` template edits should continue using the lighter-weight manifest reload
 path when possible. Hot logic reload is the slower path used only when the logic
 artifact changes.
@@ -406,7 +450,7 @@ This proves the host/logic split and the loader mechanics.
 ### Phase 3
 
 - stronger fault isolation
-- web-specific hot logic path
+- web-specific state restore and hardening
 - additional language runtimes that implement the same ABI
 
 ## Settled Decisions
@@ -418,6 +462,32 @@ This proves the host/logic split and the loader mechanics.
   durable-state problem and land in Phase 2.
 - The design server should own the watch/build loop because it already has
   direct filesystem access.
+
+## Cross-Runtime Notes
+
+This work moves Pax closer to multi-runtime support in one specific way: the
+reload coordinator now thinks in terms of "fresh app artifact for a stable host"
+instead of only "replace this native dylib path."
+
+That is useful, but it is not the same thing as a language-neutral runtime ABI.
+Future JS/TS or Python work still needs the real logic-module contract:
+
+- component descriptor registry contract
+- traverser factory contract
+- handler dispatch contract
+- state snapshot / restore schema
+- value marshaling format, likely centered on Pax-owned value types
+
+The web path is especially important for future agents to read correctly:
+
+- the durable boundary on native is the host process plus stable chassis/kernel
+  around a swappable cartridge image
+- the durable boundary on web is the JS host, not the live Wasm instance
+- those are different artifact mechanics, but they should keep one reload state
+  machine and one host-facing protocol
+
+So future cross-runtime work should prefer extending the shared artifact/reload
+contract rather than introducing separate native-vs-web concepts of reload.
 
 ## Recommendation
 
