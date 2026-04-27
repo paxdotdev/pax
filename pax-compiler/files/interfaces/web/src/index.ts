@@ -50,8 +50,24 @@ let renderLoopStarted = false;
 let frameInProgress = false;
 let hiddenTabPumpHandle: number | null = null;
 let pendingAsyncInterruptFlush = false;
+let animationFrameHandle: number | null = null;
+let currentChassis: PaxChassisWeb | null = null;
+let currentMount: Element | null = null;
+let currentExtensionlessUrl: string | null = null;
+let teardownEventListeners: (() => void) | null = null;
+let teardownResizeHandler: (() => void) | null = null;
+let teardownHiddenTabPump: (() => void) | null = null;
+let pendingReloadRequest: ReloadAppRequest | null = null;
+let reloadInProgress = false;
 const perfTraceEnabled = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("pax_scroll_perf");
 let perfTraceSequence = 0;
+
+type ReloadAppRequest = {
+    request_id: string;
+    build_id: string;
+    artifact_kind: string;
+    artifact_location: string;
+};
 
 function withProfileMeasure<T>(name: string, fn: () => T): T {
     if (!perfTraceEnabled || typeof performance === "undefined") {
@@ -77,11 +93,7 @@ export function mount(selector_or_element: string | Element, extensionlessUrl: s
         return;
     }
 
-    //Inject CSS
-    let link = document.createElement('link')
-    link.rel = 'stylesheet'
-    link.href = 'pax-interface-web.css'
-    document.head.appendChild(link)
+    ensureInterfaceStylesheet();
 
     let mount: Element;
     if (typeof selector_or_element === "string") {
@@ -92,10 +104,22 @@ export function mount(selector_or_element: string | Element, extensionlessUrl: s
 
     // Update to pass wasmUrl to bootstrap function
     if (mount) {
+        currentMount = mount;
+        currentExtensionlessUrl = extensionlessUrl;
         startRenderLoop(extensionlessUrl, mount).then();
     } else {
         console.error("Unable to find mount element");
     }
+}
+
+function ensureInterfaceStylesheet() {
+    if (document.querySelector('link[href="pax-interface-web.css"]')) {
+        return;
+    }
+    let link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'pax-interface-web.css';
+    document.head.appendChild(link);
 }
 
 async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxChassisWeb }> {
@@ -115,6 +139,35 @@ async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxC
     }
 }
 
+function resetHostState() {
+    objectManager = new ObjectManager(SUPPORTED_OBJECTS);
+    nativePool = new NativeElementPool(objectManager);
+    initializedChassis = false;
+    frameInProgress = false;
+    pendingAsyncInterruptFlush = false;
+}
+
+function disposeCurrentChassis() {
+    if (animationFrameHandle !== null) {
+        cancelAnimationFrame(animationFrameHandle);
+        animationFrameHandle = null;
+    }
+    teardownHiddenTabPump?.();
+    teardownHiddenTabPump = null;
+    teardownResizeHandler?.();
+    teardownResizeHandler = null;
+    teardownEventListeners?.();
+    teardownEventListeners = null;
+    nativePool.dispose();
+    currentChassis?.free();
+    currentChassis = null;
+    renderLoopStarted = false;
+    renderLoopStarting = false;
+    initializedChassis = false;
+    frameInProgress = false;
+    pendingAsyncInterruptFlush = false;
+}
+
 async function startRenderLoop(extensionlessUrl: string, mount: Element) {
     if (renderLoopStarting || renderLoopStarted) {
         return;
@@ -122,17 +175,25 @@ async function startRenderLoop(extensionlessUrl: string, mount: Element) {
     renderLoopStarting = true;
     try {
         let {chassis} = await loadWasmModule(extensionlessUrl);
-        nativePool.attach(chassis, mount);
-        nativePool.setPostAsyncInterruptFlush(() => requestFrameFlush(chassis, mount));
-        initializeChassis(chassis, mount);
-        ensureHiddenTabPump(chassis, mount);
+        resetHostState();
+        currentChassis = chassis;
+        currentMount = mount;
+        currentExtensionlessUrl = extensionlessUrl;
+        attachChassis(chassis, mount);
         renderLoopStarted = true;
         renderLoopStarting = false;
-        requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount));
+        animationFrameHandle = requestAnimationFrame(() => renderLoop(chassis, mount));
     } catch (error) {
         renderLoopStarting = false;
         console.error("Failed to load or instantiate Wasm module:", error);
     }
+}
+
+function attachChassis(chassis: PaxChassisWeb, mount: Element) {
+    nativePool.attach(chassis, mount);
+    nativePool.setPostAsyncInterruptFlush(() => requestFrameFlush(chassis, mount));
+    initializeChassis(chassis, mount);
+    ensureHiddenTabPump(chassis, mount);
 }
 
 function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
@@ -183,14 +244,20 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
         }, undefined);
     };
     window.addEventListener('resize', resizeHandler);
-    let resizeObserver = new ResizeObserver(() => {
-        resizeHandler();
-    });
-    resizeObserver.observe(mount);
+    let resizeObserver = typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            resizeHandler();
+        });
+    resizeObserver?.observe(mount);
+    teardownResizeHandler = () => {
+        window.removeEventListener('resize', resizeHandler);
+        resizeObserver?.disconnect();
+    };
     // Initialize viewport-dependent layout before the first engine tick so native/scroller hosts do
     // not bootstrap against a transient 0x0 viewport.
     resizeHandler();
-    setupEventListeners(chassis);
+    teardownEventListeners = setupEventListeners(chassis);
     initializedChassis = true;
 }
 
@@ -208,18 +275,30 @@ function ensureHiddenTabPump(chassis: PaxChassisWeb, mount: Element) {
         }
         requestFrameFlush(chassis, mount);
     };
-
-    document.addEventListener("visibilitychange", pumpHiddenFrame);
-    window.addEventListener("pax-designtime-wakeup", () => {
+    const wakeHiddenFrame = () => {
         if (!document.hidden) {
             return;
         }
         requestFrameFlush(chassis, mount);
-    });
+    };
+
+    document.addEventListener("visibilitychange", pumpHiddenFrame);
+    window.addEventListener("pax-designtime-wakeup", wakeHiddenFrame);
     hiddenTabPumpHandle = window.setInterval(pumpHiddenFrame, HIDDEN_TAB_FRAME_FALLBACK_MS);
+    teardownHiddenTabPump = () => {
+        document.removeEventListener("visibilitychange", pumpHiddenFrame);
+        window.removeEventListener("pax-designtime-wakeup", wakeHiddenFrame);
+        if (hiddenTabPumpHandle !== null) {
+            clearInterval(hiddenTabPumpHandle);
+            hiddenTabPumpHandle = null;
+        }
+    };
 }
 
 function requestFrameFlush(chassis: PaxChassisWeb, mount: Element) {
+    if (chassis !== currentChassis || mount !== currentMount) {
+        return;
+    }
     if (frameInProgress) {
         pendingAsyncInterruptFlush = true;
         return;
@@ -228,7 +307,7 @@ function requestFrameFlush(chassis: PaxChassisWeb, mount: Element) {
 }
 
 function runFrame(chassis: PaxChassisWeb, mount: Element) {
-    if (frameInProgress) {
+    if (frameInProgress || chassis !== currentChassis || mount !== currentMount) {
         return;
     }
     frameInProgress = true;
@@ -248,20 +327,86 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
                 chassis.render();
             });
         });
+        processReloadRequests(chassis);
     } finally {
         frameInProgress = false;
-        if (pendingAsyncInterruptFlush) {
+        if (pendingAsyncInterruptFlush && chassis === currentChassis && mount === currentMount) {
             pendingAsyncInterruptFlush = false;
             queueMicrotask(() => requestFrameFlush(chassis, mount));
         }
     }
 }
 
+function takeReloadRequests(chassis: PaxChassisWeb): ReloadAppRequest[] {
+    let value = (chassis as any).take_reload_app_requests?.();
+    if (!Array.isArray(value)) {
+        return [];
+    }
+    return value as ReloadAppRequest[];
+}
+
+function processReloadRequests(chassis: PaxChassisWeb) {
+    let requests = takeReloadRequests(chassis);
+    if (requests.length === 0) {
+        return;
+    }
+    let request = requests[requests.length - 1];
+    if (request.artifact_kind !== "web-cartridge") {
+        console.warn("Ignoring unsupported reload artifact kind", request.artifact_kind);
+        return;
+    }
+    if (pendingReloadRequest?.build_id === request.build_id || currentExtensionlessUrl === request.artifact_location) {
+        return;
+    }
+    pendingReloadRequest = request;
+    if (!reloadInProgress) {
+        queueMicrotask(() => reloadMountedApp());
+    }
+}
+
+async function reloadMountedApp() {
+    if (reloadInProgress) {
+        return;
+    }
+    reloadInProgress = true;
+    try {
+        while (pendingReloadRequest != null) {
+            let request = pendingReloadRequest;
+            pendingReloadRequest = null;
+            let mount = currentMount;
+            if (!mount) {
+                continue;
+            }
+            try {
+                let { chassis } = await loadWasmModule(request.artifact_location);
+                disposeCurrentChassis();
+                resetHostState();
+                currentChassis = chassis;
+                currentMount = mount;
+                currentExtensionlessUrl = request.artifact_location;
+                attachChassis(chassis, mount);
+                renderLoopStarted = true;
+                animationFrameHandle = requestAnimationFrame(() => renderLoop(chassis, mount));
+            } catch (error) {
+                console.error(`Failed to reload Pax cartridge ${request.build_id}:`, error);
+            }
+        }
+    } finally {
+        reloadInProgress = false;
+    }
+}
+
 function renderLoop (chassis: PaxChassisWeb, mount: Element) {
+    if (chassis !== currentChassis || mount !== currentMount) {
+        return;
+    }
     initializeChassis(chassis, mount);
     runFrame(chassis, mount);
 
-    requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount));
+    if (chassis !== currentChassis || mount !== currentMount) {
+        return;
+    }
+    animationFrameHandle = requestAnimationFrame(() => renderLoop(chassis, mount));
 }
 
 

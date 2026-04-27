@@ -21,12 +21,21 @@ pub enum AgentMessage {
     LoadFileToStaticDirRequest(LoadFileToStaticDirRequest),
     UserlandSourceUpdateRequest(UserlandSourceUpdateRequest),
     UserlandSourceUpdateResponse(UserlandSourceUpdateResponse),
+    ReloadAppRequest(ReloadAppRequest),
     DevClientRequest(DevClientRequest),
     DevClientResponse(DevClientResponse),
     // LLM Requests to pub.pax.dev
     LLMRequest(LLMRequest),
     LLMPartialResponse(LLMPartialResponse),
     LLMFinalResponse(LLMFinalResponse),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ReloadAppRequest {
+    pub request_id: String,
+    pub build_id: String,
+    pub artifact_kind: String,
+    pub artifact_location: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

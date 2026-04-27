@@ -13,6 +13,7 @@ use env_logger;
 use std::io::Write;
 
 use crate::building::apple::rebuild_staged_macos_logic_dylib;
+use crate::building::web::rebuild_staged_web_cartridge;
 use crate::dev_session::{
     self, write_session_request_json, DevLookRequest, DevReloadLogicRequest, DevSession,
 };
@@ -20,6 +21,7 @@ use crate::helpers::PAX_BADGE;
 use crate::{RunContext, RunTarget};
 use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use pax_manifest::PaxManifest;
+use pax_designtime::messages::{AgentMessage, ReloadAppRequest};
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -46,8 +48,20 @@ pub struct NativeLogicReloadConfig {
     pub should_run_designer: bool,
 }
 
-struct NativeLogicReloadState {
-    config: NativeLogicReloadConfig,
+#[derive(Clone)]
+pub struct WebLogicReloadConfig {
+    pub serve_dir: PathBuf,
+    pub should_run_designer: bool,
+}
+
+#[derive(Clone)]
+pub enum LogicReloadConfig {
+    Native(NativeLogicReloadConfig),
+    Web(WebLogicReloadConfig),
+}
+
+struct LogicReloadState {
+    config: LogicReloadConfig,
     build_in_progress: bool,
     rebuild_pending: bool,
 }
@@ -63,7 +77,7 @@ pub struct AppState {
     last_written_timestamp: Mutex<SystemTime>,
     dev_session: Mutex<Option<DevSession>>,
     pending_dev_look_requests: Mutex<HashMap<String, DevLookRequest>>,
-    native_logic_reload: Mutex<Option<NativeLogicReloadState>>,
+    logic_reload: Mutex<Option<LogicReloadState>>,
 }
 
 impl AppState {
@@ -79,7 +93,7 @@ impl AppState {
             last_written_timestamp: Mutex::new(UNIX_EPOCH),
             dev_session: Mutex::new(None),
             pending_dev_look_requests: Mutex::new(HashMap::new()),
-            native_logic_reload: Mutex::new(None),
+            logic_reload: Mutex::new(None),
         }
     }
     pub fn new(
@@ -87,7 +101,7 @@ impl AppState {
         project_root: PathBuf,
         manifest: PaxManifest,
         dev_session: Option<DevSession>,
-        native_logic_reload: Option<NativeLogicReloadConfig>,
+        logic_reload: Option<LogicReloadConfig>,
     ) -> Self {
         AppState {
             serve_dir: Mutex::new(serve_dir),
@@ -100,8 +114,8 @@ impl AppState {
             last_written_timestamp: Mutex::new(SystemTime::now()),
             dev_session: Mutex::new(dev_session),
             pending_dev_look_requests: Mutex::new(HashMap::new()),
-            native_logic_reload: Mutex::new(native_logic_reload.map(|config| {
-                NativeLogicReloadState {
+            logic_reload: Mutex::new(logic_reload.map(|config| {
+                LogicReloadState {
                     config,
                     build_in_progress: false,
                     rebuild_pending: false,
@@ -128,9 +142,9 @@ impl AppState {
     }
 }
 
-pub fn schedule_native_logic_reload(state: Data<AppState>) {
-    let mut native_logic_reload = state.native_logic_reload.lock().unwrap();
-    let Some(reload_state) = native_logic_reload.as_mut() else {
+pub fn schedule_logic_reload(state: Data<AppState>) {
+    let mut logic_reload = state.logic_reload.lock().unwrap();
+    let Some(reload_state) = logic_reload.as_mut() else {
         return;
     };
 
@@ -141,18 +155,18 @@ pub fn schedule_native_logic_reload(state: Data<AppState>) {
 
     reload_state.build_in_progress = true;
     reload_state.rebuild_pending = false;
-    drop(native_logic_reload);
+    drop(logic_reload);
 
-    std::thread::spawn(move || run_native_logic_reload_loop(state));
+    std::thread::spawn(move || run_logic_reload_loop(state));
 }
 
-fn run_native_logic_reload_loop(state: Data<AppState>) {
+pub fn run_logic_reload_loop(state: Data<AppState>) {
     loop {
         std::thread::sleep(std::time::Duration::from_millis(150));
 
         let config = {
-            let native_logic_reload = state.native_logic_reload.lock().unwrap();
-            native_logic_reload
+            let logic_reload = state.logic_reload.lock().unwrap();
+            logic_reload
                 .as_ref()
                 .map(|reload| reload.config.clone())
         };
@@ -161,31 +175,13 @@ fn run_native_logic_reload_loop(state: Data<AppState>) {
         };
         let project_root = state.userland_project_root.lock().unwrap().clone();
 
-        match rebuild_staged_macos_logic_dylib(
-            &project_root,
-            &config.session_dir,
-            config.should_run_designer,
-        ) {
-            Ok(build) => {
-                let crate::building::apple::MacosLogicReloadBuild {
-                    manifest,
-                    dylib_path,
-                } = build;
-                *state.manifest.lock().unwrap() = Some(manifest);
-                if let Err(err) =
-                    enqueue_native_logic_reload_request(&state, &config, dylib_path.as_path())
-                {
-                    eprintln!("failed to queue native logic reload request: {err}");
-                }
-            }
-            Err(err) => {
-                eprintln!("failed to rebuild macOS logic module for hot reload: {err}");
-            }
+        if let Err(err) = perform_logic_reload(&state, &project_root, &config) {
+            eprintln!("failed to reload logic for hot reload: {err}");
         }
 
         let should_repeat = {
-            let mut native_logic_reload = state.native_logic_reload.lock().unwrap();
-            let Some(reload_state) = native_logic_reload.as_mut() else {
+            let mut logic_reload = state.logic_reload.lock().unwrap();
+            let Some(reload_state) = logic_reload.as_mut() else {
                 return;
             };
             if reload_state.rebuild_pending {
@@ -200,6 +196,46 @@ fn run_native_logic_reload_loop(state: Data<AppState>) {
         if !should_repeat {
             break;
         }
+    }
+}
+
+pub(crate) fn perform_logic_reload(
+    state: &Data<AppState>,
+    project_root: &PathBuf,
+    config: &LogicReloadConfig,
+) -> Result<(), color_eyre::eyre::Report> {
+    match config {
+        LogicReloadConfig::Native(config) => {
+            let build = rebuild_staged_macos_logic_dylib(
+                project_root,
+                &config.session_dir,
+                config.should_run_designer,
+            )?;
+            *state.manifest.lock().unwrap() = Some(build.manifest);
+            enqueue_native_logic_reload_request(state, config, build.dylib_path.as_path())?;
+        }
+        LogicReloadConfig::Web(config) => {
+            let build =
+                rebuild_staged_web_cartridge(project_root, &config.serve_dir, config.should_run_designer)?;
+            *state.manifest.lock().unwrap() = Some(build.manifest);
+            send_agent_message_to_active_client(
+                state,
+                AgentMessage::ReloadAppRequest(ReloadAppRequest {
+                    request_id: format!("reload-app-{}", state.generate_request_id()),
+                    build_id: build.build_id,
+                    artifact_kind: "web-cartridge".to_string(),
+                    artifact_location: build.extensionless_url,
+                }),
+            );
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn send_agent_message_to_active_client(state: &Data<AppState>, message: AgentMessage) {
+    let active_client = state.active_websocket_client.lock().unwrap().clone();
+    if let Some(active_client) = active_client {
+        active_client.addr.do_send(websocket::SendAgentMessage { message });
     }
 }
 
@@ -241,7 +277,7 @@ pub fn start_server(
     ready_file: Option<PathBuf>,
     show_address_log: bool,
     dev_session: Option<DevSession>,
-    native_logic_reload: Option<NativeLogicReloadConfig>,
+    logic_reload: Option<LogicReloadConfig>,
 ) -> std::io::Result<()> {
     // Initialize logging
     std::env::set_var("RUST_LOG", "actix_web=info");
@@ -254,7 +290,7 @@ pub fn start_server(
         PathBuf::from_str(src_folder_to_watch).unwrap(),
         manifest,
         dev_session,
-        native_logic_reload,
+        logic_reload,
     );
     let fs_path = initial_state.serve_dir.lock().unwrap().clone();
     let state = Data::new(initial_state);

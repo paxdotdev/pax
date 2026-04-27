@@ -19,7 +19,16 @@ function getMouseButton(event: MouseEvent) {
 }
 
 
-export function setupEventListeners(chassis: PaxChassisWeb) {
+export function setupEventListeners(chassis: PaxChassisWeb): () => void {
+    let disposers: Array<() => void> = [];
+    let addWindowListener = (
+        type: string,
+        listener: (event: any) => void,
+        options?: boolean | AddEventListenerOptions,
+    ) => {
+        window.addEventListener(type, listener, options);
+        disposers.push(() => window.removeEventListener(type, listener, options));
+    };
 
     let lastPositions = new Map<number, {x: number, y: number}>();
     function getTouchMessages(touchList: TouchList) {
@@ -38,7 +47,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         });
     }
 
-    window.addEventListener('click', (evt) => {
+    addWindowListener('click', (evt) => {
 
         let clickEvent = {
             "Click": {
@@ -60,7 +69,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, true);
-    window.addEventListener('dblclick', (evt) => {
+    addWindowListener('dblclick', (evt) => {
         let event = {
             "DoubleClick": {
                 "x": evt.clientX,
@@ -74,7 +83,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, true);
-    window.addEventListener('selectstart', (evt) => {
+    addWindowListener('selectstart', (evt) => {
 
         // NOTE: this shouldn't be needed once selectionstart can be
         // fired only on active/focused element instead of global
@@ -91,7 +100,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, true);
-    window.addEventListener('mousemove', (evt) => {
+    addWindowListener('mousemove', (evt) => {
         // this value was previously set on window
         let button = (window as any).current_button || 'Left';
         let event = {
@@ -107,7 +116,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, true);
-    window.addEventListener('wheel', (evt) => {
+    addWindowListener('wheel', (evt) => {
         let event = {
             "Wheel": {
                 "x": evt.clientX,
@@ -122,7 +131,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, {"passive": false, "capture": true});
-    window.addEventListener('mousedown', (evt) => {
+    addWindowListener('mousedown', (evt) => {
         let button = getMouseButton(evt);
         // set non-existent window prop to keep track of value
         (window as any).current_button = button;
@@ -139,7 +148,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, true);
-    window.addEventListener('mouseup', (evt) => {
+    addWindowListener('mouseup', (evt) => {
         let event = {
             "MouseUp": {
                 "x": evt.clientX,
@@ -153,7 +162,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, true);
-    window.addEventListener('contextmenu', (evt) => {
+    addWindowListener('contextmenu', (evt) => {
         let event = {
             "ContextMenu": {
                 "x": evt.clientX,
@@ -167,7 +176,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, true);
-    window.addEventListener('touchstart', (evt) => {
+    addWindowListener('touchstart', (evt) => {
         let event = {
             "TouchStart": {
                 "touches": getTouchMessages(evt.touches)
@@ -189,7 +198,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, {"passive": true, "capture": true});
-    window.addEventListener('touchmove', (evt) => {
+    addWindowListener('touchmove', (evt) => {
         let touches = getTouchMessages(evt.touches);
         let event = {
             "TouchMove": {
@@ -202,7 +211,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
         }
 
     }, {"passive": false, "capture": true});
-    window.addEventListener('touchend', (evt) => {
+    addWindowListener('touchend', (evt) => {
         let event = {
             "TouchEnd": {
                 "touches": getTouchMessages(evt.changedTouches)
@@ -216,7 +225,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             lastPositions.delete(touch.identifier);
         });
     }, {"passive": true, "capture": true});
-    window.addEventListener('keydown', (evt) => {
+    addWindowListener('keydown', (evt) => {
         let dom_node_selected = document.activeElement != document.body;
         // TODO figure out how to handle this more robustly
         if (dom_node_selected) {
@@ -235,7 +244,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, true);
-    window.addEventListener('keyup', (evt) => {
+    addWindowListener('keyup', (evt) => {
         if (document.activeElement != document.body) {
             return;
         }
@@ -251,7 +260,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, true);
-    window.addEventListener('keypress', (evt) => {
+    addWindowListener('keypress', (evt) => {
         if (document.activeElement != document.body) {
             return;
         }
@@ -267,7 +276,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, true);
-    window.addEventListener('focus', (evt) => {
+    addWindowListener('focus', (evt) => {
         if (document.activeElement != document.body) {
             return;
         }
@@ -279,7 +288,7 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, true);
-    window.addEventListener('drop', async (evt) => {
+    addWindowListener('drop', async (evt) => {
         evt.stopPropagation();
         evt.preventDefault();
         if (document.activeElement != document.body) {
@@ -301,11 +310,18 @@ export function setupEventListeners(chassis: PaxChassisWeb) {
             evt.preventDefault();
         }
     }, true);
-    window.addEventListener('dragover', (evt) => {
+    addWindowListener('dragover', (evt) => {
         evt.stopPropagation();
         evt.preventDefault();
         evt.dataTransfer!.dropEffect = 'copy';
     }, {"passive": false, "capture": true});
+
+    return () => {
+        while (disposers.length > 0) {
+            let dispose = disposers.pop();
+            dispose?.();
+        }
+    };
 }
 
 function readFileAsByteArray(file: File): Promise<Uint8Array> {

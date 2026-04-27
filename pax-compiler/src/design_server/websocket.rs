@@ -1,5 +1,5 @@
 use crate::design_server::{
-    schedule_native_logic_reload, ActiveWebsocketClient, AppState, FileContent, WatcherFileChanged,
+    schedule_logic_reload, ActiveWebsocketClient, AppState, FileContent, WatcherFileChanged,
 };
 use crate::dev_session::{
     self, session_request_dir, session_response_dir, write_registered_session, DevCapture,
@@ -58,8 +58,8 @@ impl actix::Message for DisconnectSuperseded {
     type Result = ();
 }
 
-struct SendAgentMessage {
-    message: AgentMessage,
+pub(crate) struct SendAgentMessage {
+    pub(crate) message: AgentMessage,
 }
 
 impl actix::Message for SendAgentMessage {
@@ -474,7 +474,7 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
                         eprintln!("ignoring invalid Pax watcher update for {path}: {err}");
                     }
                 },
-                FileContent::Rust(_) => schedule_native_logic_reload(self.state.clone()),
+                FileContent::Rust(_) => schedule_logic_reload(self.state.clone()),
                 FileContent::Unknown => {}
             }
         }
@@ -806,10 +806,7 @@ fn send_userland_source_update_response_in_context(
 }
 
 fn send_agent_message_to_active_client(state: &Data<AppState>, message: AgentMessage) {
-    let active_client = state.active_websocket_client.lock().unwrap().clone();
-    if let Some(active_client) = active_client {
-        active_client.addr.do_send(SendAgentMessage { message });
-    }
+    super::send_agent_message_to_active_client(state, message);
 }
 
 fn send_userland_source_update_response(
@@ -1226,10 +1223,10 @@ fn spawn_userland_rust_source_update(
     path: String,
 ) -> Result<(), String> {
     let config = {
-        let mut native_logic_reload = state.native_logic_reload.lock().unwrap();
-        let reload_state = native_logic_reload
+        let mut logic_reload = state.logic_reload.lock().unwrap();
+        let reload_state = logic_reload
             .as_mut()
-            .ok_or_else(|| "native logic reload is unavailable for this session".to_string())?;
+            .ok_or_else(|| "logic reload is unavailable for this session".to_string())?;
         if reload_state.build_in_progress {
             return Err("a logic rebuild is already in progress".to_string());
         }
@@ -1240,38 +1237,15 @@ fn spawn_userland_rust_source_update(
 
     std::thread::spawn(move || {
         let project_root = state.userland_project_root.lock().unwrap().clone();
-        let build_result = crate::building::apple::rebuild_staged_macos_logic_dylib(
-            &project_root,
-            &config.session_dir,
-            config.should_run_designer,
-        );
-
-        match build_result {
-            Ok(build) => {
-                let crate::building::apple::MacosLogicReloadBuild {
-                    manifest,
-                    dylib_path,
-                } = build;
-                *state.manifest.lock().unwrap() = Some(manifest);
-                if let Err(err) =
-                    super::enqueue_native_logic_reload_request(&state, &config, dylib_path.as_path())
-                {
-                    send_userland_source_update_response(
-                        &state,
-                        request_id.clone(),
-                        path.clone(),
-                        "error",
-                        Some(format!("failed to queue logic reload: {err}")),
-                    );
-                } else {
-                    send_userland_source_update_response(
-                        &state,
-                        request_id.clone(),
-                        path.clone(),
-                        "ok",
-                        None,
-                    );
-                }
+        match super::perform_logic_reload(&state, &project_root, &config) {
+            Ok(()) => {
+                send_userland_source_update_response(
+                    &state,
+                    request_id.clone(),
+                    path.clone(),
+                    "ok",
+                    None,
+                );
             }
             Err(err) => {
                 send_userland_source_update_response(
@@ -1285,8 +1259,8 @@ fn spawn_userland_rust_source_update(
         }
 
         let should_repeat = {
-            let mut native_logic_reload = state.native_logic_reload.lock().unwrap();
-            let Some(reload_state) = native_logic_reload.as_mut() else {
+            let mut logic_reload = state.logic_reload.lock().unwrap();
+            let Some(reload_state) = logic_reload.as_mut() else {
                 return;
             };
             if reload_state.rebuild_pending {
@@ -1300,7 +1274,7 @@ fn spawn_userland_rust_source_update(
 
         if should_repeat {
             let state_for_repeat = state.clone();
-            std::thread::spawn(move || super::run_native_logic_reload_loop(state_for_repeat));
+            std::thread::spawn(move || super::run_logic_reload_loop(state_for_repeat));
         }
     });
 

@@ -144,6 +144,64 @@ export class NativeElementPool {
         this.postAsyncInterruptFlush = callback;
     }
 
+    dispose() {
+        if (this.activePageScrollScrollerId != null) {
+            let leaf = this.nodesLookup.get(this.activePageScrollScrollerId);
+            let state = this.scrollerMeasurementStates.get(this.activePageScrollScrollerId);
+            if (leaf != null && state != null) {
+                this.setPageScrollDelegation(
+                    this.activePageScrollScrollerId,
+                    leaf,
+                    state,
+                    false,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                );
+            } else {
+                this.activePageScrollScrollerId = undefined;
+                this.uninstallPageScrollActivityListeners();
+                this.setDocumentPageScrollMode(false);
+            }
+        } else {
+            this.uninstallPageScrollActivityListeners();
+            this.setDocumentPageScrollMode(false);
+        }
+
+        this.resizeObserver.disconnect();
+        if (this.pageSnapHost != null) {
+            while (this.pageSnapHost.firstChild) {
+                this.pageSnapHost.removeChild(this.pageSnapHost.firstChild);
+            }
+        }
+        if (this.mount != null) {
+            this.mount.innerHTML = "";
+        }
+
+        this.canvases.clear();
+        this.lastCanvasSurfaceSignatures.clear();
+        this.lastCanvasTransformSignatures.clear();
+        this.lastCanvasLayerCounts.clear();
+        this.layerCanvasPlanCache.clear();
+        this.nodesLookup.clear();
+        this.scrollerHosts.clear();
+        this.scrollerMeasurementStates.clear();
+        this.presentationRecords.clear();
+        this.pendingScrollerUpdates.clear();
+        this.surfaceRefreshPending = false;
+        this.lastLayerCanvasPlanGeneration = undefined;
+        this.lastLayerCanvasPlanDevicePixelRatio = undefined;
+        this.activePageScrollScrollerId = undefined;
+        this.pageSnapHost = undefined;
+        this.pageSnapOwnerScrollerId = undefined;
+        this.postAsyncInterruptFlush = undefined;
+        this.chassis = undefined;
+        this.mount = undefined;
+        this.canvasPool = undefined;
+    }
+
     hasActivePageScrollDelegation() {
         return this.activePageScrollScrollerId != null;
     }

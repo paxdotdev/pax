@@ -11,7 +11,7 @@ pub mod serde_pax;
 
 use messages::LLMRequest;
 use messages::{
-    DevClientRequest, DevClientResponse, UserlandSourceUpdateRequest,
+    DevClientRequest, DevClientResponse, ReloadAppRequest, UserlandSourceUpdateRequest,
     UserlandSourceUpdateResponse,
 };
 use orm::{MessageType, ReloadType};
@@ -41,6 +41,7 @@ pub struct DesigntimeManager {
     project_query: Option<String>,
     response_queue: Rc<RefCell<Vec<DesigntimeResponseMessage>>>,
     pending_dev_client_requests: Rc<RefCell<Vec<DevClientRequest>>>,
+    pending_reload_app_requests: Rc<RefCell<Vec<ReloadAppRequest>>>,
     pending_userland_source_update_responses: Rc<RefCell<Vec<UserlandSourceUpdateResponse>>>,
     last_rendered_manifest_version: Property<usize>,
     pub publish_state: Property<Option<PublishResponse>>,
@@ -105,6 +106,7 @@ impl DesigntimeManager {
             project_query: None,
             response_queue: Rc::new(RefCell::new(Vec::new())),
             pending_dev_client_requests: Rc::new(RefCell::new(Vec::new())),
+            pending_reload_app_requests: Rc::new(RefCell::new(Vec::new())),
             pending_userland_source_update_responses: Rc::new(RefCell::new(Vec::new())),
             last_rendered_manifest_version: Property::new(0),
             publish_state: Default::default(),
@@ -248,6 +250,11 @@ impl DesigntimeManager {
             .send_dev_client_response(response)
     }
 
+    pub fn take_reload_app_requests(&mut self) -> Vec<ReloadAppRequest> {
+        let mut pending_requests = self.pending_reload_app_requests.borrow_mut();
+        pending_requests.drain(..).collect()
+    }
+
     pub fn send_userland_source_update(
         &mut self,
         request: UserlandSourceUpdateRequest,
@@ -294,6 +301,9 @@ impl DesigntimeManager {
             match message {
                 crate::messages::AgentMessage::DevClientRequest(request) => {
                     self.pending_dev_client_requests.borrow_mut().push(request);
+                }
+                crate::messages::AgentMessage::ReloadAppRequest(request) => {
+                    self.pending_reload_app_requests.borrow_mut().push(request);
                 }
                 crate::messages::AgentMessage::UserlandSourceUpdateResponse(response) => {
                     self.pending_userland_source_update_responses

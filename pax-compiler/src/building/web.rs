@@ -6,7 +6,9 @@ use crate::helpers::{
     wait_with_output, ASSETS_DIR_NAME, BUILD_DIR_NAME, DIR_IGNORE_LIST_WEB, INTERFACE_DIR_NAME,
     PAX_BADGE,
 };
-use crate::{copy_dir_recursively, BuildTimings, RunContext, RunTarget};
+use crate::{
+    copy_dir_recursively, prepare_cartridge_sources, BuildTimings, RunContext, RunTarget,
+};
 
 use color_eyre::eyre;
 use flate2::{write::GzEncoder, Compression};
@@ -345,18 +347,19 @@ fn optimize_web_wasm(
     Ok(())
 }
 
-pub fn build_web_project_with_cartridge(
+pub struct WebLogicReloadBuild {
+    pub manifest: PaxManifest,
+    pub build_id: String,
+    pub extensionless_url: String,
+}
+
+fn compile_web_interface_artifacts(
     ctx: &RunContext,
     pax_dir: &PathBuf,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
     assets_dirs: Vec<String>,
-    manifest: PaxManifest, //used by designtime
     timings: &mut BuildTimings,
-) -> Result<PathBuf, eyre::Report> {
-    let target: &RunTarget = &ctx.target;
-    let target_str: &str = target.into();
-    let target_str_lower = &target_str.to_lowercase();
-
+) -> Result<(PathBuf, &'static str), eyre::Report> {
     let is_release: bool = ctx.is_release;
     let is_profiling = ctx.profile_wasm_size;
 
@@ -459,8 +462,17 @@ pub fn build_web_project_with_cartridge(
         Ok(())
     })?;
 
-    //Copy fully built project into .pax/build/web, ready for e.g. publishing
-    let build_src = interface_path.clone();
+    Ok((interface_path, build_mode_name))
+}
+
+fn materialize_web_build_dir(
+    pax_dir: &PathBuf,
+    interface_path: &Path,
+    build_mode_name: &str,
+    target_str_lower: &str,
+    timings: &mut BuildTimings,
+) -> Result<PathBuf, eyre::Report> {
+    let build_src = interface_path.to_path_buf();
     let build_dest = pax_dir
         .join(BUILD_DIR_NAME)
         .join(build_mode_name)
@@ -485,6 +497,94 @@ pub fn build_web_project_with_cartridge(
     timings.record("bundle stats", || {
         print_web_bundle_stats(&build_dest, build_mode_name)
     });
+    Ok(build_dest)
+}
+
+fn copy_web_reload_artifacts(interface_path: &Path, staged_dir: &Path) -> Result<(), eyre::Report> {
+    fs::create_dir_all(staged_dir)?;
+    for file_name in [
+        "pax-cartridge.js",
+        "pax-cartridge_bg.wasm",
+        "pax-cartridge.d.ts",
+        "pax-cartridge_bg.wasm.d.ts",
+        "package.json",
+    ] {
+        let src = interface_path.join(file_name);
+        if src.exists() {
+            fs::copy(&src, staged_dir.join(file_name))?;
+        }
+    }
+    Ok(())
+}
+
+pub fn rebuild_staged_web_cartridge(
+    project_root: &PathBuf,
+    serve_dir: &Path,
+    should_run_designer: bool,
+) -> Result<WebLogicReloadBuild, eyre::Report> {
+    let process_child_ids = Arc::new(Mutex::new(vec![]));
+    let ctx = RunContext {
+        target: RunTarget::Web,
+        project_path: project_root.clone(),
+        verbose: false,
+        should_also_run: false,
+        is_libdev_mode: false,
+        process_child_ids: process_child_ids.clone(),
+        should_run_designtime: true,
+        should_run_designer,
+        is_release: false,
+        profile_wasm_size: false,
+        webgl: false,
+        ios_device: None,
+        ios_development_team: None,
+    };
+
+    let prepared = prepare_cartridge_sources(&ctx)?;
+    let mut timings = BuildTimings::start();
+    let (interface_path, _build_mode_name) = compile_web_interface_artifacts(
+        &ctx,
+        &prepared.pax_dir,
+        process_child_ids,
+        prepared.assets_dirs,
+        &mut timings,
+    )?;
+
+    let build_id = now_ms().to_string();
+    let staged_dir = serve_dir.join("__reloads__").join(&build_id);
+    // Each reload gets a unique served path so browser module caches cannot
+    // alias an older cartridge image. PAX-889 tracks bounded cleanup of prior
+    // staged bundles for long-running designtime sessions.
+    copy_web_reload_artifacts(&interface_path, &staged_dir)?;
+
+    Ok(WebLogicReloadBuild {
+        manifest: prepared.userland_manifest,
+        build_id: build_id.clone(),
+        extensionless_url: format!("/__reloads__/{build_id}/pax-cartridge"),
+    })
+}
+
+pub fn build_web_project_with_cartridge(
+    ctx: &RunContext,
+    pax_dir: &PathBuf,
+    process_child_ids: Arc<Mutex<Vec<u64>>>,
+    assets_dirs: Vec<String>,
+    manifest: PaxManifest, //used by designtime
+    timings: &mut BuildTimings,
+) -> Result<PathBuf, eyre::Report> {
+    let target: &RunTarget = &ctx.target;
+    let target_str: &str = target.into();
+    let target_str_lower = &target_str.to_lowercase();
+
+    let (interface_path, build_mode_name) =
+        compile_web_interface_artifacts(ctx, pax_dir, process_child_ids, assets_dirs, timings)?;
+    let build_dest =
+        materialize_web_build_dir(
+            pax_dir,
+            &interface_path,
+            build_mode_name,
+            target_str_lower,
+            timings,
+        )?;
 
     timings.print_summary();
 
@@ -503,7 +603,12 @@ pub fn build_web_project_with_cartridge(
                 None,
                 true,
                 Some(dev_session.clone()),
-                None,
+                Some(crate::design_server::LogicReloadConfig::Web(
+                    crate::design_server::WebLogicReloadConfig {
+                        serve_dir: build_dest.clone(),
+                        should_run_designer: true,
+                    },
+                )),
             );
             cleanup_web_dev_session(pax_dir, &dev_session)?;
         } else if ctx.should_run_designtime {
@@ -519,12 +624,17 @@ pub fn build_web_project_with_cartridge(
                 None,
                 true,
                 Some(dev_session.clone()),
-                None,
+                Some(crate::design_server::LogicReloadConfig::Web(
+                    crate::design_server::WebLogicReloadConfig {
+                        serve_dir: build_dest.clone(),
+                        should_run_designer: false,
+                    },
+                )),
             );
             cleanup_web_dev_session(pax_dir, &dev_session)?;
         } else {
             println!("{} 🐇 Running Pax Web...", *PAX_BADGE);
-            let _ = crate::design_server::static_server::start_server(build_dest);
+            let _ = crate::design_server::static_server::start_server(build_dest.clone());
         }
     } else {
         println!(
@@ -534,7 +644,7 @@ pub fn build_web_project_with_cartridge(
             build_dest.to_str().unwrap()
         );
     }
-    Ok(build_src)
+    Ok(build_dest)
 }
 
 fn prepare_web_dev_session(

@@ -77,6 +77,10 @@ export class PaxChassisWeb {
 */
   take_layer_surface_screenshots(layer: number, request_id: number): any;
 /**
+* @returns {any}
+*/
+  take_reload_app_requests(): any;
+/**
 * @param {string} path
 * @returns {boolean}
 */

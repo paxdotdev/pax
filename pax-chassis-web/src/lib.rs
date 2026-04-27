@@ -1211,6 +1211,23 @@ impl PaxChassisWeb {
         .unwrap_or(JsValue::NULL)
     }
 
+    pub fn take_reload_app_requests(&mut self) -> JsValue {
+        #[cfg(feature = "designtime")]
+        {
+            return js_value_serde::to_value(
+                &self
+                    .designtime_manager
+                    .borrow_mut()
+                    .take_reload_app_requests(),
+            );
+        }
+
+        #[cfg(not(feature = "designtime"))]
+        {
+            JsValue::NULL
+        }
+    }
+
     pub fn image_loaded(&mut self, path: &str) -> bool {
         self.render_context.image_loaded(path)
     }
