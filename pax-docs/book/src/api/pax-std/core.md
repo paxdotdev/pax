@@ -7,5 +7,6 @@
 - [core::group](core/group.md)
 - [core::link](core/link.md)
 - [core::mask](core/mask.md)
+- [core::router](core/router.md)
 - [core::scroller](core/scroller.md)
 - [core::text](core/text.md)

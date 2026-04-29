@@ -466,6 +466,7 @@ impl Display for TemplateNodeId {
 /// Manifest-level type identity category.
 pub enum PaxType {
     If,
+    Router,
     Slot,
     Repeat,
     Comment,
@@ -504,6 +505,7 @@ impl CoercionRules for PaxType {
                 let (_, variant, args) = *contents;
                 match variant.as_str() {
                     "If" => Ok(PaxType::If),
+                    "Router" => Ok(PaxType::Router),
                     "Slot" => Ok(PaxType::Slot),
                     "Repeat" => Ok(PaxType::Repeat),
                     "Comment" => Ok(PaxType::Comment),
@@ -553,6 +555,11 @@ impl ToPaxValue for PaxType {
             PaxType::If => {
                 PaxValue::Enum(Box::new(("PaxType".to_string(), "If".to_string(), vec![])))
             }
+            PaxType::Router => PaxValue::Enum(Box::new((
+                "PaxType".to_string(),
+                "Router".to_string(),
+                vec![],
+            ))),
             PaxType::Slot => PaxValue::Enum(Box::new((
                 "PaxType".to_string(),
                 "Slot".to_string(),
@@ -622,6 +629,7 @@ impl Display for PaxType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PaxType::If => write!(f, "If"),
+            PaxType::Router => write!(f, "Router"),
             PaxType::Slot => write!(f, "Slot"),
             PaxType::Repeat => write!(f, "Repeat"),
             PaxType::Comment => write!(f, "Comment"),
@@ -747,6 +755,16 @@ impl TypeId {
             is_intoable_downstream_type: false,
             _type_id: "If".to_string(),
             _type_id_escaped: "If".to_string(),
+        }
+    }
+
+    pub fn build_router() -> Self {
+        TypeId {
+            pax_type: PaxType::Router,
+            import_path: None,
+            is_intoable_downstream_type: false,
+            _type_id: "Router".to_string(),
+            _type_id_escaped: "Router".to_string(),
         }
     }
 
@@ -896,7 +914,7 @@ impl TypeId {
             PaxType::Primitive { pascal_identifier }
             | PaxType::Singleton { pascal_identifier }
             | PaxType::BlankComponent { pascal_identifier } => Some(pascal_identifier.clone()),
-            PaxType::If | PaxType::Slot | PaxType::Repeat | PaxType::Comment => {
+            PaxType::If | PaxType::Router | PaxType::Slot | PaxType::Repeat | PaxType::Comment => {
                 Some(self.pax_type.to_string())
             }
             _ => None,
@@ -1955,6 +1973,17 @@ pub struct ControlFlowConditionalBranchDefinition {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(crate = "pax_message::serde")]
+pub struct ControlFlowRouteBranchDefinition {
+    #[serde(default)]
+    pub path: Option<String>,
+    #[serde(default)]
+    pub default: bool,
+    #[serde(default)]
+    pub child_ids: Vec<TemplateNodeId>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(crate = "pax_message::serde")]
 pub struct ControlFlowSettingsDefinition {
     pub condition_expression: Option<ExpressionInfo>,
     pub slot_index_expression: Option<ExpressionInfo>,
@@ -1964,6 +1993,8 @@ pub struct ControlFlowSettingsDefinition {
     pub repeat_key_expression: Option<ExpressionInfo>,
     #[serde(default)]
     pub conditional_branches: Vec<ControlFlowConditionalBranchDefinition>,
+    #[serde(default)]
+    pub route_branches: Vec<ControlFlowRouteBranchDefinition>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]

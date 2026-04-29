@@ -3,10 +3,8 @@
 <!-- tags: api, pax-manifest -->
 
 ## Submodules
-- [parsing](parsing.md)
-- [server](server.md)
+- [program_ir](program_ir.md)
 - [cartridge_generation](cartridge_generation.md)
-- [code_serialization](code_serialization.md)
 
 ## Structs
 ### `ComponentDefinition`
@@ -51,23 +49,12 @@ Type: `Vec`<[`TimelineDefinition`](/api/internal/pax-manifest/index.md#timelined
 
 ---
 
-### `ControlFlowSettingsDefinition`
-Container for storing parsed control flow information, for
-example the string (PAXEL) representations of condition / slot / repeat
-expressions and the related vtable ids (for "punching" during expression compilation)
+### `ComponentTemplate`
+#### Implementations
+##### `from_parts`
+<pre><code class="api-signature language-rust ignore">pub fn from_parts(containing_component: <a href="/api/internal/pax-manifest/index.md#typeid">TypeId</a>, root: VecDeque&lt;<a href="/api/internal/pax-manifest/index.md#templatenodeid">TemplateNodeId</a>&gt;, children: HashMap&lt;<a href="/api/internal/pax-manifest/index.md#templatenodeid">TemplateNodeId</a>, VecDeque&lt;<a href="/api/internal/pax-manifest/index.md#templatenodeid">TemplateNodeId</a>&gt;&gt;, nodes: HashMap&lt;<a href="/api/internal/pax-manifest/index.md#templatenodeid">TemplateNodeId</a>, <a href="/api/internal/pax-manifest/index.md#templatenodedefinition">TemplateNodeDefinition</a>&gt;, next_id: usize, template_source_file_path: Option&lt;String&gt;) -&gt; Self</code></pre>
 
-#### Properties
-##### `condition_expression`
-Type: `Option`<[`ExpressionInfo`](/api/internal/pax-manifest/index.md#expressioninfo)>
-
-##### `slot_index_expression`
-Type: `Option`<[`ExpressionInfo`](/api/internal/pax-manifest/index.md#expressioninfo)>
-
-##### `repeat_predicate_definition`
-Type: `Option`<[`ControlFlowRepeatPredicateDefinition`](/api/internal/pax-manifest/index.md#controlflowrepeatpredicatedefinition)>
-
-##### `repeat_source_expression`
-Type: `Option`<[`ExpressionInfo`](/api/internal/pax-manifest/index.md#expressioninfo)>
+Construct a component template from already-materialized storage.
 
 ---
 
@@ -410,6 +397,21 @@ Construct a token synthesized without a source location.
 
 ---
 
+### `TransitionDefinition`
+Pair of timeline tracks bound to a node's enter/exit lifecycle.
+
+#### Properties
+##### `enter`
+Type: `Option`<[`TimelineTrackDefinition`](/api/internal/pax-manifest/index.md#timelinetrackdefinition)>
+
+##### `exit`
+Type: `Option`<[`TimelineTrackDefinition`](/api/internal/pax-manifest/index.md#timelinetrackdefinition)>
+
+##### `starting_value`
+Type: `Option`<`Box`<[`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)>>
+
+---
+
 ### `TypeDefinition`
 Describes metadata surrounding a property's type, gathered from a combination of static & dynamic analysis
 
@@ -497,6 +499,17 @@ Component that owns this template node.
 Node id within the containing component template.
 
 ## Enums
+### `ControlFlowConditionalBranchKind`
+Container for storing parsed control flow information, for
+example the string (PAXEL) representations of condition / slot / repeat
+expressions and the related vtable ids (for "punching" during expression compilation)
+
+#### Variants
+##### `If`
+##### `ElseIf`
+##### `Else`
+---
+
 ### `ControlFlowRepeatPredicateDefinition`
 Container for holding parsed data describing a Repeat (`for`)
 predicate, for example the `(elem, i)` in `for (elem, i) in foo` or
@@ -520,6 +533,7 @@ Manifest-level type identity category.
 
 #### Variants
 ##### `If`
+##### `Router`
 ##### `Slot`
 ##### `Repeat`
 ##### `Comment`
@@ -547,6 +561,7 @@ One entry inside a settings block.
 #### Variants
 ##### `SelectorBlock`([`Token`](/api/internal/pax-manifest/index.md#token), [`LiteralBlockDefinition`](/api/internal/pax-manifest/index.md#literalblockdefinition))
 ##### `Handler`([`Token`](/api/internal/pax-manifest/index.md#token), `Vec`<[`Token`](/api/internal/pax-manifest/index.md#token)>)
+##### `Transition`([`Token`](/api/internal/pax-manifest/index.md#token), [`Token`](/api/internal/pax-manifest/index.md#token))
 ##### `Comment`(`String`)
 ---
 
@@ -627,6 +642,7 @@ variants, populated at parse-time and used at compile-time
 ##### `LiteralValue`([`PaxValue`](/api/pax-runtime-api/pax_value.md#paxvalue))
 ##### `Block`([`LiteralBlockDefinition`](/api/internal/pax-manifest/index.md#literalblockdefinition))
 ##### `Timeline`([`TimelineTrackDefinition`](/api/internal/pax-manifest/index.md#timelinetrackdefinition))
+##### `Transition`([`TransitionDefinition`](/api/internal/pax-manifest/index.md#transitiondefinition))
 ##### `Expression`([`ExpressionInfo`](/api/internal/pax-manifest/index.md#expressioninfo))
 (Expression contents, vtable id binding)
 

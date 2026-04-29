@@ -10,9 +10,10 @@ use pax_message::{
     ImageDataArgs, ImageLoadInterruptArgs, ImagePointerArgs, KeyDownInterruptArgs,
     KeyPressInterruptArgs, KeyUpInterruptArgs, ModifierKeyMessage, MouseButtonMessage,
     MouseDownInterruptArgs, MouseMoveInterruptArgs, MouseUpInterruptArgs, NativeInterrupt,
-    RenderSurfaceUpdateArgs, ScreenshotData, ScrollInterruptArgs, ScrollerPositionInterruptArgs,
-    SelectStartArgs, TextInputArgs, TouchEndInterruptArgs, TouchMessage, TouchMoveInterruptArgs,
-    TouchStartInterruptArgs, ViewportResizeArgs, VisualViewportUpdateArgs, WheelInterruptArgs,
+    RenderSurfaceUpdateArgs, RouteChangeInterruptArgs, ScreenshotData, ScrollInterruptArgs,
+    ScrollerPositionInterruptArgs, SelectStartArgs, TextInputArgs, TouchEndInterruptArgs,
+    TouchMessage, TouchMoveInterruptArgs, TouchStartInterruptArgs, ViewportResizeArgs,
+    VisualViewportUpdateArgs, WheelInterruptArgs,
 };
 use pax_runtime::api::borrow;
 use pax_runtime::api::borrow_mut;
@@ -711,6 +712,10 @@ impl PaxChassisWeb {
                 engine.set_viewport_size((args.width, args.height));
                 false
             }
+            NativeInterrupt::RouteChange(args) => {
+                globals.route_location.set(args.into());
+                false
+            }
             NativeInterrupt::VisualViewportUpdate(args) => {
                 engine.runtime_context.set_visual_viewport_state(
                     pax_runtime::VisualViewportState {
@@ -1274,6 +1279,15 @@ fn js_string(value: &JsValue, field: &str) -> String {
     js_field(value, field).as_string().unwrap()
 }
 
+fn js_optional_string(value: &JsValue, field: &str) -> Option<String> {
+    let field = js_field(value, field);
+    if field.is_undefined() || field.is_null() {
+        None
+    } else {
+        field.as_string()
+    }
+}
+
 fn js_optional_f64(value: &JsValue, field: &str) -> Option<f64> {
     let field = js_field(value, field);
     if field.is_undefined() || field.is_null() {
@@ -1289,6 +1303,37 @@ fn js_optional_u32(value: &JsValue, field: &str) -> Option<u32> {
 
 fn js_array(value: &JsValue, field: &str) -> Array {
     Array::from(&js_field(value, field))
+}
+
+fn js_string_vec(value: &JsValue, field: &str) -> Vec<String> {
+    let values = js_array(value, field);
+    let mut out = Vec::with_capacity(values.length() as usize);
+    for index in 0..values.length() {
+        out.push(values.get(index).as_string().unwrap());
+    }
+    out
+}
+
+fn js_string_multimap(
+    value: &JsValue,
+    field: &str,
+) -> std::collections::HashMap<String, Vec<String>> {
+    let query = js_field(value, field);
+    let keys = Object::keys(&Object::from(query.clone()));
+    let mut out = std::collections::HashMap::new();
+
+    for index in 0..keys.length() {
+        let key = keys.get(index).as_string().unwrap();
+        let raw_values = Reflect::get(&query, &JsValue::from_str(&key)).unwrap();
+        let values = Array::from(&raw_values);
+        let mut parsed_values = Vec::with_capacity(values.length() as usize);
+        for value_index in 0..values.length() {
+            parsed_values.push(values.get(value_index).as_string().unwrap());
+        }
+        out.insert(key, parsed_values);
+    }
+
+    out
 }
 
 fn parse_mouse_button(value: &JsValue) -> MouseButtonMessage {
@@ -1557,6 +1602,12 @@ fn native_interrupt_from_js(value: JsValue) -> NativeInterrupt {
         NativeInterrupt::ViewportResize(ViewportResizeArgs {
             width: js_f64(&payload, "width"),
             height: js_f64(&payload, "height"),
+        })
+    } else if let Some(payload) = js_variant(&value, "RouteChange") {
+        NativeInterrupt::RouteChange(RouteChangeInterruptArgs {
+            path_segments: js_string_vec(&payload, "path_segments"),
+            query: js_string_multimap(&payload, "query"),
+            fragment: js_optional_string(&payload, "fragment"),
         })
     } else if let Some(payload) = js_variant(&value, "VisualViewportUpdate") {
         NativeInterrupt::VisualViewportUpdate(VisualViewportUpdateArgs {

@@ -152,6 +152,10 @@ impl NodeContext {
     }
 
     /// Ask the chassis to navigate to a URL.
+    ///
+    /// On web targets, same-origin navigation in the current tab can be handled
+    /// through the browser History API and routed back into Pax without a full
+    /// page reload. Other targets use the active chassis navigation behavior.
     pub fn navigate_to(&self, url: &str, target: NavigationTarget) {
         self.runtime_context
             .enqueue_native_message(NativeMessage::Navigate(NavigationPatch {

@@ -8,6 +8,7 @@ pub mod refcell_debug;
 pub use serde;
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Serialize)]
@@ -96,6 +97,7 @@ pub enum NativeInterrupt {
     BrowserConfig(BrowserConfigInterruptArgs),
     RenderSurfaceUpdate(RenderSurfaceUpdateArgs),
     ViewportResize(ViewportResizeArgs),
+    RouteChange(RouteChangeInterruptArgs),
     VisualViewportUpdate(VisualViewportUpdateArgs),
     DropFile(DropFileArgs),
     Screenshot(ImageLoadInterruptArgs),
@@ -234,6 +236,15 @@ pub struct RenderSurfaceUpdateArgs {
 pub struct ViewportResizeArgs {
     pub width: f64,
     pub height: f64,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+/// Canonical route-location payload pushed from chassis state into the runtime.
+pub struct RouteChangeInterruptArgs {
+    pub path_segments: Vec<String>,
+    pub query: HashMap<String, Vec<String>>,
+    pub fragment: Option<String>,
 }
 
 #[derive(Deserialize)]

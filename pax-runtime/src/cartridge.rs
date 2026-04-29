@@ -2,8 +2,9 @@ use_RefCell!();
 use crate::api::NodeContext;
 use crate::{
     ConditionalProperties, ExpandedNode, Handler, HandlerRegistry, InstanceNode, InstantiationArgs,
-    ReusableInstanceNodeArgs, RuntimePropertiesStackFrame, RuntimeResolvedPropertyColumns,
-    RuntimeResolvedPropertyEntry, RuntimeSettingsLayer, RuntimeSettingsSource,
+    ReusableInstanceNodeArgs, RouteLocation, RouteMatch, RuntimePropertiesStackFrame,
+    RuntimeResolvedPropertyColumns, RuntimeResolvedPropertyEntry, RuntimeSettingsLayer,
+    RuntimeSettingsSource, INTERNAL_ROUTE_LOCATION_SYMBOL, INTERNAL_ROUTE_MATCH_SYMBOL,
 };
 use pax_language::Computable;
 use pax_manifest::cartridge_generation::{
@@ -16,6 +17,7 @@ use pax_manifest::{
     TimelineTrackElement, TransitionDefinition, TypeId, ValueDefinition,
 };
 use pax_message::{borrow, borrow_mut};
+use pax_runtime_api::pax_value::functions::{call_function, Functions};
 use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny};
 use pax_runtime_api::properties::{PropertyValue, UntypedProperty};
 use pax_runtime_api::{
@@ -812,6 +814,7 @@ pub trait DefinitionToInstanceTraverser {
                 let node = template.get_node(&node_id).unwrap();
                 match node.type_id.get_pax_type() {
                     pax_manifest::PaxType::If
+                    | pax_manifest::PaxType::Router
                     | pax_manifest::PaxType::Slot
                     | pax_manifest::PaxType::Repeat => {
                         instances.push(self.build_control_flow(type_id, &node_id, None));
@@ -989,6 +992,103 @@ pub trait DefinitionToInstanceTraverser {
                         transition_config: Default::default(),
                         properties_scope: crate::PropertiesScopeInit::None,
                     },
+                    branch_child_ranges,
+                )
+            }
+            pax_manifest::PaxType::Router => {
+                let control_flow_settings = tnd.control_flow_settings.as_ref().unwrap();
+                let route_branch_definitions = control_flow_settings.route_branches.clone();
+                let compiled_route_branches =
+                    crate::compile_route_branches(&route_branch_definitions);
+                let branch_child_ranges = if route_branch_definitions.is_empty() {
+                    vec![]
+                } else {
+                    let mut start = 0;
+                    route_branch_definitions
+                        .iter()
+                        .map(|branch| {
+                            let branch_instance_count = branch
+                                .child_ids
+                                .iter()
+                                .filter(|child_id| {
+                                    containing_template
+                                        .get_node(child_id)
+                                        .map(|child| {
+                                            child.type_id.get_pax_type()
+                                                != &pax_manifest::PaxType::Comment
+                                        })
+                                        .unwrap_or(false)
+                                })
+                                .count();
+                            let end = start + branch_instance_count;
+                            let range = start..end;
+                            start = end;
+                            range
+                        })
+                        .collect()
+                };
+
+                let prototypical_properties_factory: Box<
+                    dyn Fn(
+                        std::rc::Rc<crate::RuntimePropertiesStackFrame>,
+                        Option<std::rc::Rc<ExpandedNode>>,
+                    )
+                        -> Option<std::rc::Rc<RefCell<pax_runtime_api::pax_value::PaxAny>>>,
+                > = Box::new(move |stack_frame, expanded_node| {
+                    let global_location = stack_frame
+                        .resolve_symbol_as_erased_property(INTERNAL_ROUTE_LOCATION_SYMBOL)
+                        .map(Property::<RouteLocation>::new_from_untyped)
+                        .unwrap_or_else(|| Property::new(RouteLocation::root()));
+                    let input_location = stack_frame
+                        .resolve_symbol_as_erased_property(INTERNAL_ROUTE_MATCH_SYMBOL)
+                        .map(Property::<RouteMatch>::new_from_untyped)
+                        .map(|route_match| {
+                            let dependency = route_match.untyped();
+                            Property::computed_with_name(
+                                move || route_match.get().remainder_location(),
+                                &[dependency],
+                                "router input location",
+                            )
+                        })
+                        .unwrap_or_else(|| global_location.clone());
+
+                    if let Some(expanded_node) = &expanded_node {
+                        let expanded_node = borrow!(**expanded_node);
+                        let outer_ref = expanded_node.properties.borrow();
+                        let rc = Rc::clone(&outer_ref);
+                        let mut inner_ref = (*rc).borrow_mut();
+                        let router =
+                            crate::RouterProperties::mut_from_pax_any(&mut inner_ref).unwrap();
+                        router.input_location.replace_with(input_location);
+                        router.global_location.replace_with(global_location);
+                        return None;
+                    }
+
+                    Some(std::rc::Rc::new(RefCell::new({
+                        let mut properties = crate::RouterProperties::default();
+                        properties.input_location = input_location;
+                        properties.global_location = global_location;
+                        properties.to_pax_any()
+                    })))
+                });
+
+                crate::RouterInstance::instantiate_with_branches(
+                    crate::rendering::InstantiationArgs {
+                        prototypical_common_properties,
+                        prototypical_properties: crate::PropertiesInit::Factory(
+                            prototypical_properties_factory,
+                        ),
+                        handler_registry: None,
+                        component_template: None,
+                        children: Some(children),
+                        component_settings: None,
+                        template_node_identifier: Some(unique_identifier),
+                        template_node_type_id: Some(tnd.type_id.clone()),
+                        template_node_selector_info: Some(tnd.selector_info.clone()),
+                        transition_config: Default::default(),
+                        properties_scope: crate::PropertiesScopeInit::None,
+                    },
+                    compiled_route_branches,
                     branch_child_ranges,
                 )
             }
@@ -1242,6 +1342,7 @@ pub trait DefinitionToInstanceTraverser {
             let child = containing_template.get_node(&child_id).unwrap();
             match child.type_id.get_pax_type() {
                 pax_manifest::PaxType::If
+                | pax_manifest::PaxType::Router
                 | pax_manifest::PaxType::Slot
                 | pax_manifest::PaxType::Repeat => {
                     children_instances.push(self.build_control_flow(
@@ -1478,7 +1579,7 @@ fn resolve_property<T: CoercionRules + PropertyValue>(
     let cloned_stack = stack.clone();
     let resolved_property: Property<Option<T>> = match value_def.clone() {
         pax_manifest::ValueDefinition::LiteralValue(lv) => {
-            let val = T::try_coerce(lv).unwrap_or_else(|err| {
+            let val = T::try_coerce(resolve_literal_value(lv)).unwrap_or_else(|err| {
                 log::warn!("Failed to coerce new value for property. Error: {:?}", err);
                 Default::default()
             });
@@ -1640,12 +1741,51 @@ fn evaluate_literal_block_to_pax_value(
     Some(PaxValue::Object(values))
 }
 
+fn resolve_literal_value(value: PaxValue) -> PaxValue {
+    match value {
+        PaxValue::Enum(contents) => {
+            let (scope, name, args) = *contents;
+            let resolved_args: Vec<_> = args.into_iter().map(resolve_literal_value).collect();
+            if Functions::has_function(&scope, &name) {
+                call_function(scope.clone(), name.clone(), resolved_args.clone()).unwrap_or_else(
+                    |err| {
+                        log::warn!(
+                            "Failed to evaluate literal helper {}::{}: {}",
+                            scope,
+                            name,
+                            err
+                        );
+                        PaxValue::Enum(Box::new((scope, name, resolved_args)))
+                    },
+                )
+            } else {
+                PaxValue::Enum(Box::new((scope, name, resolved_args)))
+            }
+        }
+        PaxValue::Vec(values) => {
+            PaxValue::Vec(values.into_iter().map(resolve_literal_value).collect())
+        }
+        PaxValue::Object(values) => PaxValue::Object(
+            values
+                .into_iter()
+                .map(|(key, value)| (key, resolve_literal_value(value)))
+                .collect(),
+        ),
+        PaxValue::Option(value) => PaxValue::Option(Box::new(value.map(resolve_literal_value))),
+        PaxValue::Range(start, end) => PaxValue::Range(
+            Box::new(resolve_literal_value(*start)),
+            Box::new(resolve_literal_value(*end)),
+        ),
+        value => value,
+    }
+}
+
 fn evaluate_value_definition_to_pax_value(
     value_definition: &ValueDefinition,
     stack: &Rc<RuntimePropertiesStackFrame>,
 ) -> Option<PaxValue> {
     match value_definition {
-        ValueDefinition::LiteralValue(value) => Some(value.clone()),
+        ValueDefinition::LiteralValue(value) => Some(resolve_literal_value(value.clone())),
         ValueDefinition::Block(block) => evaluate_literal_block_to_pax_value(block, stack),
         ValueDefinition::Expression(info) => info.expression.compute(stack.clone()).ok(),
         ValueDefinition::Identifier(identifier) | ValueDefinition::DoubleBinding(identifier) => {
@@ -1701,7 +1841,7 @@ fn timeline_marker_to_frame(marker: &TimelineMarker, total_frames: f64) -> f64 {
 }
 
 fn timeline_value_passes_coercion<T: CoercionRules>(value: &PaxValue) -> bool {
-    T::try_coerce(value.clone()).is_ok()
+    T::try_coerce(resolve_literal_value(value.clone())).is_ok()
 }
 
 fn evaluate_valid_timeline_value(
@@ -1868,15 +2008,15 @@ fn sample_timeline_track<T: CoercionRules + PropertyValue>(
     stack: &Rc<RuntimePropertiesStackFrame>,
 ) -> Option<T> {
     match resolve_timeline_sample(track, stack, timeline_value_passes_coercion::<T>)? {
-        TimelineSample::Value(value) => T::try_coerce(value).ok(),
+        TimelineSample::Value(value) => T::try_coerce(resolve_literal_value(value)).ok(),
         TimelineSample::Interpolated {
             current,
             next,
             easing,
             progress,
         } => {
-            let current = T::try_coerce(current).ok()?;
-            let next = T::try_coerce(next).ok()?;
+            let current = T::try_coerce(resolve_literal_value(current)).ok()?;
+            let next = T::try_coerce(resolve_literal_value(next)).ok()?;
             let curve = easing_curve_from_name(easing.as_deref());
             Some(curve.interpolate(&current, &next, progress))
         }
@@ -1992,7 +2132,7 @@ pub fn apply_component_property<T>(
 {
     match value_definition {
         ValueDefinition::LiteralValue(lv) => {
-            let value = T::try_coerce(lv.clone()).unwrap_or_else(|err| {
+            let value = T::try_coerce(resolve_literal_value(lv.clone())).unwrap_or_else(|err| {
                 log::warn!("Failed to coerce new value for property. Error: {:?}", err);
                 Default::default()
             });
@@ -2070,6 +2210,7 @@ pub fn apply_component_property<T>(
 mod timeline_tests {
     use super::build_timeline_property;
     use super::build_transition_property;
+    use super::evaluate_value_definition_to_pax_value;
     use crate::RuntimePropertiesStackFrame;
     use pax_manifest::cartridge_generation::{
         TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT, TRANSITION_PHASE_SYMBOL,
@@ -2082,6 +2223,7 @@ mod timeline_tests {
     use pax_runtime_api::{PaxValue, Property, Variable};
     use std::collections::HashMap;
     use std::rc::Rc;
+    use std::sync::Arc;
 
     fn build_stack(frames_elapsed: &Property<u64>) -> Rc<RuntimePropertiesStackFrame> {
         let scope: HashMap<String, Variable> = vec![(
@@ -2091,6 +2233,35 @@ mod timeline_tests {
         .into_iter()
         .collect();
         RuntimePropertiesStackFrame::new(scope)
+    }
+
+    #[test]
+    fn literal_enum_helpers_evaluate_before_coercion() {
+        pax_runtime_api::pax_value::functions::register_function(
+            "LiteralHelper".to_string(),
+            "make_object".to_string(),
+            Arc::new(|mut args| {
+                Ok(PaxValue::Object(vec![(
+                    "value".to_string(),
+                    args.remove(0),
+                )]))
+            }),
+        );
+        let frames_elapsed = Property::new(0_u64);
+        let stack = build_stack(&frames_elapsed);
+        let literal = ValueDefinition::LiteralValue(PaxValue::Enum(Box::new((
+            "LiteralHelper".to_string(),
+            "make_object".to_string(),
+            vec![PaxValue::Numeric(7.0.into())],
+        ))));
+
+        assert_eq!(
+            evaluate_value_definition_to_pax_value(&literal, &stack),
+            Some(PaxValue::Object(vec![(
+                "value".to_string(),
+                PaxValue::Numeric(7.0.into()),
+            )]))
+        );
     }
 
     #[test]

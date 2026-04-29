@@ -43,6 +43,15 @@ fn test_property_replacement() {
 }
 
 #[test]
+fn test_property_replacement_with_self_is_noop() {
+    let prop = Property::new(7);
+
+    prop.replace_with(prop.clone());
+
+    assert_eq!(prop.get(), 7);
+}
+
+#[test]
 fn test_larger_network() {
     let prop_1 = Property::new(2);
     let prop_2 = Property::new(6);

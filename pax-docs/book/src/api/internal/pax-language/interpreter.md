@@ -24,20 +24,108 @@ Construct an identifier from its source spelling.
 ### `PaxInfix`
 Binary infix operation with left and right expression operands.
 
+#### Implementations
+##### `lhs`
+<pre><code class="api-signature language-rust ignore">pub fn lhs(&amp;self) -&gt; &amp;<a href="/api/internal/pax-language/interpreter.md#paxexpression">PaxExpression</a></code></pre>
+
+Left-hand expression.
+
+##### `operator_name`
+<pre><code class="api-signature language-rust ignore">pub fn operator_name(&amp;self) -&gt; &amp;str</code></pre>
+
+Name of the infix operator.
+
+##### `rhs`
+<pre><code class="api-signature language-rust ignore">pub fn rhs(&amp;self) -&gt; &amp;<a href="/api/internal/pax-language/interpreter.md#paxexpression">PaxExpression</a></code></pre>
+
+Right-hand expression.
+
+---
+
+### `PaxNullCoalesce`
+Short-circuiting fallback expression. `Some(value) ?? fallback` evaluates to
+`value`, `None ?? fallback` evaluates the fallback, and non-option left
+operands pass through unchanged.
+
+#### Implementations
+##### `lhs`
+<pre><code class="api-signature language-rust ignore">pub fn lhs(&amp;self) -&gt; &amp;<a href="/api/internal/pax-language/interpreter.md#paxexpression">PaxExpression</a></code></pre>
+
+Left-hand expression.
+
+##### `rhs`
+<pre><code class="api-signature language-rust ignore">pub fn rhs(&amp;self) -&gt; &amp;<a href="/api/internal/pax-language/interpreter.md#paxexpression">PaxExpression</a></code></pre>
+
+Right-hand fallback expression.
+
 ---
 
 ### `PaxOperator`
 Parsed operator token, stored by display name.
+
+#### Implementations
+##### `name`
+<pre><code class="api-signature language-rust ignore">pub fn name(&amp;self) -&gt; &amp;str</code></pre>
+
+Source spelling for this operator.
+
+##### `new`
+<pre><code class="api-signature language-rust ignore">pub fn new(name: impl Into&lt;String&gt;) -&gt; Self</code></pre>
+
+Construct an operator from its source spelling.
 
 ---
 
 ### `PaxPostfix`
 Postfix operation node.
 
+#### Implementations
+##### `lhs`
+<pre><code class="api-signature language-rust ignore">pub fn lhs(&amp;self) -&gt; &amp;<a href="/api/internal/pax-language/interpreter.md#paxexpression">PaxExpression</a></code></pre>
+
+Left-hand expression.
+
+##### `operator_name`
+<pre><code class="api-signature language-rust ignore">pub fn operator_name(&amp;self) -&gt; &amp;str</code></pre>
+
+Name of the postfix operator.
+
 ---
 
 ### `PaxPrefix`
 Prefix operation such as numeric negation or boolean not.
+
+#### Implementations
+##### `operator_name`
+<pre><code class="api-signature language-rust ignore">pub fn operator_name(&amp;self) -&gt; &amp;str</code></pre>
+
+Name of the prefix operator.
+
+##### `rhs`
+<pre><code class="api-signature language-rust ignore">pub fn rhs(&amp;self) -&gt; &amp;<a href="/api/internal/pax-language/interpreter.md#paxexpression">PaxExpression</a></code></pre>
+
+Right-hand expression.
+
+---
+
+### `PaxTernary`
+Conditional expression with a boolean condition and selected true/false branch.
+
+#### Implementations
+##### `condition`
+<pre><code class="api-signature language-rust ignore">pub fn condition(&amp;self) -&gt; &amp;<a href="/api/internal/pax-language/interpreter.md#paxexpression">PaxExpression</a></code></pre>
+
+Condition expression.
+
+##### `else_branch`
+<pre><code class="api-signature language-rust ignore">pub fn else_branch(&amp;self) -&gt; &amp;<a href="/api/internal/pax-language/interpreter.md#paxexpression">PaxExpression</a></code></pre>
+
+Expression evaluated when the condition is false.
+
+##### `then_branch`
+<pre><code class="api-signature language-rust ignore">pub fn then_branch(&amp;self) -&gt; &amp;<a href="/api/internal/pax-language/interpreter.md#paxexpression">PaxExpression</a></code></pre>
+
+Expression evaluated when the condition is true.
 
 ## Enums
 ### `PaxAccessor`
@@ -57,6 +145,34 @@ PAXEL expression AST node.
 ##### `Prefix`(`Box`<[`PaxPrefix`](/api/internal/pax-language/interpreter.md#paxprefix)>)
 ##### `Infix`(`Box`<[`PaxInfix`](/api/internal/pax-language/interpreter.md#paxinfix)>)
 ##### `Postfix`(`Box`<[`PaxPostfix`](/api/internal/pax-language/interpreter.md#paxpostfix)>)
+##### `Ternary`(`Box`<[`PaxTernary`](/api/internal/pax-language/interpreter.md#paxternary)>)
+##### `NullCoalesce`(`Box`<[`PaxNullCoalesce`](/api/internal/pax-language/interpreter.md#paxnullcoalesce)>)
+#### Implementations
+##### `infix`
+<pre><code class="api-signature language-rust ignore">pub fn infix(lhs: <a href="/api/internal/pax-language/interpreter.md#paxexpression">PaxExpression</a>, operator: impl Into&lt;String&gt;, rhs: <a href="/api/internal/pax-language/interpreter.md#paxexpression">PaxExpression</a>) -&gt; Self</code></pre>
+
+Construct an infix expression.
+
+##### `null_coalesce`
+<pre><code class="api-signature language-rust ignore">pub fn null_coalesce(lhs: <a href="/api/internal/pax-language/interpreter.md#paxexpression">PaxExpression</a>, rhs: <a href="/api/internal/pax-language/interpreter.md#paxexpression">PaxExpression</a>) -&gt; Self</code></pre>
+
+Construct a null-coalescing expression.
+
+##### `postfix`
+<pre><code class="api-signature language-rust ignore">pub fn postfix(lhs: <a href="/api/internal/pax-language/interpreter.md#paxexpression">PaxExpression</a>, operator: impl Into&lt;String&gt;) -&gt; Self</code></pre>
+
+Construct a postfix expression.
+
+##### `prefix`
+<pre><code class="api-signature language-rust ignore">pub fn prefix(operator: impl Into&lt;String&gt;, rhs: <a href="/api/internal/pax-language/interpreter.md#paxexpression">PaxExpression</a>) -&gt; Self</code></pre>
+
+Construct a prefix expression.
+
+##### `ternary`
+<pre><code class="api-signature language-rust ignore">pub fn ternary(condition: <a href="/api/internal/pax-language/interpreter.md#paxexpression">PaxExpression</a>, then_branch: <a href="/api/internal/pax-language/interpreter.md#paxexpression">PaxExpression</a>, else_branch: <a href="/api/internal/pax-language/interpreter.md#paxexpression">PaxExpression</a>) -&gt; Self</code></pre>
+
+Construct a ternary expression.
+
 ---
 
 ### `PaxPrimary`

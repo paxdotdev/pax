@@ -5,6 +5,7 @@ pub mod group;
 pub mod import_settings;
 pub mod link;
 pub mod mask;
+pub mod router;
 pub mod scroller;
 pub mod text;
 
@@ -21,5 +22,6 @@ pub use group::*;
 pub use import_settings::*;
 pub use link::*;
 pub use mask::*;
+pub use router::*;
 pub use scroller::*;
 pub use text::*;

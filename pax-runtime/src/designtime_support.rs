@@ -408,6 +408,7 @@ pub fn apply_designtime_userland_reload(
                 let pax_type = template_node.type_id.get_pax_type();
                 let instance_node = match pax_type {
                     pax_manifest::PaxType::If
+                    | pax_manifest::PaxType::Router
                     | pax_manifest::PaxType::Slot
                     | pax_manifest::PaxType::Repeat => definition_to_instance_traverser
                         .build_control_flow(
@@ -451,6 +452,7 @@ pub fn apply_designtime_userland_reload(
                 let pax_type = template_node.type_id.get_pax_type();
                 let instance_node = match pax_type {
                     pax_manifest::PaxType::If
+                    | pax_manifest::PaxType::Router
                     | pax_manifest::PaxType::Slot
                     | pax_manifest::PaxType::Repeat => definition_to_instance_traverser
                         .build_control_flow(

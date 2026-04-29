@@ -203,8 +203,8 @@ mod tests {
     use crate::api::math::Transform2;
     use crate::api::CommonProperties;
     use crate::{
-        BaseInstance, ComponentInstance, Globals, InstanceFlags, RuntimePropertiesStackFrame,
-        TransformAndBounds,
+        BaseInstance, ComponentInstance, Globals, InstanceFlags, RouteLocation,
+        RuntimePropertiesStackFrame, TransformAndBounds,
     };
     use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
     use pax_runtime_api::{Platform, Property, OS};
@@ -217,6 +217,7 @@ mod tests {
                 transform: Transform2::identity(),
                 bounds: (100.0, 100.0),
             }),
+            route_location: Property::new(RouteLocation::root()),
             browser_allows_scroller_vector_layers: Property::new(true),
             browser_allows_nested_scroller_vector_layers: Property::new(true),
             platform: Platform::Unknown,

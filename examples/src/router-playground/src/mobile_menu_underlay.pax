@@ -1,0 +1,30 @@
+<Rectangle class=mobile_drawer_underlay width=100% height=100% />
+
+@settings {
+    @in: enter
+    @out: exit
+
+    .mobile_drawer_underlay {
+        fill: rgba(3, 7, 14, 150)
+    }
+}
+
+@timeline enter {
+    frames: 36,
+    self {
+        opacity: {
+            0: 0, OutQuad,
+            100%: 1,
+        },
+    }
+}
+
+@timeline exit {
+    frames: 36,
+    self {
+        opacity: {
+            0: 1, OutQuad,
+            100%: 0,
+        },
+    }
+}

@@ -321,8 +321,8 @@ mod tests {
     use crate::api::{CommonProperties, Layer, LayoutRole};
     use crate::{
         sync_content_autosize, sync_content_autosize_with_axes, BaseInstance, ComponentInstance,
-        ExpandedNode, Globals, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
-        RuntimePropertiesStackFrame, TransformAndBounds,
+        ExpandedNode, Globals, InstanceFlags, InstanceNode, InstantiationArgs, RouteLocation,
+        RuntimeContext, RuntimePropertiesStackFrame, TransformAndBounds,
     };
     use pax_runtime_api::pax_value::PaxAny;
     use pax_runtime_api::{Platform, Property, OS};
@@ -337,6 +337,7 @@ mod tests {
                 transform: Transform2::identity(),
                 bounds: (100.0, 100.0),
             }),
+            route_location: Property::new(RouteLocation::root()),
             browser_allows_scroller_vector_layers: Property::new(true),
             browser_allows_nested_scroller_vector_layers: Property::new(true),
             platform: Platform::Unknown,

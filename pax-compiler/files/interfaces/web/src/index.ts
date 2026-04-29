@@ -41,6 +41,7 @@ import { ScreenshotPatch } from "./classes/messages/screenshot-patch";
 import { NativeMaskUpdatePatch } from "./classes/messages/native-mask-update-patch";
 import { isIOSWebKitBrowser } from "./classes/surface-host-policy";
 import { HIDDEN_TAB_FRAME_FALLBACK_MS } from "./utils/helpers";
+import { serializeRouteLocation } from "./utils/route-location";
 
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let nativePool = new NativeElementPool(objectManager);
@@ -93,7 +94,7 @@ export function mount(selector_or_element: string | Element, extensionlessUrl: s
         return;
     }
 
-    ensureInterfaceStylesheet();
+    ensureInterfaceStylesheet(extensionlessUrl);
 
     let mount: Element;
     if (typeof selector_or_element === "string") {
@@ -112,13 +113,16 @@ export function mount(selector_or_element: string | Element, extensionlessUrl: s
     }
 }
 
-function ensureInterfaceStylesheet() {
-    if (document.querySelector('link[href="pax-interface-web.css"]')) {
+function ensureInterfaceStylesheet(extensionlessUrl: string) {
+    const href = new URL("pax-interface-web.css", extensionlessUrl).href;
+    let alreadyLoaded = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+        .some((link) => (link as HTMLLinkElement).href === href);
+    if (alreadyLoaded) {
         return;
     }
     let link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = 'pax-interface-web.css';
+    link.href = href;
     document.head.appendChild(link);
 }
 
@@ -206,6 +210,14 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
             "allow_nested_scroller_vector_layers": true,
         },
     }, []);
+    let syncRouteLocation = () => {
+        chassis.interrupt({
+            "RouteChange": serializeRouteLocation(new URL(window.location.href)),
+        }, []);
+    };
+    window.addEventListener("popstate", syncRouteLocation);
+    window.addEventListener("hashchange", syncRouteLocation);
+    syncRouteLocation();
     let lastViewportWidth = -1;
     let lastViewportHeight = -1;
     let measureViewport = () => {

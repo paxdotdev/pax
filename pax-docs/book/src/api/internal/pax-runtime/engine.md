@@ -20,6 +20,9 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`u64`>
 ##### `viewport`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`TransformAndBounds`](/api/internal/pax-runtime/layout.md#transformandbounds)<[`NodeLocal`](/api/internal/pax-runtime/engine/node_interface.md#nodelocal), [`Window`](/api/pax-runtime-api/platform.md#window)>>
 
+##### `route_location`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`RouteLocation`](/api/internal/pax-runtime/router.md#routelocation)>
+
 ##### `browser_allows_scroller_vector_layers`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
 
@@ -39,7 +42,7 @@ Type: `Rc`<`dyn` `Fn`() -> `u128`>
 ##### `stack_frame`
 <pre><code class="api-signature language-rust ignore">pub fn stack_frame(&amp;self) -&gt; Rc&lt;<a href="/api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;</code></pre>
 
-Build the root stack frame containing `$mobile`, `$desktop`, `$viewport`, and `$frames_elapsed`.
+Build the root stack frame containing built-in globals plus internal engine state.
 
 ---
 
@@ -83,7 +86,7 @@ Singleton struct storing everything related to properties computation & renderin
 Type: `Rc`<[`RuntimeContext`](/api/internal/pax-runtime/properties.md#runtimecontext)>
 
 ##### `root_expanded_node`
-Type: `Rc`<`ExpandedNode`>
+Type: `Option`<`Rc`<`ExpandedNode`>>
 
 ##### `scroller_tiling_policy`
 Type: [`ScrollerTilingPolicy`](/api/internal/pax-runtime/engine/layer_tiling.md#scrollertilingpolicy)
@@ -91,6 +94,11 @@ Type: [`ScrollerTilingPolicy`](/api/internal/pax-runtime/engine/layer_tiling.md#
 #### Implementations
 Central instance of the PaxEngine and runtime, intended to be created by a particular chassis.
 Contains all rendering and runtime logic.
+
+##### `mount_root_component`
+<pre><code class="api-signature language-rust ignore">pub fn mount_root_component(&amp;mut self, main_component_instance: Rc&lt;<a href="/api/internal/pax-runtime/component.md#componentinstance">ComponentInstance</a>&gt;) -&gt; Rc&lt;ExpandedNode&gt;</code></pre>
+
+Mount a root component tree into an existing runtime kernel.
 
 ##### `set_viewport_size`
 <pre><code class="api-signature language-rust ignore">pub fn set_viewport_size(&amp;mut self, new_viewport_size: (f64, f64))</code></pre>
@@ -109,6 +117,11 @@ Three phases:
 3. Render:
     a. find lowest node (last child of last node)
     b. start rendering, from lowest node on-up, throughout tree
+
+##### `unmount`
+<pre><code class="api-signature language-rust ignore">pub fn unmount(&amp;mut self)</code></pre>
+
+Detach the mounted root component tree, leaving the runtime kernel empty.
 
 ## Enums
 ### `HandlerLocation`

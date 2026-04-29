@@ -428,6 +428,134 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_router_template() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let text_type_id = TypeId::build_singleton("Text", Some("Text"));
+        let group_type_id = TypeId::build_singleton("Group", Some("Group"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Text".to_string(), text_type_id);
+        template_map.insert("Group".to_string(), group_type_id);
+
+        let pax = r#"
+            <Router>
+                <Route path="/">
+                    <Text id=home />
+                </Route>
+                <Route path="/settings/*">
+                    <Group id=settings />
+                    <Text id=settings_title />
+                </Route>
+                <Route default=true>
+                    <Text id=missing />
+                </Route>
+            </Router>
+        "#;
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            pax,
+            false,
+            template_map,
+            "crate",
+            component_type_id,
+            "example.pax",
+            file!(),
+        );
+
+        let template = component.template.unwrap();
+        let router_id = template.get_root().remove(0);
+        let router_node = template.get_node(&router_id).unwrap();
+        let control_flow_settings = router_node.control_flow_settings.as_ref().unwrap();
+
+        assert!(matches!(
+            router_node.type_id.get_pax_type(),
+            pax_manifest::PaxType::Router
+        ));
+        assert_eq!(control_flow_settings.route_branches.len(), 3);
+        assert_eq!(
+            control_flow_settings.route_branches[0].path.as_deref(),
+            Some("/")
+        );
+        assert_eq!(
+            control_flow_settings.route_branches[1].path.as_deref(),
+            Some("/settings/*")
+        );
+        assert!(control_flow_settings.route_branches[2].default);
+        assert_eq!(control_flow_settings.route_branches[0].child_ids.len(), 1);
+        assert_eq!(control_flow_settings.route_branches[1].child_ids.len(), 2);
+        assert_eq!(control_flow_settings.route_branches[2].child_ids.len(), 1);
+        assert_eq!(template.get_children(&router_id).unwrap().len(), 4);
+    }
+
+    #[test]
+    fn test_parse_relative_nested_router_template() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let text_type_id = TypeId::build_singleton("Text", Some("Text"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Text".to_string(), text_type_id);
+
+        let pax = r#"
+            <Router>
+                <Route path="/teams/:team_id/*">
+                    <Router>
+                        <Route path="members/:member_id">
+                            <Text id=member />
+                        </Route>
+                        <Route path="settings/*">
+                            <Text id=settings />
+                        </Route>
+                    </Router>
+                </Route>
+            </Router>
+        "#;
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            pax,
+            false,
+            template_map,
+            "crate",
+            component_type_id,
+            "example.pax",
+            file!(),
+        );
+
+        let template = component.template.unwrap();
+        let root_router_id = template.get_root().remove(0);
+        let root_branch = template
+            .get_node(&root_router_id)
+            .unwrap()
+            .control_flow_settings
+            .as_ref()
+            .unwrap()
+            .route_branches[0]
+            .child_ids[0]
+            .clone();
+        let nested_router_id = root_branch;
+        assert!(matches!(
+            template
+                .get_node(&nested_router_id)
+                .unwrap()
+                .type_id
+                .get_pax_type(),
+            pax_manifest::PaxType::Router
+        ));
+        let nested_branches = &template
+            .get_node(&nested_router_id)
+            .unwrap()
+            .control_flow_settings
+            .as_ref()
+            .unwrap()
+            .route_branches;
+
+        assert_eq!(
+            nested_branches[0].path.as_deref(),
+            Some("members/:member_id")
+        );
+        assert_eq!(nested_branches[1].path.as_deref(), Some("settings/*"));
+    }
+
+    #[test]
     fn test_parse_keyed_for_template() {
         let component_type_id = TypeId::build_singleton("Example", Some("Example"));
         let text_type_id = TypeId::build_singleton("Text", Some("Text"));
@@ -581,6 +709,73 @@ mod tests {
 
     #[test]
     #[cfg(feature = "code_serialization")]
+    fn test_serialize_router_template() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let text_type_id = TypeId::build_singleton("Text", Some("Text"));
+        let group_type_id = TypeId::build_singleton("Group", Some("Group"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Text".to_string(), text_type_id);
+        template_map.insert("Group".to_string(), group_type_id);
+
+        let pax = r#"
+            <Router>
+                <Route path="/">
+                    <Text id=home />
+                </Route>
+                <Route path="/settings/*">
+                    <Group id=settings />
+                    <Text id=settings_title />
+                </Route>
+                <Route default=true>
+                    <Text id=missing />
+                </Route>
+            </Router>
+        "#;
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            pax,
+            false,
+            template_map.clone(),
+            "crate",
+            component_type_id.clone(),
+            "example.pax",
+            file!(),
+        );
+
+        let rendered = press_code_serialization_template(component).unwrap();
+        assert!(rendered.contains("<Router>"));
+        assert!(rendered.contains(r#"<Route path="/settings/*">"#));
+        assert!(rendered.contains("<Route default=true>"));
+
+        let (_, parsed_component) = assemble_component_definition(
+            ParsingContext::default(),
+            &rendered,
+            false,
+            template_map,
+            "crate",
+            component_type_id,
+            "example.pax",
+            file!(),
+        );
+        let template = parsed_component.template.unwrap();
+        let router_id = template.get_root().remove(0);
+        let branches = &template
+            .get_node(&router_id)
+            .unwrap()
+            .control_flow_settings
+            .as_ref()
+            .unwrap()
+            .route_branches;
+
+        assert_eq!(branches.len(), 3);
+        assert_eq!(branches[0].child_ids.len(), 1);
+        assert_eq!(branches[1].child_ids.len(), 2);
+        assert_eq!(branches[2].child_ids.len(), 1);
+        assert!(branches[2].default);
+    }
+
+    #[test]
     fn test_serialize_ternary_expression() {
         let component_type_id = TypeId::build_singleton("Example", Some("Example"));
         let rectangle_type_id = TypeId::build_singleton("Rectangle", Some("Rectangle"));

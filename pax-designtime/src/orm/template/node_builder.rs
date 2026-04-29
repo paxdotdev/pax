@@ -346,6 +346,7 @@ impl<'a> NodeBuilder<'a> {
         } else {
             let node_data = match self.node_type_id.get_pax_type() {
                 pax_manifest::PaxType::If
+                | pax_manifest::PaxType::Router
                 | pax_manifest::PaxType::Slot
                 | pax_manifest::PaxType::Repeat => {
                     let control_flow_settings_defintion = ControlFlowSettingsDefinition {
@@ -367,6 +368,7 @@ impl<'a> NodeBuilder<'a> {
                             .slot_index_expression
                             .flatten(),
                         conditional_branches: vec![],
+                        route_branches: vec![],
                     };
 
                     NodeType::ControlFlow(Box::new(control_flow_settings_defintion))

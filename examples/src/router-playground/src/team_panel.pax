@@ -1,0 +1,309 @@
+<Group width=100% height=100%>
+    <Stacker
+        width=100%
+        height=100%
+        direction=StackerDirection::Vertical
+        gutter=18px
+        sizes=[Some(128px), Some(72px), Some(172px), None]
+    >
+        <Group width=100% height=100%>
+            <Stacker
+                width=100%
+                height=100%
+                direction=StackerDirection::Vertical
+                gutter=10px
+                sizes=[Some(22px), None]
+            >
+                <Text id=eyebrow width=100% height=100% text="Dynamic team workspace" />
+                <Text
+                    id=title
+                    width=100%
+                    height=100%
+                    text={"Top-level params stay simple: this branch matched `team_id = " + route.params.team_id + "`."}
+                />
+            </Stacker>
+        </Group>
+
+        <Group width=100% height=100%>
+            <Stacker
+                width=100%
+                height=100%
+                direction=StackerDirection::Horizontal
+                gutter=14px
+                sizes=[None, None, None, None]
+            >
+                <Link width=100% height=100% url={"/teams/" + route.params.team_id}>
+                    <Text class=chip_text width=100% height=100% text="Overview" />
+                    <Rectangle class=chip width=100% height=100% />
+                </Link>
+                <Link
+                    width=100%
+                    height=100%
+                    url={"/teams/" + route.params.team_id + "/members/ada?lane=beta#inspect"}
+                >
+                    <Text class=chip_text width=100% height=100% text="Member Param" />
+                    <Rectangle class=chip width=100% height=100% />
+                </Link>
+                <Link
+                    width=100%
+                    height=100%
+                    url={"/teams/" + route.params.team_id + "/settings/integrations/logs?source=router#history"}
+                >
+                    <Text class=chip_text width=100% height=100% text="Nested Settings" />
+                    <Rectangle class=chip width=100% height=100% />
+                </Link>
+                <Link width=100% height=100% url={"/teams/" + route.params.team_id + "/missing/tail"}>
+                    <Text class=chip_text width=100% height=100% text="404" />
+                    <Rectangle class=chip width=100% height=100% />
+                </Link>
+            </Stacker>
+        </Group>
+
+        <RouteInspector width=100% height=100% title="team scope" />
+
+        <Group width=100% height=100%>
+            <Router>
+                <Route default=true>
+                    <Stacker
+                        width=100%
+                        height=100%
+                        direction=StackerDirection::Vertical
+                        gutter=12px
+                        sizes=[Some(28px), None, None]
+                    >
+                        <Text class=section width=100% height=100% text="Default team overview" />
+                        <Text
+                            class=copy
+                            width=100%
+                            height=100%
+                            text="The team route uses `default=true` to make the empty remainder render an overview without special-case path syntax."
+                        />
+                        <Group width=100% height=100% />
+                    </Stacker>
+                </Route>
+
+                <Route path="members/:member_id">
+                    <Stacker
+                        width=100%
+                        height=100%
+                        direction=StackerDirection::Vertical
+                        gutter=12px
+                        sizes=[Some(28px), None, Some(30px), None]
+                    >
+                        <Text
+                            class=section
+                            width=100%
+                            height=100%
+                            text={"Member detail for `" + route.params.member_id + "`"}
+                        />
+                        <Text
+                            class=copy
+                            width=100%
+                            height=100%
+                            text="Nested params compose the same way as top-level params. This branch is exact when the remainder is just `members/:member_id`."
+                        />
+                        <Text
+                            class=copy
+                            width=100%
+                            height=100%
+                            text={"Current fragment: " + (route.global_location.fragment ?? "none")}
+                        />
+                        <Group width=100% height=100% />
+                    </Stacker>
+                </Route>
+
+                <Route path="settings/*">
+                    <Stacker
+                        width=100%
+                        height=100%
+                        direction=StackerDirection::Vertical
+                        gutter=16px
+                        sizes=[Some(28px), Some(144px), None]
+                    >
+                        <Text class=section width=100% height=100% text="Settings catch-all" />
+                        <RouteInspector width=100% height=100% title="settings scope" />
+
+                        <Group width=100% height=100%>
+                            <Router>
+                                <Route default=true>
+                                    <Text
+                                        class=copy
+                                        width=100%
+                                        height=100%
+                                        text="Empty settings remainder falls back here, which keeps the authoring model aligned with the rest of template control flow."
+                                    />
+                                </Route>
+
+                                <Route path="integrations/*">
+                                    <Stacker
+                                        width=100%
+                                        height=100%
+                                        direction=StackerDirection::Vertical
+                                        gutter=16px
+                                        sizes=[Some(110px), None]
+                                    >
+                                        <Text
+                                            class=copy
+                                            width=100%
+                                            height=100%
+                                            text="A second catch-all consumes `integrations/*`, proving that nested routers match against their nearest ancestor remainder instead of the original global path."
+                                        />
+
+                                        <Group width=100% height=100%>
+                                            <Router>
+                                                <Route default=true>
+                                                    <Text
+                                                        class=copy
+                                                        width=100%
+                                                        height=100%
+                                                        text="This is the integrations landing branch."
+                                                    />
+                                                </Route>
+
+                                                <Route path="logs">
+                                                    <Text
+                                                        class=copy
+                                                        width=100%
+                                                        height=100%
+                                                        text="The `logs` branch is exact inside the integrations subtree, even though the full browser URL still includes `/teams/:team_id/settings/...`."
+                                                    />
+                                                </Route>
+
+                                                <Route path="*">
+                                                    <Text
+                                                        class=copy
+                                                        width=100%
+                                                        height=100%
+                                                        text="Unknown integrations tails land here."
+                                                    />
+                                                </Route>
+                                            </Router>
+                                        </Group>
+                                    </Stacker>
+                                </Route>
+
+                                <Route path="billing">
+                                    <Text
+                                        class=copy
+                                        width=100%
+                                        height=100%
+                                        text="`billing` shows an exact nested branch under settings."
+                                    />
+                                </Route>
+
+                                <Route path="*">
+                                    <Text
+                                        class=copy
+                                        width=100%
+                                        height=100%
+                                        text="Unknown settings tails fall through to the nested catch-all."
+                                    />
+                                </Route>
+                            </Router>
+                        </Group>
+                    </Stacker>
+                </Route>
+
+                <Route path="*">
+                    <Text
+                        class=copy
+                        width=100%
+                        height=100%
+                        text="Any unmatched team remainder ends up here after the explicit member and settings routes decline to match."
+                    />
+                </Route>
+            </Router>
+        </Group>
+    </Stacker>
+</Group>
+
+@settings {
+    #eyebrow {
+        style: {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 14px
+            fill: rgba(117, 200, 255, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Center
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    #title {
+        style: {
+            font: Font::Web(
+                "Space Grotesk",
+                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold
+            )
+            font_size: 28px
+            fill: rgba(242, 246, 255, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Top
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .section {
+        style: {
+            font: Font::Web(
+                "Space Grotesk",
+                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold
+            )
+            font_size: 22px
+            fill: rgba(242, 246, 255, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Top
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .copy {
+        style: {
+            font: Font::Web(
+                "Space Grotesk",
+                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal
+            )
+            font_size: 15px
+            fill: rgba(189, 198, 212, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Top
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .chip {
+        fill: rgba(20, 30, 53, 240)
+        corner_radii: RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)
+        stroke: {
+            color: rgba(90, 128, 182, 180)
+            width: 1px
+        }
+    }
+
+    .chip_text {
+        style: {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 12px
+            fill: rgba(210, 225, 245, 255)
+            align_horizontal: TextAlignHorizontal::Center
+            align_vertical: TextAlignVertical::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+}

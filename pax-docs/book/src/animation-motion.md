@@ -94,7 +94,7 @@ For the runtime terms behind this behavior, especially `received_children` versu
 
 `Stacker` exposes separate knobs for exit behavior and reflow behavior:
 - `exit_mode` controls whether exiting children remain in normal stack flow or hold their prior frames as ghosts
-- `reflow_transition` controls whether surviving children snap or ease into their new stack positions
+- `reflow_transition` controls whether surviving children snap or ease into their new stack positions; Stackers default to `Snap`
 
 ```pax
 <Stacker id=list gutter=12px>
@@ -116,4 +116,4 @@ For the runtime terms behind this behavior, especially `received_children` versu
 }
 ```
 
-With `exit_mode: ContainerExitMode::Ghost`, an exiting child can finish its `@out` transition from its previous stack frame while the retained children resolve layout without it.  `reflow_transition.kind: ContainerReflowTransitionKind::Ease` animates retained children between their previous and new stack frames; `Snap` switches immediately.  `Named` is reserved for a future current-component motion resource and is not wired yet.
+With `exit_mode: ContainerExitMode::Ghost`, an exiting child can finish its `@out` transition from its previous stack frame while the retained children resolve layout without it.  By default, `reflow_transition.kind: ContainerReflowTransitionKind::Snap` switches immediately.  Opt into `Ease` when retained children should animate between previous and new stack frames.  `Named` is reserved for a future current-component motion resource and is not wired yet.

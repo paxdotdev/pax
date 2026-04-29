@@ -574,6 +574,39 @@ Type: `usize`
 
 ---
 
+### `LayerSurfaceScreenshotData`
+Completed screenshot bytes for one physical surface within a logical canvas layer.
+
+#### Properties
+##### `id`
+Type: `u32`
+
+##### `key`
+Type: `String`
+
+##### `data`
+Type: `Vec`<`u8`>
+
+##### `width`
+Type: `usize`
+
+##### `height`
+Type: `usize`
+
+##### `origin_x`
+Type: `f32`
+
+##### `origin_y`
+Type: `f32`
+
+##### `logical_width`
+Type: `f32`
+
+##### `logical_height`
+Type: `f32`
+
+---
+
 ### `LinkStyleMessage`
 Serializable style payload for link text.
 
@@ -844,6 +877,21 @@ Type: `Option`<`f64`>
 
 ##### `opacity`
 Type: `Option`<`f64`>
+
+---
+
+### `RouteChangeInterruptArgs`
+Canonical route-location payload pushed from chassis state into the runtime.
+
+#### Properties
+##### `path_segments`
+Type: `Vec`<`String`>
+
+##### `query`
+Type: `HashMap`<`String`, `Vec`<`String`>>
+
+##### `fragment`
+Type: `Option`<`String`>
 
 ---
 
@@ -1472,6 +1520,7 @@ Events and data packets sent from the chassis back into the Pax runtime.
 ##### `BrowserConfig`([`BrowserConfigInterruptArgs`](/api/internal/pax-message/index.md#browserconfiginterruptargs))
 ##### `RenderSurfaceUpdate`([`RenderSurfaceUpdateArgs`](/api/internal/pax-message/index.md#rendersurfaceupdateargs))
 ##### `ViewportResize`([`ViewportResizeArgs`](/api/internal/pax-message/index.md#viewportresizeargs))
+##### `RouteChange`([`RouteChangeInterruptArgs`](/api/internal/pax-message/index.md#routechangeinterruptargs))
 ##### `VisualViewportUpdate`([`VisualViewportUpdateArgs`](/api/internal/pax-message/index.md#visualviewportupdateargs))
 ##### `DropFile`([`DropFileArgs`](/api/internal/pax-message/index.md#dropfileargs))
 ##### `Screenshot`([`ImageLoadInterruptArgs`](/api/internal/pax-message/index.md#imageloadinterruptargs))

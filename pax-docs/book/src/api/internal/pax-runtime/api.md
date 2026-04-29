@@ -70,6 +70,21 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<()>
 
 A property that can be depended on to dirty when a slot child is attached
 
+##### `content_children`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Vec`<`Rc`<`ExpandedNode`>>>
+
+Normalized content children interpreted by this node when it acts as a container.
+
+##### `content_children_count`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`usize`>
+
+Convenience count derived from `content_children`.
+
+##### `content_children_changed`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<()>
+
+A structural invalidation signal for `content_children`.
+
 #### Implementations
 ##### `clear_subscriptions`
 <pre><code class="api-signature language-rust ignore">pub fn clear_subscriptions(&amp;self)</code></pre>
@@ -105,6 +120,10 @@ Convert a window-space point into this node's local coordinate space.
 <pre><code class="api-signature language-rust ignore">pub fn navigate_to(&amp;self, url: &amp;str, target: <a href="/api/pax-runtime-api/drawing.md#navigationtarget">NavigationTarget</a>)</code></pre>
 
 Ask the chassis to navigate to a URL.
+
+On web targets, same-origin navigation in the current tab can be handled
+through the browser History API and routed back into Pax without a full
+page reload. Other targets use the active chassis navigation behavior.
 
 ##### `peek_local_store`
 <pre><code class="api-signature language-rust ignore">pub fn peek_local_store&lt;T: <a href="/api/pax-runtime-api/store.md#store">Store</a>, V&gt;(&amp;self, f: impl FnOnce(&amp;mut T) -&gt; V) -&gt; Result&lt;V, String&gt;</code></pre>

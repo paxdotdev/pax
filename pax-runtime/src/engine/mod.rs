@@ -1,6 +1,7 @@
 use crate::constants::{PRE_RENDER_HANDLERS, TICK_HANDLERS};
 use crate::{
-    api::Property, ExpandedNodeIdentifier, RuntimePropertiesStackFrame, TransformAndBounds,
+    api::Property, ExpandedNodeIdentifier, RouteLocation, RuntimePropertiesStackFrame,
+    TransformAndBounds, INTERNAL_ROUTE_LOCATION_SYMBOL,
 };
 use_RefCell!();
 use std::collections::HashMap;
@@ -50,6 +51,7 @@ use {
 pub struct Globals {
     pub frames_elapsed: Property<u64>,
     pub viewport: Property<TransformAndBounds<NodeLocal, Window>>,
+    pub route_location: Property<RouteLocation>,
     pub browser_allows_scroller_vector_layers: Property<bool>,
     pub browser_allows_nested_scroller_vector_layers: Property<bool>,
     pub platform: Platform,
@@ -60,7 +62,7 @@ pub struct Globals {
 }
 
 impl Globals {
-    /// Build the root stack frame containing `$mobile`, `$desktop`, `$viewport`, and `$frames_elapsed`.
+    /// Build the root stack frame containing built-in globals plus internal engine state.
     pub fn stack_frame(&self) -> Rc<RuntimePropertiesStackFrame> {
         let mobile = Property::new(self.os.is_mobile());
         let desktop = Property::new(self.os.is_desktop());
@@ -82,12 +84,17 @@ impl Globals {
         let desktop_var = Variable::new_from_typed_property(desktop);
         let viewport_var = Variable::new_from_typed_property(viewport);
         let frames_elapsed_var = Variable::new_from_typed_property(self.frames_elapsed.clone());
+        let route_location_var = Variable::new_from_typed_property(self.route_location.clone());
 
         let global_scope = vec![
             ("$mobile".to_string(), mobile_var),
             ("$desktop".to_string(), desktop_var),
             ("$viewport".to_string(), viewport_var),
             ("$frames_elapsed".to_string(), frames_elapsed_var),
+            (
+                INTERNAL_ROUTE_LOCATION_SYMBOL.to_string(),
+                route_location_var,
+            ),
         ]
         .into_iter()
         .collect();
@@ -102,6 +109,7 @@ impl std::fmt::Debug for Globals {
         f.debug_struct("Globals")
             .field("frames_elapsed", &self.frames_elapsed)
             .field("viewport", &self.viewport)
+            .field("route_location", &self.route_location)
             .finish_non_exhaustive()
     }
 }
@@ -183,6 +191,7 @@ impl PaxEngine {
                 transform: Transform2::identity(),
                 bounds: viewport_size,
             }),
+            route_location: Property::new(RouteLocation::root()),
             browser_allows_scroller_vector_layers: Property::new(true),
             browser_allows_nested_scroller_vector_layers: Property::new(true),
             platform,
@@ -210,6 +219,7 @@ impl PaxEngine {
                 transform: Transform2::identity(),
                 bounds: viewport_size,
             }),
+            route_location: Property::new(RouteLocation::root()),
             browser_allows_scroller_vector_layers: Property::new(true),
             browser_allows_nested_scroller_vector_layers: Property::new(true),
             platform,

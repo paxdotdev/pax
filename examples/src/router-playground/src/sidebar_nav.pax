@@ -1,0 +1,277 @@
+<Group width=100% height=100%>
+    <Stacker
+        x=28px
+        y=32px
+        width={100% - 56px}
+        autosize=true
+        direction=StackerDirection::Vertical
+        gutter=14px
+    >
+        <Group width=100% height=260px>
+            <Stacker
+                width=100%
+                height=100%
+                direction=StackerDirection::Vertical
+                gutter=10px
+                sizes=[Some(24px), None, Some(96px)]
+            >
+                <Text id=sidebar_eyebrow width=100% height=100% text="Router Playground" />
+                <Text
+                    id=sidebar_title
+                    width=100%
+                    height=100%
+                    text="Declarative routing, nested scope, and browser URL sync."
+                />
+                <Text
+                    id=sidebar_copy
+                    width=100%
+                    height=100%
+                    text="Use links or the jump button. Browser URL updates stay in-tab for same-origin navigation."
+                />
+            </Stacker>
+        </Group>
+
+        <Text id=sidebar_section width=100% height=24px text="Primary routes" />
+
+        <Link width=100% height=72px url="/" @click_or_tap=self.close_mobile_menu_after_link>
+            <Group width=100% height=100%>
+                <Stacker class=nav_card_content>
+                    <Text class=nav_title width=100% height=100% text="Landing" />
+                    <Text class=nav_meta width=100% height=100% text="/ (default root)" />
+                </Stacker>
+                <Rectangle class=nav_card width=100% height=100% />
+            </Group>
+        </Link>
+
+        <Link
+            width=100%
+            height=72px
+            url="/guide/topic/router?view=api#bindings"
+            @click_or_tap=self.close_mobile_menu_after_link
+        >
+            <Group width=100% height=100%>
+                <Stacker class=nav_card_content>
+                    <Text class=nav_title width=100% height=100% text="Guide" />
+                    <Text class=nav_meta width=100% height=100% text="/guide/topic/router" />
+                </Stacker>
+                <Rectangle class=nav_card width=100% height=100% />
+            </Group>
+        </Link>
+
+        <Link
+            width=100%
+            height=72px
+            url="/teams/design/members/ada?lane=beta#inspect"
+            @click_or_tap=self.close_mobile_menu_after_link
+        >
+            <Group width=100% height=100%>
+                <Stacker class=nav_card_content>
+                    <Text class=nav_title width=100% height=100% text="Team" />
+                    <Text class=nav_meta width=100% height=100% text="/teams/design/members/ada" />
+                </Stacker>
+                <Rectangle class=nav_card width=100% height=100% />
+            </Group>
+        </Link>
+
+        <Link width=100% height=72px url="/not-found/anywhere" @click_or_tap=self.close_mobile_menu_after_link>
+            <Group width=100% height=100%>
+                <Stacker class=nav_card_content>
+                    <Text class=nav_title width=100% height=100% text="Top-level 404" />
+                    <Text class=nav_meta width=100% height=100% text="/not-found/anywhere" />
+                </Stacker>
+                <Rectangle class=nav_card width=100% height=100% />
+            </Group>
+        </Link>
+
+        <Group width=100% height=88px @click=self.jump_to_next_demo>
+            <Stacker class=nav_card_content>
+                <Text class=jump_title width=100% height=100% text="Imperative jump" />
+                <Text class=jump_meta width=100% height=100% text={next_jump_target} />
+            </Stacker>
+            <Rectangle class=jump_card width=100% height=100% />
+        </Group>
+
+        <Group width=100% height=24px />
+
+        <Link width=100% height=24px url="https://docs.pax.dev" target=Target::New>
+            <Text id=external_link width=100% height=100% text="Open docs in a new tab" />
+        </Link>
+    </Stacker>
+</Group>
+
+@settings {
+    @mount: handle_mount
+
+    #sidebar_eyebrow {
+        style: {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 15px
+            fill: rgba(104, 202, 255, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Center
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    #sidebar_title {
+        style: {
+            font: Font::Web(
+                "Space Grotesk",
+                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold
+            )
+            font_size: 24px
+            fill: rgba(247, 249, 255, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Top
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    #sidebar_copy {
+        style: {
+            font: Font::Web(
+                "Space Grotesk",
+                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal
+            )
+            font_size: 15px
+            fill: rgba(187, 197, 212, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Top
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    #sidebar_section {
+        style: {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 13px
+            fill: rgba(134, 152, 181, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Center
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .nav_card_content {
+        x: 18px
+        y: 16px
+        width: {100% - 36px}
+        height: {100% - 32px}
+        direction: StackerDirection::Vertical
+        gutter: 3px
+        sizes: [Some(24px), None]
+    }
+
+    .nav_card {
+        fill: rgba(18, 26, 43, 230)
+        corner_radii: RectangleCornerRadii::radii(20.0, 20.0, 20.0, 20.0)
+        stroke: {
+            color: rgba(82, 107, 145, 165)
+            width: 1px
+        }
+    }
+
+    .nav_title {
+        style: {
+            font: Font::Web(
+                "Space Grotesk",
+                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold
+            )
+            font_size: 16px
+            fill: rgba(244, 247, 255, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Center
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .nav_meta {
+        style: {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal
+            )
+            font_size: 11px
+            fill: rgba(154, 173, 198, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Center
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .jump_card {
+        fill: rgba(18, 26, 43, 230)
+        corner_radii: RectangleCornerRadii::radii(20.0, 20.0, 20.0, 20.0)
+        stroke: {
+            color: rgba(82, 107, 145, 165)
+            width: 1px
+        }
+    }
+
+    .jump_title {
+        style: {
+            font: Font::Web(
+                "Space Grotesk",
+                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold
+            )
+            font_size: 16px
+            fill: rgba(244, 247, 255, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Center
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .jump_meta {
+        style: {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal
+            )
+            font_size: 11px
+            fill: rgba(154, 173, 198, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Center
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    #external_link {
+        style: {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 12px
+            fill: rgba(110, 202, 255, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Center
+            align_multiline: TextAlignHorizontal::Left
+            underline: true
+        }
+    }
+}

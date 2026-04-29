@@ -55,6 +55,11 @@ Mark every canvas layer clean.
 
 Clear layer-to-scroller ownership before recomputing occlusion.
 
+##### `clear_root_expanded_node`
+<pre><code class="api-signature language-rust ignore">pub fn clear_root_expanded_node(&amp;self)</code></pre>
+
+Clear the registered root expanded node.
+
 ##### `clear_visual_viewport_state`
 <pre><code class="api-signature language-rust ignore">pub fn clear_visual_viewport_state(&amp;self)</code></pre>
 
@@ -104,7 +109,7 @@ Shared screenshot capture map keyed by request id.
 Fetch cached scroller surface state by node id.
 
 ##### `get_topmost_element_beneath_ray`
-<pre><code class="api-signature language-rust ignore">pub fn get_topmost_element_beneath_ray(self: &amp;Rc&lt;Self&gt;, ray: Point2&lt;<a href="/api/pax-runtime-api/platform.md#window">Window</a>&gt;) -&gt; Rc&lt;ExpandedNode&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn get_topmost_element_beneath_ray(self: &amp;Rc&lt;Self&gt;, ray: Point2&lt;<a href="/api/pax-runtime-api/platform.md#window">Window</a>&gt;) -&gt; Option&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
 
 Alias for `get_elements_beneath_ray` with `limit_one = true`
 

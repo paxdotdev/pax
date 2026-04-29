@@ -50,6 +50,15 @@ fn recurse_visit_tag_pairs_for_template(
             let pascal_identifier = open_tag.next().unwrap().as_str();
             let settings = parse_inline_attribute_from_final_pairs_of_tag(open_tag);
 
+            if pascal_identifier == "Router" {
+                parse_router_matched_tag(ctx, matched_tag, pax, location);
+                return;
+            }
+
+            if pascal_identifier == "Route" {
+                panic!("Route must be a direct child of Router");
+            }
+
             let template_node = TemplateNodeDefinition {
                 type_id: TypeId::build_singleton(
                     &ctx.pascal_identifier_to_type_id_map
@@ -95,6 +104,15 @@ fn recurse_visit_tag_pairs_for_template(
             let source_location = Some(span_to_location(&any_tag_pair.as_span()));
             let mut tag_pairs = any_tag_pair.into_inner();
             let pascal_identifier = tag_pairs.next().unwrap().as_str();
+
+            if pascal_identifier == "Router" {
+                parse_router_self_closing_tag(ctx, location);
+                return;
+            }
+
+            if pascal_identifier == "Route" {
+                panic!("Route must be a direct child of Router");
+            }
 
             let type_id = if let Some(type_id) =
                 ctx.pascal_identifier_to_type_id_map.get(pascal_identifier)
@@ -305,6 +323,7 @@ fn recurse_visit_tag_pairs_for_template(
                             repeat_source_expression: None,
                             repeat_key_expression: None,
                             conditional_branches: vec![],
+                            route_branches: vec![],
                         }),
                         type_id: TypeId::build_slot(),
                         settings: None,
@@ -342,6 +361,217 @@ fn recurse_visit_tag_pairs_for_template(
         _ => {
             unreachable!("Parsing error: {:?}", any_tag_pair.as_rule());
         }
+    }
+}
+
+fn parse_router_matched_tag(
+    ctx: &mut TemplateNodeParseContext,
+    matched_tag: Pair<Rule>,
+    pax: &str,
+    location: TreeLocation,
+) {
+    let template_node = TemplateNodeDefinition {
+        type_id: TypeId::build_router(),
+        settings: None,
+        selector_info: Default::default(),
+        raw_comment_string: None,
+        control_flow_settings: Some(ControlFlowSettingsDefinition::default()),
+    };
+
+    let id = match location {
+        TreeLocation::Root => ctx.template.add_root_node_back(template_node),
+        TreeLocation::Parent(id) => ctx.template.add_child_back(id, template_node),
+    };
+    let router_node_id = id.get_template_node_id();
+    let prospective_inner_nodes = matched_tag.into_inner().nth(1).unwrap();
+    let mut route_branches = Vec::new();
+
+    match prospective_inner_nodes.as_rule() {
+        Rule::inner_nodes => {
+            for sub_tag_pair in prospective_inner_nodes.into_inner() {
+                match sub_tag_pair.as_rule() {
+                    Rule::matched_tag => {
+                        let route_pascal_identifier = sub_tag_pair
+                            .clone()
+                            .into_inner()
+                            .next()
+                            .unwrap()
+                            .into_inner()
+                            .next()
+                            .unwrap()
+                            .as_str()
+                            .to_string();
+
+                        if route_pascal_identifier != "Route" {
+                            panic!("Router expects direct Route children");
+                        }
+
+                        route_branches.push(parse_route_branch_from_matched_tag(
+                            ctx,
+                            sub_tag_pair,
+                            pax,
+                            &router_node_id,
+                        ));
+                    }
+                    Rule::self_closing_tag => {
+                        let route_pascal_identifier = sub_tag_pair
+                            .clone()
+                            .into_inner()
+                            .next()
+                            .unwrap()
+                            .as_str()
+                            .to_string();
+
+                        if route_pascal_identifier != "Route" {
+                            panic!("Router expects direct Route children");
+                        }
+
+                        route_branches.push(parse_route_branch_from_self_closing_tag(sub_tag_pair));
+                    }
+                    Rule::comment => recurse_visit_tag_pairs_for_template(
+                        ctx,
+                        sub_tag_pair,
+                        pax,
+                        TreeLocation::Parent(router_node_id.clone()),
+                    ),
+                    _ => panic!("Router expects direct Route children"),
+                }
+            }
+        }
+        _ => panic!("wrong prospective inner nodes (or nth)"),
+    }
+
+    let mut router_node = ctx.template.get_node(&router_node_id).unwrap().clone();
+    if let Some(control_flow_settings) = &mut router_node.control_flow_settings {
+        control_flow_settings.route_branches = route_branches;
+    }
+    ctx.template.set_node(router_node_id, router_node);
+}
+
+fn parse_router_self_closing_tag(ctx: &mut TemplateNodeParseContext, location: TreeLocation) {
+    let template_node = TemplateNodeDefinition {
+        type_id: TypeId::build_router(),
+        settings: None,
+        selector_info: Default::default(),
+        raw_comment_string: None,
+        control_flow_settings: Some(ControlFlowSettingsDefinition::default()),
+    };
+
+    match location {
+        TreeLocation::Root => {
+            ctx.template.add_root_node_back(template_node);
+        }
+        TreeLocation::Parent(id) => {
+            ctx.template.add_child_back(id, template_node);
+        }
+    };
+}
+
+fn parse_route_branch_from_matched_tag(
+    ctx: &mut TemplateNodeParseContext,
+    matched_tag: Pair<Rule>,
+    pax: &str,
+    router_node_id: &TemplateNodeId,
+) -> ControlFlowRouteBranchDefinition {
+    let mut open_tag = matched_tag
+        .clone()
+        .into_inner()
+        .next()
+        .unwrap()
+        .into_inner();
+    let _ = open_tag.next().unwrap();
+    let route_settings = parse_inline_attribute_from_final_pairs_of_tag(open_tag);
+    let existing_children_count = ctx
+        .template
+        .get_children(router_node_id)
+        .unwrap_or_default()
+        .len();
+
+    if let Some(inner_nodes) = matched_tag.into_inner().nth(1) {
+        inner_nodes.into_inner().for_each(|sub_tag_pair| {
+            recurse_visit_tag_pairs_for_template(
+                ctx,
+                sub_tag_pair,
+                pax,
+                TreeLocation::Parent(router_node_id.clone()),
+            );
+        });
+    }
+
+    let child_ids = ctx
+        .template
+        .get_children(router_node_id)
+        .unwrap_or_default()
+        .into_iter()
+        .skip(existing_children_count)
+        .collect::<Vec<_>>();
+
+    parse_route_branch_settings(route_settings, child_ids)
+}
+
+fn parse_route_branch_from_self_closing_tag(
+    self_closing_tag: Pair<Rule>,
+) -> ControlFlowRouteBranchDefinition {
+    let mut tag_pairs = self_closing_tag.into_inner();
+    let _ = tag_pairs.next().unwrap();
+    let route_settings = parse_inline_attribute_from_final_pairs_of_tag(tag_pairs);
+    parse_route_branch_settings(route_settings, vec![])
+}
+
+fn parse_route_branch_settings(
+    settings: Option<Vec<SettingElement>>,
+    child_ids: Vec<TemplateNodeId>,
+) -> ControlFlowRouteBranchDefinition {
+    let mut path = None;
+    let mut is_default = false;
+
+    for setting in settings.unwrap_or_default() {
+        let SettingElement::Setting(token, value) = setting else {
+            continue;
+        };
+
+        match token.token_value.as_str() {
+            "path" => {
+                path = Some(parse_route_path_setting(&value));
+            }
+            "default" => {
+                is_default = parse_route_default_setting(&value);
+            }
+            other => panic!("Unsupported Route attribute {other}"),
+        }
+    }
+
+    if is_default && path.is_some() {
+        panic!("default Route cannot also declare path");
+    }
+
+    if !is_default && path.is_none() {
+        panic!("Route requires path or default=true");
+    }
+
+    ControlFlowRouteBranchDefinition {
+        path,
+        default: is_default,
+        child_ids,
+    }
+}
+
+fn parse_route_path_setting(value: &ValueDefinition) -> String {
+    match value {
+        ValueDefinition::LiteralValue(PaxValue::String(path)) => {
+            if path.is_empty() {
+                panic!("Route path must not be empty");
+            }
+            path.clone()
+        }
+        _ => panic!("Route path must be a string literal"),
+    }
+}
+
+fn parse_route_default_setting(value: &ValueDefinition) -> bool {
+    match value {
+        ValueDefinition::LiteralValue(PaxValue::Bool(value)) => *value,
+        _ => panic!("Route default must be a boolean literal"),
     }
 }
 

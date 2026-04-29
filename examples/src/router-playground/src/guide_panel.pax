@@ -1,0 +1,300 @@
+<Group width=100% height=100%>
+    <Stacker
+        width=100%
+        height=100%
+        direction=StackerDirection::Vertical
+        gutter=18px
+        sizes=[Some(128px), Some(72px), Some(172px), None]
+    >
+        <Group width=100% height=100%>
+            <Stacker
+                width=100%
+                height=100%
+                direction=StackerDirection::Vertical
+                gutter=10px
+                sizes=[Some(22px), None]
+            >
+                <Text id=eyebrow width=100% height=100% text="Nested docs router" />
+                <Text
+                    id=title
+                    width=100%
+                    height=100%
+                    text="The guide route consumes `/guide/*`, then hands its remainder to nested routers."
+                />
+            </Stacker>
+        </Group>
+
+        <Group width=100% height=100%>
+            <Stacker
+                width=100%
+                height=100%
+                direction=StackerDirection::Horizontal
+                gutter=14px
+                sizes=[None, None, None, None]
+            >
+                <Link width=100% height=100% url="/guide">
+                    <Text class=chip_text width=100% height=100% text="Guide Home" />
+                    <Rectangle class=chip width=100% height=100% />
+                </Link>
+                <Link width=100% height=100% url="/guide/topic/router?view=api#bindings">
+                    <Text class=chip_text width=100% height=100% text="Topic Param" />
+                    <Rectangle class=chip width=100% height=100% />
+                </Link>
+                <Link width=100% height=100% url="/guide/playground/tokens?view=lab#trace">
+                    <Text class=chip_text width=100% height=100% text="Catch-all" />
+                    <Rectangle class=chip width=100% height=100% />
+                </Link>
+                <Link width=100% height=100% url="/guide/missing/chapter">
+                    <Text class=chip_text width=100% height=100% text="404" />
+                    <Rectangle class=chip width=100% height=100% />
+                </Link>
+            </Stacker>
+        </Group>
+
+        <RouteInspector width=100% height=100% title="guide scope" />
+
+        <Group width=100% height=100%>
+            <Router>
+                <Route default=true>
+                    <Stacker
+                        width=100%
+                        height=100%
+                        direction=StackerDirection::Vertical
+                        gutter=12px
+                        sizes=[Some(28px), Some(84px), None]
+                    >
+                        <Text class=section width=100% height=100% text="Default branch" />
+                        <Text
+                            class=copy
+                            width=100%
+                            height=100%
+                            text="When the scoped remainder is empty, `default=true` wins without inventing a separate optional segment feature."
+                        />
+                        <Text
+                            class=copy
+                            width=100%
+                            height=100%
+                            text={"Try `?view=api` or `#bindings` in the sidebar links. The inspector above keeps the full browser location visible while matching stays scoped."}
+                        />
+                    </Stacker>
+                </Route>
+
+                <Route path="topic/:topic_id">
+                    <Stacker
+                        width=100%
+                        height=100%
+                        direction=StackerDirection::Vertical
+                        gutter=12px
+                        sizes=[Some(28px), None, Some(30px), None]
+                    >
+                        <Text
+                            class=section
+                            width=100%
+                            height=100%
+                            text={"Dynamic segment `topic_id = " + route.params.topic_id + "`"}
+                        />
+
+                        if route.params.topic_id == "router" {
+                            <Text
+                                class=copy
+                                width=100%
+                                height=100%
+                                text="This branch demonstrates `:param` capture. The nested scope sees `topic/router` while the inspector still preserves the global path, query, and fragment."
+                            />
+                        } else if route.params.topic_id == "expressions" {
+                            <Text
+                                class=copy
+                                width=100%
+                                height=100%
+                                text="Params are plain route data, so they compose with ordinary PAXEL conditionals and string interpolation."
+                            />
+                        } else {
+                            <Text
+                                class=copy
+                                width=100%
+                                height=100%
+                                text={"`" + route.params.topic_id + "` is not one of the curated guide topics, but the param still matches and renders."}
+                            />
+                        }
+
+                        <Text
+                            class=copy
+                            width=100%
+                            height=100%
+                            text={"Current fragment: " + (route.global_location.fragment ?? "none")}
+                        />
+
+                        <Group width=100% height=100% />
+                    </Stacker>
+                </Route>
+
+                <Route path="playground/*">
+                    <Stacker
+                        width=100%
+                        height=100%
+                        direction=StackerDirection::Vertical
+                        gutter=16px
+                        sizes=[Some(28px), Some(150px), None]
+                    >
+                        <Text
+                            class=section
+                            width=100%
+                            height=100%
+                            text="Terminal `*` consumed the playground prefix"
+                        />
+                        <RouteInspector width=100% height=100% title="guide playground catch-all" />
+
+                        <Group width=100% height=100%>
+                            <Router>
+                                <Route default=true>
+                                    <Text
+                                        class=copy
+                                        width=100%
+                                        height=100%
+                                        text="The nested router now matches against the catch-all remainder. Empty remainder falls back to the playground landing page."
+                                    />
+                                </Route>
+
+                                <Route path="tokens">
+                                    <Text
+                                        class=copy
+                                        width=100%
+                                        height=100%
+                                        text="`tokens` is an exact nested match. `route.location` here is just `/tokens`, not the full `/guide/playground/tokens` URL."
+                                    />
+                                </Route>
+
+                                <Route path="layers">
+                                    <Text
+                                        class=copy
+                                        width=100%
+                                        height=100%
+                                        text="`layers` is another exact nested branch. The outer inspector shows what the catch-all consumed; this inner branch shows the reduced scope."
+                                    />
+                                </Route>
+
+                                <Route path="*">
+                                    <Text
+                                        class=copy
+                                        width=100%
+                                        height=100%
+                                        text="Any other tail still matches through a second terminal catch-all, which is useful for exploratory or file-like route trees."
+                                    />
+                                </Route>
+                            </Router>
+                        </Group>
+                    </Stacker>
+                </Route>
+
+                <Route path="*">
+                    <Stacker
+                        width=100%
+                        height=100%
+                        direction=StackerDirection::Vertical
+                        gutter=12px
+                        sizes=[Some(28px), None]
+                    >
+                        <Text class=section width=100% height=100% text="Guide fallback" />
+                        <Text
+                            class=copy
+                            width=100%
+                            height=100%
+                            text="This branch catches unmatched guide paths after the explicit topic and playground routes have had a chance to win."
+                        />
+                    </Stacker>
+                </Route>
+            </Router>
+        </Group>
+    </Stacker>
+</Group>
+
+@settings {
+    #eyebrow {
+        style: {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 14px
+            fill: rgba(117, 200, 255, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Center
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    #title {
+        style: {
+            font: Font::Web(
+                "Space Grotesk",
+                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold
+            )
+            font_size: 28px
+            fill: rgba(242, 246, 255, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Top
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .section {
+        style: {
+            font: Font::Web(
+                "Space Grotesk",
+                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold
+            )
+            font_size: 22px
+            fill: rgba(242, 246, 255, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Top
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .copy {
+        style: {
+            font: Font::Web(
+                "Space Grotesk",
+                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal
+            )
+            font_size: 15px
+            fill: rgba(189, 198, 212, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Top
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .chip {
+        fill: rgba(20, 30, 53, 240)
+        corner_radii: RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)
+        stroke: {
+            color: rgba(90, 128, 182, 180)
+            width: 1px
+        }
+    }
+
+    .chip_text {
+        style: {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 12px
+            fill: rgba(210, 225, 245, 255)
+            align_horizontal: TextAlignHorizontal::Center
+            align_vertical: TextAlignVertical::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+}

@@ -10,17 +10,20 @@ Shared storage carried by every concrete `InstanceNode`.
 ##### `handler_registry`
 Type: `Option`<`Rc`<`RefCell`<[`HandlerRegistry`](/api/internal/pax-runtime/engine.md#handlerregistry)>>>
 
-##### `instance_prototypical_properties_factory`
-Type: `Box`<`dyn` `Fn`(`Rc`<[`RuntimePropertiesStackFrame`](/api/internal/pax-runtime/properties.md#runtimepropertiesstackframe)>, `Option`<`Rc`<`ExpandedNode`>>) -> `Option`<`Rc`<`RefCell`<[`PaxAny`](/api/pax-runtime-api/pax_value.md#paxany)>>>>
+##### `instance_prototypical_properties`
+Type: [`PropertiesInit`](/api/internal/pax-runtime/rendering.md#propertiesinit)
 
-##### `instance_prototypical_common_properties_factory`
-Type: `Box`<`dyn` `Fn`(`Rc`<[`RuntimePropertiesStackFrame`](/api/internal/pax-runtime/properties.md#runtimepropertiesstackframe)>, `Option`<`Rc`<`ExpandedNode`>>) -> `Option`<`Rc`<`RefCell`<[`CommonProperties`](/api/pax-runtime-api/layout.md#commonproperties)>>>>
+##### `instance_prototypical_common_properties`
+Type: [`CommonPropertiesInit`](/api/internal/pax-runtime/rendering.md#commonpropertiesinit)
 
 ##### `template_node_identifier`
 Type: `Option`<[`UniqueTemplateNodeIdentifier`](/api/internal/pax-manifest/index.md#uniquetemplatenodeidentifier)>
 
-##### `properties_scope_factory`
-Type: `Option`<`Box`<`dyn` `Fn`(`Rc`<`RefCell`<[`PaxAny`](/api/pax-runtime-api/pax_value.md#paxany)>>) -> `HashMap`<`String`, [`Variable`](/api/pax-runtime-api/variables.md#variable)>>>
+##### `transition_config`
+Type: [`ComponentTransitionConfig`](/api/internal/pax-manifest/cartridge_generation.md#componenttransitionconfig)
+
+##### `properties_scope`
+Type: [`PropertiesScopeInit`](/api/internal/pax-runtime/rendering.md#propertiesscopeinit)
 
 #### Implementations
 ##### `flags`
@@ -93,11 +96,11 @@ Is this node a `Slot`?
 Construction payload used when compiler-generated code instantiates an `InstanceNode`.
 
 #### Properties
-##### `prototypical_common_properties_factory`
-Type: `Box`<`dyn` `Fn`(`Rc`<[`RuntimePropertiesStackFrame`](/api/internal/pax-runtime/properties.md#runtimepropertiesstackframe)>, `Option`<`Rc`<`ExpandedNode`>>) -> `Option`<`Rc`<`RefCell`<[`CommonProperties`](/api/pax-runtime-api/layout.md#commonproperties)>>>>
+##### `prototypical_common_properties`
+Type: [`CommonPropertiesInit`](/api/internal/pax-runtime/rendering.md#commonpropertiesinit)
 
-##### `prototypical_properties_factory`
-Type: `Box`<`dyn` `Fn`(`Rc`<[`RuntimePropertiesStackFrame`](/api/internal/pax-runtime/properties.md#runtimepropertiesstackframe)>, `Option`<`Rc`<`ExpandedNode`>>) -> `Option`<`Rc`<`RefCell`<[`PaxAny`](/api/pax-runtime-api/pax_value.md#paxany)>>>>
+##### `prototypical_properties`
+Type: [`PropertiesInit`](/api/internal/pax-runtime/rendering.md#propertiesinit)
 
 ##### `handler_registry`
 Type: `Option`<`Rc`<`RefCell`<[`HandlerRegistry`](/api/internal/pax-runtime/engine.md#handlerregistry)>>>
@@ -111,8 +114,11 @@ Type: `Option`<[`InstanceNodePtrList`](/api/internal/pax-runtime/rendering.md#in
 ##### `template_node_identifier`
 Type: `Option`<[`UniqueTemplateNodeIdentifier`](/api/internal/pax-manifest/index.md#uniquetemplatenodeidentifier)>
 
-##### `properties_scope_factory`
-Type: `Option`<`Box`<`dyn` `Fn`(`Rc`<`RefCell`<[`PaxAny`](/api/pax-runtime-api/pax_value.md#paxany)>>) -> `HashMap`<`String`, [`Variable`](/api/pax-runtime-api/variables.md#variable)>>>
+##### `transition_config`
+Type: [`ComponentTransitionConfig`](/api/internal/pax-manifest/cartridge_generation.md#componenttransitionconfig)
+
+##### `properties_scope`
+Type: [`PropertiesScopeInit`](/api/internal/pax-runtime/rendering.md#propertiesscopeinit)
 
 ---
 
@@ -151,12 +157,39 @@ Type: `f64`
 Type: `StrokeStyle`
 
 ## Enums
+### `CommonPropertiesInit`
+Structured initialization for node-local common properties.
+
+#### Variants
+##### `Default`
+##### `Inline` { `defined_properties`: `BTreeMap`<`String`, [`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)> }
+##### `Factory`([`CommonPropertiesFactory`](/api/internal/pax-runtime/rendering.md#commonpropertiesfactory))
+---
+
 ### `NodeType`
 Coarse runtime category for an instance node.
 
 #### Variants
 ##### `Component`
 ##### `Primitive`
+---
+
+### `PropertiesInit`
+Structured initialization for node-local typed properties.
+
+#### Variants
+##### `DescriptorDefault`(&'`static` `ErasedComponentDescriptor`)
+##### `DescriptorInline` { `descriptor`: &'`static` `ErasedComponentDescriptor`, `defined_properties`: `BTreeMap`<`String`, [`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)> }
+##### `Factory`([`PropertiesFactory`](/api/internal/pax-runtime/rendering.md#propertiesfactory))
+---
+
+### `PropertiesScopeInit`
+How an expanded node should expose component-local symbols into scope.
+
+#### Variants
+##### `None`
+##### `Descriptor`(&'`static` `ErasedComponentDescriptor`)
+##### `Factory`([`PropertiesScopeFactory`](/api/internal/pax-runtime/rendering.md#propertiesscopefactory))
 ## Traits
 ### `InstanceNode`
 Central runtime representation of a properties-computable and renderable node.

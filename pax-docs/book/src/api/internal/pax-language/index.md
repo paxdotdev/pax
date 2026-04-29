@@ -109,6 +109,9 @@ BEGIN EXPRESSIONS
 This sub-grammar describes PAXEL, the Pax Expression Language
 ///
 
+##### `expression_ternary`
+##### `expression_coalesce`
+##### `expression_binary`
 ##### `expression_wrapped`
 ##### `expression_grouped`
 ##### `xo_primary`
@@ -130,6 +133,7 @@ This sub-grammar describes PAXEL, the Pax Expression Language
 ##### `xo_rel_lte`
 ##### `xo_rel_neq`
 ##### `xo_sub`
+##### `xo_null_coalesce`
 ##### `xo_tern_then`
 ##### `xo_tern_else`
 ##### `xo_range`
@@ -148,10 +152,14 @@ BEGIN CONTROL FLOW
 ///
 
 ##### `statement_if`
+##### `statement_if_branch`
+##### `statement_else_if_branch`
+##### `statement_else_branch`
 ##### `statement_for`
 ##### `statement_slot`
 ##### `statement_for_predicate_declaration`
 ##### `statement_for_source`
+##### `statement_for_key`
 ## Functions
 ### `parse_pax_err`
 <pre><code class="api-signature language-rust ignore">pub fn parse_pax_err(expected_rule: <a href="/api/internal/pax-language/index.md#rule">Rule</a>, input: &amp;str) -&gt; Result&lt;Pair&lt;&#39;_, <a href="/api/internal/pax-language/index.md#rule">Rule</a>&gt;, <a href="/api/internal/pax-language/deserializer/error.md#error">Error</a>&lt;<a href="/api/internal/pax-language/index.md#rule">Rule</a>&gt;&gt;</code></pre>

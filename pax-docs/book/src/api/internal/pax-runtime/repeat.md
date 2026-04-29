@@ -41,3 +41,6 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<`String
 
 ##### `iterator_elem_symbol`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<`String`>>
+
+##### `repeat_key_expression`
+Type: `Option`<[`ExpressionInfo`](/api/internal/pax-manifest/index.md#expressioninfo)>

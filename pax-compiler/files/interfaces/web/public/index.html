@@ -14,8 +14,8 @@
         </div>
         <script src="pax-interface-web.js" ></script>
         <script>
-            if (typeof window.Pax.mount === 'function') {
-                const cartridgeUrl = new URL("pax-cartridge", window.location.href);
+            if (window.Pax && typeof window.Pax.mount === 'function') {
+                const cartridgeUrl = new URL("pax-cartridge", document.baseURI);
                 window.Pax.mount("#mount", cartridgeUrl.href);
             } else {
                 console.error("Pax cartridge failed to load or was malformed.");

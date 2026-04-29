@@ -64,7 +64,7 @@ mod tests {
     use super::*;
     use crate::api::math::Transform2;
     use crate::api::CommonProperties;
-    use crate::{ComponentInstance, ExpandedNode, Globals, TransformAndBounds};
+    use crate::{ComponentInstance, ExpandedNode, Globals, RouteLocation, TransformAndBounds};
     use pax_language::interpreter::property_resolution::IdentifierResolver;
     use pax_language::parse_pax_expression;
     use pax_manifest::cartridge_generation::{ComponentTransitionConfig, TRANSITION_PHASE_EXIT};
@@ -79,6 +79,7 @@ mod tests {
                 transform: Transform2::identity(),
                 bounds: (100.0, 100.0),
             }),
+            route_location: Property::new(RouteLocation::root()),
             browser_allows_scroller_vector_layers: Property::new(true),
             browser_allows_nested_scroller_vector_layers: Property::new(true),
             platform: Platform::Unknown,

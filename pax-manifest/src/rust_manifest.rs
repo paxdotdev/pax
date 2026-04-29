@@ -1,12 +1,12 @@
 use crate::{
     ComponentDefinition, ComponentTemplate, ControlFlowConditionalBranchDefinition,
     ControlFlowConditionalBranchKind, ControlFlowRepeatPredicateDefinition,
-    ControlFlowSettingsDefinition, ExpressionInfo, LiteralBlockDefinition, LocationInfo,
-    PaxManifest, PaxType, PropertyDefinition, PropertyDefinitionFlags, SettingElement,
-    SettingsBlockElement, TemplateNodeDefinition, TemplateNodeId, TimelineBlockElement,
-    TimelineDefinition, TimelineKeyframe, TimelineMarker, TimelineSelectorBlockDefinition,
-    TimelineSelectorElement, TimelineTrackDefinition, TimelineTrackElement, TransitionDefinition,
-    TypeDefinition, TypeId, ValueDefinition,
+    ControlFlowRouteBranchDefinition, ControlFlowSettingsDefinition, ExpressionInfo,
+    LiteralBlockDefinition, LocationInfo, PaxManifest, PaxType, PropertyDefinition,
+    PropertyDefinitionFlags, SettingElement, SettingsBlockElement, TemplateNodeDefinition,
+    TemplateNodeId, TimelineBlockElement, TimelineDefinition, TimelineKeyframe, TimelineMarker,
+    TimelineSelectorBlockDefinition, TimelineSelectorElement, TimelineTrackDefinition,
+    TimelineTrackElement, TransitionDefinition, TypeDefinition, TypeId, ValueDefinition,
 };
 use pax_language::interpreter::{PaxAccessor, PaxExpression, PaxPrimary, PaxUnit};
 use pax_runtime_api::{
@@ -402,7 +402,7 @@ impl RustManifestWriter {
 
     fn control_flow_settings_definition(&self, settings: &ControlFlowSettingsDefinition) -> String {
         format!(
-            "{mp}::ControlFlowSettingsDefinition {{ condition_expression: {condition_expression}, slot_index_expression: {slot_index_expression}, repeat_predicate_definition: {repeat_predicate_definition}, repeat_source_expression: {repeat_source_expression}, repeat_key_expression: {repeat_key_expression}, conditional_branches: {conditional_branches} }}",
+            "{mp}::ControlFlowSettingsDefinition {{ condition_expression: {condition_expression}, slot_index_expression: {slot_index_expression}, repeat_predicate_definition: {repeat_predicate_definition}, repeat_source_expression: {repeat_source_expression}, repeat_key_expression: {repeat_key_expression}, conditional_branches: {conditional_branches}, route_branches: {route_branches} }}",
             mp = self.manifest_path,
             condition_expression = self.option(&settings.condition_expression, |value| self.expression_info(value)),
             slot_index_expression = self.option(&settings.slot_index_expression, |value| self.expression_info(value)),
@@ -410,6 +410,7 @@ impl RustManifestWriter {
             repeat_source_expression = self.option(&settings.repeat_source_expression, |value| self.expression_info(value)),
             repeat_key_expression = self.option(&settings.repeat_key_expression, |value| self.expression_info(value)),
             conditional_branches = self.vec(&settings.conditional_branches, |value| self.control_flow_conditional_branch_definition(value)),
+            route_branches = self.vec(&settings.route_branches, |value| self.control_flow_route_branch_definition(value)),
         )
     }
 
@@ -463,6 +464,19 @@ impl RustManifestWriter {
                 index = rust_string(index),
             ),
         }
+    }
+
+    fn control_flow_route_branch_definition(
+        &self,
+        branch: &ControlFlowRouteBranchDefinition,
+    ) -> String {
+        format!(
+            "{mp}::ControlFlowRouteBranchDefinition {{ path: {path}, default: {default}, child_ids: {child_ids} }}",
+            mp = self.manifest_path,
+            path = self.option(&branch.path, |value| rust_string(value)),
+            default = branch.default,
+            child_ids = self.vec(&branch.child_ids, |value| self.template_node_id(value)),
+        )
     }
 
     fn expression_info(&self, info: &ExpressionInfo) -> String {
@@ -899,6 +913,7 @@ impl RustManifestWriter {
     fn type_id(&self, type_id: &TypeId) -> String {
         match type_id.get_pax_type() {
             PaxType::If => format!("{mp}::TypeId::build_if()", mp = self.manifest_path),
+            PaxType::Router => format!("{mp}::TypeId::build_router()", mp = self.manifest_path),
             PaxType::Slot => format!("{mp}::TypeId::build_slot()", mp = self.manifest_path),
             PaxType::Repeat => format!("{mp}::TypeId::build_repeat()", mp = self.manifest_path),
             PaxType::Comment => format!("{mp}::TypeId::build_comment()", mp = self.manifest_path),

@@ -26,6 +26,11 @@ use pax_runtime::{
 
 )]
 /// Navigates to a URL when its slotted content is clicked or tapped.
+///
+/// `Link` remains router-agnostic: it writes a URL, while `Router` and `Route`
+/// declaratively read the current location. On web targets, same-origin
+/// `target=Current` navigation can be serviced through client-side history
+/// updates instead of a full document reload.
 pub struct Link {
     /// Destination URL.
     pub url: Property<String>,

@@ -1,0 +1,175 @@
+if is_mobile {
+    <Group width=100% height=100%>
+        <Group x=0px y=0px width=100% height=72px>
+            <Group x=18px y=14px width=108px height=44px @click=self.toggle_mobile_menu>
+                <Text id=mobile_menu_text width=100% height=100% text={mobile_menu_open ? "Close" : "Menu"} />
+                <Rectangle class=mobile_menu_button width=100% height=100% />
+            </Group>
+
+            <Stacker
+                x=144px
+                y=12px
+                width={100% - 170px}
+                height=48px
+                direction=StackerDirection::Vertical
+                gutter=2px
+                sizes=[Some(26px), None]
+            >
+                <Text id=mobile_title width=100% height=100% text="Router Playground" />
+                <Text id=mobile_subtitle width=100% height=100% text="Nested routing demo" />
+            </Stacker>
+
+            <Rectangle class=mobile_top_bar width=100% height=100% />
+        </Group>
+
+        if mobile_menu_open {
+            <MobileMenuDrawer
+                x=0px
+                y=72px
+                width=88%
+                height={100% - 72px}
+                mobile_menu_open=bind:mobile_menu_open
+            />
+
+            <MobileMenuUnderlay x=0px y=72px width=100% height={100% - 72px} @click=self.close_mobile_menu />
+        }
+
+        <Group x=0px y=72px width=100% height={100% - 72px}>
+            <Group
+                x=50%
+                y=50%
+                width={100% - 48px}
+                height={100% - 48px}
+                anchor_x=50%
+                anchor_y=50%
+            >
+                <RouteOutlet width=100% height=100% />
+            </Group>
+
+            <Rectangle class=content_panel width=100% height=100% />
+        </Group>
+    </Group>
+} else {
+    <Stacker
+        x=0%
+        y=0%
+        width=100%
+        height=100%
+        direction=StackerDirection::Horizontal
+        gutter=2%
+        sizes=[Some(27%), None]
+    >
+        <Group width=100% height=100%>
+            <SidebarNav width=100% height=100% mobile_menu_open=bind:mobile_menu_open />
+            <Rectangle class=sidebar_panel width=100% height=100% />
+        </Group>
+
+        <Group width=100% height=100%>
+            <Group
+                x=50%
+                y=50%
+                width={100% - 72px}
+                height={100% - 72px}
+                anchor_x=50%
+                anchor_y=50%
+            >
+                <RouteOutlet width=100% height=100% />
+            </Group>
+
+            <Rectangle class=content_panel width=100% height=100% />
+        </Group>
+    </Stacker>
+}
+
+<Ellipse x=82% y=10% width=32% height=30% fill=rgba(44, 111, 255, 70) />
+<Ellipse x=-8% y=72% width=36% height=34% fill=rgba(17, 202, 166, 60) />
+<Ellipse x=38% y=-12% width=30% height=28% fill=rgba(255, 128, 64, 40) />
+<Rectangle width=100% height=100% fill=rgba(5, 10, 20, 255) />
+
+@settings {
+    @mount: handle_mount
+    @pre_render: handle_pre_render
+
+    .sidebar_panel {
+        fill: rgba(9, 15, 28, 232)
+        corner_radii: RectangleCornerRadii::radii(28.0, 28.0, 28.0, 28.0)
+        stroke: {
+            color: rgba(88, 116, 158, 150)
+            width: 1px
+        }
+    }
+
+    .content_panel {
+        fill: rgba(8, 14, 25, 228)
+        corner_radii: RectangleCornerRadii::radii(30.0, 30.0, 30.0, 30.0)
+        stroke: {
+            color: rgba(95, 123, 167, 140)
+            width: 1px
+        }
+    }
+
+    .mobile_top_bar {
+        fill: rgba(8, 14, 25, 245)
+        stroke: {
+            color: rgba(95, 123, 167, 140)
+            width: 1px
+        }
+    }
+
+    .mobile_menu_button {
+        fill: rgba(18, 32, 56, 238)
+        corner_radii: RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)
+        stroke: {
+            color: rgba(104, 202, 255, 170)
+            width: 1px
+        }
+    }
+
+    #mobile_menu_text {
+        style: {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 15px
+            fill: rgba(117, 200, 255, 255)
+            align_horizontal: TextAlignHorizontal::Center
+            align_vertical: TextAlignVertical::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+
+    #mobile_title {
+        style: {
+            font: Font::Web(
+                "Space Grotesk",
+                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold
+            )
+            font_size: 18px
+            fill: rgba(244, 247, 255, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Center
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    #mobile_subtitle {
+        style: {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal
+            )
+            font_size: 12px
+            fill: rgba(154, 173, 198, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Center
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+}

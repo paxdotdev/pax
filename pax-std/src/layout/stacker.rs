@@ -58,6 +58,9 @@ pub struct Stacker {
     /// Whether exiting children stay in normal stack flow or hold their previous frame as ghosts.
     pub exit_mode: Property<ContainerExitMode>,
     /// How surviving children should move when the stack's layout changes.
+    ///
+    /// Defaults to `Snap` so Stackers remain a stable layout primitive unless
+    /// reflow motion is explicitly requested.
     pub reflow_transition: Property<ContainerReflowTransition>,
 }
 
@@ -406,9 +409,9 @@ pub enum ContainerExitMode {
 /// Which reflow animation source to use when children move to new stack positions.
 pub enum ContainerReflowTransitionKind {
     /// Snap immediately to the new layout.
+    #[default]
     Snap,
     /// Use a duration and easing curve.
-    #[default]
     Ease,
     /// Reserved for a future named motion-curve lookup in the current component scope.
     Named,
@@ -462,7 +465,7 @@ pub struct ContainerReflowTransition {
 impl Default for ContainerReflowTransition {
     fn default() -> Self {
         Self {
-            kind: Property::new(ContainerReflowTransitionKind::Ease),
+            kind: Property::new(ContainerReflowTransitionKind::Snap),
             frames: Property::new(STACKER_REFLOW_FRAMES),
             curve: Property::new(STACKER_REFLOW_CURVE),
             name: Property::new(String::new()),
@@ -1468,8 +1471,8 @@ mod tests {
     use pax_runtime::{
         BaseInstance, CommonPropertiesInit, ComponentInstance, ExpandedNode, Globals,
         InstanceFlags, InstanceNode, InstantiationArgs, PropertiesInit, PropertiesScopeInit,
-        RepeatInstance, RepeatProperties, RuntimeContext, RuntimePropertiesStackFrame,
-        TransformAndBounds,
+        RepeatInstance, RepeatProperties, RouteLocation, RuntimeContext,
+        RuntimePropertiesStackFrame, TransformAndBounds,
     };
     use std::fmt;
 
@@ -1487,6 +1490,7 @@ mod tests {
                 transform: Transform2::identity(),
                 bounds: (100.0, 100.0),
             }),
+            route_location: Property::new(RouteLocation::root()),
             browser_allows_scroller_vector_layers: Property::new(true),
             browser_allows_nested_scroller_vector_layers: Property::new(true),
             platform: Platform::Unknown,
@@ -1707,6 +1711,22 @@ mod tests {
         assert!(!enter_transition_active(TRANSITION_PHASE_ENTER, 10.0, 10));
         assert!(!enter_transition_active(TRANSITION_PHASE_ENTER, 15.0, 10));
         assert!(!enter_transition_active(TRANSITION_PHASE_EXIT, 5.0, 10));
+    }
+
+    #[test]
+    fn stacker_reflow_defaults_to_snap() {
+        assert!(matches!(
+            ContainerReflowTransitionKind::default(),
+            ContainerReflowTransitionKind::Snap
+        ));
+        assert!(matches!(
+            ContainerReflowTransition::default().kind.get(),
+            ContainerReflowTransitionKind::Snap
+        ));
+        assert!(matches!(
+            Stacker::default().reflow_transition.get().kind.get(),
+            ContainerReflowTransitionKind::Snap
+        ));
     }
 
     #[test]

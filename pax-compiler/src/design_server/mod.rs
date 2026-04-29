@@ -1,6 +1,9 @@
 use actix::Addr;
+use actix_files::Files;
 use actix_web::middleware::Logger;
 
+use actix_web::dev::{fn_service, ServiceRequest, ServiceResponse};
+use actix_web::http::{header, Method};
 use actix_web::web::Data;
 use actix_web::{get, web, App, HttpRequest, HttpServer, Responder};
 use actix_web::{HttpResponse, Result};
@@ -35,6 +38,73 @@ use websocket::PrivilegedAgentWebSocket;
 mod llm;
 pub mod static_server;
 pub mod websocket;
+
+fn static_files_service(fs_path: PathBuf) -> Files {
+    let index_path = fs_path.join("index.html");
+    Files::new("/*", fs_path)
+        .index_file("index.html")
+        .default_handler(fn_service(move |req: ServiceRequest| {
+            let index_path = index_path.clone();
+            async move { history_api_fallback(req, index_path).await }
+        }))
+}
+
+async fn history_api_fallback(
+    req: ServiceRequest,
+    index_path: PathBuf,
+) -> Result<ServiceResponse, actix_web::Error> {
+    if should_serve_history_api_fallback(&req) {
+        let (req, _) = req.into_parts();
+        let html = tokio::fs::read_to_string(index_path).await?;
+        let response = HttpResponse::Ok()
+            .content_type("text/html; charset=utf-8")
+            .body(inject_base_href(&html, "/"));
+        Ok(ServiceResponse::new(req, response))
+    } else {
+        Ok(req.into_response(HttpResponse::NotFound().finish()))
+    }
+}
+
+fn should_serve_history_api_fallback(req: &ServiceRequest) -> bool {
+    matches!(req.method(), &Method::GET | &Method::HEAD)
+        && request_accepts_html(req)
+        && !request_targets_static_asset(req.path())
+}
+
+fn request_accepts_html(req: &ServiceRequest) -> bool {
+    req.headers()
+        .get(header::ACCEPT)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.contains("text/html") || value.contains("application/xhtml+xml"))
+        .unwrap_or(false)
+}
+
+fn request_targets_static_asset(path: &str) -> bool {
+    Path::new(path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|segment| segment.contains('.'))
+        .unwrap_or(false)
+}
+
+fn inject_base_href(index_html: &str, href: &str) -> String {
+    if index_html.contains("<base ") {
+        return index_html.to_string();
+    }
+
+    let base_tag = format!(r#"<base href="{href}">"#);
+    if let Some(head_end) = index_html.find("</head>") {
+        let mut output = String::with_capacity(index_html.len() + base_tag.len() + 9);
+        output.push_str(&index_html[..head_end]);
+        output.push_str("        ");
+        output.push_str(&base_tag);
+        output.push('\n');
+        output.push_str(&index_html[head_end..]);
+        output
+    } else {
+        format!("{base_tag}\n{index_html}")
+    }
+}
 
 #[derive(Clone)]
 pub struct ActiveWebsocketClient {
@@ -333,7 +403,7 @@ pub fn start_server(
                 .wrap(Logger::new("| %s | %U"))
                 .app_data(state.clone())
                 .service(web_socket)
-                .service(actix_files::Files::new("/*", fs_path.clone()).index_file("index.html"))
+                .service(static_files_service(fs_path.clone()))
         })
         .listen(listener)?
         .workers(2);
@@ -467,4 +537,61 @@ fn perform_build_and_update_state(state: &AppState, folder_to_watch: &str) -> st
     *state.manifest.lock().unwrap() = Some(manifest);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::static_files_service;
+    use actix_web::http::{header, StatusCode};
+    use actix_web::{test, App};
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[actix_web::test]
+    async fn deep_html_routes_fall_back_to_index_html() {
+        let dir = tempdir().expect("failed to create temp dir");
+        fs::write(
+            dir.path().join("index.html"),
+            "<html><head></head><body>router playground</body></html>",
+        )
+        .expect("failed to write index");
+
+        let app =
+            test::init_service(App::new().service(static_files_service(dir.path().to_path_buf())))
+                .await;
+
+        let req = test::TestRequest::get()
+            .uri("/guide/topic/router")
+            .insert_header((header::ACCEPT, "text/html"))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = test::read_body(resp).await;
+        let body = String::from_utf8(body.to_vec()).expect("body should be utf-8");
+        assert!(body.contains(r#"<base href="/">"#));
+        assert!(body.contains("router playground"));
+    }
+
+    #[actix_web::test]
+    async fn missing_assets_still_return_404() {
+        let dir = tempdir().expect("failed to create temp dir");
+        fs::write(
+            dir.path().join("index.html"),
+            "<html>router playground</html>",
+        )
+        .expect("failed to write index");
+
+        let app =
+            test::init_service(App::new().service(static_files_service(dir.path().to_path_buf())))
+                .await;
+
+        let req = test::TestRequest::get()
+            .uri("/missing.js")
+            .insert_header((header::ACCEPT, "*/*"))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
 }

@@ -61,6 +61,7 @@ import {
 } from "./surface-host-policy";
 import type { LayerCanvasPlan } from "./surface-host-policy";
 import { CanvasPool } from "./canvas-pool";
+import { serializeRouteLocation } from "../utils/route-location";
 
 const SCREENSHOT_FONT_STYLE_ATTRIBUTE = 'data-pax-screenshot-font-style';
 const SCROLLER_CHROME_STYLE_ATTRIBUTE = 'data-pax-scroller-chrome-style';
@@ -3092,6 +3093,19 @@ export class NativeElementPool {
     }
 
     navigate(patch: NavigationPatch) {
+        try {
+            let url = new URL(patch.url, window.location.href);
+            if (patch.target === "current" && url.origin === window.location.origin) {
+                window.history.pushState({}, "", url);
+                this.chassis?.interrupt({
+                    "RouteChange": serializeRouteLocation(url),
+                }, []);
+                return;
+            }
+        } catch (_err) {
+            // Fall back to ordinary browser navigation for malformed or unsupported URLs.
+        }
+
         let name: string;
         switch (patch.target) {
             case "current":

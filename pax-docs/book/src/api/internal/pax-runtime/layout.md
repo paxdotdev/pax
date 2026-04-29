@@ -110,6 +110,16 @@ Test transformed-box intersection using the separating axis theorem.
 Invert the transform-and-bounds mapping.
 
 ## Functions
+### `apply_container_frame`
+<pre><code class="api-signature language-rust ignore">pub fn apply_container_frame(container_transform_and_bounds: <a href="/api/internal/pax-runtime/layout.md#transformandbounds">TransformAndBounds</a>&lt;<a href="/api/internal/pax-runtime/engine/node_interface.md#nodelocal">NodeLocal</a>, <a href="/api/pax-runtime-api/platform.md#window">Window</a>&gt;, container_frame: Option&lt;<a href="/api/internal/pax-runtime/container.md#containerframe">ContainerFrame</a>&gt;) -&gt; <a href="/api/internal/pax-runtime/layout.md#transformandbounds">TransformAndBounds</a>&lt;<a href="/api/internal/pax-runtime/engine/node_interface.md#nodelocal">NodeLocal</a>, <a href="/api/pax-runtime-api/platform.md#window">Window</a>&gt;</code></pre>
+
+Apply a container-assigned child frame on top of the parent geometry.
+
+This is the geometry seam where container-owned placement can cooperate
+with descendant-authored layout and future bottom-up measurement.
+
+---
+
 ### `calculate_transform_and_bounds`
 <pre><code class="api-signature language-rust ignore">pub fn calculate_transform_and_bounds(_: &amp;<a href="/api/internal/pax-runtime/layout.md#layoutproperties">LayoutProperties</a>, _: <a href="/api/internal/pax-runtime/layout.md#transformandbounds">TransformAndBounds</a>&lt;<a href="/api/internal/pax-runtime/engine/node_interface.md#nodelocal">NodeLocal</a>, <a href="/api/pax-runtime-api/platform.md#window">Window</a>&gt;) -&gt; <a href="/api/internal/pax-runtime/layout.md#transformandbounds">TransformAndBounds</a>&lt;<a href="/api/internal/pax-runtime/engine/node_interface.md#nodelocal">NodeLocal</a>, <a href="/api/pax-runtime-api/platform.md#window">Window</a>&gt;</code></pre>
 

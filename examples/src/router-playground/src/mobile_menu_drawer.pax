@@ -1,0 +1,46 @@
+<Group width=100% height=100%>
+    <SidebarNav width=100% height=100% mobile_menu_open=bind:mobile_menu_open />
+    <Rectangle class=mobile_drawer_panel width=100% height=100% />
+</Group>
+
+@settings {
+    @in: enter
+    @out: exit
+
+    .mobile_drawer_panel {
+        fill: rgba(9, 15, 28, 246)
+        corner_radii: RectangleCornerRadii::radii(0.0, 28.0, 28.0, 0.0)
+        stroke: {
+            color: rgba(88, 116, 158, 170)
+            width: 1px
+        }
+    }
+}
+
+@timeline enter {
+    frames: 36,
+    self {
+        x: {
+            0: -90%, InQuad,
+            100%: 0%,
+        },
+        opacity: {
+            0: 0, OutQuad,
+            100%: 1,
+        },
+    }
+}
+
+@timeline exit {
+    frames: 36,
+    self {
+        x: {
+            0: 0%, InQuad,
+            100%: -90%,
+        },
+        opacity: {
+            0: 1, OutQuad,
+            100%: 0,
+        },
+    }
+}

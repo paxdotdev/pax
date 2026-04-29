@@ -43,6 +43,8 @@ pub fn extend_designtime_parsing_context_with_all_pax_std_types(
         Group,
         ImportSettings,
         Link,
+        Router,
+        Route,
         Target,
         NativeImage,
         Scroller,

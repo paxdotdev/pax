@@ -263,6 +263,10 @@ impl PropertyTable {
         source_id: PropertyId,
         target_id: PropertyId,
     ) {
+        if source_id == target_id {
+            return;
+        }
+
         // disconnect self from its dependents, in preparation of overwriting
         // with targets inbound. (only does something for computed values)
         self.disconnect_inbound(source_id);
