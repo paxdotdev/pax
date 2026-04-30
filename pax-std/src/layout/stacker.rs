@@ -1522,7 +1522,10 @@ mod tests {
             handler_registry: None,
             children: None,
             component_template: Some(RefCell::new(template)),
+            component_settings: None,
             template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
             transition_config: Default::default(),
             properties_scope: PropertiesScopeInit::None,
         }
@@ -1537,7 +1540,10 @@ mod tests {
             handler_registry: None,
             children: Some(RefCell::new(children)),
             component_template: None,
+            component_settings: None,
             template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
             transition_config: Default::default(),
             properties_scope: PropertiesScopeInit::None,
         }
@@ -1557,7 +1563,10 @@ mod tests {
             handler_registry: None,
             children: Some(RefCell::new(children)),
             component_template: None,
+            component_settings: None,
             template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
             transition_config: Default::default(),
             properties_scope: PropertiesScopeInit::None,
         }
@@ -1565,6 +1574,14 @@ mod tests {
 
     fn stacker_args(children: Vec<Rc<dyn InstanceNode>>) -> InstantiationArgs {
         stacker_args_with(children, Stacker::default())
+    }
+
+    fn horizontal_stacker_properties() -> Stacker {
+        Stacker {
+            direction: Property::new(StackerDirection::Horizontal),
+            gutter: Property::new(Size::Pixels(10.into())),
+            ..Default::default()
+        }
     }
 
     fn leaf_component_args(transition_config: ComponentTransitionConfig) -> InstantiationArgs {
@@ -1576,7 +1593,10 @@ mod tests {
             handler_registry: None,
             children: None,
             component_template: Some(RefCell::new(Vec::new())),
+            component_settings: None,
             template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
             transition_config,
             properties_scope: PropertiesScopeInit::None,
         }
@@ -1597,36 +1617,25 @@ mod tests {
                 default_common_properties_factory(),
             ),
             prototypical_properties: PropertiesInit::Factory(Box::new(move |_, expanded_node| {
-                if let Some(expanded_node) = expanded_node {
-                    expanded_node.with_properties_unwrapped(|properties: &mut RepeatProperties| {
-                        properties
-                            .source_expression
-                            .replace_with(source_for_factory.clone());
-                        properties
-                            .iterator_i_symbol
-                            .replace_with(Property::new(Some("i".to_string())));
-                        properties
-                            .iterator_elem_symbol
-                            .replace_with(Property::new(Some("item".to_string())));
-                        properties.repeat_key_expression = Some(key_expression.clone());
-                    });
-                    return None;
-                }
-
-                Some(Rc::new(RefCell::new(
-                    RepeatProperties {
-                        source_expression: source_for_factory.clone(),
-                        iterator_i_symbol: Property::new(Some("i".to_string())),
-                        iterator_elem_symbol: Property::new(Some("item".to_string())),
-                        repeat_key_expression: Some(key_expression.clone()),
-                    }
-                    .to_pax_any(),
-                )))
+                expanded_node.is_none().then(|| {
+                    Rc::new(RefCell::new(
+                        RepeatProperties {
+                            source_expression: source_for_factory.clone(),
+                            iterator_i_symbol: Property::new(Some("i".to_string())),
+                            iterator_elem_symbol: Property::new(Some("item".to_string())),
+                            repeat_key_expression: Some(key_expression.clone()),
+                        }
+                        .to_pax_any(),
+                    ))
+                })
             })),
             handler_registry: None,
             children: Some(RefCell::new(children)),
             component_template: None,
+            component_settings: None,
             template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
             transition_config: Default::default(),
             properties_scope: PropertiesScopeInit::None,
         }
@@ -2030,20 +2039,16 @@ mod tests {
         let leaf_a: Rc<dyn InstanceNode> = TestLeaf::instantiate(primitive_args(Vec::new()));
         let leaf_b: Rc<dyn InstanceNode> = TestLeaf::instantiate(primitive_args(Vec::new()));
         let leaf_c: Rc<dyn InstanceNode> = TestLeaf::instantiate(primitive_args(Vec::new()));
-        let stacker: Rc<dyn InstanceNode> =
-            StackerInstance::instantiate(stacker_args(vec![leaf_a, leaf_b, leaf_c]));
+        let stacker: Rc<dyn InstanceNode> = StackerInstance::instantiate(stacker_args_with(
+            vec![leaf_a, leaf_b, leaf_c],
+            horizontal_stacker_properties(),
+        ));
         let root_component = ComponentInstance::instantiate(component_args(vec![stacker]));
         let context = Rc::new(RuntimeContext::new(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
         let stacker_node = root.children.get().first().cloned().unwrap();
-        stacker_node.with_properties_unwrapped(|stacker: &mut Stacker| {
-            stacker.direction.set(StackerDirection::Horizontal);
-            stacker.gutter.set(Size::Pixels(10.into()));
-        });
-
-        root.recurse_update(&context);
         let children = stacker_node.children.get();
         assert_eq!(children.len(), 3);
 
@@ -2062,14 +2067,9 @@ mod tests {
         let leaf_a: Rc<dyn InstanceNode> = TestLeaf::instantiate(primitive_args(Vec::new()));
         let leaf_b: Rc<dyn InstanceNode> = TestLeaf::instantiate(primitive_args(Vec::new()));
         let leaf_c: Rc<dyn InstanceNode> = TestLeaf::instantiate(primitive_args(Vec::new()));
-        let stacker_properties = Stacker {
-            direction: Property::new(StackerDirection::Horizontal),
-            gutter: Property::new(Size::Pixels(10.into())),
-            ..Default::default()
-        };
         let stacker: Rc<dyn InstanceNode> = StackerInstance::instantiate(stacker_args_with(
             vec![leaf_a, leaf_b, leaf_c],
-            stacker_properties,
+            horizontal_stacker_properties(),
         ));
         let root_component = ComponentInstance::instantiate(component_args(vec![stacker]));
         let context = Rc::new(RuntimeContext::new(test_globals()));
@@ -2098,20 +2098,16 @@ mod tests {
             ComponentInstance::instantiate(component_args(Vec::new()));
         let component_c: Rc<dyn InstanceNode> =
             ComponentInstance::instantiate(component_args(Vec::new()));
-        let stacker: Rc<dyn InstanceNode> =
-            StackerInstance::instantiate(stacker_args(vec![component_a, component_b, component_c]));
+        let stacker: Rc<dyn InstanceNode> = StackerInstance::instantiate(stacker_args_with(
+            vec![component_a, component_b, component_c],
+            horizontal_stacker_properties(),
+        ));
         let root_component = ComponentInstance::instantiate(component_args(vec![stacker]));
         let context = Rc::new(RuntimeContext::new(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
         let stacker_node = root.children.get().first().cloned().unwrap();
-        stacker_node.with_properties_unwrapped(|stacker: &mut Stacker| {
-            stacker.direction.set(StackerDirection::Horizontal);
-            stacker.gutter.set(Size::Pixels(10.into()));
-        });
-
-        root.recurse_update(&context);
         let children = stacker_node.children.get();
         assert_eq!(children.len(), 3);
 

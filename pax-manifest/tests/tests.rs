@@ -448,7 +448,6 @@ mod tests {
             "crate",
             component_type_id,
             "example.pax",
-            file!(),
         );
 
         let template = component.template.unwrap();
@@ -494,7 +493,6 @@ mod tests {
             "crate",
             component_type_id.clone(),
             "example.pax",
-            file!(),
         );
 
         let rendered = press_code_serialization_template(component).unwrap();
@@ -508,7 +506,6 @@ mod tests {
             "crate",
             component_type_id,
             "example.pax",
-            file!(),
         );
         let template = parsed_component.template.unwrap();
         let repeat_id = template.get_root().remove(0);

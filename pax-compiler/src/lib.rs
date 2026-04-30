@@ -319,7 +319,7 @@ fn run_and_parse_parser_binary(ctx: &RunContext) -> eyre::Result<Vec<PaxManifest
 
     if !output.status.success() {
         return Err(eyre!(
-            "Parsing failed — there is likely a syntax error in the provided pax"
+            "Parser build failed. See the Cargo output above; this can be caused by Pax syntax errors, dependency feature mismatches, or missing local path patches."
         ));
     }
 
@@ -1393,11 +1393,39 @@ pub fn perform_create(ctx: &CreateContext) {
     fs::write(&full_path.join("Cargo.toml"), doc.to_string())
         .expect("Failed to write modified Cargo.toml");
 
+    ensure_claude_md_link(full_path);
+
     println!(
         "\nCreated new Pax project at {}.\nTo run:\n  `cd {} && pax-cli run --target=web`",
         full_path.to_str().unwrap(),
         full_path.to_str().unwrap()
     );
+}
+
+fn ensure_claude_md_link(project_root: &Path) {
+    let claude_path = project_root.join("CLAUDE.md");
+    if let Ok(metadata) = claude_path.symlink_metadata() {
+        if metadata.file_type().is_symlink() {
+            return;
+        }
+        if metadata.is_dir() {
+            fs::remove_dir_all(&claude_path).expect("Failed to replace CLAUDE.md directory");
+        } else {
+            fs::remove_file(&claude_path).expect("Failed to replace CLAUDE.md file");
+        }
+    }
+
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink("AGENTS.md", &claude_path)
+            .expect("Failed to create CLAUDE.md symlink");
+    }
+
+    #[cfg(not(unix))]
+    {
+        fs::copy(project_root.join("AGENTS.md"), &claude_path)
+            .expect("Failed to copy CLAUDE.md from AGENTS.md");
+    }
 }
 
 /// Executes a shell command to run the feature-flagged parser at the specified path
