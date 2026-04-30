@@ -12,15 +12,44 @@ const {{component.pascal_identifier}}PropertyDescriptors: [{{ engine_import_path
     {% for property in component.properties %}
     {{ engine_import_path }}::pax_runtime::ComponentPropertyDescriptor::new(
         "{{property.name}}",
-        |properties: &mut {{component.type_id.import_path}}, value_definition, stack_frame, timeline_stack| {
-            {{ engine_import_path }}::pax_runtime::apply_component_property(
-                &mut properties.{{property.name}},
-                "{{property.name}}",
-                value_definition,
-                stack_frame,
-                timeline_stack,
-                |block, cloned_stack| {{ engine_import_path }}::pax_runtime::build_literal_block_property(&{{property.property_type.type_id._type_id_escaped}}TypeDescriptor, block, cloned_stack),
-            );
+        |properties: &mut {{component.type_id.import_path}}, entries, stack_frame| {
+            let default_properties = <{{component.type_id.import_path}} as std::default::Default>::default();
+            let mut layered_property = {{ engine_import_path }}::api::Property::new(default_properties.{{property.name}}.get());
+            for entry in entries {
+                let stack_with_base = {{ engine_import_path }}::pax_runtime::stack_with_base(
+                    stack_frame,
+                    layered_property.clone(),
+                );
+                let uses_local_property_scope = match &entry.value {
+                    {{ engine_import_path }}::pax_manifest::ValueDefinition::Timeline(track) => track.use_local_property_scope,
+                    {{ engine_import_path }}::pax_manifest::ValueDefinition::Transition(transition) => {
+                        transition.enter.as_ref().map(|track| track.use_local_property_scope).unwrap_or(false)
+                            || transition.exit.as_ref().map(|track| track.use_local_property_scope).unwrap_or(false)
+                    },
+                    _ => false,
+                };
+                let timeline_stack = if uses_local_property_scope {
+                    let mut local_scope = {{ engine_import_path }}::pax_runtime::build_property_scope(
+                        properties,
+                        &{{component.pascal_identifier}}PropertyScopeDescriptors,
+                    );
+                    local_scope.insert(
+                        "{{property.name}}".to_string(),
+                        {{ engine_import_path }}::api::Variable::new_from_typed_property(layered_property.clone()),
+                    );
+                    stack_with_base.push(local_scope)
+                } else {
+                    stack_with_base.clone()
+                };
+                layered_property = {{ engine_import_path }}::pax_runtime::build_component_property(
+                    "{{property.name}}",
+                    &entry.value,
+                    &stack_with_base,
+                    timeline_stack,
+                    |block, cloned_stack| {{ engine_import_path }}::pax_runtime::build_literal_block_property(&{{property.property_type.type_id._type_id_escaped}}TypeDescriptor, block, cloned_stack),
+                );
+            }
+            properties.{{property.name}}.replace_with(layered_property);
         },
     ),
     {% endfor %}
@@ -99,12 +128,16 @@ const {{active_type.type_id._type_id_escaped}}TypeFields: [{{ engine_import_path
     {{ engine_import_path }}::pax_runtime::TypeFieldDescriptor::with_property_dependency(
         "{{prop.name}}",
         |properties: &mut {{active_type.type_id._type_id}}, value_definition, stack_frame| {
+            let stack_with_base = {{ engine_import_path }}::pax_runtime::stack_with_base(
+                stack_frame,
+                {{ engine_import_path }}::api::Property::new(properties.{{prop.name}}.get()),
+            );
             {{ engine_import_path }}::pax_runtime::apply_component_property(
                 &mut properties.{{prop.name}},
                 "{{prop.name}}",
                 value_definition,
-                stack_frame,
-                stack_frame.clone(),
+                &stack_with_base,
+                stack_with_base.clone(),
                 |block, cloned_stack| {{ engine_import_path }}::pax_runtime::build_literal_block_property(&{{prop.type_id._type_id_escaped}}TypeDescriptor, block, cloned_stack),
             );
         },

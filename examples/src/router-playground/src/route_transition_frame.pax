@@ -1,0 +1,38 @@
+<Group width=100% height=100%>
+    slot(0)
+</Group>
+
+@settings {
+    @in: route_enter
+    @out: route_exit
+}
+
+@timeline route_enter {
+    frames: 72,
+    self {
+        opacity: {
+            0: 0, InQuad,
+            54: {$base},
+            100%: {$base},
+        },
+        y: {
+            0: {$base - 100px}, InQuad,
+            54: {$base},
+            100%: {$base},
+        },
+    }
+}
+
+@timeline route_exit {
+    frames: 18,
+    self {
+        opacity: {
+            0: {$base}, OutQuad,
+            100%: 0,
+        },
+        y: {
+            0: {$base}, OutQuad,
+            100%: {$base - 18px},
+        },
+    }
+}

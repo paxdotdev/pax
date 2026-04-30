@@ -39,6 +39,24 @@ Named timelines can target selectors in the component template.
 }
 ```
 
+Timeline keyframes may use `$base` inside `{...}` expressions. `$base` is the value the property had before this timeline layer was applied, which is useful for relative motion that should not duplicate the layout formula.
+
+```pax
+@timeline enter {
+    frames: 18,
+    self {
+        opacity: {
+            0: 0,
+            18: {$base},
+        },
+        y: {
+            0: {$base - 32px},
+            18: {$base},
+        },
+    }
+}
+```
+
 ## `@in` Transitions
 
 An `@in` transition plays when a component instance enters the mounted tree.  Bind `@in` in the component's `@settings` block to the name of a timeline in the same component.

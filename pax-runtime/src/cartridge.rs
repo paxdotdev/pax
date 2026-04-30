@@ -12,16 +12,17 @@ use pax_manifest::cartridge_generation::{
     TRANSITION_PLAYHEAD_SYMBOL,
 };
 use pax_manifest::{
-    ExpressionInfo, LiteralBlockDefinition, SettingElement, SettingsBlockElement,
+    ExpressionInfo, LiteralBlockDefinition, PaxIdentifier, SettingElement, SettingsBlockElement,
     TemplateNodeDefinition, TimelineKeyframe, TimelineMarker, TimelineTrackDefinition,
     TimelineTrackElement, TransitionDefinition, TypeId, ValueDefinition,
 };
 use pax_message::{borrow, borrow_mut};
 use pax_runtime_api::pax_value::functions::{call_function, Functions};
-use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny};
+use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny, ToPaxValue};
 use pax_runtime_api::properties::{PropertyValue, UntypedProperty};
 use pax_runtime_api::{
-    use_RefCell, CommonProperties, EasingCurve, Numeric, PaxValue, Property, Variable,
+    use_RefCell, CommonProperties, EasingCurve, Numeric, PaxValue, Property, Rotation, Size,
+    Variable,
 };
 use std::any::Any;
 use std::borrow::Borrow;
@@ -31,7 +32,12 @@ use std::rc::Rc;
 
 pub trait PaxCartridge {}
 
+/// PAXEL symbol bound while resolving a property layer to the value from the
+/// preceding layer in that same property's precedence stack.
+pub const BASE_SYMBOL: &str = "$base";
+
 struct ResolvedRuntimeSettings {
+    #[allow(dead_code)]
     defined_properties: BTreeMap<String, ValueDefinition>,
     columns: RuntimeResolvedPropertyColumns,
     provenance: BTreeMap<String, RuntimeResolvedPropertyEntry>,
@@ -39,9 +45,7 @@ struct ResolvedRuntimeSettings {
 
 fn imported_settings_layers_for_node(
     expanded_node: Option<&Rc<ExpandedNode>>,
-)
-    -> Vec<RuntimeSettingsLayer>
-{
+) -> Vec<RuntimeSettingsLayer> {
     let mut layers = Vec::new();
     let Some(expanded_node) = expanded_node else {
         return layers;
@@ -52,7 +56,11 @@ fn imported_settings_layers_for_node(
     let Some(containing_component) = expanded_node.containing_component.upgrade() else {
         return layers;
     };
-    layers.extend(borrow!(containing_component.imported_settings_layers).iter().cloned());
+    layers.extend(
+        borrow!(containing_component.imported_settings_layers)
+            .iter()
+            .cloned(),
+    );
     layers
 }
 
@@ -62,6 +70,26 @@ fn append_resolved_property_entry(
     entry: RuntimeResolvedPropertyEntry,
 ) {
     columns.entry(key.to_string()).or_default().push(entry);
+}
+
+/// Converts a flattened property map into one-entry columns for legacy callers
+/// that do not participate in selector/import precedence layering.
+pub fn property_columns_from_defined_properties(
+    defined_properties: &BTreeMap<String, ValueDefinition>,
+) -> RuntimeResolvedPropertyColumns {
+    let mut columns = BTreeMap::new();
+    for (key, value) in defined_properties {
+        append_resolved_property_entry(
+            &mut columns,
+            key,
+            RuntimeResolvedPropertyEntry {
+                source: RuntimeSettingsSource::Inline,
+                selector: None,
+                value: value.clone(),
+            },
+        );
+    }
+    columns
 }
 
 fn append_setting_elements(
@@ -117,12 +145,7 @@ fn append_selector_layer_entries(
         if matches!(selector, pax_manifest::SelectorExpr::Type(_))
             && tnd.selector_info.matches(&tnd.type_id, &selector)
         {
-            append_setting_elements(
-                columns,
-                &value.elements,
-                source.clone(),
-                Some(selector),
-            );
+            append_setting_elements(columns, &value.elements, source.clone(), Some(selector));
         }
     }
 
@@ -249,6 +272,7 @@ fn resolve_runtime_settings_for_node(
     )
 }
 
+#[allow(dead_code)]
 fn resolve_defined_properties_for_node(
     tnd: &TemplateNodeDefinition,
     base_defined_properties: &BTreeMap<String, ValueDefinition>,
@@ -266,6 +290,25 @@ fn resolve_defined_properties_for_node(
         *expanded_node.resolved_property_provenance.borrow_mut() = resolved.provenance.clone();
     }
     resolved.defined_properties
+}
+
+fn resolve_property_columns_for_node(
+    tnd: &TemplateNodeDefinition,
+    base_defined_properties: &BTreeMap<String, ValueDefinition>,
+    containing_component_settings: &Option<Vec<SettingsBlockElement>>,
+    expanded_node: Option<&Rc<ExpandedNode>>,
+) -> RuntimeResolvedPropertyColumns {
+    let resolved = resolve_runtime_settings_for_node(
+        tnd,
+        base_defined_properties,
+        containing_component_settings,
+        expanded_node,
+    );
+    if let Some(expanded_node) = expanded_node {
+        *expanded_node.resolved_property_columns.borrow_mut() = resolved.columns.clone();
+        *expanded_node.resolved_property_provenance.borrow_mut() = resolved.provenance.clone();
+    }
+    resolved.columns
 }
 pub struct HandlerDescriptor {
     pub name: &'static str,
@@ -297,30 +340,30 @@ impl<T> PropertyScopeDescriptor<T> {
     }
 }
 
+/// Runtime descriptor for applying all resolved layers of a generated component
+/// property.
 pub struct ComponentPropertyDescriptor<T> {
+    /// Property name as it appears in Pax templates and settings.
     pub name: &'static str,
-    pub apply: fn(
-        &mut T,
-        &ValueDefinition,
-        &Rc<RuntimePropertiesStackFrame>,
-        Rc<RuntimePropertiesStackFrame>,
-    ),
+    /// Generated applicator for all resolved layers of this property.
+    pub apply_entries:
+        fn(&mut T, &[RuntimeResolvedPropertyEntry], &Rc<RuntimePropertiesStackFrame>),
     marker: PhantomData<fn(&T)>,
 }
 
 impl<T> ComponentPropertyDescriptor<T> {
+    /// Creates a descriptor for a generated component property.
     pub const fn new(
         name: &'static str,
-        apply: fn(
+        apply_entries: fn(
             &mut T,
-            &ValueDefinition,
+            &[RuntimeResolvedPropertyEntry],
             &Rc<RuntimePropertiesStackFrame>,
-            Rc<RuntimePropertiesStackFrame>,
         ),
     ) -> Self {
         Self {
             name,
-            apply,
+            apply_entries,
             marker: PhantomData,
         }
     }
@@ -361,7 +404,7 @@ pub struct ErasedComponentDescriptor {
     pub apply_defined_properties: fn(
         &'static (dyn Any + Sync),
         &mut PaxAny,
-        &BTreeMap<String, ValueDefinition>,
+        &RuntimeResolvedPropertyColumns,
         &Rc<RuntimePropertiesStackFrame>,
     ),
     pub build_property_scope: fn(&'static (dyn Any + Sync), &PaxAny) -> HashMap<String, Variable>,
@@ -377,7 +420,7 @@ impl ErasedComponentDescriptor {
         apply_defined_properties: fn(
             &'static (dyn Any + Sync),
             &mut PaxAny,
-            &BTreeMap<String, ValueDefinition>,
+            &RuntimeResolvedPropertyColumns,
             &Rc<RuntimePropertiesStackFrame>,
         ),
         build_property_scope: fn(&'static (dyn Any + Sync), &PaxAny) -> HashMap<String, Variable>,
@@ -538,24 +581,12 @@ pub fn build_property_scope<T>(
 pub fn apply_component_descriptor_properties<T: Default + ToFromPaxAny + 'static>(
     properties: &mut T,
     descriptor: &'static ComponentDescriptor<T>,
-    defined_properties: &BTreeMap<String, ValueDefinition>,
+    property_columns: &RuntimeResolvedPropertyColumns,
     stack_frame: &Rc<RuntimePropertiesStackFrame>,
 ) {
     for property_descriptor in descriptor.property_descriptors {
-        if let Some(value_definition) = defined_properties.get(property_descriptor.name) {
-            let timeline_stack = if let ValueDefinition::Timeline(track) = value_definition {
-                if track.use_local_property_scope {
-                    stack_frame.push(build_property_scope(
-                        properties,
-                        descriptor.property_scope_descriptors,
-                    ))
-                } else {
-                    stack_frame.clone()
-                }
-            } else {
-                stack_frame.clone()
-            };
-            (property_descriptor.apply)(properties, value_definition, stack_frame, timeline_stack);
+        if let Some(entries) = property_columns.get(property_descriptor.name) {
+            (property_descriptor.apply_entries)(properties, entries, stack_frame);
         }
     }
 }
@@ -578,7 +609,7 @@ pub fn erased_create_properties<T: Default + ToFromPaxAny + 'static>() -> PaxAny
 pub fn erased_apply_defined_properties<T: Default + ToFromPaxAny + 'static>(
     typed_descriptor: &'static (dyn Any + Sync),
     pax_any: &mut PaxAny,
-    defined_properties: &BTreeMap<String, ValueDefinition>,
+    property_columns: &RuntimeResolvedPropertyColumns,
     stack_frame: &Rc<RuntimePropertiesStackFrame>,
 ) {
     let descriptor = (typed_descriptor as &dyn Any)
@@ -590,7 +621,7 @@ pub fn erased_apply_defined_properties<T: Default + ToFromPaxAny + 'static>(
             descriptor.type_id, err
         )
     });
-    apply_component_descriptor_properties(properties, descriptor, defined_properties, stack_frame);
+    apply_component_descriptor_properties(properties, descriptor, property_columns, stack_frame);
 }
 
 pub fn erased_build_property_scope<T: Default + ToFromPaxAny + 'static>(
@@ -1435,9 +1466,9 @@ pub trait DefinitionToInstanceTraverser {
         let base_defined_properties_for_common = base_defined_properties.clone();
         let properties_tnd = node.clone();
         let properties_component_settings = containing_component_settings.clone();
-        args.prototypical_properties = crate::PropertiesInit::Factory(Box::new(
-            move |stack_frame, expanded_node| {
-                let defined_properties = resolve_defined_properties_for_node(
+        args.prototypical_properties =
+            crate::PropertiesInit::Factory(Box::new(move |stack_frame, expanded_node| {
+                let property_columns = resolve_property_columns_for_node(
                     &properties_tnd,
                     &base_defined_properties,
                     &properties_component_settings,
@@ -1450,7 +1481,7 @@ pub trait DefinitionToInstanceTraverser {
                     (node_component_descriptor.apply_defined_properties)(
                         node_component_descriptor.typed_descriptor,
                         &mut inner_ref,
-                        &defined_properties,
+                        &property_columns,
                         &stack_frame,
                     );
                     return None;
@@ -1460,38 +1491,36 @@ pub trait DefinitionToInstanceTraverser {
                 (node_component_descriptor.apply_defined_properties)(
                     node_component_descriptor.typed_descriptor,
                     &mut properties,
-                    &defined_properties,
+                    &property_columns,
                     &stack_frame,
                 );
                 Some(Rc::new(RefCell::new(properties)))
-            },
-        ));
+            }));
 
         // update common properties from tnd
         let common_tnd = node.clone();
         let common_component_settings = containing_component_settings;
-        args.prototypical_common_properties = crate::CommonPropertiesInit::Factory(Box::new(
-            move |stack_frame, expanded_node| {
-                let defined_properties = resolve_defined_properties_for_node(
+        args.prototypical_common_properties =
+            crate::CommonPropertiesInit::Factory(Box::new(move |stack_frame, expanded_node| {
+                let property_columns = resolve_property_columns_for_node(
                     &common_tnd,
                     &base_defined_properties_for_common,
                     &common_component_settings,
                     expanded_node.as_ref(),
                 );
                 if let Some(expanded_node) = expanded_node {
-                    update_existing_common_properties(
+                    update_existing_common_properties_from_columns(
                         &expanded_node,
-                        &defined_properties,
+                        &property_columns,
                         &stack_frame,
                     );
                     return None;
                 }
-                Some(create_new_common_properties(
-                    &defined_properties,
+                Some(create_new_common_properties_from_columns(
+                    &property_columns,
                     &stack_frame,
                 ))
-            },
-        ));
+            }));
 
         instantiate_component_from_descriptor(node_component_descriptor, args)
     }
@@ -1568,27 +1597,30 @@ pub trait DefinitionToInstanceTraverser {
     }
 }
 
-fn resolve_property<T: CoercionRules + PropertyValue>(
+fn build_common_property_value<T>(
     name: &str,
-    defined_properties: &BTreeMap<String, ValueDefinition>,
+    value_definition: &ValueDefinition,
     stack: &Rc<RuntimePropertiesStackFrame>,
-) -> Property<Option<T>> {
-    let Some(value_def) = defined_properties.get(name) else {
-        return Property::default();
-    };
+) -> Property<Option<T>>
+where
+    T: CoercionRules + PropertyValue + ToPaxValue,
+{
     let cloned_stack = stack.clone();
-    let resolved_property: Property<Option<T>> = match value_def.clone() {
+    match value_definition {
         pax_manifest::ValueDefinition::LiteralValue(lv) => {
-            let val = T::try_coerce(resolve_literal_value(lv)).unwrap_or_else(|err| {
-                log::warn!("Failed to coerce new value for property. Error: {:?}", err);
-                Default::default()
-            });
-            Property::new_with_name(Some(val), name)
+            let val =
+                Option::<T>::try_coerce(resolve_literal_value(lv.clone())).unwrap_or_else(|err| {
+                    log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                    Default::default()
+                });
+            Property::new_with_name(val, name)
         }
         pax_manifest::ValueDefinition::Timeline(track) => {
+            let track = timeline_track_with_base_starting_value(track);
             build_timeline_property(name, &track, cloned_stack.clone())
         }
         pax_manifest::ValueDefinition::Transition(transition) => {
+            let transition = transition_with_base_starting_value(transition);
             build_transition_property(name, &transition, cloned_stack.clone())
         }
         pax_manifest::ValueDefinition::DoubleBinding(identifier) => {
@@ -1610,46 +1642,89 @@ fn resolve_property<T: CoercionRules + PropertyValue>(
                     log::warn!("Failed to resolve symbol {}", dependency);
                 }
             }
-            let name = &info.expression.to_string();
+            let cloned_ast = info.expression.clone();
+            let expression_label = cloned_ast.to_string();
             Property::computed_with_name(
                 move || {
-                    let new_value = info
-                        .expression
+                    let new_value = cloned_ast
                         .compute(cloned_stack.clone())
-                        .unwrap_or_else(|err| {
-                            log::warn!("Failed to compute expression: {:?}", err);
+                        .unwrap_or_else(|_| {
+                            log::warn!("Failed to compute expr: {}", expression_label);
                             Default::default()
                         });
-                    let coerced = T::try_coerce(new_value.clone()).unwrap_or_else(|err| {
+                    Option::<T>::try_coerce(new_value.clone()).unwrap_or_else(|err| {
                         log::warn!("Failed to coerce new value for property. Error: {:?}", err);
                         Default::default()
-                    });
-                    Some(coerced)
+                    })
                 },
                 &dependents,
                 name,
             )
         }
         pax_manifest::ValueDefinition::Identifier(ident) => {
-            let property = if let Some(p) = stack.resolve_symbol_as_erased_property(&ident.name) {
-                Property::new_from_untyped(p.clone())
+            if let Some(variable) = stack.resolve_symbol_as_variable(&ident.name) {
+                let untyped = variable.get_untyped_property().clone();
+                let cloned_variable = variable.clone();
+                Property::computed_with_name(
+                    move || {
+                        let new_value = cloned_variable.get_as_pax_value();
+                        Option::<T>::try_coerce(new_value).unwrap_or_else(|err| {
+                            log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                            Default::default()
+                        })
+                    },
+                    &[untyped],
+                    &ident.name,
+                )
             } else {
                 log::warn!("Failed to resolve symbol {}", ident.name);
-                return Default::default();
-            };
-            let untyped = property.untyped();
-            Property::computed_with_name(
-                move || {
-                    let new_value = property.get();
-                    Some(new_value)
-                },
-                &[untyped],
-                &ident.name,
-            )
+                Property::default()
+            }
         }
-        _ => unreachable!("Invalid value definition for {}", stringify!($prop_name)),
+        _ => unreachable!("Invalid value definition for {name}"),
+    }
+}
+
+fn resolve_property<T>(
+    name: &str,
+    property_columns: &RuntimeResolvedPropertyColumns,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+) -> Property<Option<T>>
+where
+    T: CoercionRules + PropertyValue + ToPaxValue,
+{
+    let Some(entries) = property_columns.get(name) else {
+        return Property::default();
     };
-    resolved_property
+    let mut layered_property = Property::default();
+    for entry in entries {
+        let stack_with_base = stack_with_optional_base_or(
+            stack,
+            layered_property.clone(),
+            common_property_base_fallback(name),
+        );
+        layered_property = build_common_property_value(name, &entry.value, &stack_with_base);
+    }
+    layered_property
+}
+
+fn common_property_base_fallback<T>(name: &str) -> T
+where
+    T: CoercionRules + PropertyValue,
+{
+    // Optional common properties need the semantic layout fallback, not the Rust
+    // type default. For example, unset `y` lays out at 0px while `Size::default()`
+    // is 100%.
+    let value = match name {
+        "x" | "y" | "anchor_x" | "anchor_y" => Some(PaxValue::Size(Size::ZERO())),
+        "rotate" | "skew_x" | "skew_y" => Some(PaxValue::Rotation(Rotation::ZERO())),
+        "opacity" => Some(PaxValue::Numeric(1.0.into())),
+        _ => None,
+    };
+
+    value
+        .and_then(|value| T::try_coerce(value).ok())
+        .unwrap_or_default()
 }
 
 fn collect_value_definition_dependencies(
@@ -2120,15 +2195,94 @@ pub fn build_transition_property<T: CoercionRules + PropertyValue>(
     )
 }
 
-pub fn apply_component_property<T>(
-    property: &mut Property<T>,
+/// Returns a stack frame with `$base` bound to the supplied previous-layer
+/// property value.
+pub fn stack_with_base<T>(
+    stack: &Rc<RuntimePropertiesStackFrame>,
+    base_property: Property<T>,
+) -> Rc<RuntimePropertiesStackFrame>
+where
+    T: PropertyValue + ToPaxValue,
+{
+    stack.push(HashMap::from([(
+        BASE_SYMBOL.to_string(),
+        Variable::new_from_typed_property(base_property),
+    )]))
+}
+
+/// Returns a stack frame with `$base` bound to an optional previous common
+/// property value, exposing `T::default()` when the previous layer is `None`.
+pub fn stack_with_optional_base<T>(
+    stack: &Rc<RuntimePropertiesStackFrame>,
+    base_property: Property<Option<T>>,
+) -> Rc<RuntimePropertiesStackFrame>
+where
+    T: PropertyValue + ToPaxValue,
+{
+    stack_with_optional_base_or(stack, base_property, T::default())
+}
+
+fn stack_with_optional_base_or<T>(
+    stack: &Rc<RuntimePropertiesStackFrame>,
+    base_property: Property<Option<T>>,
+    fallback: T,
+) -> Rc<RuntimePropertiesStackFrame>
+where
+    T: PropertyValue + ToPaxValue,
+{
+    let dependency = base_property.untyped();
+    let cloned_base = base_property.clone();
+    let resolved_base = Property::computed_with_name(
+        move || cloned_base.get().unwrap_or_else(|| fallback.clone()),
+        &[dependency],
+        BASE_SYMBOL,
+    );
+    stack_with_base(stack, resolved_base)
+}
+
+fn base_identifier_value() -> Box<ValueDefinition> {
+    Box::new(ValueDefinition::Identifier(PaxIdentifier::new(BASE_SYMBOL)))
+}
+
+fn timeline_track_with_base_starting_value(
+    track: &TimelineTrackDefinition,
+) -> TimelineTrackDefinition {
+    let mut track = track.clone();
+    if track.starting_value.is_none() {
+        track.starting_value = Some(base_identifier_value());
+    }
+    track
+}
+
+fn transition_with_base_starting_value(transition: &TransitionDefinition) -> TransitionDefinition {
+    let mut transition = transition.clone();
+    if transition.starting_value.is_none() {
+        transition.starting_value = Some(base_identifier_value());
+    }
+    if let Some(track) = transition.enter.as_mut() {
+        if track.starting_value.is_none() {
+            track.starting_value = Some(base_identifier_value());
+        }
+    }
+    if let Some(track) = transition.exit.as_mut() {
+        if track.starting_value.is_none() {
+            track.starting_value = Some(base_identifier_value());
+        }
+    }
+    transition
+}
+
+/// Builds a typed component property from a single value definition. Callers
+/// that apply layered settings should bind `$base` before calling this helper.
+pub fn build_component_property<T>(
     name: &str,
     value_definition: &ValueDefinition,
     stack: &Rc<RuntimePropertiesStackFrame>,
     timeline_stack: Rc<RuntimePropertiesStackFrame>,
     build_block: fn(&LiteralBlockDefinition, Rc<RuntimePropertiesStackFrame>) -> Property<T>,
-) where
-    T: CoercionRules + PropertyValue,
+) -> Property<T>
+where
+    T: CoercionRules + PropertyValue + ToPaxValue,
 {
     match value_definition {
         ValueDefinition::LiteralValue(lv) => {
@@ -2136,15 +2290,16 @@ pub fn apply_component_property<T>(
                 log::warn!("Failed to coerce new value for property. Error: {:?}", err);
                 Default::default()
             });
-            property.replace_with(Property::new_with_name(value, name));
+            Property::new_with_name(value, name)
         }
         ValueDefinition::DoubleBinding(identifier) => {
             if let Some(untyped_property) =
                 stack.resolve_symbol_as_erased_property(&identifier.name)
             {
-                *property = Property::new_from_untyped(untyped_property.clone());
+                Property::new_from_untyped(untyped_property.clone())
             } else {
                 log::warn!("Failed to resolve identifier: {}", &identifier.name);
+                Property::new_with_name(Default::default(), name)
             }
         }
         ValueDefinition::Identifier(ident) => {
@@ -2152,7 +2307,7 @@ pub fn apply_component_property<T>(
                 let name = ident.name.clone();
                 let untyped = variable.get_untyped_property().clone();
                 let cloned_variable = variable.clone();
-                *property = Property::computed_with_name(
+                Property::computed_with_name(
                     move || {
                         let new_value = cloned_variable.get_as_pax_value();
                         T::try_coerce(new_value).unwrap_or_else(|err| {
@@ -2162,9 +2317,10 @@ pub fn apply_component_property<T>(
                     },
                     &[untyped],
                     &name,
-                );
+                )
             } else {
                 log::warn!("Failed to resolve symbol {}", ident.name);
+                Property::new_with_name(Default::default(), name)
             }
         }
         ValueDefinition::Expression(info) => {
@@ -2179,7 +2335,7 @@ pub fn apply_component_property<T>(
             let cloned_stack = stack.clone();
             let cloned_ast = info.expression.clone();
             let expression_label = cloned_ast.to_string();
-            *property = Property::computed_with_name(
+            Property::computed_with_name(
                 move || {
                     let new_value = cloned_ast
                         .compute(cloned_stack.clone())
@@ -2194,16 +2350,40 @@ pub fn apply_component_property<T>(
                 },
                 &dependents,
                 name,
-            );
+            )
         }
         ValueDefinition::Timeline(track) => {
-            *property = build_timeline_property(name, track, timeline_stack);
+            let track = timeline_track_with_base_starting_value(track);
+            build_timeline_property(name, &track, timeline_stack)
         }
-        ValueDefinition::Block(block) => {
-            property.replace_with(build_block(block, stack.clone()));
+        ValueDefinition::Transition(transition) => {
+            let transition = transition_with_base_starting_value(transition);
+            build_transition_property(name, &transition, timeline_stack)
         }
+        ValueDefinition::Block(block) => build_block(block, stack.clone()),
         _ => unreachable!("Invalid value definition for {name}"),
     }
+}
+
+/// Replaces a typed component property with the value produced from a single
+/// value definition.
+pub fn apply_component_property<T>(
+    property: &mut Property<T>,
+    name: &str,
+    value_definition: &ValueDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+    timeline_stack: Rc<RuntimePropertiesStackFrame>,
+    build_block: fn(&LiteralBlockDefinition, Rc<RuntimePropertiesStackFrame>) -> Property<T>,
+) where
+    T: CoercionRules + PropertyValue + ToPaxValue,
+{
+    property.replace_with(build_component_property(
+        name,
+        value_definition,
+        stack,
+        timeline_stack,
+        build_block,
+    ));
 }
 
 #[cfg(test)]
@@ -2529,9 +2709,252 @@ mod timeline_tests {
     }
 }
 
-pub fn update_existing_common_properties(
+#[cfg(test)]
+mod base_symbol_tests {
+    use super::{
+        build_component_property, create_new_common_properties_from_columns, stack_with_base,
+        RuntimePropertiesStackFrame, RuntimeResolvedPropertyColumns, RuntimeResolvedPropertyEntry,
+        RuntimeSettingsSource,
+    };
+    use pax_language::parse_pax_expression;
+    use pax_manifest::cartridge_generation::{
+        TRANSITION_PHASE_ENTER, TRANSITION_PHASE_SYMBOL, TRANSITION_PLAYHEAD_SYMBOL,
+    };
+    use pax_manifest::{
+        ExpressionInfo, PaxIdentifier, TimelineKeyframe, TimelineMarker, TimelineTrackDefinition,
+        TimelineTrackElement, Token, TransitionDefinition, ValueDefinition,
+    };
+    use pax_runtime_api::{Numeric, Opacity, PaxValue, Property, Size, Variable};
+    use std::collections::{BTreeMap, HashMap};
+    use std::rc::Rc;
+
+    fn expression(raw: &str) -> ValueDefinition {
+        pax_runtime_api::pax_value::functions::Functions::register_all_functions();
+        ValueDefinition::Expression(ExpressionInfo::new(parse_pax_expression(raw).unwrap()))
+    }
+
+    fn size_literal(px: f64) -> ValueDefinition {
+        ValueDefinition::LiteralValue(PaxValue::Size(Size::Pixels(Numeric::F64(px))))
+    }
+
+    fn entry(value: ValueDefinition) -> RuntimeResolvedPropertyEntry {
+        RuntimeResolvedPropertyEntry {
+            source: RuntimeSettingsSource::Inline,
+            selector: None,
+            value,
+        }
+    }
+
+    fn columns_for(
+        name: &str,
+        entries: Vec<RuntimeResolvedPropertyEntry>,
+    ) -> RuntimeResolvedPropertyColumns {
+        BTreeMap::from([(name.to_string(), entries)])
+    }
+
+    fn empty_stack() -> Rc<RuntimePropertiesStackFrame> {
+        RuntimePropertiesStackFrame::new(HashMap::new())
+    }
+
+    #[test]
+    fn base_symbol_resolves_previous_component_property_layer() {
+        let base_property = Property::new(10.0_f64);
+        let stack = stack_with_base(&empty_stack(), base_property);
+
+        let property: Property<f64> = build_component_property(
+            "opacity",
+            &expression("$base + 0.25"),
+            &stack,
+            stack.clone(),
+            |_, _| unreachable!("literal blocks are not used by this test"),
+        );
+
+        assert!((property.get() - 10.25).abs() < 0.0001);
+    }
+
+    #[test]
+    fn base_symbol_resolves_previous_common_property_layer() {
+        let stack = empty_stack();
+        let columns = columns_for(
+            "x",
+            vec![entry(size_literal(10.0)), entry(expression("$base + 5px"))],
+        );
+
+        let common = create_new_common_properties_from_columns(&columns, &stack);
+        let x = common.borrow().x.get().unwrap();
+
+        assert!((x.get_pixels(100.0) - 15.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn base_symbol_tracks_reactive_previous_layers() {
+        let offset = Property::new(Size::Pixels(Numeric::F64(10.0)));
+        let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
+            "offset".to_string(),
+            Variable::new_from_typed_property(offset.clone()),
+        )]));
+        let columns = columns_for(
+            "x",
+            vec![
+                entry(expression("offset")),
+                entry(expression("$base + 5px")),
+            ],
+        );
+
+        let common = create_new_common_properties_from_columns(&columns, &stack);
+        assert!((common.borrow().x.get().unwrap().get_pixels(100.0) - 15.0).abs() < 0.0001);
+
+        offset.set(Size::Pixels(Numeric::F64(20.0)));
+        assert!((common.borrow().x.get().unwrap().get_pixels(100.0) - 25.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn base_symbol_supplies_timeline_starting_values() {
+        let frames_elapsed = Property::new(0_u64);
+        let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
+            "$frames_elapsed".to_string(),
+            Variable::new_from_typed_property(frames_elapsed.clone()),
+        )]));
+        let track = TimelineTrackDefinition {
+            elements: vec![
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(0),
+                    value: expression("$base - 10px"),
+                    easing: Some(Token::new_without_location("Linear".to_string())),
+                }),
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(10),
+                    value: expression("$base"),
+                    easing: None,
+                }),
+            ],
+            playhead: None,
+            frames: Some(10),
+            repeat: Some(false),
+            starting_value: None,
+            use_local_property_scope: false,
+        };
+        let columns = columns_for(
+            "y",
+            vec![
+                entry(size_literal(100.0)),
+                entry(ValueDefinition::Timeline(track)),
+            ],
+        );
+
+        let common = create_new_common_properties_from_columns(&columns, &stack);
+        assert!((common.borrow().y.get().unwrap().get_pixels(100.0) - 90.0).abs() < 0.0001);
+
+        frames_elapsed.set(10);
+        assert!((common.borrow().y.get().unwrap().get_pixels(100.0) - 100.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn base_symbol_uses_layout_zero_for_unset_position_transitions() {
+        let phase = Property::new(TRANSITION_PHASE_ENTER);
+        let playhead = Property::new(5.0_f64);
+        let stack = RuntimePropertiesStackFrame::new(HashMap::from([
+            (
+                TRANSITION_PHASE_SYMBOL.to_string(),
+                Variable::new_from_typed_property(phase.clone()),
+            ),
+            (
+                TRANSITION_PLAYHEAD_SYMBOL.to_string(),
+                Variable::new_from_typed_property(playhead.clone()),
+            ),
+        ]));
+        let playhead_binding = Some(Box::new(ValueDefinition::Identifier(PaxIdentifier::new(
+            TRANSITION_PLAYHEAD_SYMBOL,
+        ))));
+        let enter = TimelineTrackDefinition {
+            elements: vec![
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(0),
+                    value: expression("$base - 100px"),
+                    easing: Some(Token::new_without_location("InQuad".to_string())),
+                }),
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(10),
+                    value: expression("$base"),
+                    easing: None,
+                }),
+            ],
+            playhead: playhead_binding,
+            frames: Some(10),
+            repeat: Some(false),
+            starting_value: None,
+            use_local_property_scope: false,
+        };
+        let transition = TransitionDefinition {
+            enter: Some(enter),
+            ..Default::default()
+        };
+        let columns = columns_for("y", vec![entry(ValueDefinition::Transition(transition))]);
+
+        let common = create_new_common_properties_from_columns(&columns, &stack);
+        let y = common.borrow().y.get().unwrap();
+        assert!((y.get_pixels(100.0) - -75.0).abs() < 0.0001);
+
+        playhead.set(10.0);
+        let y = common.borrow().y.get().unwrap();
+        assert!(y.get_pixels(100.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn base_symbol_uses_opaque_for_unset_opacity_transitions() {
+        let phase = Property::new(TRANSITION_PHASE_ENTER);
+        let playhead = Property::new(5.0_f64);
+        let stack = RuntimePropertiesStackFrame::new(HashMap::from([
+            (
+                TRANSITION_PHASE_SYMBOL.to_string(),
+                Variable::new_from_typed_property(phase.clone()),
+            ),
+            (
+                TRANSITION_PLAYHEAD_SYMBOL.to_string(),
+                Variable::new_from_typed_property(playhead.clone()),
+            ),
+        ]));
+        let playhead_binding = Some(Box::new(ValueDefinition::Identifier(PaxIdentifier::new(
+            TRANSITION_PLAYHEAD_SYMBOL,
+        ))));
+        let enter = TimelineTrackDefinition {
+            elements: vec![
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(0),
+                    value: ValueDefinition::LiteralValue(PaxValue::Numeric(0.0.into())),
+                    easing: Some(Token::new_without_location("Linear".to_string())),
+                }),
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(10),
+                    value: expression("$base"),
+                    easing: None,
+                }),
+            ],
+            playhead: playhead_binding,
+            frames: Some(10),
+            repeat: Some(false),
+            starting_value: None,
+            use_local_property_scope: false,
+        };
+        let transition = TransitionDefinition {
+            enter: Some(enter),
+            ..Default::default()
+        };
+        let columns = columns_for("opacity", vec![entry(ValueDefinition::Transition(transition))]);
+
+        let common = create_new_common_properties_from_columns(&columns, &stack);
+        assert_eq!(common.borrow().opacity.get(), Some(Opacity::Alpha(0.5.into())));
+
+        playhead.set(10.0);
+        assert_eq!(common.borrow().opacity.get(), Some(Opacity::Alpha(1.0.into())));
+    }
+}
+
+/// Applies resolved common-property columns to an existing expanded node,
+/// preserving layer order so `$base` can reference each prior layer.
+pub fn update_existing_common_properties_from_columns(
     expanded_node: &Rc<ExpandedNode>,
-    defined_properties: &BTreeMap<String, pax_manifest::ValueDefinition>,
+    property_columns: &RuntimeResolvedPropertyColumns,
     stack_frame: &Rc<RuntimePropertiesStackFrame>,
 ) {
     let expanded_node = borrow!(**expanded_node);
@@ -2540,15 +2963,34 @@ pub fn update_existing_common_properties(
     let inner_ref = (*rc).borrow_mut();
     let mut cp = inner_ref;
 
-    update_common_properties(&mut cp, defined_properties, stack_frame);
+    update_common_properties(&mut cp, property_columns, stack_frame);
+}
+
+/// Applies a flattened common-property map to an existing expanded node.
+pub fn update_existing_common_properties(
+    expanded_node: &Rc<ExpandedNode>,
+    defined_properties: &BTreeMap<String, pax_manifest::ValueDefinition>,
+    stack_frame: &Rc<RuntimePropertiesStackFrame>,
+) {
+    update_existing_common_properties_from_columns(
+        expanded_node,
+        &property_columns_from_defined_properties(defined_properties),
+        stack_frame,
+    );
 }
 
 fn create_id_property(
-    defined_properties: &BTreeMap<String, pax_manifest::ValueDefinition>,
+    property_columns: &RuntimeResolvedPropertyColumns,
 ) -> Property<Option<String>> {
-    let id = defined_properties.get("id");
+    let id = property_columns
+        .get("id")
+        .and_then(|entries| entries.last());
     Property::new(
-        if let Some(pax_manifest::ValueDefinition::Identifier(pax_identifier)) = id {
+        if let Some(RuntimeResolvedPropertyEntry {
+            value: pax_manifest::ValueDefinition::Identifier(pax_identifier),
+            ..
+        }) = id
+        {
             Some(pax_identifier.name.clone())
         } else {
             None
@@ -2556,89 +2998,93 @@ fn create_id_property(
     )
 }
 
+/// Creates common properties from resolved columns, preserving layer order so
+/// `$base` can reference each prior layer.
+pub fn create_new_common_properties_from_columns(
+    property_columns: &RuntimeResolvedPropertyColumns,
+    stack_frame: &Rc<RuntimePropertiesStackFrame>,
+) -> Rc<RefCell<CommonProperties>> {
+    Rc::new(RefCell::new(CommonProperties {
+        id: create_id_property(property_columns),
+        x: resolve_property("x", property_columns, stack_frame),
+        y: resolve_property("y", property_columns, stack_frame),
+        width: resolve_property("width", property_columns, stack_frame),
+        height: resolve_property("height", property_columns, stack_frame),
+        scale_x: resolve_property("scale_x", property_columns, stack_frame),
+        scale_y: resolve_property("scale_y", property_columns, stack_frame),
+        skew_x: resolve_property("skew_x", property_columns, stack_frame),
+        skew_y: resolve_property("skew_y", property_columns, stack_frame),
+        rotate: resolve_property("rotate", property_columns, stack_frame),
+        transform: resolve_property("transform", property_columns, stack_frame),
+        opacity: resolve_property("opacity", property_columns, stack_frame),
+        layout_role: resolve_property("layout_role", property_columns, stack_frame),
+        anchor_x: resolve_property("anchor_x", property_columns, stack_frame),
+        anchor_y: resolve_property("anchor_y", property_columns, stack_frame),
+        unclippable: resolve_property("unclippable", property_columns, stack_frame),
+        _raycastable: resolve_property("_raycastable", property_columns, stack_frame),
+        _suspended: resolve_property("_suspended", property_columns, stack_frame),
+    }))
+}
+
+/// Creates common properties from a flattened property map.
 pub fn create_new_common_properties(
     defined_properties: &BTreeMap<String, pax_manifest::ValueDefinition>,
     stack_frame: &Rc<RuntimePropertiesStackFrame>,
 ) -> Rc<RefCell<CommonProperties>> {
-    Rc::new(RefCell::new(CommonProperties {
-        id: create_id_property(defined_properties),
-        x: resolve_property("x", defined_properties, stack_frame),
-        y: resolve_property("y", defined_properties, stack_frame),
-        width: resolve_property("width", defined_properties, stack_frame),
-        height: resolve_property("height", defined_properties, stack_frame),
-        scale_x: resolve_property("scale_x", defined_properties, stack_frame),
-        scale_y: resolve_property("scale_y", defined_properties, stack_frame),
-        skew_x: resolve_property("skew_x", defined_properties, stack_frame),
-        skew_y: resolve_property("skew_y", defined_properties, stack_frame),
-        rotate: resolve_property("rotate", defined_properties, stack_frame),
-        transform: resolve_property("transform", defined_properties, stack_frame),
-        opacity: resolve_property("opacity", defined_properties, stack_frame),
-        layout_role: resolve_property("layout_role", defined_properties, stack_frame),
-        anchor_x: resolve_property("anchor_x", defined_properties, stack_frame),
-        anchor_y: resolve_property("anchor_y", defined_properties, stack_frame),
-        unclippable: resolve_property("unclippable", defined_properties, stack_frame),
-        _raycastable: resolve_property("_raycastable", defined_properties, stack_frame),
-        _suspended: resolve_property("_suspended", defined_properties, stack_frame),
-    }))
+    create_new_common_properties_from_columns(
+        &property_columns_from_defined_properties(defined_properties),
+        stack_frame,
+    )
 }
 
 fn update_common_properties(
     cp: &mut CommonProperties,
-    defined_properties: &BTreeMap<String, pax_manifest::ValueDefinition>,
+    property_columns: &RuntimeResolvedPropertyColumns,
     stack_frame: &Rc<RuntimePropertiesStackFrame>,
 ) {
-    cp.id.replace_with(create_id_property(defined_properties));
-    cp.x.replace_with(resolve_property("x", defined_properties, stack_frame));
-    cp.y.replace_with(resolve_property("y", defined_properties, stack_frame));
+    cp.id.replace_with(create_id_property(property_columns));
+    cp.x.replace_with(resolve_property("x", property_columns, stack_frame));
+    cp.y.replace_with(resolve_property("y", property_columns, stack_frame));
     cp.width
-        .replace_with(resolve_property("width", defined_properties, stack_frame));
+        .replace_with(resolve_property("width", property_columns, stack_frame));
     cp.height
-        .replace_with(resolve_property("height", defined_properties, stack_frame));
+        .replace_with(resolve_property("height", property_columns, stack_frame));
     cp.scale_x
-        .replace_with(resolve_property("scale_x", defined_properties, stack_frame));
+        .replace_with(resolve_property("scale_x", property_columns, stack_frame));
     cp.scale_y
-        .replace_with(resolve_property("scale_y", defined_properties, stack_frame));
+        .replace_with(resolve_property("scale_y", property_columns, stack_frame));
     cp.skew_x
-        .replace_with(resolve_property("skew_x", defined_properties, stack_frame));
+        .replace_with(resolve_property("skew_x", property_columns, stack_frame));
     cp.skew_y
-        .replace_with(resolve_property("skew_y", defined_properties, stack_frame));
+        .replace_with(resolve_property("skew_y", property_columns, stack_frame));
     cp.rotate
-        .replace_with(resolve_property("rotate", defined_properties, stack_frame));
-    cp.transform.replace_with(resolve_property(
-        "transform",
-        defined_properties,
-        stack_frame,
-    ));
+        .replace_with(resolve_property("rotate", property_columns, stack_frame));
+    cp.transform
+        .replace_with(resolve_property("transform", property_columns, stack_frame));
     cp.opacity
-        .replace_with(resolve_property("opacity", defined_properties, stack_frame));
+        .replace_with(resolve_property("opacity", property_columns, stack_frame));
     cp.layout_role.replace_with(resolve_property(
         "layout_role",
-        defined_properties,
+        property_columns,
         stack_frame,
     ));
-    cp.anchor_x.replace_with(resolve_property(
-        "anchor_x",
-        defined_properties,
-        stack_frame,
-    ));
-    cp.anchor_y.replace_with(resolve_property(
-        "anchor_y",
-        defined_properties,
-        stack_frame,
-    ));
+    cp.anchor_x
+        .replace_with(resolve_property("anchor_x", property_columns, stack_frame));
+    cp.anchor_y
+        .replace_with(resolve_property("anchor_y", property_columns, stack_frame));
     cp.unclippable.replace_with(resolve_property(
         "unclippable",
-        defined_properties,
+        property_columns,
         stack_frame,
     ));
     cp._raycastable.replace_with(resolve_property(
         "_raycastable",
-        defined_properties,
+        property_columns,
         stack_frame,
     ));
     cp._suspended.replace_with(resolve_property(
         "_suspended",
-        defined_properties,
+        property_columns,
         stack_frame,
     ));
 }
@@ -2739,7 +3185,10 @@ mod runtime_settings_tests {
             Some(ValueDefinition::LiteralValue(PaxValue::Numeric(value))) if *value == 4.into()
         ));
 
-        let fill_column = resolved.columns.get("fill").expect("fill column should exist");
+        let fill_column = resolved
+            .columns
+            .get("fill")
+            .expect("fill column should exist");
         assert_eq!(fill_column.len(), 4);
         assert!(matches!(
             fill_column[0].source,
@@ -2753,7 +3202,10 @@ mod runtime_settings_tests {
             fill_column[2].source,
             RuntimeSettingsSource::ImportedLayer { provider_id, .. } if provider_id == ExpandedNodeIdentifier(11)
         ));
-        assert!(matches!(fill_column[3].source, RuntimeSettingsSource::Inline));
+        assert!(matches!(
+            fill_column[3].source,
+            RuntimeSettingsSource::Inline
+        ));
 
         let width_source = resolved
             .provenance

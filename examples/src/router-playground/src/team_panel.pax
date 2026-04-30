@@ -6,7 +6,7 @@
         gutter=18px
         sizes=[Some(128px), Some(72px), Some(172px), None]
     >
-        <Group width=100% height=100%>
+        <Group class=route_stage_0 width=100% height=100%>
             <Stacker
                 width=100%
                 height=100%
@@ -24,7 +24,7 @@
             </Stacker>
         </Group>
 
-        <Group width=100% height=100%>
+        <Group class=route_stage_1 width=100% height=100%>
             <Stacker
                 width=100%
                 height=100%
@@ -59,158 +59,180 @@
             </Stacker>
         </Group>
 
-        <RouteInspector width=100% height=100% title="team scope" />
+        <RouteInspector class=route_stage_2 width=100% height=100% title="team scope" />
 
-        <Group width=100% height=100%>
+        <Group class=route_stage_3 width=100% height=100%>
             <Router>
                 <Route default=true>
-                    <Stacker
-                        width=100%
-                        height=100%
-                        direction=StackerDirection::Vertical
-                        gutter=12px
-                        sizes=[Some(28px), None, None]
-                    >
-                        <Text class=section width=100% height=100% text="Default team overview" />
-                        <Text
-                            class=copy
+                    <RouteTransitionFrame width=100% height=100%>
+                        <Stacker
                             width=100%
                             height=100%
-                            text="The team route uses `default=true` to make the empty remainder render an overview without special-case path syntax."
-                        />
-                        <Group width=100% height=100% />
-                    </Stacker>
+                            direction=StackerDirection::Vertical
+                            gutter=12px
+                            sizes=[Some(28px), None, None]
+                        >
+                            <Text class=section width=100% height=100% text="Default team overview" />
+                            <Text
+                                class=copy
+                                width=100%
+                                height=100%
+                                text="The team route uses `default=true` to make the empty remainder render an overview without special-case path syntax."
+                            />
+                            <Group width=100% height=100% />
+                        </Stacker>
+                    </RouteTransitionFrame>
                 </Route>
 
                 <Route path="members/:member_id">
-                    <Stacker
-                        width=100%
-                        height=100%
-                        direction=StackerDirection::Vertical
-                        gutter=12px
-                        sizes=[Some(28px), None, Some(30px), None]
-                    >
-                        <Text
-                            class=section
+                    <RouteTransitionFrame width=100% height=100%>
+                        <Stacker
                             width=100%
                             height=100%
-                            text={"Member detail for `" + route.params.member_id + "`"}
-                        />
-                        <Text
-                            class=copy
-                            width=100%
-                            height=100%
-                            text="Nested params compose the same way as top-level params. This branch is exact when the remainder is just `members/:member_id`."
-                        />
-                        <Text
-                            class=copy
-                            width=100%
-                            height=100%
-                            text={"Current fragment: " + (route.global_location.fragment ?? "none")}
-                        />
-                        <Group width=100% height=100% />
-                    </Stacker>
+                            direction=StackerDirection::Vertical
+                            gutter=12px
+                            sizes=[Some(28px), None, Some(30px), None]
+                        >
+                            <Text
+                                class=section
+                                width=100%
+                                height=100%
+                                text={"Member detail for `" + route.params.member_id + "`"}
+                            />
+                            <Text
+                                class=copy
+                                width=100%
+                                height=100%
+                                text="Nested params compose the same way as top-level params. This branch is exact when the remainder is just `members/:member_id`."
+                            />
+                            <Text
+                                class=copy
+                                width=100%
+                                height=100%
+                                text={"Current fragment: " + (route.global_location.fragment ?? "none")}
+                            />
+                            <Group width=100% height=100% />
+                        </Stacker>
+                    </RouteTransitionFrame>
                 </Route>
 
                 <Route path="settings/*">
-                    <Stacker
-                        width=100%
-                        height=100%
-                        direction=StackerDirection::Vertical
-                        gutter=16px
-                        sizes=[Some(28px), Some(144px), None]
-                    >
-                        <Text class=section width=100% height=100% text="Settings catch-all" />
-                        <RouteInspector width=100% height=100% title="settings scope" />
+                    <RouteTransitionFrame width=100% height=100%>
+                        <Stacker
+                            width=100%
+                            height=100%
+                            direction=StackerDirection::Vertical
+                            gutter=16px
+                            sizes=[Some(28px), Some(144px), None]
+                        >
+                            <Text class=section width=100% height=100% text="Settings catch-all" />
+                            <RouteInspector width=100% height=100% title="settings scope" />
 
-                        <Group width=100% height=100%>
-                            <Router>
-                                <Route default=true>
-                                    <Text
-                                        class=copy
-                                        width=100%
-                                        height=100%
-                                        text="Empty settings remainder falls back here, which keeps the authoring model aligned with the rest of template control flow."
-                                    />
-                                </Route>
+                            <Group width=100% height=100%>
+                                <Router>
+                                    <Route default=true>
+                                        <RouteTransitionFrame width=100% height=100%>
+                                            <Text
+                                                class=copy
+                                                width=100%
+                                                height=100%
+                                                text="Empty settings remainder falls back here, which keeps the authoring model aligned with the rest of template control flow."
+                                            />
+                                        </RouteTransitionFrame>
+                                    </Route>
 
-                                <Route path="integrations/*">
-                                    <Stacker
-                                        width=100%
-                                        height=100%
-                                        direction=StackerDirection::Vertical
-                                        gutter=16px
-                                        sizes=[Some(110px), None]
-                                    >
-                                        <Text
-                                            class=copy
-                                            width=100%
-                                            height=100%
-                                            text="A second catch-all consumes `integrations/*`, proving that nested routers match against their nearest ancestor remainder instead of the original global path."
-                                        />
+                                    <Route path="integrations/*">
+                                        <RouteTransitionFrame width=100% height=100%>
+                                            <Stacker
+                                                width=100%
+                                                height=100%
+                                                direction=StackerDirection::Vertical
+                                                gutter=16px
+                                                sizes=[Some(110px), None]
+                                            >
+                                                <Text
+                                                    class=copy
+                                                    width=100%
+                                                    height=100%
+                                                    text="A second catch-all consumes `integrations/*`, proving that nested routers match against their nearest ancestor remainder instead of the original global path."
+                                                />
 
-                                        <Group width=100% height=100%>
-                                            <Router>
-                                                <Route default=true>
-                                                    <Text
-                                                        class=copy
-                                                        width=100%
-                                                        height=100%
-                                                        text="This is the integrations landing branch."
-                                                    />
-                                                </Route>
+                                                <Group width=100% height=100%>
+                                                    <Router>
+                                                        <Route default=true>
+                                                            <RouteTransitionFrame width=100% height=100%>
+                                                                <Text
+                                                                    class=copy
+                                                                    width=100%
+                                                                    height=100%
+                                                                    text="This is the integrations landing branch."
+                                                                />
+                                                            </RouteTransitionFrame>
+                                                        </Route>
 
-                                                <Route path="logs">
-                                                    <Text
-                                                        class=copy
-                                                        width=100%
-                                                        height=100%
-                                                        text="The `logs` branch is exact inside the integrations subtree, even though the full browser URL still includes `/teams/:team_id/settings/...`."
-                                                    />
-                                                </Route>
+                                                        <Route path="logs">
+                                                            <RouteTransitionFrame width=100% height=100%>
+                                                                <Text
+                                                                    class=copy
+                                                                    width=100%
+                                                                    height=100%
+                                                                    text="The `logs` branch is exact inside the integrations subtree, even though the full browser URL still includes `/teams/:team_id/settings/...`."
+                                                                />
+                                                            </RouteTransitionFrame>
+                                                        </Route>
 
-                                                <Route path="*">
-                                                    <Text
-                                                        class=copy
-                                                        width=100%
-                                                        height=100%
-                                                        text="Unknown integrations tails land here."
-                                                    />
-                                                </Route>
-                                            </Router>
-                                        </Group>
-                                    </Stacker>
-                                </Route>
+                                                        <Route path="*">
+                                                            <RouteTransitionFrame width=100% height=100%>
+                                                                <Text
+                                                                    class=copy
+                                                                    width=100%
+                                                                    height=100%
+                                                                    text="Unknown integrations tails land here."
+                                                                />
+                                                            </RouteTransitionFrame>
+                                                        </Route>
+                                                    </Router>
+                                                </Group>
+                                            </Stacker>
+                                        </RouteTransitionFrame>
+                                    </Route>
 
-                                <Route path="billing">
-                                    <Text
-                                        class=copy
-                                        width=100%
-                                        height=100%
-                                        text="`billing` shows an exact nested branch under settings."
-                                    />
-                                </Route>
+                                    <Route path="billing">
+                                        <RouteTransitionFrame width=100% height=100%>
+                                            <Text
+                                                class=copy
+                                                width=100%
+                                                height=100%
+                                                text="`billing` shows an exact nested branch under settings."
+                                            />
+                                        </RouteTransitionFrame>
+                                    </Route>
 
-                                <Route path="*">
-                                    <Text
-                                        class=copy
-                                        width=100%
-                                        height=100%
-                                        text="Unknown settings tails fall through to the nested catch-all."
-                                    />
-                                </Route>
-                            </Router>
-                        </Group>
-                    </Stacker>
+                                    <Route path="*">
+                                        <RouteTransitionFrame width=100% height=100%>
+                                            <Text
+                                                class=copy
+                                                width=100%
+                                                height=100%
+                                                text="Unknown settings tails fall through to the nested catch-all."
+                                            />
+                                        </RouteTransitionFrame>
+                                    </Route>
+                                </Router>
+                            </Group>
+                        </Stacker>
+                    </RouteTransitionFrame>
                 </Route>
 
                 <Route path="*">
-                    <Text
-                        class=copy
-                        width=100%
-                        height=100%
-                        text="Any unmatched team remainder ends up here after the explicit member and settings routes decline to match."
-                    />
+                    <RouteTransitionFrame width=100% height=100%>
+                        <Text
+                            class=copy
+                            width=100%
+                            height=100%
+                            text="Any unmatched team remainder ends up here after the explicit member and settings routes decline to match."
+                        />
+                    </RouteTransitionFrame>
                 </Route>
             </Router>
         </Group>
@@ -218,6 +240,9 @@
 </Group>
 
 @settings {
+    @in: route_enter
+    @out: route_exit
+
     #eyebrow {
         style: {
             font: Font::Web(
@@ -305,5 +330,86 @@
             align_vertical: TextAlignVertical::Center
             align_multiline: TextAlignHorizontal::Center
         }
+    }
+}
+
+@timeline route_enter {
+    frames: 96,
+    self {
+        opacity: {
+            0: 0, InQuad,
+            24: {$base},
+            100%: {$base},
+        },
+    }
+
+    .route_stage_0 {
+        opacity: {
+            0: 0, InQuad,
+            36: {$base},
+            100%: {$base},
+        },
+        y: {
+            0: {$base - 100px}, InQuad,
+            36: {$base},
+            100%: {$base},
+        },
+    }
+
+    .route_stage_1 {
+        opacity: {
+            0: 0, Hold,
+            12: 0, InQuad,
+            54: {$base},
+            100%: {$base},
+        },
+        y: {
+            0: {$base - 100px}, Hold,
+            12: {$base - 100px}, InQuad,
+            54: {$base},
+            100%: {$base},
+        },
+    }
+
+    .route_stage_2 {
+        opacity: {
+            0: 0, Hold,
+            24: 0, InQuad,
+            72: {$base},
+            100%: {$base},
+        },
+        y: {
+            0: {$base - 100px}, Hold,
+            24: {$base - 100px}, InQuad,
+            72: {$base},
+            100%: {$base},
+        },
+    }
+
+    .route_stage_3 {
+        opacity: {
+            0: 0, Hold,
+            36: 0, InQuad,
+            96: {$base},
+        },
+        y: {
+            0: {$base - 100px}, Hold,
+            36: {$base - 100px}, InQuad,
+            96: {$base},
+        },
+    }
+}
+
+@timeline route_exit {
+    frames: 18,
+    self {
+        opacity: {
+            0: {$base}, OutQuad,
+            100%: 0,
+        },
+        y: {
+            0: {$base}, OutQuad,
+            100%: {$base - 18px},
+        },
     }
 }

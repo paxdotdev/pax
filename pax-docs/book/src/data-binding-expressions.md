@@ -67,6 +67,37 @@ Objects can contain nested expressions:
 <Rectangle fill={is_hot ? {r: 255, g: heat * 80, b: 0, a: 1} : {r: 0, g: 120, b: 255, a: 1}} />
 ```
 
+## `$base`
+
+`$base` is available while Pax resolves a property value. It evaluates to the same property's value from the previous precedence layer: defaults first, then component settings, imported settings, inline settings, and timelines in order.
+
+Use `$base` when one layer should adjust rather than replace an earlier value:
+
+```pax
+@settings {
+    .card {
+        x: {$base + 12px}
+        opacity: {$base * 0.8}
+    }
+}
+```
+
+In timeline keyframes, wrap `$base` in an expression. This lets an animation move relative to the property position already established by layout or settings:
+
+```pax
+<Rectangle id=card y=120px />
+
+@settings {
+    #card {
+        y: @timeline {
+            frames: 20,
+            0: {$base - 24px},
+            100%: {$base},
+        }
+    }
+}
+```
+
 ## Loops
 
 Ranges are commonly used as `for` sources:

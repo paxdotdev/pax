@@ -16,9 +16,9 @@ use piet::{Color, StrokeStyle};
 use crate::api::{Layer, Scroll, Window};
 
 use crate::{
-    create_new_common_properties, update_existing_common_properties, ErasedComponentDescriptor,
-    ExpandedNode, HandlerRegistry, ReceivedChildrenSource, RuntimeContext,
-    RuntimePropertiesStackFrame,
+    create_new_common_properties, property_columns_from_defined_properties,
+    update_existing_common_properties, ErasedComponentDescriptor, ExpandedNode, HandlerRegistry,
+    ReceivedChildrenSource, RuntimeContext, RuntimePropertiesStackFrame,
 };
 use pax_manifest::ValueDefinition;
 
@@ -110,7 +110,7 @@ impl PropertiesInit {
                     (descriptor.apply_defined_properties)(
                         descriptor.typed_descriptor,
                         &mut inner_ref,
-                        defined_properties,
+                        &property_columns_from_defined_properties(defined_properties),
                         &stack_frame,
                     );
                     None
@@ -119,7 +119,7 @@ impl PropertiesInit {
                     (descriptor.apply_defined_properties)(
                         descriptor.typed_descriptor,
                         &mut properties,
-                        defined_properties,
+                        &property_columns_from_defined_properties(defined_properties),
                         &stack_frame,
                     );
                     Some(Rc::new(RefCell::new(properties)))

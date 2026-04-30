@@ -490,6 +490,14 @@ fn test_collect_dependencies() {
 }
 
 #[test]
+fn test_collect_builtin_dollar_dependency() {
+    let expr = "$base + 12px";
+    let expected = vec!["$base".to_string()];
+    let result = PaxExpression::collect_dependencies(&parse_pax_expression(expr).unwrap());
+    assert_eq!(expected, result);
+}
+
+#[test]
 fn test_collect_ternary_dependencies() {
     let expr = "flag ? a : b";
     let expected = vec!["flag".to_string(), "a".to_string(), "b".to_string()];
