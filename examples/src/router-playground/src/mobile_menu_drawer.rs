@@ -5,6 +5,4 @@ use pax_kit::*;
 
 #[pax]
 #[file("mobile_menu_drawer.pax")]
-pub struct MobileMenuDrawer {
-    pub mobile_menu_open: Property<bool>,
-}
+pub struct MobileMenuDrawer {}

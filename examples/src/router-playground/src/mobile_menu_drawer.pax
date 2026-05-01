@@ -1,5 +1,5 @@
 <Group width=100% height=100%>
-    <SidebarNav width=100% height=100% mobile_menu_open=bind:mobile_menu_open />
+    <SidebarNav width=100% height=100% />
     <Rectangle class=mobile_drawer_panel width=100% height=100% />
 </Group>
 

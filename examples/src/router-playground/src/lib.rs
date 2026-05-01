@@ -34,8 +34,17 @@ pub struct Example {
     pub mobile_menu_open: Property<bool>,
 }
 
+pub struct RouterPlaygroundChromeStore {
+    pub mobile_menu_open: Property<bool>,
+}
+
+impl Store for RouterPlaygroundChromeStore {}
+
 impl Example {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
+        ctx.push_local_store(RouterPlaygroundChromeStore {
+            mobile_menu_open: self.mobile_menu_open.clone(),
+        });
         self.sync_responsive_state(ctx);
     }
 

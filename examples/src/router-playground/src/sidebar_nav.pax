@@ -25,62 +25,44 @@
                 id=sidebar_copy
                 width=100%
                 height=100%
-                text="Use links or the jump button. Browser URL updates stay in-tab for same-origin navigation."
+                text="Use route cards or the jump button. Browser URL updates stay in-tab for same-origin navigation."
             />
         </Stacker>
     </Group>
 
     <Text id=sidebar_section width=100% height=24px text="Primary routes" />
 
-    <Link width=100% height=72px url="/" @click_or_tap=self.close_mobile_menu_after_link>
-        <Group width=100% height=100%>
-            <Stacker class=nav_card_content>
-                <Text class=nav_title width=100% height=100% text="Landing" />
-                <Text class=nav_meta width=100% height=100% text="/ (default root)" />
-            </Stacker>
-            <Rectangle class=nav_card width=100% height=100% />
-        </Group>
-    </Link>
+    <Group width=100% height=72px @click_or_tap=self.navigate_to_landing>
+        <Stacker class=nav_card_content>
+            <Text class=nav_title width=100% height=100% text="Landing" />
+            <Text class=nav_meta width=100% height=100% text="/ (default root)" />
+        </Stacker>
+        <Rectangle class=nav_card width=100% height=100% />
+    </Group>
 
-    <Link
-        width=100%
-        height=72px
-        url="/guide/topic/router?view=api#bindings"
-        @click_or_tap=self.close_mobile_menu_after_link
-    >
-        <Group width=100% height=100%>
-            <Stacker class=nav_card_content>
-                <Text class=nav_title width=100% height=100% text="Guide" />
-                <Text class=nav_meta width=100% height=100% text="/guide/topic/router" />
-            </Stacker>
-            <Rectangle class=nav_card width=100% height=100% />
-        </Group>
-    </Link>
+    <Group width=100% height=72px @click_or_tap=self.navigate_to_guide>
+        <Stacker class=nav_card_content>
+            <Text class=nav_title width=100% height=100% text="Guide" />
+            <Text class=nav_meta width=100% height=100% text="/guide/topic/router" />
+        </Stacker>
+        <Rectangle class=nav_card width=100% height=100% />
+    </Group>
 
-    <Link
-        width=100%
-        height=72px
-        url="/teams/design/members/ada?lane=beta#inspect"
-        @click_or_tap=self.close_mobile_menu_after_link
-    >
-        <Group width=100% height=100%>
-            <Stacker class=nav_card_content>
-                <Text class=nav_title width=100% height=100% text="Team" />
-                <Text class=nav_meta width=100% height=100% text="/teams/design/members/ada" />
-            </Stacker>
-            <Rectangle class=nav_card width=100% height=100% />
-        </Group>
-    </Link>
+    <Group width=100% height=72px @click_or_tap=self.navigate_to_team>
+        <Stacker class=nav_card_content>
+            <Text class=nav_title width=100% height=100% text="Team" />
+            <Text class=nav_meta width=100% height=100% text="/teams/design/members/ada" />
+        </Stacker>
+        <Rectangle class=nav_card width=100% height=100% />
+    </Group>
 
-    <Link width=100% height=72px url="/not-found/anywhere" @click_or_tap=self.close_mobile_menu_after_link>
-        <Group width=100% height=100%>
-            <Stacker class=nav_card_content>
-                <Text class=nav_title width=100% height=100% text="Top-level 404" />
-                <Text class=nav_meta width=100% height=100% text="/not-found/anywhere" />
-            </Stacker>
-            <Rectangle class=nav_card width=100% height=100% />
-        </Group>
-    </Link>
+    <Group width=100% height=72px @click_or_tap=self.navigate_to_not_found>
+        <Stacker class=nav_card_content>
+            <Text class=nav_title width=100% height=100% text="Top-level 404" />
+            <Text class=nav_meta width=100% height=100% text="/not-found/anywhere" />
+        </Stacker>
+        <Rectangle class=nav_card width=100% height=100% />
+    </Group>
 
     <Group width=100% height=88px @click=self.jump_to_next_demo>
         <Stacker class=nav_card_content>
