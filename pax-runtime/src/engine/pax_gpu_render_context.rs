@@ -142,6 +142,12 @@ impl LayerRenderer {
             LayoutChangeKind::Unchanged
         }
     }
+
+    /// Update the retained layout metadata after the owner has already applied matching backend
+    /// surface/view transforms.
+    pub fn sync_layout_metadata(&mut self, surface: &LayerSurfaceEntry) {
+        self.update_layout(surface);
+    }
 }
 
 fn surface_intersects_coverage_bounds(
@@ -216,6 +222,33 @@ fn layer_layout_matches_target(target: &LayerTarget, layout: &LayerSurfaceLayout
             .zip(target.renderers.iter())
             .all(|(surface, renderer)| {
                 surface.key == renderer.key && surface.host_signature == renderer.host_signature
+            })
+}
+
+fn layer_layout_matches_bootstrapped_target(
+    target: &LayerTarget,
+    layout: &LayerSurfaceLayout,
+) -> bool {
+    // Async layer creation can overlap DOM scroller setup. Only publish a freshly-created renderer
+    // if it still matches the current host geometry; once published, refresh_layer_layouts handles
+    // ordinary resize/origin changes in place.
+    target.active == layout.active
+        && layer_layout_matches_target(target, layout)
+        && layout
+            .surfaces
+            .iter()
+            .zip(target.renderers.iter())
+            .all(|(surface, renderer)| {
+                (surface.origin_x - renderer.origin_x).abs() <= f32::EPSILON
+                    && (surface.origin_y - renderer.origin_y).abs() <= f32::EPSILON
+                    && (surface.surface.logical_width - renderer.logical_width).abs()
+                        <= f32::EPSILON
+                    && (surface.surface.logical_height - renderer.logical_height).abs()
+                        <= f32::EPSILON
+                    && surface.surface.surface_width == renderer.surface_width
+                    && surface.surface.surface_height == renderer.surface_height
+                    && (surface.surface.dpr[0] - renderer.dpr[0]).abs() <= f32::EPSILON
+                    && (surface.surface.dpr[1] - renderer.dpr[1]).abs() <= f32::EPSILON
             })
 }
 
@@ -295,7 +328,7 @@ fn pump_layer_initialization_queue(
                 Some(layer_def) => {
                     let current_layout = layer_def.1();
                     let layout_matches =
-                        layer_layout_matches_target(&layer_def.0, &current_layout);
+                        layer_layout_matches_bootstrapped_target(&layer_def.0, &current_layout);
                     let mut backend_states = backends.borrow_mut();
                     match backend_states.get_mut(layer_index) {
                         Some(change) if layout_matches => {
@@ -970,8 +1003,15 @@ impl RenderContext for PaxGpuRenderer {
     fn take_ready_canvas_layers(&mut self) -> Vec<usize> {
         let mut ready_layers = self.ready_layers.borrow_mut();
         let mut ready = std::mem::take(&mut *ready_layers);
+        drop(ready_layers);
         ready.sort_unstable();
         ready.dedup();
+        if !ready.is_empty() {
+            // A DOM surface update may have been routed through the engine while this layer was
+            // still bootstrapping. Reconcile the just-published renderer against the current
+            // layout before the chassis asks the runtime to replay retained canvas nodes into it.
+            self.refresh_layer_layouts(ready.iter().copied());
+        }
         ready
     }
 

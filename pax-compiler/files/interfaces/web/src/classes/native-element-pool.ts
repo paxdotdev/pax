@@ -67,6 +67,9 @@ const SCREENSHOT_FONT_STYLE_ATTRIBUTE = 'data-pax-screenshot-font-style';
 const SCROLLER_CHROME_STYLE_ATTRIBUTE = 'data-pax-scroller-chrome-style';
 const SCREENSHOT_OVERLAY_BLACK = '#000000';
 const SCREENSHOT_OVERLAY_WHITE = '#ffffff';
+const TILED_SCROLLER_SURFACE_DPR = 1.0;
+const IOS_BROWSER_SURFACE_DIMENSION_CAP = 1800;
+const IOS_NESTED_LAYER_MIN_DPR = 0.25;
 
 
 export class NativeElementPool {
@@ -1619,6 +1622,10 @@ export class NativeElementPool {
             this.layerCanvasPlanCache.clear();
         }
         this.syncWarmScrollerHosts();
+        let backingMismatchLayers = this.collectCanvasBackingMismatchLayers(devicePixelRatio);
+        if (backingMismatchLayers.size > 0) {
+            this.surfaceRefreshPending = true;
+        }
         if (
             !this.surfaceRefreshPending
             && !planInputsChanged
@@ -1645,11 +1652,12 @@ export class NativeElementPool {
             }
             return plan;
         });
-        let surfaceChanged = this.surfaceRefreshPending;
+        backingMismatchLayers = this.collectCanvasBackingMismatchLayers(devicePixelRatio);
+        let surfaceChanged = this.surfaceRefreshPending || backingMismatchLayers.size > 0;
         let nextSurfaceSignatures = new Map<string, string>();
         let nextTransformSignatures = new Map<string, string>();
         let nextLayerCounts = new Map<number, number>();
-        let surfaceChangedLayers = new Set<number>();
+        let surfaceChangedLayers = new Set<number>(backingMismatchLayers);
         let transformChangedLayers = new Set<number>();
         let transformChanged = false;
         this.canvases.forEach((canvas, id) => {
@@ -1755,6 +1763,52 @@ export class NativeElementPool {
             }
         }
         return "unknown";
+    }
+
+    private collectCanvasBackingMismatchLayers(devicePixelRatio: number) {
+        let layers = new Set<number>();
+        this.canvases.forEach((canvas) => {
+            let layerId = Number.parseInt(canvas.dataset.layerId ?? "", 10);
+            if (!Number.isFinite(layerId)) {
+                return;
+            }
+            let logicalWidth = Number.parseFloat(canvas.dataset.logicalWidth ?? "");
+            let logicalHeight = Number.parseFloat(canvas.dataset.logicalHeight ?? "");
+            if (
+                !Number.isFinite(logicalWidth)
+                || !Number.isFinite(logicalHeight)
+                || logicalWidth <= 0
+                || logicalHeight <= 0
+            ) {
+                return;
+            }
+
+            let parentRole = canvas.parentElement?.dataset.role;
+            let desiredDpr =
+                parentRole === "scroller-canvas-host" && canvas.dataset.tileKey !== "single"
+                    ? TILED_SCROLLER_SURFACE_DPR
+                    : devicePixelRatio;
+            let maxSurfaceDimension = Number.POSITIVE_INFINITY;
+            let minimumDpr = 1.0;
+            if (isIOSWebKitBrowser() && layerId > 0) {
+                maxSurfaceDimension = IOS_BROWSER_SURFACE_DIMENSION_CAP;
+                minimumDpr = IOS_NESTED_LAYER_MIN_DPR;
+            }
+            let expected = expectedCanvasBackingSize(
+                logicalWidth,
+                logicalHeight,
+                desiredDpr,
+                maxSurfaceDimension,
+                minimumDpr,
+            );
+            if (
+                Math.abs(canvas.width - expected.width) > 1
+                || Math.abs(canvas.height - expected.height) > 1
+            ) {
+                layers.add(layerId);
+            }
+        });
+        return layers;
     }
 
 
@@ -4441,6 +4495,35 @@ function rectFromMessageBounds(bounds: number[]): AxisAlignedRect {
         right: bounds[2] ?? 0,
         bottom: bounds[3] ?? 0,
     };
+}
+
+function expectedCanvasBackingSize(
+    logicalWidth: number,
+    logicalHeight: number,
+    desiredDpr: number,
+    maxSurfaceDimension: number,
+    minimumDpr: number,
+) {
+    let minDpr = clampNumber(minimumDpr, 0.1, 1.0);
+    let requestedDpr = Math.max(desiredDpr, minDpr);
+    let dimensionLimit = Number.isFinite(maxSurfaceDimension)
+        ? Math.max(1, maxSurfaceDimension)
+        : Number.POSITIVE_INFINITY;
+    let widthLimit = logicalWidth > 0 ? dimensionLimit / logicalWidth : requestedDpr;
+    let heightLimit = logicalHeight > 0 ? dimensionLimit / logicalHeight : requestedDpr;
+    let requestedDprX = Math.max(minDpr, Math.min(requestedDpr, widthLimit));
+    let requestedDprY = Math.max(minDpr, Math.min(requestedDpr, heightLimit));
+    let maxBacking = Number.isFinite(dimensionLimit)
+        ? dimensionLimit
+        : Number.MAX_SAFE_INTEGER;
+    return {
+        width: Math.max(1, Math.min(maxBacking, Math.round(logicalWidth * requestedDprX))),
+        height: Math.max(1, Math.min(maxBacking, Math.round(logicalHeight * requestedDprY))),
+    };
+}
+
+function clampNumber(value: number, min: number, max: number) {
+    return Math.max(min, Math.min(max, value));
 }
 
 function activeScrollablePadX(viewportWidth: number) {

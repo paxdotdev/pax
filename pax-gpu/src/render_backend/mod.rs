@@ -102,6 +102,16 @@ impl RenderConfig {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+fn sync_browser_canvas_backing_size(canvas: &web_sys::HtmlCanvasElement, width: u32, height: u32) {
+    if canvas.width() != width {
+        canvas.set_width(width);
+    }
+    if canvas.height() != height {
+        canvas.set_height(height);
+    }
+}
+
 fn next_capacity(required: usize) -> u64 {
     required.max(1).next_power_of_two() as u64
 }
@@ -129,6 +139,8 @@ pub struct RenderBackend<'w> {
     device: wgpu::Device,
     queue: wgpu::Queue,
     surface: wgpu::Surface<'w>,
+    #[cfg(target_arch = "wasm32")]
+    browser_canvas: Option<web_sys::HtmlCanvasElement>,
     surface_config: SurfaceConfiguration,
     max_surface_dimension: u32,
     pipeline: RenderPipeline,
@@ -353,10 +365,13 @@ impl<'w> RenderBackend<'w> {
         let backends = wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL;
         #[cfg(not(feature = "webgl"))]
         let backends = wgpu::Backends::BROWSER_WEBGPU;
+        sync_browser_canvas_backing_size(&canvas, config.initial_width, config.initial_height);
         let instance = Self::new_browser_instance(backends, config.debug, true).await;
-        let surface_target = wgpu::SurfaceTarget::Canvas(canvas);
+        let surface_target = wgpu::SurfaceTarget::Canvas(canvas.clone());
         let surface = instance.create_surface(surface_target)?;
-        Self::new(surface, instance, config).await
+        let mut backend = Self::new(surface, instance, config).await?;
+        backend.browser_canvas = Some(canvas);
+        Ok(backend)
     }
 
     #[cfg(all(target_arch = "wasm32", feature = "webgl"))]
@@ -364,10 +379,13 @@ impl<'w> RenderBackend<'w> {
         canvas: web_sys::HtmlCanvasElement,
         config: RenderConfig,
     ) -> Result<Self, anyhow::Error> {
+        sync_browser_canvas_backing_size(&canvas, config.initial_width, config.initial_height);
         let instance = Self::new_browser_instance(wgpu::Backends::GL, config.debug, false).await;
-        let surface_target = wgpu::SurfaceTarget::Canvas(canvas);
+        let surface_target = wgpu::SurfaceTarget::Canvas(canvas.clone());
         let surface = instance.create_surface(surface_target)?;
-        Self::new(surface, instance, config).await
+        let mut backend = Self::new(surface, instance, config).await?;
+        backend.browser_canvas = Some(canvas);
+        Ok(backend)
     }
 
     #[cfg(all(target_arch = "wasm32", not(feature = "webgl")))]
@@ -733,6 +751,8 @@ impl<'w> RenderBackend<'w> {
             stencil_renderer,
             _adapter: adapter,
             surface,
+            #[cfg(target_arch = "wasm32")]
+            browser_canvas: None,
             device,
             queue,
             config,
@@ -892,9 +912,15 @@ impl<'w> RenderBackend<'w> {
         }
         self.active_frame = None;
         self.capture_target = None;
-        self.pending_clear = false;
+        // New backing attachments have undefined contents. Force the next render to clear before
+        // translucent retained geometry blends over the target.
+        self.pending_clear = true;
         self.surface_config.width = width;
         self.surface_config.height = height;
+        #[cfg(target_arch = "wasm32")]
+        if let Some(canvas) = self.browser_canvas.as_ref() {
+            sync_browser_canvas_backing_size(canvas, width, height);
+        }
         self.stencil_renderer.resize(&self.device, width, height);
         self.surface.configure(&self.device, &self.surface_config);
         self.multisampled_target = if self.sample_count > 1 {

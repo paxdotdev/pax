@@ -277,6 +277,16 @@ pub(crate) fn get_render_context(
                 .iter()
                 .zip(target.renderers_mut().iter_mut())
             {
+                renderer
+                    .renderer_mut()
+                    .set_surface_transform(Transform2D::from_array([
+                        1.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                        -surface.origin_x,
+                        -surface.origin_y,
+                    ]));
                 renderer.renderer_mut().resize_surface(
                     surface.surface.surface_width as f32,
                     surface.surface.surface_height as f32,
@@ -286,6 +296,7 @@ pub(crate) fn get_render_context(
                     surface.surface.logical_height,
                     surface.surface.dpr,
                 );
+                renderer.sync_layout_metadata(surface);
             }
             Some((target, resize_provider))
         })
