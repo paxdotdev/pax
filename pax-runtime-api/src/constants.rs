@@ -28,10 +28,11 @@ pub const TYPE_ID_SLOT: &str = "SLOT";
 pub const TYPE_ID_COMMENT: &str = "COMMENT";
 
 // Property names that every renderable node may accept.
-pub const COMMON_PROPERTIES: [&str; 18] = [
+pub const COMMON_PROPERTIES: [&str; 19] = [
     "id",
     "x",
     "y",
+    "padding",
     "scale",
     "scale_x",
     "scale_y",
@@ -67,8 +68,9 @@ pub fn is_intoable_downstream_type(type_to_check: &str) -> bool {
 
 // Only when parsing values for one of the types in this slice
 // will we look ahead and parse for an IntoableLiteral value.
-const BLESSED_INTOABLE_DOWNSTREAM_TYPES: [&'static str; 6] = [
+const BLESSED_INTOABLE_DOWNSTREAM_TYPES: [&'static str; 7] = [
     "pax_engine::api::Size",
+    "pax_engine::api::Padding",
     "pax_engine::api::Rotation",
     "pax_engine::api::ColorChannel",
     "pax_engine::api::Opacity",
@@ -81,6 +83,7 @@ pub const COMMON_PROPERTIES_TYPE: &[(&str, &str)] = &[
     ("id", "String"),
     ("x", "pax_engine::api::Size"),
     ("y", "pax_engine::api::Size"),
+    ("padding", "pax_engine::api::Padding"),
     ("scale", "pax_engine::api::Size"),
     ("scale_x", "pax_engine::api::Size"),
     ("scale_y", "pax_engine::api::Size"),

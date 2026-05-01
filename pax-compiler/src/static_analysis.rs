@@ -469,6 +469,7 @@ fn ensure_known_type_definition(ctx: &mut ParsingContext, import_path: &str) -> 
         "pax_engine::api::Fill" => TypeId::build_singleton(import_path, Some("Fill")),
         "pax_engine::api::Stroke" => TypeId::build_singleton(import_path, Some("Stroke")),
         "pax_engine::api::Size" => TypeId::build_singleton(import_path, Some("Size")),
+        "pax_engine::api::Padding" => TypeId::build_singleton(import_path, Some("Padding")),
         "pax_engine::api::Color" => TypeId::build_singleton(import_path, Some("Color")),
         "pax_engine::api::PathElement" => TypeId::build_singleton(import_path, Some("PathElement")),
         "pax_engine::api::ColorChannel" => {
@@ -1203,6 +1204,7 @@ fn canonical_special_import_path_for_ident(ident: &str) -> Option<&'static str> 
         "Fill" => Some("pax_engine::api::Fill"),
         "Stroke" => Some("pax_engine::api::Stroke"),
         "Size" => Some("pax_engine::api::Size"),
+        "Padding" => Some("pax_engine::api::Padding"),
         "Color" => Some("pax_engine::api::Color"),
         "PathElement" => Some("pax_engine::api::PathElement"),
         "ColorChannel" => Some("pax_engine::api::ColorChannel"),
@@ -1227,6 +1229,9 @@ fn canonical_special_import_path_for_path(path: &str) -> Option<&'static str> {
         }
         "pax_engine::api::Size" | "pax_runtime::api::Size" | "pax_runtime_api::Size" => {
             Some("pax_engine::api::Size")
+        }
+        "pax_engine::api::Padding" | "pax_runtime::api::Padding" | "pax_runtime_api::Padding" => {
+            Some("pax_engine::api::Padding")
         }
         "pax_engine::api::Color" | "pax_runtime::api::Color" | "pax_runtime_api::Color" => {
             Some("pax_engine::api::Color")

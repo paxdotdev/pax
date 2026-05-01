@@ -194,6 +194,67 @@ impl Size {
     }
 }
 
+/// Symmetric inner spacing applied by a container along each axis.
+///
+/// `x` is applied to both left and right edges, and `y` is applied to both
+/// top and bottom edges. Percent values resolve against the corresponding
+/// outer container axis.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Hash)]
+#[serde(crate = "crate::serde")]
+pub struct Padding {
+    /// Horizontal padding applied on both the left and right edges.
+    pub x: Size,
+    /// Vertical padding applied on both the top and bottom edges.
+    pub y: Size,
+}
+
+impl Default for Padding {
+    fn default() -> Self {
+        Self::uniform(Size::ZERO())
+    }
+}
+
+impl Padding {
+    /// Creates equal horizontal and vertical padding.
+    pub fn uniform(size: Size) -> Self {
+        Self { x: size, y: size }
+    }
+
+    /// Creates explicit per-axis padding.
+    pub fn axes(x: Size, y: Size) -> Self {
+        Self { x, y }
+    }
+
+    /// Evaluates each axis against the supplied outer bounds.
+    pub fn evaluate(&self, bounds: (f64, f64)) -> (f64, f64) {
+        (
+            self.x.evaluate(bounds, Axis::X).max(0.0),
+            self.y.evaluate(bounds, Axis::Y).max(0.0),
+        )
+    }
+}
+
+impl Display for Padding {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.x == self.y {
+            write!(f, "{}", self.x)
+        } else {
+            write!(f, "({}, {})", self.x, self.y)
+        }
+    }
+}
+
+impl Interpolatable for Padding {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Self {
+            x: self.x.interpolate(&other.x, t),
+            y: self.y.interpolate(&other.y, t),
+        }
+    }
+}
+
+impl HelperFunctions for Padding {}
+
 // Compiler-facing metadata for one common property.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct CommonProperty {
@@ -217,6 +278,8 @@ pub struct CommonProperties {
     pub x: Property<Option<Size>>,
     /// Vertical position.
     pub y: Property<Option<Size>>,
+    /// Symmetric inner spacing applied to this node's child layout area.
+    pub padding: Property<Option<Padding>>,
     /// Horizontal extent.
     pub width: Property<Option<Size>>,
     /// Vertical extent.
@@ -294,6 +357,7 @@ impl CommonProperties {
             id,
             x,
             y,
+            padding,
             width,
             height,
             anchor_x,
@@ -324,6 +388,10 @@ impl CommonProperties {
             (
                 "y".to_string(),
                 Variable::new_from_typed_property(y.clone()),
+            ),
+            (
+                "padding".to_string(),
+                Variable::new_from_typed_property(padding.clone()),
             ),
             (
                 "scale_x".to_string(),

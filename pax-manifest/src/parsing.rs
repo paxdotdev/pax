@@ -645,7 +645,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                         key.as_str(),
                         value_outer.as_str()
                     ));
-                    let value_definition = parse_value_definition(value);
+                    let value_definition = parse_setting_value_definition(key.as_str(), value);
                     SettingElement::Setting(key_token, value_definition)
                 }
             }
@@ -657,6 +657,22 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
     } else {
         None
     }
+}
+
+fn parse_setting_value_definition(setting_key: &str, value: Pair<Rule>) -> ValueDefinition {
+    reject_padding_tuple_syntax(setting_key, &value);
+    parse_value_definition(value)
+}
+
+fn reject_padding_tuple_syntax(setting_key: &str, value: &Pair<Rule>) {
+    if setting_key == "padding" && contains_tuple_value(value.clone()) {
+        panic!("padding does not support tuple syntax; use padding=[x, y] for axis padding");
+    }
+}
+
+fn contains_tuple_value(value: Pair<Rule>) -> bool {
+    matches!(value.as_rule(), Rule::literal_tuple | Rule::xo_tuple)
+        || value.into_inner().any(contains_tuple_value)
 }
 
 pub fn parse_value_definition(value: Pair<Rule>) -> ValueDefinition {
@@ -924,6 +940,19 @@ pub fn parse_timeline_from_component_definition_string(
 fn derive_value_definition_from_literal_object_pair(
     literal_object: Pair<Rule>,
 ) -> LiteralBlockDefinition {
+    derive_value_definition_from_literal_object_pair_inner(literal_object, false)
+}
+
+fn derive_settings_block_value_definition_from_literal_object_pair(
+    literal_object: Pair<Rule>,
+) -> LiteralBlockDefinition {
+    derive_value_definition_from_literal_object_pair_inner(literal_object, true)
+}
+
+fn derive_value_definition_from_literal_object_pair_inner(
+    literal_object: Pair<Rule>,
+    validate_setting_syntax: bool,
+) -> LiteralBlockDefinition {
     let mut literal_object_pairs = literal_object.into_inner();
 
     if let None = literal_object_pairs.peek() {
@@ -956,7 +985,11 @@ fn derive_value_definition_from_literal_object_pair(
                         let setting_key_token =
                             Token::new(setting_key.as_str().to_string(), setting_key_location);
                         let value = pairs.next().unwrap().into_inner().next().unwrap();
-                        let setting_value_definition = parse_value_definition(value);
+                        let setting_value_definition = if validate_setting_syntax {
+                            parse_setting_value_definition(setting_key.as_str(), value)
+                        } else {
+                            parse_value_definition(value)
+                        };
 
                         SettingElement::Setting(setting_key_token, setting_value_definition)
                     }
@@ -1033,7 +1066,7 @@ pub fn parse_settings_from_component_definition_string(
 
                                     settings.push(SettingsBlockElement::SelectorBlock(
                                         token,
-                                        derive_value_definition_from_literal_object_pair(
+                                        derive_settings_block_value_definition_from_literal_object_pair(
                                             literal_object,
                                         ),
                                     ));
@@ -1538,4 +1571,42 @@ pub fn clean_and_split_symbols(possibly_nested_symbols: &str) -> Vec<String> {
         .split(".")
         .map(|atomic_symbol| atomic_symbol.to_string())
         .collect::<Vec<_>>()
+}
+
+#[cfg(test)]
+mod padding_syntax_tests {
+    use super::*;
+
+    fn parse_inline_settings(source: &str) -> Option<Vec<SettingElement>> {
+        let tag = parse_pax_str(Rule::self_closing_tag, source).unwrap();
+        let mut pairs = tag.into_inner();
+        pairs.next();
+        parse_inline_attribute_from_final_pairs_of_tag(pairs)
+    }
+
+    #[test]
+    fn padding_setting_allows_list_literal() {
+        let settings = parse_inline_settings("<Group padding=[5px, 10px]/>").unwrap();
+
+        let SettingElement::Setting(token, ValueDefinition::LiteralValue(PaxValue::Vec(values))) =
+            &settings[0]
+        else {
+            panic!("expected padding list literal");
+        };
+
+        assert_eq!(token.token_value, "padding");
+        assert_eq!(values.len(), 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "padding does not support tuple syntax")]
+    fn padding_setting_rejects_tuple_literal() {
+        parse_inline_settings("<Group padding=(5px, 10px)/>");
+    }
+
+    #[test]
+    #[should_panic(expected = "padding does not support tuple syntax")]
+    fn padding_setting_rejects_tuple_expression() {
+        parse_inline_settings("<Group padding={(5px, 10px)}/>");
+    }
 }

@@ -20,6 +20,7 @@ use crate::GradientStop;
 use crate::LayoutRole;
 use crate::LinearGradient;
 use crate::Opacity;
+use crate::Padding;
 use crate::PathElement;
 use crate::Percent;
 use crate::Property;
@@ -63,6 +64,12 @@ impl_to_pax_value!(Size, PaxValue::Size);
 impl_to_pax_value!(Rotation, PaxValue::Rotation);
 impl_to_pax_value!(Duration, PaxValue::Duration);
 impl_to_pax_value!(Percent, PaxValue::Percent);
+
+impl ToPaxValue for Padding {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Vec(vec![self.x.to_pax_value(), self.y.to_pax_value()])
+    }
+}
 
 impl ToPaxValue for LayoutRole {
     fn to_pax_value(self) -> PaxValue {

@@ -62,6 +62,22 @@ Explicit axes still win. If a node has `width=300px`, autosize will not replace 
 
 Text participates naturally through `measured_size`: text and native controls can report empirical bounds after settling, and autosized ancestors react to those measured bounds through the same content-hull path.
 
+## Padding
+
+Every renderable node accepts a `padding` common property. Padding creates an inner layout area for child content without changing the node's own outer bounds.
+
+```pax
+<Group width=240px height=160px padding=12px>
+    <Text width=100% text="This text lays out inside the padded area." />
+</Group>
+
+<Group autosize=true padding=[8px, 12px]>
+    <Text text="Autosize includes left/right and top/bottom padding." />
+</Group>
+```
+
+Use one value when horizontal and vertical padding match. Use `padding=[x, y]` when the axes differ. Percent padding resolves against the corresponding outer axis, so `padding=10%` uses 10% of width horizontally and 10% of height vertically.
+
 ## Layout Role
 
 Every renderable node has a `layout_role` common property. The default is `LayoutRole::Default`, which participates in parent autosize hulls and container flow. `LayoutRole::Breakout` keeps parent-local coordinates but opts the node out of parent hull measurement and flow.

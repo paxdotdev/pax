@@ -8,8 +8,8 @@ use crate::{
     impl_default_coercion_rule,
     math::{Transform2, Vector2},
     Color, ColorChannel, Duration, Fill, GradientStop, LayoutRole, LinearGradient, Numeric,
-    Opacity, PathElement, PaxValue, Percent, Property, RadialGradient, Rotation, Size, Stroke,
-    StrokeCap, Transform2D,
+    Opacity, Padding, PathElement, PaxValue, Percent, Property, RadialGradient, Rotation, Size,
+    Stroke, StrokeCap, Transform2D,
 };
 
 // Default coercion rules:
@@ -510,6 +510,27 @@ mod tests {
     }
 
     #[test]
+    fn padding_coerces_uniform_size() {
+        let padding = Padding::try_coerce(PaxValue::Size(Size::Pixels(5.into()))).unwrap();
+
+        assert_eq!(padding, Padding::uniform(Size::Pixels(5.into())));
+    }
+
+    #[test]
+    fn padding_coerces_axis_list_values() {
+        let padding = Padding::try_coerce(PaxValue::Vec(vec![
+            PaxValue::Size(Size::Pixels(5.into())),
+            PaxValue::Size(Size::Percent(10.into())),
+        ]))
+        .unwrap();
+
+        assert_eq!(
+            padding,
+            Padding::axes(Size::Pixels(5.into()), Size::Percent(10.into()))
+        );
+    }
+
+    #[test]
     fn coerces_color_helper_syntax() {
         let pax_value = PaxValue::Enum(Box::new((
             "Color".to_string(),
@@ -780,6 +801,49 @@ impl CoercionRules for Size {
                 }
             }
             _ => return Err(format!("{:?} can't be coerced into a Size", pax_value)),
+        })
+    }
+}
+
+impl CoercionRules for Padding {
+    fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
+        Ok(match pax_value {
+            value @ (PaxValue::Size(_) | PaxValue::Percent(_) | PaxValue::Numeric(_)) => {
+                Padding::uniform(Size::try_coerce(value)?)
+            }
+            PaxValue::Vec(values) => match values.as_slice() {
+                [single] => Padding::uniform(Size::try_coerce(single.clone())?),
+                [x, y] => Padding::axes(Size::try_coerce(x.clone())?, Size::try_coerce(y.clone())?),
+                _ => {
+                    return Err(format!(
+                        "expected one or two values for Padding, got {}",
+                        values.len()
+                    ))
+                }
+            },
+            PaxValue::Object(fields) => {
+                let x = fields
+                    .iter()
+                    .find_map(|(name, value)| (name == "x").then_some(value.clone()));
+                let y = fields
+                    .iter()
+                    .find_map(|(name, value)| (name == "y").then_some(value.clone()));
+                match (x, y) {
+                    (Some(x), Some(y)) => Padding::axes(Size::try_coerce(x)?, Size::try_coerce(y)?),
+                    (Some(size), None) | (None, Some(size)) => {
+                        Padding::uniform(Size::try_coerce(size)?)
+                    }
+                    (None, None) => return Err("Padding object needs x and/or y".to_string()),
+                }
+            }
+            PaxValue::Option(mut opt) => {
+                if let Some(p) = opt.take() {
+                    Padding::try_coerce(p)?
+                } else {
+                    return Err("None can't be coerced into a Padding".to_string());
+                }
+            }
+            _ => return Err(format!("{:?} can't be coerced into a Padding", pax_value)),
         })
     }
 }

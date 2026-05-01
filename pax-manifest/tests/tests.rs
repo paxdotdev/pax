@@ -12,15 +12,20 @@ mod tests {
             assemble_component_definition, parse_settings_from_component_definition_string,
             parse_timeline_from_component_definition_string, ParsingContext,
         },
-        utils, ComponentDefinition, ComponentTemplate, ControlFlowConditionalBranchKind,
+        utils, ComponentDefinition, ControlFlowConditionalBranchKind,
         ControlFlowRepeatPredicateDefinition, PaxIdentifier, PaxManifest, SettingElement,
-        SettingsBlockElement, TemplateNodeDefinition, TimelineBlockElement, TimelineDefinition,
-        TimelineKeyframe, TimelineMarker, TimelineSelectorBlockDefinition, TimelineSelectorElement,
-        TimelineTrackDefinition, TimelineTrackElement, Token, TypeId, ValueDefinition,
+        SettingsBlockElement, TemplateNodeDefinition, TimelineBlockElement, Token, TypeId,
+        ValueDefinition,
     };
 
     #[cfg(feature = "code_serialization")]
     use pax_manifest::code_serialization::press_code_serialization_template;
+    #[cfg(feature = "code_serialization")]
+    use pax_manifest::{
+        ComponentTemplate, TimelineDefinition, TimelineKeyframe, TimelineMarker,
+        TimelineSelectorBlockDefinition, TimelineSelectorElement, TimelineTrackDefinition,
+        TimelineTrackElement,
+    };
 
     fn write_temp_rust_source(contents: &str) -> std::path::PathBuf {
         let unique_suffix = SystemTime::now()
@@ -820,6 +825,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "code_serialization")]
     fn test_serialize_ternary_expression() {
         let component_type_id = TypeId::build_singleton("Example", Some("Example"));
         let rectangle_type_id = TypeId::build_singleton("Rectangle", Some("Rectangle"));

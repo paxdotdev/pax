@@ -7,13 +7,14 @@ use std::rc::Rc;
 #[allow(unused)]
 use crate::*;
 use pax_engine::api::math::{Transform2, Vector2};
-use pax_engine::api::{Axis, EasingCurve, Numeric, Property, Size};
+use pax_engine::api::{Axis, EasingCurve, Numeric, Padding, Property, Size};
 use pax_engine::pax_manifest::cartridge_generation::TRANSITION_PHASE_ENTER;
 use pax_engine::*;
 use pax_runtime::api::{borrow, borrow_mut, Layer, NodeContext};
 use pax_runtime::{
-    BaseInstance, Container, ContainerFrame, ExpandedNode, InstanceFlags, InstanceNode,
-    InstantiationArgs, LayoutHull, ReceivedChildrenSource, RuntimeContext,
+    resolve_padded_autosize_axis, BaseInstance, Container, ContainerFrame, ExpandedNode,
+    InstanceFlags, InstanceNode, InstantiationArgs, LayoutHull, ReceivedChildrenSource,
+    RuntimeContext,
 };
 
 const STACKER_REFLOW_FRAMES: u64 = 12;
@@ -179,6 +180,15 @@ impl Container for Stacker {
         let bound = ctx.bounds_self.clone();
         let gutter = self.gutter.clone();
         let direction = self.direction.clone();
+        let padding = ctx
+            .expanded_node
+            .upgrade()
+            .map(|node| {
+                let common_props = node.get_common_properties();
+                let padding = borrow!(common_props).padding.clone();
+                padding
+            })
+            .unwrap_or_default();
         let autosize = self.autosize.clone();
         let autosize_x = self.autosize_x.clone();
         let autosize_y = self.autosize_y.clone();
@@ -191,6 +201,7 @@ impl Container for Stacker {
         let received_children_for_update = ctx.received_children.clone();
         let retained_received_children_for_update = ctx.retained_received_children.clone();
         let direction_for_update = direction.clone();
+        let padding_for_update = padding.clone();
         let sizes_for_update = sizes.clone();
         let gutter_for_update = gutter.clone();
         let exit_mode_for_update = exit_mode.clone();
@@ -201,8 +212,16 @@ impl Container for Stacker {
         let update_layout = Rc::new(move || {
             let received_children = received_children_for_update.get();
             let retained_received_children = retained_received_children_for_update.get();
-            let bounds = bound_for_update.get();
+            let outer_bounds = bound_for_update.get();
             let direction = direction_for_update.get();
+            let padding = padding_for_update.get();
+            let (padding_x, padding_y) = padding
+                .map(|padding| padding.evaluate(outer_bounds))
+                .unwrap_or((0.0, 0.0));
+            let bounds = (
+                (outer_bounds.0 - (2.0 * padding_x)).max(0.0),
+                (outer_bounds.1 - (2.0 * padding_y)).max(0.0),
+            );
             let gutter = gutter_for_update.get();
             let sizes = sizes_for_update.get();
             let autosize = autosize_for_update.get();
@@ -359,7 +378,7 @@ impl Container for Stacker {
             }
             *prior_frames.borrow_mut() = next_frames;
 
-            match active_layout.measured_size {
+            match expand_measured_size_for_padding(active_layout.measured_size, padding) {
                 Some(measured_size) => {
                     if node.measured_size.get() != Some(measured_size) {
                         node.set_measured_size(measured_size.0, measured_size.1);
@@ -377,6 +396,7 @@ impl Container for Stacker {
         let deps = [
             bound.untyped(),
             direction.untyped(),
+            padding.untyped(),
             sizes.untyped(),
             gutter.untyped(),
             autosize.untyped(),
@@ -945,6 +965,17 @@ impl ChildMeasurement {
 struct StackerLayoutResult {
     cell_specs: Vec<StackerCell>,
     measured_size: Option<(f64, f64)>,
+}
+
+fn expand_measured_size_for_padding(
+    measured_size: Option<(f64, f64)>,
+    padding: Option<Padding>,
+) -> Option<(f64, f64)> {
+    let (width, height) = measured_size?;
+    Some((
+        resolve_padded_autosize_axis(width, padding.map(|padding| padding.x))?,
+        resolve_padded_autosize_axis(height, padding.map(|padding| padding.y))?,
+    ))
 }
 
 fn compute_stacker_layout(

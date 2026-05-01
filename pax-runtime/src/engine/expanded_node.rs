@@ -36,9 +36,10 @@ use pax_manifest::cartridge_generation::{
 use pax_manifest::{SelectorExpr, SettingsBlockElement, TypeId, ValueDefinition};
 
 use crate::{
-    apply_container_frame, compute_tab, project_child_layout_hull_to_parent_space,
-    ComponentInstance, ContainerFrame, HandlerLocation, InstanceNode, InstanceNodePtr,
-    ReceivedChildrenSource, RuntimeContext, RuntimePropertiesStackFrame,
+    apply_container_frame, apply_padding_frame, compute_tab,
+    project_child_layout_hull_to_parent_space, ComponentInstance, ContainerFrame, HandlerLocation,
+    InstanceNode, InstanceNodePtr, ReceivedChildrenSource, RuntimeContext,
+    RuntimePropertiesStackFrame,
 };
 
 #[derive(Clone, Debug)]
@@ -887,17 +888,32 @@ impl ExpandedNode {
     }
 
     fn bind_to_parent_bounds(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
-        let parent_transform_and_bounds = borrow!(self.render_parent)
-            .upgrade()
+        let render_parent = borrow!(self.render_parent).upgrade();
+        let parent_transform_and_bounds = render_parent
+            .as_ref()
             .map(|n| n.transform_and_bounds.clone())
             .unwrap_or_else(|| ctx.globals().viewport);
+        let parent_padding = render_parent
+            .as_ref()
+            .map(|n| {
+                let common_props = n.get_common_properties();
+                let padding = borrow!(common_props).padding.clone();
+                padding
+            })
+            .unwrap_or_default();
         let container_frame = self.container_frame.clone();
         let deps = [
             parent_transform_and_bounds.untyped(),
+            parent_padding.untyped(),
             container_frame.untyped(),
         ];
         let effective_parent_transform_and_bounds = Property::computed(
-            move || apply_container_frame(parent_transform_and_bounds.get(), container_frame.get()),
+            move || {
+                apply_container_frame(
+                    apply_padding_frame(parent_transform_and_bounds.get(), parent_padding.get()),
+                    container_frame.get(),
+                )
+            },
             &deps,
         );
         let common_props = borrow!(self.common_properties);
@@ -1452,13 +1468,24 @@ impl ExpandedNode {
         let t_and_b = self.transform_and_bounds.clone();
         let deps = [t_and_b.untyped()];
         let bounds_self = Property::computed(move || t_and_b.get().bounds, &deps);
-        let t_and_b_parent = if let Some(parent) = borrow!(self.render_parent).upgrade() {
-            parent.transform_and_bounds.clone()
-        } else {
-            globals.viewport.clone()
-        };
-        let deps = [t_and_b_parent.untyped()];
-        let bounds_parent = Property::computed(move || t_and_b_parent.get().bounds, &deps);
+        let render_parent = borrow!(self.render_parent).upgrade();
+        let t_and_b_parent = render_parent
+            .as_ref()
+            .map(|parent| parent.transform_and_bounds.clone())
+            .unwrap_or_else(|| globals.viewport.clone());
+        let parent_padding = render_parent
+            .as_ref()
+            .map(|parent| {
+                let common_props = parent.get_common_properties();
+                let padding = borrow!(common_props).padding.clone();
+                padding
+            })
+            .unwrap_or_default();
+        let deps = [t_and_b_parent.untyped(), parent_padding.untyped()];
+        let bounds_parent = Property::computed(
+            move || apply_padding_frame(t_and_b_parent.get(), parent_padding.get()).bounds,
+            &deps,
+        );
 
         let owns_projected_children = borrow!(self.instance_node).base().flags().is_component
             || borrow!(self.expanded_projected_children).is_some();

@@ -6,7 +6,7 @@ use pax_runtime_api::math::{Point2, Space, TransformParts};
 use pax_runtime_api::{Interpolatable, Percent, Property, Rotation, Window};
 
 use crate::api::math::{Transform2, Vector2};
-use crate::api::{Axis, Size, Transform2D};
+use crate::api::{Axis, Padding, Size, Transform2D};
 use crate::node_interface::NodeLocal;
 use crate::ContainerFrame;
 
@@ -58,6 +58,47 @@ pub fn apply_container_frame(
         },
         None => container_transform_and_bounds,
     }
+}
+
+/// Apply a node's padding to the container geometry seen by its children.
+pub fn apply_padding_frame(
+    container_transform_and_bounds: TransformAndBounds<NodeLocal, Window>,
+    padding: Option<Padding>,
+) -> TransformAndBounds<NodeLocal, Window> {
+    match padding {
+        Some(padding) => {
+            let (padding_x, padding_y) = padding.evaluate(container_transform_and_bounds.bounds);
+            TransformAndBounds {
+                transform: container_transform_and_bounds.transform
+                    * Transform2::translate(Vector2::new(padding_x, padding_y)),
+                bounds: (
+                    (container_transform_and_bounds.bounds.0 - (2.0 * padding_x)).max(0.0),
+                    (container_transform_and_bounds.bounds.1 - (2.0 * padding_y)).max(0.0),
+                ),
+            }
+        }
+        None => container_transform_and_bounds,
+    }
+}
+
+/// Solve an autosized outer axis from measured content and symmetric padding.
+pub fn resolve_padded_autosize_axis(content_extent: f64, padding: Option<Size>) -> Option<f64> {
+    let Some(padding) = padding else {
+        return Some(content_extent.max(0.0));
+    };
+
+    let (pixel_component, percent_component) = match padding {
+        Size::Pixels(pixels) => (pixels.to_float().max(0.0), 0.0),
+        Size::Percent(percent) => (0.0, percent.to_float().max(0.0) / 100.0),
+        Size::Combined(pixels, percent) => (
+            pixels.to_float().max(0.0),
+            percent.to_float().max(0.0) / 100.0,
+        ),
+    };
+
+    let denominator = 1.0 - (2.0 * percent_component);
+    (denominator > f64::EPSILON)
+        .then_some(((content_extent.max(0.0) + (2.0 * pixel_component)) / denominator).max(0.0))
 }
 
 /// Per-axis local extents contributed by a node subtree for container measurement.
@@ -520,6 +561,33 @@ fn test_apply_container_frame_uses_assigned_bounds() {
     assert_eq!(result.bounds, (30.0, 40.0));
     assert_eq!(result.transform.m[4], 60.0);
     assert_eq!(result.transform.m[5], 80.0);
+}
+
+#[test]
+fn test_apply_padding_frame_shrinks_and_offsets_child_bounds() {
+    let parent = TransformAndBounds::<NodeLocal, Window> {
+        transform: Transform2::translate(Vector2::new(50.0, 60.0)),
+        bounds: (200.0, 100.0),
+    };
+
+    let result = apply_padding_frame(
+        parent,
+        Some(Padding::axes(
+            Size::Pixels(10.into()),
+            Size::Percent(20.into()),
+        )),
+    );
+
+    assert_eq!(result.bounds, (180.0, 60.0));
+    assert_eq!(result.transform.m[4], 60.0);
+    assert_eq!(result.transform.m[5], 80.0);
+}
+
+#[test]
+fn test_resolve_padded_autosize_axis_solves_percent_padding() {
+    let resolved = resolve_padded_autosize_axis(60.0, Some(Size::Percent(20.into()))).unwrap();
+
+    assert!((resolved - 100.0).abs() < 1e-9);
 }
 
 #[test]
