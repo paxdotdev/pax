@@ -9,7 +9,7 @@ use tantivy::TantivyDocument;
 use tantivy::{Index, IndexReader};
 
 const MAGIC: &[u8; 8] = b"PAXDOCS\0";
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 
 static PAXDOCS_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/paxdocs.bin"));
 
@@ -23,6 +23,7 @@ static INDEX: Lazy<Result<DocsIndex, DocsError>> = Lazy::new(|| {
 pub enum DocKind {
     Article,
     Api,
+    Example,
 }
 
 impl DocKind {
@@ -30,6 +31,7 @@ impl DocKind {
         match self {
             DocKind::Article => "article",
             DocKind::Api => "api",
+            DocKind::Example => "example",
         }
     }
 
@@ -37,6 +39,7 @@ impl DocKind {
         match value {
             0 => Ok(DocKind::Article),
             1 => Ok(DocKind::Api),
+            2 => Ok(DocKind::Example),
             _ => Err(DocsError::new("Unsupported doc kind")),
         }
     }

@@ -11,12 +11,13 @@ use tantivy::Index;
 mod examples;
 
 const MAGIC: &[u8; 8] = b"PAXDOCS\0";
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 
 #[derive(Clone, Copy)]
 enum DocKind {
     Article,
     Api,
+    Example,
 }
 
 impl DocKind {
@@ -24,6 +25,7 @@ impl DocKind {
         match self {
             DocKind::Article => 0,
             DocKind::Api => 1,
+            DocKind::Example => 2,
         }
     }
 }
@@ -54,8 +56,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("cargo:rerun-if-env-changed=PAX_DOCS_FORCE_REBUILD");
     println!("cargo:rerun-if-changed={}", summary_path.display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        workspace_dir.join("examples").join("src").display()
+    );
     visit_markdown_files(&book_dir)?;
     visit_referenced_example_files(workspace_dir, &book_dir)?;
+    visit_all_example_source_files(workspace_dir)?;
 
     let entries = load_entries(workspace_dir, &book_dir, &summary_path)?;
     let index_id = compute_docs_hash(&entries);
@@ -127,6 +134,27 @@ fn visit_referenced_example_files(workspace_dir: &Path, book_dir: &Path) -> io::
     Ok(())
 }
 
+fn visit_all_example_source_files(workspace_dir: &Path) -> io::Result<()> {
+    for example_path in examples::discover_example_paths(workspace_dir)? {
+        let Some(example_dir) = examples::example_dir(workspace_dir, &example_path) else {
+            continue;
+        };
+        let cargo_toml = example_dir.join("Cargo.toml");
+        if cargo_toml.exists() {
+            println!("cargo:rerun-if-changed={}", cargo_toml.display());
+        }
+
+        for source_path in examples::source_file_relative_paths(&example_dir, &[]) {
+            let source_path = example_dir.join(source_path);
+            if source_path.exists() {
+                println!("cargo:rerun-if-changed={}", source_path.display());
+            }
+        }
+    }
+
+    Ok(())
+}
+
 fn load_entries(
     workspace_dir: &Path,
     book_dir: &Path,
@@ -160,6 +188,47 @@ fn load_entries(
                 tags,
             });
         }
+    }
+
+    entries.extend(load_example_entries(workspace_dir)?);
+
+    Ok(entries)
+}
+
+fn load_example_entries(workspace_dir: &Path) -> Result<Vec<DocEntry>, Box<dyn std::error::Error>> {
+    let mut entries = Vec::new();
+    for example_path in examples::discover_example_paths(workspace_dir)? {
+        let human_title = examples::humanize_example_title(&example_path);
+        let title = format!("Example: {human_title}");
+        let Some(body_markdown) = examples::render_example_source_markdown(
+            workspace_dir,
+            &example_path,
+            Some(&human_title),
+        ) else {
+            continue;
+        };
+        let mut tags = vec![
+            "examples".to_string(),
+            "source".to_string(),
+            example_path.clone(),
+        ];
+        tags.extend(
+            example_path
+                .split(['-', '_', '/'])
+                .filter(|part| !part.is_empty())
+                .map(|part| part.to_string()),
+        );
+
+        entries.push(DocEntry {
+            title,
+            slug: format!("examples/{example_path}"),
+            kind: DocKind::Example,
+            depth: 0,
+            path: format!("examples/src/{example_path}"),
+            body_markdown,
+            summary: format!("Source files for `examples/src/{example_path}`."),
+            tags,
+        });
     }
 
     Ok(entries)
@@ -275,6 +344,7 @@ fn compute_docs_hash(entries: &[DocEntry]) -> String {
     let mut hash = 1469598103934665603u64;
     for entry in entries {
         hash = fnv1a(hash, entry.slug.as_bytes());
+        hash = fnv1a(hash, &[entry.kind.as_u8()]);
         hash = fnv1a(hash, entry.title.as_bytes());
         hash = fnv1a(hash, entry.path.as_bytes());
         hash = fnv1a(hash, entry.summary.as_bytes());

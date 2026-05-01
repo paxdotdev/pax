@@ -71,6 +71,34 @@ pub fn source_file_paths_for_embed(workspace: &Path, embed: &ExampleEmbed) -> Ve
         .collect()
 }
 
+pub fn discover_example_paths(workspace: &Path) -> io::Result<Vec<String>> {
+    let examples_dir = workspace.join("examples").join("src");
+    let mut out = Vec::new();
+    let Ok(entries) = fs::read_dir(examples_dir) else {
+        return Ok(out);
+    };
+
+    for entry in entries {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        let path = entry.path();
+        if !path.join("Cargo.toml").exists() {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if let Some(path) = normalize_relative_path(name) {
+            out.push(path);
+        }
+    }
+
+    out.sort();
+    Ok(out)
+}
+
 pub fn read_source_files(example_dir: &Path, requested_files: &[String]) -> Vec<ExampleSourceFile> {
     source_file_relative_paths(example_dir, requested_files)
         .into_iter()
@@ -124,6 +152,26 @@ pub fn hosted_example_url(path: &str) -> String {
 
 pub fn run_command(path: &str) -> String {
     format!("pax-cli run --path examples/src/{path} --target web")
+}
+
+pub fn render_example_source_markdown(
+    workspace: &Path,
+    path: &str,
+    title: Option<&str>,
+) -> Option<String> {
+    let example_dir = example_dir(workspace, path)?;
+    let source_files = read_source_files(&example_dir, &[]);
+    if source_files.is_empty() {
+        return None;
+    }
+
+    Some(render_source_markdown(
+        path,
+        title
+            .map(|title| title.to_string())
+            .unwrap_or_else(|| humanize_example_title(path)),
+        &source_files,
+    ))
 }
 
 fn parse_embeds(markdown: &str) -> Vec<ParsedExampleEmbed> {
@@ -383,6 +431,36 @@ fn render_cli_fallback(embed: &ExampleEmbed, workspace: &Path) -> String {
             }
             out.push_str("```\n");
         }
+    }
+
+    out
+}
+
+fn render_source_markdown(path: &str, title: String, source_files: &[ExampleSourceFile]) -> String {
+    let mut out = String::new();
+    out.push_str(&format!("# Example: {title}\n\n"));
+    out.push_str(&format!("Path: `examples/src/{path}`\n\n"));
+    out.push_str("Run locally:\n\n");
+    out.push_str("```sh\n");
+    out.push_str(&run_command(path));
+    out.push_str("\n```\n");
+
+    out.push_str("\nFiles:\n");
+    for source in source_files {
+        out.push_str(&format!("- `{}`\n", source.path));
+    }
+
+    for source in source_files {
+        out.push_str(&format!("\n## `{}`\n\n", source.path));
+        out.push_str(&format!("```{}\n", source.language));
+        out.push_str(&source.contents);
+        if !source.contents.ends_with('\n') {
+            out.push('\n');
+        }
+        if source.truncated {
+            out.push_str("\n// ... truncated for docs output\n");
+        }
+        out.push_str("```\n");
     }
 
     out

@@ -45,6 +45,22 @@ pub fn command() -> App<'static, 'static> {
                         .help("Open the top result in a pager"),
                 ),
         )
+        .subcommand(
+            SubCommand::with_name("examples")
+                .about("Print embedded Pax example source files")
+                .arg(
+                    Arg::with_name("example")
+                        .help("Example id, slug, path, or title. Omit to list examples")
+                        .required(false)
+                        .index(1),
+                )
+                .arg(
+                    Arg::with_name("list")
+                        .long("list")
+                        .takes_value(false)
+                        .help("List embedded examples without printing source"),
+                ),
+        )
         .subcommand(docs_build_command(
             "build",
             "Build docs assets (API, examples, and search index)",
@@ -89,6 +105,7 @@ pub fn handle(args: &ArgMatches<'_>) -> Result<(), Report> {
         ("list", Some(sub_args)) => handle_list(sub_args),
         ("open", Some(sub_args)) => handle_open(sub_args),
         ("search", Some(sub_args)) => handle_search(sub_args),
+        ("examples", Some(sub_args)) => handle_examples(sub_args),
         ("build", Some(sub_args)) | ("rebuild", Some(sub_args)) => handle_build(sub_args),
         _ => handle_list(args),
     }
@@ -97,6 +114,9 @@ pub fn handle(args: &ArgMatches<'_>) -> Result<(), Report> {
 fn handle_list(_args: &ArgMatches<'_>) -> Result<(), Report> {
     let entries = pax_docs::entries().map_err(|err| eyre!(err.to_string()))?;
     for (idx, entry) in entries.iter().enumerate() {
+        if entry.kind == pax_docs::DocKind::Example {
+            continue;
+        }
         let indent = "  ".repeat(entry.depth as usize);
         println!("{}. {}{} | {}", idx + 1, indent, entry.title, entry.summary);
     }
@@ -171,6 +191,103 @@ fn handle_search(args: &ArgMatches<'_>) -> Result<(), Report> {
     }
 
     Ok(())
+}
+
+fn handle_examples(args: &ArgMatches<'_>) -> Result<(), Report> {
+    let entries = pax_docs::entries().map_err(|err| eyre!(err.to_string()))?;
+    let examples = entries
+        .iter()
+        .filter(|entry| entry.kind == pax_docs::DocKind::Example)
+        .collect::<Vec<_>>();
+
+    if examples.is_empty() {
+        println!(
+            "No embedded examples are available. Run `pax-cli docs build` from the Pax workspace."
+        );
+        return Ok(());
+    }
+
+    if args.is_present("list") || args.value_of("example").is_none() {
+        print_example_list(&examples);
+        return Ok(());
+    }
+
+    let query = args
+        .value_of("example")
+        .expect("example arg exists when not listing");
+    let entry = find_example_entry(&examples, query)
+        .ok_or_else(|| eyre!("No example found for '{query}'"))?;
+    print_markdown_entry(entry);
+
+    Ok(())
+}
+
+fn print_example_list(examples: &[&pax_docs::DocEntry]) {
+    for (idx, entry) in examples.iter().enumerate() {
+        let name = entry
+            .path
+            .strip_prefix("examples/src/")
+            .unwrap_or(entry.path.as_str());
+        println!("{}. {} | {}", idx + 1, name, entry.summary);
+    }
+}
+
+fn find_example_entry<'a>(
+    examples: &'a [&'a pax_docs::DocEntry],
+    query: &str,
+) -> Option<&'a pax_docs::DocEntry> {
+    if let Ok(id) = query.parse::<usize>() {
+        if id > 0 {
+            return examples.get(id - 1).copied();
+        }
+    }
+
+    let query = query.trim();
+    if query.is_empty() {
+        return None;
+    }
+    let query_lower = query.to_lowercase();
+    examples
+        .iter()
+        .copied()
+        .find(|entry| example_entry_matches(entry, &query_lower))
+}
+
+fn example_entry_matches(entry: &pax_docs::DocEntry, query_lower: &str) -> bool {
+    if entry.slug.eq_ignore_ascii_case(query_lower)
+        || entry.path.eq_ignore_ascii_case(query_lower)
+        || entry.title.eq_ignore_ascii_case(query_lower)
+    {
+        return true;
+    }
+
+    if let Some(title) = entry.title.strip_prefix("Example: ") {
+        if title.eq_ignore_ascii_case(query_lower) {
+            return true;
+        }
+    }
+
+    for prefix in ["examples/", "examples/src/"] {
+        if let Some(value) = entry.slug.strip_prefix(prefix) {
+            if value.eq_ignore_ascii_case(query_lower) {
+                return true;
+            }
+        }
+        if let Some(value) = entry.path.strip_prefix(prefix) {
+            if value.eq_ignore_ascii_case(query_lower) {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+fn print_markdown_entry(entry: &pax_docs::DocEntry) {
+    print!("{}", entry.body_markdown);
+    if !entry.body_markdown.ends_with('\n') {
+        println!();
+    }
 }
 
 fn handle_build(args: &ArgMatches<'_>) -> Result<(), Report> {

@@ -10,6 +10,8 @@ Start with local CLI docs before changing syntax or architecture:
 - `pax-cli docs open "Data Binding & Expressions"`
 - `pax-cli docs open "Event Handling & Rust Logic"`
 - `pax-cli docs search <query>`
+- `pax-cli docs examples --list`
+- `pax-cli docs examples <example-name>`
 
 Authoring happens in two layers:
 
