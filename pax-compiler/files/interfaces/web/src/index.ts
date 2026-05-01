@@ -41,7 +41,7 @@ import { ScreenshotPatch } from "./classes/messages/screenshot-patch";
 import { NativeMaskUpdatePatch } from "./classes/messages/native-mask-update-patch";
 import { isIOSWebKitBrowser } from "./classes/surface-host-policy";
 import { HIDDEN_TAB_FRAME_FALLBACK_MS } from "./utils/helpers";
-import { serializeRouteLocation } from "./utils/route-location";
+import { replaceCurrentRouteHistoryState, serializeRouteLocation } from "./utils/route-location";
 
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let nativePool = new NativeElementPool(objectManager);
@@ -58,6 +58,7 @@ let currentExtensionlessUrl: string | null = null;
 let teardownEventListeners: (() => void) | null = null;
 let teardownResizeHandler: (() => void) | null = null;
 let teardownHiddenTabPump: (() => void) | null = null;
+let teardownRouteLocationSync: (() => void) | null = null;
 let pendingReloadRequest: ReloadAppRequest | null = null;
 let reloadInProgress = false;
 const perfTraceEnabled = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("pax_scroll_perf");
@@ -158,6 +159,8 @@ function disposeCurrentChassis() {
     }
     teardownHiddenTabPump?.();
     teardownHiddenTabPump = null;
+    teardownRouteLocationSync?.();
+    teardownRouteLocationSync = null;
     teardownResizeHandler?.();
     teardownResizeHandler = null;
     teardownEventListeners?.();
@@ -211,12 +214,18 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
         },
     }, []);
     let syncRouteLocation = () => {
+        let url = new URL(window.location.href);
+        replaceCurrentRouteHistoryState(url);
         chassis.interrupt({
-            "RouteChange": serializeRouteLocation(new URL(window.location.href)),
+            "RouteChange": serializeRouteLocation(url),
         }, []);
     };
     window.addEventListener("popstate", syncRouteLocation);
     window.addEventListener("hashchange", syncRouteLocation);
+    teardownRouteLocationSync = () => {
+        window.removeEventListener("popstate", syncRouteLocation);
+        window.removeEventListener("hashchange", syncRouteLocation);
+    };
     syncRouteLocation();
     let lastViewportWidth = -1;
     let lastViewportHeight = -1;

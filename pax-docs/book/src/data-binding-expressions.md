@@ -92,7 +92,7 @@ In timeline keyframes, wrap `$base` in an expression. This lets an animation mov
 @settings {
     #card {
         y: @timeline {
-            frames: 20,
+            duration: 20,
             0: {$base - 24px},
             100%: {$base},
         }

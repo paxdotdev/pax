@@ -61,7 +61,7 @@ import {
 } from "./surface-host-policy";
 import type { LayerCanvasPlan } from "./surface-host-policy";
 import { CanvasPool } from "./canvas-pool";
-import { serializeRouteLocation } from "../utils/route-location";
+import { pushRouteHistoryState, serializeRouteLocation } from "../utils/route-location";
 
 const SCREENSHOT_FONT_STYLE_ATTRIBUTE = 'data-pax-screenshot-font-style';
 const SCROLLER_CHROME_STYLE_ATTRIBUTE = 'data-pax-scroller-chrome-style';
@@ -3147,10 +3147,16 @@ export class NativeElementPool {
     }
 
     navigate(patch: NavigationPatch) {
+        let destination = patch.url;
+        if (!destination) {
+            console.error("no valid url target!");
+            return;
+        }
+
         try {
-            let url = new URL(patch.url, window.location.href);
+            let url = new URL(destination, window.location.href);
             if (patch.target === "current" && url.origin === window.location.origin) {
-                window.history.pushState({}, "", url);
+                pushRouteHistoryState(url);
                 this.chassis?.interrupt({
                     "RouteChange": serializeRouteLocation(url),
                 }, []);
@@ -3172,7 +3178,7 @@ export class NativeElementPool {
                 console.error("no valid url target!");
                 name = "_self";
         }
-        window.open(patch.url, name);
+        window.open(destination, name);
     }
 
     setCursor(patch: SetCursorPatch) {

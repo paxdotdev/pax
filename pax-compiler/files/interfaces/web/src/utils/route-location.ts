@@ -4,6 +4,10 @@ export type RouteChangePayload = {
     fragment: string | null;
 };
 
+type RouteHistoryState = {
+    pax_route: RouteChangePayload;
+};
+
 function decodeUriComponentSafely(value: string): string {
     try {
         return decodeURIComponent(value);
@@ -29,4 +33,23 @@ export function serializeRouteLocation(url: URL): RouteChangePayload {
         query,
         fragment: url.hash ? decodeUriComponentSafely(url.hash.slice(1)) : null,
     };
+}
+
+function routeHistoryState(url: URL): RouteHistoryState {
+    return {
+        pax_route: serializeRouteLocation(url),
+    };
+}
+
+export function replaceCurrentRouteHistoryState(url: URL) {
+    window.history.replaceState(routeHistoryState(url), "", url);
+}
+
+export function pushRouteHistoryState(url: URL) {
+    if (url.href === window.location.href) {
+        replaceCurrentRouteHistoryState(url);
+        return;
+    }
+
+    window.history.pushState(routeHistoryState(url), "", url);
 }

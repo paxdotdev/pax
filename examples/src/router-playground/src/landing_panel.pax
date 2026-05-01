@@ -210,7 +210,7 @@
 }
 
 @timeline route_enter {
-    frames: 96,
+    duration: 96,
     self {
         opacity: {
             0: 0, InQuad,
@@ -277,7 +277,7 @@
 }
 
 @timeline route_exit {
-    frames: 18,
+    duration: 18,
     self {
         opacity: {
             0: {$base}, OutQuad,

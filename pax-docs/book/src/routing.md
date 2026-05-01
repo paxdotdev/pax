@@ -91,6 +91,7 @@ Pax keeps route writes out of template matching nodes.
 - Use `NodeContext::navigate_to(...)` from Rust when navigation is event-driven or computed.
 
 On web targets, same-origin navigation in the current tab can be synchronized through the browser History API, so nested route changes do not need to trigger full reloads.
+Back and forward navigation are routed back into Pax through browser `popstate` and `hashchange` events.
 
 ## Example
 
@@ -100,4 +101,3 @@ On web targets, same-origin navigation in the current tab can be synchronized th
   height="760"
   files="src/lib.pax,src/lib.rs,src/guide_panel.pax,src/team_panel.pax,src/route_inspector.rs,src/route_inspector.pax">
 </pax-example>
-

@@ -62,7 +62,7 @@ Timeline keyframes may use `$base` inside `{...}` expressions. `$base` is the va
 
 ```pax
 @timeline enter {
-    frames: 18,
+    duration: 18,
     self {
         opacity: {
             0: 0,
@@ -145,7 +145,7 @@ This behavior depends on the runtime distinction between `received_children` and
         exit_mode: ContainerExitMode::Ghost
         reflow_transition: {
             kind: ContainerReflowTransitionKind::Ease
-            frames: 18
+            duration: 18
             curve: ContainerReflowCurve::OutQuad
             name: ""
         }
