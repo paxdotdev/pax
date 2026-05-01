@@ -333,6 +333,7 @@ mod tests {
     fn test_globals() -> Globals {
         Globals {
             frames_elapsed: Property::new(0),
+            elapsed_millis: Property::new(0),
             viewport: Property::new(TransformAndBounds {
                 transform: Transform2::identity(),
                 bounds: (100.0, 100.0),

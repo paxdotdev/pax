@@ -10,7 +10,7 @@
 }
 
 @timeline enter {
-    frames: 36,
+    duration: 36,
     self {
         opacity: {
             0: 0, OutQuad,
@@ -20,7 +20,7 @@
 }
 
 @timeline exit {
-    frames: 36,
+    duration: 36,
     self {
         opacity: {
             0: 1, OutQuad,

@@ -94,6 +94,26 @@ fn test_radians() {
 }
 
 #[test]
+fn test_milliseconds() {
+    #[derive(Serialize, PartialEq, Debug)]
+    pub enum Numeric {
+        Integer(isize),
+        Float(f64),
+    }
+    #[derive(Serialize, PartialEq, Debug)]
+    pub enum Duration {
+        Milliseconds(Numeric),
+        Seconds(Numeric),
+        Frames(Numeric),
+    }
+
+    let expected = "250ms".to_string();
+    let milliseconds_pax = Duration::Milliseconds(Numeric::Integer(250));
+    let v = to_pax(&milliseconds_pax).unwrap();
+    assert_eq!(expected, v);
+}
+
+#[test]
 fn test_string_box() {
     let expected = "\"hello\"".to_string();
     let string_pax = "hello".to_string();

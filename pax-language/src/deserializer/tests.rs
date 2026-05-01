@@ -2,7 +2,7 @@
 
 use pax_runtime_api::{
     pax_value::{CoercionRules, ToFromPaxAny},
-    Color, ColorChannel, ImplToFromPaxAny, Numeric, PaxValue, Percent, Rotation, Size,
+    Color, ColorChannel, Duration, ImplToFromPaxAny, Numeric, PaxValue, Percent, Rotation, Size,
 };
 use serde::Deserialize;
 
@@ -45,6 +45,30 @@ fn test_radians() {
     let radians_pax = "10rad".to_string();
     let expected = PaxValue::Rotation(Rotation::Radians(Numeric::I64(10)));
     let v = from_pax(&radians_pax).unwrap();
+    assert_eq!(expected, v);
+}
+
+#[test]
+fn test_milliseconds() {
+    let ms_pax = "250ms".to_string();
+    let expected = PaxValue::Duration(Duration::Milliseconds(Numeric::I64(250)));
+    let v = from_pax(&ms_pax).unwrap();
+    assert_eq!(expected, v);
+}
+
+#[test]
+fn test_seconds() {
+    let seconds_pax = "1.5s".to_string();
+    let expected = PaxValue::Duration(Duration::Seconds(Numeric::F64(1.5)));
+    let v = from_pax(&seconds_pax).unwrap();
+    assert_eq!(expected, v);
+}
+
+#[test]
+fn test_frames() {
+    let frames_pax = "5f".to_string();
+    let expected = PaxValue::Duration(Duration::Frames(Numeric::I64(5)));
+    let v = from_pax(&frames_pax).unwrap();
     assert_eq!(expected, v);
 }
 

@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
 use pax_runtime_api::{
-    functions::call_function, CoercionRules, Functions, Numeric, PaxValue, Percent, Rotation, Size,
+    functions::call_function, CoercionRules, Duration, Functions, Numeric, PaxValue, Percent,
+    Rotation, Size,
 };
 
 use super::{
@@ -116,6 +117,11 @@ impl Computable for PaxPrimary {
                             PaxUnit::Pixels => Ok(PaxValue::Size(Size::Pixels(n))),
                             PaxUnit::Radians => Ok(PaxValue::Rotation(Rotation::Radians(n))),
                             PaxUnit::Degrees => Ok(PaxValue::Rotation(Rotation::Degrees(n))),
+                            PaxUnit::Milliseconds => {
+                                Ok(PaxValue::Duration(Duration::Milliseconds(n)))
+                            }
+                            PaxUnit::Seconds => Ok(PaxValue::Duration(Duration::Seconds(n))),
+                            PaxUnit::Frames => Ok(PaxValue::Duration(Duration::Frames(n))),
                         },
                         Err(e) => Err(format!(
                             "A grouped expression with a unit must be of type numeric: {e:?}"

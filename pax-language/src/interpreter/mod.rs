@@ -129,6 +129,9 @@ impl Display for PaxPrimary {
                             PaxUnit::Pixels => "px",
                             PaxUnit::Radians => "rad",
                             PaxUnit::Degrees => "deg",
+                            PaxUnit::Milliseconds => "ms",
+                            PaxUnit::Seconds => "s",
+                            PaxUnit::Frames => "f",
                         }
                     )
                 } else {
@@ -217,6 +220,9 @@ pub enum PaxUnit {
     Pixels,
     Radians,
     Degrees,
+    Milliseconds,
+    Seconds,
+    Frames,
 }
 
 #[derive(PartialEq, Debug, Serialize, Deserialize, Clone)]
@@ -494,6 +500,18 @@ fn recurse_pratt_parse(
                         "deg" => Ok(PaxExpression::Primary(Box::new(PaxPrimary::Grouped(
                             Box::new(expr_val),
                             Some(PaxUnit::Degrees),
+                        )))),
+                        "ms" => Ok(PaxExpression::Primary(Box::new(PaxPrimary::Grouped(
+                            Box::new(expr_val),
+                            Some(PaxUnit::Milliseconds),
+                        )))),
+                        "s" => Ok(PaxExpression::Primary(Box::new(PaxPrimary::Grouped(
+                            Box::new(expr_val),
+                            Some(PaxUnit::Seconds),
+                        )))),
+                        "f" => Ok(PaxExpression::Primary(Box::new(PaxPrimary::Grouped(
+                            Box::new(expr_val),
+                            Some(PaxUnit::Frames),
                         )))),
                         _ => Err(format!("Unsupported unit: {}", unit)),
                     }

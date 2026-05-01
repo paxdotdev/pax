@@ -39,6 +39,10 @@ pub use expanded_node::{
 
 use self::node_interface::NodeLocal;
 
+fn saturating_u128_to_u64(value: u128) -> u64 {
+    value.min(u64::MAX as u128) as u64
+}
+
 #[cfg(feature = "designtime")]
 use {
     crate::InstanceNode,
@@ -50,6 +54,7 @@ use {
 /// Engine-wide reactive globals exposed to every component frame.
 pub struct Globals {
     pub frames_elapsed: Property<u64>,
+    pub elapsed_millis: Property<u64>,
     pub viewport: Property<TransformAndBounds<NodeLocal, Window>>,
     pub route_location: Property<RouteLocation>,
     pub browser_allows_scroller_vector_layers: Property<bool>,
@@ -84,6 +89,7 @@ impl Globals {
         let desktop_var = Variable::new_from_typed_property(desktop);
         let viewport_var = Variable::new_from_typed_property(viewport);
         let frames_elapsed_var = Variable::new_from_typed_property(self.frames_elapsed.clone());
+        let elapsed_millis_var = Variable::new_from_typed_property(self.elapsed_millis.clone());
         let route_location_var = Variable::new_from_typed_property(self.route_location.clone());
 
         let global_scope = vec![
@@ -91,6 +97,7 @@ impl Globals {
             ("$desktop".to_string(), desktop_var),
             ("$viewport".to_string(), viewport_var),
             ("$frames_elapsed".to_string(), frames_elapsed_var),
+            ("$elapsed_millis".to_string(), elapsed_millis_var),
             (
                 INTERNAL_ROUTE_LOCATION_SYMBOL.to_string(),
                 route_location_var,
@@ -108,6 +115,7 @@ impl std::fmt::Debug for Globals {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Globals")
             .field("frames_elapsed", &self.frames_elapsed)
+            .field("elapsed_millis", &self.elapsed_millis)
             .field("viewport", &self.viewport)
             .field("route_location", &self.route_location)
             .finish_non_exhaustive()
@@ -184,9 +192,12 @@ impl PaxEngine {
         Functions::register_all_functions();
 
         let frames_elapsed = Property::new(0);
+        let elapsed_millis = Property::new(saturating_u128_to_u64(get_elapsed_millis()));
         properties::register_time(&frames_elapsed);
+        properties::register_millis(&elapsed_millis);
         Globals {
             frames_elapsed,
+            elapsed_millis,
             viewport: Property::new(TransformAndBounds {
                 transform: Transform2::identity(),
                 bounds: viewport_size,
@@ -212,9 +223,12 @@ impl PaxEngine {
         Functions::register_all_functions();
 
         let frames_elapsed = Property::new(0);
+        let elapsed_millis = Property::new(saturating_u128_to_u64(get_elapsed_millis()));
         properties::register_time(&frames_elapsed);
+        properties::register_millis(&elapsed_millis);
         Globals {
             frames_elapsed,
+            elapsed_millis,
             viewport: Property::new(TransformAndBounds {
                 transform: Transform2::identity(),
                 bounds: viewport_size,
@@ -442,8 +456,12 @@ impl PaxEngine {
             }
             ctx.drain_node_effects();
         }
-        let time = &ctx.globals().frames_elapsed;
+        let globals = ctx.globals();
+        let time = &globals.frames_elapsed;
         time.set(time.get() + 1);
+        globals
+            .elapsed_millis
+            .set(saturating_u128_to_u64((globals.get_elapsed_millis)()));
 
         ctx.flush_custom_events().unwrap();
         let native_messages = ctx.take_native_messages();

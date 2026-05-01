@@ -34,7 +34,7 @@ Expressions are reactive: when an identifier used by the expression changes, Pax
 | Arithmetic | `+`, `-`, `*`, `/`, `%%`, `^` | `(index + 1) * 24` |
 | Range | `..` | `0..count` |
 | Access | `.`, `[...]` | `user.name`, `items[index]` |
-| Grouping and units | `(...)`, `(expr)px`, `(expr)%`, `(expr)deg`, `(expr)rad` | `{(width + 12)px}` |
+| Grouping and units | `(...)`, `(expr)px`, `(expr)%`, `(expr)deg`, `(expr)rad`, `(expr)ms`, `(expr)s`, `(expr)f` | `{(width + 12)px}` |
 
 `??` is the null coalescing operator. When the left side is `Some(value)`, the result is `value`. When the left side is `None`, Pax evaluates and returns the right side. Non-option left values pass through unchanged, and the right side is not evaluated unless it is needed.
 
@@ -60,6 +60,8 @@ PAXEL supports booleans, numbers, strings, units, colors, lists, tuples, objects
 <Stacker sizes=[Some(120px), None, Some(30%)] />
 <Text text={Some("Ready") ?? "Waiting"} />
 ```
+
+Time units are available for animation durations and timeline markers: `250ms`, `1s`, and `5f`.  Timeline `duration` also accepts unitless frame counts.  Time units can be produced from expressions, for example `{(100 + self.delay)ms}`.
 
 Objects can contain nested expressions:
 

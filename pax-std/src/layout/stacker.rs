@@ -665,12 +665,26 @@ fn child_enter_transition_active(child: &Rc<ExpandedNode>) -> bool {
     enter_transition_active(
         child.transition_phase.get(),
         child.transition_playhead.get(),
+        child.transition_playhead_millis.get(),
         transition_config.enter_frame_count,
+        transition_config.enter_millis_count,
     )
 }
 
-fn enter_transition_active(phase: u64, playhead: f64, enter_frame_count: u64) -> bool {
-    phase == TRANSITION_PHASE_ENTER && playhead < enter_frame_count as f64
+fn enter_transition_active(
+    phase: u64,
+    playhead: f64,
+    playhead_millis: f64,
+    enter_frame_count: u64,
+    enter_millis_count: Option<u64>,
+) -> bool {
+    if phase != TRANSITION_PHASE_ENTER {
+        return false;
+    }
+    match enter_millis_count {
+        Some(millis) => playhead_millis < millis as f64,
+        None => playhead < enter_frame_count as f64,
+    }
 }
 
 fn virtualize_flow_entering_children<Id: Copy + Eq + Hash>(
@@ -1486,6 +1500,7 @@ mod tests {
     fn test_globals() -> Globals {
         Globals {
             frames_elapsed: Property::new(0),
+            elapsed_millis: Property::new(0),
             viewport: Property::new(TransformAndBounds {
                 transform: Transform2::identity(),
                 bounds: (100.0, 100.0),
@@ -1707,10 +1722,41 @@ mod tests {
 
     #[test]
     fn enter_transition_activity_ends_when_playhead_reaches_duration() {
-        assert!(enter_transition_active(TRANSITION_PHASE_ENTER, 5.0, 10));
-        assert!(!enter_transition_active(TRANSITION_PHASE_ENTER, 10.0, 10));
-        assert!(!enter_transition_active(TRANSITION_PHASE_ENTER, 15.0, 10));
-        assert!(!enter_transition_active(TRANSITION_PHASE_EXIT, 5.0, 10));
+        assert!(enter_transition_active(
+            TRANSITION_PHASE_ENTER,
+            5.0,
+            80.0,
+            10,
+            None
+        ));
+        assert!(!enter_transition_active(
+            TRANSITION_PHASE_ENTER,
+            10.0,
+            160.0,
+            10,
+            None
+        ));
+        assert!(!enter_transition_active(
+            TRANSITION_PHASE_ENTER,
+            15.0,
+            240.0,
+            10,
+            None
+        ));
+        assert!(!enter_transition_active(
+            TRANSITION_PHASE_EXIT,
+            5.0,
+            80.0,
+            10,
+            None
+        ));
+        assert!(enter_transition_active(
+            TRANSITION_PHASE_ENTER,
+            10.0,
+            99.0,
+            1,
+            Some(100)
+        ));
     }
 
     #[test]

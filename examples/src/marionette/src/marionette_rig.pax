@@ -508,7 +508,7 @@
 
 @timeline left_arm_chain {
     playhead: self.left_arm_t,
-    frames: 96,
+    duration: 96,
     loop: false,
 
     self {
@@ -527,7 +527,7 @@
 
 @timeline left_elbow_chain {
     playhead: self.left_elbow_t,
-    frames: 80,
+    duration: 80,
     loop: false,
 
     self {
@@ -546,7 +546,7 @@
 
 @timeline left_wrist_chain {
     playhead: self.left_wrist_t,
-    frames: 44,
+    duration: 44,
     loop: false,
 
     self {
@@ -560,7 +560,7 @@
 
 @timeline right_arm_chain {
     playhead: self.right_arm_t,
-    frames: 96,
+    duration: 96,
     loop: false,
 
     self {
@@ -579,7 +579,7 @@
 
 @timeline right_elbow_chain {
     playhead: self.right_elbow_t,
-    frames: 80,
+    duration: 80,
     loop: false,
 
     self {
@@ -598,7 +598,7 @@
 
 @timeline right_wrist_chain {
     playhead: self.right_wrist_t,
-    frames: 44,
+    duration: 44,
     loop: false,
 
     self {
@@ -612,7 +612,7 @@
 
 @timeline left_leg_chain {
     playhead: self.left_leg_t,
-    frames: 80,
+    duration: 80,
     loop: false,
 
     self {
@@ -631,7 +631,7 @@
 
 @timeline left_knee_chain {
     playhead: self.left_knee_t,
-    frames: 72,
+    duration: 72,
     loop: false,
 
     self {
@@ -650,7 +650,7 @@
 
 @timeline left_ankle_chain {
     playhead: self.left_ankle_t,
-    frames: 40,
+    duration: 40,
     loop: false,
 
     self {
@@ -664,7 +664,7 @@
 
 @timeline right_leg_chain {
     playhead: self.right_leg_t,
-    frames: 80,
+    duration: 80,
     loop: false,
 
     self {
@@ -683,7 +683,7 @@
 
 @timeline right_knee_chain {
     playhead: self.right_knee_t,
-    frames: 72,
+    duration: 72,
     loop: false,
 
     self {
@@ -702,7 +702,7 @@
 
 @timeline right_ankle_chain {
     playhead: self.right_ankle_t,
-    frames: 40,
+    duration: 40,
     loop: false,
 
     self {

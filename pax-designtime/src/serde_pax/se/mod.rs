@@ -2,7 +2,8 @@ use serde::{ser, Serialize};
 
 use super::{
     error::{Error, Result},
-    DEGREES, FALSE, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE, TRUE,
+    DEGREES, DURATION, FALSE, FRAMES, MILLISECONDS, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION,
+    SECONDS, SIZE, TRUE,
 };
 
 mod tests;
@@ -176,6 +177,24 @@ impl<'a> ser::Serializer for &'a mut Serializer {
                 RADIANS => {
                     value.serialize(&mut *self)?;
                     self.output += "rad";
+                    Ok(())
+                }
+                _ => Err(Error::UnsupportedType(variant.to_string())),
+            },
+            DURATION => match variant {
+                MILLISECONDS => {
+                    value.serialize(&mut *self)?;
+                    self.output += "ms";
+                    Ok(())
+                }
+                SECONDS => {
+                    value.serialize(&mut *self)?;
+                    self.output += "s";
+                    Ok(())
+                }
+                FRAMES => {
+                    value.serialize(&mut *self)?;
+                    self.output += "f";
                     Ok(())
                 }
                 _ => Err(Error::UnsupportedType(variant.to_string())),

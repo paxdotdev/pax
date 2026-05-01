@@ -17,6 +17,9 @@ Engine-wide reactive globals exposed to every component frame.
 ##### `frames_elapsed`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`u64`>
 
+##### `elapsed_millis`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`u64`>
+
 ##### `viewport`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`TransformAndBounds`](/api/internal/pax-runtime/layout.md#transformandbounds)<[`NodeLocal`](/api/internal/pax-runtime/engine/node_interface.md#nodelocal), [`Window`](/api/pax-runtime-api/platform.md#window)>>
 

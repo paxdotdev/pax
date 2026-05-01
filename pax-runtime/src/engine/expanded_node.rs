@@ -31,7 +31,7 @@ use crate::api::{
 };
 use pax_manifest::cartridge_generation::{
     TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT, TRANSITION_PHASE_IDLE, TRANSITION_PHASE_SYMBOL,
-    TRANSITION_PLAYHEAD_SYMBOL,
+    TRANSITION_PLAYHEAD_MILLIS_SYMBOL, TRANSITION_PLAYHEAD_SYMBOL,
 };
 use pax_manifest::{SelectorExpr, SettingsBlockElement, TypeId, ValueDefinition};
 
@@ -239,8 +239,12 @@ pub struct ExpandedNode {
     pub transition_phase: Property<u64>,
     /// Frame at which the active lifecycle transition began.
     pub transition_origin_frame: Property<u64>,
+    /// Millisecond clock value at which the active lifecycle transition began.
+    pub transition_origin_millis: Property<u64>,
     /// Local playhead, in frames, for the active lifecycle transition.
     pub transition_playhead: Property<f64>,
+    /// Local playhead, in milliseconds, for the active lifecycle transition.
+    pub transition_playhead_millis: Property<f64>,
     /// Wall-clock start for exit timeout enforcement.
     pub exit_started_millis: Cell<Option<u128>>,
     /// Effect property used to release deferred exit children.
@@ -390,7 +394,12 @@ impl ExpandedNode {
         let transition_phase = Property::new_with_name(TRANSITION_PHASE_IDLE, "transition phase");
         let transition_origin_frame =
             Property::new_with_name(context.globals().frames_elapsed.get(), "transition origin");
+        let transition_origin_millis = Property::new_with_name(
+            context.globals().elapsed_millis.get(),
+            "transition origin millis",
+        );
         let frames_elapsed = context.globals().frames_elapsed.clone();
+        let elapsed_millis = context.globals().elapsed_millis.clone();
         let frames_elapsed_for_playhead = frames_elapsed.clone();
         let transition_origin_frame_for_playhead = transition_origin_frame.clone();
         let transition_playhead = Property::computed_with_name(
@@ -403,6 +412,18 @@ impl ExpandedNode {
             &[frames_elapsed.untyped(), transition_origin_frame.untyped()],
             "transition playhead",
         );
+        let elapsed_millis_for_playhead = elapsed_millis.clone();
+        let transition_origin_millis_for_playhead = transition_origin_millis.clone();
+        let transition_playhead_millis = Property::computed_with_name(
+            move || {
+                elapsed_millis_for_playhead
+                    .get()
+                    .saturating_sub(transition_origin_millis_for_playhead.get())
+                    as f64
+            },
+            &[elapsed_millis.untyped(), transition_origin_millis.untyped()],
+            "transition playhead millis",
+        );
 
         let env = if has_transition_bindings {
             env.push(
@@ -414,6 +435,10 @@ impl ExpandedNode {
                     (
                         TRANSITION_PLAYHEAD_SYMBOL.to_string(),
                         Variable::new_from_typed_property(transition_playhead.clone()),
+                    ),
+                    (
+                        TRANSITION_PLAYHEAD_MILLIS_SYMBOL.to_string(),
+                        Variable::new_from_typed_property(transition_playhead_millis.clone()),
                     ),
                 ]
                 .into_iter()
@@ -494,7 +519,9 @@ impl ExpandedNode {
             subscriptions: Default::default(),
             transition_phase,
             transition_origin_frame,
+            transition_origin_millis,
             transition_playhead,
+            transition_playhead_millis,
             exit_started_millis: Cell::new(None),
             exit_cleanup_listener: Property::default(),
             exit_cleanup_active: Cell::new(false),
@@ -677,6 +704,8 @@ impl ExpandedNode {
         self.transition_phase.set(TRANSITION_PHASE_ENTER);
         self.transition_origin_frame
             .set(context.globals().frames_elapsed.get());
+        self.transition_origin_millis
+            .set(context.globals().elapsed_millis.get());
         self.exit_started_millis.set(None);
     }
 
@@ -687,6 +716,8 @@ impl ExpandedNode {
         self.transition_phase.set(TRANSITION_PHASE_EXIT);
         self.transition_origin_frame
             .set(context.globals().frames_elapsed.get());
+        self.transition_origin_millis
+            .set(context.globals().elapsed_millis.get());
         self.exit_started_millis
             .set(Some((context.globals().get_elapsed_millis)()));
         true
@@ -708,8 +739,12 @@ impl ExpandedNode {
             .base()
             .transition_config()
             .clone();
-        let frames_complete =
-            self.transition_playhead.get() >= transition_config.exit_frame_count as f64;
+        let duration_complete = if let Some(exit_millis_count) = transition_config.exit_millis_count
+        {
+            self.transition_playhead_millis.get() >= exit_millis_count as f64
+        } else {
+            self.transition_playhead.get() >= transition_config.exit_frame_count as f64
+        };
         let timeout_complete = self
             .exit_started_millis
             .get()
@@ -718,7 +753,7 @@ impl ExpandedNode {
                     >= transition_config.timeout_ms as u128
             })
             .unwrap_or(false);
-        frames_complete || timeout_complete
+        duration_complete || timeout_complete
     }
 
     fn exit_transition_tree_complete(self: &Rc<Self>, context: &Rc<RuntimeContext>) -> bool {
@@ -1499,6 +1534,7 @@ impl ExpandedNode {
         let last_frame = Rc::new(RefCell::new(globals.frames_elapsed.get()));
         let suspended = self.suspended.clone();
         let frames_elapsed = globals.frames_elapsed.clone();
+        let elapsed_millis = globals.elapsed_millis.clone();
         let deps = [frames_elapsed.untyped(), suspended.untyped()];
         // TODO: this still triggers the dirty dag dependencies of elapsed
         // frames even if the value is the same. Try to make it not trigger
@@ -1524,6 +1560,7 @@ impl ExpandedNode {
             expanded_node: Rc::downgrade(&self),
             containing_component: Weak::clone(&self.containing_component),
             frames_elapsed: frames_elapsed_frozen_if_suspended,
+            elapsed_millis,
             bounds_self,
             bounds_parent,
             measured_size: self.measured_size.clone(),

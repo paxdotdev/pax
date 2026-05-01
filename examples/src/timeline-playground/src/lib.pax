@@ -7,7 +7,7 @@
     height=22px
     text="DECLARATIVE TIMELINES · LAYERED CANOPY · ANIMATED FOREST VIGNETTE"
     opacity=@timeline {
-        frames: 150,
+        duration: 150,
         0: 0.58, Linear,
         50%: 1.0, OutQuad,
         100%: 0.58,
@@ -25,20 +25,20 @@
         anchor_x=50%
         anchor_y=50%
         opacity=@timeline {
-            frames: 96,
+            duration: 96,
             0: 0.12, Linear,
             34%: 0.84, OutQuad,
             64%: 0.2, Linear,
             100%: 0.12,
         }
         scale_x=@timeline {
-            frames: 96,
+            duration: 96,
             0: 72%, Linear,
             34%: 150%, OutBack,
             100%: 72%,
         }
         scale_y=@timeline {
-            frames: 96,
+            duration: 96,
             0: 72%, Linear,
             34%: 150%, OutBack,
             100%: 72%,
@@ -57,20 +57,20 @@
         anchor_x=50%
         anchor_y=50%
         opacity=@timeline {
-            frames: 120,
+            duration: 120,
             0: 0.08, Linear,
             28%: 0.72, OutQuad,
             74%: 0.14, Linear,
             100%: 0.08,
         }
         scale_x=@timeline {
-            frames: 120,
+            duration: 120,
             0: 64%, Linear,
             28%: 136%, OutBack,
             100%: 64%,
         }
         scale_y=@timeline {
-            frames: 120,
+            duration: 120,
             0: 64%, Linear,
             28%: 136%, OutBack,
             100%: 64%,
@@ -89,20 +89,20 @@
         anchor_x=50%
         anchor_y=50%
         opacity=@timeline {
-            frames: 84,
+            duration: 84,
             0: 0.14, Linear,
             40%: 0.92, OutQuad,
             70%: 0.24, Linear,
             100%: 0.14,
         }
         scale_x=@timeline {
-            frames: 84,
+            duration: 84,
             0: 74%, Linear,
             40%: 162%, OutBack,
             100%: 74%,
         }
         scale_y=@timeline {
-            frames: 84,
+            duration: 84,
             0: 74%, Linear,
             40%: 162%, OutBack,
             100%: 74%,
@@ -121,20 +121,20 @@
         anchor_x=50%
         anchor_y=50%
         opacity=@timeline {
-            frames: 108,
+            duration: 108,
             0: 0.1, Linear,
             36%: 0.76, OutQuad,
             70%: 0.18, Linear,
             100%: 0.1,
         }
         scale_x=@timeline {
-            frames: 108,
+            duration: 108,
             0: 68%, Linear,
             36%: 144%, OutBack,
             100%: 68%,
         }
         scale_y=@timeline {
-            frames: 108,
+            duration: 108,
             0: 68%, Linear,
             36%: 144%, OutBack,
             100%: 68%,
@@ -980,7 +980,7 @@
 }
 
 @timeline {
-    frames: 360,
+    duration: 360,
     loop: true,
 
     .parallax_far {

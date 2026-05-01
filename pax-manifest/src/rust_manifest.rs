@@ -10,7 +10,7 @@ use crate::{
 };
 use pax_language::interpreter::{PaxAccessor, PaxExpression, PaxPrimary, PaxUnit};
 use pax_runtime_api::{
-    Color, ColorChannel, Numeric, PathElement, PaxValue, Percent, Rotation, Size,
+    Color, ColorChannel, Duration, Numeric, PathElement, PaxValue, Percent, Rotation, Size,
 };
 use std::fmt::Write;
 
@@ -227,11 +227,11 @@ impl RustManifestWriter {
 
     fn timeline_definition(&self, timeline: &TimelineDefinition) -> String {
         format!(
-            "{mp}::TimelineDefinition {{ name: {name}, playhead: {playhead}, frames: {frames}, repeat: {repeat}, elements: {elements} }}",
+            "{mp}::TimelineDefinition {{ name: {name}, playhead: {playhead}, duration: {duration}, repeat: {repeat}, elements: {elements} }}",
             mp = self.manifest_path,
             name = self.option(&timeline.name, |value| self.token(value)),
             playhead = self.option(&timeline.playhead, |value| self.value_definition(value)),
-            frames = self.option(&timeline.frames, |value| format!("{value}u64")),
+            duration = self.option(&timeline.duration, |value| self.value_definition(value)),
             repeat = timeline.repeat,
             elements = self.vec(&timeline.elements, |element| self.timeline_block_element(element)),
         )
@@ -283,11 +283,11 @@ impl RustManifestWriter {
 
     fn timeline_track_definition(&self, track: &TimelineTrackDefinition) -> String {
         format!(
-            "{mp}::TimelineTrackDefinition {{ elements: {elements}, playhead: {playhead}, frames: {frames}, repeat: {repeat}, starting_value: {starting_value}, use_local_property_scope: {use_local_property_scope} }}",
+            "{mp}::TimelineTrackDefinition {{ elements: {elements}, playhead: {playhead}, duration: {duration}, repeat: {repeat}, starting_value: {starting_value}, use_local_property_scope: {use_local_property_scope} }}",
             mp = self.manifest_path,
             elements = self.vec(&track.elements, |element| self.timeline_track_element(element)),
             playhead = self.option_box_value_definition(&track.playhead),
-            frames = self.option(&track.frames, |value| format!("{value}u64")),
+            duration = self.option_box_value_definition(&track.duration),
             repeat = self.option(&track.repeat, |value| value.to_string()),
             starting_value = self.option_box_value_definition(&track.starting_value),
             use_local_property_scope = track.use_local_property_scope,
@@ -324,6 +324,11 @@ impl RustManifestWriter {
             TimelineMarker::Frame(frame) => format!(
                 "{mp}::TimelineMarker::Frame({frame}u64)",
                 mp = self.manifest_path
+            ),
+            TimelineMarker::Duration(duration) => format!(
+                "{mp}::TimelineMarker::Duration({duration})",
+                mp = self.manifest_path,
+                duration = self.duration(duration),
             ),
             TimelineMarker::Percent(percent) => format!(
                 "{mp}::TimelineMarker::Percent({percent})",
@@ -590,6 +595,9 @@ impl RustManifestWriter {
             PaxUnit::Pixels => "Pixels",
             PaxUnit::Radians => "Radians",
             PaxUnit::Degrees => "Degrees",
+            PaxUnit::Milliseconds => "Milliseconds",
+            PaxUnit::Seconds => "Seconds",
+            PaxUnit::Frames => "Frames",
         };
         format!("{lp}::PaxUnit::{variant}", lp = self.lang_path)
     }
@@ -653,6 +661,11 @@ impl RustManifestWriter {
                 "{api}::PaxValue::Rotation({value})",
                 api = self.api_path,
                 value = self.rotation(value),
+            ),
+            PaxValue::Duration(value) => format!(
+                "{api}::PaxValue::Duration({value})",
+                api = self.api_path,
+                value = self.duration(value),
             ),
             PaxValue::PathElement(value) => format!(
                 "{api}::PaxValue::PathElement(Box::new({value}))",
@@ -764,6 +777,26 @@ impl RustManifestWriter {
             ),
             Rotation::Percent(value) => format!(
                 "{api}::Rotation::Percent({value})",
+                api = self.api_path,
+                value = self.numeric(value),
+            ),
+        }
+    }
+
+    fn duration(&self, value: &Duration) -> String {
+        match value {
+            Duration::Frames(value) => format!(
+                "{api}::Duration::Frames({value})",
+                api = self.api_path,
+                value = self.numeric(value),
+            ),
+            Duration::Milliseconds(value) => format!(
+                "{api}::Duration::Milliseconds({value})",
+                api = self.api_path,
+                value = self.numeric(value),
+            ),
+            Duration::Seconds(value) => format!(
+                "{api}::Duration::Seconds({value})",
                 api = self.api_path,
                 value = self.numeric(value),
             ),

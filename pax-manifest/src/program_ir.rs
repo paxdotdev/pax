@@ -215,7 +215,7 @@ fn sanitize_timeline(definition: &TimelineDefinition) -> TimelineDefinition {
     TimelineDefinition {
         name: definition.name.as_ref().map(strip_token),
         playhead: definition.playhead.as_ref().map(sanitize_value_definition),
-        frames: definition.frames,
+        duration: definition.duration.as_ref().map(sanitize_value_definition),
         repeat: definition.repeat,
         elements: definition
             .elements
@@ -273,7 +273,10 @@ fn sanitize_timeline_track(track: &TimelineTrackDefinition) -> TimelineTrackDefi
             .playhead
             .as_ref()
             .map(|value| Box::new(sanitize_value_definition(value))),
-        frames: track.frames,
+        duration: track
+            .duration
+            .as_ref()
+            .map(|value| Box::new(sanitize_value_definition(value))),
         repeat: track.repeat,
         starting_value: track
             .starting_value
@@ -431,7 +434,7 @@ mod tests {
                     playhead: Some(ValueDefinition::Identifier(PaxIdentifier::new(
                         "self.frames_elapsed",
                     ))),
-                    frames: Some(120),
+                    duration: Some(ValueDefinition::LiteralValue(PaxValue::Numeric(120.into()))),
                     repeat: true,
                     elements: vec![
                         TimelineBlockElement::Comment("timeline comment".to_string()),
@@ -461,7 +464,7 @@ mod tests {
                                                 }),
                                             ],
                                             playhead: None,
-                                            frames: None,
+                                            duration: None,
                                             repeat: None,
                                             starting_value: None,
                                             use_local_property_scope: false,

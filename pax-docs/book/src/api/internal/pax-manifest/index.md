@@ -308,8 +308,8 @@ Type: `Option`<[`Token`](/api/internal/pax-manifest/index.md#token)>
 ##### `playhead`
 Type: `Option`<[`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)>
 
-##### `frames`
-Type: `Option`<`u64`>
+##### `duration`
+Type: `Option`<[`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)>
 
 ##### `repeat`
 Type: `bool`
@@ -320,7 +320,7 @@ Type: `Vec`<[`TimelineBlockElement`](/api/internal/pax-manifest/index.md#timelin
 ---
 
 ### `TimelineKeyframe`
-A single timeline value at a frame or percent marker.
+A single timeline value at a frame, duration, or percent marker.
 
 #### Properties
 ##### `marker`
@@ -353,8 +353,8 @@ Type: `Vec`<[`TimelineTrackElement`](/api/internal/pax-manifest/index.md#timelin
 ##### `playhead`
 Type: `Option`<`Box`<[`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)>>
 
-##### `frames`
-Type: `Option`<`u64`>
+##### `duration`
+Type: `Option`<`Box`<[`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)>>
 
 ##### `repeat`
 Type: `Option`<`bool`>
@@ -574,10 +574,11 @@ One entry inside a timeline block.
 ---
 
 ### `TimelineMarker`
-Timeline position expressed as an absolute frame or normalized percentage.
+Timeline position expressed as an absolute frame, absolute duration, or normalized percentage.
 
 #### Variants
 ##### `Frame`(`u64`)
+##### `Duration`([`Duration`](/api/pax-runtime-api/animation.md#duration))
 ##### `Percent`(`f64`)
 ---
 

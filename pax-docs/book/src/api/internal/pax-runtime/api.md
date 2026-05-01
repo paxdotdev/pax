@@ -30,6 +30,11 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`u64`>
 
 The current global engine tick count
 
+##### `elapsed_millis`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`u64`>
+
+The current global engine wall-clock time in milliseconds.
+
 ##### `bounds_parent`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<(`f64`, `f64`)>
 

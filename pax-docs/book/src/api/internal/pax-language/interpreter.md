@@ -197,6 +197,9 @@ Unit suffix attached to a grouped numeric expression.
 ##### `Pixels`
 ##### `Radians`
 ##### `Degrees`
+##### `Milliseconds`
+##### `Seconds`
+##### `Frames`
 ## Functions
 ### `compute_paxel`
 <pre><code class="api-signature language-rust ignore">pub fn compute_paxel(expr: &amp;str, idr: Rc&lt;dyn <a href="/api/internal/pax-language/interpreter/property_resolution.md#identifierresolver">IdentifierResolver</a>&gt;) -&gt; Result&lt;<a href="/api/pax-runtime-api/pax_value.md#paxvalue">PaxValue</a>, String&gt;</code></pre>

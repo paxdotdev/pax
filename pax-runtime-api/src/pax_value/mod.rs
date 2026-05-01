@@ -1,4 +1,4 @@
-use crate::{Color, Interpolatable, PathElement, Percent, Rotation, Size};
+use crate::{Color, Duration, Interpolatable, PathElement, Percent, Rotation, Size};
 use std::{any::Any, fmt::Display, rc::Rc};
 
 use self::numeric::Numeric;
@@ -38,6 +38,8 @@ pub enum PaxValue {
     Color(Box<Color>),
     /// Pax rotation value.
     Rotation(Rotation),
+    /// Pax animation duration value, such as `250ms`, `1s`, or `10f`.
+    Duration(Duration),
     /// Vector path element value.
     PathElement(Box<PathElement>),
     /// Optional value.
@@ -62,6 +64,7 @@ impl Clone for PaxValue {
             PaxValue::Percent(p) => PaxValue::Percent(p.clone()),
             PaxValue::Color(c) => PaxValue::Color(c.clone()),
             PaxValue::Rotation(r) => PaxValue::Rotation(r.clone()),
+            PaxValue::Duration(d) => PaxValue::Duration(d.clone()),
             PaxValue::PathElement(pe) => PaxValue::PathElement(pe.clone()),
             PaxValue::Option(opt) => PaxValue::Option(opt.clone()),
             PaxValue::Vec(v) => PaxValue::Vec(v.clone()),
@@ -86,6 +89,7 @@ impl Display for PaxValue {
             PaxValue::Percent(p) => write!(f, "{}", p),
             PaxValue::Color(c) => write!(f, "{}", c),
             PaxValue::Rotation(r) => write!(f, "{}", r),
+            PaxValue::Duration(d) => write!(f, "{}", d),
             PaxValue::PathElement(path_elem) => {
                 write!(f, "PathElement::")?;
                 match path_elem.as_ref() {

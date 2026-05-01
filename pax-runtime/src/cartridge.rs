@@ -9,7 +9,7 @@ use crate::{
 use pax_language::Computable;
 use pax_manifest::cartridge_generation::{
     TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT, TRANSITION_PHASE_SYMBOL,
-    TRANSITION_PLAYHEAD_SYMBOL,
+    TRANSITION_PLAYHEAD_MILLIS_SYMBOL, TRANSITION_PLAYHEAD_SYMBOL,
 };
 use pax_manifest::{
     ExpressionInfo, LiteralBlockDefinition, PaxIdentifier, SettingElement, SettingsBlockElement,
@@ -21,8 +21,8 @@ use pax_runtime_api::pax_value::functions::{call_function, Functions};
 use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny, ToPaxValue};
 use pax_runtime_api::properties::{PropertyValue, UntypedProperty};
 use pax_runtime_api::{
-    use_RefCell, CommonProperties, EasingCurve, Numeric, PaxValue, Property, Rotation, Size,
-    Variable,
+    use_RefCell, CommonProperties, Duration, EasingCurve, Numeric, PaxValue, Property, Rotation,
+    Size, Variable,
 };
 use std::any::Any;
 use std::borrow::Borrow;
@@ -1755,10 +1755,16 @@ fn collect_value_definition_dependencies(
         ValueDefinition::Timeline(track) => {
             if let Some(playhead) = &track.playhead {
                 collect_value_definition_dependencies(playhead, stack, dependents);
-            } else if let Some(property) =
-                stack.resolve_symbol_as_erased_property("$frames_elapsed")
-            {
-                dependents.push(property);
+            } else {
+                if let Some(property) = stack.resolve_symbol_as_erased_property("$frames_elapsed") {
+                    dependents.push(property);
+                }
+                if let Some(property) = stack.resolve_symbol_as_erased_property("$elapsed_millis") {
+                    dependents.push(property);
+                }
+            }
+            if let Some(duration) = &track.duration {
+                collect_value_definition_dependencies(duration, stack, dependents);
             }
             if let Some(starting_value) = &track.starting_value {
                 collect_value_definition_dependencies(starting_value, stack, dependents);
@@ -1779,12 +1785,20 @@ fn collect_value_definition_dependencies(
             {
                 dependents.push(property);
             }
+            if let Some(property) =
+                stack.resolve_symbol_as_erased_property(TRANSITION_PLAYHEAD_MILLIS_SYMBOL)
+            {
+                dependents.push(property);
+            }
             if let Some(starting_value) = &transition.starting_value {
                 collect_value_definition_dependencies(starting_value, stack, dependents);
             }
             for track in [&transition.enter, &transition.exit].into_iter().flatten() {
                 if let Some(playhead) = &track.playhead {
                     collect_value_definition_dependencies(playhead, stack, dependents);
+                }
+                if let Some(duration) = &track.duration {
+                    collect_value_definition_dependencies(duration, stack, dependents);
                 }
                 if let Some(starting_value) = &track.starting_value {
                     collect_value_definition_dependencies(starting_value, stack, dependents);
@@ -1890,28 +1904,113 @@ fn easing_curve_from_name(name: Option<&str>) -> EasingCurve {
     }
 }
 
-fn timeline_total_frames(track: &TimelineTrackDefinition) -> f64 {
-    let mut max_frame = track.frames.unwrap_or_default() as f64;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TimelineClockUnit {
+    Frames,
+    Millis,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct TimelineScale {
+    unit: TimelineClockUnit,
+    total: f64,
+}
+
+fn duration_to_unit(duration: Duration, unit: TimelineClockUnit) -> f64 {
+    match unit {
+        TimelineClockUnit::Frames => duration.as_frames_f64(),
+        TimelineClockUnit::Millis => duration.as_milliseconds_f64(),
+    }
+}
+
+fn duration_unit(duration: Duration) -> TimelineClockUnit {
+    if duration.is_frame_based() {
+        TimelineClockUnit::Frames
+    } else {
+        TimelineClockUnit::Millis
+    }
+}
+
+fn evaluate_timeline_duration(
+    value_definition: &ValueDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+) -> Option<Duration> {
+    evaluate_value_definition_to_pax_value(value_definition, stack)
+        .and_then(|value| Duration::try_coerce(value).ok())
+}
+
+fn timeline_duration(
+    track: &TimelineTrackDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+) -> Option<Duration> {
+    track
+        .duration
+        .as_ref()
+        .and_then(|duration| evaluate_timeline_duration(duration, stack))
+}
+
+fn timeline_scale(
+    track: &TimelineTrackDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+) -> TimelineScale {
+    if let Some(duration) = timeline_duration(track, stack) {
+        let unit = duration_unit(duration);
+        return TimelineScale {
+            unit,
+            total: duration_to_unit(duration, unit).max(0.0),
+        };
+    }
+
+    let mut max_frame: f64 = 0.0;
+    let mut max_millis: f64 = 0.0;
     let mut uses_percent_markers = false;
+    let mut uses_millis_markers = false;
 
     for keyframe in track.keyframes() {
         match keyframe.marker {
             TimelineMarker::Frame(frame) => max_frame = max_frame.max(frame as f64),
+            TimelineMarker::Duration(duration) => {
+                if duration.is_frame_based() {
+                    max_frame = max_frame.max(duration.as_frames_f64());
+                } else {
+                    uses_millis_markers = true;
+                    max_millis = max_millis.max(duration.as_milliseconds_f64());
+                }
+            }
             TimelineMarker::Percent(_) => uses_percent_markers = true,
         }
     }
 
-    if uses_percent_markers {
-        max_frame.max(track.frames.unwrap_or(100) as f64)
+    if uses_millis_markers {
+        let total = if uses_percent_markers {
+            max_millis.max(100.0)
+        } else {
+            max_millis
+        };
+        TimelineScale {
+            unit: TimelineClockUnit::Millis,
+            total,
+        }
     } else {
-        max_frame
+        let total = if uses_percent_markers {
+            max_frame.max(100.0)
+        } else {
+            max_frame
+        };
+        TimelineScale {
+            unit: TimelineClockUnit::Frames,
+            total,
+        }
     }
 }
 
-fn timeline_marker_to_frame(marker: &TimelineMarker, total_frames: f64) -> f64 {
+fn timeline_marker_to_position(marker: &TimelineMarker, scale: TimelineScale) -> f64 {
     match marker {
-        TimelineMarker::Frame(frame) => *frame as f64,
-        TimelineMarker::Percent(percent) => total_frames * (*percent / 100.0),
+        TimelineMarker::Frame(frame) => {
+            duration_to_unit(Duration::Frames((*frame).into()), scale.unit)
+        }
+        TimelineMarker::Duration(duration) => duration_to_unit(*duration, scale.unit),
+        TimelineMarker::Percent(percent) => scale.total * (*percent / 100.0),
     }
 }
 
@@ -1965,17 +2064,20 @@ enum TimelineSample {
 fn sample_timeline_playhead(
     track: &TimelineTrackDefinition,
     stack: &Rc<RuntimePropertiesStackFrame>,
-    total_frames: f64,
+    scale: TimelineScale,
 ) -> f64 {
     let raw_playhead = track
         .playhead
         .as_ref()
         .and_then(|playhead| evaluate_value_definition_to_pax_value(playhead, stack))
-        .and_then(|value| Numeric::try_coerce(value).ok())
-        .map(|value| value.to_float())
+        .and_then(|value| timeline_playhead_value_to_position(value, scale.unit))
         .or_else(|| {
+            let symbol = match scale.unit {
+                TimelineClockUnit::Frames => "$frames_elapsed",
+                TimelineClockUnit::Millis => "$elapsed_millis",
+            };
             stack
-                .resolve_symbol_as_variable("$frames_elapsed")
+                .resolve_symbol_as_variable(symbol)
                 .and_then(|variable| {
                     Numeric::try_coerce(variable.get_as_pax_value())
                         .ok()
@@ -1986,11 +2088,23 @@ fn sample_timeline_playhead(
 
     let repeat = track.repeat.unwrap_or(true);
     if !repeat {
-        return raw_playhead.clamp(0.0, total_frames.max(0.0));
+        return raw_playhead.clamp(0.0, scale.total.max(0.0));
     }
 
-    let cycle_len = (total_frames + 1.0).max(1.0);
+    let cycle_len = match scale.unit {
+        TimelineClockUnit::Frames => (scale.total + 1.0).max(1.0),
+        TimelineClockUnit::Millis => scale.total.max(1.0),
+    };
     raw_playhead.rem_euclid(cycle_len)
+}
+
+fn timeline_playhead_value_to_position(value: PaxValue, unit: TimelineClockUnit) -> Option<f64> {
+    if let PaxValue::Duration(duration) = value {
+        return Some(duration_to_unit(duration, unit));
+    }
+    Numeric::try_coerce(value)
+        .ok()
+        .map(|value| value.to_float())
 }
 
 fn resolve_timeline_sample(
@@ -1998,9 +2112,9 @@ fn resolve_timeline_sample(
     stack: &Rc<RuntimePropertiesStackFrame>,
     is_valid_value: fn(&PaxValue) -> bool,
 ) -> Option<TimelineSample> {
-    let total_frames = timeline_total_frames(track);
+    let scale = timeline_scale(track, stack);
     let repeat = track.repeat.unwrap_or(true);
-    let sample_frame = sample_timeline_playhead(track, stack, total_frames);
+    let sample_frame = sample_timeline_playhead(track, stack, scale);
 
     let mut resolved_keyframes: Vec<ResolvedTimelineKeyframe> = track
         .keyframes()
@@ -2008,7 +2122,7 @@ fn resolve_timeline_sample(
         .filter_map(|(source_order, keyframe): (usize, &TimelineKeyframe)| {
             let value = evaluate_valid_timeline_value(&keyframe.value, stack, is_valid_value)?;
             Some(ResolvedTimelineKeyframe {
-                frame: timeline_marker_to_frame(&keyframe.marker, total_frames),
+                frame: timeline_marker_to_position(&keyframe.marker, scale),
                 source_order,
                 value,
                 easing: keyframe
@@ -2060,12 +2174,12 @@ fn resolve_timeline_sample(
     }
 
     let last_keyframe = resolved_keyframes.last()?;
-    if sample_frame <= last_keyframe.frame || !repeat || total_frames <= last_keyframe.frame {
+    if sample_frame <= last_keyframe.frame || !repeat || scale.total <= last_keyframe.frame {
         return Some(TimelineSample::Value(last_keyframe.value.clone()));
     }
 
     let loop_target = loop_target_value(track, first_keyframe, stack, is_valid_value);
-    let span = total_frames - last_keyframe.frame;
+    let span = scale.total - last_keyframe.frame;
     if span <= f64::EPSILON {
         return Some(TimelineSample::Value(loop_target));
     }
@@ -2106,8 +2220,16 @@ pub fn build_timeline_property<T: CoercionRules + PropertyValue>(
     let mut dependents = Vec::new();
     if let Some(playhead) = &track.playhead {
         collect_value_definition_dependencies(playhead, &stack, &mut dependents);
-    } else if let Some(property) = stack.resolve_symbol_as_erased_property("$frames_elapsed") {
-        dependents.push(property);
+    } else {
+        if let Some(property) = stack.resolve_symbol_as_erased_property("$frames_elapsed") {
+            dependents.push(property);
+        }
+        if let Some(property) = stack.resolve_symbol_as_erased_property("$elapsed_millis") {
+            dependents.push(property);
+        }
+    }
+    if let Some(duration) = &track.duration {
+        collect_value_definition_dependencies(duration, &stack, &mut dependents);
     }
     if let Some(starting_value) = &track.starting_value {
         collect_value_definition_dependencies(starting_value, &stack, &mut dependents);
@@ -2405,14 +2527,28 @@ mod timeline_tests {
     use std::rc::Rc;
     use std::sync::Arc;
 
-    fn build_stack(frames_elapsed: &Property<u64>) -> Rc<RuntimePropertiesStackFrame> {
-        let scope: HashMap<String, Variable> = vec![(
-            "$frames_elapsed".to_string(),
-            Variable::new_from_typed_property(frames_elapsed.clone()),
-        )]
+    fn build_stack_with_clocks(
+        frames_elapsed: &Property<u64>,
+        elapsed_millis: &Property<u64>,
+    ) -> Rc<RuntimePropertiesStackFrame> {
+        let scope: HashMap<String, Variable> = vec![
+            (
+                "$frames_elapsed".to_string(),
+                Variable::new_from_typed_property(frames_elapsed.clone()),
+            ),
+            (
+                "$elapsed_millis".to_string(),
+                Variable::new_from_typed_property(elapsed_millis.clone()),
+            ),
+        ]
         .into_iter()
         .collect();
         RuntimePropertiesStackFrame::new(scope)
+    }
+
+    fn build_stack(frames_elapsed: &Property<u64>) -> Rc<RuntimePropertiesStackFrame> {
+        let elapsed_millis = Property::new(0_u64);
+        build_stack_with_clocks(frames_elapsed, &elapsed_millis)
     }
 
     #[test]
@@ -2462,7 +2598,7 @@ mod timeline_tests {
                 }),
             ],
             playhead: None,
-            frames: Some(100),
+            duration: None,
             repeat: Some(true),
             starting_value: None,
             use_local_property_scope: false,
@@ -2476,6 +2612,43 @@ mod timeline_tests {
         assert_eq!(property.get(), 100.0);
         frames_elapsed.set(101);
         assert_eq!(property.get(), 0.0);
+    }
+
+    #[test]
+    fn timeline_property_samples_millisecond_duration_from_elapsed_millis() {
+        let frames_elapsed = Property::new(0_u64);
+        let elapsed_millis = Property::new(0_u64);
+        let stack = build_stack_with_clocks(&frames_elapsed, &elapsed_millis);
+        let track = TimelineTrackDefinition {
+            elements: vec![
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Percent(0.0),
+                    value: ValueDefinition::LiteralValue(PaxValue::Numeric(0.0.into())),
+                    easing: Some(Token::new_without_location("Linear".to_string())),
+                }),
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Percent(100.0),
+                    value: ValueDefinition::LiteralValue(PaxValue::Numeric(100.0.into())),
+                    easing: None,
+                }),
+            ],
+            playhead: None,
+            duration: Some(Box::new(ValueDefinition::LiteralValue(PaxValue::Duration(
+                pax_runtime_api::Duration::Milliseconds(1000.into()),
+            )))),
+            repeat: Some(false),
+            starting_value: None,
+            use_local_property_scope: false,
+        };
+        let property = build_timeline_property::<f64>("progress", &track, stack);
+
+        assert_eq!(property.get(), 0.0);
+        frames_elapsed.set(30);
+        assert_eq!(property.get(), 0.0);
+        elapsed_millis.set(500);
+        assert_eq!(property.get(), 50.0);
+        elapsed_millis.set(1000);
+        assert_eq!(property.get(), 100.0);
     }
 
     #[test]
@@ -2496,7 +2669,7 @@ mod timeline_tests {
                 }),
             ],
             playhead: None,
-            frames: Some(100),
+            duration: None,
             repeat: Some(false),
             starting_value: Some(Box::new(ValueDefinition::LiteralValue(PaxValue::Numeric(
                 5.0.into(),
@@ -2536,7 +2709,7 @@ mod timeline_tests {
                 }),
             ],
             playhead: None,
-            frames: Some(100),
+            duration: None,
             repeat: Some(true),
             starting_value: None,
             use_local_property_scope: false,
@@ -2584,7 +2757,7 @@ mod timeline_tests {
             playhead: Some(Box::new(ValueDefinition::Identifier(
                 pax_manifest::PaxIdentifier::new("self.phase"),
             ))),
-            frames: Some(10),
+            duration: None,
             repeat: Some(false),
             starting_value: None,
             use_local_property_scope: false,
@@ -2631,7 +2804,7 @@ mod timeline_tests {
                 }),
             ],
             playhead: playhead_binding.clone(),
-            frames: Some(10),
+            duration: None,
             repeat: Some(false),
             starting_value: None,
             use_local_property_scope: false,
@@ -2650,7 +2823,7 @@ mod timeline_tests {
                 }),
             ],
             playhead: playhead_binding,
-            frames: Some(10),
+            duration: None,
             repeat: Some(false),
             starting_value: None,
             use_local_property_scope: false,
@@ -2697,7 +2870,7 @@ mod timeline_tests {
                 }),
             ],
             playhead: None,
-            frames: Some(100),
+            duration: None,
             repeat: Some(false),
             starting_value: None,
             use_local_property_scope: false,

@@ -1,7 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
 use pax_runtime_api::{
-    functions::Functions, CoercionRules, Color, ColorChannel, Numeric, PaxValue, Size,
+    functions::Functions, CoercionRules, Color, ColorChannel, Duration, Numeric, PaxValue, Size,
 };
 
 use crate::{interpreter::compute_paxel, DependencyCollector};
@@ -304,6 +304,15 @@ fn test_parentheses_units() {
     let idr = initialize_test_resolver();
     let expr = "(10 + 4)px";
     let expected = PaxValue::Size(Size::Pixels(Numeric::I64(14)));
+    let result = compute_paxel(expr, idr).unwrap();
+    assert_eq!(expected, result);
+}
+
+#[test]
+fn test_parentheses_duration_units() {
+    let idr = initialize_test_resolver();
+    let expr = "(100 + b)ms";
+    let expected = PaxValue::Duration(Duration::Milliseconds(Numeric::I64(104)));
     let result = compute_paxel(expr, idr).unwrap();
     assert_eq!(expected, result);
 }

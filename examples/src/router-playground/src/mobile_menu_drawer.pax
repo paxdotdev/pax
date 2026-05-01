@@ -18,7 +18,7 @@
 }
 
 @timeline enter {
-    frames: 36,
+    duration: 36,
     self {
         x: {
             0: -90%, InQuad,
@@ -32,7 +32,7 @@
 }
 
 @timeline exit {
-    frames: 36,
+    duration: 36,
     self {
         x: {
             0: 0%, InQuad,

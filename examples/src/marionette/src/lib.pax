@@ -589,7 +589,7 @@
 
 @timeline greeting_wave {
     playhead: self.master_playhead,
-    frames: 120,
+    duration: 120,
     loop: false,
 
     self {
@@ -642,7 +642,7 @@
 
 @timeline court_bow {
     playhead: self.master_playhead,
-    frames: 120,
+    duration: 120,
     loop: false,
 
     self {
@@ -697,7 +697,7 @@
 
 @timeline idle_sway {
     playhead: self.master_playhead,
-    frames: 120,
+    duration: 120,
     loop: false,
 
     self {
@@ -747,7 +747,7 @@
 
 @timeline heroic_point {
     playhead: self.master_playhead,
-    frames: 120,
+    duration: 120,
     loop: false,
 
     self {
@@ -804,7 +804,7 @@
 
 @timeline sneak_step {
     playhead: self.master_playhead,
-    frames: 120,
+    duration: 120,
     loop: false,
 
     self {
@@ -863,7 +863,7 @@
 
 @timeline can_can_kick {
     playhead: self.master_playhead,
-    frames: 120,
+    duration: 120,
     loop: false,
 
     self {

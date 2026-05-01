@@ -36,8 +36,8 @@
         {% if timeline.playhead %}
             playhead: {{ macros::render_value_definition(vd=timeline.playhead) }},
         {% endif %}
-        {% if timeline.frames %}
-            frames: {{ timeline.frames }},
+        {% if timeline.duration %}
+            duration: {{ macros::render_value_definition(vd=timeline.duration) }},
         {% endif %}
         {% if not timeline.repeat %}
             loop: false,

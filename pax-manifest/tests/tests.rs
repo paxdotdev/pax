@@ -147,12 +147,56 @@ mod tests {
     #[test]
     fn test_parse_inline_timeline_with_local_timing() {
         let res =
-            utils::parse_value("@timeline { frames: 90, loop: false, 0: 0, Linear, 100%: 1 }");
+            utils::parse_value("@timeline { duration: 90, loop: false, 0: 0, Linear, 100%: 1 }");
         if let Ok(Some(ValueDefinition::Timeline(track))) = res {
             let keyframes: Vec<_> = track.keyframes().collect();
-            assert_eq!(track.frames, Some(90));
+            assert!(matches!(
+                track.duration.as_deref(),
+                Some(ValueDefinition::LiteralValue(PaxValue::Numeric(value))) if value.to_int() == 90
+            ));
             assert_eq!(track.repeat, Some(false));
             assert_eq!(keyframes.len(), 2);
+        } else {
+            panic!("unexpected result: {:?}", res);
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "timeline setting `frames` has been removed")]
+    fn test_parse_inline_timeline_rejects_frames_setting() {
+        let _ = utils::parse_value("@timeline { frames: 90, 0: 0, 100%: 1 }");
+    }
+
+    #[test]
+    fn test_parse_inline_timeline_with_duration_units() {
+        let res = utils::parse_value("@timeline { duration: 250ms, 0: 0, Linear, 250ms: 1 }");
+        if let Ok(Some(ValueDefinition::Timeline(track))) = res {
+            assert!(matches!(
+                track.duration.as_deref(),
+                Some(ValueDefinition::LiteralValue(PaxValue::Duration(
+                    pax_manifest::pax_runtime_api::Duration::Milliseconds(value)
+                ))) if value.to_int() == 250
+            ));
+            let keyframes: Vec<_> = track.keyframes().collect();
+            assert!(matches!(
+                &keyframes[1].marker,
+                TimelineMarker::Duration(
+                    pax_manifest::pax_runtime_api::Duration::Milliseconds(value)
+                ) if value.to_int() == 250
+            ));
+        } else {
+            panic!("unexpected result: {:?}", res);
+        }
+    }
+
+    #[test]
+    fn test_parse_inline_timeline_with_duration_expression() {
+        let res = utils::parse_value("@timeline { duration: {(100 + offset)ms}, 0: 0, 100%: 1 }");
+        if let Ok(Some(ValueDefinition::Timeline(track))) = res {
+            assert!(matches!(
+                track.duration.as_deref(),
+                Some(ValueDefinition::Expression(info)) if info.expression.to_string() == "(100 + offset)ms"
+            ));
         } else {
             panic!("unexpected result: {:?}", res);
         }
@@ -895,7 +939,7 @@ mod tests {
                 playhead: Some(ValueDefinition::Identifier(
                     pax_manifest::PaxIdentifier::new("self.phase"),
                 )),
-                frames: Some(120),
+                duration: Some(ValueDefinition::LiteralValue(PaxValue::Numeric(120.into()))),
                 repeat: true,
                 elements: vec![TimelineBlockElement::SelectorBlock(
                     Token::new_without_location("#orb".to_string()),
@@ -922,7 +966,7 @@ mod tests {
                                     }),
                                 ],
                                 playhead: None,
-                                frames: None,
+                                duration: None,
                                 repeat: None,
                                 starting_value: None,
                                 use_local_property_scope: false,
@@ -936,7 +980,7 @@ mod tests {
         let rendered = press_code_serialization_template(component).unwrap();
         assert!(rendered.contains("@timeline orbital"));
         assert!(rendered.contains("playhead: self.phase"));
-        assert!(rendered.contains("frames: 120"));
+        assert!(rendered.contains("duration: 120"));
         assert!(rendered.contains("0: 0.40, Linear"));
         assert!(rendered.contains("100%: 1.00"));
     }
@@ -961,19 +1005,31 @@ mod tests {
                     ValueDefinition::Timeline(TimelineTrackDefinition {
                         elements: vec![
                             TimelineTrackElement::Keyframe(TimelineKeyframe {
-                                marker: TimelineMarker::Frame(0),
+                                marker: TimelineMarker::Duration(
+                                    pax_manifest::pax_runtime_api::Duration::Milliseconds(
+                                        0.into(),
+                                    ),
+                                ),
                                 value: ValueDefinition::LiteralValue(PaxValue::Numeric(
                                     0.35.into(),
                                 )),
                                 easing: Some(Token::new_without_location("Linear".to_string())),
                             }),
                             TimelineTrackElement::Keyframe(TimelineKeyframe {
-                                marker: TimelineMarker::Percent(50.0),
+                                marker: TimelineMarker::Duration(
+                                    pax_manifest::pax_runtime_api::Duration::Milliseconds(
+                                        125.into(),
+                                    ),
+                                ),
                                 value: ValueDefinition::LiteralValue(PaxValue::Numeric(1.0.into())),
                                 easing: Some(Token::new_without_location("OutQuad".to_string())),
                             }),
                             TimelineTrackElement::Keyframe(TimelineKeyframe {
-                                marker: TimelineMarker::Percent(100.0),
+                                marker: TimelineMarker::Duration(
+                                    pax_manifest::pax_runtime_api::Duration::Milliseconds(
+                                        250.into(),
+                                    ),
+                                ),
                                 value: ValueDefinition::LiteralValue(PaxValue::Numeric(
                                     0.35.into(),
                                 )),
@@ -983,7 +1039,11 @@ mod tests {
                         playhead: Some(Box::new(ValueDefinition::Identifier(PaxIdentifier::new(
                             "self.phase",
                         )))),
-                        frames: Some(90),
+                        duration: Some(Box::new(ValueDefinition::LiteralValue(
+                            PaxValue::Duration(
+                                pax_manifest::pax_runtime_api::Duration::Milliseconds(250.into()),
+                            ),
+                        ))),
                         repeat: Some(false),
                         starting_value: None,
                         use_local_property_scope: false,
@@ -1006,7 +1066,7 @@ mod tests {
             timelines: vec![TimelineDefinition {
                 name: None,
                 playhead: None,
-                frames: Some(120),
+                duration: Some(ValueDefinition::LiteralValue(PaxValue::Numeric(120.into()))),
                 repeat: true,
                 elements: vec![TimelineBlockElement::SelectorBlock(
                     Token::new_without_location(".glow".to_string()),
@@ -1048,7 +1108,7 @@ mod tests {
                                     }),
                                 ],
                                 playhead: None,
-                                frames: None,
+                                duration: None,
                                 repeat: None,
                                 starting_value: None,
                                 use_local_property_scope: false,
@@ -1062,8 +1122,9 @@ mod tests {
         let rendered = press_code_serialization_template(component).unwrap();
         assert!(rendered.contains("opacity=@timeline {"));
         assert!(rendered.contains("playhead: self.phase"));
-        assert!(rendered.contains("frames: 90"));
+        assert!(rendered.contains("duration: 250ms"));
         assert!(rendered.contains("loop: false"));
+        assert!(rendered.contains("125ms: 1.00, OutQuad"));
         assert!(rendered.contains("@timeline {"));
         assert!(rendered.contains(".glow {"));
 
@@ -1081,7 +1142,10 @@ mod tests {
         );
 
         assert_eq!(parsed_component.timelines.len(), 1);
-        assert_eq!(parsed_component.timelines[0].frames, Some(120));
+        assert!(matches!(
+            &parsed_component.timelines[0].duration,
+            Some(ValueDefinition::LiteralValue(PaxValue::Numeric(value))) if value.to_int() == 120
+        ));
         assert!(parsed_component.timelines[0].repeat);
 
         let template = parsed_component.template.unwrap();
@@ -1102,7 +1166,12 @@ mod tests {
             })
             .expect("opacity inline timeline should round-trip");
 
-        assert_eq!(opacity_track.frames, Some(90));
+        assert!(matches!(
+            opacity_track.duration.as_deref(),
+            Some(ValueDefinition::LiteralValue(PaxValue::Duration(
+                pax_manifest::pax_runtime_api::Duration::Milliseconds(value)
+            ))) if value.to_int() == 250
+        ));
         assert_eq!(opacity_track.repeat, Some(false));
         assert!(matches!(
             opacity_track.playhead.as_deref(),

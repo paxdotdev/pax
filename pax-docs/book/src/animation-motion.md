@@ -3,7 +3,7 @@
 <!-- tags: animation, motion -->
 
 - Imperative animations: .ease_to and related APIs
-- Timeline syntax: `@timeline` blocks, frames, and keyframes.
+- Timeline syntax: `@timeline` blocks, durations, and keyframes.
 - @timeline blocks vs. inline syntax
 - Lifecycle transitions with `@in` and `@out`.
 - Easing curves and interpolation behavior.
@@ -13,22 +13,41 @@
 
 ## Timelines
 
-Timelines animate properties declaratively.  A timeline track describes values at frames or percentages, and Pax samples the track as time advances or as a bound playhead changes.
+Timelines animate properties declaratively.  A timeline track describes values at frames, durations, or percentages, and Pax samples the track as time advances or as a bound playhead changes.
 
 ```pax
 <Rectangle id=card opacity=@timeline {
-    frames: 30,
+    duration: 30,
     loop: false,
     0: 0,
     100%: 1,
 } />
 ```
 
+Use `duration` to set the timeline length.  Durations may be expressed in milliseconds, seconds, explicit frames, or a unitless frame count.
+
+```pax
+<Rectangle id=card opacity=@timeline {
+    duration: 250ms,
+    loop: false,
+    0ms: 0,
+    250ms: 1,
+} />
+
+<Rectangle id=spinner rotate=@timeline {
+    duration: {(100 + self.offset)ms},
+    0%: 0deg,
+    100%: 360deg,
+} />
+```
+
+Frame-based timelines are written as `duration: 30` or `duration: 30f`.  Numeric frame markers keep their existing behavior.
+
 Named timelines can target selectors in the component template.
 
 ```pax
 @timeline pulse {
-    frames: 60,
+    duration: 60,
     #badge {
         opacity: {
             0%: 0.4,
@@ -67,11 +86,11 @@ An `@in` transition plays when a component instance enters the mounted tree.  Bi
 }
 
 @timeline enter {
-    frames: 18,
+    duration: 300ms,
     self {
         opacity: {
-            0: 0,
-            18: 1,
+            0ms: 0,
+            300ms: 1,
         },
     }
 }
@@ -90,11 +109,11 @@ An `@out` transition plays when a component instance leaves the mounted tree, su
 }
 
 @timeline exit {
-    frames: 18,
+    duration: 300ms,
     self {
         opacity: {
-            0: 1,
-            18: 0,
+            0ms: 1,
+            300ms: 0,
         },
     }
 }
@@ -135,3 +154,18 @@ This behavior depends on the runtime distinction between `received_children` and
 ```
 
 With `exit_mode: ContainerExitMode::Ghost`, an exiting child can finish its `@out` transition from its previous stack frame while the retained children resolve layout without it.  By default, `reflow_transition.kind: ContainerReflowTransitionKind::Snap` switches immediately.  Opt into `Ease` when retained children should animate between previous and new stack frames.  `Named` is reserved for a future current-component motion resource and is not wired yet.
+
+## Imperative Easing
+
+Rust handlers can animate a `Property<T>` with `.ease_to` or enqueue with `.ease_to_later`.  Passing a plain number preserves historical frame-based timing; pass `Duration` for wall-clock timing.
+
+```rust
+use pax_runtime_api::{Duration, EasingCurve};
+
+self.opacity
+    .ease_to(1.0.into(), Duration::Milliseconds(250.into()), EasingCurve::OutQuad);
+self.opacity
+    .ease_to_later(0.5.into(), Duration::Seconds(1.into()), EasingCurve::InOutQuad);
+self.opacity
+    .ease_to_later(0.0.into(), Duration::Frames(18.into()), EasingCurve::Linear);
+```

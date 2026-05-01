@@ -81,6 +81,14 @@ fn to_timeline_marker(args: &HashMap<String, tera::Value>) -> tera::Result<tera:
         return Ok(tera::Value::String(frame.to_string()));
     }
 
+    if let Some(duration) = object.get("Duration") {
+        let value: Result<pax_runtime_api::Duration, serde_json::Error> =
+            serde_json::from_value(duration.clone());
+        if let Ok(duration) = value {
+            return Ok(tera::Value::String(duration.to_string()));
+        }
+    }
+
     if let Some(percent) = object.get("Percent").and_then(|value| value.as_f64()) {
         let formatted = if percent.fract() == 0.0 {
             format!("{}%", percent as i64)

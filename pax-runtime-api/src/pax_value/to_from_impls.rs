@@ -14,6 +14,7 @@ use crate::math::Vector2;
 use crate::properties::PropertyValue;
 use crate::Color;
 use crate::ColorChannel;
+use crate::Duration;
 use crate::Fill;
 use crate::GradientStop;
 use crate::LayoutRole;
@@ -60,6 +61,7 @@ impl_to_pax_value!(String, PaxValue::String);
 impl_to_pax_value!(Numeric, PaxValue::Numeric);
 impl_to_pax_value!(Size, PaxValue::Size);
 impl_to_pax_value!(Rotation, PaxValue::Rotation);
+impl_to_pax_value!(Duration, PaxValue::Duration);
 impl_to_pax_value!(Percent, PaxValue::Percent);
 
 impl ToPaxValue for LayoutRole {

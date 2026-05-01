@@ -47,6 +47,8 @@ pub struct NodeContext {
     pub containing_component: Weak<ExpandedNode>,
     /// The current global engine tick count
     pub frames_elapsed: Property<u64>,
+    /// The current global engine wall-clock time in milliseconds.
+    pub elapsed_millis: Property<u64>,
     /// The bounds of this element's immediate container (parent) in px
     pub bounds_parent: Property<(f64, f64)>,
     /// The bounds of this element in px

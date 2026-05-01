@@ -95,7 +95,7 @@
 }
 
 @timeline enter {
-    frames: 44,
+    duration: 44,
     #tile_shell {
         scale_x: {
             0: 58%, OutQuad,
@@ -114,7 +114,7 @@
 }
 
 @timeline exit {
-    frames: 40,
+    duration: 40,
     #tile_shell {
         scale_x: {
             0: 100%, InOutQuad,

@@ -14,7 +14,8 @@ use self::helpers::{ColorChannelInteger, PaxEnum, PaxObject, PaxSeq};
 pub use error::{Error, Result};
 
 use pax_runtime_api::constants::{
-    COLOR, DEGREES, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION, SIZE,
+    COLOR, DEGREES, DURATION, FRAMES, MILLISECONDS, NUMERIC, PERCENT, PIXELS, RADIANS, ROTATION,
+    SECONDS, SIZE,
 };
 
 const STRING: &str = "String";
@@ -89,6 +90,9 @@ impl<'de> PaxDeserializer<'de> {
                     "px" => visitor.visit_enum(PaxEnum::new_pax_value(SIZE, Some(self.ast))),
                     "rad" => visitor.visit_enum(PaxEnum::new_pax_value(ROTATION, Some(self.ast))),
                     "deg" => visitor.visit_enum(PaxEnum::new_pax_value(ROTATION, Some(self.ast))),
+                    "ms" | "s" | "f" => {
+                        visitor.visit_enum(PaxEnum::new_pax_value(DURATION, Some(self.ast)))
+                    }
                     _ => {
                         unreachable!("Unsupported unit: {}", unit)
                     }
@@ -188,6 +192,9 @@ impl<'de> PaxDeserializer<'de> {
                     "px" => visitor.visit_enum(PaxEnum::new(PIXELS, number)),
                     "rad" => visitor.visit_enum(PaxEnum::new(RADIANS, number)),
                     "deg" => visitor.visit_enum(PaxEnum::new(DEGREES, number)),
+                    "ms" => visitor.visit_enum(PaxEnum::new(MILLISECONDS, number)),
+                    "s" => visitor.visit_enum(PaxEnum::new(SECONDS, number)),
+                    "f" => visitor.visit_enum(PaxEnum::new(FRAMES, number)),
                     _ => Err(Error::Message(format!("Unsupported unit: {}", unit))),
                 }
             }

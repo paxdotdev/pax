@@ -25,6 +25,48 @@ Type: `bool`
 Whether the timeline is currently advancing.
 
 ## Enums
+### `Duration`
+A duration used by animation and transition systems.
+
+`Frames` preserves Pax's historical frame-count semantics, while
+`Milliseconds` and `Seconds` advance from the chassis-provided monotonic
+wall clock.
+
+#### Variants
+##### `Frames`([`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric))
+Duration measured in runtime frames.
+
+##### `Milliseconds`([`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric))
+Duration measured in milliseconds.
+
+##### `Seconds`([`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric))
+Duration measured in seconds.
+
+#### Implementations
+##### `as_frames_f64`
+<pre><code class="api-signature language-rust ignore">pub fn as_frames_f64(&amp;self) -&gt; f64</code></pre>
+
+Converts the duration to frames, using 60fps as the nominal conversion
+rate when converting wall-clock units for mixed-unit authoring.
+
+##### `as_milliseconds_f64`
+<pre><code class="api-signature language-rust ignore">pub fn as_milliseconds_f64(&amp;self) -&gt; f64</code></pre>
+
+Converts the duration to milliseconds, using 60fps as the nominal
+frame duration when converting frame units for mixed-unit authoring.
+
+##### `is_frame_based`
+<pre><code class="api-signature language-rust ignore">pub fn is_frame_based(&amp;self) -&gt; bool</code></pre>
+
+Returns true when the duration is expressed in frame units.
+
+##### `raw_value`
+<pre><code class="api-signature language-rust ignore">pub fn raw_value(&amp;self) -&gt; f64</code></pre>
+
+Raw value in this duration's own unit.
+
+---
+
 ### `EasingCurve`
 Pre-built easing curves for use in transitions, as well as a `Custom` variant that can be used to
 specify an arbitrary easing curve via a function `f: f64 -> f64` mapping a time on the unit interval to a multiplier on the unit interval.

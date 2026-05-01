@@ -818,6 +818,9 @@ fn collect_value_definition(
     match value {
         ValueDefinition::Block(block) => collect_literal_block_definition(block, seen, collected),
         ValueDefinition::Timeline(track) => {
+            if let Some(duration) = &track.duration {
+                collect_value_definition(duration, seen, collected);
+            }
             if let Some(starting_value) = &track.starting_value {
                 collect_value_definition(starting_value, seen, collected);
             }
@@ -832,6 +835,9 @@ fn collect_value_definition(
                 collect_value_definition(starting_value, seen, collected);
             }
             for track in [&transition.enter, &transition.exit].into_iter().flatten() {
+                if let Some(duration) = &track.duration {
+                    collect_value_definition(duration, seen, collected);
+                }
                 if let Some(starting_value) = &track.starting_value {
                     collect_value_definition(starting_value, seen, collected);
                 }

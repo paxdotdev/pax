@@ -34,7 +34,7 @@ use pax_kit::*;
 }
 
 @timeline {
-    frames: 120,
+    duration: 120,
     #text {
         x: {
             0%: 50%, Linear,

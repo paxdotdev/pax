@@ -161,6 +161,8 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::timeline_local_target
         | Rule::timeline_marker
         | Rule::timeline_percent
+        | Rule::timeline_duration
+        | Rule::timeline_duration_unit
         | Rule::timeline_easing_curve
         | Rule::timeline_symbol
         | Rule::settings_key

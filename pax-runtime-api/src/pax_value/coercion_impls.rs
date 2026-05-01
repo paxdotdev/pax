@@ -7,9 +7,9 @@ use std::ops::Range;
 use crate::{
     impl_default_coercion_rule,
     math::{Transform2, Vector2},
-    Color, ColorChannel, Fill, GradientStop, LayoutRole, LinearGradient, Numeric, Opacity,
-    PathElement, PaxValue, Percent, Property, RadialGradient, Rotation, Size, Stroke, StrokeCap,
-    Transform2D,
+    Color, ColorChannel, Duration, Fill, GradientStop, LayoutRole, LinearGradient, Numeric,
+    Opacity, PathElement, PaxValue, Percent, Property, RadialGradient, Rotation, Size, Stroke,
+    StrokeCap, Transform2D,
 };
 
 // Default coercion rules:
@@ -821,6 +821,23 @@ impl CoercionRules for Rotation {
                 }
             }
             _ => return Err(format!("{:?} can't be coerced into a Rotation", pax_value)),
+        })
+    }
+}
+
+impl CoercionRules for Duration {
+    fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
+        Ok(match pax_value {
+            PaxValue::Duration(duration) => duration,
+            PaxValue::Numeric(value) => Duration::Frames(value),
+            PaxValue::Option(mut opt) => {
+                if let Some(p) = opt.take() {
+                    Duration::try_coerce(p)?
+                } else {
+                    return Err(format!("None can't be coerced into a Duration"));
+                }
+            }
+            _ => return Err(format!("{:?} can't be coerced into a Duration", pax_value)),
         })
     }
 }

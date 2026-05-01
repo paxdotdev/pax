@@ -7,9 +7,9 @@ mod properties_table;
 mod tests;
 mod untyped_property;
 
-use crate::{EasingCurve, Interpolatable, TransitionQueueEntry};
+use crate::{Duration, EasingCurve, Interpolatable, TransitionQueueEntry};
 
-use self::properties_table::{PropertyType, PROPERTY_TIME};
+use self::properties_table::{PropertyType, PROPERTY_MILLIS, PROPERTY_TIME};
 use properties_table::PROPERTY_TABLE;
 pub use untyped_property::UntypedProperty;
 
@@ -112,24 +112,28 @@ impl<T: PropertyValue> Property<T> {
         }
     }
 
-    /// Immediately starts an ease transition from the current value to end_val, over time frames, following curve.
-    pub fn ease_to(&self, end_val: T, time: u64, curve: EasingCurve) {
-        self.ease_to_value(end_val, time, curve, true);
+    /// Immediately starts an ease transition from the current value to end_val, over a duration, following curve.
+    ///
+    /// Numeric arguments preserve the historical frame-based behavior. Use
+    /// `Duration::Milliseconds`, `Duration::Seconds`, or `Duration::Frames` to
+    /// select an explicit unit.
+    pub fn ease_to<D: Into<Duration>>(&self, end_val: T, duration: D, curve: EasingCurve) {
+        self.ease_to_value(end_val, duration.into(), curve, true);
     }
 
-    /// Enqueues an ease transition from the current value to end_val, over time frames, following
+    /// Enqueues an ease transition from the current value to end_val, over a duration, following
     /// curve, which will start after all currently enqueued transitions finish.
-    pub fn ease_to_later(&self, end_val: T, time: u64, curve: EasingCurve) {
-        self.ease_to_value(end_val, time, curve, false);
+    pub fn ease_to_later<D: Into<Duration>>(&self, end_val: T, duration: D, curve: EasingCurve) {
+        self.ease_to_value(end_val, duration.into(), curve, false);
     }
 
     /// Shared logic for easing operations
-    fn ease_to_value(&self, end_val: T, time: u64, curve: EasingCurve, overwrite: bool) {
+    fn ease_to_value(&self, end_val: T, duration: Duration, curve: EasingCurve, overwrite: bool) {
         PROPERTY_TABLE.with(|t| {
             t.transition(
                 self.untyped.id,
                 TransitionQueueEntry {
-                    duration_frames: time,
+                    duration,
                     curve,
                     ending_value: end_val,
                 },
@@ -250,4 +254,9 @@ pub fn drain_effects(max_iterations: usize) -> usize {
 // Registers the runtime clock property used by transition/easing machinery.
 pub fn register_time(prop: &Property<u64>) {
     PROPERTY_TIME.with_borrow_mut(|time| *time = prop.clone());
+}
+
+// Registers the runtime wall clock property used by time-based transition/easing machinery.
+pub fn register_millis(prop: &Property<u64>) {
+    PROPERTY_MILLIS.with_borrow_mut(|time| *time = prop.clone());
 }

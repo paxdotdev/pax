@@ -143,8 +143,8 @@
         {% if track.playhead %}
             playhead: {{ self::render_value_definition(vd=track.playhead) }},
         {% endif %}
-        {% if track.frames %}
-            frames: {{ track.frames }},
+        {% if track.duration %}
+            duration: {{ self::render_value_definition(vd=track.duration) }},
         {% endif %}
         {% if track.repeat == true or track.repeat == false %}
             loop: {{ track.repeat }},

@@ -715,6 +715,12 @@ fn parse_timeline_marker(marker: Pair<Rule>) -> TimelineMarker {
                 .parse()
                 .expect("timeline frame markers must be integers"),
         ),
+        Rule::timeline_duration => match from_pax(marker.as_str())
+            .expect("timeline duration markers must be valid Pax duration literals")
+        {
+            PaxValue::Duration(duration) => TimelineMarker::Duration(duration),
+            _ => unreachable!("timeline duration markers must parse to Duration"),
+        },
         Rule::timeline_percent => {
             let raw = marker.as_str().trim_end_matches('%');
             TimelineMarker::Percent(
@@ -749,9 +755,12 @@ fn apply_timeline_setting_to_track(track: &mut TimelineTrackDefinition, setting:
 
     match key.as_str() {
         "frames" => {
-            if let ValueDefinition::LiteralValue(PaxValue::Numeric(value)) = parsed_value {
-                track.frames = Some(value.to_int() as u64);
-            }
+            panic!(
+                "timeline setting `frames` has been removed; use `duration` with a unitless frame count or `f` unit"
+            )
+        }
+        "duration" => {
+            track.duration = Some(Box::new(parsed_value));
         }
         "loop" => {
             if let ValueDefinition::LiteralValue(PaxValue::Bool(value)) = parsed_value {
@@ -769,7 +778,7 @@ fn derive_timeline_track_definition(timeline_track: Pair<Rule>) -> TimelineTrack
     let mut track = TimelineTrackDefinition {
         elements: vec![],
         playhead: None,
-        frames: None,
+        duration: None,
         repeat: None,
         starting_value: None,
         use_local_property_scope: false,
@@ -849,11 +858,12 @@ pub fn parse_timeline_from_component_definition_string(
                         let parsed_value = parse_value_definition(value);
                         match key.as_str() {
                             "frames" => {
-                                if let ValueDefinition::LiteralValue(PaxValue::Numeric(value)) =
-                                    parsed_value
-                                {
-                                    timeline.frames = Some(value.to_int() as u64);
-                                }
+                                panic!(
+                                    "timeline setting `frames` has been removed; use `duration` with a unitless frame count or `f` unit"
+                                )
+                            }
+                            "duration" => {
+                                timeline.duration = Some(parsed_value);
                             }
                             "loop" => {
                                 if let ValueDefinition::LiteralValue(PaxValue::Bool(value)) =
@@ -899,7 +909,7 @@ pub fn parse_timeline_from_component_definition_string(
             }
 
             if !timeline.elements.is_empty()
-                || timeline.frames.is_some()
+                || timeline.duration.is_some()
                 || timeline.playhead.is_some()
                 || !timeline.repeat
                 || timeline.name.is_some()

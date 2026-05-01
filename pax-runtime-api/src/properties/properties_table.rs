@@ -16,8 +16,10 @@ use super::{private::PropertyId, PropertyValue};
 thread_local! {
     // Global property table used to store data backing dirty-dag
     pub(crate) static PROPERTY_TABLE: PropertyTable = PropertyTable::default();
-    // Global property timestamp
+    // Global frame timestamp.
     pub(crate) static PROPERTY_TIME: RefCell<Property<u64>> = RefCell::new(Property::new(0));
+    // Global wall-clock timestamp in milliseconds.
+    pub(crate) static PROPERTY_MILLIS: RefCell<Property<u64>> = RefCell::new(Property::new(0));
 }
 
 // The main collection of data associated with a specific property id
@@ -167,23 +169,30 @@ impl PropertyTable {
         transition: TransitionQueueEntry<T>,
         overwrite: bool,
     ) {
-        let mut should_connect_to_time = false;
+        let mut should_reconnect_inbound = false;
         let (time_id, curr_time) = PROPERTY_TIME.with_borrow(|time| (time.untyped.id, time.get()));
+        let (millis_id, curr_millis) =
+            PROPERTY_MILLIS.with_borrow(|time| (time.untyped.id, time.get()));
         self.with_property_data_mut(id, |property_data: &mut PropertyData| {
             let typed_data = property_data.typed_data::<T>();
-            let transition_manager = typed_data
-                .transition_manager
-                .get_or_insert_with(|| TransitionManager::new(typed_data.value.clone(), curr_time));
+            let transition_manager = typed_data.transition_manager.get_or_insert_with(|| {
+                TransitionManager::new(typed_data.value.clone(), curr_time, curr_millis)
+            });
             if overwrite {
-                transition_manager.reset_transitions(curr_time);
+                transition_manager.reset_transitions(curr_time, curr_millis);
             }
             transition_manager.push_transition(transition);
             if !property_data.inbound.contains(&time_id) {
-                should_connect_to_time = true;
+                should_reconnect_inbound = true;
                 property_data.inbound.push(time_id);
             }
+            if !property_data.inbound.contains(&millis_id) {
+                should_reconnect_inbound = true;
+                property_data.inbound.push(millis_id);
+            }
         });
-        if should_connect_to_time {
+        if should_reconnect_inbound {
+            self.disconnect_inbound(id);
             self.connect_inbound(id);
         }
     }
@@ -318,7 +327,8 @@ impl PropertyTable {
                 PropertyType::Literal => {
                     let tm = typed_data.transition_manager.as_mut()?;
                     let curr_time = PROPERTY_TIME.with_borrow(|time| time.get());
-                    let value = tm.compute_eased_value(curr_time);
+                    let curr_millis = PROPERTY_MILLIS.with_borrow(|time| time.get());
+                    let value = tm.compute_eased_value(curr_time, curr_millis);
                     if let Some(interp_value) = value {
                         typed_data.value = interp_value;
                     } else {

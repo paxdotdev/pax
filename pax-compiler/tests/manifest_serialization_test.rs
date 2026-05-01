@@ -30,7 +30,7 @@ const EXPECTED_PAX: &str = "// Hello world
 
 @timeline existing_timeline {
     playhead: self.phase,
-    frames: 120,
+    duration: 120,
     #existing_selector {
         progress: {
             0: 0, Linear,
@@ -96,7 +96,7 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
                 playhead: Some(ValueDefinition::Identifier(
                     pax_manifest::PaxIdentifier::new("self.phase"),
                 )),
-                frames: Some(120),
+                duration: Some(ValueDefinition::LiteralValue(PaxValue::Numeric(120.into()))),
                 repeat: true,
                 elements: vec![TimelineBlockElement::SelectorBlock(
                     Token::new_without_location("#existing_selector".to_string()),
@@ -123,7 +123,7 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
                                     }),
                                 ],
                                 playhead: None,
-                                frames: None,
+                                duration: None,
                                 repeat: None,
                                 starting_value: None,
                                 use_local_property_scope: false,

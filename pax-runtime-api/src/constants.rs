@@ -5,11 +5,15 @@
 pub const NUMERIC: &str = "Numeric";
 pub const SIZE: &str = "Size";
 pub const ROTATION: &str = "Rotation";
+pub const DURATION: &str = "Duration";
 pub const OPACITY: &str = "Opacity";
 pub const DEGREES: &str = "Degrees";
 pub const RADIANS: &str = "Radians";
 pub const PIXELS: &str = "Pixels";
 pub const PERCENT: &str = "Percent";
+pub const MILLISECONDS: &str = "Milliseconds";
+pub const SECONDS: &str = "Seconds";
+pub const FRAMES: &str = "Frames";
 pub const INTEGER: &str = "Integer";
 pub const I64: &str = "I64";
 pub const F64: &str = "F64";

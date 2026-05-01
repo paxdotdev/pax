@@ -21,14 +21,18 @@ Creates a computed property from an evaluator and dependency list.
 Creates a named computed property, useful for diagnostics.
 
 ##### `ease_to`
-<pre><code class="api-signature language-rust ignore">pub fn ease_to(&amp;self, end_val: T, time: u64, curve: <a href="/api/pax-runtime-api/animation.md#easingcurve">EasingCurve</a>)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn ease_to&lt;D: Into&lt;<a href="/api/pax-runtime-api/animation.md#duration">Duration</a>&gt;&gt;(&amp;self, end_val: T, duration: D, curve: <a href="/api/pax-runtime-api/animation.md#easingcurve">EasingCurve</a>)</code></pre>
 
-Immediately starts an ease transition from the current value to end_val, over time frames, following curve.
+Immediately starts an ease transition from the current value to end_val, over a duration, following curve.
+
+Numeric arguments preserve the historical frame-based behavior. Use
+`Duration::Milliseconds`, `Duration::Seconds`, or `Duration::Frames` to
+select an explicit unit.
 
 ##### `ease_to_later`
-<pre><code class="api-signature language-rust ignore">pub fn ease_to_later(&amp;self, end_val: T, time: u64, curve: <a href="/api/pax-runtime-api/animation.md#easingcurve">EasingCurve</a>)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn ease_to_later&lt;D: Into&lt;<a href="/api/pax-runtime-api/animation.md#duration">Duration</a>&gt;&gt;(&amp;self, end_val: T, duration: D, curve: <a href="/api/pax-runtime-api/animation.md#easingcurve">EasingCurve</a>)</code></pre>
 
-Enqueues an ease transition from the current value to end_val, over time frames, following
+Enqueues an ease transition from the current value to end_val, over a duration, following
 curve, which will start after all currently enqueued transitions finish.
 
 ##### `get`

@@ -309,7 +309,7 @@ pub enum SettingsBlockElement {
 pub struct TimelineDefinition {
     pub name: Option<Token>,
     pub playhead: Option<ValueDefinition>,
-    pub frames: Option<u64>,
+    pub duration: Option<ValueDefinition>,
     pub repeat: bool,
     pub elements: Vec<TimelineBlockElement>,
 }
@@ -328,7 +328,7 @@ impl Default for TimelineDefinition {
         Self {
             name: None,
             playhead: None,
-            frames: None,
+            duration: None,
             repeat: true,
             elements: vec![],
         }
@@ -364,7 +364,7 @@ pub enum TimelineSelectorElement {
 pub struct TimelineTrackDefinition {
     pub elements: Vec<TimelineTrackElement>,
     pub playhead: Option<Box<ValueDefinition>>,
-    pub frames: Option<u64>,
+    pub duration: Option<Box<ValueDefinition>>,
     pub repeat: Option<bool>,
     pub starting_value: Option<Box<ValueDefinition>>,
     #[serde(default)]
@@ -391,7 +391,7 @@ pub enum TimelineTrackElement {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
-/// A single timeline value at a frame or percent marker.
+/// A single timeline value at a frame, duration, or percent marker.
 pub struct TimelineKeyframe {
     pub marker: TimelineMarker,
     pub value: ValueDefinition,
@@ -400,9 +400,10 @@ pub struct TimelineKeyframe {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(crate = "pax_message::serde")]
-/// Timeline position expressed as an absolute frame or normalized percentage.
+/// Timeline position expressed as an absolute frame, absolute duration, or normalized percentage.
 pub enum TimelineMarker {
     Frame(u64),
+    Duration(pax_runtime_api::Duration),
     Percent(f64),
 }
 
@@ -410,6 +411,7 @@ impl Display for TimelineMarker {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TimelineMarker::Frame(frame) => write!(f, "{}", frame),
+            TimelineMarker::Duration(duration) => write!(f, "{}", duration),
             TimelineMarker::Percent(percent) => {
                 if percent.fract() == 0.0 {
                     write!(f, "{}%", *percent as i64)
@@ -2050,8 +2052,8 @@ impl Display for TimelineTrackDefinition {
         if let Some(playhead) = &self.playhead {
             writeln!(f, "playhead: {},", playhead)?;
         }
-        if let Some(frames) = self.frames {
-            writeln!(f, "frames: {},", frames)?;
+        if let Some(duration) = &self.duration {
+            writeln!(f, "duration: {},", duration)?;
         }
         if let Some(repeat) = self.repeat {
             writeln!(f, "loop: {},", repeat)?;
