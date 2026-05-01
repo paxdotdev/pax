@@ -1,4 +1,7 @@
 # Router (Draft)
+
+Authoring Date: 2026-04-29
+
 <!-- summary: Draft proposal for declarative, cross-platform routing in Pax. -->
 <!-- tags: router, navigation, state, templates -->
 

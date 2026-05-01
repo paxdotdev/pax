@@ -1,4 +1,7 @@
 # Designtime Host Programs (Draft)
+
+Authoring Date: 2026-04-27
+
 <!-- summary: Proposed foundation for Pax-authored designtime hosts, live cartridge sessions, and tool workflows. -->
 <!-- tags: designtime, ai, images, assets, tooling -->
 

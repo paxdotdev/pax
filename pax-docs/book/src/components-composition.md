@@ -8,4 +8,4 @@
 - Composition of scenes: assembling complex UIs from smaller pieces.
 - File organization: keeping component templates discoverable.
 
-For runtime internals and container semantics, see [Runtime Child Ontology](runtime-child-ontology.md). That note defines the distinction between received payload, encapsulated implementation structure, and projection as transport for `slot(...)`.
+Runtime container semantics distinguish between received payload, encapsulated implementation structure, and projection as transport for `slot(...)`.

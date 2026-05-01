@@ -108,7 +108,7 @@ Entering and exiting children run in parallel by default.  For repeated lists, u
 
 `@in` and `@out` define how a component animates itself.  Layout containers can also decide how sibling placement reacts while those transitions are running.
 
-For the runtime terms behind this behavior, especially `received_children` versus exit-retained payload, see [Runtime Child Ontology](runtime-child-ontology.md).
+This behavior depends on the runtime distinction between `received_children` and exit-retained payload.
 
 `Stacker` exposes separate knobs for exit behavior and reflow behavior:
 - `exit_mode` controls whether exiting children remain in normal stack flow or hold their prior frames as ghosts

@@ -1,4 +1,7 @@
 # Runtime Child Ontology
+
+Authoring Date: 2026-04-26
+
 <!-- summary: Internal terminology for child families, container payload, and exit retention. -->
 <!-- tags: architecture, runtime, containers -->
 

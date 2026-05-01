@@ -1,4 +1,7 @@
 # Runtime Settings Application (Draft)
+
+Authoring Date: 2026-04-22
+
 <!-- summary: Long-term design for runtime-applied selector settings and ImportSettings. -->
 <!-- tags: runtime, settings, selectors, theming -->
 

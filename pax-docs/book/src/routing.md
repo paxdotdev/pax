@@ -29,7 +29,7 @@ Use `Router` as a non-rendering control-flow node, and add `Route` branches unde
 </Router>
 ```
 
-Phase-1 path syntax is intentionally small:
+Currently `Router` supports:
 
 - literal segments: `/settings/profile`
 - single-segment params: `/teams/:team_id`
@@ -54,23 +54,25 @@ The key opinion is that `route.location` is scoped by default. Nested routers us
 Nested routers match against the nearest ancestor remainder automatically.
 
 ```pax
-<Route path="/teams/:team_id/*">
-    <TeamHeader title={route.params.team_id} />
-
-    <Router>
-        <Route default=true>
-            <Overview />
-        </Route>
-
-        <Route path="members/:member_id">
-            <MemberDetail member_id={route.params.member_id} />
-        </Route>
-
-        <Route path="settings/*">
-            <SettingsShell />
-        </Route>
-    </Router>
-</Route>
+<Router>
+  <Route path="/teams/:team_id/*">
+      <TeamHeader title={route.params.team_id} />
+  
+      <Router>
+          <Route default=true>
+              <Overview />
+          </Route>
+  
+          <Route path="members/:member_id">
+              <MemberDetail member_id={route.params.member_id} />
+          </Route>
+  
+          <Route path="settings/*">
+              <SettingsShell />
+          </Route>
+      </Router>
+  </Route>
+</Router>
 ```
 
 Inside the nested router above:
@@ -99,4 +101,3 @@ On web targets, same-origin navigation in the current tab can be synchronized th
   files="src/lib.pax,src/lib.rs,src/guide_panel.pax,src/team_panel.pax,src/route_inspector.rs,src/route_inspector.pax">
 </pax-example>
 
-For the design rationale and deferred work, see the [router draft spec](router-spec.md).

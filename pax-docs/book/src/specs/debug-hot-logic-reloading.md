@@ -1,4 +1,7 @@
 # Debug Hot Logic Reloading
+
+Authoring Date: 2026-04-23
+
 <!-- summary: Spec for debug-only hot swapping of user logic without restarting the host chassis. -->
 <!-- tags: architecture, designtime, hot-reload, dynamic-linking, debug -->
 
