@@ -6,7 +6,7 @@ use pax_runtime_api::math::{Point2, Space, TransformParts};
 use pax_runtime_api::{Interpolatable, Percent, Property, Rotation, Window};
 
 use crate::api::math::{Transform2, Vector2};
-use crate::api::{Axis, Padding, Size, Transform2D};
+use crate::api::{Axis, Size, Transform2D};
 use crate::node_interface::NodeLocal;
 use crate::ContainerFrame;
 
@@ -63,21 +63,35 @@ pub fn apply_container_frame(
 /// Apply a node's padding to the container geometry seen by its children.
 pub fn apply_padding_frame(
     container_transform_and_bounds: TransformAndBounds<NodeLocal, Window>,
-    padding: Option<Padding>,
+    padding_x: Option<Size>,
+    padding_y: Option<Size>,
 ) -> TransformAndBounds<NodeLocal, Window> {
-    match padding {
-        Some(padding) => {
-            let (padding_x, padding_y) = padding.evaluate(container_transform_and_bounds.bounds);
-            TransformAndBounds {
-                transform: container_transform_and_bounds.transform
-                    * Transform2::translate(Vector2::new(padding_x, padding_y)),
-                bounds: (
-                    (container_transform_and_bounds.bounds.0 - (2.0 * padding_x)).max(0.0),
-                    (container_transform_and_bounds.bounds.1 - (2.0 * padding_y)).max(0.0),
-                ),
-            }
-        }
-        None => container_transform_and_bounds,
+    let padding_x = padding_x
+        .map(|padding| {
+            padding
+                .evaluate(container_transform_and_bounds.bounds, Axis::X)
+                .max(0.0)
+        })
+        .unwrap_or(0.0);
+    let padding_y = padding_y
+        .map(|padding| {
+            padding
+                .evaluate(container_transform_and_bounds.bounds, Axis::Y)
+                .max(0.0)
+        })
+        .unwrap_or(0.0);
+
+    if padding_x == 0.0 && padding_y == 0.0 {
+        return container_transform_and_bounds;
+    }
+
+    TransformAndBounds {
+        transform: container_transform_and_bounds.transform
+            * Transform2::translate(Vector2::new(padding_x, padding_y)),
+        bounds: (
+            (container_transform_and_bounds.bounds.0 - (2.0 * padding_x)).max(0.0),
+            (container_transform_and_bounds.bounds.1 - (2.0 * padding_y)).max(0.0),
+        ),
     }
 }
 
@@ -572,10 +586,8 @@ fn test_apply_padding_frame_shrinks_and_offsets_child_bounds() {
 
     let result = apply_padding_frame(
         parent,
-        Some(Padding::axes(
-            Size::Pixels(10.into()),
-            Size::Percent(20.into()),
-        )),
+        Some(Size::Pixels(10.into())),
+        Some(Size::Percent(20.into())),
     );
 
     assert_eq!(result.bounds, (180.0, 60.0));

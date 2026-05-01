@@ -3577,7 +3577,8 @@ pub fn create_new_common_properties_from_columns(
         id: create_id_property(property_columns),
         x: resolve_property("x", property_columns, stack_frame),
         y: resolve_property("y", property_columns, stack_frame),
-        padding: resolve_property("padding", property_columns, stack_frame),
+        padding_x: resolve_property("padding_x", property_columns, stack_frame),
+        padding_y: resolve_property("padding_y", property_columns, stack_frame),
         width: resolve_property("width", property_columns, stack_frame),
         height: resolve_property("height", property_columns, stack_frame),
         scale_x: resolve_property("scale_x", property_columns, stack_frame),
@@ -3615,8 +3616,16 @@ fn update_common_properties(
     cp.id.replace_with(create_id_property(property_columns));
     cp.x.replace_with(resolve_property("x", property_columns, stack_frame));
     cp.y.replace_with(resolve_property("y", property_columns, stack_frame));
-    cp.padding
-        .replace_with(resolve_property("padding", property_columns, stack_frame));
+    cp.padding_x.replace_with(resolve_property(
+        "padding_x",
+        property_columns,
+        stack_frame,
+    ));
+    cp.padding_y.replace_with(resolve_property(
+        "padding_y",
+        property_columns,
+        stack_frame,
+    ));
     cp.width
         .replace_with(resolve_property("width", property_columns, stack_frame));
     cp.height

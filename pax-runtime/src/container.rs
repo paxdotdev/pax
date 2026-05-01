@@ -16,7 +16,7 @@
 //! mechanisms rather than the primary semantic abstraction.
 
 use crate::api::math::Transform2;
-use crate::api::{borrow, NodeContext, Property};
+use crate::api::{borrow, NodeContext, Property, Size};
 use crate::node_interface::NodeLocal;
 use crate::{
     apply_padding_frame, project_child_layout_hull_to_parent_space, resolve_padded_autosize_axis,
@@ -53,9 +53,9 @@ pub fn measure_content_children_layout_hull(ctx: &NodeContext) -> LayoutHull {
         return LayoutHull::from_axis_ranges(Some((0.0, 0.0)), Some((0.0, 0.0)));
     }
 
-    let content_transform_and_bounds = node_padding(ctx)
-        .map(|padding| apply_padding_frame(ctx.node_transform_and_bounds, Some(padding)))
-        .unwrap_or(ctx.node_transform_and_bounds);
+    let (padding_x, padding_y) = node_padding(ctx);
+    let content_transform_and_bounds =
+        apply_padding_frame(ctx.node_transform_and_bounds, padding_x, padding_y);
 
     let mut hull: Option<LayoutHull> = None;
     for child in content_children.iter() {
@@ -123,27 +123,29 @@ pub fn resolve_content_autosize_measurement_with_axes(
 
     let bounds = ctx.bounds_self.get();
     let (content_width, content_height) = measure_content_children_forward_extents(ctx);
-    let padding = node_padding(ctx);
+    let (padding_x, padding_y) = node_padding(ctx);
 
     Some((
         if width_explicit || !autosize_width {
             bounds.0
         } else {
-            resolve_padded_autosize_axis(content_width?, padding.map(|padding| padding.x))?
+            resolve_padded_autosize_axis(content_width?, padding_x)?
         },
         if height_explicit || !autosize_height {
             bounds.1
         } else {
-            resolve_padded_autosize_axis(content_height?, padding.map(|padding| padding.y))?
+            resolve_padded_autosize_axis(content_height?, padding_y)?
         },
     ))
 }
 
-fn node_padding(ctx: &NodeContext) -> Option<crate::api::Padding> {
-    let node = ctx.expanded_node.upgrade()?;
+fn node_padding(ctx: &NodeContext) -> (Option<Size>, Option<Size>) {
+    let Some(node) = ctx.expanded_node.upgrade() else {
+        return (None, None);
+    };
     let common_props = node.get_common_properties();
-    let padding = borrow!(common_props).padding.get();
-    padding
+    let common_props = borrow!(common_props);
+    (common_props.padding_x.get(), common_props.padding_y.get())
 }
 
 /// Update `measured_size` from received content when autosize is enabled.
@@ -200,12 +202,13 @@ fn rebind_content_measurement_effect<F>(
     F: Fn(&Rc<ExpandedNode>, &NodeContext) + Clone + 'static,
 {
     let common_props = expanded_node.get_common_properties();
-    let (width_prop, height_prop, padding_prop) = {
+    let (width_prop, height_prop, padding_x_prop, padding_y_prop) = {
         let common_props = borrow!(common_props);
         (
             common_props.width.clone(),
             common_props.height.clone(),
-            common_props.padding.clone(),
+            common_props.padding_x.clone(),
+            common_props.padding_y.clone(),
         )
     };
     let node_ctx = expanded_node.get_node_context(runtime_context);
@@ -213,7 +216,8 @@ fn rebind_content_measurement_effect<F>(
         expanded_node.transform_and_bounds.untyped(),
         width_prop.untyped(),
         height_prop.untyped(),
-        padding_prop.untyped(),
+        padding_x_prop.untyped(),
+        padding_y_prop.untyped(),
     ];
     deps.extend(extra_deps.iter().cloned());
     for child in node_ctx.received_children.get().iter() {
@@ -338,7 +342,7 @@ impl Interpolatable for ContainerFrame {
 #[cfg(test)]
 mod tests {
     use crate::api::math::Transform2;
-    use crate::api::{CommonProperties, Layer, LayoutRole, Padding, Size};
+    use crate::api::{CommonProperties, Layer, LayoutRole, Size};
     use crate::{
         sync_content_autosize, sync_content_autosize_with_axes, BaseInstance, ComponentInstance,
         ExpandedNode, Globals, InstanceFlags, InstanceNode, InstantiationArgs, RouteLocation,
@@ -571,10 +575,14 @@ mod tests {
         let child = direct_node.children.get().first().cloned().unwrap();
         child.set_measured_size(50.0, 60.0);
         let direct_common_props = direct_node.get_common_properties();
-        direct_common_props.borrow().padding.set(Some(Padding::axes(
-            Size::Pixels(5.into()),
-            Size::Pixels(10.into()),
-        )));
+        direct_common_props
+            .borrow()
+            .padding_x
+            .set(Some(Size::Pixels(5.into())));
+        direct_common_props
+            .borrow()
+            .padding_y
+            .set(Some(Size::Pixels(10.into())));
 
         let node_ctx = direct_node.get_node_context(&context);
         sync_content_autosize(&direct_node, &node_ctx, true);
@@ -597,10 +605,14 @@ mod tests {
         let child = direct_node.children.get().first().cloned().unwrap();
         child.set_measured_size(60.0, 80.0);
         let direct_common_props = direct_node.get_common_properties();
-        direct_common_props.borrow().padding.set(Some(Padding::axes(
-            Size::Percent(20.into()),
-            Size::Percent(10.into()),
-        )));
+        direct_common_props
+            .borrow()
+            .padding_x
+            .set(Some(Size::Percent(20.into())));
+        direct_common_props
+            .borrow()
+            .padding_y
+            .set(Some(Size::Percent(10.into())));
 
         let node_ctx = direct_node.get_node_context(&context);
         sync_content_autosize(&direct_node, &node_ctx, true);

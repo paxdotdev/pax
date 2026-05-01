@@ -7,7 +7,7 @@ use std::rc::Rc;
 #[allow(unused)]
 use crate::*;
 use pax_engine::api::math::{Transform2, Vector2};
-use pax_engine::api::{Axis, EasingCurve, Numeric, Padding, Property, Size};
+use pax_engine::api::{Axis, EasingCurve, Numeric, Property, Size};
 use pax_engine::pax_manifest::cartridge_generation::TRANSITION_PHASE_ENTER;
 use pax_engine::*;
 use pax_runtime::api::{borrow, borrow_mut, Layer, NodeContext};
@@ -180,13 +180,16 @@ impl Container for Stacker {
         let bound = ctx.bounds_self.clone();
         let gutter = self.gutter.clone();
         let direction = self.direction.clone();
-        let padding = ctx
+        let (padding_x, padding_y) = ctx
             .expanded_node
             .upgrade()
             .map(|node| {
                 let common_props = node.get_common_properties();
-                let padding = borrow!(common_props).padding.clone();
-                padding
+                let common_props = borrow!(common_props);
+                (
+                    common_props.padding_x.clone(),
+                    common_props.padding_y.clone(),
+                )
             })
             .unwrap_or_default();
         let autosize = self.autosize.clone();
@@ -201,7 +204,8 @@ impl Container for Stacker {
         let received_children_for_update = ctx.received_children.clone();
         let retained_received_children_for_update = ctx.retained_received_children.clone();
         let direction_for_update = direction.clone();
-        let padding_for_update = padding.clone();
+        let padding_x_for_update = padding_x.clone();
+        let padding_y_for_update = padding_y.clone();
         let sizes_for_update = sizes.clone();
         let gutter_for_update = gutter.clone();
         let exit_mode_for_update = exit_mode.clone();
@@ -214,10 +218,14 @@ impl Container for Stacker {
             let retained_received_children = retained_received_children_for_update.get();
             let outer_bounds = bound_for_update.get();
             let direction = direction_for_update.get();
-            let padding = padding_for_update.get();
-            let (padding_x, padding_y) = padding
-                .map(|padding| padding.evaluate(outer_bounds))
-                .unwrap_or((0.0, 0.0));
+            let padding_x_size = padding_x_for_update.get();
+            let padding_y_size = padding_y_for_update.get();
+            let padding_x = padding_x_size
+                .map(|padding| padding.evaluate(outer_bounds, Axis::X).max(0.0))
+                .unwrap_or(0.0);
+            let padding_y = padding_y_size
+                .map(|padding| padding.evaluate(outer_bounds, Axis::Y).max(0.0))
+                .unwrap_or(0.0);
             let bounds = (
                 (outer_bounds.0 - (2.0 * padding_x)).max(0.0),
                 (outer_bounds.1 - (2.0 * padding_y)).max(0.0),
@@ -378,7 +386,11 @@ impl Container for Stacker {
             }
             *prior_frames.borrow_mut() = next_frames;
 
-            match expand_measured_size_for_padding(active_layout.measured_size, padding) {
+            match expand_measured_size_for_padding(
+                active_layout.measured_size,
+                padding_x_size,
+                padding_y_size,
+            ) {
                 Some(measured_size) => {
                     if node.measured_size.get() != Some(measured_size) {
                         node.set_measured_size(measured_size.0, measured_size.1);
@@ -396,7 +408,8 @@ impl Container for Stacker {
         let deps = [
             bound.untyped(),
             direction.untyped(),
-            padding.untyped(),
+            padding_x.untyped(),
+            padding_y.untyped(),
             sizes.untyped(),
             gutter.untyped(),
             autosize.untyped(),
@@ -969,12 +982,13 @@ struct StackerLayoutResult {
 
 fn expand_measured_size_for_padding(
     measured_size: Option<(f64, f64)>,
-    padding: Option<Padding>,
+    padding_x: Option<Size>,
+    padding_y: Option<Size>,
 ) -> Option<(f64, f64)> {
     let (width, height) = measured_size?;
     Some((
-        resolve_padded_autosize_axis(width, padding.map(|padding| padding.x))?,
-        resolve_padded_autosize_axis(height, padding.map(|padding| padding.y))?,
+        resolve_padded_autosize_axis(width, padding_x)?,
+        resolve_padded_autosize_axis(height, padding_y)?,
     ))
 }
 

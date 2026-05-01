@@ -893,24 +893,32 @@ impl ExpandedNode {
             .as_ref()
             .map(|n| n.transform_and_bounds.clone())
             .unwrap_or_else(|| ctx.globals().viewport);
-        let parent_padding = render_parent
+        let (parent_padding_x, parent_padding_y) = render_parent
             .as_ref()
             .map(|n| {
                 let common_props = n.get_common_properties();
-                let padding = borrow!(common_props).padding.clone();
-                padding
+                let common_props = borrow!(common_props);
+                (
+                    common_props.padding_x.clone(),
+                    common_props.padding_y.clone(),
+                )
             })
             .unwrap_or_default();
         let container_frame = self.container_frame.clone();
         let deps = [
             parent_transform_and_bounds.untyped(),
-            parent_padding.untyped(),
+            parent_padding_x.untyped(),
+            parent_padding_y.untyped(),
             container_frame.untyped(),
         ];
         let effective_parent_transform_and_bounds = Property::computed(
             move || {
                 apply_container_frame(
-                    apply_padding_frame(parent_transform_and_bounds.get(), parent_padding.get()),
+                    apply_padding_frame(
+                        parent_transform_and_bounds.get(),
+                        parent_padding_x.get(),
+                        parent_padding_y.get(),
+                    ),
                     container_frame.get(),
                 )
             },
@@ -1473,17 +1481,31 @@ impl ExpandedNode {
             .as_ref()
             .map(|parent| parent.transform_and_bounds.clone())
             .unwrap_or_else(|| globals.viewport.clone());
-        let parent_padding = render_parent
+        let (parent_padding_x, parent_padding_y) = render_parent
             .as_ref()
             .map(|parent| {
                 let common_props = parent.get_common_properties();
-                let padding = borrow!(common_props).padding.clone();
-                padding
+                let common_props = borrow!(common_props);
+                (
+                    common_props.padding_x.clone(),
+                    common_props.padding_y.clone(),
+                )
             })
             .unwrap_or_default();
-        let deps = [t_and_b_parent.untyped(), parent_padding.untyped()];
+        let deps = [
+            t_and_b_parent.untyped(),
+            parent_padding_x.untyped(),
+            parent_padding_y.untyped(),
+        ];
         let bounds_parent = Property::computed(
-            move || apply_padding_frame(t_and_b_parent.get(), parent_padding.get()).bounds,
+            move || {
+                apply_padding_frame(
+                    t_and_b_parent.get(),
+                    parent_padding_x.get(),
+                    parent_padding_y.get(),
+                )
+                .bounds
+            },
             &deps,
         );
 

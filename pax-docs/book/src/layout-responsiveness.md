@@ -64,19 +64,19 @@ Text participates naturally through `measured_size`: text and native controls ca
 
 ## Padding
 
-Every renderable node accepts a `padding` common property. Padding creates an inner layout area for child content without changing the node's own outer bounds.
+Every renderable node accepts `padding_x` and `padding_y` common properties. Padding creates an inner layout area for child content without changing the node's own outer bounds.
 
 ```pax
-<Group width=240px height=160px padding=12px>
+<Group width=240px height=160px padding_x=12px padding_y=12px>
     <Text width=100% text="This text lays out inside the padded area." />
 </Group>
 
-<Group autosize=true padding=[8px, 12px]>
+<Group autosize=true padding_x=8px padding_y=12px>
     <Text text="Autosize includes left/right and top/bottom padding." />
 </Group>
 ```
 
-Use one value when horizontal and vertical padding match. Use `padding=[x, y]` when the axes differ. Percent padding resolves against the corresponding outer axis, so `padding=10%` uses 10% of width horizontally and 10% of height vertically.
+Set both axes to the same value when horizontal and vertical padding match. Percent padding resolves against the corresponding outer axis, so `padding_x=10%` uses 10% of width and `padding_y=10%` uses 10% of height.
 
 ## Layout Role
 
