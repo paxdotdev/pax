@@ -24,7 +24,7 @@ Command:
 rm -rf /tmp/pax-896-third-party-hello
 target/debug/pax-cli create /tmp/pax-896-third-party-hello --libdev-mode=false
 cd /tmp/pax-896-third-party-hello
-/Users/zack/code/pax/target/debug/pax-cli build --target web --designer=false
+/Users/zack/code/pax/target/debug/pax-cli build --target web
 ```
 
 Failure:

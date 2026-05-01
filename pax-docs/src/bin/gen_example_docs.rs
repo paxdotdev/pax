@@ -304,7 +304,6 @@ fn build_example(pax_cli: &Path, workspace: &Path, example_path: &str) -> io::Re
         .arg(format!("examples/src/{example_path}"))
         .arg("--target")
         .arg("web")
-        .arg("--designer=false")
         .status()?;
 
     if !status.success() {

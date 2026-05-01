@@ -78,13 +78,6 @@ fn main() -> Result<(), Report> {
         .help("Include the WebGL fallback renderer in web builds. This increases WASM size and is intended for iOS Safari/WebKit targets.");
 
     #[allow(non_snake_case)]
-    let ARG_NO_DESIGNER = Arg::with_name("no-designer")
-        .long("no-designer")
-        .takes_value(false)
-        .help("Deprecated no-op; designer is now off by default.")
-        .hidden(true);
-
-    #[allow(non_snake_case)]
     let ARG_IOS_DEVICE = Arg::with_name("ios-device")
         .long("ios-device")
         .takes_value(true)
@@ -95,13 +88,6 @@ fn main() -> Result<(), Report> {
         .long("ios-development-team")
         .takes_value(true)
         .help("Set the Apple Development Team ID for iOS device builds, e.g. `TWM39MH96F`.");
-
-    #[allow(non_snake_case)]
-    let ARG_DESIGNER = Arg::with_name("designer")
-        .long("designer")
-        .takes_value(true)
-        .possible_values(&["true", "false"])
-        .help("Controls designer host behavior. `--designer` or `--designer=true` enables designer; `--designer=false` enables designtime without designer.");
 
     #[allow(non_snake_case)]
     let ARG_LIBDEV = Arg::with_name("libdev")
@@ -130,8 +116,6 @@ fn main() -> Result<(), Report> {
             App::new("run")
                 .about("Run the Pax project from the current working directory in a demo harness")
                 .arg( ARG_PATH.clone() )
-                .arg( ARG_DESIGNER.clone() )
-                .arg( ARG_NO_DESIGNER.clone() )
                 .arg( ARG_TARGET.clone() )
                 .arg( ARG_IOS_DEVICE.clone() )
                 .arg( ARG_IOS_DEVELOPMENT_TEAM.clone() )
@@ -147,8 +131,6 @@ fn main() -> Result<(), Report> {
                 .arg( ARG_TARGET.clone() )
                 .arg( ARG_IOS_DEVICE.clone() )
                 .arg( ARG_IOS_DEVELOPMENT_TEAM.clone() )
-                .arg( ARG_DESIGNER.clone() )
-                .arg( ARG_NO_DESIGNER.clone() )
                 .arg( ARG_VERBOSE.clone() )
                 .arg( ARG_LIBDEV.clone() )
                 .arg( ARG_LIBDEV_MODE.clone() )
@@ -228,13 +210,6 @@ fn main() -> Result<(), Report> {
                         .hidden(true),
                 )
                 .arg(
-                    Arg::with_name("hot-reload-designer")
-                        .long("hot-reload-designer")
-                        .takes_value(true)
-                        .default_value("false")
-                        .hidden(true),
-                )
-                .arg(
                     Arg::with_name("port")
                         .long("port")
                         .takes_value(true)
@@ -290,7 +265,7 @@ fn perform_nominal_action(
             let is_libdev_mode = resolve_libdev_mode(args, Path::new(&path))?;
             let ios_device = args.value_of("ios-device").map(str::to_string);
             let ios_development_team = args.value_of("ios-development-team").map(str::to_string);
-            let (should_run_designtime, should_run_designer) = resolve_dev_options(args, true)?;
+            let (should_run_designtime, should_run_designer) = default_dev_options(true);
             let webgl = args.is_present("webgl");
 
             let _ = pax_compiler::perform_build(&RunContext {
@@ -320,8 +295,7 @@ fn perform_nominal_action(
             let is_release = args.is_present("release") || profile_wasm_size;
             let ios_device = args.value_of("ios-device").map(str::to_string);
             let ios_development_team = args.value_of("ios-development-team").map(str::to_string);
-            let (should_run_designtime, should_run_designer) =
-                resolve_dev_options(args, !is_release)?;
+            let (should_run_designtime, should_run_designer) = default_dev_options(!is_release);
             let webgl = args.is_present("webgl");
 
             if profile_wasm_size && target != "web" {
@@ -449,11 +423,8 @@ fn perform_nominal_action(
             let logic_reload = args.value_of("macos-session-dir").map(|session_dir| {
                 pax_compiler::design_server::LogicReloadConfig::Native(
                     pax_compiler::design_server::NativeLogicReloadConfig {
-                    session_dir: PathBuf::from(session_dir),
-                    should_run_designer: args
-                        .value_of("hot-reload-designer")
-                        .map(|value| value == "true")
-                        .unwrap_or(false),
+                        session_dir: PathBuf::from(session_dir),
+                        should_run_designer: false,
                     },
                 )
             });
@@ -484,30 +455,7 @@ fn normalize_cli_args(args: Vec<String>) -> Result<Vec<String>, Report> {
     let mut iter = args.into_iter().peekable();
 
     while let Some(arg) = iter.next() {
-        if arg == "--designer" {
-            match iter.peek().map(String::as_str) {
-                Some("true") | Some("false") => {
-                    let value = iter.next().unwrap();
-                    normalized.push(format!("--designer={value}"));
-                }
-                Some(next) if !next.starts_with('-') => {
-                    return Err(eyre!(
-                        "`--designer` only accepts `true` or `false`, got `{}`",
-                        next
-                    ));
-                }
-                _ => normalized.push("--designer=true".to_string()),
-            }
-        } else if let Some(value) = arg.strip_prefix("--designer=") {
-            if value == "true" || value == "false" {
-                normalized.push(arg);
-            } else {
-                return Err(eyre!(
-                    "`--designer` only accepts `true` or `false`, got `{}`",
-                    value
-                ));
-            }
-        } else if arg == "--libdev" {
+        if arg == "--libdev" {
             match iter.peek().map(String::as_str) {
                 Some("true") | Some("false") | Some("auto") => {
                     let value = iter.next().unwrap();
@@ -640,36 +588,8 @@ fn absolute_path(path: &Path) -> PathBuf {
         .unwrap_or(absolute)
 }
 
-fn resolve_dev_options(
-    args: &ArgMatches<'_>,
-    default_designtime: bool,
-) -> Result<(bool, bool), Report> {
-    let explicit_designer = match args.value_of("designer") {
-        Some("true") => Some(true),
-        Some("false") => Some(false),
-        Some(value) => {
-            return Err(eyre!(
-                "`--designer` only accepts `true` or `false`, got `{}`",
-                value
-            ));
-        }
-        None => None,
-    };
-    let no_designer = args.is_present("no-designer");
-
-    if explicit_designer == Some(true) && no_designer {
-        return Err(eyre!(
-            "`--designer=true` and `--no-designer` cannot be used together"
-        ));
-    }
-
-    if explicit_designer == Some(true) {
-        Ok((true, true))
-    } else if explicit_designer == Some(false) || no_designer {
-        Ok((true, false))
-    } else {
-        Ok((default_designtime, false))
-    }
+fn default_dev_options(default_designtime: bool) -> (bool, bool) {
+    (default_designtime, false)
 }
 
 fn perform_cleanup(

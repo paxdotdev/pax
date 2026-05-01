@@ -953,7 +953,6 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     &project_path,
                     &manifest,
                     session.session_dir.as_ref().unwrap(),
-                    ctx.should_run_designer,
                     &ready_file,
                     process_child_ids.clone(),
                 )?);
@@ -2118,7 +2117,6 @@ fn spawn_designtime_server_process(
     project_root: &PathBuf,
     manifest: &PaxManifest,
     session_dir: &PathBuf,
-    should_run_designer: bool,
     ready_file: &PathBuf,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
 ) -> Result<Child, eyre::Report> {
@@ -2137,8 +2135,6 @@ fn spawn_designtime_server_process(
         .arg(manifest_path)
         .arg("--macos-session-dir")
         .arg(session_dir)
-        .arg("--hot-reload-designer")
-        .arg(if should_run_designer { "true" } else { "false" })
         .arg("--port")
         .arg("0")
         .arg("--ready-file")

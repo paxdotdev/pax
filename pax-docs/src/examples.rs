@@ -123,7 +123,7 @@ pub fn hosted_example_url(path: &str) -> String {
 }
 
 pub fn run_command(path: &str) -> String {
-    format!("pax-cli run --path examples/src/{path} --target web --designer=false")
+    format!("pax-cli run --path examples/src/{path} --target web")
 }
 
 fn parse_embeds(markdown: &str) -> Vec<ParsedExampleEmbed> {

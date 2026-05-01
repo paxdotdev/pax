@@ -194,6 +194,12 @@ fn prepare_cartridge_sources_with_timings(
     ctx: &RunContext,
     timings: &mut BuildTimings,
 ) -> eyre::Result<PreparedCartridgeSources, Report> {
+    if ctx.is_release && (ctx.should_run_designtime || ctx.should_run_designer) {
+        return Err(eyre!(
+            "Release builds do not support designtime or designer features. Use a debug build for designtime sessions."
+        ));
+    }
+
     if ctx.target == RunTarget::Web {
         timings.record("web interface", || ensure_default_web_interface_bundle(ctx));
     }
@@ -1246,6 +1252,39 @@ mod tests {
     fn invalid_target_returns_error_instead_of_unreachable() {
         let error = RunTarget::parse("fridge").expect_err("expected invalid target");
         assert!(error.contains("unsupported target `fridge`"));
+    }
+
+    fn release_context(should_run_designtime: bool, should_run_designer: bool) -> RunContext {
+        RunContext {
+            target: RunTarget::Web,
+            project_path: PathBuf::from("."),
+            verbose: false,
+            should_also_run: false,
+            is_libdev_mode: false,
+            process_child_ids: Arc::new(Mutex::new(vec![])),
+            should_run_designtime,
+            should_run_designer,
+            is_release: true,
+            profile_wasm_size: false,
+            webgl: false,
+            ios_device: None,
+            ios_development_team: None,
+        }
+    }
+
+    #[test]
+    fn release_build_rejects_devtime_features() {
+        for ctx in [release_context(true, false), release_context(false, true)] {
+            let error = match prepare_cartridge_sources(&ctx) {
+                Ok(_) => panic!(
+                    "release builds should reject designtime and designer cartridge contexts"
+                ),
+                Err(error) => error,
+            };
+            assert!(error
+                .to_string()
+                .contains("Release builds do not support designtime or designer features"));
+        }
     }
 }
 
