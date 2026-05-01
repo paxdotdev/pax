@@ -5,9 +5,9 @@
     y=148px
     width=980px
     height=22px
-    text="DECLARATIVE TIMELINES · LAYERED CANOPY · ANIMATED FOREST VIGNETTE"
+    text="DECLARATIVE TIMELINES · UNITLESS, F, MS, S DURATIONS @ 120FPS"
     opacity=@timeline {
-        duration: 150,
+        duration: 1.25s,
         0: 0.58, Linear,
         50%: 1.0, OutQuad,
         100%: 0.58,
@@ -25,20 +25,20 @@
         anchor_x=50%
         anchor_y=50%
         opacity=@timeline {
-            duration: 96,
+            duration: 96f,
             0: 0.12, Linear,
             34%: 0.84, OutQuad,
             64%: 0.2, Linear,
             100%: 0.12,
         }
         scale_x=@timeline {
-            duration: 96,
+            duration: 96f,
             0: 72%, Linear,
             34%: 150%, OutBack,
             100%: 72%,
         }
         scale_y=@timeline {
-            duration: 96,
+            duration: 96f,
             0: 72%, Linear,
             34%: 150%, OutBack,
             100%: 72%,
@@ -57,20 +57,20 @@
         anchor_x=50%
         anchor_y=50%
         opacity=@timeline {
-            duration: 120,
+            duration: 1s,
             0: 0.08, Linear,
             28%: 0.72, OutQuad,
             74%: 0.14, Linear,
             100%: 0.08,
         }
         scale_x=@timeline {
-            duration: 120,
+            duration: 1s,
             0: 64%, Linear,
             28%: 136%, OutBack,
             100%: 64%,
         }
         scale_y=@timeline {
-            duration: 120,
+            duration: 1s,
             0: 64%, Linear,
             28%: 136%, OutBack,
             100%: 64%,
@@ -89,20 +89,20 @@
         anchor_x=50%
         anchor_y=50%
         opacity=@timeline {
-            duration: 84,
+            duration: 700ms,
             0: 0.14, Linear,
             40%: 0.92, OutQuad,
             70%: 0.24, Linear,
             100%: 0.14,
         }
         scale_x=@timeline {
-            duration: 84,
+            duration: 700ms,
             0: 74%, Linear,
             40%: 162%, OutBack,
             100%: 74%,
         }
         scale_y=@timeline {
-            duration: 84,
+            duration: 700ms,
             0: 74%, Linear,
             40%: 162%, OutBack,
             100%: 74%,
@@ -358,45 +358,109 @@
     </Group>
 </Group>
 
-<Group class=vine_drift_a x=12% y=0% width=118px height=560px anchor_x=50% anchor_y=0% rotate=-6deg opacity=0.82>
-    <Rectangle class=vine_stem x=50% y=0% width=4px height=100% anchor_x=50% />
-    <Group x=74px y=124px width=34px height=92px anchor_x=50% anchor_y=18% rotate=54deg>
-        <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
-    </Group>
-    <Group x=46px y=214px width=28px height=78px anchor_x=50% anchor_y=18% rotate=-42deg>
-        <Path class=leaf_path class=leaf_back class=leaf_slim_shape width=100% height=100% />
-    </Group>
-    <Group x=68px y=304px width=30px height=82px anchor_x=50% anchor_y=18% rotate=38deg>
-        <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
-    </Group>
-    <Group x=48px y=438px width=88px height=112px anchor_x=0% anchor_y=0%>
-        <Path class=vine_tendril_left width=100% height=100% />
-        <Ellipse class=orchid_joint x=12px y=12px width=8px height=8px />
-        <Ellipse class=orchid_petal_hot x=42px y=28px width=22px height=14px rotate=-18deg />
-        <Ellipse class=orchid_petal_warm x=58px y=44px width=24px height=15px rotate=10deg />
-        <Ellipse class=orchid_petal_hot x=50px y=64px width=22px height=14px rotate=24deg />
-        <Ellipse class=orchid_center x=54px y=46px width=10px height=10px />
+<Group
+    class=vine_drift_a
+    x=12%
+    y=0%
+    width=118px
+    height=560px
+    anchor_x=50%
+    anchor_y=0%
+    opacity=0.82
+>
+    <Group
+        class=vine_pendulum_a
+        x=50%
+        y=0%
+        width=100%
+        height=100%
+        anchor_x=50%
+        anchor_y=0%
+        rotate=@timeline {
+            duration: 6.2s,
+            loop: true,
+            0%: -9deg, InOutQuad,
+            50%: 4deg, InOutQuad,
+            100%: -9deg,
+        }
+    >
+        <Rectangle class=vine_stem x=50% y=0% width=4px height=100% anchor_x=50% />
+        <Group x=74px y=124px width=34px height=92px anchor_x=50% anchor_y=18% rotate=54deg>
+            <Group class=vine_leaf_motion class=vine_sway_a>
+                <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=46px y=214px width=28px height=78px anchor_x=50% anchor_y=18% rotate=-42deg>
+            <Group class=vine_leaf_motion class=vine_sway_b>
+                <Path class=leaf_path class=leaf_back class=leaf_slim_shape width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=68px y=304px width=30px height=82px anchor_x=50% anchor_y=18% rotate=38deg>
+            <Group class=vine_leaf_motion class=vine_sway_c>
+                <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=48px y=438px width=88px height=112px anchor_x=0% anchor_y=0%>
+            <Path class=vine_tendril_left width=100% height=100% />
+            <Ellipse class=orchid_joint x=12px y=12px width=8px height=8px />
+            <Ellipse class=orchid_petal_hot x=42px y=28px width=22px height=14px rotate=-18deg />
+            <Ellipse class=orchid_petal_warm x=58px y=44px width=24px height=15px rotate=10deg />
+            <Ellipse class=orchid_petal_hot x=50px y=64px width=22px height=14px rotate=24deg />
+            <Ellipse class=orchid_center x=54px y=46px width=10px height=10px />
+        </Group>
     </Group>
 </Group>
 
-<Group class=vine_drift_b x=88% y=0% width=124px height=600px anchor_x=50% anchor_y=0% rotate=7deg opacity=0.84>
-    <Rectangle class=vine_stem x=50% y=0% width=4px height=100% anchor_x=50% />
-    <Group x=48px y=134px width=30px height=84px anchor_x=50% anchor_y=18% rotate=-46deg>
-        <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
-    </Group>
-    <Group x=76px y=238px width=34px height=94px anchor_x=50% anchor_y=18% rotate=44deg>
-        <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
-    </Group>
-    <Group x=52px y=348px width=28px height=80px anchor_x=50% anchor_y=18% rotate=-34deg>
-        <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
-    </Group>
-    <Group x=4px y=488px width=84px height=108px anchor_x=0% anchor_y=0%>
-        <Path class=vine_tendril_right width=100% height=100% />
-        <Ellipse class=orchid_joint x=62px y=12px width=8px height=8px />
-        <Ellipse class=orchid_petal_cool x=28px y=30px width=20px height=12px rotate=-16deg />
-        <Ellipse class=orchid_petal_cool x=18px y=48px width=22px height=13px rotate=12deg />
-        <Ellipse class=orchid_petal_warm x=30px y=64px width=20px height=12px rotate=20deg />
-        <Ellipse class=orchid_center x=28px y=48px width=9px height=9px />
+<Group
+    class=vine_drift_b
+    x=88%
+    y=0%
+    width=124px
+    height=600px
+    anchor_x=50%
+    anchor_y=0%
+    opacity=0.84
+>
+    <Group
+        class=vine_pendulum_b
+        x=50%
+        y=0%
+        width=100%
+        height=100%
+        anchor_x=50%
+        anchor_y=0%
+        rotate=@timeline {
+            duration: 7.1s,
+            loop: true,
+            0%: 9deg, InOutQuad,
+            50%: -4deg, InOutQuad,
+            100%: 9deg,
+        }
+    >
+        <Rectangle class=vine_stem x=50% y=0% width=4px height=100% anchor_x=50% />
+        <Group x=48px y=134px width=30px height=84px anchor_x=50% anchor_y=18% rotate=-46deg>
+            <Group class=vine_leaf_motion class=vine_sway_b>
+                <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=76px y=238px width=34px height=94px anchor_x=50% anchor_y=18% rotate=44deg>
+            <Group class=vine_leaf_motion class=vine_sway_c>
+                <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=52px y=348px width=28px height=80px anchor_x=50% anchor_y=18% rotate=-34deg>
+            <Group class=vine_leaf_motion class=vine_sway_a>
+                <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+            </Group>
+        </Group>
+        <Group x=4px y=488px width=84px height=108px anchor_x=0% anchor_y=0%>
+            <Path class=vine_tendril_right width=100% height=100% />
+            <Ellipse class=orchid_joint x=62px y=12px width=8px height=8px />
+            <Ellipse class=orchid_petal_cool x=28px y=30px width=20px height=12px rotate=-16deg />
+            <Ellipse class=orchid_petal_cool x=18px y=48px width=22px height=13px rotate=12deg />
+            <Ellipse class=orchid_petal_warm x=30px y=64px width=20px height=12px rotate=20deg />
+            <Ellipse class=orchid_center x=28px y=48px width=9px height=9px />
+        </Group>
     </Group>
 </Group>
 
@@ -628,6 +692,15 @@
         height: 100%
         anchor_x: 50%
         anchor_y: 100%
+    }
+
+    .vine_leaf_motion {
+        x: 50%
+        y: 18%
+        width: 100%
+        height: 100%
+        anchor_x: 50%
+        anchor_y: 18%
     }
 
     .leaf_path {
@@ -1025,22 +1098,6 @@
         },
     }
 
-    .vine_drift_a {
-        rotate: {
-            0%: -6deg, OutQuad,
-            50%: -2deg, InOutBack,
-            100%: -6deg,
-        },
-    }
-
-    .vine_drift_b {
-        rotate: {
-            0%: 7deg, OutQuad,
-            50%: 3deg, InOutBack,
-            100%: 7deg,
-        },
-    }
-
     .sway_a {
         rotate: {
             0%: -4deg, OutQuad,
@@ -1168,6 +1225,35 @@
             0%: 22%, Linear,
             50%: 20%, OutQuad,
             100%: 22%,
+        },
+    }
+}
+
+@timeline {
+    duration: 6.2s,
+    loop: true,
+
+    .vine_sway_a {
+        rotate: {
+            0%: -2deg, InOutQuad,
+            50%: 4deg, InOutQuad,
+            100%: -2deg,
+        },
+    }
+
+    .vine_sway_b {
+        rotate: {
+            0%: 3deg, InOutQuad,
+            50%: -4deg, InOutQuad,
+            100%: 3deg,
+        },
+    }
+
+    .vine_sway_c {
+        rotate: {
+            0%: -1deg, InOutQuad,
+            50%: 3deg, InOutQuad,
+            100%: -1deg,
         },
     }
 }
