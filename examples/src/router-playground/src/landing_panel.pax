@@ -42,10 +42,10 @@
             >
                 <Group width=100% height=100%>
                     <Stacker
-                        x=12%
-                        y=14%
-                        width=76%
-                        height=72%
+                        width=100%
+                        height=100%
+                        padding_x=12%
+                        padding_y=14%
                         direction=StackerDirection::Vertical
                         gutter=8px
                         sizes=[Some(32px), None]
@@ -68,10 +68,10 @@
 
                 <Group width=100% height=100%>
                     <Stacker
-                        x=12%
-                        y=14%
-                        width=76%
-                        height=72%
+                        width=100%
+                        height=100%
+                        padding_x=12%
+                        padding_y=14%
                         direction=StackerDirection::Vertical
                         gutter=8px
                         sizes=[Some(32px), None]
@@ -94,10 +94,10 @@
 
                 <Group width=100% height=100%>
                     <Stacker
-                        x=12%
-                        y=14%
-                        width=76%
-                        height=72%
+                        width=100%
+                        height=100%
+                        padding_x=12%
+                        padding_y=14%
                         direction=StackerDirection::Vertical
                         gutter=8px
                         sizes=[Some(32px), None]

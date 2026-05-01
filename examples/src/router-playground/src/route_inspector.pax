@@ -1,45 +1,41 @@
-<Group width=100% height=100%>
+<Stacker
+    width=100%
+    height=100%
+    padding_x=5%
+    padding_y=9%
+    direction=StackerDirection::Vertical
+    gutter=5px
+    sizes=[Some(22px), None, None, None, None, None, None, Some(22px)]
+>
+    <Text id=title width=100% height=100% text={title} />
+    <Text class=row width=100% height=100% text={"scope path  " + scope_path} />
+    <Text class=row width=100% height=100% text={"global path " + global_path} />
+    <Text class=row width=100% height=100% text={"params      " + params_summary} />
+    <Text class=row width=100% height=100% text={"query       " + query_summary} />
+    <Text class=row width=100% height=100% text={"remainder   " + remainder_summary} />
+    <Text class=row width=100% height=100% text={"fragment    " + fragment_summary} />
     <Stacker
-        x=5%
-        y=9%
-        width=90%
-        height=82%
-        direction=StackerDirection::Vertical
-        gutter=5px
-        sizes=[Some(22px), None, None, None, None, None, None, Some(22px)]
-    >
-        <Text id=title width=100% height=100% text={title} />
-        <Text class=row width=100% height=100% text={"scope path  " + scope_path} />
-        <Text class=row width=100% height=100% text={"global path " + global_path} />
-        <Text class=row width=100% height=100% text={"params      " + params_summary} />
-        <Text class=row width=100% height=100% text={"query       " + query_summary} />
-        <Text class=row width=100% height=100% text={"remainder   " + remainder_summary} />
-        <Text class=row width=100% height=100% text={"fragment    " + fragment_summary} />
-        <Group width=100% height=100%>
-            <Stacker
-                width=100%
-                height=100%
-                direction=StackerDirection::Horizontal
-                gutter=12px
-                sizes=[None, None]
-            >
-                <Text class=row width=100% height=100% text={"exact " + exact_summary} />
-                <Text class=row width=100% height=100% text={"consumed " + consumed_summary} />
-            </Stacker>
-        </Group>
-    </Stacker>
-
-    <Rectangle
         width=100%
         height=100%
-        fill=rgba(11, 18, 32, 220)
-        corner_radii=RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)
-        stroke={
-            color: rgba(120, 137, 163, 150)
-            width: 1px
-        }
-    />
-</Group>
+        direction=StackerDirection::Horizontal
+        gutter=12px
+        sizes=[None, None]
+    >
+        <Text class=row width=100% height=100% text={"exact " + exact_summary} />
+        <Text class=row width=100% height=100% text={"consumed " + consumed_summary} />
+    </Stacker>
+</Stacker>
+
+<Rectangle
+    width=100%
+    height=100%
+    fill=rgba(11, 18, 32, 220)
+    corner_radii=RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)
+    stroke={
+        color: rgba(120, 137, 163, 150)
+        width: 1px
+    }
+/>
 
 @settings {
     @mount: handle_mount
