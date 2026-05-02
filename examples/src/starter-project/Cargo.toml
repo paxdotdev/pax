@@ -13,19 +13,10 @@ space-game = { version = "0.38.3", path="../space-game" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
-name = "paxcartridge"
 
 [[bin]]
 name = "run"
 path = "bin/run.rs"
-
-[profile.dev]
-opt-level = 0
-debug = false
-
-[profile.dev.package."*"]
-opt-level = 2
-debug = false
 
 [profile.release]
 opt-level = 3

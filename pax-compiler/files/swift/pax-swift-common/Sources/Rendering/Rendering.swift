@@ -3174,7 +3174,7 @@ private final class PaxNativeTextboxAreaView: UITextView, UITextViewDelegate {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func apply(element: TextboxElement) {
+    func apply(element: TextboxElement, size _: CGSize) {
         nodeId = element.id
         isProgrammaticChange = true
         if text != element.text {

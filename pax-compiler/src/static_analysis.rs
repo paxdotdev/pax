@@ -379,12 +379,17 @@ fn ensure_syn_type(
                     return Ok(primitive_type_id);
                 }
 
-                if let Some(import_path) = canonical_special_import_path_for_ident(&last_ident) {
-                    return ensure_known_type_definition(ctx, import_path);
+                match resolve_identifier_to_import_path(&last_ident, scope, registry) {
+                    Ok(import_path) => return ensure_import_path_type(ctx, registry, &import_path),
+                    Err(err) => {
+                        if let Some(import_path) =
+                            canonical_special_import_path_for_ident(&last_ident)
+                        {
+                            return ensure_known_type_definition(ctx, import_path);
+                        }
+                        return Err(err);
+                    }
                 }
-
-                let import_path = resolve_identifier_to_import_path(&last_ident, scope, registry)?;
-                return ensure_import_path_type(ctx, registry, &import_path);
             }
 
             let raw_path = segments.join("::");
@@ -540,9 +545,6 @@ fn resolve_identifier_to_import_path(
         {
             return Ok(special_import_path.to_string());
         }
-        if let Some(special_import_path) = canonical_special_import_path_for_ident(identifier) {
-            return Ok(special_import_path.to_string());
-        }
         registry.ensure_import_path_scanned(&canonical_import_path)?;
         if registry
             .items_by_import_path
@@ -554,6 +556,9 @@ fn resolve_identifier_to_import_path(
             if let Some(resolved_import_path) = registry.unique_item_below_root(root, ident) {
                 return Ok(resolved_import_path);
             }
+        }
+        if let Some(special_import_path) = canonical_special_import_path_for_ident(identifier) {
+            return Ok(special_import_path.to_string());
         }
         return Ok(canonical_import_path);
     }
@@ -1888,6 +1893,56 @@ mod tests {
         assert_eq!(
             type_id.import_path().as_deref(),
             Some("pax_std::core::text::TextStyle")
+        );
+    }
+
+    #[test]
+    fn single_segment_type_resolution_prefers_local_point_over_special_kurbo_point() {
+        let mut registry = StaticRegistry::default();
+        registry
+            .insert(dummy_scanned_item("crate::space_game::Point", "Point"))
+            .unwrap();
+
+        let scope = ScopeImports {
+            module_path: "crate::space_game".to_string(),
+            import_root: "crate".to_string(),
+            explicit: HashMap::new(),
+            glob_roots: vec!["pax_kit".to_string()],
+        };
+
+        let mut ctx = ParsingContext::default();
+        let ty: Type = syn::parse_str("Point").expect("test type should parse");
+        let type_id = ensure_syn_type(&mut ctx, &mut registry, &ty, &scope)
+            .expect("local Point should resolve");
+
+        assert_eq!(
+            type_id.import_path().as_deref(),
+            Some("crate::space_game::Point")
+        );
+    }
+
+    #[test]
+    fn single_segment_type_resolution_prefers_explicit_point_import_over_special_kurbo_point() {
+        let mut registry = StaticRegistry::default();
+        registry
+            .insert(dummy_scanned_item("crate::geometry::Point", "Point"))
+            .unwrap();
+
+        let scope = ScopeImports {
+            module_path: "crate::space_game".to_string(),
+            import_root: "crate".to_string(),
+            explicit: HashMap::from([("Point".to_string(), "crate::geometry::Point".to_string())]),
+            glob_roots: vec!["pax_kit".to_string()],
+        };
+
+        let mut ctx = ParsingContext::default();
+        let ty: Type = syn::parse_str("Point").expect("test type should parse");
+        let type_id = ensure_syn_type(&mut ctx, &mut registry, &ty, &scope)
+            .expect("explicit Point import should resolve");
+
+        assert_eq!(
+            type_id.import_path().as_deref(),
+            Some("crate::geometry::Point")
         );
     }
 
