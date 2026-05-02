@@ -285,18 +285,32 @@ impl DesigntimeManager {
             let mut screenshot_map = screenshot_map.borrow_mut();
             if let Some(screenshot) = screenshot_map.remove(&(llm_request.request_id as u32)) {
                 llm_request.screenshot = Some(screenshot);
-                self.pub_pax_connection()?
-                    .borrow_mut()
-                    .send_llm_request(llm_request)?;
+                match self.pub_pax_connection() {
+                    Ok(connection) => {
+                        if let Err(err) = connection.borrow_mut().send_llm_request(llm_request) {
+                            log::warn!("failed to send LLM request over pub-pax websocket: {err}");
+                        }
+                    }
+                    Err(err) => {
+                        log::warn!("failed to connect pub-pax websocket for LLM request: {err}");
+                    }
+                }
             } else {
                 self.enqueued_llm_request = Some(llm_request);
             }
         }
 
-        let privileged_agent_messages = self
+        let privileged_agent_messages = match self
             .privileged_agent_connection
             .borrow_mut()
-            .handle_recv(&mut self.orm)?;
+            .handle_recv(&mut self.orm)
+        {
+            Ok(messages) => messages,
+            Err(err) => {
+                log::warn!("privileged-agent receive failed: {err:?}");
+                Vec::new()
+            }
+        };
         for message in privileged_agent_messages {
             match message {
                 crate::messages::AgentMessage::DevClientRequest(request) => {
@@ -315,7 +329,9 @@ impl DesigntimeManager {
         }
 
         if let Some(pub_pax_connection) = &self.pub_pax_connection {
-            let _ = pub_pax_connection.borrow_mut().handle_recv(&mut self.orm)?;
+            if let Err(err) = pub_pax_connection.borrow_mut().handle_recv(&mut self.orm) {
+                log::warn!("pub-pax receive failed: {err:?}");
+            }
         }
 
         let response_queue = {

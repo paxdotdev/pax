@@ -431,7 +431,7 @@ impl PaxChassisWeb {
         self.designtime_manager
             .borrow_mut()
             .handle_recv(self.engine.borrow().runtime_context.get_screenshot_map())
-            .expect("couldn't handle recv");
+            .unwrap_or_else(|err| log::warn!("designtime receive failed: {err:?}"));
     }
 
     #[cfg(feature = "designtime")]

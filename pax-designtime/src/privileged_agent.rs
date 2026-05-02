@@ -150,62 +150,76 @@ impl WebSocketConnection {
                     self.alive = true;
                     self.connecting = false;
                     self.next_reconnect_at = None;
-                    self.send_manifest_load_request()?;
-                }
-                WsEvent::Message(message) => {
-                    match message {
-                        WsMessage::Binary(msg_bytes) => {
-                            let msg: AgentMessage = rmp_serde::from_slice(&msg_bytes)?;
-                            match msg {
-                                AgentMessage::LoadManifestResponse(resp) => {
-                                    let manifest: PaxManifest =
-                                        rmp_serde::from_slice(&resp.manifest)?;
-                                    manager.set_manifest(manifest);
-                                }
-                                AgentMessage::UpdateTemplateRequest(resp) => {
-                                    manager
-                                        .replace_template(
-                                            resp.type_id,
-                                            resp.new_template,
-                                            resp.settings_block,
-                                        )
-                                        .map_err(|e| anyhow!(e))?;
-                                }
-                                AgentMessage::LLMPartialResponse(partial) => {
-                                    manager.add_new_message(
-                                        partial.request_id,
-                                        partial.message,
-                                        None,
-                                    );
-                                }
-                                AgentMessage::LLMFinalResponse(final_response) => {
-                                    manager.add_new_message(
-                                        final_response.request_id,
-                                        final_response.message,
-                                        Some(final_response.component_definition),
-                                    );
-                                }
-                                AgentMessage::DisconnectNotification(notification) => {
-                                    self.allow_reconnect = notification.allow_reconnect;
-                                    if !notification.allow_reconnect {
-                                        log::info!(
-                                            "{} reconnect disabled by server: {}",
-                                            self.label,
-                                            notification.reason
-                                        );
-                                    }
-                                }
-                                other => passthrough_messages.push(other),
-                            }
-                        }
-                        WsMessage::Ping(data) => {
-                            if let Some(sender) = self.sender() {
-                                sender.send(WsMessage::Pong(data));
-                            }
-                        }
-                        WsMessage::Pong(_) | WsMessage::Text(_) | WsMessage::Unknown(_) => {}
+                    if let Err(err) = self.send_manifest_load_request() {
+                        log::warn!("{} failed to request manifest: {err}", self.label);
+                        self.schedule_reconnect();
                     }
                 }
+                WsEvent::Message(message) => match message {
+                    WsMessage::Binary(msg_bytes) => {
+                        let msg: AgentMessage = match rmp_serde::from_slice(&msg_bytes) {
+                            Ok(msg) => msg,
+                            Err(err) => {
+                                log::warn!(
+                                    "{} received invalid websocket message: {err}",
+                                    self.label
+                                );
+                                continue;
+                            }
+                        };
+                        match msg {
+                            AgentMessage::LoadManifestResponse(resp) => {
+                                match rmp_serde::from_slice::<PaxManifest>(&resp.manifest) {
+                                    Ok(manifest) => manager.set_manifest(manifest),
+                                    Err(err) => log::warn!(
+                                        "{} received invalid manifest payload: {err}",
+                                        self.label
+                                    ),
+                                }
+                            }
+                            AgentMessage::UpdateTemplateRequest(resp) => {
+                                if let Err(err) = manager.replace_template(
+                                    resp.type_id,
+                                    resp.new_template,
+                                    resp.settings_block,
+                                ) {
+                                    log::warn!(
+                                        "{} failed to apply template update from design-server: {}",
+                                        self.label,
+                                        err
+                                    );
+                                }
+                            }
+                            AgentMessage::LLMPartialResponse(partial) => {
+                                manager.add_new_message(partial.request_id, partial.message, None);
+                            }
+                            AgentMessage::LLMFinalResponse(final_response) => {
+                                manager.add_new_message(
+                                    final_response.request_id,
+                                    final_response.message,
+                                    Some(final_response.component_definition),
+                                );
+                            }
+                            AgentMessage::DisconnectNotification(notification) => {
+                                self.allow_reconnect = notification.allow_reconnect;
+                                if !notification.allow_reconnect {
+                                    log::info!(
+                                        "{} reconnect disabled by server: {}",
+                                        self.label,
+                                        notification.reason
+                                    );
+                                }
+                            }
+                            other => passthrough_messages.push(other),
+                        }
+                    }
+                    WsMessage::Ping(data) => {
+                        if let Some(sender) = self.sender() {
+                            sender.send(WsMessage::Pong(data));
+                        }
+                    }
+                    WsMessage::Pong(_) | WsMessage::Text(_) | WsMessage::Unknown(_) => {}
+                },
                 WsEvent::Error(e) => {
                     log::warn!("{} web socket error: {e}", self.label);
                     self.schedule_reconnect();
@@ -324,7 +338,37 @@ fn wake_designtime_loop() {}
 
 #[cfg(test)]
 mod tests {
-    use super::build_socket_url;
+    use super::{build_socket_url, WebSocketConnection};
+    use crate::{
+        messages::{AgentMessage, LoadManifestResponse},
+        orm::PaxManifestORM,
+    };
+    use ewebsock::{WsEvent, WsMessage};
+    use pax_manifest::{PaxManifest, TypeId};
+    use std::collections::{BTreeMap, HashMap};
+
+    fn empty_manifest() -> PaxManifest {
+        PaxManifest {
+            components: BTreeMap::new(),
+            main_component_type_id: TypeId::build_singleton("TestComponent", Some("TestComponent")),
+            type_table: HashMap::new(),
+            assets_dirs: vec![],
+            engine_import_path: String::new(),
+        }
+    }
+
+    fn test_connection(recver: ewebsock::WsReceiver) -> WebSocketConnection {
+        WebSocketConnection {
+            url: "ws://127.0.0.1:1/ws".to_string(),
+            sender: None,
+            recver: Some(recver),
+            label: "test".to_string(),
+            alive: true,
+            allow_reconnect: true,
+            connecting: false,
+            next_reconnect_at: None,
+        }
+    }
 
     #[test]
     fn builds_websocket_url_from_http_origin() {
@@ -340,5 +384,51 @@ mod tests {
             build_socket_url("https://pub.pax.dev", Some("/v0")).unwrap(),
             "wss://pub.pax.dev/v0/ws"
         );
+    }
+
+    #[test]
+    fn ignores_invalid_websocket_messages() {
+        let (recver, on_event) = ewebsock::WsReceiver::new();
+        let _ = on_event(WsEvent::Message(WsMessage::Binary(vec![0xc1])));
+        let mut connection = test_connection(recver);
+        let mut orm = PaxManifestORM::new(empty_manifest());
+
+        let messages = connection.handle_recv(&mut orm).unwrap();
+
+        assert!(messages.is_empty());
+        assert!(connection.alive);
+    }
+
+    #[test]
+    fn ignores_invalid_manifest_payloads() {
+        let (recver, on_event) = ewebsock::WsReceiver::new();
+        let message = AgentMessage::LoadManifestResponse(LoadManifestResponse {
+            manifest: vec![0xc1],
+        });
+        let _ = on_event(WsEvent::Message(WsMessage::Binary(
+            rmp_serde::to_vec(&message).unwrap(),
+        )));
+        let mut connection = test_connection(recver);
+        let mut orm = PaxManifestORM::new(empty_manifest());
+
+        let messages = connection.handle_recv(&mut orm).unwrap();
+
+        assert!(messages.is_empty());
+        assert!(connection.alive);
+    }
+
+    #[test]
+    fn schedules_reconnect_after_close_without_error() {
+        let (recver, on_event) = ewebsock::WsReceiver::new();
+        let _ = on_event(WsEvent::Closed);
+        let mut connection = test_connection(recver);
+        let mut orm = PaxManifestORM::new(empty_manifest());
+
+        let messages = connection.handle_recv(&mut orm).unwrap();
+
+        assert!(messages.is_empty());
+        assert!(!connection.alive);
+        assert!(!connection.connecting);
+        assert!(connection.next_reconnect_at.is_some());
     }
 }

@@ -28,19 +28,6 @@ pub const INFIX_OPERATORS: [Rule; 17] = [
     Rule::xo_null_coalesce,
 ];
 
-#[cfg(feature = "parser")]
-pub const _PRIMARY_OPERANDS: [Rule; 9] = [
-    Rule::expression_grouped,
-    Rule::xo_enum_or_function_call,
-    Rule::xo_color_space_func,
-    Rule::xo_object,
-    Rule::xo_range,
-    Rule::xo_tuple,
-    Rule::xo_list,
-    Rule::xo_literal,
-    Rule::xo_symbol,
-];
-
 pub fn format(component: Pair<Rule>) -> String {
     apply_formatting_rules(component).replace(DO_NOT_INSERT_TAB_MARKER, "")
 }
@@ -1193,11 +1180,6 @@ fn is_prefix(child: &Child) -> bool {
 
 fn is_infix(child: &Child) -> bool {
     INFIX_OPERATORS.contains(&child.node_type)
-}
-
-#[cfg(feature = "parser")]
-fn is_primary_operand(child: &Child) -> bool {
-    _PRIMARY_OPERANDS.contains(&child.node_type)
 }
 
 fn children_longer_than_line_limit(children: &Vec<Child>) -> bool {
