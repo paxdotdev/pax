@@ -4,35 +4,17 @@
         <%= args_full_component.as_ref().unwrap().cartridge_snippet %>
     <% } %>
 
+    <% if build_config.web { %>
     //Platform-specific mount logic for #[main] component
-    #[cfg(feature = "web")]
     use <%= engine_import_path %>::wasm_bindgen::prelude::*;
-    #[cfg(feature = "web")]
     use <%= engine_import_path %>::wasm_bindgen_futures;
-    #[cfg(feature = "web")]
     #[wasm_bindgen]
     pub async fn pax_init() -> JsValue {
         std::panic::set_hook(Box::new(<%= engine_import_path %>::pax_chassis_web::console_error_panic_hook::hook));
         // setup logging
         <%= engine_import_path %>::pax_chassis_web::init_console_logging();
 
-
-
-        #[cfg(not(feature = "designtime"))]
-        {
-            let manifest = init_manifest();
-            let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest);
-            JsValue::from(<%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new(definition_to_instance_traverser).await)
-        }
-
-        #[cfg(all(feature = "designtime", not(feature = "designer")))]
-        {
-            let userland_manifest = init_manifest();
-            let userland_definition_to_instance_traverser = init_definition_to_instance_traverser(userland_manifest);
-            JsValue::from(<%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new_designtime(userland_definition_to_instance_traverser).await)
-        }
-
-        #[cfg(feature = "designer")]
+        <% if build_config.designer { %>
         {
             let userland_manifest = init_manifest();
             let userland_definition_to_instance_traverser = init_definition_to_instance_traverser(userland_manifest);
@@ -42,101 +24,33 @@
 
             JsValue::from(<%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new_designer(userland_definition_to_instance_traverser, designer_definition_to_instance_traverser).await)
         }
+        <% } else if build_config.designtime { %>
+        {
+            let userland_manifest = init_manifest();
+            let userland_definition_to_instance_traverser = init_definition_to_instance_traverser(userland_manifest);
+            JsValue::from(<%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new_designtime(userland_definition_to_instance_traverser).await)
+        }
+        <% } else { %>
+        {
+            let manifest = init_manifest();
+            let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest);
+            JsValue::from(<%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new(definition_to_instance_traverser).await)
+        }
+        <% } %>
 
     }
 
     //cdylib exports
-    #[cfg(feature = "web")]
     pub use <%= engine_import_path %>::pax_chassis_web::*;
+    <% } %>
 
-    #[cfg(any(feature = "macos", feature="ios"))]
+    <% if build_config.macos || build_config.ios { %>
     #[no_mangle]
     pub extern "C" fn pax_init(initial_width: f32, initial_height: f32) -> *mut <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
         let _ = <%= engine_import_path %>::pax_chassis_common::env_logger::try_init();
 
         let init_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            #[cfg(not(feature = "designtime"))]
-            {
-                let manifest = init_manifest();
-                let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest.clone());
-
-                let main_component_instance = definition_to_instance_traverser.get_main_component(&manifest.main_component_type_id.to_string());
-                let start = std::time::Instant::now();
-
-                //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
-                //engine can be passed back to Swift via the C (FFI) bridge
-                //This could presumably be cleaned up -- see `pax_dealloc_engine`
-                let engine: std::mem::ManuallyDrop<Box<<%= engine_import_path %>::pax_runtime::engine::PaxEngine>> = std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_runtime::engine::PaxEngine::new(
-                    main_component_instance,
-                    (
-                        initial_width.max(1.0) as f64,
-                        initial_height.max(1.0) as f64,
-                    ),
-                    Platform::Native,
-                    #[cfg(feature="macos")]
-                    OS::Mac,
-                    #[cfg(feature="ios")]
-                    OS::IPhone,
-                    Box::new(move || start.elapsed().as_millis()),
-                    <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::native_scroller_tiling_policy()
-                )));
-
-                let container = std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
-                    _engine: Box::into_raw(std::mem::ManuallyDrop::into_inner(engine)),
-                    #[cfg(any(feature="ios", feature="macos"))]
-                    _render_context: std::ptr::null_mut(),
-                    #[cfg(any(feature="ios", feature="macos"))]
-                    _render_target: std::ptr::null_mut(),
-                }));
-
-                Box::into_raw(std::mem::ManuallyDrop::into_inner(container))
-            }
-
-            #[cfg(all(feature = "designtime", not(feature = "designer")))]
-            {
-                let userland_manifest = init_manifest();
-                let userland_definition_to_instance_traverser =
-                    init_definition_to_instance_traverser(userland_manifest);
-
-                let userland_main_component_instance = userland_definition_to_instance_traverser
-                    .get_main_component("USERLAND_COMPONENT_ROOT");
-                let designtime_manager = userland_definition_to_instance_traverser
-                    .get_designtime_manager(String::new())
-                    .expect("designtime manager should exist for native designtime builds");
-                let start = std::time::Instant::now();
-
-                let engine: std::mem::ManuallyDrop<Box<<%= engine_import_path %>::pax_runtime::engine::PaxEngine>> =
-                    std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_runtime::engine::PaxEngine::new_with_designtime(
-                        userland_main_component_instance,
-                        (
-                            initial_width.max(1.0) as f64,
-                            initial_height.max(1.0) as f64,
-                        ),
-                        designtime_manager.clone(),
-                        Platform::Native,
-                        #[cfg(feature="macos")]
-                        OS::Mac,
-                        #[cfg(feature="ios")]
-                        OS::IPhone,
-                        Box::new(move || start.elapsed().as_millis()),
-                        <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::native_scroller_tiling_policy()
-                    )));
-
-                let container =
-                    std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
-                        _engine: Box::into_raw(std::mem::ManuallyDrop::into_inner(engine)),
-                        #[cfg(any(feature="ios", feature="macos"))]
-                        _render_context: std::ptr::null_mut(),
-                        #[cfg(any(feature="ios", feature="macos"))]
-                        _render_target: std::ptr::null_mut(),
-                        userland_definition_to_instance_traverser,
-                        designtime_manager,
-                    }));
-
-                Box::into_raw(std::mem::ManuallyDrop::into_inner(container))
-            }
-
-            #[cfg(feature = "designer")]
+            <% if build_config.designer { %>
             {
                 let userland_manifest = init_manifest();
                 let userland_definition_to_instance_traverser =
@@ -165,10 +79,7 @@
                         ),
                         designtime_manager.clone(),
                         Platform::Native,
-                        #[cfg(feature="macos")]
-                        OS::Mac,
-                        #[cfg(feature="ios")]
-                        OS::IPhone,
+                        <% if build_config.macos { %>OS::Mac,<% } else { %>OS::IPhone,<% } %>
                         Box::new(move || start.elapsed().as_millis()),
                         <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::native_scroller_tiling_policy()
                     )));
@@ -176,9 +87,7 @@
                 let container =
                     std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
                         _engine: Box::into_raw(std::mem::ManuallyDrop::into_inner(engine)),
-                        #[cfg(any(feature="ios", feature="macos"))]
                         _render_context: std::ptr::null_mut(),
-                        #[cfg(any(feature="ios", feature="macos"))]
                         _render_target: std::ptr::null_mut(),
                         userland_definition_to_instance_traverser,
                         designtime_manager,
@@ -186,6 +95,76 @@
 
                 Box::into_raw(std::mem::ManuallyDrop::into_inner(container))
             }
+            <% } else if build_config.designtime { %>
+            {
+                let userland_manifest = init_manifest();
+                let userland_definition_to_instance_traverser =
+                    init_definition_to_instance_traverser(userland_manifest);
+
+                let userland_main_component_instance = userland_definition_to_instance_traverser
+                    .get_main_component("USERLAND_COMPONENT_ROOT");
+                let designtime_manager = userland_definition_to_instance_traverser
+                    .get_designtime_manager(String::new())
+                    .expect("designtime manager should exist for native designtime builds");
+                let start = std::time::Instant::now();
+
+                let engine: std::mem::ManuallyDrop<Box<<%= engine_import_path %>::pax_runtime::engine::PaxEngine>> =
+                    std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_runtime::engine::PaxEngine::new_with_designtime(
+                        userland_main_component_instance,
+                        (
+                            initial_width.max(1.0) as f64,
+                            initial_height.max(1.0) as f64,
+                        ),
+                        designtime_manager.clone(),
+                        Platform::Native,
+                        <% if build_config.macos { %>OS::Mac,<% } else { %>OS::IPhone,<% } %>
+                        Box::new(move || start.elapsed().as_millis()),
+                        <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::native_scroller_tiling_policy()
+                    )));
+
+                let container =
+                    std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
+                        _engine: Box::into_raw(std::mem::ManuallyDrop::into_inner(engine)),
+                        _render_context: std::ptr::null_mut(),
+                        _render_target: std::ptr::null_mut(),
+                        userland_definition_to_instance_traverser,
+                        designtime_manager,
+                    }));
+
+                Box::into_raw(std::mem::ManuallyDrop::into_inner(container))
+            }
+            <% } else { %>
+            {
+                let manifest = init_manifest();
+                let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest.clone());
+
+                let main_component_instance = definition_to_instance_traverser.get_main_component(&manifest.main_component_type_id.to_string());
+                let start = std::time::Instant::now();
+
+                //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
+                //engine can be passed back to Swift via the C (FFI) bridge
+                //This could presumably be cleaned up -- see `pax_dealloc_engine`
+                let engine: std::mem::ManuallyDrop<Box<<%= engine_import_path %>::pax_runtime::engine::PaxEngine>> = std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_runtime::engine::PaxEngine::new(
+                    main_component_instance,
+                    (
+                        initial_width.max(1.0) as f64,
+                        initial_height.max(1.0) as f64,
+                    ),
+                    Platform::Native,
+                    <% if build_config.macos { %>OS::Mac,<% } else { %>OS::IPhone,<% } %>
+                    Box::new(move || start.elapsed().as_millis()),
+                    <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::native_scroller_tiling_policy()
+                )));
+
+                let container = std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
+                    _engine: Box::into_raw(std::mem::ManuallyDrop::into_inner(engine)),
+                    _render_context: std::ptr::null_mut(),
+                    _render_target: std::ptr::null_mut(),
+                }));
+
+                Box::into_raw(std::mem::ManuallyDrop::into_inner(container))
+            }
+            <% } %>
         }));
 
         match init_result {
@@ -205,8 +184,8 @@
     }
 
     //cdylib exports
-    #[cfg(any(feature = "macos", feature="ios"))]
     pub use <%= engine_import_path %>::pax_chassis_common::*;
+    <% } %>
 
 <% } %>
 

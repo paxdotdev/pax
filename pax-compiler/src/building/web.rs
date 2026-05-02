@@ -3,12 +3,10 @@ use crate::dev_session::{
     DevSession,
 };
 use crate::helpers::{
-    wait_with_output, ASSETS_DIR_NAME, BUILD_DIR_NAME, DIR_IGNORE_LIST_WEB, INTERFACE_DIR_NAME,
-    PAX_BADGE,
+    configure_pax_build_env, pax_project_feature_args, wait_with_output, ASSETS_DIR_NAME,
+    BUILD_DIR_NAME, DIR_IGNORE_LIST_WEB, INTERFACE_DIR_NAME, PAX_BADGE,
 };
-use crate::{
-    copy_dir_recursively, prepare_cartridge_sources, BuildTimings, RunContext, RunTarget,
-};
+use crate::{copy_dir_recursively, prepare_cartridge_sources, BuildTimings, RunContext, RunTarget};
 
 use color_eyre::eyre;
 use flate2::{write::GzEncoder, Compression};
@@ -18,7 +16,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
-use toml_edit::Document;
 
 use dotenv::dotenv;
 use eyre::eyre;
@@ -157,40 +154,17 @@ fn print_web_bundle_stats(build_dest: &std::path::Path, build_mode_name: &str) {
     }
 }
 
-fn manifest_has_table_key(document: &Document, table: &str, key: &str) -> bool {
-    document
-        .get(table)
-        .and_then(|item| item.as_table())
-        .map(|table| table.contains_key(key))
-        .unwrap_or(false)
-}
-
-fn webgl_feature_selector(ctx: &RunContext) -> &'static str {
-    let manifest_path = ctx.project_path.join("Cargo.toml");
-    let Some(document) = fs::read_to_string(&manifest_path)
-        .ok()
-        .and_then(|contents| contents.parse::<Document>().ok())
-    else {
-        return "webgl";
-    };
-
-    if manifest_has_table_key(&document, "features", "webgl") {
-        "webgl"
-    } else if manifest_has_table_key(&document, "dependencies", "pax-kit") {
-        "pax-kit/webgl"
-    } else if manifest_has_table_key(&document, "dependencies", "pax-engine") {
-        "pax-engine/webgl"
-    } else {
-        "webgl"
-    }
-}
-
 fn web_cargo_features(ctx: &RunContext) -> String {
     let mut features = vec!["web"];
     if ctx.webgl {
-        features.push(webgl_feature_selector(ctx));
+        features.push("webgl");
     }
-    features.join(",")
+    if ctx.should_run_designer {
+        features.extend(["designtime", "designer"]);
+    } else if ctx.should_run_designtime {
+        features.push("designtime");
+    }
+    pax_project_feature_args(&ctx.project_path, &features).join(",")
 }
 
 fn apply_release_size_profile(cmd: &mut Command, preserve_wasm_names: bool) {
@@ -393,6 +367,12 @@ fn compile_web_interface_artifacts(
         .env("PAX_DIR", &pax_dir)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
+    configure_pax_build_env(
+        &mut cmd,
+        "web",
+        ctx.should_run_designtime,
+        ctx.should_run_designer,
+    );
 
     if is_profiling {
         cmd.arg("--profiling");
@@ -405,12 +385,6 @@ fn compile_web_interface_artifacts(
     } else {
         cmd.arg("--dev");
     }
-    if ctx.should_run_designer {
-        cmd.arg("--features").arg("designer");
-    } else if ctx.should_run_designtime {
-        cmd.arg("--features").arg("designtime");
-    }
-
     #[cfg(unix)]
     unsafe {
         cmd.pre_exec(crate::pre_exec_hook);
@@ -577,14 +551,13 @@ pub fn build_web_project_with_cartridge(
 
     let (interface_path, build_mode_name) =
         compile_web_interface_artifacts(ctx, pax_dir, process_child_ids, assets_dirs, timings)?;
-    let build_dest =
-        materialize_web_build_dir(
-            pax_dir,
-            &interface_path,
-            build_mode_name,
-            target_str_lower,
-            timings,
-        )?;
+    let build_dest = materialize_web_build_dir(
+        pax_dir,
+        &interface_path,
+        build_mode_name,
+        target_str_lower,
+        timings,
+    )?;
 
     timings.print_summary();
 

@@ -7,7 +7,8 @@ use crate::dev_session::{
     write_registered_session, DevSession,
 };
 use crate::helpers::{
-    BUILD_DIR_NAME, DIR_IGNORE_LIST_MACOS, ERR_SPAWN, INTERFACE_DIR_NAME, PAX_BADGE,
+    configure_pax_build_env, pax_project_feature_args, BUILD_DIR_NAME, DIR_IGNORE_LIST_MACOS,
+    ERR_SPAWN, INTERFACE_DIR_NAME, PAX_BADGE,
 };
 use crate::{
     copy_dir_recursively, prepare_cartridge_sources, wait_with_output, BuildTimings, RunContext,
@@ -422,11 +423,18 @@ pub fn build_apple_project_with_cartridge(
         let process_child_ids_threadsafe = process_child_ids.clone();
         let build_results_threadsafe = build_results.clone();
 
-        let arg_features = if let RunTarget::macOS = &target {
-            "--features=macos"
+        let mut requested_features = vec![if let RunTarget::macOS = &target {
+            "macos"
         } else {
-            "--features=ios"
-        };
+            "ios"
+        }];
+        let pax_build_target = requested_features[0];
+        if should_run_designer {
+            requested_features.extend(["designtime", "designer"]);
+        } else if should_run_designtime {
+            requested_features.push("designtime");
+        }
+        let cargo_features = pax_project_feature_args(&project_path, &requested_features);
 
         let handle = thread::spawn(move || {
             let mut cmd = Command::new("cargo");
@@ -437,16 +445,17 @@ pub fn build_apple_project_with_cartridge(
                 .arg("always")
                 .arg("--target")
                 .arg(target_mapping.rust_target)
-                .arg(arg_features)
+                .arg("--features")
+                .arg(cargo_features.join(","))
                 .env("PAX_DIR", &pax_dir)
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped());
-
-            if should_run_designer {
-                cmd.arg("--features").arg("designer");
-            } else if should_run_designtime {
-                cmd.arg("--features").arg("designtime");
-            }
+            configure_pax_build_env(
+                &mut cmd,
+                pax_build_target,
+                should_run_designtime,
+                should_run_designer,
+            );
 
             if is_release {
                 cmd.arg("--release");
@@ -1826,6 +1835,13 @@ pub fn rebuild_staged_macos_logic_dylib(
             .ok_or_else(|| eyre!("no macOS target mapping available for staged logic reload"))?;
     let dylib_file_name = resolve_dylib_file_name(project_root)?;
 
+    let requested_features = if should_run_designer {
+        vec!["macos", "designtime", "designer"]
+    } else {
+        vec!["macos", "designtime"]
+    };
+    let cargo_features = pax_project_feature_args(project_root, &requested_features);
+
     let mut cmd = Command::new("cargo");
     cmd.current_dir(project_root)
         .arg("build")
@@ -1833,16 +1849,17 @@ pub fn rebuild_staged_macos_logic_dylib(
         .arg("always")
         .arg("--target")
         .arg(target_mapping.rust_target)
-        .arg("--features=macos")
+        .arg("--features")
+        .arg(cargo_features.join(","))
         .env("PAX_DIR", &prepared.pax_dir)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
-
-    if should_run_designer {
-        cmd.arg("--features").arg("designer");
-    } else {
-        cmd.arg("--features").arg("designtime");
-    }
+    configure_pax_build_env(
+        &mut cmd,
+        "macos",
+        true,
+        should_run_designer,
+    );
 
     #[cfg(unix)]
     unsafe {

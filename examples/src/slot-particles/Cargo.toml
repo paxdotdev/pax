@@ -8,7 +8,7 @@ default-run = "run"
 rand = { version = "0.8.5" }
 getrandom = { version = "0.2.15", features = ["js"] }
 pax-kit = { version = "0.38.3", path="../../../pax-kit" }
-fireworks = {version = "0.36.3", path="../fireworks" }
+fireworks = {version = "0.38.3", path="../fireworks" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -17,14 +17,6 @@ name = "paxcartridge"
 [[bin]]
 name = "run"
 path = "bin/run.rs"
-
-[features]
-designtime = ["pax-kit/designtime", "fireworks/designtime"]
-designer = ["designtime", "pax-kit/designer", "fireworks/designer"]
-web = ["pax-kit/web"]
-webgl = ["pax-kit/webgl"]
-macos = ["pax-kit/macos"]
-ios = ["pax-kit/ios"]
 
 [profile.dev]
 opt-level = 0

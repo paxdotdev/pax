@@ -15,14 +15,6 @@ name = "paxcartridge"
 name = "run"
 path = "bin/run.rs"
 
-[features]
-designtime = ["pax-kit/designtime"]
-designer = ["designtime", "pax-kit/designer"]
-web = ["pax-kit/web"]
-webgl = ["pax-kit/webgl"]
-macos = ["pax-kit/macos"]
-ios = ["pax-kit/ios"]
-
 [profile.dev]
 opt-level = 0
 debug = false

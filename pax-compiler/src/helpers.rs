@@ -3,6 +3,7 @@ use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
 use pax_manifest::HostCrateInfo;
 use pax_runtime::api::serde::Deserialize;
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -60,6 +61,245 @@ pub const ALL_PKGS: &[&str] = &[
     "pax-manifest",
     "pax-language",
 ];
+
+#[derive(Default)]
+struct ProjectFeatureConfig {
+    local_features: HashSet<String>,
+    dependencies: HashSet<String>,
+}
+
+impl ProjectFeatureConfig {
+    fn from_project_path(project_path: &Path) -> Option<Self> {
+        let manifest_path = project_path.join("Cargo.toml");
+        let document = fs::read_to_string(&manifest_path)
+            .ok()?
+            .parse::<Document>()
+            .ok()?;
+
+        Some(Self {
+            local_features: table_keys(&document, "features"),
+            dependencies: table_keys(&document, "dependencies"),
+        })
+    }
+
+    fn has_local_feature(&self, feature: &str) -> bool {
+        self.local_features.contains(feature)
+    }
+
+    fn has_dependency(&self, dependency: &str) -> bool {
+        self.dependencies.contains(dependency)
+    }
+}
+
+fn table_keys(document: &Document, table_name: &str) -> HashSet<String> {
+    document
+        .get(table_name)
+        .and_then(|item| item.as_table())
+        .map(|table| table.iter().map(|(key, _)| key.to_string()).collect())
+        .unwrap_or_default()
+}
+
+fn push_unique(features: &mut Vec<String>, feature: impl Into<String>) {
+    let feature = feature.into();
+    if !features.iter().any(|existing| existing == &feature) {
+        features.push(feature);
+    }
+}
+
+fn pax_dependency_feature_selectors(config: &ProjectFeatureConfig, feature: &str) -> Vec<String> {
+    if config.has_dependency("pax-kit") {
+        return vec![format!("pax-kit/{feature}")];
+    }
+
+    match feature {
+        "parser" if config.has_dependency("pax-std") => vec!["pax-std/parser".to_string()],
+        "designtime" if config.has_dependency("pax-std") => {
+            vec!["pax-std/designtime".to_string()]
+        }
+        "designtime" if config.has_dependency("pax-engine") => {
+            vec!["pax-engine/designtime".to_string()]
+        }
+        "designer" if config.has_dependency("pax-designer") => {
+            vec!["pax-designer/designtime".to_string()]
+        }
+        "web" | "webgl" | "macos" | "ios" if config.has_dependency("pax-engine") => {
+            vec![format!("pax-engine/{feature}")]
+        }
+        _ => vec![],
+    }
+}
+
+pub fn pax_project_feature_args(project_path: &Path, requested_features: &[&str]) -> Vec<String> {
+    let Some(config) = ProjectFeatureConfig::from_project_path(project_path) else {
+        return requested_features
+            .iter()
+            .map(|feature| feature.to_string())
+            .collect();
+    };
+
+    let mut features = vec![];
+    for requested_feature in requested_features {
+        if config.has_local_feature(requested_feature) {
+            push_unique(&mut features, *requested_feature);
+        }
+
+        for dependency_feature in pax_dependency_feature_selectors(&config, requested_feature) {
+            push_unique(&mut features, dependency_feature);
+        }
+
+        if features.is_empty() || !config.has_local_feature(requested_feature) {
+            let has_requested_dependency_feature = features
+                .iter()
+                .any(|feature| feature.ends_with(&format!("/{requested_feature}")));
+            if !has_requested_dependency_feature {
+                push_unique(&mut features, *requested_feature);
+            }
+        }
+    }
+
+    features
+}
+
+pub fn configure_pax_build_env(
+    cmd: &mut Command,
+    target: &str,
+    should_run_designtime: bool,
+    should_run_designer: bool,
+) {
+    cmd.env("PAX_BUILD_TARGET", target)
+        .env(
+            "PAX_BUILD_DESIGNTIME",
+            if should_run_designer || should_run_designtime {
+                "1"
+            } else {
+                "0"
+            },
+        )
+        .env(
+            "PAX_BUILD_DESIGNER",
+            if should_run_designer { "1" } else { "0" },
+        );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn write_manifest(contents: &str) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().expect("tempdir should be created");
+        fs::write(dir.path().join("Cargo.toml"), contents).expect("manifest should be written");
+        dir
+    }
+
+    #[test]
+    fn pax_kit_projects_get_local_and_dependency_features() {
+        let dir = write_manifest(
+            r#"
+[package]
+name = "demo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pax-kit = "0.38.3"
+
+[features]
+web = []
+designtime = []
+designer = []
+parser = []
+"#,
+        );
+
+        assert_eq!(
+            pax_project_feature_args(
+                dir.path(),
+                &["web", "designtime", "designer", "parser", "webgl"]
+            ),
+            vec![
+                "web",
+                "pax-kit/web",
+                "designtime",
+                "pax-kit/designtime",
+                "designer",
+                "pax-kit/designer",
+                "parser",
+                "pax-kit/parser",
+                "pax-kit/webgl",
+            ]
+        );
+    }
+
+    #[test]
+    fn pax_kit_projects_do_not_need_local_feature_stubs() {
+        let dir = write_manifest(
+            r#"
+[package]
+name = "demo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pax-kit = "0.38.3"
+"#,
+        );
+
+        assert_eq!(
+            pax_project_feature_args(
+                dir.path(),
+                &["web", "designtime", "designer", "parser", "webgl"]
+            ),
+            vec![
+                "pax-kit/web",
+                "pax-kit/designtime",
+                "pax-kit/designer",
+                "pax-kit/parser",
+                "pax-kit/webgl",
+            ]
+        );
+    }
+
+    #[test]
+    fn direct_engine_projects_keep_existing_feature_names() {
+        let dir = write_manifest(
+            r#"
+[package]
+name = "demo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pax-engine = "0.38.3"
+pax-std = "0.38.3"
+
+[features]
+web = ["pax-engine/web"]
+designtime = ["pax-engine/designtime", "pax-std/designtime"]
+"#,
+        );
+
+        assert_eq!(
+            pax_project_feature_args(dir.path(), &["web", "designtime", "parser"]),
+            vec![
+                "web",
+                "pax-engine/web",
+                "designtime",
+                "pax-std/designtime",
+                "pax-std/parser",
+            ]
+        );
+    }
+
+    #[test]
+    fn unreadable_manifest_falls_back_to_requested_features() {
+        let dir = tempfile::tempdir().expect("tempdir should be created");
+
+        assert_eq!(
+            pax_project_feature_args(dir.path(), &["web", "designtime"]),
+            vec!["web", "designtime"]
+        );
+    }
+}
 
 #[derive(Debug, Deserialize)]
 struct Metadata {

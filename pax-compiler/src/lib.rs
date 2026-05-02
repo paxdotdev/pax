@@ -268,6 +268,7 @@ fn prepare_cartridge_sources_with_timings(
             &merged_manifest,
             &userland_manifest,
             designer_manifest,
+            ctx.should_run_designtime || ctx.should_run_designer,
             ctx.is_release && !ctx.should_run_designtime && !ctx.should_run_designer,
         );
     });

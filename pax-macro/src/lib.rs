@@ -13,7 +13,7 @@ use quote::{format_ident, quote, ToTokens};
 use syn::punctuated::Punctuated;
 use templating::{
     ArgsFullComponent, EnumVariantDefinition, InternalDefinitions, StaticPropertyDefinition,
-    TemplateArgsDerivePax,
+    TemplateArgsDerivePax, TemplateBuildConfig,
 };
 
 use sailfish::TemplateOnce;
@@ -24,6 +24,38 @@ fn is_root_crate() -> bool {
     let is_not_blacklisted = !CRATES_WITHOUT_ROOT_CARTRIDGE_SNIPPET
         .contains(&std::env::var("CARGO_PKG_NAME").unwrap_or_default().as_str());
     is_not_blacklisted
+}
+
+fn env_flag(name: &str) -> bool {
+    env::var(name)
+        .map(|value| {
+            let normalized = value.to_ascii_lowercase();
+            matches!(normalized.as_str(), "1" | "true" | "yes" | "on")
+        })
+        .unwrap_or(false)
+}
+
+fn cargo_feature_enabled(feature: &str) -> bool {
+    env::var_os(format!(
+        "CARGO_FEATURE_{}",
+        feature.replace('-', "_").to_ascii_uppercase()
+    ))
+    .is_some()
+}
+
+fn template_build_config() -> TemplateBuildConfig {
+    let pax_build_target = env::var("PAX_BUILD_TARGET").unwrap_or_default();
+    let designer = env_flag("PAX_BUILD_DESIGNER") || cargo_feature_enabled("designer");
+    let designtime =
+        designer || env_flag("PAX_BUILD_DESIGNTIME") || cargo_feature_enabled("designtime");
+
+    TemplateBuildConfig {
+        web: pax_build_target == "web" || cargo_feature_enabled("web"),
+        macos: pax_build_target == "macos" || cargo_feature_enabled("macos"),
+        ios: pax_build_target == "ios" || cargo_feature_enabled("ios"),
+        designtime,
+        designer,
+    }
 }
 
 use syn::{
@@ -53,6 +85,7 @@ fn pax_primitive(
         is_custom_interpolatable,
         is_root_crate: is_root_crate(),
         _is_enum: is_enum,
+        build_config: template_build_config(),
         engine_import_path,
     }
     .render_once()
@@ -83,6 +116,7 @@ fn pax_struct_only_component(
         is_root_crate: is_root_crate(),
         is_custom_interpolatable,
         _is_enum: is_enum,
+        build_config: template_build_config(),
         engine_import_path,
     }
     .render_once()
@@ -342,12 +376,16 @@ fn pax_full_component(
     let current_manifest_dir = env::var("CARGO_MANIFEST_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|_| ".".into());
+    let build_config = template_build_config();
     let needs_runtime_cartridge = is_main_component && is_root_crate();
+    let needs_runtime_target_cartridge = needs_runtime_cartridge
+        && (build_config.web || build_config.macos || build_config.ios);
     let missing_cartridge_snippet = |reason: String| {
-        format!(
-            r#"#[cfg(any(feature = "web", feature = "macos", feature = "ios"))]
-compile_error!({reason:?});"#
-        )
+        if needs_runtime_target_cartridge {
+            format!("compile_error!({reason:?});")
+        } else {
+            "".to_string()
+        }
     };
     let cartridge_snippet = if let Some(pax_dir) = pax_dir {
         if pax_dir.starts_with(&current_manifest_dir) {
@@ -386,6 +424,7 @@ compile_error!({reason:?});"#
         is_root_crate: is_root_crate(),
         is_custom_interpolatable,
         _is_enum: is_enum,
+        build_config,
         engine_import_path,
     }
     .render_once()

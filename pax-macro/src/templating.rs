@@ -30,6 +30,15 @@ pub struct ArgsFullComponent {
     pub cartridge_snippet: String,
 }
 
+#[derive(Clone, Copy, Debug, Serialize)]
+pub struct TemplateBuildConfig {
+    pub web: bool,
+    pub macos: bool,
+    pub ios: bool,
+    pub designtime: bool,
+    pub designer: bool,
+}
+
 #[derive(TemplateOnce)]
 #[template(path = "../templates/derive_pax.stpl", escape = false)]
 pub struct TemplateArgsDerivePax {
@@ -42,6 +51,7 @@ pub struct TemplateArgsDerivePax {
     pub is_custom_interpolatable: bool,
     pub is_root_crate: bool,
     pub _is_enum: bool,
+    pub build_config: TemplateBuildConfig,
 
     /// Used to specify a custom import prefix for codegen, if importing pax_engine
     /// via anything other than pax_kit::pax_engine (e.g. for pax-std and pax-designer, which
