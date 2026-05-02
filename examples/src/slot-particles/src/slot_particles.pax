@@ -1,7 +1,6 @@
 for (data, i) in self.particles {
     <Group
-        anchor_x=50%
-        anchor_y=50%
+        anchor=50%
         x={data.x}
         y={data.y}
         width={data.width}

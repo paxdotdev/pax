@@ -72,8 +72,7 @@
             y={((1.0 - self.lightness)*100)%}
             width=10px
             height=10px
-            anchor_x=50%
-            anchor_y=50%
+            anchor=50%
             fill=TRANSPARENT
             stroke={color: WHITE, width: 2px}
         />

@@ -69,6 +69,7 @@ pub struct RuntimeResolvedPropertyEntry {
     pub source: RuntimeSettingsSource,
     pub selector: Option<SelectorExpr>,
     pub value: ValueDefinition,
+    pub axis_index: Option<usize>,
 }
 
 pub type RuntimeResolvedPropertyColumns = BTreeMap<String, Vec<RuntimeResolvedPropertyEntry>>;
@@ -590,8 +591,7 @@ impl ExpandedNode {
         *borrow_mut!(self.properties_scope) = borrow!(new_expanded_node.properties_scope).clone();
         *borrow_mut!(self.common_properties) =
             Rc::clone(&*borrow!(new_expanded_node.common_properties));
-        *self.selector_metadata.borrow_mut() =
-            new_expanded_node.selector_metadata.borrow().clone();
+        *self.selector_metadata.borrow_mut() = new_expanded_node.selector_metadata.borrow().clone();
         self.occlusion.set(Default::default());
 
         self.bind_to_parent_bounds(context);
@@ -619,9 +619,12 @@ impl ExpandedNode {
     fn refresh_properties_scope(self: &Rc<Self>, template: &Rc<dyn InstanceNode>) {
         let common_properties = Rc::clone(&*borrow!(self.common_properties));
         let mut refreshed_scope = borrow!(*common_properties).retrieve_property_scope();
-        refreshed_scope.extend(template.base().properties_scope.build(Rc::clone(
-            &*borrow!(self.properties),
-        )));
+        refreshed_scope.extend(
+            template
+                .base()
+                .properties_scope
+                .build(Rc::clone(&*borrow!(self.properties))),
+        );
         *borrow_mut!(self.properties_scope) = refreshed_scope;
     }
 
@@ -1299,7 +1302,11 @@ impl ExpandedNode {
             if in_import_settings {
                 let base = borrow!(node.instance_node);
                 let component_settings = base.base().component_settings.clone();
-                let provider_type_id = base.base().template_node_type_id.clone().unwrap_or_default();
+                let provider_type_id = base
+                    .base()
+                    .template_node_type_id
+                    .clone()
+                    .unwrap_or_default();
                 drop(base);
                 if let Some(settings) = component_settings {
                     if !settings.is_empty() {

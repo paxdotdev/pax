@@ -1,5 +1,5 @@
 <Text x=50% y=50% text="Move mouse up & down" id=text/>
-<Group anchor_x=50% anchor_y=50% x=50% y=50% width=200% rotate=20deg>
+<Group anchor=50% x=50% y=50% width=200% rotate=20deg>
     for i in 0..12 {
         <PathAnimation rotate={(i * 40)deg} x=50% y=50% path_config={
             amplitude: {0.03 + 0.10 * i * (i - 12.00) / 10.00}

@@ -7,17 +7,17 @@ if game_state == "PLAYING" {
     <Text y=50% height=25% width=100% text={"Score: " + score} id=game_over_score/>
     <Rectangle fill=rgba(255, 0, 50, 50)/>
 }
-<Group scale_x=200% scale_y=200% width=50% height=50%>
+<Group scale=200% width=50% height=50%>
     if game_state == "PLAYING" {
         // Spaceship
-        <Image width=32px height=32px source=ImageSource::Url("assets/spaceship.png") anchor_x=50% anchor_y=50% x={ship_x} y={ship_y}/>
+        <Image width=32px height=32px source=ImageSource::Url("assets/spaceship.png") anchor=50% x={ship_x} y={ship_y}/>
     }
     for asteroid in asteroids {
-        <Image source={asteroid.animation.frame} anchor_x=50% anchor_y=50% x={asteroid.x} y={asteroid.y} width={asteroid.w} 
+        <Image source={asteroid.animation.frame} anchor=50% x={asteroid.x} y={asteroid.y} width={asteroid.w}
             height={asteroid.w} rotate={(asteroid.r)deg}/>
     }
     for bullet in bullets {
-        <Image width=16px height=16px source=ImageSource::Url("assets/bullet.png") anchor_x=50% anchor_y=50% x={bullet.x} y={bullet.y}/>
+        <Image width=16px height=16px source=ImageSource::Url("assets/bullet.png") anchor=50% x={bullet.x} y={bullet.y}/>
     }
     // background
 </Group>

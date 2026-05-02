@@ -3,14 +3,12 @@
         if debug_markers {
             <Rectangle fill=RED width=2px height=2px x={paddle.x} y={paddle.y}/>
         }
-        <Rectangle id=paddle fill={paddle.fill} width={paddle.width} height={paddle.height} x={paddle.x} y={paddle.y} anchor_x=0% 
-            anchor_y=0%/>
+        <Rectangle id=paddle fill={paddle.fill} width={paddle.width} height={paddle.height} x={paddle.x} y={paddle.y} anchor=0% />
         for ball in balls {
             if debug_markers {
                 <Rectangle fill=RED width=2px height=2px x={ball.x} y={ball.y}/>
             }
-            <Ellipse id=ball fill={ball.fill} width={2.00 * ball.radius} height={2.00 * ball.radius} x={ball.x} y={ball.y} anchor_x=50% 
-                anchor_y=50%/>
+            <Ellipse id=ball fill={ball.fill} width={2.00 * ball.radius} height={2.00 * ball.radius} x={ball.x} y={ball.y} anchor=50% />
         }
         for brick in bricks {
             if debug_markers {
@@ -26,7 +24,7 @@
     }/>
     if game_state == 1 {
         <Rectangle fill=rgba(0, 0, 0, 70) width=100% height=100%/>
-        <Text text="Game Over! Click to restart." x=50% y=50% anchor_x=50% anchor_y=50% style={
+        <Text text="Game Over! Click to restart." x=50% y=50% anchor=50% style={
             font: Font::Web("Arial", "", FontStyle::Normal, FontWeight::Bold)
             font_size: 30px
             fill: WHITE
@@ -36,7 +34,7 @@
     }
     if game_state == 2 {
         <Rectangle fill=rgba(0, 0, 0, 70) width=100% height=100%/>
-        <Text text={"You Won! Final Score: " + score + ". Click to play again."} x=50% y=50% anchor_x=50% anchor_y=50% style={
+        <Text text={"You Won! Final Score: " + score + ". Click to play again."} x=50% y=50% anchor=50% style={
             font: Font::Web("Arial", "", FontStyle::Normal, FontWeight::Bold)
             font_size: 30px
             fill: WHITE

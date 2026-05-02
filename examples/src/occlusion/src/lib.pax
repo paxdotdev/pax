@@ -8,7 +8,7 @@
         <Text class=pill_text x=28px y=258px width=206px height=20px text="Vector punchout should expose the canvas over native controls."/>
         <Rectangle x=16px y=244px width=228px height=58px rotate=-5deg fill=rgba(52, 211, 153, 255)/>
         <Text class=status_dark x=24px y=242px width=214px height=22px text={"Call sign: " + self.call_sign}/>
-        <Ellipse x=198px y=160px width=140px height=140px anchor_x=50% anchor_y=50% fill=rgba(226, 92, 62, 125)/>
+        <Ellipse x=198px y=160px width=140px height=140px anchor=50% fill=rgba(226, 92, 62, 125)/>
         <Textbox
             class=input_light
             x=24px
@@ -34,9 +34,9 @@
         <Rectangle class=card_shadow fill=rgba(3, 8, 13, 110)/>
     </Group>
 
-    <Group x=50% y=63% width=760px height=160px anchor_x=50% anchor_y=50% rotate=-6deg>
-        <Ellipse x=684px y=76px width=102px height=102px anchor_x=50% anchor_y=50% fill=rgba(244, 114, 182, 255)/>
-        <Ellipse x=84px y=76px width=120px height=120px anchor_x=50% anchor_y=50% fill=rgba(252, 211, 77, 255)/>
+    <Group x=50% y=63% width=760px height=160px anchor=50% rotate=-6deg>
+        <Ellipse x=684px y=76px width=102px height=102px anchor=50% fill=rgba(244, 114, 182, 255)/>
+        <Ellipse x=84px y=76px width=120px height=120px anchor=50% fill=rgba(252, 211, 77, 255)/>
         <Rectangle x=0px y=64px width=760px height=24px fill=rgba(251, 146, 60, 255)/>
     </Group>
 
@@ -48,7 +48,7 @@
                 <Text class=card_copy_light x=24px y=104px width=204px height=48px text="A Mask should clip vector fills and native text together while still animating."/>
                 <Text class=card_title_light x=24px y=22px width=190px height=28px text="Ellipse Mask"/>
                 <Rectangle x=22px y=160px width=218px height=12px rotate=-4deg fill=rgba(250, 204, 21, 255)/>
-                <Ellipse x=206px y=116px width=120px height=120px anchor_x=50% anchor_y=50% fill=rgba(248, 113, 113, 255)/>
+                <Ellipse x=206px y=116px width=120px height=120px anchor=50% fill=rgba(248, 113, 113, 255)/>
                 <Rectangle x=0px y=0px width=100% height=92px fill=rgba(87, 57, 187, 255)/>
                 <Rectangle class=card_surface_dark fill=rgba(24, 36, 61, 255)/>
                 <Rectangle class=card_shadow fill=rgba(3, 8, 13, 140)/>
@@ -58,8 +58,7 @@
                 y={(self.ellipse_mask_y)px}
                 width={(self.ellipse_mask_size)px}
                 height={(self.ellipse_mask_size)px}
-                anchor_x=50%
-                anchor_y=50%
+                anchor=50%
                 fill=BLACK
             />
         </Mask>
@@ -81,7 +80,7 @@
                 />
                 <Text class=card_copy_dark x=24px y=108px width=204px height=46px text="This card uses a custom Path as the mask source, not just rects or ellipses."/>
                 <Text class=card_title_light x=24px y=24px width=190px height=28px text="Path Mask"/>
-                <Ellipse x=88px y=184px width=90px height=90px anchor_x=50% anchor_y=50% fill=rgba(249, 115, 22, 255)/>
+                <Ellipse x=88px y=184px width=90px height=90px anchor=50% fill=rgba(249, 115, 22, 255)/>
                 <Rectangle x=14px y=152px width=232px height=26px rotate=6deg fill=rgba(59, 130, 246, 255)/>
                 <Rectangle x=0px y=0px width=100% height=98px fill=rgba(22, 163, 74, 255)/>
                 <Rectangle class=card_surface_mid fill=rgba(237, 247, 255, 255)/>
@@ -90,8 +89,7 @@
             <Path
                 x={(self.path_mask_x)px}
                 y=56px
-                anchor_x=50%
-                anchor_y=50%
+                anchor=50%
                 width=320px
                 height=320px
                 rotate={(self.path_mask_rotation)deg}

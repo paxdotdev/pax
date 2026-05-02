@@ -403,8 +403,7 @@
                             y=76px
                             width=475px
                             height=475px
-                            anchor_x=50%
-                            anchor_y=50%
+                            anchor=50%
                             rotate=-17deg
                             fill={rgba(0, 0, 0, 255)}
                             elements=[
@@ -435,8 +434,7 @@
                             y=146px
                             width=600px
                             height=600px
-                            anchor_x=50%
-                            anchor_y=50%
+                            anchor=50%
                             rotate=9deg
                             fill={rgba(0, 0, 0, 255)}
                             elements=[
@@ -467,8 +465,7 @@
                             y=82px
                             width=430px
                             height=430px
-                            anchor_x=50%
-                            anchor_y=50%
+                            anchor=50%
                             rotate=24deg
                             fill={rgba(0, 0, 0, 255)}
                             elements=[
@@ -518,7 +515,7 @@
                 height=42px
                 text="Rotated scroll container with native controls. Hit testing should follow the visible transform."
             />
-            <Group x=50% y=230px width={100% - 94px} height=188px anchor_x=50% anchor_y=50% rotate=-5deg>
+            <Group x=50% y=230px width={100% - 94px} height=188px anchor=50% rotate=-5deg>
                 <Scroller width=100% height=100% scroll_width=4200px scroll_height=620px border_radius=24.0>
                     <Group width=4200px height=620px>
                         <Text class=mono_dark x=28px y=26px width=300px height=20px text="ROTATED SURFACE // HIT TEST"/>
@@ -601,7 +598,7 @@
                     for mark in 0..20 {
                         <Group x={(842 + mark * 148)px} y=34px width=112px height=98px opacity={(1.0 - mark * 0.05)}>
                             <Text class=small_dark x=14px y=12px width=86px height=16px text={"fade " + mark}/>
-                            <Ellipse x=72px y=58px width=54px height=54px anchor_x=50% anchor_y=50% fill={Fill::linearGradient(
+                            <Ellipse x=72px y=58px width=54px height=54px anchor=50% fill={Fill::linearGradient(
                 (0%, 0%),
                 (100%, 100%),
                 [
@@ -609,7 +606,7 @@
                     GradientStop::get(Color::rgba(239, 145, 143, 128), 100%)
                 ]
             )}/>
-                            <Ellipse x=48px y=58px width=42px height=42px anchor_x=50% anchor_y=50% fill={Fill::linearGradient(
+                            <Ellipse x=48px y=58px width=42px height=42px anchor=50% fill={Fill::linearGradient(
                 (0%, 0%),
                 (100%, 100%),
                 [
@@ -695,8 +692,7 @@
             y=180px
             width=310px
             height=310px
-            anchor_x=50%
-            anchor_y=50%
+            anchor=50%
             rotate=-18deg
             opacity=0.22
             fill={Fill::linearGradient(
@@ -727,8 +723,7 @@
             y=590px
             width=430px
             height=430px
-            anchor_x=50%
-            anchor_y=50%
+            anchor=50%
             rotate=12deg
             opacity=0.18
             fill={Fill::linearGradient(

@@ -8,6 +8,20 @@
 - Transforms: scale, rotate, skew, and origin considerations.
 - Layout patterns from `marketing-site`, `scroll-island`, and `rounded-scroller-tiles`.
 
+## Multi-Axis Common Properties
+
+Use list syntax for suffix-based common-property pairs. A scalar applies to both axes, and a two-item list maps to `[x, y]`.
+
+```pax
+<Group scale=80% anchor=[50%, 50%] skew=[0deg, 4deg] />
+```
+
+Axis-specific properties remain available and take precedence over the shorthand in the same settings layer. When a longhand uses `$base`, it sees the value supplied by the shorthand for that axis.
+
+```pax
+<Group scale=20% scale_y={$base + 5} />
+```
+
 ## Autosize
 
 `autosize` lets a container derive one or both of its concrete axes from the layout hull of its content instead of requiring a manually declared `width`, `height`, `scroll_width`, or `scroll_height`.

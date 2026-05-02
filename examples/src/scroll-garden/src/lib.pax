@@ -23,7 +23,7 @@
             />
             <Rectangle class=panel_back class=panel_back_one width=100% height=100% />
         </Group>
-        <Group class=kalei_layer x=0% y=50% width=100% height=180% anchor_x=0% anchor_y=50%>
+        <Group class=kalei_layer x=0% y=50% width=100% height=180% anchor=[0%, 50%]>
             <KaleidoscopeStream
                 side=KaleidoscopeSide::Left
                 variant=KaleidoscopeVariant::Crimson
@@ -60,7 +60,7 @@
             />
             <Rectangle class=panel_back class=panel_back_two width=100% height=100% />
         </Group>
-        <Group class=kalei_layer x=0% y=50% width=100% height=180% anchor_x=0% anchor_y=50%>
+        <Group class=kalei_layer x=0% y=50% width=100% height=180% anchor=[0%, 50%]>
             <KaleidoscopeStream
                 side=KaleidoscopeSide::Left
                 variant=KaleidoscopeVariant::Nocturne
@@ -97,7 +97,7 @@
             />
             <Rectangle class=panel_back class=panel_back_three width=100% height=100% />
         </Group>
-        <Group class=kalei_layer x=0% y=50% width=100% height=180% anchor_x=0% anchor_y=50%>
+        <Group class=kalei_layer x=0% y=50% width=100% height=180% anchor=[0%, 50%]>
             <KaleidoscopeStream
                 side=KaleidoscopeSide::Left
                 variant=KaleidoscopeVariant::Lagoon
@@ -134,7 +134,7 @@
             />
             <Rectangle class=panel_back class=panel_back_four width=100% height=100% />
         </Group>
-        <Group class=kalei_layer x=0% y=50% width=100% height=180% anchor_x=0% anchor_y=50%>
+        <Group class=kalei_layer x=0% y=50% width=100% height=180% anchor=[0%, 50%]>
             <KaleidoscopeStream
                 side=KaleidoscopeSide::Left
                 variant=KaleidoscopeVariant::Fern
@@ -171,7 +171,7 @@
             />
             <Rectangle class=panel_back class=panel_back_five width=100% height=100% />
         </Group>
-        <Group class=kalei_layer x=0% y=50% width=100% height=180% anchor_x=0% anchor_y=50%>
+        <Group class=kalei_layer x=0% y=50% width=100% height=180% anchor=[0%, 50%]>
             <KaleidoscopeStream
                 side=KaleidoscopeSide::Left
                 variant=KaleidoscopeVariant::Violet

@@ -28,14 +28,17 @@ pub const TYPE_ID_SLOT: &str = "SLOT";
 pub const TYPE_ID_COMMENT: &str = "COMMENT";
 
 // Property names that every renderable node may accept.
-pub const COMMON_PROPERTIES: [&str; 15] = [
+pub const COMMON_PROPERTIES: [&str; 18] = [
     "id",
     "x",
     "y",
+    "scale",
     "scale_x",
     "scale_y",
+    "skew",
     "skew_x",
     "skew_y",
+    "anchor",
     "anchor_x",
     "anchor_y",
     "rotate",
@@ -44,6 +47,15 @@ pub const COMMON_PROPERTIES: [&str; 15] = [
     "height",
     "opacity",
     "layout_role",
+];
+
+// Multi-axis common-property aliases expanded into their axis-specific forms.
+// These intentionally cover the suffix-based common properties; generic names
+// like `size` would shadow existing component APIs.
+pub const COMMON_PROPERTIES_2D: &[(&str, [&str; 2])] = &[
+    ("scale", ["scale_x", "scale_y"]),
+    ("skew", ["skew_x", "skew_y"]),
+    ("anchor", ["anchor_x", "anchor_y"]),
 ];
 
 // Checks whether contextual `into` inference should be attempted for a target type.
@@ -69,10 +81,13 @@ pub const COMMON_PROPERTIES_TYPE: &[(&str, &str)] = &[
     ("id", "String"),
     ("x", "pax_engine::api::Size"),
     ("y", "pax_engine::api::Size"),
+    ("scale", "pax_engine::api::Size"),
     ("scale_x", "pax_engine::api::Size"),
     ("scale_y", "pax_engine::api::Size"),
+    ("skew", "pax_engine::api::Rotation"),
     ("skew_x", "pax_engine::api::Rotation"),
     ("skew_y", "pax_engine::api::Rotation"),
+    ("anchor", "pax_engine::api::Size"),
     ("anchor_x", "pax_engine::api::Size"),
     ("anchor_y", "pax_engine::api::Size"),
     ("rotate", "pax_engine::api::Rotation"),

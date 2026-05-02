@@ -155,6 +155,21 @@ mod tests {
         source: Property<PaxValue>,
         children: Vec<Rc<dyn InstanceNode>>,
     ) -> InstantiationArgs {
+        repeat_args_with_key(source, children, true)
+    }
+
+    fn unkeyed_repeat_args(
+        source: Property<PaxValue>,
+        children: Vec<Rc<dyn InstanceNode>>,
+    ) -> InstantiationArgs {
+        repeat_args_with_key(source, children, false)
+    }
+
+    fn repeat_args_with_key(
+        source: Property<PaxValue>,
+        children: Vec<Rc<dyn InstanceNode>>,
+        use_key: bool,
+    ) -> InstantiationArgs {
         let key_expression = ExpressionInfo::new(parse_pax_expression("item.id").unwrap());
         let source_for_factory = source.clone();
         InstantiationArgs {
@@ -169,7 +184,7 @@ mod tests {
                                 source_expression: source_for_factory.clone(),
                                 iterator_i_symbol: Property::new(Some("i".to_string())),
                                 iterator_elem_symbol: Property::new(Some("item".to_string())),
-                                repeat_key_expression: Some(key_expression.clone()),
+                                repeat_key_expression: use_key.then(|| key_expression.clone()),
                             }
                             .to_pax_any(),
                         ))
@@ -559,6 +574,29 @@ mod tests {
 
         assert_eq!(xs, vec![Some(0.0), Some(10.0), Some(20.0)]);
     }
+
+    #[test]
+    fn unkeyed_repeat_stale_element_binding_defaults_after_source_shrinks() {
+        let source_property = Property::new(source_with_x(&[("a", 0.0), ("b", 10.0)]));
+        let leaf: Rc<dyn InstanceNode> =
+            ComponentInstance::instantiate(leaf_args(Default::default()));
+        let repeat: Rc<dyn InstanceNode> =
+            RepeatInstance::instantiate(unkeyed_repeat_args(source_property.clone(), vec![leaf]));
+        let root_component =
+            ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&repeat)])));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let root = ExpandedNode::initialize_root(root_component, &context);
+
+        root.recurse_update(&context);
+        let repeat_node = root.children.get().remove(0);
+        let children = repeat_node.children.get();
+        assert_eq!(children.len(), 2);
+
+        let stale_item = children[1].stack.resolve_symbol("item").unwrap();
+        source_property.set(source_with_x(&[("a", 0.0)]));
+
+        assert_eq!(stale_item.get_as_pax_value(), PaxValue::default());
+    }
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -750,18 +788,7 @@ impl RepeatInstance {
                         let cp_source_expression = source_expression.clone();
                         let property_elem = Property::computed_with_name(
                             move || {
-                                cp_source_expression.read(|source| {
-                                    if let PaxValue::Range(start, _) = source {
-                                        let start = isize::try_coerce(*start.clone()).unwrap();
-                                        let elem = (start + i as isize).to_pax_value();
-                                        elem
-                                    } else if let PaxValue::Vec(v) = source {
-                                        v[i].clone()
-                                    } else {
-                                        log::warn!("source is not a vec");
-                                        Default::default()
-                                    }
-                                })
+                                cp_source_expression.read(|source| Self::source_elem(source, i))
                             },
                             &[source_expression.untyped()],
                             "repeat elem",

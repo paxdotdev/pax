@@ -5,8 +5,7 @@
         y=50%
         width=100%
         height=100%
-        anchor_x=50%
-        anchor_y=50%
+        anchor=50%
     >
         <Text
             id=label_text
@@ -24,8 +23,7 @@
             y=50%
             width=84px
             height=22px
-            anchor_x=100%
-            anchor_y=50%
+            anchor=[100%, 50%]
             text={hits + "/5"}
             selectable=false
         />

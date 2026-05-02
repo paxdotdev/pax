@@ -6,8 +6,7 @@
                 y={50% + (item.y)px}
                 width={(item.size)px}
                 height={(item.size)px}
-                anchor_x=50%
-                anchor_y=50%
+                anchor=50%
                 side=KaleidoscopeSide::Left
                 variant={self.variant}
                 layers={item.layers}
@@ -23,8 +22,7 @@
                 y={50% + (item.y)px}
                 width={(item.size)px}
                 height={(item.size)px}
-                anchor_x=50%
-                anchor_y=50%
+                anchor=50%
                 side=KaleidoscopeSide::Right
                 variant={self.variant}
                 layers={item.layers}

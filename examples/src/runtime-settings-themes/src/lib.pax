@@ -19,7 +19,7 @@
         }
     </ImportSettings>
 
-    <Group x=50% y=50% width=88% height=88% anchor_x=50% anchor_y=50%>
+    <Group x=50% y=50% width=88% height=88% anchor=50%>
         <Text
             class=hero_kicker
             x=0px

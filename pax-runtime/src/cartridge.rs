@@ -17,6 +17,7 @@ use pax_manifest::{
     TimelineTrackElement, TransitionDefinition, TypeId, ValueDefinition,
 };
 use pax_message::{borrow, borrow_mut};
+use pax_runtime_api::constants::COMMON_PROPERTIES_2D;
 use pax_runtime_api::pax_value::functions::{call_function, Functions};
 use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny, ToPaxValue};
 use pax_runtime_api::properties::{PropertyValue, UntypedProperty};
@@ -72,6 +73,70 @@ fn append_resolved_property_entry(
     columns.entry(key.to_string()).or_default().push(entry);
 }
 
+fn runtime_property_entry(
+    source: RuntimeSettingsSource,
+    selector: Option<pax_manifest::SelectorExpr>,
+    value: ValueDefinition,
+    axis_index: Option<usize>,
+) -> RuntimeResolvedPropertyEntry {
+    RuntimeResolvedPropertyEntry {
+        source,
+        selector,
+        value,
+        axis_index,
+    }
+}
+
+fn common_property_2d_axes(name: &str) -> Option<[&'static str; 2]> {
+    COMMON_PROPERTIES_2D
+        .iter()
+        .find_map(|(group_name, axes)| (*group_name == name).then_some(*axes))
+}
+
+fn setting_value_can_define_property(value: &ValueDefinition) -> bool {
+    matches!(
+        value,
+        ValueDefinition::LiteralValue(_)
+            | ValueDefinition::Block(_)
+            | ValueDefinition::Timeline(_)
+            | ValueDefinition::Transition(_)
+            | ValueDefinition::Expression(_)
+            | ValueDefinition::Identifier(_)
+            | ValueDefinition::DoubleBinding(_)
+    )
+}
+
+fn append_2d_common_property_entries(
+    columns: &mut RuntimeResolvedPropertyColumns,
+    key: &str,
+    value: &ValueDefinition,
+    source: RuntimeSettingsSource,
+    selector: Option<pax_manifest::SelectorExpr>,
+) -> bool {
+    let Some(axes) = common_property_2d_axes(key) else {
+        return false;
+    };
+
+    append_resolved_property_entry(
+        columns,
+        key,
+        runtime_property_entry(source.clone(), selector.clone(), value.clone(), None),
+    );
+    for (axis_index, axis_name) in axes.iter().enumerate() {
+        append_resolved_property_entry(
+            columns,
+            axis_name,
+            runtime_property_entry(
+                source.clone(),
+                selector.clone(),
+                value.clone(),
+                Some(axis_index),
+            ),
+        );
+    }
+    true
+}
+
 /// Converts a flattened property map into one-entry columns for legacy callers
 /// that do not participate in selector/import precedence layering.
 pub fn property_columns_from_defined_properties(
@@ -79,14 +144,24 @@ pub fn property_columns_from_defined_properties(
 ) -> RuntimeResolvedPropertyColumns {
     let mut columns = BTreeMap::new();
     for (key, value) in defined_properties {
+        if setting_value_can_define_property(value) {
+            append_2d_common_property_entries(
+                &mut columns,
+                key,
+                value,
+                RuntimeSettingsSource::Inline,
+                None,
+            );
+        }
+    }
+    for (key, value) in defined_properties {
+        if common_property_2d_axes(key).is_some() || !setting_value_can_define_property(value) {
+            continue;
+        }
         append_resolved_property_entry(
             &mut columns,
             key,
-            RuntimeResolvedPropertyEntry {
-                source: RuntimeSettingsSource::Inline,
-                selector: None,
-                value: value.clone(),
-            },
+            runtime_property_entry(RuntimeSettingsSource::Inline, None, value.clone(), None),
         );
     }
     columns
@@ -102,26 +177,31 @@ fn append_setting_elements(
         let SettingElement::Setting(key, value) = element else {
             continue;
         };
-        match value {
-            ValueDefinition::LiteralValue(_)
-            | ValueDefinition::Block(_)
-            | ValueDefinition::Timeline(_)
-            | ValueDefinition::Transition(_)
-            | ValueDefinition::Expression(_)
-            | ValueDefinition::Identifier(_)
-            | ValueDefinition::DoubleBinding(_) => {
-                append_resolved_property_entry(
-                    columns,
-                    &key.token_value,
-                    RuntimeResolvedPropertyEntry {
-                        source: source.clone(),
-                        selector: selector.clone(),
-                        value: value.clone(),
-                    },
-                );
-            }
-            ValueDefinition::EventBindingTarget(_) | ValueDefinition::Undefined => {}
+        if setting_value_can_define_property(value) {
+            append_2d_common_property_entries(
+                columns,
+                &key.token_value,
+                value,
+                source.clone(),
+                selector.clone(),
+            );
         }
+    }
+
+    for element in elements {
+        let SettingElement::Setting(key, value) = element else {
+            continue;
+        };
+        if common_property_2d_axes(&key.token_value).is_some()
+            || !setting_value_can_define_property(value)
+        {
+            continue;
+        }
+        append_resolved_property_entry(
+            columns,
+            &key.token_value,
+            runtime_property_entry(source.clone(), selector.clone(), value.clone(), None),
+        );
     }
 }
 
@@ -192,14 +272,19 @@ fn overlay_static_runtime_properties(
             value,
             ValueDefinition::Timeline(_) | ValueDefinition::Transition(_)
         ) {
+            if append_2d_common_property_entries(
+                columns,
+                key,
+                value,
+                RuntimeSettingsSource::Inline,
+                None,
+            ) {
+                continue;
+            }
             append_resolved_property_entry(
                 columns,
                 key,
-                RuntimeResolvedPropertyEntry {
-                    source: RuntimeSettingsSource::Inline,
-                    selector: None,
-                    value: value.clone(),
-                },
+                runtime_property_entry(RuntimeSettingsSource::Inline, None, value.clone(), None),
             );
         }
     }
@@ -1685,6 +1770,243 @@ where
     }
 }
 
+fn axis_component_value(value: PaxValue, axis_index: usize) -> Result<PaxValue, String> {
+    match value {
+        PaxValue::Vec(values) => {
+            if values.len() != 2 {
+                return Err(format!(
+                    "expected 2 elements for multi-axis common property, got {}",
+                    values.len()
+                ));
+            }
+            Ok(values[axis_index].clone())
+        }
+        PaxValue::Option(value) => match *value {
+            Some(value) => axis_component_value(value, axis_index),
+            None => Ok(PaxValue::Option(Box::new(None))),
+        },
+        value => Ok(value),
+    }
+}
+
+fn coerce_axis_component<T>(
+    value: PaxValue,
+    axis_index: usize,
+    name: &str,
+) -> Result<Option<T>, String>
+where
+    T: CoercionRules + PropertyValue,
+{
+    let axis_value = axis_component_value(value, axis_index)?;
+    Option::<T>::try_coerce(axis_value)
+        .map_err(|err| format!("failed to coerce axis {axis_index} for {name}: {err}"))
+}
+
+fn sample_axis_timeline_track<T: CoercionRules + PropertyValue>(
+    track: &TimelineTrackDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+    axis_index: usize,
+    name: &str,
+) -> Option<T> {
+    match resolve_timeline_sample(track, stack, |_| true)? {
+        TimelineSample::Value(value) => {
+            coerce_axis_component::<T>(resolve_literal_value(value), axis_index, name)
+                .ok()
+                .flatten()
+        }
+        TimelineSample::Interpolated {
+            current,
+            next,
+            easing,
+            progress,
+        } => {
+            let current =
+                coerce_axis_component::<T>(resolve_literal_value(current), axis_index, name)
+                    .ok()
+                    .flatten()?;
+            let next = coerce_axis_component::<T>(resolve_literal_value(next), axis_index, name)
+                .ok()
+                .flatten()?;
+            let curve = easing_curve_from_name(easing.as_deref());
+            Some(curve.interpolate(&current, &next, progress))
+        }
+    }
+}
+
+fn build_axis_timeline_property<T: CoercionRules + PropertyValue>(
+    name: &str,
+    track: &TimelineTrackDefinition,
+    stack: Rc<RuntimePropertiesStackFrame>,
+    axis_index: usize,
+) -> Property<Option<T>> {
+    let mut dependents = Vec::new();
+    collect_value_definition_dependencies(
+        &ValueDefinition::Timeline(track.clone()),
+        &stack,
+        &mut dependents,
+    );
+
+    let cloned_stack = stack.clone();
+    let cloned_track = track.clone();
+    let property_name = name.to_string();
+    Property::computed_with_name(
+        move || {
+            sample_axis_timeline_track(&cloned_track, &cloned_stack, axis_index, &property_name)
+        },
+        &dependents,
+        name,
+    )
+}
+
+fn coerce_axis_transition_starting_value<T: CoercionRules + PropertyValue>(
+    transition: &TransitionDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+    axis_index: usize,
+    name: &str,
+) -> Option<T> {
+    transition
+        .starting_value
+        .as_ref()
+        .and_then(|value| evaluate_value_definition_to_pax_value(value, stack))
+        .and_then(|value| coerce_axis_component::<T>(value, axis_index, name).ok())
+        .flatten()
+}
+
+fn sample_axis_transition_track<T: CoercionRules + PropertyValue>(
+    transition: &TransitionDefinition,
+    track: Option<&TimelineTrackDefinition>,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+    axis_index: usize,
+    name: &str,
+) -> Option<T> {
+    let mut track = track?.clone();
+    if track.starting_value.is_none() {
+        track.starting_value = transition.starting_value.clone();
+    }
+    sample_axis_timeline_track(&track, stack, axis_index, name)
+}
+
+fn sample_axis_transition_property<T: CoercionRules + PropertyValue>(
+    transition: &TransitionDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+    axis_index: usize,
+    name: &str,
+) -> Option<T> {
+    let phase = stack
+        .resolve_symbol_as_variable(TRANSITION_PHASE_SYMBOL)
+        .and_then(|variable| Numeric::try_coerce(variable.get_as_pax_value()).ok())
+        .map(|value| value.to_int() as u64)
+        .unwrap_or_default();
+
+    match phase {
+        TRANSITION_PHASE_ENTER => sample_axis_transition_track(
+            transition,
+            transition.enter.as_ref(),
+            stack,
+            axis_index,
+            name,
+        )
+        .or_else(|| coerce_axis_transition_starting_value(transition, stack, axis_index, name)),
+        TRANSITION_PHASE_EXIT => sample_axis_transition_track(
+            transition,
+            transition.exit.as_ref(),
+            stack,
+            axis_index,
+            name,
+        )
+        .or_else(|| {
+            sample_axis_transition_track(
+                transition,
+                transition.enter.as_ref(),
+                stack,
+                axis_index,
+                name,
+            )
+        })
+        .or_else(|| coerce_axis_transition_starting_value(transition, stack, axis_index, name)),
+        _ => coerce_axis_transition_starting_value(transition, stack, axis_index, name),
+    }
+}
+
+fn build_axis_transition_property<T: CoercionRules + PropertyValue>(
+    name: &str,
+    transition: &TransitionDefinition,
+    stack: Rc<RuntimePropertiesStackFrame>,
+    axis_index: usize,
+) -> Property<Option<T>> {
+    let mut dependents = Vec::new();
+    collect_value_definition_dependencies(
+        &ValueDefinition::Transition(transition.clone()),
+        &stack,
+        &mut dependents,
+    );
+
+    let cloned_stack = stack.clone();
+    let cloned_transition = transition.clone();
+    let property_name = name.to_string();
+    Property::computed_with_name(
+        move || {
+            sample_axis_transition_property(
+                &cloned_transition,
+                &cloned_stack,
+                axis_index,
+                &property_name,
+            )
+        },
+        &dependents,
+        name,
+    )
+}
+
+fn build_common_property_axis_component_value<T>(
+    name: &str,
+    value_definition: &ValueDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+    axis_index: usize,
+) -> Property<Option<T>>
+where
+    T: CoercionRules + PropertyValue + ToPaxValue,
+{
+    let cloned_stack = stack.clone();
+    match value_definition {
+        ValueDefinition::Timeline(track) => {
+            let track = timeline_track_with_base_starting_value(track);
+            build_axis_timeline_property(name, &track, cloned_stack, axis_index)
+        }
+        ValueDefinition::Transition(transition) => {
+            let transition = transition_with_base_starting_value(transition);
+            build_axis_transition_property(name, &transition, cloned_stack, axis_index)
+        }
+        ValueDefinition::LiteralValue(_)
+        | ValueDefinition::Block(_)
+        | ValueDefinition::Expression(_)
+        | ValueDefinition::Identifier(_)
+        | ValueDefinition::DoubleBinding(_) => {
+            let mut dependents = Vec::new();
+            collect_value_definition_dependencies(value_definition, stack, &mut dependents);
+            let value_definition = value_definition.clone();
+            let property_name = name.to_string();
+            Property::computed_with_name(
+                move || {
+                    evaluate_value_definition_to_pax_value(&value_definition, &cloned_stack)
+                        .and_then(|value| {
+                            coerce_axis_component::<T>(value, axis_index, &property_name)
+                                .map_err(|err| {
+                                    log::warn!("Failed to resolve multi-axis property: {err}");
+                                    err
+                                })
+                                .ok()
+                        })
+                        .flatten()
+                },
+                &dependents,
+                name,
+            )
+        }
+        _ => unreachable!("Invalid value definition for {name}"),
+    }
+}
+
 fn resolve_property<T>(
     name: &str,
     property_columns: &RuntimeResolvedPropertyColumns,
@@ -1703,7 +2025,16 @@ where
             layered_property.clone(),
             common_property_base_fallback(name),
         );
-        layered_property = build_common_property_value(name, &entry.value, &stack_with_base);
+        layered_property = if let Some(axis_index) = entry.axis_index {
+            build_common_property_axis_component_value(
+                name,
+                &entry.value,
+                &stack_with_base,
+                axis_index,
+            )
+        } else {
+            build_common_property_value(name, &entry.value, &stack_with_base)
+        };
     }
     layered_property
 }
@@ -2885,9 +3216,9 @@ mod timeline_tests {
 #[cfg(test)]
 mod base_symbol_tests {
     use super::{
-        build_component_property, create_new_common_properties_from_columns, stack_with_base,
-        RuntimePropertiesStackFrame, RuntimeResolvedPropertyColumns, RuntimeResolvedPropertyEntry,
-        RuntimeSettingsSource,
+        build_component_property, create_new_common_properties_from_columns,
+        property_columns_from_defined_properties, stack_with_base, RuntimePropertiesStackFrame,
+        RuntimeResolvedPropertyColumns, RuntimeResolvedPropertyEntry, RuntimeSettingsSource,
     };
     use pax_language::parse_pax_expression;
     use pax_manifest::cartridge_generation::{
@@ -2910,11 +3241,28 @@ mod base_symbol_tests {
         ValueDefinition::LiteralValue(PaxValue::Size(Size::Pixels(Numeric::F64(px))))
     }
 
+    fn percent_literal(percent: f64) -> ValueDefinition {
+        ValueDefinition::LiteralValue(PaxValue::Size(Size::Percent(Numeric::F64(percent))))
+    }
+
+    fn size_pair_literal(x: f64, y: f64) -> ValueDefinition {
+        ValueDefinition::LiteralValue(PaxValue::Vec(vec![
+            PaxValue::Size(Size::Percent(Numeric::F64(x))),
+            PaxValue::Size(Size::Percent(Numeric::F64(y))),
+        ]))
+    }
+
+    fn assert_percent(size: Option<Size>, expected: f64) {
+        let actual = size.expect("expected common property to be set");
+        assert!((actual.expect_percent() - (expected / 100.0)).abs() < 0.0001);
+    }
+
     fn entry(value: ValueDefinition) -> RuntimeResolvedPropertyEntry {
         RuntimeResolvedPropertyEntry {
             source: RuntimeSettingsSource::Inline,
             selector: None,
             value,
+            axis_index: None,
         }
     }
 
@@ -3113,13 +3461,61 @@ mod base_symbol_tests {
             enter: Some(enter),
             ..Default::default()
         };
-        let columns = columns_for("opacity", vec![entry(ValueDefinition::Transition(transition))]);
+        let columns = columns_for(
+            "opacity",
+            vec![entry(ValueDefinition::Transition(transition))],
+        );
 
         let common = create_new_common_properties_from_columns(&columns, &stack);
-        assert_eq!(common.borrow().opacity.get(), Some(Opacity::Alpha(0.5.into())));
+        assert_eq!(
+            common.borrow().opacity.get(),
+            Some(Opacity::Alpha(0.5.into()))
+        );
 
         playhead.set(10.0);
-        assert_eq!(common.borrow().opacity.get(), Some(Opacity::Alpha(1.0.into())));
+        assert_eq!(
+            common.borrow().opacity.get(),
+            Some(Opacity::Alpha(1.0.into()))
+        );
+    }
+
+    #[test]
+    fn scalar_common_property_alias_applies_to_both_axes() {
+        let stack = empty_stack();
+        let defined = BTreeMap::from([("scale".to_string(), percent_literal(20.0))]);
+        let columns = property_columns_from_defined_properties(&defined);
+
+        let common = create_new_common_properties_from_columns(&columns, &stack);
+
+        assert_percent(common.borrow().scale_x.get(), 20.0);
+        assert_percent(common.borrow().scale_y.get(), 20.0);
+    }
+
+    #[test]
+    fn list_common_property_alias_splits_across_axes() {
+        let stack = empty_stack();
+        let defined = BTreeMap::from([("anchor".to_string(), size_pair_literal(25.0, 75.0))]);
+        let columns = property_columns_from_defined_properties(&defined);
+
+        let common = create_new_common_properties_from_columns(&columns, &stack);
+
+        assert_percent(common.borrow().anchor_x.get(), 25.0);
+        assert_percent(common.borrow().anchor_y.get(), 75.0);
+    }
+
+    #[test]
+    fn axis_specific_common_property_overrides_alias_with_base() {
+        let stack = empty_stack();
+        let defined = BTreeMap::from([
+            ("scale".to_string(), percent_literal(20.0)),
+            ("scale_y".to_string(), expression("$base + 5")),
+        ]);
+        let columns = property_columns_from_defined_properties(&defined);
+
+        let common = create_new_common_properties_from_columns(&columns, &stack);
+
+        assert_percent(common.borrow().scale_x.get(), 20.0);
+        assert_percent(common.borrow().scale_y.get(), 25.0);
     }
 }
 
