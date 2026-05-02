@@ -1,6 +1,5 @@
 extern crate proc_macro;
 extern crate proc_macro2;
-mod parsing;
 mod templating;
 use std::fs::File;
 use std::io::Read;
@@ -13,16 +12,16 @@ use quote::{format_ident, quote, ToTokens};
 
 use syn::punctuated::Punctuated;
 use templating::{
-    ArgsFullComponent, ArgsPrimitive, ArgsStructOnlyComponent, EnumVariantDefinition,
-    InternalDefinitions, StaticPropertyDefinition, TemplateArgsDerivePax,
+    ArgsFullComponent, EnumVariantDefinition, InternalDefinitions, StaticPropertyDefinition,
+    TemplateArgsDerivePax,
 };
 
 use sailfish::TemplateOnce;
 
-const CRATES_WHERE_WE_DONT_PARSE_DESIGNER: &[&str] = &["pax-designer", "pax-std", "pax-runtime"];
+const CRATES_WITHOUT_ROOT_CARTRIDGE_SNIPPET: &[&str] = &["pax-designer", "pax-std", "pax-runtime"];
 
 fn is_root_crate() -> bool {
-    let is_not_blacklisted = !CRATES_WHERE_WE_DONT_PARSE_DESIGNER
+    let is_not_blacklisted = !CRATES_WITHOUT_ROOT_CARTRIDGE_SNIPPET
         .contains(&std::env::var("CARGO_PKG_NAME").unwrap_or_default().as_str());
     is_not_blacklisted
 }
@@ -34,7 +33,7 @@ use syn::{
 
 fn pax_primitive(
     input_parsed: &DeriveInput,
-    primitive_instance_import_path: String,
+    _primitive_instance_import_path: String,
     is_custom_interpolatable: bool,
     engine_import_path: String,
 ) -> proc_macro2::TokenStream {
@@ -48,14 +47,9 @@ fn pax_primitive(
     let internal_definitions = get_internal_definitions_from_tokens(&input_parsed.data);
 
     let output = TemplateArgsDerivePax {
-        args_primitive: Some(ArgsPrimitive {
-            primitive_instance_import_path,
-        }),
-        args_struct_only_component: None,
         args_full_component: None,
         internal_definitions,
         pascal_identifier,
-        cargo_dir: std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "".into()),
         is_custom_interpolatable,
         is_root_crate: is_root_crate(),
         _is_enum: is_enum,
@@ -83,12 +77,9 @@ fn pax_struct_only_component(
 
     let output = TemplateArgsDerivePax {
         args_full_component: None,
-        args_primitive: None,
-        args_struct_only_component: Some(ArgsStructOnlyComponent {}),
 
         pascal_identifier: pascal_identifier.clone(),
         internal_definitions,
-        cargo_dir: std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "".into()),
         is_root_crate: is_root_crate(),
         is_custom_interpolatable,
         _is_enum: is_enum,
@@ -132,11 +123,8 @@ fn get_field_type(f: &Field) -> Option<(Type, bool)> {
 }
 
 /// Break apart a raw Property inner type (`T<K>` for `Property<T<K>>`):
-/// into a list of `rustc` resolvable identifiers, possible namespace-nested,
-/// which may be appended with `::get_type_id(...)` for dynamic analysis.
-/// For example: `K` and `T::<K>`, which become `K::get_type_id(...)` and `T::<K>::get_type_id(...)`.
-/// This is used to bridge from static to dynamic analysis, parse-time "reflection,"
-/// so that the Pax compiler can resolve fully qualified paths.
+/// into a list of `rustc` resolvable identifiers, possibly namespace-nested.
+/// The macro template uses these paths when generating value coercion code.
 fn get_scoped_resolvable_types(t: &Type) -> (Vec<String>, String) {
     let mut accum: Vec<String> = vec![];
     recurse_get_scoped_resolvable_types(t, &mut accum);
@@ -327,12 +315,12 @@ fn get_internal_definitions_from_tokens(data: &Data) -> InternalDefinitions {
 // [ ] I should add a println! to the build script to verify this.
 
 fn pax_full_component(
-    raw_pax: String,
+    _raw_pax: String,
     input_parsed: &DeriveInput,
     is_main_component: bool,
     include_fix: Option<TokenStream>,
     is_custom_interpolatable: bool,
-    associated_pax_file_path: Option<PathBuf>,
+    _associated_pax_file_path: Option<PathBuf>,
     engine_import_path: String,
 ) -> proc_macro2::TokenStream {
     let pascal_identifier = input_parsed.ident.to_string();
@@ -342,23 +330,6 @@ fn pax_full_component(
     };
 
     let internal_definitions = get_internal_definitions_from_tokens(&input_parsed.data);
-
-    let mut template_dependencies = vec![];
-    let mut error_message: Option<String> = None;
-
-    match parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax) {
-        Ok(deps) => {
-            template_dependencies = deps;
-        }
-        Err(err) => {
-            error_message = Some(err);
-        }
-    }
-
-    // Add BlankComponent to template_dependencies so it's guaranteed to be included in the PaxManifest
-    if is_main_component {
-        template_dependencies.push("BlankComponent".to_string());
-    }
 
     // `PAX_DIR` is injected by `pax-cli` per project build. Read it at macro-expansion time
     // instead of `option_env!`, because proc-macro crates are compiled once and then reused.
@@ -406,19 +377,12 @@ compile_error!({reason:?});"#
         "".to_string()
     };
     let output = TemplateArgsDerivePax {
-        args_primitive: None,
-        args_struct_only_component: None,
         args_full_component: Some(ArgsFullComponent {
             is_main_component,
-            raw_pax,
-            template_dependencies,
             cartridge_snippet,
-            associated_pax_file_path,
-            error_message,
         }),
         pascal_identifier,
         internal_definitions,
-        cargo_dir: std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| "".into()),
         is_root_crate: is_root_crate(),
         is_custom_interpolatable,
         _is_enum: is_enum,

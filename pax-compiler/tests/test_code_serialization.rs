@@ -2,40 +2,14 @@ use std::env;
 use std::fs::File;
 use std::io::{self, Read};
 
-use std::sync::{Arc, Mutex};
-
-use pax_compiler::run_parser_binary;
 use pax_language::formatting::format_file;
 use pax_language::helpers::clear_inlined_template;
 use pax_manifest::code_serialization::serialize_component_to_file;
-use pax_manifest::PaxManifest;
 
 const PATH: &str = "tests/data/code_serialization/serialization_test_project";
 
-fn setup_test_project() {
-    let current_dir = env::current_dir().expect("Failed to get current directory");
-    let pkg_dir = current_dir.join(PATH);
-    let _ = std::process::Command::new("./pax")
-        .current_dir(pkg_dir)
-        .arg("build")
-        .output()
-        .expect("Failed to execute command");
-}
-
-fn clean_test_project() {
-    let current_dir = env::current_dir().expect("Failed to get current directory");
-    let pkg_dir = current_dir.join(PATH);
-    let _ = std::process::Command::new("./pax")
-        .current_dir(pkg_dir)
-        .arg("clean")
-        .output()
-        .expect("Failed to execute command");
-}
-
 #[test]
 fn test_code_serializaton() {
-    setup_test_project();
-
     // Get path to test project
     let current_dir = env::current_dir().expect("Failed to get current directory");
     // Join the current directory with the relative path
@@ -57,22 +31,9 @@ fn test_code_serializaton() {
     clear_inlined_template(generated_file_path, "Example");
 
     // Serialize component to output file
-    let process_child_ids: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(vec![]));
-    let output = run_parser_binary(
-        &std::path::PathBuf::from(path_str),
-        Arc::clone(&process_child_ids),
-        false,
-        false,
-    );
-
-    let out = String::from_utf8(output.stdout).unwrap();
-    let manifests: Vec<PaxManifest> = serde_json::from_str(&out).unwrap_or_else(|e| {
-        panic!(
-            "Malformed JSON from parser: {e:?}, raw parser output:\n{}",
-            &out
-        )
-    });
-    let manifest = manifests.into_iter().next().unwrap();
+    let manifest =
+        pax_compiler::static_analysis::build_manifest(&std::path::PathBuf::from(path_str))
+            .expect("static manifest should build");
     let main_component = manifest
         .components
         .get(&manifest.main_component_type_id)
@@ -87,7 +48,6 @@ fn test_code_serializaton() {
 
     // Clean up for next time
     clear_inlined_template(generated_file_path, "Example");
-    clean_test_project();
 }
 
 fn read_file_to_string(file_path: &str) -> io::Result<String> {

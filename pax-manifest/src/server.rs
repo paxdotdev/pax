@@ -1,5 +1,4 @@
-use crate::parsing::Reflectable;
-use crate::{PaxManifest, TypeId};
+use crate::PaxManifest;
 use pax_runtime_api::{CoercionRules, HelperFunctions, Interpolatable, PaxValue, ToPaxValue};
 use serde::{Deserialize, Serialize};
 
@@ -132,45 +131,6 @@ impl CoercionRules for ResponseError {
             }
             _ => Err("Invalid PaxValue".to_string()),
         }
-    }
-}
-
-impl Reflectable for PublishResponse {
-    fn get_self_pascal_identifier() -> String {
-        "PublishResponse".to_string()
-    }
-
-    fn get_type_id() -> TypeId {
-        TypeId::build_singleton(
-            "pax_manifest::server::PublishResponse",
-            Some(&Self::get_self_pascal_identifier()),
-        )
-    }
-}
-
-impl Reflectable for PublishResponseSuccess {
-    fn get_self_pascal_identifier() -> String {
-        "PublishResponseSuccess".to_string()
-    }
-
-    fn get_type_id() -> TypeId {
-        TypeId::build_singleton(
-            "pax_manifest::server::PublishResponseSuccess",
-            Some(&Self::get_self_pascal_identifier()),
-        )
-    }
-}
-
-impl Reflectable for ResponseError {
-    fn get_self_pascal_identifier() -> String {
-        "ResponseError".to_string()
-    }
-
-    fn get_type_id() -> TypeId {
-        TypeId::build_singleton(
-            "pax_manifest::server::ResponseError",
-            Some(&Self::get_self_pascal_identifier()),
-        )
     }
 }
 

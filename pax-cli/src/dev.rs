@@ -289,7 +289,7 @@ fn inspect_command() -> App<'static, 'static> {
 
 pub fn handle(
     args: &ArgMatches<'_>,
-    process_child_ids: Arc<Mutex<Vec<u64>>>,
+    _process_child_ids: Arc<Mutex<Vec<u64>>>,
 ) -> Result<(), Report> {
     match args.subcommand() {
         ("list", Some(sub_args)) => handle_list(sub_args),
@@ -299,7 +299,7 @@ pub fn handle(
         ("ray-cast", Some(sub_args)) => handle_ray_cast(sub_args),
         ("selector", Some(sub_args)) => handle_selector(sub_args),
         ("inspect", Some(sub_args)) => handle_inspect(sub_args),
-        ("touch", Some(sub_args)) => handle_touch(sub_args, process_child_ids),
+        ("touch", Some(sub_args)) => handle_touch(sub_args),
         _ => Err(eyre!("unknown dev subcommand")),
     }
 }
@@ -605,23 +605,15 @@ fn handle_inspect_tree(args: &ArgMatches<'_>) -> Result<(), Report> {
     }))
 }
 
-fn handle_touch(
-    args: &ArgMatches<'_>,
-    process_child_ids: Arc<Mutex<Vec<u64>>>,
-) -> Result<(), Report> {
+fn handle_touch(args: &ArgMatches<'_>) -> Result<(), Report> {
     match args.subcommand() {
-        ("apply-component-source", Some(sub_args)) => {
-            handle_apply_component_source(sub_args, process_child_ids)
-        }
+        ("apply-component-source", Some(sub_args)) => handle_apply_component_source(sub_args),
         ("replace-node", Some(sub_args)) => handle_replace_node(sub_args),
         _ => Err(eyre!("unknown dev touch subcommand")),
     }
 }
 
-fn handle_apply_component_source(
-    args: &ArgMatches<'_>,
-    process_child_ids: Arc<Mutex<Vec<u64>>>,
-) -> Result<(), Report> {
+fn handle_apply_component_source(args: &ArgMatches<'_>) -> Result<(), Report> {
     let session = resolve_session(args)?;
     let project_root = session_project_root(&session, args)?;
     let component_name = args.value_of("component").unwrap();
@@ -630,18 +622,16 @@ fn handle_apply_component_source(
     pax_language::parse_pax_str(pax_language::Rule::pax_component_definition, &source)
         .map_err(|err| eyre!("replacement source failed to parse: {err}"))?;
 
-    let manifests = parse_manifests(&project_root, process_child_ids)?;
+    let manifest = parse_manifest(&project_root)?;
     let mut matches = vec![];
-    for manifest in manifests {
-        for component in manifest.components.values() {
-            if component.type_id.get_pascal_identifier().as_deref() == Some(component_name) {
-                if let Some(path) = component
-                    .template
-                    .as_ref()
-                    .and_then(|template| template.get_file_path())
-                {
-                    matches.push(PathBuf::from(path));
-                }
+    for component in manifest.components.values() {
+        if component.type_id.get_pascal_identifier().as_deref() == Some(component_name) {
+            if let Some(path) = component
+                .template
+                .as_ref()
+                .and_then(|template| template.get_file_path())
+            {
+                matches.push(PathBuf::from(path));
             }
         }
     }
@@ -726,19 +716,14 @@ fn request_logs(
     wait_for_response_and_cleanup(session, &request_id, timeout)
 }
 
-fn parse_manifests(
-    project_root: &PathBuf,
-    process_child_ids: Arc<Mutex<Vec<u64>>>,
-) -> Result<Vec<PaxManifest>, Report> {
-    let output = pax_compiler::run_parser_binary(project_root, process_child_ids, true, false);
-    std::io::stderr().write_all(output.stderr.as_slice())?;
-    if !output.status.success() {
-        return Err(eyre!(
-            "failed to parse the Pax project before applying source"
-        ));
-    }
-    let stdout = String::from_utf8(output.stdout)?;
-    Ok(serde_json::from_str(&stdout)?)
+fn parse_manifest(project_root: &PathBuf) -> Result<PaxManifest, Report> {
+    pax_compiler::static_analysis::build_manifest_with_options(
+        project_root,
+        pax_compiler::static_analysis::BuildManifestOptions {
+            is_designtime: true,
+        },
+    )
+    .map_err(|err| eyre!("failed to analyze the Pax project before applying source: {err}"))
 }
 
 fn read_component_source(args: &ArgMatches<'_>) -> Result<String, Report> {

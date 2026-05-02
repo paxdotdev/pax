@@ -1245,7 +1245,7 @@ Rust macros are the way that information gets exposed from Rust to Pax.
 
  - `#[pax]`
 Declares a Pax definition, specifically a _non-root_ component that may be imported and instantiated in other components' templates.
-All types used in Pax must have this macro including both components and non-components. It implements Default, Clone, Interpolatable, Reflectable and various other needed traits for the struct.
+All types used in Pax must have this macro including both components and non-components. It implements Default, Clone, Interpolatable and various other needed traits for the struct.
 
  - `#[main]`
 Specifies the root component of the application

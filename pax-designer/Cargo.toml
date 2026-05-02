@@ -24,14 +24,8 @@ percent-encoding = "2.1.0"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[[bin]]
-name = "parser"
-path = "src/lib.rs"
-required-features = ["parser", "designtime"]
-
 [features]
 default = ["designtime"]
-parser = ["pax-std/parser"]
 designtime = [] #no-op feature; designtime is hardwired for pax-designer
 web = ["pax-engine/web"]
 macos = ["pax-engine/macos"]

@@ -25,7 +25,7 @@ use color_eyre::eyre;
 use color_eyre::eyre::Report;
 use eyre::eyre;
 use fs_extra::dir::{self, CopyOptions};
-use helpers::{copy_dir_recursively, wait_with_output, ERR_SPAWN};
+use helpers::{copy_dir_recursively, wait_with_output};
 use pax_manifest::{
     ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, PaxExpression, PaxManifest,
     SettingElement, SettingsBlockElement, TemplateNodeDefinition, TypeId, ValueDefinition,
@@ -36,7 +36,7 @@ use serde_json::Value as JsonValue;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashSet;
 use std::fs;
-use std::io::{self, Write};
+use std::io;
 use std::sync::{Arc, Mutex};
 
 #[cfg(unix)]
@@ -47,7 +47,7 @@ use crate::building::build_project_with_cartridge;
 use crate::cartridge_generation::generate_cartridge_partial_rs;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Command;
 use std::time::{Duration, Instant};
 use walkdir::WalkDir;
 
@@ -211,40 +211,23 @@ fn prepare_cartridge_sources_with_timings(
         copy_interface_files_for_target(ctx, &pax_dir)
     });
 
-    let mut manifests: Vec<PaxManifest> =
-        timings.record("manifest", || -> eyre::Result<Vec<PaxManifest>, Report> {
-            if ctx.should_run_designer {
-                println!(
-                    "{} 🔎 Static analysis disabled for designer builds; falling back to parser binary",
-                    *PAX_BADGE
-                );
-                run_and_parse_parser_binary(ctx)
-            } else {
-                match static_analysis::build_manifest_with_options(
-                    &ctx.project_path,
-                    static_analysis::BuildManifestOptions {
-                        is_designtime: ctx.should_run_designtime,
-                    },
-                ) {
-                    Ok(manifest) => {
-                        println!("{} 🔎 Built manifest via static analysis", *PAX_BADGE);
-                        Ok(vec![manifest])
-                    }
-                    Err(err) => {
-                        println!(
-                            "{} 🔎 Static analysis fell back to parser binary: {}",
-                            *PAX_BADGE, err
-                        );
-                        run_and_parse_parser_binary(ctx)
-                    }
-                }
-            }
-        })?;
+    if ctx.should_run_designer {
+        return Err(eyre!(
+            "Designer builds need a static-analysis manifest path before they can run without the removed parser binary."
+        ));
+    }
 
-    // Simple starting convention: first manifest is userland, second manifest is designer; other schemas are undefined
-    let mut userland_manifest = manifests.remove(0);
+    let mut userland_manifest = timings.record("manifest", || {
+        static_analysis::build_manifest_with_options(
+            &ctx.project_path,
+            static_analysis::BuildManifestOptions {
+                is_designtime: ctx.should_run_designtime,
+            },
+        )
+    })?;
+    println!("{} 🔎 Built manifest via static analysis", *PAX_BADGE);
 
-    let mut merged_manifest = userland_manifest.clone();
+    let merged_manifest = userland_manifest.clone();
 
     //Hack: add a wrapper component so UniqueTemplateNodeIdentifier is a suitable uniqueid, even for root nodes
     let wrapper_type_id = TypeId::build_singleton("ROOT_COMPONENT", Some("RootComponent"));
@@ -267,21 +250,7 @@ fn prepare_cartridge_sources_with_timings(
         },
     );
 
-    let designer_manifest = if ctx.should_run_designer {
-        let designer_manifest = manifests.remove(0);
-        merged_manifest.merge_in_place(&designer_manifest);
-
-        userland_manifest
-            .components
-            .extend(designer_manifest.components.clone());
-        userland_manifest
-            .type_table
-            .extend(designer_manifest.type_table.clone());
-
-        Some(designer_manifest)
-    } else {
-        None
-    };
+    let designer_manifest = None;
 
     if matches!(
         ctx.target,
@@ -307,32 +276,6 @@ fn prepare_cartridge_sources_with_timings(
         userland_manifest,
         assets_dirs: merged_manifest.assets_dirs,
     })
-}
-
-fn run_and_parse_parser_binary(ctx: &RunContext) -> eyre::Result<Vec<PaxManifest>, Report> {
-    println!("{} 🛠️  Building parser binary with `cargo`...", *PAX_BADGE);
-
-    let output = run_parser_binary(
-        &ctx.project_path,
-        Arc::clone(&ctx.process_child_ids),
-        ctx.should_run_designtime,
-        ctx.should_run_designer,
-    );
-
-    std::io::stderr()
-        .write_all(output.stderr.as_slice())
-        .unwrap();
-
-    if !output.status.success() {
-        return Err(eyre!(
-            "Parser build failed. See the Cargo output above; this can be caused by Pax syntax errors, dependency feature mismatches, or missing local path patches."
-        ));
-    }
-
-    let out = String::from_utf8(output.stdout).unwrap();
-    let manifests: Vec<PaxManifest> =
-        serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
-    Ok(manifests)
 }
 
 fn ensure_default_web_interface_bundle(ctx: &RunContext) {
@@ -1471,46 +1414,6 @@ fn ensure_claude_md_link(project_root: &Path) {
         fs::copy(project_root.join("AGENTS.md"), &claude_path)
             .expect("Failed to copy CLAUDE.md from AGENTS.md");
     }
-}
-
-/// Executes a shell command to run the feature-flagged parser at the specified path
-/// Returns an output object containing bytestreams of stdout/stderr as well as an exit code
-pub fn run_parser_binary(
-    project_path: &PathBuf,
-    process_child_ids: Arc<Mutex<Vec<u64>>>,
-    should_run_designtime: bool,
-    should_run_designer: bool,
-) -> Output {
-    let mut cmd = Command::new("cargo");
-    cmd.current_dir(project_path)
-        .arg("run")
-        .arg("--bin")
-        .arg("parser")
-        .arg("--features")
-        .arg("parser")
-        .arg("--profile")
-        .arg("parser")
-        .arg("--color")
-        .arg("always")
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped());
-
-    if should_run_designer {
-        cmd.arg("--features").arg("designer");
-    } else if should_run_designtime {
-        cmd.arg("--features").arg("designtime");
-    }
-
-    #[cfg(unix)]
-    unsafe {
-        cmd.pre_exec(pre_exec_hook);
-    }
-
-    let child = cmd.spawn().expect(ERR_SPAWN);
-
-    // child.stdin.take().map(drop);
-    let output = wait_with_output(&process_child_ids, child);
-    output
 }
 
 impl RunTarget {

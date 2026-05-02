@@ -1,7 +1,6 @@
 use clap::{crate_version, App, AppSettings, Arg, ArgMatches};
 use color_eyre::config::HookBuilder;
 use colored::{ColoredString, Colorize};
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -370,20 +369,9 @@ fn perform_nominal_action(
             match args.subcommand() {
                 ("parse", Some(args)) => {
                     let path = args.value_of("path").unwrap().to_string(); //default value "."
-                    let output = &pax_compiler::run_parser_binary(
-                        &PathBuf::from(path),
-                        process_child_ids,
-                        false,
-                        false,
-                    );
-
-                    // Forward both stdout and stderr
-                    std::io::stderr()
-                        .write_all(output.stderr.as_slice())
-                        .unwrap();
-                    std::io::stdout()
-                        .write_all(output.stdout.as_slice())
-                        .unwrap();
+                    let manifest =
+                        pax_compiler::static_analysis::build_manifest(&PathBuf::from(path))?;
+                    println!("{}", serde_json::to_string_pretty(&vec![manifest])?);
 
                     Ok(())
                 }

@@ -13,15 +13,81 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use syn::parse::Parser;
-use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{
-    Attribute, Expr, Field, Fields, GenericArgument, Item, ItemEnum, ItemMod, ItemStruct, Lit,
-    Meta, NestedMeta, PathArguments, Stmt, Token, Type, UseTree,
+    Attribute, Field, Fields, GenericArgument, Item, ItemEnum, ItemMod, ItemStruct, Lit, Meta,
+    NestedMeta, PathArguments, Type, UseTree,
 };
 
 const DEFAULT_ENGINE_IMPORT_PATH: &str = "pax_kit::pax_engine";
+const PAX_STD_DESIGNTIME_SEED_IDENTIFIERS: &[&str] = &[
+    "BlankComponent",
+    "ComboBox",
+    "NewItem",
+    "ComboBoxListItem",
+    "ListItemData",
+    "ComboBoxItemClickEvent",
+    "EventBlocker",
+    "Frame",
+    "Group",
+    "ImportSettings",
+    "Link",
+    "Router",
+    "Route",
+    "Target",
+    "NativeImage",
+    "Scroller",
+    "ScrollerHost",
+    "Text",
+    "TextStyle",
+    "Font",
+    "FontStyle",
+    "FontWeight",
+    "TextAlignHorizontal",
+    "TextAlignVertical",
+    "Tooltip",
+    "YoutubeVideo",
+    "Ellipse",
+    "Image",
+    "ImageSource",
+    "ImageFit",
+    "Line",
+    "Path",
+    "PathPoint",
+    "PathLine",
+    "PathClose",
+    "PathCurve",
+    "Rectangle",
+    "RectangleCornerRadii",
+    "Button",
+    "Checkbox",
+    "ConfirmationDialog",
+    "Dropdown",
+    "RadioList",
+    "Slider",
+    "Tabs",
+    "Textbox",
+    "Toast",
+    "Carousel",
+    "CarouselAxis",
+    "CarouselCell",
+    "Resizable",
+    "ResizableDirection",
+    "Section",
+    "Stacker",
+    "StackerCell",
+    "StackerDirection",
+    "ContainerExitMode",
+    "ContainerReflowTransition",
+    "ContainerReflowCurve",
+    "ContainerReflowTransitionKind",
+    "Table",
+    "Row",
+    "Col",
+    "Span",
+    "Cell",
+    "InlineFrame",
+];
 
 #[derive(Clone, Copy, Default)]
 pub struct BuildManifestOptions {
@@ -89,153 +155,17 @@ fn extend_designtime_manifest_with_pax_std_types(
 
 fn pax_std_designtime_seed_import_paths(registry: &mut StaticRegistry) -> Result<Vec<String>> {
     registry.ensure_package_scanned("pax_std")?;
-    let package_context = registry
-        .packages_by_import_root
-        .get("pax_std")
-        .cloned()
-        .ok_or_else(|| eyre!("Static analysis could not find the `pax_std` package"))?;
-    let source = fs::read_to_string(&package_context.entry_file).map_err(|err| {
-        eyre!(
-            "Failed to read `pax_std` entry file `{}`: {err}",
-            package_context.entry_file.display()
-        )
-    })?;
-    let parsed_file = syn::parse_file(&source).map_err(|err| {
-        eyre!(
-            "Failed to parse `pax_std` entry file `{}`: {err}",
-            package_context.entry_file.display()
-        )
-    })?;
-    let scope = collect_scope(
-        &parsed_file.items,
-        package_context.import_root.clone(),
-        package_context.import_root.clone(),
-    )?;
-    let mut seed_import_paths =
-        designtime_seed_import_paths_from_items(&parsed_file.items, &scope, registry)?;
-
-    // `InlineFrame` is conditionally added for designtime builds inside the helper body.
-    let inline_frame_import_path = "pax_std::core::inline_frame::InlineFrame";
-    if registry
-        .items_by_import_path
-        .contains_key(inline_frame_import_path)
-        && !seed_import_paths
-            .iter()
-            .any(|import_path| import_path == inline_frame_import_path)
-    {
-        seed_import_paths.push(inline_frame_import_path.to_string());
-    }
-
-    Ok(seed_import_paths)
-}
-
-fn designtime_seed_import_paths_from_items(
-    items: &[Item],
-    scope: &ScopeImports,
-    registry: &mut StaticRegistry,
-) -> Result<Vec<String>> {
-    let helper_fn = items
-        .iter()
-        .find_map(|item| match item {
-            Item::Fn(item_fn)
-                if item_fn.sig.ident == "extend_designtime_parsing_context_with_all_pax_std_types" =>
-            {
-                Some(item_fn)
-            }
-            _ => None,
-        })
-        .ok_or_else(|| {
-            eyre!(
-                "Static analysis could not find `extend_designtime_parsing_context_with_all_pax_std_types`"
-            )
-        })?;
-
     let mut seed_import_paths = vec![];
-    for stmt in &helper_fn.block.stmts {
-        collect_designtime_seed_import_paths_from_stmt(
-            stmt,
-            scope,
-            registry,
-            &mut seed_import_paths,
-        )?;
+    for identifier in PAX_STD_DESIGNTIME_SEED_IDENTIFIERS {
+        let Some(import_path) = registry.unique_item_below_root("pax_std", identifier) else {
+            return Err(eyre!(
+                "Static analysis could not resolve pax-std designtime seed `{identifier}`"
+            ));
+        };
+        seed_import_paths.push(import_path);
     }
+
     Ok(seed_import_paths)
-}
-
-fn collect_designtime_seed_import_paths_from_stmt(
-    stmt: &Stmt,
-    scope: &ScopeImports,
-    registry: &mut StaticRegistry,
-    seed_import_paths: &mut Vec<String>,
-) -> Result<()> {
-    match stmt {
-        Stmt::Expr(expr) | Stmt::Semi(expr, _) => {
-            collect_designtime_seed_import_paths_from_expr(expr, scope, registry, seed_import_paths)
-        }
-        _ => Ok(()),
-    }
-}
-
-fn collect_designtime_seed_import_paths_from_expr(
-    expr: &Expr,
-    scope: &ScopeImports,
-    registry: &mut StaticRegistry,
-    seed_import_paths: &mut Vec<String>,
-) -> Result<()> {
-    match expr {
-        Expr::Macro(expr_macro) if expr_macro.mac.path.is_ident("parse_reflectables") => {
-            let parser = Punctuated::<syn::Path, Token![,]>::parse_terminated;
-            let paths = parser.parse2(expr_macro.mac.tokens.clone()).map_err(|err| {
-                eyre!(
-                    "Failed to parse `parse_reflectables!` seed list for static designtime analysis: {err}"
-                )
-            })?;
-
-            for path in paths {
-                let raw_path = syn_path_to_string(&path);
-                let import_path =
-                    resolve_seed_reference_to_import_path(&raw_path, scope, registry)?;
-                if !seed_import_paths.contains(&import_path) {
-                    seed_import_paths.push(import_path);
-                }
-            }
-            Ok(())
-        }
-        Expr::Block(expr_block) => {
-            for stmt in &expr_block.block.stmts {
-                collect_designtime_seed_import_paths_from_stmt(
-                    stmt,
-                    scope,
-                    registry,
-                    seed_import_paths,
-                )?;
-            }
-            Ok(())
-        }
-        _ => Ok(()),
-    }
-}
-
-fn resolve_seed_reference_to_import_path(
-    raw_path: &str,
-    scope: &ScopeImports,
-    registry: &mut StaticRegistry,
-) -> Result<String> {
-    if raw_path.contains("::") {
-        let canonical_path = resolve_canonical_path(raw_path, scope, registry)?;
-        registry.ensure_import_path_scanned(&canonical_path)?;
-        return Ok(canonical_path);
-    }
-
-    resolve_identifier_to_import_path(raw_path, scope, registry)
-}
-
-fn syn_path_to_string(path: &syn::Path) -> String {
-    path.segments
-        .iter()
-        .map(|segment| segment.ident.to_string())
-        .collect::<Vec<_>>()
-        .join("::")
 }
 
 fn build_item_recursive(
@@ -1869,15 +1799,12 @@ struct PaxConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::run_parser_binary;
-    use std::sync::{Arc, Mutex};
 
     #[test]
-    fn increment_static_manifest_matches_parser_core() {
-        assert_static_manifest_matches_parser_core(
+    fn increment_static_manifest_contains_expected_core_items() {
+        assert_static_manifest_contains_expected_items(
             "../examples/src/increment",
             BuildManifestOptions::default(),
-            false,
             &[
                 "crate::Example",
                 "pax_std::core::group::Group",
@@ -1901,13 +1828,12 @@ mod tests {
     }
 
     #[test]
-    fn increment_static_manifest_matches_parser_designtime() {
-        assert_static_manifest_matches_parser_core(
+    fn increment_static_manifest_contains_expected_designtime_items() {
+        assert_static_manifest_contains_expected_items(
             "../examples/src/increment",
             BuildManifestOptions {
                 is_designtime: true,
             },
-            true,
             &[
                 "crate::Example",
                 "pax_std::core::inline_frame::InlineFrame",
@@ -1965,10 +1891,9 @@ mod tests {
         );
     }
 
-    fn assert_static_manifest_matches_parser_core(
+    fn assert_static_manifest_contains_expected_items(
         relative_project_path: &str,
         build_options: BuildManifestOptions,
-        parser_designtime: bool,
         property_import_paths: &[&str],
     ) {
         let project_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(relative_project_path);
@@ -1976,58 +1901,25 @@ mod tests {
         let static_manifest = build_manifest_with_options(&project_path, build_options)
             .expect("static manifest should build");
 
-        let output = run_parser_binary(
-            &project_path,
-            Arc::new(Mutex::new(vec![])),
-            parser_designtime,
-            false,
-        );
         assert!(
-            output.status.success(),
-            "parser binary failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-
-        let mut manifests: Vec<PaxManifest> =
-            serde_json::from_slice(&output.stdout).expect("parser output should be valid JSON");
-        let parser_manifest = manifests.remove(0);
-
-        assert_eq!(
-            sorted_component_ids(&static_manifest),
-            sorted_component_ids(&parser_manifest)
+            sorted_component_ids(&static_manifest)
+                .iter()
+                .any(|id| id.contains("crate::Example")),
+            "static manifest should include the app component"
         );
         assert_eq!(
-            sorted_type_ids(&static_manifest),
-            sorted_type_ids(&parser_manifest)
+            static_manifest.engine_import_path, DEFAULT_ENGINE_IMPORT_PATH,
+            "static manifest should preserve the default engine import path"
         );
-        assert_eq!(
-            static_manifest.engine_import_path,
-            parser_manifest.engine_import_path
-        );
-        assert_eq!(static_manifest.assets_dirs, parser_manifest.assets_dirs);
 
         for import_path in property_import_paths {
-            assert_eq!(
-                property_signature(&static_manifest, import_path),
-                property_signature(&parser_manifest, import_path),
-                "property signature mismatch for {import_path}"
-            );
+            property_signature(&static_manifest, import_path);
         }
     }
 
     fn sorted_component_ids(manifest: &PaxManifest) -> Vec<String> {
         let mut ids = manifest
             .components
-            .keys()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>();
-        ids.sort();
-        ids
-    }
-
-    fn sorted_type_ids(manifest: &PaxManifest) -> Vec<String> {
-        let mut ids = manifest
-            .type_table
             .keys()
             .map(ToString::to_string)
             .collect::<Vec<_>>();

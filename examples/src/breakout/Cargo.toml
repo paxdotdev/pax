@@ -5,7 +5,6 @@ edition = "2021"
 default-run = "run"
 
 [dependencies]
-serde_json = {version = "1.0.95", optional = true}
 rand = { version = "0.8.5", features = ["getrandom"] }
 getrandom = { version = "0.2.15", features = ["js"] }
 rand_distr = { version = "0.4" }
@@ -16,30 +15,16 @@ crate-type = ["cdylib", "rlib"]
 name = "paxcartridge"
 
 [[bin]]
-name = "parser"
-path = "src/lib.rs"
-required-features = ["parser"]
-
-[[bin]]
 name = "run"
 path = "bin/run.rs"
 
 [features]
 designtime = ["pax-kit/designtime"]
 designer = ["designtime", "pax-kit/designer"]
-parser = ["pax-kit/parser"]
 web = ["pax-kit/web"]
 webgl = ["pax-kit/webgl"]
 macos = ["pax-kit/macos"]
 ios = ["pax-kit/ios"]
-
-[profile.parser]
-inherits = "dev"
-opt-level = 0
-
-[profile.parser.package."*"]
-inherits = "dev"
-opt-level = 0
 
 [profile.dev]
 opt-level = 0

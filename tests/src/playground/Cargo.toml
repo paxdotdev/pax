@@ -15,17 +15,11 @@ crate-type = ["cdylib", "rlib"]
 name = "paxcartridge"
 
 [[bin]]
-name = "parser"
-path = "src/lib.rs"
-required-features = ["parser", "designtime"]
-
-[[bin]]
 name = "run"
 path = "bin/run.rs"
 
 [features]
 default = ["designtime"]
-parser = ["pax-std/parser", "pax-designer/parser"]
 designtime = ["pax-engine/designtime", "pax-std/designtime"]
 web = ["pax-engine/web"]
 webgl = ["pax-engine/webgl"]
