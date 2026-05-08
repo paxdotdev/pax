@@ -54,10 +54,14 @@ private func registerPaxFontsIfNeeded() {
 }
 
 private func sendInterruptToEngine(data: Data) {
+    guard let engineContainer = PaxViewIos.PaxEngineContainer.paxEngineContainer else {
+        return
+    }
+
     data.withUnsafeBytes { ptr in
         var ffi_container = InterruptBuffer(data_ptr: ptr.baseAddress!, length: UInt64(ptr.count))
         withUnsafePointer(to: &ffi_container) { ffi_container_ptr in
-            pax_interrupt(PaxViewIos.PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
+            pax_interrupt(engineContainer, ffi_container_ptr)
         }
     }
 }
@@ -66,6 +70,7 @@ struct PaxViewIos: View {
     init() {
         registerPaxFontsIfNeeded()
         NativeInterruptDispatcher.shared.sendData = sendInterruptToEngine
+        PaxMotionSensorBridge.shared.start()
     }
 
     func canvasView(size: CGSize) -> some View {
@@ -86,6 +91,10 @@ struct PaxViewIos: View {
         .onAppear {
             NativeInterruptDispatcher.shared.sendData = sendInterruptToEngine
             registerPaxFontsIfNeeded()
+            PaxMotionSensorBridge.shared.start()
+        }
+        .onDisappear {
+            PaxMotionSensorBridge.shared.stop()
         }
     }
 
@@ -101,6 +110,7 @@ struct PaxViewIos: View {
         func makeUIView(context: Context) -> PaxCanvasViewIos {
             registerPaxFontsIfNeeded()
             NativeInterruptDispatcher.shared.sendData = sendInterruptToEngine
+            PaxMotionSensorBridge.shared.start()
             let view = PaxCanvasViewIos()
             return view
         }

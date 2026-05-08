@@ -507,6 +507,26 @@ fn test_collect_builtin_dollar_dependency() {
 }
 
 #[test]
+fn test_builtin_dollar_struct_access() {
+    let mut idr = HashMap::new();
+    idr.insert(
+        "$gyro".to_string(),
+        PaxValue::Object(
+            vec![
+                ("x".to_string(), PaxValue::Numeric(Numeric::F64(1.0))),
+                ("y".to_string(), PaxValue::Numeric(Numeric::F64(2.5))),
+                ("z".to_string(), PaxValue::Numeric(Numeric::F64(3.0))),
+            ]
+            .into_iter()
+            .collect(),
+        ),
+    );
+
+    let result = compute_paxel("$gyro.y", Rc::new(idr)).unwrap();
+    assert_eq!(PaxValue::Numeric(Numeric::F64(2.5)), result);
+}
+
+#[test]
 fn test_collect_ternary_dependencies() {
     let expr = "flag ? a : b";
     let expected = vec!["flag".to_string(), "a".to_string(), "b".to_string()];

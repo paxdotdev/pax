@@ -21,6 +21,9 @@ function getMouseButton(event: MouseEvent) {
 
 export function setupEventListeners(chassis: PaxChassisWeb): () => void {
     let disposers: Array<() => void> = [];
+    let addDisposer = (disposer: () => void) => {
+        disposers.push(disposer);
+    };
     let addWindowListener = (
         type: string,
         listener: (event: any) => void,
@@ -315,6 +318,7 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
         evt.preventDefault();
         evt.dataTransfer!.dropEffect = 'copy';
     }, {"passive": false, "capture": true});
+    setupDeviceSensorListeners(chassis, addWindowListener, addDisposer);
 
     return () => {
         while (disposers.length > 0) {
@@ -339,4 +343,124 @@ function readFileAsByteArray(file: File): Promise<Uint8Array> {
         reader.onerror = () => reject(reader.error); // Reject the promise on error
         reader.readAsArrayBuffer(file); // Read the file as an ArrayBuffer
     });
+}
+
+type AddWindowListener = (
+    type: string,
+    listener: (event: any) => void,
+    options?: boolean | AddEventListenerOptions,
+) => void;
+
+function setupDeviceSensorListeners(
+    chassis: PaxChassisWeb,
+    addWindowListener: AddWindowListener,
+    addDisposer: (disposer: () => void) => void,
+) {
+    let sensorsStarted = false;
+    let permissionRequested = false;
+    let orientation = (window as any).DeviceOrientationEvent;
+    let motion = (window as any).DeviceMotionEvent;
+    let needsPermission =
+        typeof orientation?.requestPermission === 'function' ||
+        typeof motion?.requestPermission === 'function';
+
+    let numericOrZero = (value: number | null | undefined) => value ?? 0;
+    let hasAnyAxis = (x: number | null | undefined, y: number | null | undefined, z: number | null | undefined) =>
+        x != null || y != null || z != null;
+
+    let startSensors = () => {
+        if (sensorsStarted) {
+            return;
+        }
+        sensorsStarted = true;
+        addWindowListener('deviceorientation', (evt: DeviceOrientationEvent) => {
+            if (!hasAnyAxis(evt.beta, evt.gamma, evt.alpha)) {
+                return;
+            }
+            chassis.interrupt({
+                "Gyro": {
+                    "x": numericOrZero(evt.beta),
+                    "y": numericOrZero(evt.gamma),
+                    "z": numericOrZero(evt.alpha),
+                }
+            }, []);
+        }, true);
+        addWindowListener('devicemotion', (evt: DeviceMotionEvent) => {
+            let acceleration = evt.accelerationIncludingGravity ?? evt.acceleration;
+            if (acceleration == null || !hasAnyAxis(acceleration.x, acceleration.y, acceleration.z)) {
+                return;
+            }
+            chassis.interrupt({
+                "Accel": {
+                    "x": numericOrZero(acceleration.x),
+                    "y": numericOrZero(acceleration.y),
+                    "z": numericOrZero(acceleration.z),
+                }
+            }, []);
+        }, true);
+    };
+
+    let removePermissionPrompt = () => {};
+
+    let requestPermissionAndStart = (evt?: Event) => {
+        evt?.preventDefault();
+        evt?.stopPropagation();
+        if (permissionRequested || sensorsStarted) {
+            return;
+        }
+        permissionRequested = true;
+        let requests: Array<Promise<string>> = [];
+        if (typeof orientation?.requestPermission === 'function') {
+            requests.push(orientation.requestPermission().catch(() => 'denied'));
+        }
+        if (typeof motion?.requestPermission === 'function') {
+            requests.push(motion.requestPermission().catch(() => 'denied'));
+        }
+        if (requests.length === 0) {
+            return;
+        }
+        Promise.all(requests).then(results => {
+            if (results.some(result => result === 'granted')) {
+                removePermissionPrompt();
+                startSensors();
+            } else {
+                permissionRequested = false;
+            }
+        }).catch(() => {
+            permissionRequested = false;
+        });
+    };
+
+    if (!needsPermission) {
+        startSensors();
+    } else {
+        removePermissionPrompt = showSensorPermissionPrompt(requestPermissionAndStart);
+        addDisposer(removePermissionPrompt);
+    }
+}
+
+function showSensorPermissionPrompt(onClick: (evt: Event) => void): () => void {
+    let button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Enable motion';
+    button.style.position = 'fixed';
+    button.style.left = '50%';
+    button.style.bottom = '28px';
+    button.style.transform = 'translateX(-50%)';
+    button.style.zIndex = '2147483647';
+    button.style.padding = '13px 18px';
+    button.style.border = '1px solid rgba(255,255,255,0.42)';
+    button.style.borderRadius = '8px';
+    button.style.background = 'rgba(16, 23, 38, 0.94)';
+    button.style.color = '#ffffff';
+    button.style.font = '600 16px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
+    button.style.boxShadow = '0 10px 30px rgba(0,0,0,0.28)';
+    button.style.touchAction = 'manipulation';
+    button.addEventListener('click', onClick, {"capture": true});
+    document.body.appendChild(button);
+
+    return () => {
+        button.removeEventListener('click', onClick, {"capture": true});
+        button.remove();
+    };
 }

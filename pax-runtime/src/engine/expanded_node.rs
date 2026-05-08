@@ -8,13 +8,13 @@ use pax_runtime_api::{
 
 use crate::api::math::Point2;
 use crate::constants::{
-    BUTTON_CLICK_HANDLERS, CHECKBOX_CHANGE_HANDLERS, CLICK_HANDLERS, CLICK_OR_TAP_HANDLERS,
-    CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, DROP_HANDLERS, FOCUSED_HANDLERS,
-    KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS, KEY_UP_HANDLERS, MOUSE_DOWN_HANDLERS,
-    MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS, MOUSE_OVER_HANDLERS, MOUSE_UP_HANDLERS,
-    PRE_RENDER_HANDLERS, SCROLL_HANDLERS, SELECT_START_HANDLERS, TEXTBOX_CHANGE_HANDLERS,
-    TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS, TICK_HANDLERS, TOUCH_END_HANDLERS,
-    TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
+    ACCEL_HANDLERS, BUTTON_CLICK_HANDLERS, CHECKBOX_CHANGE_HANDLERS, CLICK_HANDLERS,
+    CLICK_OR_TAP_HANDLERS, CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, DROP_HANDLERS,
+    FOCUSED_HANDLERS, GYRO_HANDLERS, KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS, KEY_UP_HANDLERS,
+    MOUSE_DOWN_HANDLERS, MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS, MOUSE_OVER_HANDLERS,
+    MOUSE_UP_HANDLERS, PRE_RENDER_HANDLERS, SCROLL_HANDLERS, SELECT_START_HANDLERS,
+    TEXTBOX_CHANGE_HANDLERS, TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS, TICK_HANDLERS,
+    TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use_RefCell!();
 use crate::{ExpandedNodeIdentifier, Globals, LayoutHull, LayoutProperties, TransformAndBounds};
@@ -24,10 +24,10 @@ use std::collections::{BTreeMap, HashMap};
 use std::rc::{Rc, Weak};
 
 use crate::api::{
-    Axis, ButtonClick, CheckboxChange, Click, ClickOrTap, CommonProperties, ContextMenu,
-    DoubleClick, Drop, Event, KeyDown, KeyPress, KeyUp, LayoutRole, MouseDown, MouseMove, MouseOut,
-    MouseOver, MouseUp, NodeContext, RenderContext, Scroll, Size, TextboxChange, TextboxInput,
-    TouchEnd, TouchMove, TouchStart, Wheel, Window,
+    Accel, Axis, ButtonClick, CheckboxChange, Click, ClickOrTap, CommonProperties, ContextMenu,
+    DoubleClick, Drop, Event, Gyro, KeyDown, KeyPress, KeyUp, LayoutRole, MouseDown, MouseMove,
+    MouseOut, MouseOver, MouseUp, NodeContext, RenderContext, Scroll, Size, TextboxChange,
+    TextboxInput, TouchEnd, TouchMove, TouchStart, Wheel, Window,
 };
 use pax_manifest::cartridge_generation::{
     TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT, TRANSITION_PHASE_IDLE, TRANSITION_PHASE_SYMBOL,
@@ -1568,6 +1568,8 @@ impl ExpandedNode {
             containing_component: Weak::clone(&self.containing_component),
             frames_elapsed: frames_elapsed_frozen_if_suspended,
             elapsed_millis,
+            gyro: globals.gyro.clone(),
+            accel: globals.accel.clone(),
             bounds_self,
             bounds_parent,
             measured_size: self.measured_size.clone(),
@@ -1707,6 +1709,8 @@ impl ExpandedNode {
     dispatch_event_handler!(dispatch_click, Click, CLICK_HANDLERS, true);
     dispatch_event_handler!(dispatch_wheel, Wheel, WHEEL_HANDLERS, true);
     dispatch_event_handler!(dispatch_drop, Drop, DROP_HANDLERS, true);
+    dispatch_event_handler!(dispatch_gyro, Gyro, GYRO_HANDLERS, false);
+    dispatch_event_handler!(dispatch_accel, Accel, ACCEL_HANDLERS, false);
     dispatch_event_handler!(dispatch_focus, Focus, FOCUSED_HANDLERS, false);
     dispatch_event_handler!(
         dispatch_select_start,

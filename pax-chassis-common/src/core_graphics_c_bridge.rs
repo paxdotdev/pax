@@ -18,9 +18,9 @@ use pax_gpu::render_backend::{RenderBackend, RenderConfig};
 use pax_gpu::{Transform2D, WgpuRenderer};
 use pax_runtime::api::math::Point2;
 use pax_runtime::api::{
-    ButtonClick, Click, ClickOrTap, Event, Focus, ModifierKey, MouseButton, MouseEventArgs,
-    RenderContext, Scroll, SelectStart, TextboxChange, Touch, TouchEnd, TouchMove, TouchStart,
-    TextboxInput,
+    Accel, ButtonClick, Click, ClickOrTap, Event, Focus, Gyro, ModifierKey, MouseButton,
+    MouseEventArgs, RenderContext, Scroll, SelectStart, TextboxChange, TextboxInput, Touch,
+    TouchEnd, TouchMove, TouchStart,
 };
 use pax_runtime::engine::layer_tiling::{scroller_canvas_plan_with_policy, ScrollerTilingPolicy};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -895,6 +895,24 @@ pub extern "C" fn pax_interrupt(
             }
         }
         NativeInterrupt::VisualViewportUpdate(_args) => {}
+        NativeInterrupt::Gyro(args) => {
+            let gyro = Gyro {
+                x: args.x,
+                y: args.y,
+                z: args.z,
+            };
+            globals.gyro.set_if_neq(gyro);
+            engine.global_dispatch_gyro(gyro);
+        }
+        NativeInterrupt::Accel(args) => {
+            let accel = Accel {
+                x: args.x,
+                y: args.y,
+                z: args.z,
+            };
+            globals.accel.set_if_neq(accel);
+            engine.global_dispatch_accel(accel);
+        }
         NativeInterrupt::AddedLayer(args) => {
             if let Some(layer_id) = args.layer_id.map(|layer| layer as usize) {
                 engine.runtime_context.set_canvas_dirty(layer_id);

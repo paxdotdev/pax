@@ -1,0 +1,94 @@
+<Group width=100% height=100%>
+    <Text class=title x=50% y=54px width=86% height=48px text="Gyroscope & Accelerometer"/>
+    <Text class=readout x=50% y=102px width=86% height=24px text={self.gyro_label}/>
+    <Text class=readout x=50% y=130px width=86% height=24px text={self.accel_label}/>
+    <Text class=status x=50% y={100% - 46px} width=84% height=28px text={self.status_label}/>
+
+    <Group
+        x={50% + ($gyro.y * 5.5)px}
+        y={50% + ($gyro.x * 3.6)px}
+        width={(270.0 + self.accel_energy * 5.0)px}
+        height={(270.0 + self.accel_energy * 5.0)px}
+        anchor=50%
+        rotate={(self.wobble + $gyro.z * 0.08)deg}
+        opacity={self.glow}
+    >
+        <Ellipse class=core x=50% y=50% width=42% height=42% anchor=50%/>
+        <Ellipse class=ring_a x=50% y=50% width=76% height=76% anchor=50% rotate={($gyro.y * -0.9)deg}/>
+        <Ellipse class=ring_b x=50% y=50% width=104% height=104% anchor=50% rotate={($gyro.x * 0.7)deg}/>
+        <Ellipse class=satellite x={(50.0 + $gyro.y * 0.32)%} y={(50.0 + $gyro.x * 0.24)%} width=34px height=34px anchor=50%/>
+    </Group>
+
+    <Group
+        x={50% + (self.accel_x * 6.0)px}
+        y={50% + (self.accel_y * -5.0)px}
+        width={(78.0 + self.accel_energy * 1.6)%}
+        height={(52.0 + self.accel_energy * 0.7)%}
+        anchor=50%
+        opacity=0.72
+    >
+        <Rectangle class=guide_h x=50% y=50% width=100% height=1px anchor=50%/>
+        <Rectangle class=guide_v x=50% y=50% width=1px height=100% anchor=50%/>
+        <Ellipse class=field_mark x=50% y=50% width=100% height=100% anchor=50%/>
+    </Group>
+
+    <Rectangle class=background/>
+</Group>
+
+@settings {
+    @mount: on_mount
+    @gyro: on_gyro
+    @accel: on_accel
+
+    .title {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 34px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+        }
+    }
+    .readout {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font_size: 14px
+            fill: rgb(164, 230, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+        }
+    }
+    .status {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font_size: 15px
+            fill: rgb(249, 222, 146)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+        }
+    }
+    .core {
+        fill: rgb(255, 244, 190)
+    }
+    .ring_a {
+        fill: Color::rgba(67, 214, 255, 82)
+    }
+    .ring_b {
+        fill: Color::rgba(255, 116, 196, 54)
+    }
+    .satellite {
+        fill: rgb(120, 255, 190)
+    }
+    .guide_h {
+        fill: Color::rgba(255, 255, 255, 60)
+    }
+    .guide_v {
+        fill: Color::rgba(255, 255, 255, 60)
+    }
+    .field_mark {
+        fill: Color::rgba(84, 120, 255, 30)
+    }
+    .background {
+        fill: rgb(9, 14, 30)
+    }
+}

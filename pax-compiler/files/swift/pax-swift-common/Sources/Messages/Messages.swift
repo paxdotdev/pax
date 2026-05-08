@@ -277,6 +277,26 @@ public func dispatchClickOrTap(x: Double, y: Double) {
     }
 }
 
+public func dispatchGyro(x: Double, y: Double, z: Double) {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey("Gyro") { messageBuilder in
+            messageBuilder.addWithStringKey("x", x)
+            messageBuilder.addWithStringKey("y", y)
+            messageBuilder.addWithStringKey("z", z)
+        }
+    }
+}
+
+public func dispatchAccel(x: Double, y: Double, z: Double) {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey("Accel") { messageBuilder in
+            messageBuilder.addWithStringKey("x", x)
+            messageBuilder.addWithStringKey("y", y)
+            messageBuilder.addWithStringKey("z", z)
+        }
+    }
+}
+
 public func dispatchChassisResizeRequest(id: PaxNodeId, width: Double, height: Double) {
     dispatchNativeInterrupt { builder in
         builder.addVectorWithStringKey("ChassisResizeRequestCollection") { vectorBuilder in

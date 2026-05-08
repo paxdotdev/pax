@@ -99,6 +99,8 @@ pub enum NativeInterrupt {
     ViewportResize(ViewportResizeArgs),
     RouteChange(RouteChangeInterruptArgs),
     VisualViewportUpdate(VisualViewportUpdateArgs),
+    Gyro(GyroInterruptArgs),
+    Accel(AccelInterruptArgs),
     DropFile(DropFileArgs),
     Screenshot(ImageLoadInterruptArgs),
 }
@@ -257,6 +259,24 @@ pub struct VisualViewportUpdateArgs {
     pub offset_y: f64,
     pub page_scroll_x: f64,
     pub page_scroll_y: f64,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+/// Device orientation payload, in degrees.
+pub struct GyroInterruptArgs {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+/// Device acceleration payload, in meters per second squared.
+pub struct AccelInterruptArgs {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
 }
 
 #[derive(Deserialize)]

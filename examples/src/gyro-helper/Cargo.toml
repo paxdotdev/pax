@@ -1,0 +1,15 @@
+[package]
+name = "gyro-helper"
+version = "0.38.3"
+edition = "2021"
+default-run = "run"
+
+[dependencies]
+pax-kit = { version = "0.38.3", path = "../../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "run"
+path = "bin/run.rs"

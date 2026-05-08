@@ -114,6 +114,8 @@ impl PaxManifest {
         add("context_menu", "ContextMenu");
         add("wheel", "Wheel");
         add("drop", "Drop");
+        add("gyro", "Gyro");
+        add("accel", "Accel");
         add("focused", "Focus");
         add("select_start", "SelectStart");
 

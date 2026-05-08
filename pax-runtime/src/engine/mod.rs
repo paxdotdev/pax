@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use pax_message::NativeMessage;
 use pax_runtime_api::{
-    pax_value::PaxAny, use_RefCell, Event, Focus, SelectStart, Variable, Window, OS,
+    pax_value::PaxAny, use_RefCell, Accel, Event, Focus, Gyro, SelectStart, Variable, Window, OS,
 };
 
 use crate::api::{KeyDown, KeyPress, KeyUp, NodeContext, RenderContext};
@@ -56,6 +56,8 @@ pub struct Globals {
     pub frames_elapsed: Property<u64>,
     pub elapsed_millis: Property<u64>,
     pub viewport: Property<TransformAndBounds<NodeLocal, Window>>,
+    pub gyro: Property<Gyro>,
+    pub accel: Property<Accel>,
     pub route_location: Property<RouteLocation>,
     pub browser_allows_scroller_vector_layers: Property<bool>,
     pub browser_allows_nested_scroller_vector_layers: Property<bool>,
@@ -88,6 +90,8 @@ impl Globals {
         let mobile_var = Variable::new_from_typed_property(mobile);
         let desktop_var = Variable::new_from_typed_property(desktop);
         let viewport_var = Variable::new_from_typed_property(viewport);
+        let gyro_var = Variable::new_from_typed_property(self.gyro.clone());
+        let accel_var = Variable::new_from_typed_property(self.accel.clone());
         let frames_elapsed_var = Variable::new_from_typed_property(self.frames_elapsed.clone());
         let elapsed_millis_var = Variable::new_from_typed_property(self.elapsed_millis.clone());
         let route_location_var = Variable::new_from_typed_property(self.route_location.clone());
@@ -96,6 +100,8 @@ impl Globals {
             ("$mobile".to_string(), mobile_var),
             ("$desktop".to_string(), desktop_var),
             ("$viewport".to_string(), viewport_var),
+            ("$gyro".to_string(), gyro_var),
+            ("$accel".to_string(), accel_var),
             ("$frames_elapsed".to_string(), frames_elapsed_var),
             ("$elapsed_millis".to_string(), elapsed_millis_var),
             (
@@ -117,6 +123,8 @@ impl std::fmt::Debug for Globals {
             .field("frames_elapsed", &self.frames_elapsed)
             .field("elapsed_millis", &self.elapsed_millis)
             .field("viewport", &self.viewport)
+            .field("gyro", &self.gyro)
+            .field("accel", &self.accel)
             .field("route_location", &self.route_location)
             .finish_non_exhaustive()
     }
@@ -202,6 +210,8 @@ impl PaxEngine {
                 transform: Transform2::identity(),
                 bounds: viewport_size,
             }),
+            gyro: Property::new(Gyro::default()),
+            accel: Property::new(Accel::default()),
             route_location: Property::new(RouteLocation::root()),
             browser_allows_scroller_vector_layers: Property::new(true),
             browser_allows_nested_scroller_vector_layers: Property::new(true),
@@ -233,6 +243,8 @@ impl PaxEngine {
                 transform: Transform2::identity(),
                 bounds: viewport_size,
             }),
+            gyro: Property::new(Gyro::default()),
+            accel: Property::new(Accel::default()),
             route_location: Property::new(RouteLocation::root()),
             browser_allows_scroller_vector_layers: Property::new(true),
             browser_allows_nested_scroller_vector_layers: Property::new(true),
@@ -627,6 +639,36 @@ impl PaxEngine {
         });
         prevent_default
     }
+
+    pub fn global_dispatch_gyro(&self, args: Gyro) -> bool {
+        let Some(root_expanded_node) = &self.root_expanded_node else {
+            return false;
+        };
+        let mut prevent_default = false;
+        root_expanded_node.recurse_visit_postorder(&mut |expanded_node| {
+            prevent_default |= expanded_node.dispatch_gyro(
+                Event::new(args.clone()),
+                &self.runtime_context.globals(),
+                &self.runtime_context,
+            );
+        });
+        prevent_default
+    }
+
+    pub fn global_dispatch_accel(&self, args: Accel) -> bool {
+        let Some(root_expanded_node) = &self.root_expanded_node else {
+            return false;
+        };
+        let mut prevent_default = false;
+        root_expanded_node.recurse_visit_postorder(&mut |expanded_node| {
+            prevent_default |= expanded_node.dispatch_accel(
+                Event::new(args.clone()),
+                &self.runtime_context.globals(),
+                &self.runtime_context,
+            );
+        });
+        prevent_default
+    }
 }
 
 #[cfg(test)]
@@ -698,5 +740,60 @@ mod tests {
 
         assert!(engine.root_expanded_node.is_none());
         assert!(engine.runtime_context.get_root_expanded_node().is_none());
+    }
+
+    #[test]
+    fn globals_expose_sensor_values_to_stack_frame() {
+        let engine = PaxEngine::new_empty(
+            (320.0, 240.0),
+            Platform::Web,
+            OS::Mac,
+            Box::new(|| 0),
+            layer_tiling::ScrollerTilingPolicy::default(),
+        );
+        let globals = engine.runtime_context.globals();
+        globals.gyro.set(Gyro {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+        });
+        globals.accel.set(Accel {
+            x: 4.0,
+            y: 5.0,
+            z: 6.0,
+        });
+
+        assert_eq!(
+            globals
+                .stack_frame()
+                .resolve_symbol("$gyro")
+                .unwrap()
+                .get_as_pax_value(),
+            PaxValue::Object(
+                vec![
+                    ("x".to_string(), PaxValue::Numeric(1.0.into())),
+                    ("y".to_string(), PaxValue::Numeric(2.0.into())),
+                    ("z".to_string(), PaxValue::Numeric(3.0.into())),
+                ]
+                .into_iter()
+                .collect(),
+            )
+        );
+        assert_eq!(
+            globals
+                .stack_frame()
+                .resolve_symbol("$accel")
+                .unwrap()
+                .get_as_pax_value(),
+            PaxValue::Object(
+                vec![
+                    ("x".to_string(), PaxValue::Numeric(4.0.into())),
+                    ("y".to_string(), PaxValue::Numeric(5.0.into())),
+                    ("z".to_string(), PaxValue::Numeric(6.0.into())),
+                ]
+                .into_iter()
+                .collect(),
+            )
+        );
     }
 }

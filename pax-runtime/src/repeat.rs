@@ -80,6 +80,8 @@ mod tests {
                 transform: Transform2::identity(),
                 bounds: (100.0, 100.0),
             }),
+            gyro: Property::new(Default::default()),
+            accel: Property::new(Default::default()),
             route_location: Property::new(RouteLocation::root()),
             browser_allows_scroller_vector_layers: Property::new(true),
             browser_allows_nested_scroller_vector_layers: Property::new(true),

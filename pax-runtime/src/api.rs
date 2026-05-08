@@ -49,6 +49,10 @@ pub struct NodeContext {
     pub frames_elapsed: Property<u64>,
     /// The current global engine wall-clock time in milliseconds.
     pub elapsed_millis: Property<u64>,
+    /// Current device orientation sensor reading.
+    pub gyro: Property<Gyro>,
+    /// Current device accelerometer reading.
+    pub accel: Property<Accel>,
     /// The bounds of this element's immediate container (parent) in px
     pub bounds_parent: Property<(f64, f64)>,
     /// The bounds of this element in px

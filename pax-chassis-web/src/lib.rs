@@ -3,17 +3,17 @@
 
 use js_sys::{Array, Object, Reflect, Uint32Array, Uint8Array};
 use pax_message::{
-    AddedLayerArgs, BrowserConfigInterruptArgs, ChassisResizeRequestArgs, ClickInterruptArgs,
-    ClickOrTapInterruptArgs, ContextMenuInterruptArgs, DoubleClickInterruptArgs, DropFileArgs,
-    FocusInterruptArgs, FormButtonClickArgs, FormCheckboxToggleArgs, FormDropdownChangeArgs,
-    FormRadioListChangeArgs, FormSliderChangeArgs, FormTextboxChangeArgs, FormTextboxInputArgs,
-    ImageDataArgs, ImageLoadInterruptArgs, ImagePointerArgs, KeyDownInterruptArgs,
-    KeyPressInterruptArgs, KeyUpInterruptArgs, ModifierKeyMessage, MouseButtonMessage,
-    MouseDownInterruptArgs, MouseMoveInterruptArgs, MouseUpInterruptArgs, NativeInterrupt,
-    RenderSurfaceUpdateArgs, RouteChangeInterruptArgs, ScreenshotData, ScrollInterruptArgs,
-    ScrollerPositionInterruptArgs, SelectStartArgs, TextInputArgs, TouchEndInterruptArgs,
-    TouchMessage, TouchMoveInterruptArgs, TouchStartInterruptArgs, ViewportResizeArgs,
-    VisualViewportUpdateArgs, WheelInterruptArgs,
+    AccelInterruptArgs, AddedLayerArgs, BrowserConfigInterruptArgs, ChassisResizeRequestArgs,
+    ClickInterruptArgs, ClickOrTapInterruptArgs, ContextMenuInterruptArgs,
+    DoubleClickInterruptArgs, DropFileArgs, FocusInterruptArgs, FormButtonClickArgs,
+    FormCheckboxToggleArgs, FormDropdownChangeArgs, FormRadioListChangeArgs, FormSliderChangeArgs,
+    FormTextboxChangeArgs, FormTextboxInputArgs, GyroInterruptArgs, ImageDataArgs,
+    ImageLoadInterruptArgs, ImagePointerArgs, KeyDownInterruptArgs, KeyPressInterruptArgs,
+    KeyUpInterruptArgs, ModifierKeyMessage, MouseButtonMessage, MouseDownInterruptArgs,
+    MouseMoveInterruptArgs, MouseUpInterruptArgs, NativeInterrupt, RenderSurfaceUpdateArgs,
+    RouteChangeInterruptArgs, ScreenshotData, ScrollInterruptArgs, ScrollerPositionInterruptArgs,
+    SelectStartArgs, TextInputArgs, TouchEndInterruptArgs, TouchMessage, TouchMoveInterruptArgs,
+    TouchStartInterruptArgs, ViewportResizeArgs, VisualViewportUpdateArgs, WheelInterruptArgs,
 };
 use pax_runtime::api::borrow;
 use pax_runtime::api::borrow_mut;
@@ -27,6 +27,7 @@ use pax_runtime::api::RenderContext;
 use pax_runtime::api::SelectStart;
 use pax_runtime::api::TextboxChange;
 use pax_runtime::api::OS;
+use pax_runtime::api::{Accel, Gyro};
 use pax_runtime::engine::layer_tiling::scroller_canvas_plan_with_policy;
 use pax_runtime::DefinitionToInstanceTraverser;
 use web_time::Instant;
@@ -728,6 +729,24 @@ impl PaxChassisWeb {
                     },
                 );
                 false
+            }
+            NativeInterrupt::Gyro(args) => {
+                let gyro = Gyro {
+                    x: args.x,
+                    y: args.y,
+                    z: args.z,
+                };
+                globals.gyro.set_if_neq(gyro);
+                engine.global_dispatch_gyro(gyro)
+            }
+            NativeInterrupt::Accel(args) => {
+                let accel = Accel {
+                    x: args.x,
+                    y: args.y,
+                    z: args.z,
+                };
+                globals.accel.set_if_neq(accel);
+                engine.global_dispatch_accel(accel)
             }
             NativeInterrupt::Scroll(args) => {
                 if let Some(topmost_node) = engine
@@ -1617,6 +1636,18 @@ fn native_interrupt_from_js(value: JsValue) -> NativeInterrupt {
             offset_y: js_f64(&payload, "offset_y"),
             page_scroll_x: js_f64(&payload, "page_scroll_x"),
             page_scroll_y: js_f64(&payload, "page_scroll_y"),
+        })
+    } else if let Some(payload) = js_variant(&value, "Gyro") {
+        NativeInterrupt::Gyro(GyroInterruptArgs {
+            x: js_f64(&payload, "x"),
+            y: js_f64(&payload, "y"),
+            z: js_f64(&payload, "z"),
+        })
+    } else if let Some(payload) = js_variant(&value, "Accel") {
+        NativeInterrupt::Accel(AccelInterruptArgs {
+            x: js_f64(&payload, "x"),
+            y: js_f64(&payload, "y"),
+            z: js_f64(&payload, "z"),
         })
     } else if let Some(payload) = js_variant(&value, "DropFile") {
         NativeInterrupt::DropFile(DropFileArgs {

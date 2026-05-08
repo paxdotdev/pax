@@ -10,7 +10,7 @@ use actix_web::{HttpResponse, Result};
 use actix_web_actors::ws;
 use colored::Colorize;
 use std::fs;
-use std::net::TcpListener;
+use std::net::{IpAddr, TcpListener, UdpSocket};
 
 use env_logger;
 use std::io::Write;
@@ -38,6 +38,24 @@ use websocket::PrivilegedAgentWebSocket;
 mod llm;
 pub mod static_server;
 pub mod websocket;
+
+pub(crate) const DEFAULT_BIND_HOST: &str = "0.0.0.0";
+const LOOPBACK_DISPLAY_HOST: &str = "127.0.0.1";
+
+pub(crate) fn display_addresses(port: u16) -> Vec<String> {
+    let mut addresses = vec![format!("http://{LOOPBACK_DISPLAY_HOST}:{port}")];
+    if let Some(ip) = local_network_ip() {
+        addresses.push(format!("http://{ip}:{port}"));
+    }
+    addresses
+}
+
+fn local_network_ip() -> Option<IpAddr> {
+    let socket = UdpSocket::bind((DEFAULT_BIND_HOST, 0)).ok()?;
+    socket.connect(("8.8.8.8", 80)).ok()?;
+    let ip = socket.local_addr().ok()?.ip();
+    (!ip.is_loopback()).then_some(ip)
+}
 
 fn static_files_service(fs_path: PathBuf) -> Files {
     let index_path = fs_path.join("index.html");
@@ -372,11 +390,11 @@ pub fn start_server(
 
     // Create a Runtime
     let runtime = actix_web::rt::System::new().block_on(async {
-        let listener = TcpListener::bind(("127.0.0.1", requested_port.unwrap_or(0)))?;
+        let listener = TcpListener::bind((DEFAULT_BIND_HOST, requested_port.unwrap_or(0)))?;
         let port = listener.local_addr()?.port();
         if let Some(session) = state.dev_session.lock().unwrap().as_mut() {
-            session.design_server_addr = Some(format!("ws://127.0.0.1:{port}"));
-            session.location = Some(format!("http://127.0.0.1:{port}"));
+            session.design_server_addr = Some(format!("ws://{LOOPBACK_DISPLAY_HOST}:{port}"));
+            session.location = Some(format!("http://{LOOPBACK_DISPLAY_HOST}:{port}"));
             session.last_seen_ms = dev_session::now_ms();
         }
 
@@ -386,7 +404,7 @@ pub fn start_server(
             &fs_path.to_str().unwrap()
         );
         if show_address_log {
-            let address_msg = format!("http://127.0.0.1:{}", port).blue();
+            let address_msg = display_addresses(port).join(" or ").blue();
             let server_running_at_msg = format!("Server running at {}", address_msg).bold();
             println!("{} 📠 {}", *PAX_BADGE, server_running_at_msg);
         }
@@ -395,7 +413,7 @@ pub fn start_server(
             if let Some(parent) = ready_file.parent() {
                 fs::create_dir_all(parent)?;
             }
-            fs::write(&ready_file, format!("ws://127.0.0.1:{port}"))?;
+            fs::write(&ready_file, format!("ws://{LOOPBACK_DISPLAY_HOST}:{port}"))?;
         }
 
         let server = HttpServer::new(move || {

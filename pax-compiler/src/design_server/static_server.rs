@@ -1,4 +1,4 @@
-use crate::design_server::static_files_service;
+use crate::design_server::{display_addresses, static_files_service, DEFAULT_BIND_HOST};
 use crate::helpers::PAX_BADGE;
 use actix_web::middleware::Logger;
 use actix_web::{App, HttpServer};
@@ -20,14 +20,14 @@ pub fn start_server(fs_path: PathBuf) -> std::io::Result<()> {
         let mut port = 8080;
         let server = loop {
             // Check if the port is available
-            if TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            if TcpListener::bind((DEFAULT_BIND_HOST, port)).is_ok() {
                 // Log the server details
                 println!(
                     "{} 🗂️  Serving static files from {}",
                     *PAX_BADGE,
                     &fs_path.to_str().unwrap()
                 );
-                let address_msg = format!("http://127.0.0.1:{}", port).blue();
+                let address_msg = display_addresses(port).join(" or ").blue();
                 let server_running_at_msg = format!("Server running at {}", address_msg).bold();
                 println!("{} 📠 {}", *PAX_BADGE, server_running_at_msg);
                 break HttpServer::new(move || {
@@ -35,7 +35,7 @@ pub fn start_server(fs_path: PathBuf) -> std::io::Result<()> {
                         .wrap(Logger::new("| %s | %U"))
                         .service(static_files_service(fs_path.clone()))
                 })
-                .bind(("127.0.0.1", port))
+                .bind((DEFAULT_BIND_HOST, port))
                 .expect("Error binding to address")
                 .workers(2);
             } else {

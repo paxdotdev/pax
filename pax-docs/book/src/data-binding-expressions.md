@@ -100,6 +100,18 @@ In timeline keyframes, wrap `$base` in an expression. This lets an animation mov
 }
 ```
 
+## Built-In Globals
+
+Built-in globals use a `$` prefix and can be read from any PAXEL expression. `$viewport.width` and `$viewport.height` expose the current scene size. `$gyro` exposes device orientation as `{x, y, z}` in degrees, and `$accel` exposes acceleration as `{x, y, z}` in meters per second squared. On web targets, `$accel` uses acceleration including gravity when available.
+
+```pax
+<Group
+    x={50% + ($gyro.y * 4)px}
+    y={50% + ($gyro.x * 3)px}
+    rotate={($gyro.z * 0.08)deg}
+/>
+```
+
 ## Loops
 
 Ranges are commonly used as `for` sources:

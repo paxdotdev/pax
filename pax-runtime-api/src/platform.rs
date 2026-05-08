@@ -82,6 +82,82 @@ impl Interpolatable for Viewport {
     }
 }
 
+/// Current device orientation reported by a gyroscope/orientation sensor.
+///
+/// On web targets, this is sourced from `DeviceOrientationEvent` and mapped as:
+/// `x = beta`, `y = gamma`, and `z = alpha`, all in degrees.
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
+pub struct Gyro {
+    /// Front-to-back tilt, in degrees.
+    pub x: f64,
+    /// Left-to-right tilt, in degrees.
+    pub y: f64,
+    /// Compass/z-axis rotation, in degrees.
+    pub z: f64,
+}
+
+impl ToPaxValue for Gyro {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Object(
+            vec![
+                ("x".to_string(), self.x.to_pax_value()),
+                ("y".to_string(), self.y.to_pax_value()),
+                ("z".to_string(), self.z.to_pax_value()),
+            ]
+            .into_iter()
+            .collect(),
+        )
+    }
+}
+
+impl Interpolatable for Gyro {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Gyro {
+            x: self.x + (other.x - self.x) * t,
+            y: self.y + (other.y - self.y) * t,
+            z: self.z + (other.z - self.z) * t,
+        }
+    }
+}
+
+/// Current device acceleration, in meters per second squared.
+///
+/// On web targets, this uses `DeviceMotionEvent.accelerationIncludingGravity`
+/// when available, falling back to `DeviceMotionEvent.acceleration`.
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
+pub struct Accel {
+    /// Acceleration along the x axis.
+    pub x: f64,
+    /// Acceleration along the y axis.
+    pub y: f64,
+    /// Acceleration along the z axis.
+    pub z: f64,
+}
+
+impl ToPaxValue for Accel {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Object(
+            vec![
+                ("x".to_string(), self.x.to_pax_value()),
+                ("y".to_string(), self.y.to_pax_value()),
+                ("z".to_string(), self.z.to_pax_value()),
+            ]
+            .into_iter()
+            .collect(),
+        )
+    }
+}
+
+impl Interpolatable for Accel {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Accel {
+            x: self.x + (other.x - self.x) * t,
+            y: self.y + (other.y - self.y) * t,
+            z: self.z + (other.z - self.z) * t,
+        }
+    }
+}
+
 /// Phantom coordinate space representing the outer window.
 pub struct Window;
 
