@@ -21,6 +21,7 @@ export class TextboxUpdatePatch {
     public style?: TextStyle;
     public outline_width?: number;
     public outline_color?: ColorGroup;
+    public is_text_area?: boolean;
 
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
@@ -44,6 +45,7 @@ export class TextboxUpdatePatch {
         const styleMessage = jsonMessage["style"];
         this.outline_width = jsonMessage["outline_width"];
         this.outline_color = jsonMessage["outline_color"];
+        this.is_text_area = jsonMessage["is_text_area"];
 
         if (styleMessage) {
             this.style = this.objectManager.getFromPool(TEXT_STYLE, this.objectManager);
@@ -60,5 +62,6 @@ export class TextboxUpdatePatch {
         this.transform = [];
         this.opacity = undefined;
         this.text = "";
+        this.is_text_area = undefined;
     }
 }

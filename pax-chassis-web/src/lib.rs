@@ -25,9 +25,9 @@ use pax_runtime::api::Focus;
 use pax_runtime::api::Platform;
 use pax_runtime::api::RenderContext;
 use pax_runtime::api::SelectStart;
-use pax_runtime::api::TextboxChange;
 use pax_runtime::api::OS;
 use pax_runtime::api::{Accel, Gyro};
+use pax_runtime::api::{TextboxChange, TextboxInput};
 use pax_runtime::engine::layer_tiling::scroller_canvas_plan_with_policy;
 use pax_runtime::DefinitionToInstanceTraverser;
 use web_time::Instant;
@@ -583,12 +583,19 @@ impl PaxChassisWeb {
                     engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                 {
                     borrow!(node.instance_node).handle_native_interrupt(&node, &x);
+                    node.dispatch_textbox_input(
+                        Event::new(TextboxInput {
+                            text: args.text.clone(),
+                        }),
+                        &globals,
+                        &engine.runtime_context,
+                    )
                 } else {
                     log::warn!(
                         "tried to dispatch event for textbox input after node already removed"
                     );
+                    false
                 }
-                false
             }
             NativeInterrupt::TextInput(args) => {
                 if let Some(node) =

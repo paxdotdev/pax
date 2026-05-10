@@ -454,18 +454,31 @@ export class NativeElementPool {
         }
     }
 
-    textboxCreate(patch: AnyCreatePatch) {
-        const textbox = this.objectManager.getFromPool(INPUT) as HTMLInputElement;
-        textbox.type = "text";
+    createTextboxElement(isTextArea: boolean): HTMLInputElement | HTMLTextAreaElement {
+        const textbox = isTextArea
+            ? document.createElement("textarea") as HTMLTextAreaElement
+            : this.objectManager.getFromPool(INPUT) as HTMLInputElement;
+
+        if (!isTextArea) {
+            (textbox as HTMLInputElement).type = "text";
+        } else {
+            (textbox as HTMLTextAreaElement).rows = 2;
+            textbox.style.resize = "none";
+        }
         textbox.style.margin = "0";
         textbox.style.padding = "0";
         textbox.style.paddingInline = "5px 5px";
         textbox.style.paddingBlock = "0";
         textbox.style.borderWidth = "0";
+        textbox.style.boxSizing = "border-box";
+        return textbox;
+    }
+
+    attachTextboxListeners(textbox: HTMLInputElement | HTMLTextAreaElement, id: number) {
         textbox.addEventListener("input", (_event) => {
             let message = {
                 "FormTextboxInput": {
-                    "id": patch.id!,
+                    "id": id,
                     "text": textbox.value,
                 }
             }
@@ -475,13 +488,17 @@ export class NativeElementPool {
         textbox.addEventListener("change", (_event) => {
             let message = {
                 "FormTextboxChange": {
-                    "id": patch.id!,
+                    "id": id,
                     "text": textbox.value,
                 }
             }
             this.chassis!.interrupt(message, undefined);
         });
-        
+    }
+
+    textboxCreate(patch: AnyCreatePatch) {
+        const textbox = this.createTextboxElement(false);
+        this.attachTextboxListeners(textbox, patch.id!);
 
         let textboxDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         textboxDiv.appendChild(textbox);
@@ -502,11 +519,28 @@ export class NativeElementPool {
         let leaf = this.nodesLookup.get(patch.id!);
         this.applyLeafPlacement(leaf!, patch);
         updateCommonProps(leaf!, patch);
+        let textbox = leaf!.firstChild as HTMLInputElement | HTMLTextAreaElement;
+
+        if (patch.is_text_area != null) {
+            const shouldUseTextarea = patch.is_text_area;
+            const isTextarea = textbox instanceof HTMLTextAreaElement;
+            if (shouldUseTextarea !== isTextarea) {
+                const replacement = this.createTextboxElement(shouldUseTextarea);
+                replacement.value = textbox.value;
+                replacement.placeholder = textbox.placeholder;
+                this.attachTextboxListeners(replacement, patch.id!);
+                leaf!.replaceChild(replacement, textbox);
+                textbox = replacement;
+            }
+        }
+
         // set to 10px less to give space for left-padding
         if (patch.size_x != null) {
             (leaf!.firstChild! as HTMLElement).style.width = (patch.size_x - 10) + "px";
         }
-        let textbox = leaf!.firstChild as HTMLTextAreaElement;
+        if (patch.size_y != null) {
+            (leaf!.firstChild! as HTMLElement).style.height = patch.size_y + "px";
+        }
 
         applyTextStyle(textbox, textbox, patch.style);
 
