@@ -1,80 +1,102 @@
 <Group width=100% height=100%>
     <Stacker
         width=100%
-        height=100%
+        autosize=true
         direction=StackerDirection::Vertical
-        gutter=18px
-        sizes=[Some(128px), Some(72px), Some(172px), None]
+        gutter=20px
     >
-        <Group class=route_stage_0 width=100% height=100%>
+        <Group class=route_stage_0 width=100% autosize=true autosize_x=false autosize_y=true>
             <Stacker
                 width=100%
-                height=100%
+                autosize=true
                 direction=StackerDirection::Vertical
                 gutter=10px
-                sizes=[Some(22px), None]
             >
-                <Text id=eyebrow width=100% height=100% text="Nested docs router" />
+                <Text id=eyebrow width=100% text="Nested docs router" />
                 <Text
                     id=title
                     width=100%
-                    height=100%
                     text="The guide route consumes `/guide/*`, then hands its remainder to nested routers."
                 />
             </Stacker>
         </Group>
 
-        <Group class=route_stage_1 width=100% height=100%>
+        if is_mobile {
             <Stacker
+                class=route_stage_1
                 width=100%
-                height=100%
-                direction=StackerDirection::Horizontal
-                gutter=14px
-                sizes=[None, None, None, None]
+                autosize=true
+                direction=StackerDirection::Vertical
+                gutter=10px
             >
-                <Link width=100% height=100% url="/guide">
+                <Link width=100% height=44px url="/guide">
                     <Text class=chip_text width=100% height=100% text="Guide Home" />
                     <Rectangle class=chip width=100% height=100% />
                 </Link>
-                <Link width=100% height=100% url="/guide/topic/router?view=api#bindings">
+                <Link width=100% height=44px url="/guide/topic/router?view=api#bindings">
                     <Text class=chip_text width=100% height=100% text="Topic Param" />
                     <Rectangle class=chip width=100% height=100% />
                 </Link>
-                <Link width=100% height=100% url="/guide/playground/tokens?view=lab#trace">
+                <Link width=100% height=44px url="/guide/playground/tokens?view=lab#trace">
                     <Text class=chip_text width=100% height=100% text="Catch-all" />
                     <Rectangle class=chip width=100% height=100% />
                 </Link>
-                <Link width=100% height=100% url="/guide/missing/chapter">
+                <Link width=100% height=44px url="/guide/missing/chapter">
                     <Text class=chip_text width=100% height=100% text="404" />
                     <Rectangle class=chip width=100% height=100% />
                 </Link>
             </Stacker>
-        </Group>
+        } else {
+            <Stacker
+                class=route_stage_1
+                width=100%
+                autosize=true
+                autosize_x=false
+                autosize_y=true
+                direction=StackerDirection::Horizontal
+                gutter=14px
+                sizes=[None, None, None, None]
+            >
+                <Link width=100% height=44px url="/guide">
+                    <Text class=chip_text width=100% height=100% text="Guide Home" />
+                    <Rectangle class=chip width=100% height=100% />
+                </Link>
+                <Link width=100% height=44px url="/guide/topic/router?view=api#bindings">
+                    <Text class=chip_text width=100% height=100% text="Topic Param" />
+                    <Rectangle class=chip width=100% height=100% />
+                </Link>
+                <Link width=100% height=44px url="/guide/playground/tokens?view=lab#trace">
+                    <Text class=chip_text width=100% height=100% text="Catch-all" />
+                    <Rectangle class=chip width=100% height=100% />
+                </Link>
+                <Link width=100% height=44px url="/guide/missing/chapter">
+                    <Text class=chip_text width=100% height=100% text="404" />
+                    <Rectangle class=chip width=100% height=100% />
+                </Link>
+            </Stacker>
+        }
 
-        <RouteInspector class=route_stage_2 width=100% height=100% title="guide scope" />
+        <RouteInspector class=route_stage_2 width=100% title="guide scope" />
 
-        <Group class=route_stage_3 width=100% height=100%>
+        <Group class=route_stage_3 width=100% autosize=true autosize_x=false autosize_y=true>
             <Router>
                 <Route default=true>
-                    <RouteTransitionFrame width=100% height=100%>
+                    <RouteTransitionFrame width=100%>
                         <Stacker
                             width=100%
-                            height=100%
+                            autosize=true
                             direction=StackerDirection::Vertical
                             gutter=12px
-                            sizes=[Some(28px), Some(84px), None]
                         >
-                            <Text class=section width=100% height=100% text="Default branch" />
+                            <Text class=section width=100% text="Default branch" />
                             <Text
                                 class=copy
                                 width=100%
-                                height=100%
                                 text="When the scoped remainder is empty, `default=true` wins without inventing a separate optional segment feature."
                             />
                             <Text
                                 class=copy
                                 width=100%
-                                height=100%
                                 text={"Try `?view=api` or `#bindings` in the sidebar links. The inspector above keeps the full browser location visible while matching stays scoped."}
                             />
                         </Stacker>
@@ -82,18 +104,16 @@
                 </Route>
 
                 <Route path="topic/:topic_id">
-                    <RouteTransitionFrame width=100% height=100%>
+                    <RouteTransitionFrame width=100%>
                         <Stacker
                             width=100%
-                            height=100%
+                            autosize=true
                             direction=StackerDirection::Vertical
                             gutter=12px
-                            sizes=[Some(28px), None, Some(30px), None]
                         >
                             <Text
                                 class=section
                                 width=100%
-                                height=100%
                                 text={"Dynamic segment `topic_id = " + route.params.topic_id + "`"}
                             />
 
@@ -101,21 +121,18 @@
                                 <Text
                                     class=copy
                                     width=100%
-                                    height=100%
                                     text="This branch demonstrates `:param` capture. The nested scope sees `topic/router` while the inspector still preserves the global path, query, and fragment."
                                 />
                             } else if route.params.topic_id == "expressions" {
                                 <Text
                                     class=copy
                                     width=100%
-                                    height=100%
                                     text="Params are plain route data, so they compose with ordinary PAXEL conditionals and string interpolation."
                                 />
                             } else {
                                 <Text
                                     class=copy
                                     width=100%
-                                    height=100%
                                     text={"`" + route.params.topic_id + "` is not one of the curated guide topics, but the param still matches and renders."}
                                 />
                             }
@@ -123,73 +140,64 @@
                             <Text
                                 class=copy
                                 width=100%
-                                height=100%
                                 text={"Current fragment: " + (route.global_location.fragment ?? "none")}
                             />
-
-                            <Group width=100% height=100% />
                         </Stacker>
                     </RouteTransitionFrame>
                 </Route>
 
                 <Route path="playground/*">
-                    <RouteTransitionFrame width=100% height=100%>
+                    <RouteTransitionFrame width=100%>
                         <Stacker
                             width=100%
-                            height=100%
+                            autosize=true
                             direction=StackerDirection::Vertical
                             gutter=16px
-                            sizes=[Some(28px), Some(150px), None]
                         >
                             <Text
                                 class=section
                                 width=100%
-                                height=100%
                                 text="Terminal `*` consumed the playground prefix"
                             />
-                            <RouteInspector width=100% height=100% title="guide playground catch-all" />
+                            <RouteInspector width=100% title="guide playground catch-all" />
 
-                            <Group width=100% height=100%>
+                            <Group width=100% autosize=true autosize_x=false autosize_y=true>
                                 <Router>
                                     <Route default=true>
-                                        <RouteTransitionFrame width=100% height=100%>
+                                        <RouteTransitionFrame width=100%>
                                             <Text
                                                 class=copy
                                                 width=100%
-                                                height=100%
                                                 text="The nested router now matches against the catch-all remainder. Empty remainder falls back to the playground landing page."
                                             />
                                         </RouteTransitionFrame>
                                     </Route>
 
                                     <Route path="tokens">
-                                        <RouteTransitionFrame width=100% height=100%>
+                                        <RouteTransitionFrame width=100%>
                                             <Text
                                                 class=copy
                                                 width=100%
-                                                height=100%
                                                 text="`tokens` is an exact nested match. `route.location` here is just `/tokens`, not the full `/guide/playground/tokens` URL."
                                             />
                                         </RouteTransitionFrame>
                                     </Route>
 
                                     <Route path="layers">
-                                        <RouteTransitionFrame width=100% height=100%>
+                                        <RouteTransitionFrame width=100%>
                                             <Text
                                                 class=copy
                                                 width=100%
-                                                height=100%
                                                 text="`layers` is another exact nested branch. The outer inspector shows what the catch-all consumed; this inner branch shows the reduced scope."
                                             />
                                         </RouteTransitionFrame>
                                     </Route>
 
                                     <Route path="*">
-                                        <RouteTransitionFrame width=100% height=100%>
+                                        <RouteTransitionFrame width=100%>
                                             <Text
                                                 class=copy
                                                 width=100%
-                                                height=100%
                                                 text="Any other tail still matches through a second terminal catch-all, which is useful for exploratory or file-like route trees."
                                             />
                                         </RouteTransitionFrame>
@@ -201,19 +209,17 @@
                 </Route>
 
                 <Route path="*">
-                    <RouteTransitionFrame width=100% height=100%>
+                    <RouteTransitionFrame width=100%>
                         <Stacker
                             width=100%
-                            height=100%
+                            autosize=true
                             direction=StackerDirection::Vertical
                             gutter=12px
-                            sizes=[Some(28px), None]
                         >
-                            <Text class=section width=100% height=100% text="Guide fallback" />
+                            <Text class=section width=100% text="Guide fallback" />
                             <Text
                                 class=copy
                                 width=100%
-                                height=100%
                                 text="This branch catches unmatched guide paths after the explicit topic and playground routes have had a chance to win."
                             />
                         </Stacker>

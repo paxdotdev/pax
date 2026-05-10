@@ -25,6 +25,8 @@ use crate::{
 use pax_runtime_api::{properties::UntypedProperty, Interpolatable};
 use std::rc::Rc;
 
+const MEASURED_SIZE_EPSILON: f64 = 1e-9;
+
 /// Trait for nodes that semantically interpret child content.
 ///
 /// Containers should treat `NodeContext::received_children` as their canonical
@@ -180,7 +182,8 @@ pub fn sync_content_autosize_with_axes(
 
     match measured_size {
         Some(measured_size) => {
-            if expanded_node.measured_size.get() != Some(measured_size) {
+            let previous = expanded_node.measured_size.get();
+            if measured_size_needs_update(previous, measured_size) {
                 expanded_node.set_measured_size(measured_size.0, measured_size.1);
             }
         }
@@ -190,6 +193,28 @@ pub fn sync_content_autosize_with_axes(
             }
         }
     }
+}
+
+pub fn measured_size_needs_update(
+    previous: Option<(f64, f64)>,
+    next: (f64, f64),
+) -> bool {
+    match previous {
+        Some((previous_width, previous_height)) => {
+            axis_needs_update(previous_width, next.0) || axis_needs_update(previous_height, next.1)
+        }
+        None => true,
+    }
+}
+
+fn axis_needs_update(previous: f64, next: f64) -> bool {
+    if previous == next {
+        return false;
+    }
+    if !previous.is_finite() || !next.is_finite() {
+        return previous.to_bits() != next.to_bits();
+    }
+    (previous - next).abs() > MEASURED_SIZE_EPSILON
 }
 
 fn rebind_content_measurement_effect<F>(
@@ -344,9 +369,10 @@ mod tests {
     use crate::api::math::Transform2;
     use crate::api::{CommonProperties, Layer, LayoutRole, Size};
     use crate::{
-        sync_content_autosize, sync_content_autosize_with_axes, BaseInstance, ComponentInstance,
-        ExpandedNode, Globals, InstanceFlags, InstanceNode, InstantiationArgs, RouteLocation,
-        RuntimeContext, RuntimePropertiesStackFrame, TransformAndBounds,
+        measured_size_needs_update, sync_content_autosize, sync_content_autosize_with_axes,
+        BaseInstance, ComponentInstance, ExpandedNode, Globals, InstanceFlags, InstanceNode,
+        InstantiationArgs, RouteLocation, RuntimeContext, RuntimePropertiesStackFrame,
+        TransformAndBounds,
     };
     use pax_runtime_api::pax_value::PaxAny;
     use pax_runtime_api::{Platform, Property, OS};
@@ -561,6 +587,19 @@ mod tests {
     }
 
     #[test]
+    fn measured_size_update_ignores_float_jitter() {
+        assert!(!measured_size_needs_update(
+            Some((836.8000000000001, 228.6585365853658)),
+            (836.8000000000001, 228.65853658536582),
+        ));
+        assert!(measured_size_needs_update(
+            Some((836.8000000000001, 228.6585365853658)),
+            (836.8000000000001, 228.6585375853658),
+        ));
+        assert!(measured_size_needs_update(None, (0.0, 0.0)));
+    }
+
+    #[test]
     fn sync_content_autosize_includes_padding() {
         let leaf: Rc<dyn InstanceNode> = TestDirectNode::instantiate(direct_node_args(Vec::new()));
         let direct: Rc<dyn InstanceNode> =
@@ -588,6 +627,77 @@ mod tests {
         sync_content_autosize(&direct_node, &node_ctx, true);
 
         assert_eq!(direct_node.measured_size.get(), Some((60.0, 80.0)));
+    }
+
+    #[test]
+    fn subtree_layout_hull_includes_trailing_padding_for_ancestor_measurement() {
+        let leaf: Rc<dyn InstanceNode> = TestDirectNode::instantiate(direct_node_args(Vec::new()));
+        let direct: Rc<dyn InstanceNode> =
+            TestDirectNode::instantiate(direct_node_args(vec![leaf]));
+        let root_component =
+            ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&direct)]), None));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let root = ExpandedNode::initialize_root(root_component, &context);
+
+        root.recurse_update(&context);
+        let direct_node = root.children.get().first().cloned().unwrap();
+        let child = direct_node.children.get().first().cloned().unwrap();
+        child.set_measured_size(50.0, 60.0);
+        let direct_common_props = direct_node.get_common_properties();
+        direct_common_props
+            .borrow()
+            .padding_x
+            .set(Some(Size::Pixels(5.into())));
+        direct_common_props
+            .borrow()
+            .padding_y
+            .set(Some(Size::Pixels(10.into())));
+
+        root.recurse_update(&context);
+        context.drain_node_effects();
+
+        let hull = direct_node.subtree_layout_hull.get();
+
+        assert_eq!(hull.x_range(), Some((5.0, 60.0)));
+        assert_eq!(hull.y_range(), Some((10.0, 80.0)));
+        assert_eq!(hull.forward_extent_x(), Some(60.0));
+        assert_eq!(hull.forward_extent_y(), Some(80.0));
+    }
+
+    #[test]
+    fn subtree_layout_hull_solves_percent_padding_from_content_hull() {
+        let leaf: Rc<dyn InstanceNode> = TestDirectNode::instantiate(direct_node_args(Vec::new()));
+        let direct: Rc<dyn InstanceNode> =
+            TestDirectNode::instantiate(direct_node_args(vec![leaf]));
+        let root_component =
+            ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&direct)]), None));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let root = ExpandedNode::initialize_root(root_component, &context);
+
+        root.recurse_update(&context);
+        let direct_node = root.children.get().first().cloned().unwrap();
+        let child = direct_node.children.get().first().cloned().unwrap();
+        child.set_measured_size(60.0, 80.0);
+        direct_node.set_measured_size(333.0, 333.0);
+        let direct_common_props = direct_node.get_common_properties();
+        direct_common_props
+            .borrow()
+            .padding_x
+            .set(Some(Size::Percent(20.into())));
+        direct_common_props
+            .borrow()
+            .padding_y
+            .set(Some(Size::Percent(10.into())));
+
+        root.recurse_update(&context);
+        context.drain_node_effects();
+
+        let hull = direct_node.subtree_layout_hull.get();
+
+        assert_eq!(hull.forward_extent_x(), Some(100.0));
+        assert_eq!(hull.forward_extent_y(), Some(100.0));
+        assert!((hull.x_range().unwrap().0 - 20.0).abs() < 1e-9);
+        assert!((hull.y_range().unwrap().0 - 10.0).abs() < 1e-9);
     }
 
     #[test]

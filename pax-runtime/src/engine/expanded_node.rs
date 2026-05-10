@@ -36,9 +36,9 @@ use pax_manifest::cartridge_generation::{
 use pax_manifest::{SelectorExpr, SettingsBlockElement, TypeId, ValueDefinition};
 
 use crate::{
-    apply_container_frame, apply_padding_frame, compute_tab,
-    project_child_layout_hull_to_parent_space, ComponentInstance, ContainerFrame, HandlerLocation,
-    InstanceNode, InstanceNodePtr, ReceivedChildrenSource, RuntimeContext,
+    add_symmetric_padding_to_content_layout_hull, apply_container_frame, apply_padding_frame,
+    compute_tab, project_child_layout_hull_to_parent_space, ComponentInstance, ContainerFrame,
+    HandlerLocation, InstanceNode, InstanceNodePtr, ReceivedChildrenSource, RuntimeContext,
     RuntimePropertiesStackFrame,
 };
 
@@ -1020,11 +1020,33 @@ impl ExpandedNode {
     fn rebind_subtree_layout_hull(self: &Rc<Self>) {
         let self_transform_and_bounds = self.transform_and_bounds.clone();
         let layout_properties = self.layout_properties();
+        let common_props = self.get_common_properties();
+        let (width, height, x, y, padding_x, padding_y) = {
+            let common_props = borrow!(common_props);
+            (
+                common_props.width.clone(),
+                common_props.height.clone(),
+                common_props.x.clone(),
+                common_props.y.clone(),
+                common_props.padding_x.clone(),
+                common_props.padding_y.clone(),
+            )
+        };
         let children = self.children.get();
-        let mut deps = vec![
-            self_transform_and_bounds.untyped(),
-            layout_properties.untyped(),
-        ];
+        let has_children = !children.is_empty();
+        let mut deps = vec![self_transform_and_bounds.untyped()];
+        if has_children {
+            deps.extend([
+                width.untyped(),
+                height.untyped(),
+                x.untyped(),
+                y.untyped(),
+                padding_x.untyped(),
+                padding_y.untyped(),
+            ]);
+        } else {
+            deps.push(layout_properties.untyped());
+        }
         for child in children.iter() {
             let child_cp = child.get_common_properties();
             deps.push(borrow!(child_cp).layout_role.untyped());
@@ -1037,13 +1059,32 @@ impl ExpandedNode {
             .replace_with(Property::computed_with_name(
                 move || {
                     let self_tab = self_transform_and_bounds.get();
-                    let layout_properties = layout_properties.get();
+                    let (contributes_x, contributes_y, padding_x, padding_y) = if has_children {
+                        (
+                            layout_axis_can_contribute_from_parts(width.get(), x.get()),
+                            layout_axis_can_contribute_from_parts(height.get(), y.get()),
+                            padding_x.get(),
+                            padding_y.get(),
+                        )
+                    } else {
+                        let layout_properties = layout_properties.get();
+                        (
+                            layout_axis_can_contribute(&layout_properties, Axis::X),
+                            layout_axis_can_contribute(&layout_properties, Axis::Y),
+                            None,
+                            None,
+                        )
+                    };
                     let mut hull = LayoutHull::from_axis_ranges(
-                        layout_axis_can_contribute(&layout_properties, Axis::X)
-                            .then_some((0.0, self_tab.bounds.0)),
-                        layout_axis_can_contribute(&layout_properties, Axis::Y)
-                            .then_some((0.0, self_tab.bounds.1)),
+                        contributes_x.then_some((0.0, self_tab.bounds.0)),
+                        contributes_y.then_some((0.0, self_tab.bounds.1)),
                     );
+                    let child_projection_tab = if has_children {
+                        apply_padding_frame(self_tab, padding_x, padding_y)
+                    } else {
+                        self_tab
+                    };
+                    let mut children_hull = LayoutHull::default();
 
                     for child in children.iter() {
                         if child.is_layout_breakout() {
@@ -1052,11 +1093,21 @@ impl ExpandedNode {
                             continue;
                         }
                         let projected_hull = project_child_layout_hull_to_parent_space(
-                            self_tab,
+                            child_projection_tab,
                             child.transform_and_bounds.get(),
                             child.subtree_layout_hull.get(),
                         );
-                        hull = hull.union(projected_hull);
+                        children_hull = children_hull.union(projected_hull);
+                    }
+
+                    if has_children {
+                        hull = hull.union(add_symmetric_padding_to_content_layout_hull(
+                            children_hull,
+                            padding_x,
+                            padding_y,
+                        ));
+                    } else {
+                        hull = hull.union(children_hull);
                     }
 
                     hull
@@ -1887,6 +1938,11 @@ fn layout_axis_can_contribute(layout: &LayoutProperties, axis: Axis) -> bool {
         Axis::Y => layout.y,
     };
 
+    size.is_some_and(|size| !size_depends_on_parent(size))
+        && !position.is_some_and(size_depends_on_parent)
+}
+
+fn layout_axis_can_contribute_from_parts(size: Option<Size>, position: Option<Size>) -> bool {
     size.is_some_and(|size| !size_depends_on_parent(size))
         && !position.is_some_and(size_depends_on_parent)
 }

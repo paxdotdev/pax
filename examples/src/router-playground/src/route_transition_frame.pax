@@ -1,4 +1,4 @@
-<Group width=100% height=100%>
+<Group width=100% autosize=true autosize_x=false autosize_y=true>
     slot(0)
 </Group>
 

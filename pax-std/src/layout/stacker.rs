@@ -12,9 +12,9 @@ use pax_engine::pax_manifest::cartridge_generation::TRANSITION_PHASE_ENTER;
 use pax_engine::*;
 use pax_runtime::api::{borrow, borrow_mut, Layer, NodeContext};
 use pax_runtime::{
-    resolve_padded_autosize_axis, BaseInstance, Container, ContainerFrame, ExpandedNode,
-    InstanceFlags, InstanceNode, InstantiationArgs, LayoutHull, ReceivedChildrenSource,
-    RuntimeContext,
+    measured_size_needs_update, resolve_padded_autosize_axis, BaseInstance, Container,
+    ContainerFrame, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, LayoutHull,
+    ReceivedChildrenSource, RuntimeContext,
 };
 
 const STACKER_REFLOW_FRAMES: u64 = 12;
@@ -254,9 +254,7 @@ impl Container for Stacker {
                 .chain(retained_received_children.iter())
                 .filter(|child| child.is_layout_breakout())
             {
-                if breakout_child.container_frame.get().is_some() {
-                    breakout_child.container_frame.set(None);
-                }
+                breakout_child.container_frame.set_if_neq(None);
             }
 
             let active_children: Vec<_> = received_children
@@ -362,7 +360,7 @@ impl Container for Stacker {
                     .iter()
                     .find(|placement| placement.id == child.id)
                 else {
-                    child.container_frame.set(None);
+                    child.container_frame.set_if_neq(None);
                     continue;
                 };
 
@@ -370,7 +368,7 @@ impl Container for Stacker {
                     let frames = reflow_transition.frames.get();
                     if child.container_frame.get().is_none() {
                         if let Some(seed_frame) = placement.seed_frame {
-                            child.container_frame.set(Some(seed_frame));
+                            child.container_frame.set_if_neq(Some(seed_frame));
                         }
                     }
                     child.container_frame.ease_to(
@@ -379,7 +377,7 @@ impl Container for Stacker {
                         reflow_transition.curve.get().to_easing_curve(),
                     );
                 } else {
-                    child.container_frame.set(Some(placement.frame));
+                    child.container_frame.set_if_neq(Some(placement.frame));
                 }
 
                 next_frames.insert(child.id, placement.frame);
@@ -392,7 +390,7 @@ impl Container for Stacker {
                 padding_y_size,
             ) {
                 Some(measured_size) => {
-                    if node.measured_size.get() != Some(measured_size) {
+                    if measured_size_needs_update(node.measured_size.get(), measured_size) {
                         node.set_measured_size(measured_size.0, measured_size.1);
                     }
                 }
@@ -1550,6 +1548,8 @@ mod tests {
                 transform: Transform2::identity(),
                 bounds: (100.0, 100.0),
             }),
+            gyro: Property::new(Default::default()),
+            accel: Property::new(Default::default()),
             route_location: Property::new(RouteLocation::root()),
             browser_allows_scroller_vector_layers: Property::new(true),
             browser_allows_nested_scroller_vector_layers: Property::new(true),

@@ -3228,7 +3228,7 @@ mod base_symbol_tests {
         ExpressionInfo, PaxIdentifier, TimelineKeyframe, TimelineMarker, TimelineTrackDefinition,
         TimelineTrackElement, Token, TransitionDefinition, ValueDefinition,
     };
-    use pax_runtime_api::{Numeric, Opacity, PaxValue, Property, Size, Variable};
+    use pax_runtime_api::{Duration, Numeric, Opacity, PaxValue, Property, Size, Variable};
     use std::collections::{BTreeMap, HashMap};
     use std::rc::Rc;
 
@@ -3350,7 +3350,9 @@ mod base_symbol_tests {
                 }),
             ],
             playhead: None,
-            duration: None,
+            duration: Some(Box::new(ValueDefinition::LiteralValue(PaxValue::Duration(
+                Duration::Frames(10.into()),
+            )))),
             repeat: Some(false),
             starting_value: None,
             use_local_property_scope: false,
@@ -3401,7 +3403,9 @@ mod base_symbol_tests {
                 }),
             ],
             playhead: playhead_binding,
-            duration: None,
+            duration: Some(Box::new(ValueDefinition::LiteralValue(PaxValue::Duration(
+                Duration::Frames(10.into()),
+            )))),
             repeat: Some(false),
             starting_value: None,
             use_local_property_scope: false,
@@ -3452,7 +3456,9 @@ mod base_symbol_tests {
                 }),
             ],
             playhead: playhead_binding,
-            duration: None,
+            duration: Some(Box::new(ValueDefinition::LiteralValue(PaxValue::Duration(
+                Duration::Frames(10.into()),
+            )))),
             repeat: Some(false),
             starting_value: None,
             use_local_property_scope: false,
@@ -3616,16 +3622,10 @@ fn update_common_properties(
     cp.id.replace_with(create_id_property(property_columns));
     cp.x.replace_with(resolve_property("x", property_columns, stack_frame));
     cp.y.replace_with(resolve_property("y", property_columns, stack_frame));
-    cp.padding_x.replace_with(resolve_property(
-        "padding_x",
-        property_columns,
-        stack_frame,
-    ));
-    cp.padding_y.replace_with(resolve_property(
-        "padding_y",
-        property_columns,
-        stack_frame,
-    ));
+    cp.padding_x
+        .replace_with(resolve_property("padding_x", property_columns, stack_frame));
+    cp.padding_y
+        .replace_with(resolve_property("padding_y", property_columns, stack_frame));
     cp.width
         .replace_with(resolve_property("width", property_columns, stack_frame));
     cp.height

@@ -1,17 +1,37 @@
-<Router>
-    <Route path="/">
-        <LandingPanel />
-    </Route>
+if is_mobile {
+    <Router>
+        <Route path="/">
+            <LandingPanel is_mobile=true />
+        </Route>
 
-    <Route path="/guide/*">
-        <GuidePanel />
-    </Route>
+        <Route path="/guide/*">
+            <GuidePanel is_mobile=true />
+        </Route>
 
-    <Route path="/teams/:team_id/*">
-        <TeamPanel />
-    </Route>
+        <Route path="/teams/:team_id/*">
+            <TeamPanel is_mobile=true />
+        </Route>
 
-    <Route default=true>
-        <TopLevelFallbackPanel />
-    </Route>
-</Router>
+        <Route default=true>
+            <TopLevelFallbackPanel is_mobile=true />
+        </Route>
+    </Router>
+} else {
+    <Router>
+        <Route path="/">
+            <LandingPanel is_mobile=false />
+        </Route>
+
+        <Route path="/guide/*">
+            <GuidePanel is_mobile=false />
+        </Route>
+
+        <Route path="/teams/:team_id/*">
+            <TeamPanel is_mobile=false />
+        </Route>
+
+        <Route default=true>
+            <TopLevelFallbackPanel is_mobile=false />
+        </Route>
+    </Router>
+}

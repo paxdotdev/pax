@@ -1,126 +1,110 @@
 <Group width=100% height=100%>
     <Stacker
         width=100%
-        height=100%
+        autosize=true
         direction=StackerDirection::Vertical
-        gutter=18px
-        sizes=[Some(212px), Some(176px), Some(176px), None]
+        gutter=20px
     >
-        <Group class=route_stage_0 width=100% height=100%>
-            <Stacker
+        <Stacker
+            class=route_stage_0
+            width=100%
+            autosize=true
+            direction=StackerDirection::Vertical
+            gutter=10px
+        >
+            <Text class=page_eyebrow width=100% text="Root route" />
+            <Text
+                class=page_title
                 width=100%
-                height=100%
+                text="One router can drive the whole shell, then nested routers can progressively consume the remainder."
+            />
+            <Text
+                class=page_copy
+                width=100%
+                text="This example shows phase-1 routing: declarative `Router` and `Route`, `:param` capture, terminal `*`, implicit `route`, `default=true`, and browser-managed navigation on web."
+            />
+        </Stacker>
+
+        <RouteInspector class=route_stage_1 width=100% title="root scope" />
+
+        if is_mobile {
+            <Stacker
+                class=route_stage_2
+                width=100%
+                autosize=true
                 direction=StackerDirection::Vertical
-                gutter=10px
-                sizes=[Some(20px), None, Some(54px)]
+                gutter=14px
             >
-                <Text class=page_eyebrow width=100% height=100% text="Root route" />
-                <Text
-                    class=page_title
-                    width=100%
-                    height=100%
-                    text="One router can drive the whole shell, then nested routers can progressively consume the remainder."
-                />
-                <Text
-                    class=page_copy
-                    width=100%
-                    height=100%
-                    text="This example shows phase-1 routing: declarative `Router` and `Route`, `:param` capture, terminal `*`, implicit `route`, `default=true`, and browser-managed navigation on web."
-                />
+                <Group width=100% autosize=true autosize_x=false autosize_y=true>
+                    <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
+                        <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=8px>
+                            <Text class=card_title width=100% text="Scoped by default" />
+                            <Text class=card_copy width=100% text="`route.location` is opinionated toward the current router's scope, so nested trees stay readable." />
+                        </Stacker>
+                    </Group>
+                    <Rectangle layout_role=LayoutRole::Breakout width=100% height=100% fill=rgba(16, 25, 43, 220) corner_radii=RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0) />
+                </Group>
+                <Group width=100% autosize=true autosize_x=false autosize_y=true>
+                    <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
+                        <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=8px>
+                            <Text class=card_title width=100% text="Global still available" />
+                            <Text class=card_copy width=100% text="`route.global_location` preserves the full browser/native location for diagnostics and coordination." />
+                        </Stacker>
+                    </Group>
+                    <Rectangle layout_role=LayoutRole::Breakout width=100% height=100% fill=rgba(16, 25, 43, 220) corner_radii=RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0) />
+                </Group>
+                <Group width=100% autosize=true autosize_x=false autosize_y=true>
+                    <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
+                        <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=8px>
+                            <Text class=card_title width=100% text="Imperative opt-in" />
+                            <Text class=card_copy width=100% text="Use `Link` or `NodeContext::navigate_to` when you want to write routes rather than read them." />
+                        </Stacker>
+                    </Group>
+                    <Rectangle layout_role=LayoutRole::Breakout width=100% height=100% fill=rgba(16, 25, 43, 220) corner_radii=RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0) />
+                </Group>
             </Stacker>
-        </Group>
-
-        <RouteInspector class=route_stage_1 width=100% height=100% title="root scope" />
-
-        <Group class=route_stage_2 width=100% height=100%>
+        } else {
             <Stacker
+                class=route_stage_2
                 width=100%
-                height=100%
+                autosize=true
+                autosize_x=false
+                autosize_y=true
                 direction=StackerDirection::Horizontal
                 gutter=18px
                 sizes=[None, None, None]
             >
-                <Group width=100% height=100%>
-                    <Stacker
-                        width=100%
-                        height=100%
-                        padding_x=12%
-                        padding_y=14%
-                        direction=StackerDirection::Vertical
-                        gutter=8px
-                        sizes=[Some(32px), None]
-                    >
-                        <Text class=card_title width=100% height=100% text="Scoped by default" />
-                        <Text
-                            class=card_copy
-                            width=100%
-                            height=100%
-                            text="`route.location` is opinionated toward the current router's scope, so nested trees stay readable."
-                        />
-                    </Stacker>
-                    <Rectangle
-                        width=100%
-                        height=100%
-                        fill=rgba(16, 25, 43, 220)
-                        corner_radii=RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)
-                    />
+                <Group width=100% autosize=true autosize_x=false autosize_y=true>
+                    <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=12% padding_y=14%>
+                        <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=8px>
+                            <Text class=card_title width=100% text="Scoped by default" />
+                            <Text class=card_copy width=100% text="`route.location` is opinionated toward the current router's scope, so nested trees stay readable." />
+                        </Stacker>
+                    </Group>
+                    <Rectangle layout_role=LayoutRole::Breakout width=100% height=100% fill=rgba(16, 25, 43, 220) corner_radii=RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0) />
                 </Group>
-
-                <Group width=100% height=100%>
-                    <Stacker
-                        width=100%
-                        height=100%
-                        padding_x=12%
-                        padding_y=14%
-                        direction=StackerDirection::Vertical
-                        gutter=8px
-                        sizes=[Some(32px), None]
-                    >
-                        <Text class=card_title width=100% height=100% text="Global still available" />
-                        <Text
-                            class=card_copy
-                            width=100%
-                            height=100%
-                            text="`route.global_location` preserves the full browser/native location for diagnostics and coordination."
-                        />
-                    </Stacker>
-                    <Rectangle
-                        width=100%
-                        height=100%
-                        fill=rgba(16, 25, 43, 220)
-                        corner_radii=RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)
-                    />
+                <Group width=100% autosize=true autosize_x=false autosize_y=true>
+                    <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=12% padding_y=14%>
+                        <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=8px>
+                            <Text class=card_title width=100% text="Global still available" />
+                            <Text class=card_copy width=100% text="`route.global_location` preserves the full browser/native location for diagnostics and coordination." />
+                        </Stacker>
+                    </Group>
+                    <Rectangle layout_role=LayoutRole::Breakout width=100% height=100% fill=rgba(16, 25, 43, 220) corner_radii=RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0) />
                 </Group>
-
-                <Group width=100% height=100%>
-                    <Stacker
-                        width=100%
-                        height=100%
-                        padding_x=12%
-                        padding_y=14%
-                        direction=StackerDirection::Vertical
-                        gutter=8px
-                        sizes=[Some(32px), None]
-                    >
-                        <Text class=card_title width=100% height=100% text="Imperative opt-in" />
-                        <Text
-                            class=card_copy
-                            width=100%
-                            height=100%
-                            text="Use `Link` or `NodeContext::navigate_to` when you want to write routes rather than read them."
-                        />
-                    </Stacker>
-                    <Rectangle
-                        width=100%
-                        height=100%
-                        fill=rgba(16, 25, 43, 220)
-                        corner_radii=RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)
-                    />
+                <Group width=100% autosize=true autosize_x=false autosize_y=true>
+                    <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=12% padding_y=14%>
+                        <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=8px>
+                            <Text class=card_title width=100% text="Imperative opt-in" />
+                            <Text class=card_copy width=100% text="Use `Link` or `NodeContext::navigate_to` when you want to write routes rather than read them." />
+                        </Stacker>
+                    </Group>
+                    <Rectangle layout_role=LayoutRole::Breakout width=100% height=100% fill=rgba(16, 25, 43, 220) corner_radii=RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0) />
                 </Group>
             </Stacker>
-        </Group>
+        }
 
-        <Group class=route_stage_3 width=100% height=100% />
+        <Group class=route_stage_3 width=100% height=16px />
     </Stacker>
 </Group>
 

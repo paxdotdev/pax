@@ -234,6 +234,61 @@ pub fn project_child_layout_hull_to_parent_space(
     project_layout_hull(relative_transform, child_hull)
 }
 
+/// Expand a content-space hull into the node's padded outer layout space.
+///
+/// Children are laid out inside the leading padding offset, but autosized
+/// bounds must be solved from the content hull itself. Solving the outer size
+/// first keeps percentage padding from feeding back through the node's current
+/// measured bounds.
+pub fn add_symmetric_padding_to_content_layout_hull(
+    hull: LayoutHull,
+    padding_x: Option<Size>,
+    padding_y: Option<Size>,
+) -> LayoutHull {
+    LayoutHull::from_axis_ranges(
+        hull.x_range().and_then(|(min_x, max_x)| {
+            resolve_symmetric_padded_axis_range(min_x, max_x, padding_x)
+        }),
+        hull.y_range().and_then(|(min_y, max_y)| {
+            resolve_symmetric_padded_axis_range(min_y, max_y, padding_y)
+        }),
+    )
+}
+
+fn resolve_symmetric_padded_axis_range(
+    min_extent: f64,
+    max_extent: f64,
+    padding: Option<Size>,
+) -> Option<(f64, f64)> {
+    let Some(padding) = padding else {
+        return Some((min_extent, max_extent));
+    };
+
+    let outer_extent = resolve_padded_autosize_axis(max_extent.max(0.0), Some(padding))?;
+    let leading_padding = evaluate_padding_against_resolved_extent(padding, outer_extent)?;
+    Some((
+        min_extent + leading_padding,
+        outer_extent.max(max_extent + leading_padding),
+    ))
+}
+
+fn evaluate_padding_against_resolved_extent(padding: Size, outer_extent: f64) -> Option<f64> {
+    let (pixel_component, percent_component) = padding_components(padding);
+    let padding = pixel_component + (percent_component * outer_extent.max(0.0));
+    padding.is_finite().then_some(padding.max(0.0))
+}
+
+fn padding_components(padding: Size) -> (f64, f64) {
+    match padding {
+        Size::Pixels(pixels) => (pixels.to_float().max(0.0), 0.0),
+        Size::Percent(percent) => (0.0, percent.to_float().max(0.0) / 100.0),
+        Size::Combined(pixels, percent) => (
+            pixels.to_float().max(0.0),
+            percent.to_float().max(0.0) / 100.0,
+        ),
+    }
+}
+
 fn order_pair(a: f64, b: f64) -> (f64, f64) {
     if a <= b {
         (a, b)
@@ -600,6 +655,20 @@ fn test_resolve_padded_autosize_axis_solves_percent_padding() {
     let resolved = resolve_padded_autosize_axis(60.0, Some(Size::Percent(20.into()))).unwrap();
 
     assert!((resolved - 100.0).abs() < 1e-9);
+}
+
+#[test]
+fn test_add_symmetric_padding_to_content_layout_hull_solves_from_content() {
+    let hull = LayoutHull::from_axis_ranges(Some((0.0, 50.0)), Some((4.0, 84.0)));
+    let padded = add_symmetric_padding_to_content_layout_hull(
+        hull,
+        Some(Size::Pixels(5.into())),
+        Some(Size::Percent(10.into())),
+    );
+
+    assert_eq!(padded.x_range(), Some((5.0, 60.0)));
+    assert!((padded.y_range().unwrap().0 - 14.5).abs() < 1e-9);
+    assert!((padded.forward_extent_y().unwrap() - 105.0).abs() < 1e-9);
 }
 
 #[test]

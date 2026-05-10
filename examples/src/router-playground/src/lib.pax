@@ -34,7 +34,7 @@ if is_mobile {
         }
 
         <Group x=0px y=72px width=100% height={100% - 72px}>
-            <RouteOutlet width=100% height=100% padding_x=24px padding_y=24px />
+            <RouteOutlet width=100% height=100% padding_x=24px padding_y=24px is_mobile={is_mobile} />
 
             <Rectangle class=content_panel width=100% height=100% />
         </Group>
@@ -55,7 +55,7 @@ if is_mobile {
         </Group>
 
         <Group width=100% height=100%>
-            <RouteOutlet width=100% height=100% padding_x=36px padding_y=36px />
+            <RouteOutlet width=100% height=100% padding_x=36px padding_y=36px is_mobile={is_mobile} />
 
             <Rectangle class=content_panel width=100% height=100% />
         </Group>
