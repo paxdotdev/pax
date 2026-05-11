@@ -66,6 +66,11 @@ struct AppleBuildResult {
     kind: AppleTargetKind,
 }
 
+struct IosAppIdentity {
+    bundle_identifier: String,
+    display_name: String,
+}
+
 const MACOS_ARM64_TARGET: AppleTargetMapping = AppleTargetMapping {
     rust_target: "aarch64-apple-darwin",
     packaged_arch: "macos-arm64",
@@ -367,6 +372,11 @@ pub fn build_apple_project_with_cartridge(
 
     let is_release: bool = ctx.is_release;
     let apple_mobile_target = apple_mobile_target(target);
+    let ios_app_identity = if apple_mobile_target.is_some() {
+        Some(resolve_ios_app_identity(&project_path)?)
+    } else {
+        None
+    };
 
     let resolved_ios_device = if let Some(apple_mobile_target) = apple_mobile_target {
         if ctx.should_also_run || ctx.ios_device.is_some() {
@@ -800,6 +810,17 @@ Note that the temporary directories mentioned above are subject to overwriting.\
         cmd.arg(format!("ARCHS={xcode_archs}"));
     }
 
+    if let Some(identity) = ios_app_identity.as_ref() {
+        cmd.arg(format!(
+            "PRODUCT_BUNDLE_IDENTIFIER={}",
+            identity.bundle_identifier
+        ))
+        .arg(format!(
+            "INFOPLIST_KEY_CFBundleDisplayName={}",
+            identity.display_name
+        ));
+    }
+
     if let Some(device) = resolved_ios_device.as_ref() {
         cmd.arg("-destination")
             .arg(format!("id={}", device.identifier));
@@ -1063,6 +1084,9 @@ Note that the temporary directories mentioned above are subject to overwriting.\
             let device = resolved_ios_device
                 .as_ref()
                 .ok_or_else(|| eyre!("Missing resolved iOS target device."))?;
+            let app_identity = ios_app_identity
+                .as_ref()
+                .ok_or_else(|| eyre!("Missing resolved iOS app identity."))?;
 
             match device.kind {
                 IosDeviceKind::Simulator => run_on_simulator(
@@ -1070,6 +1094,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     &device.name,
                     &executable_output_dir_path,
                     &executable_dot_app_path,
+                    &app_identity.bundle_identifier,
                     &process_child_ids,
                 )?,
                 IosDeviceKind::Physical => run_on_physical_device(
@@ -1077,6 +1102,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     &device.name,
                     &executable_output_dir_path,
                     &executable_dot_app_path,
+                    &app_identity.bundle_identifier,
                     &process_child_ids,
                 )?,
             }
@@ -1453,6 +1479,7 @@ fn run_on_simulator(
     device_name: &str,
     executable_output_dir_path: &PathBuf,
     executable_dot_app_path: &PathBuf,
+    bundle_identifier: &str,
     process_child_ids: &Arc<Mutex<Vec<u64>>>,
 ) -> Result<(), eyre::Report> {
     let simulators = list_available_ios_simulators(process_child_ids)?;
@@ -1570,7 +1597,7 @@ fn run_on_simulator(
     cmd.arg("simctl")
         .arg("launch")
         .arg(device_udid)
-        .arg("dev.pax.pax-app-ios")
+        .arg(bundle_identifier)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
 
@@ -1596,6 +1623,7 @@ fn run_on_physical_device(
     device_name: &str,
     executable_output_dir_path: &PathBuf,
     executable_dot_app_path: &PathBuf,
+    bundle_identifier: &str,
     process_child_ids: &Arc<Mutex<Vec<u64>>>,
 ) -> Result<(), eyre::Report> {
     println!(
@@ -1637,7 +1665,7 @@ fn run_on_physical_device(
         .arg(device_identifier)
         .arg("--console")
         .arg("--terminate-existing")
-        .arg("dev.pax.pax-app-ios")
+        .arg(bundle_identifier)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
 
@@ -1711,6 +1739,121 @@ fn resolve_dylib_file_name(project_path: &PathBuf) -> Result<String, eyre::Repor
         })?;
 
     Ok(format!("lib{}.dylib", dylib_target.name.replace('-', "_")))
+}
+
+fn resolve_ios_app_identity(project_path: &Path) -> Result<IosAppIdentity, eyre::Report> {
+    let package_name = read_cargo_package_name(project_path)?;
+    let project_identity_path = canonical_project_identity_path(project_path);
+    let project_hash = stable_hex_hash(&format!(
+        "pax-ios-app-v1\0{}\0{}",
+        package_name,
+        project_identity_path.display()
+    ));
+    let package_segment = bundle_identifier_segment(&package_name);
+
+    Ok(IosAppIdentity {
+        bundle_identifier: format!("dev.pax.{}.{}", package_segment, project_hash),
+        display_name: ios_display_name(&package_name),
+    })
+}
+
+fn read_cargo_package_name(project_path: &Path) -> Result<String, eyre::Report> {
+    let manifest_path = project_path.join("Cargo.toml");
+    let document = fs::read_to_string(&manifest_path)
+        .map_err(|err| {
+            eyre!(
+                "Failed to read Cargo manifest at {:?}: {}",
+                manifest_path,
+                err
+            )
+        })?
+        .parse::<toml_edit::Document>()
+        .map_err(|err| {
+            eyre!(
+                "Failed to parse Cargo manifest at {:?}: {}",
+                manifest_path,
+                err
+            )
+        })?;
+
+    document
+        .get("package")
+        .and_then(|package| package.get("name"))
+        .and_then(|name| name.as_str())
+        .map(str::to_string)
+        .ok_or_else(|| {
+            eyre!(
+                "Cargo manifest at {:?} is missing package.name",
+                manifest_path
+            )
+        })
+}
+
+fn canonical_project_identity_path(project_path: &Path) -> PathBuf {
+    fs::canonicalize(project_path).unwrap_or_else(|_| {
+        if project_path.is_absolute() {
+            project_path.to_path_buf()
+        } else {
+            std::env::current_dir()
+                .map(|cwd| cwd.join(project_path))
+                .unwrap_or_else(|_| project_path.to_path_buf())
+        }
+    })
+}
+
+fn bundle_identifier_segment(value: &str) -> String {
+    let mut output = String::new();
+    let mut previous_was_separator = false;
+
+    for ch in value.chars() {
+        if ch.is_ascii_alphanumeric() {
+            output.push(ch.to_ascii_lowercase());
+            previous_was_separator = false;
+        } else if !previous_was_separator {
+            output.push('-');
+            previous_was_separator = true;
+        }
+    }
+
+    let trimmed = output.trim_matches('-');
+    if trimmed.is_empty() {
+        "project".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn ios_display_name(package_name: &str) -> String {
+    let words = package_name
+        .split(|ch| ch == '-' || ch == '_')
+        .filter(|word| !word.is_empty())
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                Some(first) => {
+                    let mut normalized = first.to_ascii_uppercase().to_string();
+                    normalized.push_str(chars.as_str());
+                    normalized
+                }
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    if words.is_empty() {
+        "Pax App".to_string()
+    } else {
+        words.join(" ")
+    }
+}
+
+fn stable_hex_hash(value: &str) -> String {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in value.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    format!("{hash:016x}")
 }
 
 fn best_simulator_for_target<'a>(
@@ -2238,6 +2381,64 @@ mod tests {
             udid: name.to_string(),
             state: state.to_string(),
         }
+    }
+
+    fn cargo_project(package_name: &str) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().expect("tempdir should be created");
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            format!(
+                r#"
+[package]
+name = "{package_name}"
+version = "0.1.0"
+edition = "2021"
+"#
+            ),
+        )
+        .expect("Cargo.toml should be written");
+        dir
+    }
+
+    #[test]
+    fn ios_app_identity_is_stable_for_same_project() {
+        let project = cargo_project("scroll-garden");
+
+        let first = resolve_ios_app_identity(project.path()).expect("identity should resolve");
+        let second = resolve_ios_app_identity(project.path()).expect("identity should resolve");
+
+        assert_eq!(first.bundle_identifier, second.bundle_identifier);
+        assert_eq!(first.display_name, "Scroll Garden");
+        assert!(first
+            .bundle_identifier
+            .starts_with("dev.pax.scroll-garden."));
+        assert_eq!(
+            first.bundle_identifier.rsplit('.').next().unwrap().len(),
+            16
+        );
+    }
+
+    #[test]
+    fn ios_app_identity_distinguishes_projects_with_same_package_name() {
+        let first_project = cargo_project("starter-project");
+        let second_project = cargo_project("starter-project");
+
+        let first =
+            resolve_ios_app_identity(first_project.path()).expect("identity should resolve");
+        let second =
+            resolve_ios_app_identity(second_project.path()).expect("identity should resolve");
+
+        assert_ne!(first.bundle_identifier, second.bundle_identifier);
+        assert_eq!(first.display_name, second.display_name);
+    }
+
+    #[test]
+    fn ios_bundle_identifier_segment_sanitizes_for_xcode() {
+        assert_eq!(
+            bundle_identifier_segment("Fancy_Project!!"),
+            "fancy-project"
+        );
+        assert_eq!(bundle_identifier_segment("---"), "project");
     }
 
     #[test]
