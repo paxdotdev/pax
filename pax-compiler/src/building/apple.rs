@@ -10,6 +10,7 @@ use crate::helpers::{
     configure_pax_build_env, pax_project_feature_args, BUILD_DIR_NAME, DIR_IGNORE_LIST_MACOS,
     ERR_SPAWN, INTERFACE_DIR_NAME, PAX_BADGE,
 };
+use crate::project_metadata::PaxProjectMetadata;
 use crate::{
     copy_dir_recursively, prepare_cartridge_sources, wait_with_output, BuildTimings, RunContext,
     RunTarget,
@@ -362,6 +363,7 @@ pub fn build_apple_project_with_cartridge(
     process_child_ids: Arc<Mutex<Vec<u64>>>,
     assets_dirs: Vec<String>,
     manifest: PaxManifest,
+    project_metadata: &PaxProjectMetadata,
     _timings: &mut BuildTimings,
 ) -> Result<(), eyre::Report> {
     let target: &RunTarget = &ctx.target;
@@ -834,7 +836,15 @@ Note that the temporary directories mentioned above are subject to overwriting.\
             .arg("-allowProvisioningDeviceRegistration");
     }
 
-    if let Some(team_id) = ctx.ios_development_team.as_deref() {
+    for (key, value) in project_metadata.apple_xcode_build_settings(target) {
+        cmd.arg(format!("{key}={value}"));
+    }
+
+    let development_team = ctx
+        .ios_development_team
+        .clone()
+        .or_else(|| project_metadata.apple_development_team(target));
+    if let Some(team_id) = development_team.as_deref() {
         cmd.arg(format!("DEVELOPMENT_TEAM={team_id}"));
     }
 

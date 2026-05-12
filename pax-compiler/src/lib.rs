@@ -17,6 +17,7 @@ mod building;
 mod cartridge_generation;
 pub mod dev_session;
 pub mod helpers;
+pub mod project_metadata;
 pub mod static_analysis;
 
 pub mod design_server;
@@ -45,6 +46,7 @@ use std::os::unix::process::CommandExt;
 use crate::building::build_project_with_cartridge;
 
 use crate::cartridge_generation::generate_cartridge_partial_rs;
+use crate::project_metadata::PaxProjectMetadata;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -160,6 +162,7 @@ pub(crate) struct PreparedCartridgeSources {
     pub pax_dir: PathBuf,
     pub userland_manifest: PaxManifest,
     pub assets_dirs: Vec<String>,
+    pub project_metadata: PaxProjectMetadata,
 }
 
 /// For the specified file path or current working directory, first compile Pax project,
@@ -177,6 +180,7 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
         Arc::clone(&ctx.process_child_ids),
         prepared.assets_dirs,
         prepared.userland_manifest.clone(),
+        prepared.project_metadata.clone(),
         &mut timings,
     )?;
 
@@ -204,12 +208,19 @@ fn prepare_cartridge_sources_with_timings(
         timings.record("web interface", || ensure_default_web_interface_bundle(ctx));
     }
 
+    let project_metadata = timings.record("project metadata", || {
+        project_metadata::load_project_metadata(&ctx.project_path)
+    })?;
+
     let pax_dir = get_or_create_pax_directory(&ctx.project_path);
 
     // Copy interface files for relevant path
     timings.record("copy interface", || {
         copy_interface_files_for_target(ctx, &pax_dir)
     });
+    timings.record("project metadata interface", || {
+        project_metadata::apply_copied_interface_metadata(ctx, &pax_dir, &project_metadata)
+    })?;
 
     if ctx.should_run_designer {
         return Err(eyre!(
@@ -276,6 +287,7 @@ fn prepare_cartridge_sources_with_timings(
         pax_dir,
         userland_manifest,
         assets_dirs: merged_manifest.assets_dirs,
+        project_metadata,
     })
 }
 
@@ -1371,10 +1383,23 @@ pub fn perform_create(ctx: &CreateContext) {
         .as_table_mut()
     {
         if let Some(name_item) = package.get_mut("name") {
-            *name_item = toml_edit::Item::Value(crate_name.into());
+            *name_item = toml_edit::Item::Value(crate_name.clone().into());
         }
         if let Some(version_item) = package.get_mut("version") {
             *version_item = toml_edit::Item::Value(ctx.version.clone().into());
+        }
+        if let Some(metadata) = package
+            .get_mut("metadata")
+            .and_then(|item| item.as_table_mut())
+        {
+            if let Some(pax_metadata) = metadata
+                .get_mut("pax")
+                .and_then(|item| item.as_table_mut())
+            {
+                if let Some(title_item) = pax_metadata.get_mut("title") {
+                    *title_item = toml_edit::Item::Value(crate_name.clone().into());
+                }
+            }
         }
     }
 

@@ -4,6 +4,9 @@ version = "VERSION_PLACEHOLDER"
 edition = "2021"
 default-run = "run"
 
+[package.metadata.pax]
+title = "CRATE_NAME"
+
 [dependencies]
 pax-kit = { version = "VERSION_PLACEHOLDER", path = "../../../pax-kit" }
 rand = { version = "0.8.5" }
