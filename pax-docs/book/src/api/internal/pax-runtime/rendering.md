@@ -16,8 +16,17 @@ Type: [`PropertiesInit`](/api/internal/pax-runtime/rendering.md#propertiesinit)
 ##### `instance_prototypical_common_properties`
 Type: [`CommonPropertiesInit`](/api/internal/pax-runtime/rendering.md#commonpropertiesinit)
 
+##### `component_settings`
+Type: `Option`<`Vec`<[`SettingsBlockElement`](/api/internal/pax-manifest/index.md#settingsblockelement)>>
+
 ##### `template_node_identifier`
 Type: `Option`<[`UniqueTemplateNodeIdentifier`](/api/internal/pax-manifest/index.md#uniquetemplatenodeidentifier)>
+
+##### `template_node_type_id`
+Type: `Option`<[`TypeId`](/api/internal/pax-manifest/index.md#typeid)>
+
+##### `template_node_selector_info`
+Type: `Option`<`TemplateNodeSelectorInfo`>
 
 ##### `transition_config`
 Type: [`ComponentTransitionConfig`](/api/internal/pax-manifest/cartridge_generation.md#componenttransitionconfig)
@@ -42,10 +51,11 @@ this explicitly, see e.g. `[pax_std::drawing::rectangle::RectangleInstance#get_h
 ##### `get_instance_children`
 <pre><code class="api-signature language-rust ignore">pub fn get_instance_children(&amp;self) -&gt; &amp;<a href="/api/internal/pax-runtime/rendering.md#instancenodeptrlist">InstanceNodePtrList</a></code></pre>
 
-Return the list of instance nodes that are children of this one.  Intuitively, this will return
-instance nodes mapping exactly to the template node definitions.
-For `Component`s, `get_instance_children` returns the root(s) of its template, not its `slot_children`.
-(see `get_slot_children` for the way to retrieve the latter.)
+Return the list of instance nodes that are children of this one. Intuitively, this returns
+the nodes owned directly by this instance's definition.
+
+For `Component`s, this returns the root(s) of the component template, not the
+projected children supplied by the containing component.
 
 ##### `new`
 <pre><code class="api-signature language-rust ignore">pub fn new(args: <a href="/api/internal/pax-runtime/rendering.md#instantiationargs">InstantiationArgs</a>, flags: <a href="/api/internal/pax-runtime/rendering.md#instanceflags">InstanceFlags</a>) -&gt; Self</code></pre>
@@ -111,8 +121,17 @@ Type: `Option`<[`InstanceNodePtrList`](/api/internal/pax-runtime/rendering.md#in
 ##### `component_template`
 Type: `Option`<[`InstanceNodePtrList`](/api/internal/pax-runtime/rendering.md#instancenodeptrlist)>
 
+##### `component_settings`
+Type: `Option`<`Vec`<[`SettingsBlockElement`](/api/internal/pax-manifest/index.md#settingsblockelement)>>
+
 ##### `template_node_identifier`
 Type: `Option`<[`UniqueTemplateNodeIdentifier`](/api/internal/pax-manifest/index.md#uniquetemplatenodeidentifier)>
+
+##### `template_node_type_id`
+Type: `Option`<[`TypeId`](/api/internal/pax-manifest/index.md#typeid)>
+
+##### `template_node_selector_info`
+Type: `Option`<`TemplateNodeSelectorInfo`>
 
 ##### `transition_config`
 Type: [`ComponentTransitionConfig`](/api/internal/pax-manifest/cartridge_generation.md#componenttransitionconfig)
@@ -134,6 +153,12 @@ Type: [`InstanceNodePtrList`](/api/internal/pax-runtime/rendering.md#instancenod
 
 ##### `template_node_identifier`
 Type: `Option`<[`UniqueTemplateNodeIdentifier`](/api/internal/pax-manifest/index.md#uniquetemplatenodeidentifier)>
+
+##### `template_node_type_id`
+Type: `Option`<[`TypeId`](/api/internal/pax-manifest/index.md#typeid)>
+
+##### `template_node_selector_info`
+Type: `Option`<`TemplateNodeSelectorInfo`>
 
 #### Implementations
 ##### `new`
@@ -178,8 +203,8 @@ Coarse runtime category for an instance node.
 Structured initialization for node-local typed properties.
 
 #### Variants
-##### `DescriptorDefault`(&'`static` `ErasedComponentDescriptor`)
-##### `DescriptorInline` { `descriptor`: &'`static` `ErasedComponentDescriptor`, `defined_properties`: `BTreeMap`<`String`, [`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)> }
+##### `DescriptorDefault`(&'`static` [`ErasedComponentDescriptor`](/api/internal/pax-runtime/cartridge.md#erasedcomponentdescriptor))
+##### `DescriptorInline` { `descriptor`: &'`static` [`ErasedComponentDescriptor`](/api/internal/pax-runtime/cartridge.md#erasedcomponentdescriptor), `defined_properties`: `BTreeMap`<`String`, [`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)> }
 ##### `Factory`([`PropertiesFactory`](/api/internal/pax-runtime/rendering.md#propertiesfactory))
 ---
 
@@ -188,7 +213,7 @@ How an expanded node should expose component-local symbols into scope.
 
 #### Variants
 ##### `None`
-##### `Descriptor`(&'`static` `ErasedComponentDescriptor`)
+##### `Descriptor`(&'`static` [`ErasedComponentDescriptor`](/api/internal/pax-runtime/cartridge.md#erasedcomponentdescriptor))
 ##### `Factory`([`PropertiesScopeFactory`](/api/internal/pax-runtime/rendering.md#propertiesscopefactory))
 ## Traits
 ### `InstanceNode`

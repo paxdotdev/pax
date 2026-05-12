@@ -7,11 +7,6 @@
 Designer/runtime inspection handle for an expanded node.
 
 #### Implementations
-##### `autosize`
-<pre><code class="api-signature language-rust ignore">pub fn autosize(&amp;self) -&gt; Option&lt;(f64, f64)&gt;</code></pre>
-
-Auto-sized bounds reported by a native or text-backed node.
-
 ##### `children`
 <pre><code class="api-signature language-rust ignore">pub fn children(&amp;self) -&gt; Vec&lt;<a href="/api/internal/pax-runtime/engine/node_interface.md#nodeinterface">NodeInterface</a>&gt;</code></pre>
 
@@ -27,8 +22,8 @@ Containing component for template scoping and slot ownership.
 
 Runtime-expanded id for this concrete node.
 
-##### `flattened_slot_children_count`
-<pre><code class="api-signature language-rust ignore">pub fn flattened_slot_children_count(&amp;self) -&gt; <a href="/api/pax-runtime-api/properties.md#property">Property</a>&lt;usize&gt;</code></pre>
+##### `flattened_projected_children_count`
+<pre><code class="api-signature language-rust ignore">pub fn flattened_projected_children_count(&amp;self) -&gt; <a href="/api/pax-runtime-api/properties.md#property">Property</a>&lt;usize&gt;</code></pre>
 
 Reactive count of slot children after repeat/conditional flattening.
 
@@ -62,10 +57,20 @@ Check whether the node's property object is of type `T`.
 
 Current layout properties after common-property collection.
 
+##### `measured_size`
+<pre><code class="api-signature language-rust ignore">pub fn measured_size(&amp;self) -&gt; Option&lt;(f64, f64)&gt;</code></pre>
+
+Measured bounds reported by a native or text-backed node.
+
 ##### `render_parent`
 <pre><code class="api-signature language-rust ignore">pub fn render_parent(&amp;self) -&gt; Option&lt;<a href="/api/internal/pax-runtime/engine/node_interface.md#nodeinterface">NodeInterface</a>&gt;</code></pre>
 
 Parent in render traversal order.
+
+##### `subtree_layout_hull`
+<pre><code class="api-signature language-rust ignore">pub fn subtree_layout_hull(&amp;self) -&gt; <a href="/api/pax-runtime-api/properties.md#property">Property</a>&lt;<a href="/api/internal/pax-runtime/layout.md#layouthull">LayoutHull</a>&gt;</code></pre>
+
+Node-local subtree hull published by the engine for container measurement.
 
 ##### `template_parent`
 <pre><code class="api-signature language-rust ignore">pub fn template_parent(&amp;self) -&gt; Option&lt;<a href="/api/internal/pax-runtime/engine/node_interface.md#nodeinterface">NodeInterface</a>&gt;</code></pre>

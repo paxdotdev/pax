@@ -19,13 +19,17 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Weak`<`Expanded
 ---
 
 ### `SlotInstance`
-A special "control-flow" primitive (a la `yield` or perhaps `goto`) — represents a slot into which
-an slot_child can be rendered.  Slot relies on `slot_children` being present
-on the runtime stack and will not render any content if there are no `slot_children` found.
+A special "control-flow" primitive (a la `yield` or perhaps `goto`) that
+renders projected payload into a node's encapsulated implementation.
+
+`Slot` relies on raw `projected_children` being present on the runtime stack
+and will not render any content if there are none. Projection is the engine
+transport mechanism; semantic container logic should usually reason in terms
+of `received_children` instead.
 
 Consider a Stacker:  the owner of a Stacker passes the Stacker some nodes to render
 inside the cells of the Stacker.  To the owner of the Stacker, those nodes might seem like
-"children," but to the Stacker they are "slot_children" — children provided from
-the outside.  Inside Stacker's template, there are a number of Slots — this primitive —
-that become the final rendered home of those slot_children.  This same technique
-is portable and applicable elsewhere via Slot.
+received children. Inside Stacker's encapsulated implementation, those
+received children travel as projected children until `Slot` becomes their
+rendered home. This same technique is portable and applicable elsewhere via
+`Slot`.

@@ -459,21 +459,22 @@ impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
         println!("File changed: {:?}", path);
         if self.is_active_client() {
             match contents {
-                FileContent::Pax(content) => match apply_pax_source_update(&self.state, &path, &content)
-                {
-                    Ok(update_request) => {
-                        let msg = AgentMessage::UpdateTemplateRequest(Box::new(update_request));
-                        match rmp_serde::to_vec(&msg) {
-                            Ok(serialized_msg) => ctx.binary(serialized_msg),
-                            Err(err) => eprintln!(
+                FileContent::Pax(content) => {
+                    match apply_pax_source_update(&self.state, &path, &content) {
+                        Ok(update_request) => {
+                            let msg = AgentMessage::UpdateTemplateRequest(Box::new(update_request));
+                            match rmp_serde::to_vec(&msg) {
+                                Ok(serialized_msg) => ctx.binary(serialized_msg),
+                                Err(err) => eprintln!(
                                 "failed to serialize pax template update for watcher change: {err}"
                             ),
+                            }
+                        }
+                        Err(err) => {
+                            eprintln!("ignoring invalid Pax watcher update for {path}: {err}");
                         }
                     }
-                    Err(err) => {
-                        eprintln!("ignoring invalid Pax watcher update for {path}: {err}");
-                    }
-                },
+                }
                 FileContent::Rust(_) => schedule_logic_reload(self.state.clone()),
                 FileContent::Unknown => {}
             }
@@ -658,7 +659,10 @@ fn handle_userland_source_update_request(
         }
     };
 
-    match resolved_path.extension().and_then(|extension| extension.to_str()) {
+    match resolved_path
+        .extension()
+        .and_then(|extension| extension.to_str())
+    {
         Some("pax") => {
             let update_request = {
                 let manifest = state.manifest.lock().unwrap();
@@ -768,7 +772,9 @@ fn handle_userland_source_update_request(
                 return;
             }
 
-            if let Err(err) = spawn_userland_rust_source_update(state, request_id.clone(), request_path.clone()) {
+            if let Err(err) =
+                spawn_userland_rust_source_update(state, request_id.clone(), request_path.clone())
+            {
                 send_userland_source_update_response_in_context(
                     ctx,
                     UserlandSourceUpdateResponse {
@@ -844,8 +850,15 @@ fn resolve_userland_source_path(
         return Err("source path must stay inside the project root".to_string());
     }
 
-    let resolved_path = state.userland_project_root.lock().unwrap().join(requested_path);
-    match resolved_path.extension().and_then(|extension| extension.to_str()) {
+    let resolved_path = state
+        .userland_project_root
+        .lock()
+        .unwrap()
+        .join(requested_path);
+    match resolved_path
+        .extension()
+        .and_then(|extension| extension.to_str())
+    {
         Some("rs") | Some("pax") => Ok(resolved_path),
         _ => Err("only .rs and .pax source updates are supported".to_string()),
     }
@@ -907,14 +920,15 @@ fn parse_pax_source_update(
     catch_unwind(AssertUnwindSafe(|| {
         let mut tpc = TemplateNodeParseContext {
             pascal_identifier_to_type_id_map: template_map,
-            template: ComponentTemplate::new(self_type_id.clone(), original_template.get_file_path()),
+            template: ComponentTemplate::new(
+                self_type_id.clone(),
+                original_template.get_file_path(),
+            ),
         };
 
-        let ast = pax_language::parse_pax_str(
-            pax_language::Rule::pax_component_definition,
-            content,
-        )
-        .map_err(|err| format!("failed to parse Pax source: {err}"))?;
+        let ast =
+            pax_language::parse_pax_str(pax_language::Rule::pax_component_definition, content)
+                .map_err(|err| format!("failed to parse Pax source: {err}"))?;
         let mut settings =
             pax_manifest::parsing::parse_settings_from_component_definition_string(ast.clone());
         if let Some(rust_source_path) =
@@ -928,9 +942,7 @@ fn parse_pax_source_update(
             );
         }
         pax_manifest::parsing::parse_template_from_component_definition_string(
-            &mut tpc,
-            content,
-            ast,
+            &mut tpc, content, ast,
         );
 
         Ok(UpdateTemplateRequest {
@@ -962,7 +974,10 @@ fn source_paths_match(manifest_path: &str, source_path: &str, project_root: &Pat
         return true;
     }
 
-    match (manifest_absolute.canonicalize(), source_absolute.canonicalize()) {
+    match (
+        manifest_absolute.canonicalize(),
+        source_absolute.canonicalize(),
+    ) {
         (Ok(manifest_canonical), Ok(source_canonical)) => manifest_canonical == source_canonical,
         _ => false,
     }
@@ -1016,7 +1031,11 @@ fn resolve_component_rust_source_path(project_root: &Path, module_path: &str) ->
 
     let src_dir = project_root.join("src");
     let candidates = if module_segments.is_empty() {
-        vec![src_dir.join("lib.rs"), src_dir.join("main.rs"), src_dir.join("mod.rs")]
+        vec![
+            src_dir.join("lib.rs"),
+            src_dir.join("main.rs"),
+            src_dir.join("mod.rs"),
+        ]
     } else {
         let mut path = src_dir;
         for segment in &module_segments {
@@ -1058,9 +1077,14 @@ fn panic_payload_to_string(payload: Box<dyn Any + Send>) -> String {
 #[cfg(test)]
 mod tests {
     use super::{parse_pax_source_update, resolve_component_rust_source_path, source_paths_match};
-    use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, SettingsBlockElement, TypeId};
-    use std::{collections::{BTreeMap, HashMap}, fs};
+    use pax_manifest::{
+        ComponentDefinition, ComponentTemplate, PaxManifest, SettingsBlockElement, TypeId,
+    };
     use std::path::Path;
+    use std::{
+        collections::{BTreeMap, HashMap},
+        fs,
+    };
     use tempfile::tempdir;
 
     #[test]

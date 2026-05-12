@@ -3239,13 +3239,22 @@ private final class NativePhotoPickerCoordinator: NSObject, PHPickerViewControll
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { granted in
                 DispatchQueue.main.async {
-                    granted ? self.presentCamera() : self.dispatchCameraDenied()
+                    granted ? self.presentCameraAfterPermissionGrant() : self.dispatchCameraDenied()
                 }
             }
         case .denied, .restricted:
             dispatchCameraDenied()
         @unknown default:
             dispatchCameraDenied()
+        }
+    }
+
+    private func presentCameraAfterPermissionGrant() {
+        // The authorization callback can arrive before the system permission
+        // alert has fully dismissed, and UIKit drops an immediate presentation
+        // in that transition. Defer only the first-grant path.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            self?.presentCamera()
         }
     }
 

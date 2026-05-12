@@ -1,6 +1,6 @@
 use pax_engine::pax;
 use pax_message::{AnyCreatePatch, PhotoPickerPatch};
-use pax_runtime::api::{borrow, borrow_mut, use_RefCell, Layer, Property};
+use pax_runtime::api::{borrow, borrow_mut, use_RefCell, Layer, NodeContext, Property};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
@@ -31,15 +31,33 @@ impl PhotoPickerSource {
     }
 }
 
-/// A transparent native hit target that opens the platform photo picker.
+/// Opens the platform photo picker when its slotted content is activated.
 ///
-/// Apps should render their own visible button or thumbnail affordance and place
-/// `PhotoPicker` over the interactive area. Increment `trigger` to request a
+/// `PhotoPicker` renders its children as the visible affordance and layers a
+/// transparent native hit target over them. Increment `trigger` to request a
 /// programmatic open; on the web, direct user activation of the picker element is
 /// the most reliable way to satisfy browser file-picker requirements.
 #[pax]
 #[engine_import_path("pax_engine")]
-#[primitive("pax_std::forms::photo_picker::PhotoPickerInstance")]
+#[inlined(
+    <PhotoPickerInput
+        width=100%
+        height=100%
+        trigger={self.trigger}
+        source={self.source}
+        allow_multiple={self.allow_multiple}
+        accept={self.accept}
+        include_bytes={self.include_bytes}
+        max_bytes_per_photo={self.max_bytes_per_photo}
+    />
+    for i in 0..self._projected_children_count {
+        slot(i)
+    }
+
+    @settings {
+        @mount: on_mount
+    }
+)]
 #[custom(Default)]
 pub struct PhotoPicker {
     /// Incrementing request value. Returned as `request_id` in `photo_picker_change`.
@@ -54,9 +72,58 @@ pub struct PhotoPicker {
     pub include_bytes: Property<bool>,
     /// Maximum copied/read bytes per selected photo. Larger photos report a size-limit status.
     pub max_bytes_per_photo: Property<u64>,
+    // Number of slotted children to render.
+    pub _projected_children_count: Property<usize>,
 }
 
 impl Default for PhotoPicker {
+    fn default() -> Self {
+        Self {
+            trigger: Property::new(0),
+            source: Property::new(PhotoPickerSource::Library),
+            allow_multiple: Property::new(true),
+            accept: Property::new("image/*".to_string()),
+            include_bytes: Property::new(true),
+            max_bytes_per_photo: Property::new(25 * 1024 * 1024),
+            _projected_children_count: Property::new(0),
+        }
+    }
+}
+
+impl PhotoPicker {
+    // Mirrors slot count for the generated inline template.
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
+        let projected_children_count = ctx.projected_children_count.clone();
+        let deps = [projected_children_count.untyped()];
+        self._projected_children_count
+            .replace_with(Property::computed(
+                move || projected_children_count.get(),
+                &deps,
+            ));
+    }
+}
+
+#[doc(hidden)]
+#[pax]
+#[engine_import_path("pax_engine")]
+#[primitive("pax_std::forms::photo_picker::PhotoPickerInputInstance")]
+#[custom(Default)]
+pub struct PhotoPickerInput {
+    /// Incrementing request value. Returned as `request_id` in `photo_picker_change`.
+    pub trigger: Property<u64>,
+    /// Requested platform source.
+    pub source: Property<PhotoPickerSource>,
+    /// Whether multiple images may be selected.
+    pub allow_multiple: Property<bool>,
+    /// Accepted MIME/file filter. Web uses this as the input `accept` value.
+    pub accept: Property<String>,
+    /// Whether the chassis should copy bytes into the event when practical.
+    pub include_bytes: Property<bool>,
+    /// Maximum copied/read bytes per selected photo. Larger photos report a size-limit status.
+    pub max_bytes_per_photo: Property<u64>,
+}
+
+impl Default for PhotoPickerInput {
     fn default() -> Self {
         Self {
             trigger: Property::new(0),
@@ -69,12 +136,12 @@ impl Default for PhotoPicker {
     }
 }
 
-// Runtime instance backing `<PhotoPicker>`.
-pub struct PhotoPickerInstance {
+// Runtime instance backing the native `<PhotoPickerInput>` overlay.
+pub struct PhotoPickerInputInstance {
     base: BaseInstance,
 }
 
-impl InstanceNode for PhotoPickerInstance {
+impl InstanceNode for PhotoPickerInputInstance {
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,
@@ -137,7 +204,7 @@ impl InstanceNode for PhotoPickerInstance {
                         id,
                         ..Default::default()
                     };
-                    expanded_node.with_properties_unwrapped(|properties: &mut PhotoPicker| {
+                    expanded_node.with_properties_unwrapped(|properties: &mut PhotoPickerInput| {
                         let computed_tab = expanded_node.transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
                         let updates = [
@@ -222,6 +289,6 @@ impl InstanceNode for PhotoPickerInstance {
         f: &mut std::fmt::Formatter,
         _expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result {
-        f.debug_struct("PhotoPicker").finish_non_exhaustive()
+        f.debug_struct("PhotoPickerInput").finish_non_exhaustive()
     }
 }

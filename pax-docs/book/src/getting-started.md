@@ -30,6 +30,9 @@ title = "Pax iOS"
 bundle_identifier = "dev.pax.example"
 development_team = "ABCDE12345"
 
+[package.metadata.pax.ios.info_plist]
+NSCameraUsageDescription = "Capture photos when the camera picker is used."
+
 [package.metadata.pax.macos]
 title = "Pax macOS"
 bundle_identifier = "dev.pax.example.macos"
@@ -49,6 +52,7 @@ Supported common keys:
   `package.version` is used for Apple builds.
 - `build_number`: Apple build number.
 - `development_team`: Apple development team for signing.
+- `info_plist`: shared string values emitted into generated Apple Info.plists.
 
 Supported web keys:
 
@@ -64,6 +68,9 @@ Supported Apple target keys for `ios`, `ipados`, and `macos`:
 - `marketing_version`
 - `build_number`
 - `development_team`
+- `info_plist`: string values emitted into generated Apple Info.plists. Declare
+  as a nested table, for example
+  `[package.metadata.pax.ios.info_plist] NSCameraUsageDescription = "..."`
 
 iOS and iPadOS use a single generated 1024x1024 `AppIcon` asset. The source
 image must be square and opaque. macOS generates the full AppIcon size set from

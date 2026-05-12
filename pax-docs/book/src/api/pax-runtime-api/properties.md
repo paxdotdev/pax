@@ -75,6 +75,13 @@ versa) without severing existing outbound links.
 Sets this properties value and sets the dirty bit recursively of all of
 its dependencies if not already set
 
+##### `set_if_neq`
+<pre><code class="api-signature language-rust ignore">pub fn set_if_neq(&amp;self, val: T) -&gt; bool where T: PartialEq</code></pre>
+
+Sets the value only when it differs from the current one.
+
+Returns `true` when the write changed the property and dirtied dependents.
+
 ##### `untyped`
 <pre><code class="api-signature language-rust ignore">pub fn untyped(&amp;self) -&gt; UntypedProperty</code></pre>
 

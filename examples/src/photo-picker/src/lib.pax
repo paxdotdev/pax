@@ -4,17 +4,15 @@
         <Text class=subtitle x=0px y=46px width=100% height=34px text="Select images from the library or request the camera source."/>
     </Group>
 
-    <Group x=50% y=148px width=86% height=54px anchor_x=50%>
-        <PhotoPicker width=100% height=100% source=PhotoPickerSource::Library allow_multiple=true accept="image/*" include_bytes=true max_bytes_per_photo=26214400 @photo_picker_change=self.handle_picker_change/>
+    <PhotoPicker x=50% y=148px width=86% height=54px anchor_x=50% source=PhotoPickerSource::Library allow_multiple=true accept="image/*" include_bytes=true max_bytes_per_photo=26214400 @photo_picker_change=self.handle_picker_change>
         <Text class=button_label x=0px y=0px width=100% height=100% text="Choose Photos"/>
         <Rectangle class=primary_button width=100% height=100%/>
-    </Group>
+    </PhotoPicker>
 
-    <Group x=50% y=214px width=86% height=50px anchor_x=50%>
-        <PhotoPicker width=100% height=100% source=PhotoPickerSource::Camera allow_multiple=false accept="image/*" include_bytes=true max_bytes_per_photo=26214400 @photo_picker_change=self.handle_picker_change/>
+    <PhotoPicker x=50% y=214px width=86% height=50px anchor_x=50% source=PhotoPickerSource::Camera allow_multiple=false accept="image/*" include_bytes=true max_bytes_per_photo=26214400 @photo_picker_change=self.handle_picker_change>
         <Text class=button_label x=0px y=0px width=100% height=100% text="Open Camera"/>
         <Rectangle class=secondary_button width=100% height=100%/>
-    </Group>
+    </PhotoPicker>
 
     <Text class=status x=50% y=286px width=86% height=28px anchor_x=50% text={self.status_text}/>
     <Text class=detail x=50% y=318px width=86% height=24px anchor_x=50% text={self.detail_text}/>

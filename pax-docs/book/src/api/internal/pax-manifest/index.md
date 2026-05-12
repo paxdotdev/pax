@@ -275,6 +275,11 @@ Type: `Option`<`Vec`<[`SettingElement`](/api/internal/pax-manifest/index.md#sett
 
 IFF this TND is NOT a control-flow node: parsed key-value store of attribute definitions (like `some_key="some_value"`)
 
+##### `selector_info`
+Type: `TemplateNodeSelectorInfo`
+
+Normalized selector metadata preserved for runtime/designtime matching.
+
 ##### `raw_comment_string`
 Type: `Option`<`String`>
 

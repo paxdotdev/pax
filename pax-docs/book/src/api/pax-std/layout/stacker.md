@@ -3,6 +3,32 @@
 <!-- tags: api, pax-std -->
 
 ## Structs
+### `ContainerReflowTransition`
+Reflow animation applied to surviving children when the stack layout changes.
+
+#### Properties
+##### `kind`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`ContainerReflowTransitionKind`](/api/pax-std/layout/stacker.md#containerreflowtransitionkind)>
+
+Which reflow animation source to use.
+
+##### `frames`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`u64`>
+
+Duration in frames for `Ease`.
+
+##### `curve`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`ContainerReflowCurve`](/api/pax-std/layout/stacker.md#containerreflowcurve)>
+
+Curve used for `Ease`.
+
+##### `name`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`String`>
+
+Reserved for a future named motion-curve lookup when `kind` is `Named`.
+
+---
+
 ### `Stacker`
 Stacker lays out a series of nodes either
 vertically or horizontally (i.e. a single row or column) with a specified gutter in between
@@ -23,12 +49,17 @@ Spacing between cells
 ##### `autosize`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
 
-When true, the stacker uses content-child bounds to autosize its cells and,
-when possible, its own bounds as well.
+When true, the stacker uses content-child bounds to autosize its cells
+and, when possible, its own bounds as well.
 
-`Stacker` interprets plain `autosize=true` as "autosize the extending axis
-only" (`y` for vertical stackers, `x` for horizontal stackers). Use
+`Stacker` interprets plain `autosize=true` as "autosize the extending
+axis only" (`y` for vertical stacks, `x` for horizontal stacks). Use
 `autosize_x` / `autosize_y` to override those per-axis defaults.
+
+The underlying shrink-sizing pass only applies when the measured axis
+can be resolved without parent-size cycles, so percent-sized children
+continue to use the existing top-down layout behavior unless the
+corresponding stacker axis is already explicit.
 
 ##### `autosize_x`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<`bool`>>
@@ -56,43 +87,10 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`ContainerReflo
 
 How surviving children should move when the stack's layout changes.
 
-Defaults to `Snap` so Stackers remain a stable layout primitive unless reflow motion is explicitly requested.
-
-### `ContainerReflowTransition`
-Reflow animation applied to surviving children when the stack layout changes.
-
-#### Properties
-##### `kind`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`ContainerReflowTransitionKind`](/api/pax-std/layout/stacker.md#containerreflowtransitionkind)>
-
-Which reflow animation source to use.
-
-##### `frames`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`u64`>
-
-Duration in frames for `Ease`.
-
-##### `curve`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`ContainerReflowCurve`](/api/pax-std/layout/stacker.md#containerreflowcurve)>
-
-Curve used for `Ease`.
-
-##### `name`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`String`>
-
-Reserved for a future named motion-curve lookup when `kind` is `Named`.
+Defaults to `Snap` so Stackers remain a stable layout primitive unless
+reflow motion is explicitly requested.
 
 ## Enums
-### `StackerDirection`
-Flow direction for a `Stacker`.
-
-#### Variants
-##### `Vertical`
-Stack children top-to-bottom.
-
-##### `Horizontal`
-Stack children left-to-right.
-
 ### `ContainerExitMode`
 Whether exiting children remain in normal layout flow or become ghosts.
 
@@ -101,7 +99,24 @@ Whether exiting children remain in normal layout flow or become ghosts.
 Keep exiting children in the stack's in-flow layout until their out-transition finishes.
 
 ##### `Ghost`
-Hold exiting children at their previous frame as overlays while the remaining children resolve layout without them.
+Hold exiting children at their previous frame as overlays while the remaining children
+resolve layout without them.
+
+---
+
+### `ContainerReflowCurve`
+Easing curve used by `ContainerReflowTransitionKind::Ease`.
+
+#### Variants
+##### `Linear`
+##### `Hold`
+##### `InQuad`
+##### `OutQuad`
+##### `InOutQuad`
+##### `InBack`
+##### `OutBack`
+##### `InOutBack`
+---
 
 ### `ContainerReflowTransitionKind`
 Which reflow animation source to use when children move to new stack positions.
@@ -116,15 +131,14 @@ Use a duration and easing curve.
 ##### `Named`
 Reserved for a future named motion-curve lookup in the current component scope.
 
-### `ContainerReflowCurve`
-Easing curve used by `ContainerReflowTransitionKind::Ease`.
+---
+
+### `StackerDirection`
+Flow direction for a `Stacker`.
 
 #### Variants
-##### `Linear`
-##### `Hold`
-##### `InQuad`
-##### `OutQuad`
-##### `InOutQuad`
-##### `InBack`
-##### `OutBack`
-##### `InOutBack`
+##### `Vertical`
+Stack children top-to-bottom.
+
+##### `Horizontal`
+Stack children left-to-right.

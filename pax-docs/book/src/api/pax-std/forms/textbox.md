@@ -47,3 +47,8 @@ Focus outline stroke.
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
 
 Requests focus when the textbox mounts.
+
+##### `multiline`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+
+Renders the textbox as a multiline text area when supported by the chassis.

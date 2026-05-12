@@ -6,6 +6,19 @@
 ### `NodeContext`
 Runtime context passed into user component lifecycle methods and event handlers.
 
+Child-related fields intentionally separate semantic payload from engine
+transport:
+
+- `projected_children` is the raw transport family used by `Slot`
+- `received_children` is the normalized semantic payload that this node
+  should treat as content from its caller
+- `retained_received_children` are former received children kept alive only
+  so `@out` transitions can finish
+
+A node's own private template or primitive-assembled structure is
+intentionally not surfaced here as a first-class "child family" for
+container consumers.
+
 #### Properties
 ##### `expanded_node`
 Type: `Weak`<`ExpandedNode`>
@@ -35,6 +48,16 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`u64`>
 
 The current global engine wall-clock time in milliseconds.
 
+##### `gyro`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Gyro`](/api/pax-runtime-api/platform.md#gyro)>
+
+Current device orientation sensor reading.
+
+##### `accel`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Accel`](/api/pax-runtime-api/platform.md#accel)>
+
+Current device accelerometer reading.
+
 ##### `bounds_parent`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<(`f64`, `f64`)>
 
@@ -44,6 +67,16 @@ The bounds of this element's immediate container (parent) in px
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<(`f64`, `f64`)>
 
 The bounds of this element in px
+
+##### `measured_size`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<(`f64`, `f64`)>>
+
+Measured bounds resolved by the chassis or container layout for this node.
+
+##### `subtree_layout_hull`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`LayoutHull`](/api/internal/pax-runtime/layout.md#layouthull)>
+
+Node-local subtree layout hull published by the engine for container measurement.
 
 ##### `platform`
 Type: [`Platform`](/api/pax-runtime-api/platform.md#platform)
@@ -55,40 +88,69 @@ Type: [`OS`](/api/pax-runtime-api/platform.md#os)
 
 Current os (Android/Windows/Mac/Linux) this app is running on
 
-##### `slot_children_count`
+##### `projected_children_count`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`usize`>
 
-The number of slot children provided to this component template
+The number of projected children available to this node.
+
+This is the raw transport count used by slot-driven implementations.
+Container-style consumers usually want `received_children_count`
+instead.
 
 ##### `node_transform_and_bounds`
 Type: [`TransformAndBounds`](/api/internal/pax-runtime/layout.md#transformandbounds)<[`NodeLocal`](/api/internal/pax-runtime/engine/node_interface.md#nodelocal), [`Window`](/api/pax-runtime-api/platform.md#window)>
 
 The transform of this node in the global coordinate space
 
-##### `slot_children`
+##### `projected_children`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Vec`<`Rc`<`ExpandedNode`>>>
 
-Slot children of this node
+Children projected into this node from the containing component.
 
-##### `slot_children_attached_listener`
+Projection is an engine transport mechanism. Consumers that want the
+semantic payload owned by this node should prefer `received_children`.
+
+##### `projected_children_changed`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<()>
 
-A property that can be depended on to dirty when a slot child is attached
+A structural invalidation signal for projected children.
 
-##### `content_children`
+##### `received_children`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Vec`<`Rc`<`ExpandedNode`>>>
 
-Normalized content children interpreted by this node when it acts as a container.
+Semantic payload children received by this node from its caller.
 
-##### `content_children_count`
+This is the canonical "content" view for container-style logic. It
+excludes private encapsulated implementation children and also excludes
+exit-retained payload nodes, which instead appear in
+`retained_received_children`.
+
+##### `received_children_count`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`usize`>
 
-Convenience count derived from `content_children`.
+Convenience count derived from `received_children`.
 
-##### `content_children_changed`
+##### `received_children_changed`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<()>
 
-A structural invalidation signal for `content_children`.
+A structural invalidation signal for `received_children`.
+
+Prefer this or `received_children` itself for structural subscriptions
+that must react to reorders as well as insertions and removals.
+
+##### `retained_received_children`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Vec`<`Rc`<`ExpandedNode`>>>
+
+Received children retained only so exit transitions can finish.
+
+These are no longer part of the active semantic payload, but some
+containers still need to place them as ghosts or overlays while their
+`@out` transitions run.
+
+##### `retained_received_children_changed`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<()>
+
+A structural invalidation signal for `retained_received_children`.
 
 #### Implementations
 ##### `clear_subscriptions`

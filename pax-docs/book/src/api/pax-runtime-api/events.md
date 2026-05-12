@@ -21,25 +21,6 @@ The new checked state.
 
 ---
 
-### `ClickOrTap`
-A ClickOrTap describes either a "click" (mousedown followed by mouseup), OR a
-"tap" with one finger (singular fingerdown event).
-ClickOrTap is a useful alternative to most kinds of `Click` or `Tap` events,
-when you want the same behavior for both to be contained in one place.
-
-#### Properties
-##### `x`
-Type: `f64`
-
-The x-coordinate of the click_or_tap in the receiving node's local coordinate space.
-
-##### `y`
-Type: `f64`
-
-The y-coordinate of the click_or_tap in the receiving node's local coordinate space.
-
----
-
 ### `Click`
 User clicks a mouse button over an element.
 
@@ -48,6 +29,25 @@ User clicks a mouse button over an element.
 Type: [`MouseEventArgs`](/api/pax-runtime-api/events.md#mouseeventargs)
 
 Common mouse event data.
+
+---
+
+### `ClickOrTap`
+A ClickOrTap describes either a "click" (mousedown followed by mouseup), OR a
+"tap" with one finger (singular fingerdown event).
+ClickOrTap is useful when you want the same behavior for both to be contained
+in one place.
+
+#### Properties
+##### `x`
+Type: `f64`
+
+The x-coordinate of the click-or-tap in the receiving node's local coordinate space.
+
+##### `y`
+Type: `f64`
+
+The y-coordinate of the click-or-tap in the receiving node's local coordinate space.
 
 ---
 
@@ -257,6 +257,88 @@ Common mouse event data.
 
 ---
 
+### `PhotoPickerChange`
+Native photo picker completion event.
+
+#### Properties
+##### `id`
+Type: `u32`
+
+Picker node id that produced the result.
+
+##### `request_id`
+Type: `u64`
+
+App-controlled request id, usually copied from the picker trigger value.
+
+##### `status`
+Type: [`PhotoPickerStatus`](/api/pax-runtime-api/events.md#photopickerstatus)
+
+Completion status.
+
+##### `message`
+Type: `Option`<`String`>
+
+Human-readable platform message for errors or partial results.
+
+##### `photos`
+Type: `Vec`<[`PhotoPickerPhoto`](/api/pax-runtime-api/events.md#photopickerphoto)>
+
+Selected photos, empty for cancellation, permission denial, or unavailable sources.
+
+---
+
+### `PhotoPickerPhoto`
+One selected image returned by a native photo picker.
+
+#### Properties
+##### `temp_id`
+Type: `String`
+
+Stable temporary identifier for this selection.
+
+##### `file_name`
+Type: `Option`<`String`>
+
+File name supplied by the platform, when available.
+
+##### `mime_type`
+Type: `String`
+
+MIME type supplied or inferred by the platform.
+
+##### `byte_size`
+Type: `u64`
+
+Byte size of the selected asset.
+
+##### `width`
+Type: `Option`<`u32`>
+
+Image width in pixels, when available.
+
+##### `height`
+Type: `Option`<`u32`>
+
+Image height in pixels, when available.
+
+##### `source_kind`
+Type: [`PhotoPickerSourceKind`](/api/pax-runtime-api/events.md#photopickersourcekind)
+
+Source used for this image.
+
+##### `handle`
+Type: `Option`<`String`>
+
+Platform preview/read handle, such as an object URL or file URL.
+
+##### `data`
+Type: `Option`<`Vec`<`u8`>>
+
+Copied asset bytes when the chassis can provide them within configured limits.
+
+---
+
 ### `Scroll`
 Scroll is the shared delta-based path for wheel scrolling, touch swipe gestures, and
 read-only native scroller position changes.
@@ -444,3 +526,45 @@ Middle mouse button.
 
 ##### `Unknown`
 Button not identified by the chassis.
+
+---
+
+### `PhotoPickerSourceKind`
+Platform source used to produce a selected photo.
+
+#### Variants
+##### `Library`
+Existing image from a photo library.
+
+##### `File`
+Existing image from the filesystem.
+
+##### `Camera`
+Newly captured camera image.
+
+##### `Other`(`String`)
+Source not recognized by this runtime version.
+
+---
+
+### `PhotoPickerStatus`
+Completion status for a native photo picker request.
+
+#### Variants
+##### `Selected`
+One or more photos were selected.
+
+##### `Cancelled`
+The platform picker was dismissed without a selection.
+
+##### `PermissionDenied`
+Camera or picker permission was denied or restricted.
+
+##### `Unavailable`
+The requested source is not available on this platform/device.
+
+##### `SizeLimitExceeded`
+One or more candidate photos exceeded the configured byte limit.
+
+##### `Failed`
+The platform picker failed for another reason.

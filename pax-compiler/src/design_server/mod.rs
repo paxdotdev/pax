@@ -23,8 +23,8 @@ use crate::dev_session::{
 use crate::helpers::PAX_BADGE;
 use crate::{RunContext, RunTarget};
 use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use pax_manifest::PaxManifest;
 use pax_designtime::messages::{AgentMessage, ReloadAppRequest};
+use pax_manifest::PaxManifest;
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -202,12 +202,10 @@ impl AppState {
             last_written_timestamp: Mutex::new(SystemTime::now()),
             dev_session: Mutex::new(dev_session),
             pending_dev_look_requests: Mutex::new(HashMap::new()),
-            logic_reload: Mutex::new(logic_reload.map(|config| {
-                LogicReloadState {
-                    config,
-                    build_in_progress: false,
-                    rebuild_pending: false,
-                }
+            logic_reload: Mutex::new(logic_reload.map(|config| LogicReloadState {
+                config,
+                build_in_progress: false,
+                rebuild_pending: false,
             })),
         }
     }
@@ -254,9 +252,7 @@ pub fn run_logic_reload_loop(state: Data<AppState>) {
 
         let config = {
             let logic_reload = state.logic_reload.lock().unwrap();
-            logic_reload
-                .as_ref()
-                .map(|reload| reload.config.clone())
+            logic_reload.as_ref().map(|reload| reload.config.clone())
         };
         let Some(config) = config else {
             return;
@@ -303,8 +299,11 @@ pub(crate) fn perform_logic_reload(
             enqueue_native_logic_reload_request(state, config, build.dylib_path.as_path())?;
         }
         LogicReloadConfig::Web(config) => {
-            let build =
-                rebuild_staged_web_cartridge(project_root, &config.serve_dir, config.should_run_designer)?;
+            let build = rebuild_staged_web_cartridge(
+                project_root,
+                &config.serve_dir,
+                config.should_run_designer,
+            )?;
             *state.manifest.lock().unwrap() = Some(build.manifest);
             send_agent_message_to_active_client(
                 state,
@@ -326,7 +325,9 @@ pub(crate) fn perform_logic_reload(
 pub(crate) fn send_agent_message_to_active_client(state: &Data<AppState>, message: AgentMessage) {
     let active_client = state.active_websocket_client.lock().unwrap().clone();
     if let Some(active_client) = active_client {
-        active_client.addr.do_send(websocket::SendAgentMessage { message });
+        active_client
+            .addr
+            .do_send(websocket::SendAgentMessage { message });
     }
 }
 

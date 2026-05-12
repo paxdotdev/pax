@@ -1392,9 +1392,7 @@ pub fn perform_create(ctx: &CreateContext) {
             .get_mut("metadata")
             .and_then(|item| item.as_table_mut())
         {
-            if let Some(pax_metadata) = metadata
-                .get_mut("pax")
-                .and_then(|item| item.as_table_mut())
+            if let Some(pax_metadata) = metadata.get_mut("pax").and_then(|item| item.as_table_mut())
             {
                 if let Some(title_item) = pax_metadata.get_mut("title") {
                     *title_item = toml_edit::Item::Value(crate_name.clone().into());

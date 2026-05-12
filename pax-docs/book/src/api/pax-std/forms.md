@@ -8,6 +8,7 @@
 - [forms::combo_box](forms/combo_box.md)
 - [forms::dialogs](forms/dialogs.md)
 - [forms::dropdown](forms/dropdown.md)
+- [forms::photo_picker](forms/photo_picker.md)
 - [forms::radio_list](forms/radio_list.md)
 - [forms::slider](forms/slider.md)
 - [forms::tabs](forms/tabs.md)

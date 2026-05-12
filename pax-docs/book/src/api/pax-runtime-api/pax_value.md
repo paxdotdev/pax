@@ -52,7 +52,7 @@ Pax color value.
 Pax rotation value.
 
 ##### `Duration`([`Duration`](/api/pax-runtime-api/animation.md#duration))
-Pax animation duration value, such as `250ms`, `1s`, or `5f`.
+Pax animation duration value, such as `250ms`, `1s`, or `10f`.
 
 ##### `PathElement`(`Box`<[`PathElement`](/api/pax-runtime-api/drawing.md#pathelement)>)
 Vector path element value.

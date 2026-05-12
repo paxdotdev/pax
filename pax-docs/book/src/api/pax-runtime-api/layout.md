@@ -27,6 +27,16 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<[`Size`
 
 Vertical position.
 
+##### `padding_x`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<[`Size`](/api/pax-runtime-api/layout.md#size)>>
+
+Symmetric inner spacing applied to this node's child layout area on the x axis.
+
+##### `padding_y`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<[`Size`](/api/pax-runtime-api/layout.md#size)>>
+
+Symmetric inner spacing applied to this node's child layout area on the y axis.
+
 ##### `width`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<[`Size`](/api/pax-runtime-api/layout.md#size)>>
 

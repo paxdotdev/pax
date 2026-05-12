@@ -17,6 +17,12 @@ Create a renderer wrapper with its current tile geometry.
 
 Access the underlying retained `pax-gpu` renderer.
 
+##### `sync_layout_metadata`
+<pre><code class="api-signature language-rust ignore">pub fn sync_layout_metadata(&amp;mut self, surface: &amp;<a href="/api/internal/pax-runtime/engine/pax_gpu_render_context.md#layersurfaceentry">LayerSurfaceEntry</a>)</code></pre>
+
+Update the retained layout metadata after the owner has already applied matching backend
+surface/view transforms.
+
 ---
 
 ### `LayerSurfaceEntry`

@@ -5,6 +5,7 @@
 ## Submodules
 - [core::frame](core/frame.md)
 - [core::group](core/group.md)
+- [core::import_settings](core/import_settings.md)
 - [core::link](core/link.md)
 - [core::mask](core/mask.md)
 - [core::router](core/router.md)

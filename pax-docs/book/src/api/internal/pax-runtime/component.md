@@ -4,8 +4,8 @@
 
 ## Structs
 ### `ComponentInstance`
-A render node with its own runtime context.  Will push a frame
-to the runtime stack including the specified `slot_children` and
+A render node with its own runtime context. Will push a frame
+to the runtime stack including the specified `projected_children` and
 a `PaxType` properties object.  `Component` is used at the root of
 applications, at the root of reusable components like `Stacker`, and
 in special applications like `Repeat` where it houses the `RepeatItem`

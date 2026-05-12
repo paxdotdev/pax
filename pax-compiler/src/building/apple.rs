@@ -2007,12 +2007,7 @@ pub fn rebuild_staged_macos_logic_dylib(
         .env("PAX_DIR", &prepared.pax_dir)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
-    configure_pax_build_env(
-        &mut cmd,
-        "macos",
-        true,
-        should_run_designer,
-    );
+    configure_pax_build_env(&mut cmd, "macos", true, should_run_designer);
 
     #[cfg(unix)]
     unsafe {

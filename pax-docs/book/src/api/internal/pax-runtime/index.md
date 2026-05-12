@@ -4,6 +4,7 @@
 
 ## Submodules
 - [api](api.md)
+- [cartridge](cartridge.md)
 - [component](component.md)
 - [conditional](conditional.md)
 - [container](container.md)

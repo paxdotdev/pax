@@ -71,6 +71,8 @@ BEGIN TIMELINES
 ##### `timeline_keyframe_value`
 ##### `timeline_marker`
 ##### `timeline_percent`
+##### `timeline_duration`
+##### `timeline_duration_unit`
 ##### `timeline_easing_curve`
 ##### `timeline_target`
 ##### `timeline_local_target`

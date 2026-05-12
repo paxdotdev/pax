@@ -3,6 +3,21 @@
 <!-- tags: api, pax-message -->
 
 ## Structs
+### `AccelInterruptArgs`
+Device acceleration payload, in meters per second squared.
+
+#### Properties
+##### `x`
+Type: `f64`
+
+##### `y`
+Type: `f64`
+
+##### `z`
+Type: `f64`
+
+---
+
 ### `AddedLayerArgs`
 Chassis acknowledgement that render layers were added.
 
@@ -39,15 +54,6 @@ Type: `bool`
 
 ##### `allow_nested_scroller_vector_layers`
 Type: `bool`
-
----
-
-### `RenderSurfaceUpdateArgs`
-Browser notification that a retained render surface must be reconfigured.
-
-#### Properties
-##### `layer_id`
-Type: `Option`<`u32`>
 
 ---
 
@@ -164,18 +170,6 @@ Style payload shared by checkbox-like controls.
 
 ---
 
-### `ClickOrTapInterruptArgs`
-Pointer tap/click payload normalized to window coordinates.
-
-#### Properties
-##### `x`
-Type: `f64`
-
-##### `y`
-Type: `f64`
-
----
-
 ### `ClickInterruptArgs`
 Click interrupt payload.
 
@@ -191,6 +185,18 @@ Type: [`MouseButtonMessage`](/api/internal/pax-message/index.md#mousebuttonmessa
 
 ##### `modifiers`
 Type: `Vec`<[`ModifierKeyMessage`](/api/internal/pax-message/index.md#modifierkeymessage)>
+
+---
+
+### `ClickOrTapInterruptArgs`
+Pointer tap/click payload normalized to window coordinates.
+
+#### Properties
+##### `x`
+Type: `f64`
+
+##### `y`
+Type: `f64`
 
 ---
 
@@ -451,6 +457,21 @@ Type: `Option`<[`f64`; 4]>
 
 ##### `presented_clip_bounds`
 Type: `Option`<[`f64`; 4]>
+
+---
+
+### `GyroInterruptArgs`
+Device orientation payload, in degrees.
+
+#### Properties
+##### `x`
+Type: `f64`
+
+##### `y`
+Type: `f64`
+
+##### `z`
+Type: `f64`
 
 ---
 
@@ -832,6 +853,105 @@ Type: `String`
 
 ---
 
+### `PhotoPickerAssetArgs`
+Selected image metadata and optional copied bytes from a native photo picker.
+
+#### Properties
+##### `temp_id`
+Type: `String`
+
+##### `file_name`
+Type: `Option`<`String`>
+
+##### `mime_type`
+Type: `String`
+
+##### `byte_size`
+Type: `u64`
+
+##### `width`
+Type: `Option`<`u32`>
+
+##### `height`
+Type: `Option`<`u32`>
+
+##### `source_kind`
+Type: `String`
+
+##### `handle`
+Type: `Option`<`String`>
+
+##### `data`
+Type: `Vec`<`u8`>
+
+---
+
+### `PhotoPickerInterruptArgs`
+Native photo picker completion payload.
+
+#### Properties
+##### `id`
+Type: `u32`
+
+##### `request_id`
+Type: `u64`
+
+##### `status`
+Type: `String`
+
+##### `message`
+Type: `Option`<`String`>
+
+##### `photos`
+Type: `Vec`<[`PhotoPickerAssetArgs`](/api/internal/pax-message/index.md#photopickerassetargs)>
+
+---
+
+### `PhotoPickerPatch`
+Create/update patch for a transparent native photo picker hit target.
+
+#### Properties
+##### `id`
+Type: `u32`
+
+##### `parent_frame`
+Type: `Option`<`Option`<`u32`>>
+
+##### `z_index`
+Type: `Option`<`i32`>
+
+##### `transform`
+Type: `Option`<`Vec`<`f64`>>
+
+##### `size_x`
+Type: `Option`<`f64`>
+
+##### `size_y`
+Type: `Option`<`f64`>
+
+##### `opacity`
+Type: `Option`<`f64`>
+
+##### `trigger`
+Type: `Option`<`u64`>
+
+##### `source`
+Type: `Option`<`String`>
+
+##### `allow_multiple`
+Type: `Option`<`bool`>
+
+##### `accept`
+Type: `Option`<`String`>
+
+##### `include_bytes`
+Type: `Option`<`bool`>
+
+##### `max_bytes_per_photo`
+Type: `Option`<`u64`>
+
+---
+
 ### `RadioListPatch`
 Create/update patch for a native radio list.
 
@@ -877,6 +997,15 @@ Type: `Option`<`f64`>
 
 ##### `opacity`
 Type: `Option`<`f64`>
+
+---
+
+### `RenderSurfaceUpdateArgs`
+Browser notification that a retained render surface must be reconfigured.
+
+#### Properties
+##### `layer_id`
+Type: `Option`<`u32`>
 
 ---
 
@@ -1516,12 +1645,15 @@ Events and data packets sent from the chassis back into the Pax runtime.
 ##### `FormTextboxChange`([`FormTextboxChangeArgs`](/api/internal/pax-message/index.md#formtextboxchangeargs))
 ##### `FormTextboxInput`([`FormTextboxInputArgs`](/api/internal/pax-message/index.md#formtextboxinputargs))
 ##### `FormButtonClick`([`FormButtonClickArgs`](/api/internal/pax-message/index.md#formbuttonclickargs))
+##### `PhotoPicker`([`PhotoPickerInterruptArgs`](/api/internal/pax-message/index.md#photopickerinterruptargs))
 ##### `ScrollerPosition`([`ScrollerPositionInterruptArgs`](/api/internal/pax-message/index.md#scrollerpositioninterruptargs))
 ##### `BrowserConfig`([`BrowserConfigInterruptArgs`](/api/internal/pax-message/index.md#browserconfiginterruptargs))
 ##### `RenderSurfaceUpdate`([`RenderSurfaceUpdateArgs`](/api/internal/pax-message/index.md#rendersurfaceupdateargs))
 ##### `ViewportResize`([`ViewportResizeArgs`](/api/internal/pax-message/index.md#viewportresizeargs))
 ##### `RouteChange`([`RouteChangeInterruptArgs`](/api/internal/pax-message/index.md#routechangeinterruptargs))
 ##### `VisualViewportUpdate`([`VisualViewportUpdateArgs`](/api/internal/pax-message/index.md#visualviewportupdateargs))
+##### `Gyro`([`GyroInterruptArgs`](/api/internal/pax-message/index.md#gyrointerruptargs))
+##### `Accel`([`AccelInterruptArgs`](/api/internal/pax-message/index.md#accelinterruptargs))
 ##### `DropFile`([`DropFileArgs`](/api/internal/pax-message/index.md#dropfileargs))
 ##### `Screenshot`([`ImageLoadInterruptArgs`](/api/internal/pax-message/index.md#imageloadinterruptargs))
 ---
@@ -1563,6 +1695,9 @@ Messages emitted by the runtime to create, update, delete, or configure native/c
 ##### `ButtonCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
 ##### `ButtonUpdate`([`ButtonPatch`](/api/internal/pax-message/index.md#buttonpatch))
 ##### `ButtonDelete`(`u32`)
+##### `PhotoPickerCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
+##### `PhotoPickerUpdate`([`PhotoPickerPatch`](/api/internal/pax-message/index.md#photopickerpatch))
+##### `PhotoPickerDelete`(`u32`)
 ##### `ScrollerCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
 ##### `ScrollerUpdate`([`ScrollerPatch`](/api/internal/pax-message/index.md#scrollerpatch))
 ##### `ScrollerDelete`(`u32`)

@@ -4,6 +4,12 @@ version = "0.38.3"
 edition = "2021"
 default-run = "run"
 
+[package.metadata.pax]
+title = "Photo Picker"
+
+[package.metadata.pax.ios.info_plist]
+NSCameraUsageDescription = "Capture photos when the camera source is selected."
+
 [dependencies]
 pax-kit = { version = "0.38.3", path="../../../pax-kit" }
 

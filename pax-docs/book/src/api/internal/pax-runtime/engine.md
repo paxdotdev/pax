@@ -23,6 +23,12 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`u64`>
 ##### `viewport`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`TransformAndBounds`](/api/internal/pax-runtime/layout.md#transformandbounds)<[`NodeLocal`](/api/internal/pax-runtime/engine/node_interface.md#nodelocal), [`Window`](/api/pax-runtime-api/platform.md#window)>>
 
+##### `gyro`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Gyro`](/api/pax-runtime-api/platform.md#gyro)>
+
+##### `accel`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Accel`](/api/pax-runtime-api/platform.md#accel)>
+
 ##### `route_location`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`RouteLocation`](/api/internal/pax-runtime/router.md#routelocation)>
 

@@ -5,6 +5,54 @@
 Platform, viewport, and coordinate-space marker types.
 
 ## Structs
+### `Accel`
+Current device acceleration, in meters per second squared.
+
+On web targets, this uses `DeviceMotionEvent.accelerationIncludingGravity`
+when available, falling back to `DeviceMotionEvent.acceleration`.
+
+#### Properties
+##### `x`
+Type: `f64`
+
+Acceleration along the x axis.
+
+##### `y`
+Type: `f64`
+
+Acceleration along the y axis.
+
+##### `z`
+Type: `f64`
+
+Acceleration along the z axis.
+
+---
+
+### `Gyro`
+Current device orientation reported by a gyroscope/orientation sensor.
+
+On web targets, this is sourced from `DeviceOrientationEvent` and mapped as:
+`x = beta`, `y = gamma`, and `z = alpha`, all in degrees.
+
+#### Properties
+##### `x`
+Type: `f64`
+
+Front-to-back tilt, in degrees.
+
+##### `y`
+Type: `f64`
+
+Left-to-right tilt, in degrees.
+
+##### `z`
+Type: `f64`
+
+Compass/z-axis rotation, in degrees.
+
+---
+
 ### `Viewport`
 Struct representing the outermost viewport of a rendering scene, for example a browser window
 or native application window.
