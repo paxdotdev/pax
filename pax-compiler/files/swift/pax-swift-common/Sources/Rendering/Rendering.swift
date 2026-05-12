@@ -87,6 +87,13 @@ private func photoPickerByteSize(for url: URL) -> UInt64 {
     return 0
 }
 
+private func nativeImageFilePath(from pathOrURL: String) -> String {
+    if let url = URL(string: pathOrURL), url.isFileURL {
+        return url.path
+    }
+    return pathOrURL
+}
+
 private func photoPickerTemporaryURL(fileName: String?, fallbackExtension: String) -> URL {
     let ext = fileName.map { ($0 as NSString).pathExtension }
     let selectedExtension = ext?.isEmpty == false ? ext! : fallbackExtension
@@ -3670,7 +3677,7 @@ private final class PaxNativeYoutubeView: UIButton {
 }
 
 private func loadPlatformImage(path: String) -> UIImage? {
-    UIImage(contentsOfFile: path)
+    UIImage(contentsOfFile: nativeImageFilePath(from: path))
 }
 #elseif os(macOS)
 private final class PaxNativeEventBlockerView: NSView {
@@ -4363,7 +4370,7 @@ private final class PaxNativeYoutubeView: NSButton {
 }
 
 private func loadPlatformImage(path: String) -> NSImage? {
-    NSImage(contentsOfFile: path)
+    NSImage(contentsOfFile: nativeImageFilePath(from: path))
 }
 #endif
 

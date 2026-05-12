@@ -1,0 +1,187 @@
+<Group width=100% height=100%>
+    <Group x=50% y=40px width=86% height=86px anchor_x=50%>
+        <Text class=title x=0px y=0px width=100% height=40px text="Photo Picker"/>
+        <Text class=subtitle x=0px y=46px width=100% height=34px text="Select images from the library or request the camera source."/>
+    </Group>
+
+    <Group x=50% y=148px width=86% height=54px anchor_x=50%>
+        <PhotoPicker width=100% height=100% source=PhotoPickerSource::Library allow_multiple=true accept="image/*" include_bytes=true max_bytes_per_photo=26214400 @photo_picker_change=self.handle_picker_change/>
+        <Text class=button_label x=0px y=0px width=100% height=100% text="Choose Photos"/>
+        <Rectangle class=primary_button width=100% height=100%/>
+    </Group>
+
+    <Group x=50% y=214px width=86% height=50px anchor_x=50%>
+        <PhotoPicker width=100% height=100% source=PhotoPickerSource::Camera allow_multiple=false accept="image/*" include_bytes=true max_bytes_per_photo=26214400 @photo_picker_change=self.handle_picker_change/>
+        <Text class=button_label x=0px y=0px width=100% height=100% text="Open Camera"/>
+        <Rectangle class=secondary_button width=100% height=100%/>
+    </Group>
+
+    <Text class=status x=50% y=286px width=86% height=28px anchor_x=50% text={self.status_text}/>
+    <Text class=detail x=50% y=318px width=86% height=24px anchor_x=50% text={self.detail_text}/>
+
+    <Group x=50% y=362px width=86% height={100% - 384px} anchor_x=50%>
+        for photo in self.photos key photo.id {
+            <Group x=0px y={(photo.y)px} width=100% height=102px>
+                <Text class=photo_name x=112px y=16px width={100% - 126px} height=22px text={photo.name}/>
+                <Text class=photo_meta x=112px y=44px width={100% - 126px} height=22px text={photo.metadata}/>
+                <Text class=photo_source x=112px y=70px width={100% - 126px} height=20px text={photo.source}/>
+
+                if photo.has_preview {
+                    <NativeImage x=10px y=10px width=82px height=82px url={photo.handle} fit=ImageFit::Fill/>
+                } else {
+                    <Text class=placeholder_label x=10px y=10px width=82px height=82px text="no preview"/>
+                }
+
+                <Rectangle class=preview_frame x=10px y=10px width=82px height=82px/>
+                <Rectangle class=photo_row width=100% height=100%/>
+            </Group>
+        }
+
+        if self.photo_count == 0 {
+            <Text class=empty_state x=0px y=36px width=100% height=44px text="Selected photos will appear here."/>
+            <Rectangle class=empty_panel width=100% height=118px/>
+        }
+    </Group>
+
+    <Rectangle class=background width=100% height=100%/>
+</Group>
+
+@settings {
+    @mount: on_mount
+
+    .title {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 34px
+            fill: rgb(246, 248, 250)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .subtitle {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font_size: 15px
+            fill: rgb(174, 185, 197)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .button_label {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::SemiBold)
+            font_size: 17px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+    .status {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::SemiBold)
+            font_size: 16px
+            fill: rgb(238, 242, 247)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .detail {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font_size: 13px
+            fill: rgb(132, 219, 170)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .photo_name {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::SemiBold)
+            font_size: 15px
+            fill: rgb(248, 250, 252)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .photo_meta {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font_size: 13px
+            fill: rgb(187, 195, 204)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .photo_source {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font_size: 12px
+            fill: rgb(117, 204, 226)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .placeholder_label {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font_size: 11px
+            fill: rgb(144, 153, 164)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+    .empty_state {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font_size: 15px
+            fill: rgb(151, 162, 175)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+    .primary_button {
+        fill: rgb(38, 116, 214)
+        corner_radii: RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)
+    }
+    .secondary_button {
+        fill: rgb(37, 152, 117)
+        corner_radii: RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)
+    }
+    .photo_row {
+        fill: rgba(24, 31, 42, 255)
+        stroke: {
+            color: rgba(72, 86, 103, 255)
+            width: 1px
+        }
+        corner_radii: RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)
+    }
+    .preview_frame {
+        fill: rgba(10, 16, 25, 255)
+        stroke: {
+            color: rgba(83, 99, 118, 255)
+            width: 1px
+        }
+        corner_radii: RectangleCornerRadii::radii(6.0, 6.0, 6.0, 6.0)
+    }
+    .empty_panel {
+        fill: rgba(24, 31, 42, 255)
+        stroke: {
+            color: rgba(72, 86, 103, 255)
+            width: 1px
+        }
+        corner_radii: RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)
+    }
+    .background {
+        fill: rgb(12, 18, 28)
+    }
+}
