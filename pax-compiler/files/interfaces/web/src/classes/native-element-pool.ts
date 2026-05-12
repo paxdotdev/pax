@@ -7,6 +7,7 @@ import {TextUpdatePatch} from "./messages/text-update-patch";
 import {FrameUpdatePatch} from "./messages/frame-update-patch";
 import {ScrollerUpdatePatch} from "./messages/scroller-update-patch";
 import {ButtonUpdatePatch} from "./messages/button-update-patch";
+import {PhotoPickerUpdatePatch} from "./messages/photo-picker-update-patch";
 import {ImageLoadPatch} from "./messages/image-load-patch";
 import {ContainerStyle, OcclusionLayerManager, setLeafLocalOpacity} from "./occlusion-context";
 import {ObjectManager} from "../pools/object-manager";
@@ -970,6 +971,185 @@ export class NativeElementPool {
             parent!.removeChild(oldNode);
             this.nodesLookup.delete(id);
         }
+    }
+
+    photoPickerCreate(patch: AnyCreatePatch) {
+        console.assert(patch.id != null);
+        console.assert(patch.occlusionLayerId != null);
+
+        const input = this.objectManager.getFromPool(INPUT) as HTMLInputElement;
+        input.type = "file";
+        input.accept = "image/*";
+        input.multiple = true;
+        input.dataset.source = "library";
+        input.dataset.requestId = "0";
+        input.dataset.lastTrigger = "0";
+        input.dataset.includeBytes = "true";
+        input.dataset.maxBytesPerPhoto = String(25 * 1024 * 1024);
+        input.style.position = "absolute";
+        input.style.inset = "0";
+        input.style.width = "100%";
+        input.style.height = "100%";
+        input.style.opacity = "0";
+        input.style.cursor = "pointer";
+        input.style.pointerEvents = "auto";
+        input.addEventListener("change", () => {
+            const files = input.files;
+            queueMicrotask(async () => {
+                await this.dispatchPhotoPickerSelection(patch.id!, input, files);
+                input.value = "";
+            });
+        });
+
+        let leaf: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        leaf.appendChild(input);
+        leaf.setAttribute("class", NATIVE_LEAF_CLASS);
+        leaf.setAttribute("pax_id", String(patch.id));
+        leaf.style.pointerEvents = "auto";
+        leaf.style.overflow = "hidden";
+
+        if(patch.id != undefined && patch.occlusionLayerId != undefined){
+            this.layers.addElement(leaf, patch.parentFrame, patch.occlusionLayerId);
+            this.nodesLookup.set(patch.id!, leaf);
+        } else {
+            throw new Error("undefined id or occlusionLayer");
+        }
+    }
+
+    photoPickerUpdate(patch: PhotoPickerUpdatePatch) {
+        let leaf = this.nodesLookup.get(patch.id!);
+        console.assert(leaf !== undefined);
+        this.applyLeafPlacement(leaf!, patch);
+        updateCommonProps(leaf!, patch);
+
+        const input = leaf!.firstChild as HTMLInputElement;
+        if (patch.accept != null) {
+            input.accept = patch.accept;
+        }
+        if (patch.allowMultiple != null) {
+            input.multiple = patch.allowMultiple;
+        }
+        if (patch.source != null) {
+            input.dataset.source = patch.source;
+            if (patch.source === "camera") {
+                input.setAttribute("capture", "environment");
+            } else {
+                input.removeAttribute("capture");
+            }
+        }
+        if (patch.includeBytes != null) {
+            input.dataset.includeBytes = String(patch.includeBytes);
+        }
+        if (patch.maxBytesPerPhoto != null) {
+            input.dataset.maxBytesPerPhoto = String(patch.maxBytesPerPhoto);
+        }
+        if (patch.trigger != null) {
+            const nextTrigger = String(patch.trigger);
+            const previousTrigger = input.dataset.lastTrigger;
+            input.dataset.requestId = nextTrigger;
+            input.dataset.lastTrigger = nextTrigger;
+            if (previousTrigger != null && previousTrigger !== nextTrigger && patch.trigger > 0) {
+                input.click();
+            }
+        }
+    }
+
+    photoPickerDelete(id: number) {
+        let oldNode = this.nodesLookup.get(id);
+        if (oldNode){
+            let parent = oldNode.parentElement;
+            parent!.removeChild(oldNode);
+            this.nodesLookup.delete(id);
+        }
+    }
+
+    private async dispatchPhotoPickerSelection(id: number, input: HTMLInputElement, files: FileList | null) {
+        const fileList = Array.from(files ?? []);
+        if (fileList.length === 0) {
+            this.dispatchPhotoPickerResult(id, input, "cancelled", null, [], []);
+            return;
+        }
+
+        const includeBytes = input.dataset.includeBytes !== "false";
+        const maxBytes = Number(input.dataset.maxBytesPerPhoto ?? 0);
+        const photos: any[] = [];
+        const payloads: Uint8Array[] = [];
+        const rejected: string[] = [];
+        const failures: string[] = [];
+
+        for (let index = 0; index < fileList.length; index++) {
+            const file = fileList[index]!;
+            if (maxBytes > 0 && file.size > maxBytes) {
+                rejected.push(file.name || `photo ${index + 1}`);
+                continue;
+            }
+
+            try {
+                const handle = URL.createObjectURL(file);
+                const dimensions = await this.readPhotoDimensions(file, handle);
+                const bytes = includeBytes ? new Uint8Array(await file.arrayBuffer()) : new Uint8Array();
+                payloads.push(bytes);
+                photos.push({
+                    temp_id: `${id}-${input.dataset.requestId ?? "0"}-${index}-${file.lastModified}-${file.size}`,
+                    file_name: file.name || null,
+                    mime_type: file.type || "image/*",
+                    byte_size: file.size,
+                    width: dimensions.width,
+                    height: dimensions.height,
+                    source_kind: input.dataset.source === "camera" ? "camera" : "file",
+                    handle,
+                });
+            } catch (err) {
+                failures.push(err instanceof Error ? err.message : String(err));
+            }
+        }
+
+        const hasRejected = rejected.length > 0;
+        const status = hasRejected && photos.length === 0
+            ? "size_limit_exceeded"
+            : (photos.length === 0 && failures.length > 0 ? "failed" : "selected");
+        const message = hasRejected
+            ? `Skipped ${rejected.length} photo(s) over the configured byte limit.`
+            : (failures[0] ?? null);
+        this.dispatchPhotoPickerResult(id, input, status, message, photos, payloads);
+    }
+
+    private dispatchPhotoPickerResult(
+        id: number,
+        input: HTMLInputElement,
+        status: string,
+        message: string | null,
+        photos: any[],
+        payloads: Uint8Array[],
+    ) {
+        this.chassis!.interrupt({
+            "PhotoPicker": {
+                "id": id,
+                "request_id": Number(input.dataset.requestId ?? 0),
+                "status": status,
+                "message": message,
+                "photos": photos,
+            }
+        }, payloads);
+        this.postAsyncInterruptFlush?.();
+    }
+
+    private async readPhotoDimensions(file: File, handle: string): Promise<{ width?: number, height?: number }> {
+        try {
+            if ("createImageBitmap" in window) {
+                const bitmap = await createImageBitmap(file);
+                const dimensions = { width: bitmap.width, height: bitmap.height };
+                bitmap.close();
+                return dimensions;
+            }
+        } catch (_err) {}
+
+        return new Promise(resolve => {
+            const image = new Image();
+            image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+            image.onerror = () => resolve({});
+            image.src = handle;
+        });
     }
 
     textCreate(patch: AnyCreatePatch) {

@@ -15,6 +15,7 @@ import { TextboxUpdatePatch } from "../classes/messages/textbox-update-patch";
 import { DropdownUpdatePatch } from "../classes/messages/dropdown-update-patch";
 import { SliderUpdatePatch } from "../classes/messages/slider-update-patch";
 import { RadioListUpdatePatch } from "../classes/messages/radio-list-update-patch";
+import { PhotoPickerUpdatePatch } from "../classes/messages/photo-picker-update-patch";
 import { EventBlockerUpdatePatch } from "../classes/messages/event-blocker-update-patch";
 import { NavigationPatch } from "../classes/messages/navigation-patch";
 import { YoutubeVideoUpdatePatch } from "../classes/messages/youtube-video-update-patch";
@@ -48,6 +49,7 @@ export const CHECKBOX_UPDATE_PATCH = "Checkbox Update Patch";
 export const TEXTBOX_UPDATE_PATCH = "Textbox Update Patch";
 export const DROPDOWN_UPDATE_PATCH = "Dropdown Update Patch";
 export const BUTTON_UPDATE_PATCH = "Button Update Patch";
+export const PHOTO_PICKER_UPDATE_PATCH = "Photo Picker Update Patch";
 export const SLIDER_UPDATE_PATCH = "Slider Update Patch";
 export const RADIO_LIST_UPDATE_PATCH = "Radio List Update Patch";
 
@@ -194,6 +196,11 @@ export let SUPPORTED_OBJECTS = [{
     name: BUTTON_UPDATE_PATCH,
     factory: (objectManager: ObjectManager) => new ButtonUpdatePatch(objectManager),
     cleanUp: (patch: ButtonUpdatePatch) => { patch.cleanUp() },
+},
+{
+    name: PHOTO_PICKER_UPDATE_PATCH,
+    factory: () => new PhotoPickerUpdatePatch(),
+    cleanUp: (patch: PhotoPickerUpdatePatch) => { patch.cleanUp() },
 },
 {
     name: SLIDER_UPDATE_PATCH,

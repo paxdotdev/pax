@@ -12,9 +12,9 @@ use crate::constants::{
     CLICK_OR_TAP_HANDLERS, CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, DROP_HANDLERS,
     FOCUSED_HANDLERS, GYRO_HANDLERS, KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS, KEY_UP_HANDLERS,
     MOUSE_DOWN_HANDLERS, MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS, MOUSE_OVER_HANDLERS,
-    MOUSE_UP_HANDLERS, PRE_RENDER_HANDLERS, SCROLL_HANDLERS, SELECT_START_HANDLERS,
-    TEXTBOX_CHANGE_HANDLERS, TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS, TICK_HANDLERS,
-    TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
+    MOUSE_UP_HANDLERS, PHOTO_PICKER_CHANGE_HANDLERS, PRE_RENDER_HANDLERS, SCROLL_HANDLERS,
+    SELECT_START_HANDLERS, TEXTBOX_CHANGE_HANDLERS, TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS,
+    TICK_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use_RefCell!();
 use crate::{ExpandedNodeIdentifier, Globals, LayoutHull, LayoutProperties, TransformAndBounds};
@@ -26,8 +26,8 @@ use std::rc::{Rc, Weak};
 use crate::api::{
     Accel, Axis, ButtonClick, CheckboxChange, Click, ClickOrTap, CommonProperties, ContextMenu,
     DoubleClick, Drop, Event, Gyro, KeyDown, KeyPress, KeyUp, LayoutRole, MouseDown, MouseMove,
-    MouseOut, MouseOver, MouseUp, NodeContext, RenderContext, Scroll, Size, TextboxChange,
-    TextboxInput, TouchEnd, TouchMove, TouchStart, Wheel, Window,
+    MouseOut, MouseOver, MouseUp, NodeContext, PhotoPickerChange, RenderContext, Scroll, Size,
+    TextboxChange, TextboxInput, TouchEnd, TouchMove, TouchStart, Wheel, Window,
 };
 use pax_manifest::cartridge_generation::{
     TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT, TRANSITION_PHASE_IDLE, TRANSITION_PHASE_SYMBOL,
@@ -1787,6 +1787,12 @@ impl ExpandedNode {
         dispatch_button_click,
         ButtonClick,
         BUTTON_CLICK_HANDLERS,
+        true
+    );
+    dispatch_event_handler!(
+        dispatch_photo_picker_change,
+        PhotoPickerChange,
+        PHOTO_PICKER_CHANGE_HANDLERS,
         true
     );
     dispatch_event_handler!(dispatch_mouse_down, MouseDown, MOUSE_DOWN_HANDLERS, true);

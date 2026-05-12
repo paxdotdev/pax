@@ -10,10 +10,11 @@ use pax_message::{
     FormTextboxChangeArgs, FormTextboxInputArgs, GyroInterruptArgs, ImageDataArgs,
     ImageLoadInterruptArgs, ImagePointerArgs, KeyDownInterruptArgs, KeyPressInterruptArgs,
     KeyUpInterruptArgs, ModifierKeyMessage, MouseButtonMessage, MouseDownInterruptArgs,
-    MouseMoveInterruptArgs, MouseUpInterruptArgs, NativeInterrupt, RenderSurfaceUpdateArgs,
-    RouteChangeInterruptArgs, ScreenshotData, ScrollInterruptArgs, ScrollerPositionInterruptArgs,
-    SelectStartArgs, TextInputArgs, TouchEndInterruptArgs, TouchMessage, TouchMoveInterruptArgs,
-    TouchStartInterruptArgs, ViewportResizeArgs, VisualViewportUpdateArgs, WheelInterruptArgs,
+    MouseMoveInterruptArgs, MouseUpInterruptArgs, NativeInterrupt, PhotoPickerAssetArgs,
+    PhotoPickerInterruptArgs, RenderSurfaceUpdateArgs, RouteChangeInterruptArgs, ScreenshotData,
+    ScrollInterruptArgs, ScrollerPositionInterruptArgs, SelectStartArgs, TextInputArgs,
+    TouchEndInterruptArgs, TouchMessage, TouchMoveInterruptArgs, TouchStartInterruptArgs,
+    ViewportResizeArgs, VisualViewportUpdateArgs, WheelInterruptArgs,
 };
 use pax_runtime::api::borrow;
 use pax_runtime::api::borrow_mut;
@@ -27,7 +28,7 @@ use pax_runtime::api::RenderContext;
 use pax_runtime::api::SelectStart;
 use pax_runtime::api::OS;
 use pax_runtime::api::{Accel, Gyro};
-use pax_runtime::api::{TextboxChange, TextboxInput};
+use pax_runtime::api::{PhotoPickerChange, TextboxChange, TextboxInput};
 use pax_runtime::engine::layer_tiling::scroller_canvas_plan_with_policy;
 use pax_runtime::DefinitionToInstanceTraverser;
 use web_time::Instant;
@@ -574,6 +575,24 @@ impl PaxChassisWeb {
                 } else {
                     log::warn!(
                         "tried to dispatch event for button click after node already removed"
+                    );
+                    false
+                }
+            }
+            NativeInterrupt::PhotoPicker(args) => {
+                let mut args = args.clone();
+                fill_photo_picker_bytes_from_js(&mut args, additional_payload);
+                if let Some(node) =
+                    engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+                {
+                    node.dispatch_photo_picker_change(
+                        Event::new(PhotoPickerChange::from(&args)),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    log::warn!(
+                        "tried to dispatch event for photo picker after node already removed"
                     );
                     false
                 }
@@ -1441,6 +1460,50 @@ fn parse_image_load_interrupt(payload: &JsValue) -> ImageLoadInterruptArgs {
     }
 }
 
+fn parse_photo_picker_asset(value: JsValue) -> PhotoPickerAssetArgs {
+    PhotoPickerAssetArgs {
+        temp_id: js_string(&value, "temp_id"),
+        file_name: js_optional_string(&value, "file_name"),
+        mime_type: js_string(&value, "mime_type"),
+        byte_size: js_u64(&value, "byte_size"),
+        width: js_optional_u32(&value, "width"),
+        height: js_optional_u32(&value, "height"),
+        source_kind: js_string(&value, "source_kind"),
+        handle: js_optional_string(&value, "handle"),
+        data: Vec::new(),
+    }
+}
+
+fn parse_photo_picker_interrupt(payload: &JsValue) -> PhotoPickerInterruptArgs {
+    let photos = js_array(payload, "photos");
+    let mut out = Vec::with_capacity(photos.length() as usize);
+    for index in 0..photos.length() {
+        out.push(parse_photo_picker_asset(photos.get(index)));
+    }
+    PhotoPickerInterruptArgs {
+        id: js_u32(payload, "id"),
+        request_id: js_u64(payload, "request_id"),
+        status: js_string(payload, "status"),
+        message: js_optional_string(payload, "message"),
+        photos: out,
+    }
+}
+
+fn fill_photo_picker_bytes_from_js(args: &mut PhotoPickerInterruptArgs, payload: &JsValue) {
+    if payload.is_undefined() || payload.is_null() {
+        return;
+    }
+    let byte_arrays = Array::from(payload);
+    for index in 0..byte_arrays.length() {
+        if let Some(photo) = args.photos.get_mut(index as usize) {
+            let bytes = byte_arrays.get(index);
+            if !bytes.is_undefined() && !bytes.is_null() {
+                photo.data = Uint8Array::new(&bytes).to_vec();
+            }
+        }
+    }
+}
+
 fn native_interrupt_from_js(value: JsValue) -> NativeInterrupt {
     if let Some(payload) = js_variant(&value, "ChassisResizeRequestCollection") {
         let collection = Array::from(&payload);
@@ -1602,6 +1665,8 @@ fn native_interrupt_from_js(value: JsValue) -> NativeInterrupt {
         NativeInterrupt::FormButtonClick(FormButtonClickArgs {
             id: js_u32(&payload, "id"),
         })
+    } else if let Some(payload) = js_variant(&value, "PhotoPicker") {
+        NativeInterrupt::PhotoPicker(parse_photo_picker_interrupt(&payload))
     } else if let Some(payload) =
         js_variant(&value, "ScrollerPosition").or_else(|| js_variant(&value, "Scrollbar"))
     {

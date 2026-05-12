@@ -8,6 +8,7 @@ public struct DirtyCollections {
     public var frame = false
     public var scroller = false
     public var button = false
+    public var photoPicker = false
     public var checkbox = false
     public var nativeImage = false
     public var youtubeVideo = false
@@ -18,7 +19,7 @@ public struct DirtyCollections {
     public var eventBlocker = false
 
     public var hasAny: Bool {
-        text || frame || scroller || button || checkbox || nativeImage || youtubeVideo || dropdown || radioList || slider || textbox || eventBlocker
+        text || frame || scroller || button || photoPicker || checkbox || nativeImage || youtubeVideo || dropdown || radioList || slider || textbox || eventBlocker
     }
 
     public init() {}
@@ -39,6 +40,7 @@ public protocol NativeMessageHandling: AnyObject {
     var textElements: TextElements { get }
     var frameElements: FrameElements { get }
     var buttonElements: ButtonElements { get }
+    var photoPickerElements: PhotoPickerElements { get }
     var checkboxElements: CheckboxElements { get }
     var scrollerElements: ScrollerElements { get }
     var nativeImageElements: NativeImageElements { get }
@@ -83,6 +85,10 @@ public extension NativeMessageHandling {
             return
         }
         if let element = buttonElements.elements[id] {
+            recomputeResolvedMask(for: element)
+            return
+        }
+        if let element = photoPickerElements.elements[id] {
             recomputeResolvedMask(for: element)
             return
         }
@@ -166,6 +172,7 @@ public extension NativeMessageHandling {
             recomputeResolvedMask(for: textElement)
         }
         recomputeResolvedMasks(in: buttonElements.elements)
+        recomputeResolvedMasks(in: photoPickerElements.elements)
         recomputeResolvedMasks(in: checkboxElements.elements)
         recomputeResolvedMasks(in: nativeImageElements.elements)
         recomputeResolvedMasks(in: youtubeVideoElements.elements)
@@ -298,6 +305,37 @@ public extension NativeMessageHandling {
         buttonElements.remove(id: patch.id)
         removeResolvedNativeMask(id: patch.id)
         dirty.button = true
+    }
+
+    func handlePhotoPickerCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        photoPickerElements.add(element: PhotoPickerElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+        masks.mark(patch.id)
+        dirty.photoPicker = true
+    }
+
+    func handlePhotoPickerUpdate(patch: PhotoPickerUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        if let element = photoPickerElements.elements[patch.id] {
+            let previousTransform = element.transform
+            let previousSizeX = element.size_x
+            let previousSizeY = element.size_y
+            element.applyPatch(patch)
+            element.applyResolvedPlacement(patch)
+            if geometryChanged(
+                element,
+                previousTransform: previousTransform,
+                previousSizeX: previousSizeX,
+                previousSizeY: previousSizeY
+            ) {
+                masks.mark(patch.id)
+            }
+        }
+        dirty.photoPicker = true
+    }
+
+    func handlePhotoPickerDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
+        photoPickerElements.remove(id: patch.id)
+        removeResolvedNativeMask(id: patch.id)
+        dirty.photoPicker = true
     }
 
     func handleCheckboxCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
@@ -561,6 +599,12 @@ public extension NativeMessageHandling {
             dirty.button = true
             return
         }
+        if let photoPickerElement = photoPickerElements.elements[patch.id] {
+            photoPickerElement.applyNativeMaskPatch(patch)
+            masks.mark(patch.id)
+            dirty.photoPicker = true
+            return
+        }
         if let checkboxElement = checkboxElements.elements[patch.id] {
             checkboxElement.applyNativeMaskPatch(patch)
             masks.mark(patch.id)
@@ -662,6 +706,16 @@ public extension NativeMessageHandling {
             }
             if let buttonDeleteMessage = message["ButtonDelete"] {
                 handleButtonDelete(patch: AnyDeletePatch(fb: buttonDeleteMessage), dirty: &dirty)
+            }
+
+            if let photoPickerCreateMessage = message["PhotoPickerCreate"] {
+                handlePhotoPickerCreate(patch: AnyCreatePatch(fb: photoPickerCreateMessage), dirty: &dirty, masks: &masks)
+            }
+            if let photoPickerUpdateMessage = message["PhotoPickerUpdate"] {
+                handlePhotoPickerUpdate(patch: PhotoPickerUpdatePatch(fb: photoPickerUpdateMessage), dirty: &dirty, masks: &masks)
+            }
+            if let photoPickerDeleteMessage = message["PhotoPickerDelete"] {
+                handlePhotoPickerDelete(patch: AnyDeletePatch(fb: photoPickerDeleteMessage), dirty: &dirty)
             }
 
             if let checkboxCreateMessage = message["CheckboxCreate"] {

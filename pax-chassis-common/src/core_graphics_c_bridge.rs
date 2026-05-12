@@ -19,8 +19,8 @@ use pax_gpu::{Transform2D, WgpuRenderer};
 use pax_runtime::api::math::Point2;
 use pax_runtime::api::{
     Accel, ButtonClick, Click, ClickOrTap, Event, Focus, Gyro, ModifierKey, MouseButton,
-    MouseEventArgs, RenderContext, Scroll, SelectStart, TextboxChange, TextboxInput, Touch,
-    TouchEnd, TouchMove, TouchStart,
+    MouseEventArgs, PhotoPickerChange, RenderContext, Scroll, SelectStart, TextboxChange,
+    TextboxInput, Touch, TouchEnd, TouchMove, TouchStart,
 };
 use pax_runtime::engine::layer_tiling::{scroller_canvas_plan_with_policy, ScrollerTilingPolicy};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -805,6 +805,17 @@ pub extern "C" fn pax_interrupt(
             {
                 node.dispatch_button_click(
                     Event::new(ButtonClick {}),
+                    &globals,
+                    &engine.runtime_context,
+                );
+            }
+        }
+        NativeInterrupt::PhotoPicker(args) => {
+            if let Some(node) =
+                engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+            {
+                node.dispatch_photo_picker_change(
+                    Event::new(PhotoPickerChange::from(args)),
                     &globals,
                     &engine.runtime_context,
                 );

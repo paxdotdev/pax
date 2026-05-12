@@ -7,7 +7,9 @@ import {
     CHECKBOX_UPDATE_PATCH,
     DROPDOWN_UPDATE_PATCH,
     FRAME_UPDATE_PATCH,
-    IMAGE_LOAD_PATCH, SCROLLER_UPDATE_PATCH,
+    IMAGE_LOAD_PATCH,
+    PHOTO_PICKER_UPDATE_PATCH,
+    SCROLLER_UPDATE_PATCH,
     SUPPORTED_OBJECTS,
     TEXTBOX_UPDATE_PATCH,
     TEXT_UPDATE_PATCH,
@@ -31,6 +33,7 @@ import {ScrollerUpdatePatch} from "./classes/messages/scroller-update-patch";
 import {setupEventListeners} from "./events/listeners";
 import "./styles/pax-web.css";
 import { ButtonUpdatePatch } from "./classes/messages/button-update-patch";
+import { PhotoPickerUpdatePatch } from "./classes/messages/photo-picker-update-patch";
 import { TextboxUpdatePatch } from "./classes/messages/textbox-update-patch";
 import { DropdownUpdatePatch } from "./classes/messages/dropdown-update-patch";
 import { SliderUpdatePatch } from "./classes/messages/slider-update-patch";
@@ -460,6 +463,19 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
         }else if (unwrapped_msg["ButtonDelete"]) {
             let msg = unwrapped_msg["ButtonDelete"];
             nativePool.buttonDelete(msg)
+        } else if(unwrapped_msg["PhotoPickerCreate"]) {
+            let msg = unwrapped_msg["PhotoPickerCreate"]
+            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+            patch.fromPatch(msg);
+            nativePool.photoPickerCreate(patch);
+        } else if (unwrapped_msg["PhotoPickerUpdate"]){
+            let msg = unwrapped_msg["PhotoPickerUpdate"]
+            let patch: PhotoPickerUpdatePatch = objectManager.getFromPool(PHOTO_PICKER_UPDATE_PATCH);
+            patch.fromPatch(msg);
+            nativePool.photoPickerUpdate(patch);
+        }else if (unwrapped_msg["PhotoPickerDelete"]) {
+            let msg = unwrapped_msg["PhotoPickerDelete"];
+            nativePool.photoPickerDelete(msg)
         } else if(unwrapped_msg["SliderCreate"]) {
             let msg = unwrapped_msg["SliderCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);

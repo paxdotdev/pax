@@ -1,5 +1,12 @@
+import Foundation
 import SwiftUI
 import Messages
+import ImageIO
+import UniformTypeIdentifiers
+#if os(iOS)
+import AVFoundation
+import PhotosUI
+#endif
 #if os(iOS) || os(tvOS) || os(watchOS)
 import UIKit
 #elseif os(macOS)
@@ -41,6 +48,127 @@ private func resolvedSize(_ element: NativePositionElement) -> CGSize {
 
 private func resolvedTextSize(_ element: TextElement) -> CGSize {
     CGSize(width: max(0, CGFloat(element.size_x)), height: max(0, CGFloat(element.size_y)))
+}
+
+private func photoPickerMimeType(for url: URL, fallback: String = "image/*") -> String {
+    if let type = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType,
+       let mimeType = type.preferredMIMEType {
+        return mimeType
+    }
+    if let type = UTType(filenameExtension: url.pathExtension),
+       let mimeType = type.preferredMIMEType {
+        return mimeType
+    }
+    return fallback
+}
+
+private func photoPickerImageSize(for url: URL) -> (UInt32?, UInt32?) {
+    guard
+        let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+    else {
+        return (nil, nil)
+    }
+
+    let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.uint32Value
+    let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.uint32Value
+    return (width, height)
+}
+
+private func photoPickerByteSize(for url: URL) -> UInt64 {
+    if let values = try? url.resourceValues(forKeys: [.fileSizeKey]),
+       let fileSize = values.fileSize {
+        return UInt64(max(0, fileSize))
+    }
+    if let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+       let size = attributes[.size] as? NSNumber {
+        return size.uint64Value
+    }
+    return 0
+}
+
+private func photoPickerTemporaryURL(fileName: String?, fallbackExtension: String) -> URL {
+    let ext = fileName.map { ($0 as NSString).pathExtension }
+    let selectedExtension = ext?.isEmpty == false ? ext! : fallbackExtension
+    let resolvedExtension = selectedExtension.trimmingCharacters(in: CharacterSet(charactersIn: "."))
+    let baseName = UUID().uuidString
+    let filename = resolvedExtension.isEmpty ? baseName : "\(baseName).\(resolvedExtension)"
+    return FileManager.default.temporaryDirectory
+        .appendingPathComponent("pax-photo-picker", isDirectory: true)
+        .appendingPathComponent(filename, isDirectory: false)
+}
+
+private func photoPickerPrepareTemporaryDirectory() {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("pax-photo-picker", isDirectory: true)
+    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+}
+
+private enum PhotoPickerAssetError: Error, Equatable {
+    case sizeLimitExceeded
+    case failed(String)
+
+    var message: String {
+        switch self {
+        case .sizeLimitExceeded:
+            return "size_limit_exceeded"
+        case .failed(let message):
+            return message
+        }
+    }
+}
+
+private func photoPickerAsset(
+    id: PaxNodeId,
+    requestId: UInt64,
+    sourceURL: URL,
+    sourceKind: String,
+    index: Int,
+    maxBytes: UInt64
+) -> Result<PhotoPickerSelectedAsset, PhotoPickerAssetError> {
+    let byteSize = photoPickerByteSize(for: sourceURL)
+    if maxBytes > 0 && byteSize > maxBytes {
+        return .failure(.sizeLimitExceeded)
+    }
+    photoPickerPrepareTemporaryDirectory()
+    let tempURL = photoPickerTemporaryURL(
+        fileName: sourceURL.lastPathComponent,
+        fallbackExtension: sourceURL.pathExtension.isEmpty ? "jpg" : sourceURL.pathExtension
+    )
+    do {
+        if FileManager.default.fileExists(atPath: tempURL.path) {
+            try FileManager.default.removeItem(at: tempURL)
+        }
+        try FileManager.default.copyItem(at: sourceURL, to: tempURL)
+    } catch {
+        return .failure(.failed(error.localizedDescription))
+    }
+    let (width, height) = photoPickerImageSize(for: tempURL)
+    return .success(PhotoPickerSelectedAsset(
+        tempId: "\(id)-\(requestId)-\(index)-\(UUID().uuidString)",
+        fileName: sourceURL.lastPathComponent.isEmpty ? nil : sourceURL.lastPathComponent,
+        mimeType: photoPickerMimeType(for: tempURL),
+        byteSize: photoPickerByteSize(for: tempURL),
+        width: width,
+        height: height,
+        sourceKind: sourceKind,
+        handle: tempURL.absoluteString
+    ))
+}
+
+private struct NativePhotoPickerRequest {
+    let id: PaxNodeId
+    let requestId: UInt64
+    let source: String
+    let allowMultiple: Bool
+    let maxBytesPerPhoto: UInt64
+
+    init(element: PhotoPickerElement) {
+        self.id = element.id
+        self.requestId = element.trigger
+        self.source = element.source
+        self.allowMultiple = element.allowMultiple
+        self.maxBytesPerPhoto = element.maxBytesPerPhoto
+    }
 }
 
 private func combineCGSize(_ size: CGSize, into hasher: inout Hasher) {
@@ -555,6 +683,7 @@ public enum PaxNativeHostState {
         TextElements.singleton.reset()
         FrameElements.singleton.reset()
         ButtonElements.singleton.reset()
+        PhotoPickerElements.singleton.reset()
         CheckboxElements.singleton.reset()
         NativeImageElements.singleton.reset()
         YoutubeVideoElements.singleton.reset()
@@ -579,6 +708,7 @@ public struct NativeRenderingLayer: View {
     let frameElements = FrameElements.singleton
     let scrollerElements = ScrollerElements.singleton
     let buttonElements = ButtonElements.singleton
+    let photoPickerElements = PhotoPickerElements.singleton
     let checkboxElements = CheckboxElements.singleton
     let nativeImageElements = NativeImageElements.singleton
     let youtubeVideoElements = YoutubeVideoElements.singleton
@@ -591,6 +721,7 @@ public struct NativeRenderingLayer: View {
     fileprivate enum NativeLeafKind {
         case text(TextElement)
         case button(ButtonElement)
+        case photoPicker(PhotoPickerElement)
         case checkbox(CheckboxElement)
         case slider(SliderElement)
         case dropdown(DropdownElement)
@@ -615,6 +746,8 @@ public struct NativeRenderingLayer: View {
                 return "text-static"
             case .button:
                 return "button"
+            case .photoPicker:
+                return "photo-picker"
             case .checkbox:
                 return "checkbox"
             case .slider:
@@ -659,6 +792,13 @@ public struct NativeRenderingLayer: View {
                 combineDouble(element.outlineStrokeWidth, into: &hasher)
                 combineDouble(element.borderRadius, into: &hasher)
                 combineTextStyle(element.style, into: &hasher)
+            case .photoPicker(let element):
+                hasher.combine(element.trigger)
+                hasher.combine(element.source)
+                hasher.combine(element.allowMultiple)
+                hasher.combine(element.accept)
+                hasher.combine(element.includeBytes)
+                hasher.combine(element.maxBytesPerPhoto)
             case .checkbox(let element):
                 hasher.combine(element.checked)
                 combineColor(element.background, into: &hasher)
@@ -2322,6 +2462,9 @@ public struct NativeRenderingLayer: View {
         items.append(contentsOf: sortedElements(buttonElements.elements).map { element in
             buttonItem(for: element)
         })
+        items.append(contentsOf: sortedElements(photoPickerElements.elements).map { element in
+            photoPickerItem(for: element)
+        })
         items.append(contentsOf: sortedElements(checkboxElements.elements).map { element in
             checkboxItem(for: element)
         })
@@ -2574,6 +2717,10 @@ public struct NativeRenderingLayer: View {
         renderItem(element: element, kind: .button(element))
     }
 
+    private func photoPickerItem(for element: PhotoPickerElement) -> NativeRenderItem {
+        renderItem(element: element, kind: .photoPicker(element))
+    }
+
     private func checkboxItem(for element: CheckboxElement) -> NativeRenderItem {
         renderItem(element: element, kind: .checkbox(element))
     }
@@ -2611,6 +2758,7 @@ public struct NativeRenderingLayer: View {
             return true
         }
         if !buttonElements.elements.isEmpty
+            || !photoPickerElements.elements.isEmpty
             || !checkboxElements.elements.isEmpty
             || !sliderElements.elements.isEmpty
             || !dropdownElements.elements.isEmpty
@@ -2743,6 +2891,8 @@ fileprivate extension NativeRenderingLayer {
             return PaxNativeTextLeafView()
         case .button:
             return PaxNativeButtonView()
+        case .photoPicker:
+            return PaxNativePhotoPickerView()
         case .checkbox:
             return PaxNativeCheckboxView()
         case .slider:
@@ -2776,6 +2926,8 @@ fileprivate extension NativeRenderingLayer {
             (view as? PaxNativeTextLeafView)?.apply(element: element, size: size)
         case .button(let element):
             (view as? PaxNativeButtonView)?.apply(element: element)
+        case .photoPicker(let element):
+            (view as? PaxNativePhotoPickerView)?.apply(element: element)
         case .checkbox(let element):
             (view as? PaxNativeCheckboxView)?.apply(element: element, size: size)
         case .slider(let element):
@@ -2976,6 +3128,265 @@ private final class PaxNativeButtonView: UIButton {
         dispatchFormButtonClick(id: nodeId)
     }
 }
+
+private final class PaxNativePhotoPickerView: UIControl {
+    private var element: PhotoPickerElement?
+    private var lastTrigger: UInt64?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isOpaque = false
+        addTarget(self, action: #selector(handleTap), for: .touchUpInside)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: PhotoPickerElement) {
+        self.element = element
+        let previousTrigger = lastTrigger
+        lastTrigger = element.trigger
+        if let previousTrigger, previousTrigger != element.trigger, element.trigger > 0 {
+            openPicker()
+        }
+    }
+
+    @objc private func handleTap() {
+        openPicker()
+    }
+
+    private func openPicker() {
+        guard let element else {
+            return
+        }
+        #if os(iOS)
+        NativePhotoPickerCoordinator.shared.open(request: NativePhotoPickerRequest(element: element))
+        #else
+        dispatchPhotoPicker(
+            id: element.id,
+            requestId: element.trigger,
+            status: "unavailable",
+            message: "Photo picking is unavailable on this Apple platform.",
+            photos: []
+        )
+        #endif
+    }
+}
+
+#if os(iOS)
+private final class NativePhotoPickerCoordinator: NSObject, PHPickerViewControllerDelegate, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+    static let shared = NativePhotoPickerCoordinator()
+
+    private var activeRequest: NativePhotoPickerRequest?
+
+    func open(request: NativePhotoPickerRequest) {
+        activeRequest = request
+        if request.source == "camera" {
+            openCamera(request: request)
+        } else {
+            openLibrary(request: request)
+        }
+    }
+
+    private func topViewController() -> UIViewController? {
+        let scenes = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .filter { $0.activationState == .foregroundActive }
+        let root = scenes
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow }?
+            .rootViewController
+        var current = root
+        while let presented = current?.presentedViewController {
+            current = presented
+        }
+        return current
+    }
+
+    private func openLibrary(request: NativePhotoPickerRequest) {
+        var configuration = PHPickerConfiguration(photoLibrary: .shared())
+        configuration.filter = .images
+        configuration.selectionLimit = request.allowMultiple ? 0 : 1
+        let picker = PHPickerViewController(configuration: configuration)
+        picker.delegate = self
+        topViewController()?.present(picker, animated: true)
+    }
+
+    private func openCamera(request: NativePhotoPickerRequest) {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            dispatchPhotoPicker(
+                id: request.id,
+                requestId: request.requestId,
+                status: "unavailable",
+                message: "Camera is unavailable on this device.",
+                photos: []
+            )
+            return
+        }
+
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            presentCamera()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    granted ? self.presentCamera() : self.dispatchCameraDenied()
+                }
+            }
+        case .denied, .restricted:
+            dispatchCameraDenied()
+        @unknown default:
+            dispatchCameraDenied()
+        }
+    }
+
+    private func presentCamera() {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.mediaTypes = ["public.image"]
+        picker.delegate = self
+        picker.modalPresentationStyle = .fullScreen
+        topViewController()?.present(picker, animated: true)
+    }
+
+    private func dispatchCameraDenied() {
+        guard let request = activeRequest else {
+            return
+        }
+        dispatchPhotoPicker(
+            id: request.id,
+            requestId: request.requestId,
+            status: "permission_denied",
+            message: "Camera permission is denied or restricted.",
+            photos: []
+        )
+    }
+
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true)
+        guard let request = activeRequest else {
+            return
+        }
+        guard !results.isEmpty else {
+            dispatchPhotoPicker(id: request.id, requestId: request.requestId, status: "cancelled", message: nil, photos: [])
+            return
+        }
+
+        let group = DispatchGroup()
+        let lock = NSLock()
+        var photos = Array<PhotoPickerSelectedAsset?>(repeating: nil, count: results.count)
+        var rejected = 0
+        var failures: [String] = []
+
+        for (index, result) in results.enumerated() {
+            group.enter()
+            let provider = result.itemProvider
+            let identifier = provider.registeredTypeIdentifiers.first { identifier in
+                UTType(identifier)?.conforms(to: .image) == true
+            } ?? UTType.image.identifier
+
+            provider.loadFileRepresentation(forTypeIdentifier: identifier) { url, error in
+                defer { group.leave() }
+                if let error {
+                    lock.lock()
+                    failures.append(error.localizedDescription)
+                    lock.unlock()
+                    return
+                }
+                guard let url else {
+                    lock.lock()
+                    failures.append("Photo provider returned no file.")
+                    lock.unlock()
+                    return
+                }
+                switch photoPickerAsset(
+                    id: request.id,
+                    requestId: request.requestId,
+                    sourceURL: url,
+                    sourceKind: "library",
+                    index: index,
+                    maxBytes: request.maxBytesPerPhoto
+                ) {
+                case .success(let asset):
+                    lock.lock()
+                    photos[index] = asset
+                    lock.unlock()
+                case .failure(let reason):
+                    lock.lock()
+                    if reason == .sizeLimitExceeded {
+                        rejected += 1
+                    } else {
+                        failures.append(reason.message)
+                    }
+                    lock.unlock()
+                }
+            }
+        }
+
+        group.notify(queue: .main) {
+            let orderedPhotos = photos.compactMap { $0 }
+            let status = rejected > 0 && orderedPhotos.isEmpty ? "size_limit_exceeded" : (orderedPhotos.isEmpty && !failures.isEmpty ? "failed" : "selected")
+            let message = rejected > 0
+                ? "Skipped \(rejected) photo(s) over the configured byte limit."
+                : failures.first
+            dispatchPhotoPicker(id: request.id, requestId: request.requestId, status: status, message: message, photos: orderedPhotos)
+        }
+    }
+
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        picker.dismiss(animated: true)
+        guard let request = activeRequest else {
+            return
+        }
+        dispatchPhotoPicker(id: request.id, requestId: request.requestId, status: "cancelled", message: nil, photos: [])
+    }
+
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+        picker.dismiss(animated: true)
+        guard let request = activeRequest else {
+            return
+        }
+        guard let image = info[.originalImage] as? UIImage,
+              let data = image.jpegData(compressionQuality: 0.95)
+        else {
+            dispatchPhotoPicker(id: request.id, requestId: request.requestId, status: "failed", message: "Camera returned no image.", photos: [])
+            return
+        }
+        if request.maxBytesPerPhoto > 0 && UInt64(data.count) > request.maxBytesPerPhoto {
+            dispatchPhotoPicker(
+                id: request.id,
+                requestId: request.requestId,
+                status: "size_limit_exceeded",
+                message: "Captured photo exceeds the configured byte limit.",
+                photos: []
+            )
+            return
+        }
+
+        photoPickerPrepareTemporaryDirectory()
+        let tempURL = photoPickerTemporaryURL(fileName: "camera.jpg", fallbackExtension: "jpg")
+        do {
+            try data.write(to: tempURL, options: .atomic)
+            let (width, height) = photoPickerImageSize(for: tempURL)
+            let asset = PhotoPickerSelectedAsset(
+                tempId: "\(request.id)-\(request.requestId)-camera-\(UUID().uuidString)",
+                fileName: "camera.jpg",
+                mimeType: "image/jpeg",
+                byteSize: UInt64(data.count),
+                width: width,
+                height: height,
+                sourceKind: "camera",
+                handle: tempURL.absoluteString
+            )
+            dispatchPhotoPicker(id: request.id, requestId: request.requestId, status: "selected", message: nil, photos: [asset])
+        } catch {
+            dispatchPhotoPicker(id: request.id, requestId: request.requestId, status: "failed", message: error.localizedDescription, photos: [])
+        }
+    }
+}
+#endif
 
 private final class PaxNativeCheckboxView: UIButton {
     private var nodeId: PaxNodeId = 0
@@ -3445,6 +3856,109 @@ private final class PaxNativeButtonView: NSButton {
 
     @objc private func handleTap() {
         dispatchFormButtonClick(id: nodeId)
+    }
+}
+
+private final class PaxNativePhotoPickerView: NSButton {
+    private var element: PhotoPickerElement?
+    private var lastTrigger: UInt64?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        isBordered = false
+        title = ""
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+        target = self
+        action = #selector(handleTap)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: PhotoPickerElement) {
+        self.element = element
+        let previousTrigger = lastTrigger
+        lastTrigger = element.trigger
+        if let previousTrigger, previousTrigger != element.trigger, element.trigger > 0 {
+            openPicker()
+        }
+    }
+
+    @objc private func handleTap() {
+        openPicker()
+    }
+
+    private func openPicker() {
+        guard let element else {
+            return
+        }
+        NativePhotoPickerCoordinator.shared.open(request: NativePhotoPickerRequest(element: element))
+    }
+}
+
+private final class NativePhotoPickerCoordinator {
+    static let shared = NativePhotoPickerCoordinator()
+
+    func open(request: NativePhotoPickerRequest) {
+        guard request.source != "camera" else {
+            dispatchPhotoPicker(
+                id: request.id,
+                requestId: request.requestId,
+                status: "unavailable",
+                message: "Camera capture is not available for macOS PhotoPicker.",
+                photos: []
+            )
+            return
+        }
+
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = request.allowMultiple
+        panel.allowedContentTypes = [.image]
+        panel.begin { response in
+            guard response == .OK else {
+                dispatchPhotoPicker(id: request.id, requestId: request.requestId, status: "cancelled", message: nil, photos: [])
+                return
+            }
+
+            var photos: [PhotoPickerSelectedAsset] = []
+            var rejected = 0
+            var failure: String?
+            for (index, url) in panel.urls.enumerated() {
+                let didStartAccessing = url.startAccessingSecurityScopedResource()
+                defer {
+                    if didStartAccessing {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                }
+                switch photoPickerAsset(
+                    id: request.id,
+                    requestId: request.requestId,
+                    sourceURL: url,
+                    sourceKind: "file",
+                    index: index,
+                    maxBytes: request.maxBytesPerPhoto
+                ) {
+                case .success(let asset):
+                    photos.append(asset)
+                case .failure(let reason):
+                    if reason == .sizeLimitExceeded {
+                        rejected += 1
+                    } else if failure == nil {
+                        failure = reason.message
+                    }
+                }
+            }
+
+            let status = rejected > 0 && photos.isEmpty ? "size_limit_exceeded" : (photos.isEmpty && failure != nil ? "failed" : "selected")
+            let message = rejected > 0
+                ? "Skipped \(rejected) photo(s) over the configured byte limit."
+                : failure
+            dispatchPhotoPicker(id: request.id, requestId: request.requestId, status: status, message: message, photos: photos)
+        }
     }
 }
 
@@ -4133,6 +4647,23 @@ public class ButtonElements: ObservableObject {
     @Published public var elements: [PaxNodeId: ButtonElement] = [:]
 
     public func add(element: ButtonElement) {
+        elements[element.id] = element
+    }
+
+    public func remove(id: PaxNodeId) {
+        elements.removeValue(forKey: id)
+    }
+
+    public func reset() {
+        elements.removeAll()
+    }
+}
+
+public class PhotoPickerElements: ObservableObject {
+    public static let singleton = PhotoPickerElements()
+    @Published public var elements: [PaxNodeId: PhotoPickerElement] = [:]
+
+    public func add(element: PhotoPickerElement) {
         elements[element.id] = element
     }
 

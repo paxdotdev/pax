@@ -63,6 +63,8 @@ const PAX_STD_DESIGNTIME_SEED_IDENTIFIERS: &[&str] = &[
     "Checkbox",
     "ConfirmationDialog",
     "Dropdown",
+    "PhotoPicker",
+    "PhotoPickerSource",
     "RadioList",
     "Slider",
     "Tabs",

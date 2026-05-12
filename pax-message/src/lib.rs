@@ -47,6 +47,9 @@ pub enum NativeMessage {
     ButtonCreate(AnyCreatePatch),
     ButtonUpdate(ButtonPatch),
     ButtonDelete(u32),
+    PhotoPickerCreate(AnyCreatePatch),
+    PhotoPickerUpdate(PhotoPickerPatch),
+    PhotoPickerDelete(u32),
     ScrollerCreate(AnyCreatePatch),
     ScrollerUpdate(ScrollerPatch),
     ScrollerDelete(u32),
@@ -91,6 +94,7 @@ pub enum NativeInterrupt {
     FormTextboxChange(FormTextboxChangeArgs),
     FormTextboxInput(FormTextboxInputArgs),
     FormButtonClick(FormButtonClickArgs),
+    PhotoPicker(PhotoPickerInterruptArgs),
     // TODO: remove alias once all persisted/older web chassis payloads use `ScrollerPosition`.
     #[serde(alias = "Scrollbar")]
     ScrollerPosition(ScrollerPositionInterruptArgs),
@@ -185,6 +189,34 @@ pub struct FormTextboxInputArgs {
 /// Native button click payload.
 pub struct FormButtonClickArgs {
     pub id: u32,
+}
+
+#[derive(Deserialize, Clone)]
+#[repr(C)]
+/// Selected image metadata and optional copied bytes from a native photo picker.
+pub struct PhotoPickerAssetArgs {
+    pub temp_id: String,
+    pub file_name: Option<String>,
+    pub mime_type: String,
+    pub byte_size: u64,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub source_kind: String,
+    pub handle: Option<String>,
+    #[serde(default)]
+    pub data: Vec<u8>,
+}
+
+#[derive(Deserialize, Clone)]
+#[repr(C)]
+/// Native photo picker completion payload.
+pub struct PhotoPickerInterruptArgs {
+    pub id: u32,
+    pub request_id: u64,
+    pub status: String,
+    pub message: Option<String>,
+    #[serde(default)]
+    pub photos: Vec<PhotoPickerAssetArgs>,
 }
 
 #[derive(Deserialize)]
@@ -768,6 +800,28 @@ pub struct ButtonPatch {
     pub content: Option<String>,
     pub color: Option<ColorMessage>,
     pub style: Option<TextStyleMessage>,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize, Clone)]
+#[repr(C)]
+/// Create/update patch for a transparent native photo picker hit target.
+pub struct PhotoPickerPatch {
+    pub id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_frame: Option<Option<u32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub z_index: Option<i32>,
+    pub transform: Option<Vec<f64>>,
+    pub size_x: Option<f64>,
+    pub size_y: Option<f64>,
+    pub opacity: Option<f64>,
+    pub trigger: Option<u64>,
+    pub source: Option<String>,
+    pub allow_multiple: Option<bool>,
+    pub accept: Option<String>,
+    pub include_bytes: Option<bool>,
+    pub max_bytes_per_photo: Option<u64>,
 }
 
 #[derive(Default, Serialize)]

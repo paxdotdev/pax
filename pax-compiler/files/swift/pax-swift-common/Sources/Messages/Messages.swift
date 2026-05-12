@@ -67,6 +67,37 @@ public final class NativeInterruptDispatcher {
     }
 }
 
+public struct PhotoPickerSelectedAsset {
+    public let tempId: String
+    public let fileName: String?
+    public let mimeType: String
+    public let byteSize: UInt64
+    public let width: UInt32?
+    public let height: UInt32?
+    public let sourceKind: String
+    public let handle: String?
+
+    public init(
+        tempId: String,
+        fileName: String?,
+        mimeType: String,
+        byteSize: UInt64,
+        width: UInt32?,
+        height: UInt32?,
+        sourceKind: String,
+        handle: String?
+    ) {
+        self.tempId = tempId
+        self.fileName = fileName
+        self.mimeType = mimeType
+        self.byteSize = byteSize
+        self.width = width
+        self.height = height
+        self.sourceKind = sourceKind
+        self.handle = handle
+    }
+}
+
 public struct TouchInterruptMessage {
     public let x: Double
     public let y: Double
@@ -325,6 +356,47 @@ public func dispatchFormButtonClick(id: PaxNodeId) {
     dispatchNativeInterrupt { builder in
         builder.addMapWithStringKey("FormButtonClick") { messageBuilder in
             messageBuilder.addWithStringKey("id", UInt(id))
+        }
+    }
+}
+
+public func dispatchPhotoPicker(
+    id: PaxNodeId,
+    requestId: UInt64,
+    status: String,
+    message: String?,
+    photos: [PhotoPickerSelectedAsset]
+) {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey("PhotoPicker") { messageBuilder in
+            messageBuilder.addWithStringKey("id", UInt(id))
+            messageBuilder.addWithStringKey("request_id", UInt(requestId))
+            messageBuilder.addStringWithStringKey("status", status)
+            if let message {
+                messageBuilder.addStringWithStringKey("message", message)
+            }
+            messageBuilder.addVectorWithStringKey("photos") { vectorBuilder in
+                for photo in photos {
+                    vectorBuilder.addMap { photoBuilder in
+                        photoBuilder.addStringWithStringKey("temp_id", photo.tempId)
+                        if let fileName = photo.fileName {
+                            photoBuilder.addStringWithStringKey("file_name", fileName)
+                        }
+                        photoBuilder.addStringWithStringKey("mime_type", photo.mimeType)
+                        photoBuilder.addWithStringKey("byte_size", UInt(photo.byteSize))
+                        if let width = photo.width {
+                            photoBuilder.addWithStringKey("width", UInt(width))
+                        }
+                        if let height = photo.height {
+                            photoBuilder.addWithStringKey("height", UInt(height))
+                        }
+                        photoBuilder.addStringWithStringKey("source_kind", photo.sourceKind)
+                        if let handle = photo.handle {
+                            photoBuilder.addStringWithStringKey("handle", handle)
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -2220,6 +2292,128 @@ public class ButtonElement: NativePositionElement {
         if let content = patch.content { self.content = content }
         if let color = patch.color { self.color = color }
         if let style = patch.style { self.style.applyPatch(from: style) }
+    }
+}
+
+public class PhotoPickerUpdatePatch: ResolvedPlacementPatch {
+    public var id: PaxNodeId
+    public var parentFrameUpdated: Bool
+    public var parentFrame: PaxNodeId?
+    public var zIndexUpdated: Bool
+    public var zIndex: Int?
+    public var transform: [Float]?
+    public var size_x: Float?
+    public var size_y: Float?
+    public var opacity: Double?
+    public var trigger: UInt64?
+    public var source: String?
+    public var allowMultiple: Bool?
+    public var accept: String?
+    public var includeBytes: Bool?
+    public var maxBytesPerPhoto: UInt64?
+
+    public init(fb: FlxbReference) {
+        self.id = readNodeId(fb["id"]) ?? 0
+        self.parentFrameUpdated = fieldExists(fb, "parent_frame")
+        self.parentFrame = readNodeId(fb["parent_frame"])
+        self.zIndexUpdated = fieldExists(fb, "z_index")
+        self.zIndex = readInt(fb["z_index"])
+        self.transform = readFloatArray(fb["transform"])
+        self.size_x = fb["size_x"]?.asFloat
+        self.size_y = fb["size_y"]?.asFloat
+        self.opacity = readDouble(fb["opacity"])
+        if let trigger = fb["trigger"]?.asUInt64 {
+            self.trigger = trigger
+        }
+        self.source = fb["source"]?.asString
+        self.allowMultiple = fb["allow_multiple"]?.asBool
+        self.accept = fb["accept"]?.asString
+        self.includeBytes = fb["include_bytes"]?.asBool
+        if let maxBytes = fb["max_bytes_per_photo"]?.asUInt64 {
+            self.maxBytesPerPhoto = maxBytes
+        }
+    }
+}
+
+public class PhotoPickerElement: NativePositionElement {
+    public var id: PaxNodeId
+    public var parentFrame: PaxNodeId?
+    public var occlusionLayerId: UInt32
+    public var zIndex: Int
+    public var transform: [Float]
+    public var size_x: Float
+    public var size_y: Float
+    public var opacity: Double
+    public var trigger: UInt64
+    public var source: String
+    public var allowMultiple: Bool
+    public var accept: String
+    public var includeBytes: Bool
+    public var maxBytesPerPhoto: UInt64
+    public var nativeMaskPatch: NativeMaskPatch? = nil
+
+    public init(
+        id: PaxNodeId,
+        parentFrame: PaxNodeId?,
+        occlusionLayerId: UInt32,
+        zIndex: Int,
+        transform: [Float],
+        size_x: Float,
+        size_y: Float,
+        opacity: Double,
+        trigger: UInt64,
+        source: String,
+        allowMultiple: Bool,
+        accept: String,
+        includeBytes: Bool,
+        maxBytesPerPhoto: UInt64
+    ) {
+        self.id = id
+        self.parentFrame = parentFrame
+        self.occlusionLayerId = occlusionLayerId
+        self.zIndex = zIndex
+        self.transform = transform
+        self.size_x = size_x
+        self.size_y = size_y
+        self.opacity = opacity
+        self.trigger = trigger
+        self.source = source
+        self.allowMultiple = allowMultiple
+        self.accept = accept
+        self.includeBytes = includeBytes
+        self.maxBytesPerPhoto = maxBytesPerPhoto
+    }
+
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> PhotoPickerElement {
+        PhotoPickerElement(
+            id: id,
+            parentFrame: parentFrame,
+            occlusionLayerId: occlusionLayerId,
+            zIndex: 0,
+            transform: [1, 0, 0, 1, 0, 0],
+            size_x: 0,
+            size_y: 0,
+            opacity: 1.0,
+            trigger: 0,
+            source: "library",
+            allowMultiple: true,
+            accept: "image/*",
+            includeBytes: true,
+            maxBytesPerPhoto: 25 * 1024 * 1024
+        )
+    }
+
+    public func applyPatch(_ patch: PhotoPickerUpdatePatch) {
+        if let transform = patch.transform { self.transform = transform }
+        if let size_x = patch.size_x { self.size_x = size_x }
+        if let size_y = patch.size_y { self.size_y = size_y }
+        if let opacity = patch.opacity { self.opacity = opacity }
+        if let trigger = patch.trigger { self.trigger = trigger }
+        if let source = patch.source { self.source = source }
+        if let allowMultiple = patch.allowMultiple { self.allowMultiple = allowMultiple }
+        if let accept = patch.accept { self.accept = accept }
+        if let includeBytes = patch.includeBytes { self.includeBytes = includeBytes }
+        if let maxBytesPerPhoto = patch.maxBytesPerPhoto { self.maxBytesPerPhoto = maxBytesPerPhoto }
     }
 }
 

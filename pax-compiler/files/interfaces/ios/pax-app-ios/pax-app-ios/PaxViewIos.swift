@@ -125,6 +125,7 @@ struct PaxViewIos: View {
         let frameElements = FrameElements.singleton
         let scrollerElements = ScrollerElements.singleton
         let buttonElements = ButtonElements.singleton
+        let photoPickerElements = PhotoPickerElements.singleton
         let checkboxElements = CheckboxElements.singleton
         let nativeImageElements = NativeImageElements.singleton
         let youtubeVideoElements = YoutubeVideoElements.singleton

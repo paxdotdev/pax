@@ -311,6 +311,130 @@ pub struct TextboxInput {
 #[derive(Clone)]
 pub struct ButtonClick {}
 
+/// Completion status for a native photo picker request.
+#[derive(Clone, PartialEq)]
+pub enum PhotoPickerStatus {
+    /// One or more photos were selected.
+    Selected,
+    /// The platform picker was dismissed without a selection.
+    Cancelled,
+    /// Camera or picker permission was denied or restricted.
+    PermissionDenied,
+    /// The requested source is not available on this platform/device.
+    Unavailable,
+    /// One or more candidate photos exceeded the configured byte limit.
+    SizeLimitExceeded,
+    /// The platform picker failed for another reason.
+    Failed,
+}
+
+impl From<&str> for PhotoPickerStatus {
+    fn from(value: &str) -> Self {
+        match value {
+            "selected" => Self::Selected,
+            "cancelled" => Self::Cancelled,
+            "permission_denied" => Self::PermissionDenied,
+            "unavailable" => Self::Unavailable,
+            "size_limit_exceeded" => Self::SizeLimitExceeded,
+            _ => Self::Failed,
+        }
+    }
+}
+
+/// Platform source used to produce a selected photo.
+#[derive(Clone, PartialEq)]
+pub enum PhotoPickerSourceKind {
+    /// Existing image from a photo library.
+    Library,
+    /// Existing image from the filesystem.
+    File,
+    /// Newly captured camera image.
+    Camera,
+    /// Source not recognized by this runtime version.
+    Other(String),
+}
+
+impl From<&str> for PhotoPickerSourceKind {
+    fn from(value: &str) -> Self {
+        match value {
+            "library" => Self::Library,
+            "file" => Self::File,
+            "camera" => Self::Camera,
+            other => Self::Other(other.to_string()),
+        }
+    }
+}
+
+/// One selected image returned by a native photo picker.
+#[derive(Clone)]
+pub struct PhotoPickerPhoto {
+    /// Stable temporary identifier for this selection.
+    pub temp_id: String,
+    /// File name supplied by the platform, when available.
+    pub file_name: Option<String>,
+    /// MIME type supplied or inferred by the platform.
+    pub mime_type: String,
+    /// Byte size of the selected asset.
+    pub byte_size: u64,
+    /// Image width in pixels, when available.
+    pub width: Option<u32>,
+    /// Image height in pixels, when available.
+    pub height: Option<u32>,
+    /// Source used for this image.
+    pub source_kind: PhotoPickerSourceKind,
+    /// Platform preview/read handle, such as an object URL or file URL.
+    pub handle: Option<String>,
+    /// Copied asset bytes when the chassis can provide them within configured limits.
+    pub data: Option<Vec<u8>>,
+}
+
+impl From<&PhotoPickerAssetArgs> for PhotoPickerPhoto {
+    fn from(value: &PhotoPickerAssetArgs) -> Self {
+        Self {
+            temp_id: value.temp_id.clone(),
+            file_name: value.file_name.clone(),
+            mime_type: value.mime_type.clone(),
+            byte_size: value.byte_size,
+            width: value.width,
+            height: value.height,
+            source_kind: PhotoPickerSourceKind::from(value.source_kind.as_str()),
+            handle: value.handle.clone(),
+            data: if value.data.is_empty() {
+                None
+            } else {
+                Some(value.data.clone())
+            },
+        }
+    }
+}
+
+/// Native photo picker completion event.
+#[derive(Clone)]
+pub struct PhotoPickerChange {
+    /// Picker node id that produced the result.
+    pub id: u32,
+    /// App-controlled request id, usually copied from the picker trigger value.
+    pub request_id: u64,
+    /// Completion status.
+    pub status: PhotoPickerStatus,
+    /// Human-readable platform message for errors or partial results.
+    pub message: Option<String>,
+    /// Selected photos, empty for cancellation, permission denial, or unavailable sources.
+    pub photos: Vec<PhotoPickerPhoto>,
+}
+
+impl From<&PhotoPickerInterruptArgs> for PhotoPickerChange {
+    fn from(value: &PhotoPickerInterruptArgs) -> Self {
+        Self {
+            id: value.id,
+            request_id: value.request_id,
+            status: PhotoPickerStatus::from(value.status.as_str()),
+            message: value.message.clone(),
+            photos: value.photos.iter().map(PhotoPickerPhoto::from).collect(),
+        }
+    }
+}
+
 /// User presses a mouse button over an element.
 #[derive(Clone)]
 pub struct MouseDown {
