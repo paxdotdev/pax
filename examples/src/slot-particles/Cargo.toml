@@ -4,6 +4,10 @@ version = "0.38.3"
 edition = "2021"
 default-run = "run"
 
+[package.metadata.pax]
+title = "Slot Particles"
+icon = "assets/app-icon.png"
+
 [dependencies]
 rand = { version = "0.8.5" }
 getrandom = { version = "0.2.15", features = ["js"] }

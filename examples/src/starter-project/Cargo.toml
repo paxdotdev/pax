@@ -4,6 +4,10 @@ version = "0.38.3"
 edition = "2021"
 default-run = "run"
 
+[package.metadata.pax]
+title = "Starter Project"
+icon = "assets/app-icon.png"
+
 [dependencies]
 pax-kit = { version = "0.38.3", path="../../../pax-kit"}
 fireworks = { version = "0.38.3", path="../fireworks" }
@@ -21,4 +25,3 @@ path = "bin/run.rs"
 [profile.release]
 opt-level = 3
 lto = "thin"
-

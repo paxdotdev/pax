@@ -4,6 +4,10 @@ version = "0.38.3"
 edition = "2021"
 default-run = "run"
 
+[package.metadata.pax]
+title = "Scroll Matrix"
+icon = "assets/app-icon.png"
+
 [dependencies]
 pax-kit = { version = "0.38.3", path="../../../pax-kit" }
 
