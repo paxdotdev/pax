@@ -33,5 +33,8 @@ let package = Package(
         .target(
             name: "Messages",
             dependencies: ["FlexBuffers"]),
+        .testTarget(
+            name: "PaxSwiftCommonTests",
+            dependencies: ["Messages", "FlexBuffers"]),
     ]
 )

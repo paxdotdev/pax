@@ -98,6 +98,86 @@ public struct PhotoPickerSelectedAsset {
     }
 }
 
+struct RouteLocationMessage: Equatable {
+    let pathSegments: [String]
+    let query: [String: [String]]
+    let fragment: String?
+
+    init(pathSegments: [String], query: [String: [String]], fragment: String?) {
+        self.pathSegments = pathSegments
+        self.query = query
+        self.fragment = fragment
+    }
+}
+
+final class PaxVirtualRouteCoordinator {
+    static let shared = PaxVirtualRouteCoordinator()
+
+    private static let virtualScheme = "pax"
+    private static let virtualHost = "app"
+
+    private var currentLocation = RouteLocationMessage(
+        pathSegments: [],
+        query: [:],
+        fragment: nil
+    )
+
+    init() {}
+
+    func resolve(destination: String) -> RouteLocationMessage? {
+        guard let destinationComponents = URLComponents(string: destination),
+              destinationComponents.scheme == nil,
+              destinationComponents.host == nil,
+              let baseURL = baseURL(),
+              let resolvedURL = URL(string: destination, relativeTo: baseURL)?.absoluteURL,
+              let resolvedComponents = URLComponents(url: resolvedURL, resolvingAgainstBaseURL: false),
+              resolvedComponents.scheme == Self.virtualScheme,
+              resolvedComponents.host == Self.virtualHost else {
+            return nil
+        }
+
+        return RouteLocationMessage(
+            pathSegments: Self.pathSegments(from: resolvedComponents.path),
+            query: Self.query(from: resolvedComponents.queryItems),
+            fragment: resolvedComponents.fragment
+        )
+    }
+
+    @discardableResult
+    func navigate(to destination: String) -> Bool {
+        guard let location = resolve(destination: destination) else {
+            return false
+        }
+        currentLocation = location
+        dispatchRouteChange(location)
+        return true
+    }
+
+    private func baseURL() -> URL? {
+        var components = URLComponents()
+        components.scheme = Self.virtualScheme
+        components.host = Self.virtualHost
+        components.path = "/" + currentLocation.pathSegments.joined(separator: "/")
+        components.queryItems = currentLocation.query.flatMap { key, values in
+            values.map { URLQueryItem(name: key, value: $0) }
+        }
+        components.fragment = currentLocation.fragment
+        return components.url
+    }
+
+    private static func pathSegments(from path: String) -> [String] {
+        path.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+    }
+
+    private static func query(from queryItems: [URLQueryItem]?) -> [String: [String]] {
+        var query: [String: [String]] = [:]
+        for item in queryItems ?? [] {
+            query[item.name, default: []].append(item.value ?? "")
+        }
+        return query
+    }
+}
+
 public struct TouchInterruptMessage {
     public let x: Double
     public let y: Double
@@ -306,6 +386,37 @@ public func dispatchClickOrTap(x: Double, y: Double) {
             messageBuilder.addWithStringKey("y", y)
         }
     }
+}
+
+func dispatchRouteChange(_ location: RouteLocationMessage) {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey("RouteChange") { messageBuilder in
+            messageBuilder.addVectorWithStringKey("path_segments") { segmentsBuilder in
+                for segment in location.pathSegments {
+                    segmentsBuilder.addString(segment)
+                }
+            }
+            messageBuilder.addMapWithStringKey("query") { queryBuilder in
+                for (key, values) in location.query {
+                    queryBuilder.addVectorWithStringKey(key) { valuesBuilder in
+                        for value in values {
+                            valuesBuilder.addString(value)
+                        }
+                    }
+                }
+            }
+            if let fragment = location.fragment {
+                messageBuilder.addStringWithStringKey("fragment", fragment)
+            } else {
+                messageBuilder.addNullWithStringKey("fragment")
+            }
+        }
+    }
+}
+
+@discardableResult
+public func dispatchVirtualRouteNavigation(to destination: String) -> Bool {
+    PaxVirtualRouteCoordinator.shared.navigate(to: destination)
 }
 
 public func dispatchGyro(x: Double, y: Double, z: Double) {

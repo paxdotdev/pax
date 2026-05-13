@@ -23,7 +23,7 @@ impl SidebarNav {
         self.sync_next_jump_target();
     }
 
-    pub fn jump_to_next_demo(&mut self, ctx: &NodeContext, _args: Event<Click>) {
+    pub fn jump_to_next_demo(&mut self, ctx: &NodeContext, _args: Event<ClickOrTap>) {
         let index = self.jump_index.get() % DEMO_ROUTES.len();
         self.navigate_and_close(ctx, DEMO_ROUTES[index]);
         self.jump_index.set((index + 1) % DEMO_ROUTES.len());

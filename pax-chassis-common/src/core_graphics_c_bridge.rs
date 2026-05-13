@@ -906,6 +906,9 @@ pub extern "C" fn pax_interrupt(
             }
         }
         NativeInterrupt::VisualViewportUpdate(_args) => {}
+        NativeInterrupt::RouteChange(args) => {
+            globals.route_location.set(args.into());
+        }
         NativeInterrupt::Gyro(args) => {
             let gyro = Gyro {
                 x: args.x,

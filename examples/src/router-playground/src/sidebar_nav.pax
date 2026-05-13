@@ -64,7 +64,7 @@
         <Rectangle class=nav_card width=100% height=100% />
     </Group>
 
-    <Group width=100% height=88px @click=self.jump_to_next_demo>
+    <Group width=100% height=88px @click_or_tap=self.jump_to_next_demo>
         <Stacker class=nav_card_content>
             <Text class=jump_title width=100% height=100% text="Imperative jump" />
             <Text class=jump_meta width=100% height=100% text={next_jump_target} />

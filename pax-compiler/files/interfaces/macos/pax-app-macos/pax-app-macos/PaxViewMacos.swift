@@ -831,6 +831,9 @@ struct PaxViewMacos: View {
         }
 
         func handleNavigate(patch: NavigationPatchMessage) {
+            if patch.target == "current", dispatchVirtualRouteNavigation(to: patch.url) {
+                return
+            }
             guard let url = URL(string: patch.url) else {
                 return
             }

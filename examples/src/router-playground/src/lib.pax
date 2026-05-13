@@ -1,7 +1,7 @@
 if is_mobile {
     <Group width=100% height=100%>
         <Group x=0px y=0px width=100% height=72px>
-            <Group x=18px y=14px width=108px height=44px @click=self.toggle_mobile_menu>
+            <Group x=18px y=14px width=108px height=44px @click_or_tap=self.toggle_mobile_menu>
                 <Text id=mobile_menu_text width=100% height=100% text={mobile_menu_open ? "Close" : "Menu"} />
                 <Rectangle class=mobile_menu_button width=100% height=100% />
             </Group>
@@ -30,7 +30,7 @@ if is_mobile {
                 height={100% - 72px}
             />
 
-            <MobileMenuUnderlay x=0px y=72px width=100% height={100% - 72px} @click=self.close_mobile_menu />
+            <MobileMenuUnderlay x=0px y=72px width=100% height={100% - 72px} @click_or_tap=self.close_mobile_menu />
         }
 
         <Group x=0px y=72px width=100% height={100% - 72px}>
