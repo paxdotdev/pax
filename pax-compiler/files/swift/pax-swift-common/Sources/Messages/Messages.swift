@@ -379,9 +379,9 @@ private func dispatchTouchInterrupt(type: String, touches: [TouchInterruptMessag
     }
 }
 
-public func dispatchClickOrTap(x: Double, y: Double) {
+public func dispatchTap(x: Double, y: Double) {
     dispatchNativeInterrupt { builder in
-        builder.addMapWithStringKey("ClickOrTap") { messageBuilder in
+        builder.addMapWithStringKey("Tap") { messageBuilder in
             messageBuilder.addWithStringKey("x", x)
             messageBuilder.addWithStringKey("y", y)
         }

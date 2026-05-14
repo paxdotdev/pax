@@ -46,18 +46,6 @@ impl<T> Deref for Event<T> {
     }
 }
 
-/// A ClickOrTap describes either a "click" (mousedown followed by mouseup), OR a
-/// "tap" with one finger (singular fingerdown event).
-/// ClickOrTap is useful when you want the same behavior for both to be contained
-/// in one place.
-#[derive(Clone)]
-pub struct ClickOrTap {
-    /// The x-coordinate of the click-or-tap in the receiving node's local coordinate space.
-    pub x: f64,
-    /// The y-coordinate of the click-or-tap in the receiving node's local coordinate space.
-    pub y: f64,
-}
-
 /// Scroll is the shared delta-based path for wheel scrolling, touch swipe gestures, and
 /// read-only native scroller position changes.
 /// Use `Wheel` or `TouchMove` when you need platform-specific details instead of the normalized
@@ -167,12 +155,12 @@ pub struct Focus {}
 
 // Mouse Events
 
-/// Common properties in mouse events.
+/// Common properties in mouse-backed events and normalized activation events.
 #[derive(Clone)]
 pub struct MouseEventArgs {
-    /// The x-coordinate of the mouse event in the receiving node's local coordinate space.
+    /// The x-coordinate of the event in the receiving node's local coordinate space.
     pub x: f64,
-    /// The y-coordinate of the mouse event in the receiving node's local coordinate space.
+    /// The y-coordinate of the event in the receiving node's local coordinate space.
     pub y: f64,
     /// Mouse button associated with the event.
     pub button: MouseButton,
@@ -228,7 +216,10 @@ impl From<&ModifierKeyMessage> for ModifierKey {
     }
 }
 
-/// User clicks a mouse button over an element.
+/// User activates an element with a mouse click or single-touch tap.
+///
+/// `@click` and `@tap` handlers both receive `Event<Click>`. A touch tap is
+/// normalized with `button` set to `MouseButton::Left` and no modifiers.
 #[derive(Clone)]
 pub struct Click {
     /// Common mouse event data.
@@ -307,7 +298,7 @@ pub struct TextboxInput {
     pub text: String,
 }
 
-/// User clicks a button.
+/// User activates a native button by click or tap.
 #[derive(Clone)]
 pub struct ButtonClick {}
 

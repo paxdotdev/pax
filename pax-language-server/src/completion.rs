@@ -281,7 +281,6 @@ lazy_static! {
         let events = [
             ("scroll", "Set Scroll event handler"),
             ("checkbox_change", "Set Changed event handler"),
-            ("click_or_tap", "Set ClickOrTap event handler"),
             ("touch_start", "Set Touch Start event handler"),
             ("touch_move", "Set Touch Move event handler"),
             ("touch_end", "Set Touch End event handler"),
@@ -289,6 +288,7 @@ lazy_static! {
             ("key_up", "Set Key Up event handler"),
             ("key_press", "Set Key Press event handler"),
             ("click", "Set Click event handler"),
+            ("tap", "Set Tap event handler"),
             ("mouse_down", "Set Mouse Down event handler"),
             ("mouse_up", "Set Mouse Up event handler"),
             ("mouse_move", "Set Mouse Move event handler"),

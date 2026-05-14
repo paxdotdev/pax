@@ -222,19 +222,19 @@ struct PaxViewIos: View {
             }
         }
 
-        private func dispatchClickOrTapIfNeeded(changedTouches: Set<UITouch>, event: UIEvent?) {
+        private func dispatchTapIfNeeded(changedTouches: Set<UITouch>, event: UIEvent?) {
             let activeTouches = orderedActiveTouches(changedTouches: changedTouches, event: event)
             guard activeTouches.count == 1, let touch = activeTouches.first else {
                 return
             }
 
             let location = touch.preciseLocation(in: self)
-            dispatchClickOrTap(x: Double(location.x), y: Double(location.y))
+            dispatchTap(x: Double(location.x), y: Double(location.y))
         }
 
         override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
             dispatchTouchStart(touches: touchMessages(from: orderedActiveTouches(changedTouches: touches, event: event)))
-            dispatchClickOrTapIfNeeded(changedTouches: touches, event: event)
+            dispatchTapIfNeeded(changedTouches: touches, event: event)
             super.touchesBegan(touches, with: event)
         }
 

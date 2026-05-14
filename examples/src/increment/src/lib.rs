@@ -20,7 +20,7 @@ impl Example {
         self.ticks.set((old_ticks + 1) % 255);
     }
 
-    pub fn increment(&mut self, _ctx: &NodeContext, _args: Event<ClickOrTap>) {
+    pub fn increment(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
         let old_num_clicks = self.num_clicks.get();
         let new_val = old_num_clicks + 1;
         self.num_clicks.set(new_val);

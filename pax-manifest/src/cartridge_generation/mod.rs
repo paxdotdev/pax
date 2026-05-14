@@ -92,7 +92,6 @@ impl PaxManifest {
             map.insert(from.to_owned(), Some(to.to_owned()));
         };
         add("scroll", "Scroll");
-        add("click_or_tap", "ClickOrTap");
         add("touch_start", "TouchStart");
         add("touch_move", "TouchMove");
         add("touch_end", "TouchEnd");
@@ -106,6 +105,7 @@ impl PaxManifest {
         add("text_input", "TextInput");
         add("textbox_input", "TextboxInput");
         add("click", "Click");
+        add("tap", "Click");
         add("mouse_down", "MouseDown");
         add("mouse_up", "MouseUp");
         add("mouse_move", "MouseMove");

@@ -1,6 +1,6 @@
 #[allow(unused)]
 use crate::*;
-use pax_engine::api::{ClickOrTap, Event, MouseOut, MouseOver, Property};
+use pax_engine::api::{Click, Event, MouseOut, MouseOver, Property};
 use pax_engine::*;
 use pax_runtime::api::NodeContext;
 use pax_runtime::{
@@ -30,7 +30,7 @@ use pax_runtime::{
         </Frame>
     }
     @settings {
-        @click_or_tap: self.toggle
+        @click: self.toggle
         @mouse_over: self.mouse_over
         @mouse_out: self.mouse_out
         @mount: on_mount
@@ -106,7 +106,7 @@ impl Tooltip {
     }
 
     // Toggles the tooltip on click/tap for touch-first environments.
-    pub fn toggle(&mut self, _ctx: &NodeContext, _event: Event<ClickOrTap>) {
+    pub fn toggle(&mut self, _ctx: &NodeContext, _event: Event<Click>) {
         self._showing.set(!self._showing.get());
     }
 

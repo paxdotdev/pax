@@ -324,7 +324,6 @@ You can attach an input event handler to any node in a template with an inline b
 
 Pax supports the following input events:
 - Scroll (@scroll)
-- ClickOrTap (@click_or_tap)
 - TouchStart (@touch_start)
 - TouchMove (@touch_move)
 - TouchEnd (@touch_end)
@@ -337,6 +336,7 @@ Pax supports the following input events:
 - TextInput (@text_input)
 - TextboxInput (@textbox_input)
 - Click (@click)
+- Tap (@tap)
 - MouseDown (@mouse_down)
 - MouseUp (@mouse_up)
 - MouseMove (@mouse_move)
@@ -848,16 +848,6 @@ impl<T> Deref for Event<T> {
     }
 }
 
-/// A ClickOrTap describes either a "click" (mousedown followed by mouseup), OR a
-/// "tap" with one finger (singular fingerdown event).
-/// ClickOrTap is a useful alternative to most kinds of `Click` or `Tap` events,
-/// when you want the same behavior for both to be contained in one place.
-#[derive(Clone)]
-pub struct ClickOrTap {
-    pub x: f64,
-    pub y: f64,
-}
-
 /// Scroll is the shared delta-based path for wheel scrolling, touch swipe gestures, and
 /// read-only native scroller position changes.
 /// Use `Wheel` or `TouchMove` when you need platform-specific details instead of the normalized
@@ -947,7 +937,7 @@ pub struct Focus {}
 
 // Mouse Events
 
-/// Common properties in mouse events.
+/// Common properties in mouse-backed events and normalized activation events.
 #[derive(Clone)]
 pub struct MouseEventArgs {
     pub x: f64,
@@ -994,7 +984,8 @@ impl From<&ModifierKeyMessage> for ModifierKey {
     }
 }
 
-/// User clicks a mouse button over an element.
+/// User activates an element with a mouse click or single-touch tap.
+/// `@click` and `@tap` handlers both receive `Event<Click>`.
 #[derive(Clone)]
 pub struct Click {
     pub mouse: MouseEventArgs,

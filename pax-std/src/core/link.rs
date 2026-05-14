@@ -1,7 +1,7 @@
 #![allow(unused)]
 use crate::Rectangle;
 use pax_engine::api::cursor::CursorStyle;
-use pax_engine::api::{ClickOrTap, MouseOut, MouseOver, Property};
+use pax_engine::api::{Click, MouseOut, MouseOver, Property};
 use pax_engine::api::{Event, NavigationTarget};
 use pax_engine::*;
 use pax_runtime::api::NodeContext;
@@ -21,7 +21,7 @@ use pax_runtime::{
         @mouse_over: self.mouse_over
         @mouse_out: self.mouse_out
         @mount: on_mount
-        @click_or_tap: on_click_or_tap
+        @click: on_click
     }
 
 )]
@@ -101,7 +101,7 @@ impl Link {
     }
 
     // Dispatches navigation through the active runtime context.
-    pub fn on_click_or_tap(&mut self, ctx: &NodeContext, _event: Event<ClickOrTap>) {
+    pub fn on_click(&mut self, ctx: &NodeContext, _event: Event<Click>) {
         ctx.navigate_to(&self.url.get(), self.target.get().into());
     }
 

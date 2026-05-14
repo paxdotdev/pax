@@ -23,26 +23,26 @@ impl SidebarNav {
         self.sync_next_jump_target();
     }
 
-    pub fn jump_to_next_demo(&mut self, ctx: &NodeContext, _args: Event<ClickOrTap>) {
+    pub fn jump_to_next_demo(&mut self, ctx: &NodeContext, _args: Event<Click>) {
         let index = self.jump_index.get() % DEMO_ROUTES.len();
         self.navigate_and_close(ctx, DEMO_ROUTES[index]);
         self.jump_index.set((index + 1) % DEMO_ROUTES.len());
         self.sync_next_jump_target();
     }
 
-    pub fn navigate_to_landing(&mut self, ctx: &NodeContext, _args: Event<ClickOrTap>) {
+    pub fn navigate_to_landing(&mut self, ctx: &NodeContext, _args: Event<Click>) {
         self.navigate_and_close(ctx, "/");
     }
 
-    pub fn navigate_to_guide(&mut self, ctx: &NodeContext, _args: Event<ClickOrTap>) {
+    pub fn navigate_to_guide(&mut self, ctx: &NodeContext, _args: Event<Click>) {
         self.navigate_and_close(ctx, "/guide/topic/router?view=api#bindings");
     }
 
-    pub fn navigate_to_team(&mut self, ctx: &NodeContext, _args: Event<ClickOrTap>) {
+    pub fn navigate_to_team(&mut self, ctx: &NodeContext, _args: Event<Click>) {
         self.navigate_and_close(ctx, "/teams/design/members/ada?lane=beta#inspect");
     }
 
-    pub fn navigate_to_not_found(&mut self, ctx: &NodeContext, _args: Event<ClickOrTap>) {
+    pub fn navigate_to_not_found(&mut self, ctx: &NodeContext, _args: Event<Click>) {
         self.navigate_and_close(ctx, "/not-found/anywhere");
     }
 

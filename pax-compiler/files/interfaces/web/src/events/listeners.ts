@@ -34,6 +34,7 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
     };
 
     let lastPositions = new Map<number, {x: number, y: number}>();
+    let lastTouchTap: {x: number, y: number, timestamp: number} | undefined;
     function getTouchMessages(touchList: TouchList) {
         return Array.from(touchList).map(touch => {
             let lastPosition = lastPositions.get(touch.identifier) || { x: touch.clientX, y: touch.clientY };
@@ -50,7 +51,25 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
         });
     }
 
+    function isTouchGeneratedClick(evt: MouseEvent) {
+        let sourceCapabilities = (evt as any).sourceCapabilities;
+        if (sourceCapabilities?.firesTouchEvents) {
+            return true;
+        }
+        if (lastTouchTap == undefined) {
+            return false;
+        }
+        let elapsed = performance.now() - lastTouchTap.timestamp;
+        let distanceX = Math.abs(evt.clientX - lastTouchTap.x);
+        let distanceY = Math.abs(evt.clientY - lastTouchTap.y);
+        return elapsed < 750 && distanceX < 25 && distanceY < 25;
+    }
+
     addWindowListener('click', (evt) => {
+        if (isTouchGeneratedClick(evt)) {
+            lastTouchTap = undefined;
+            return;
+        }
 
         let clickEvent = {
             "Click": {
@@ -60,15 +79,8 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
                 "modifiers": convertModifiers(evt)
             }
         };
-        let r1 = chassis.interrupt(clickEvent, []);
-        let clickOrTapEvent = {
-            "ClickOrTap": {
-                "x": evt.clientX,
-                "y": evt.clientY,
-            }
-        };
-        let r2 = chassis.interrupt(clickOrTapEvent, []);
-        if (r1.prevent_default || r2.prevent_default) {
+        let res = chassis.interrupt(clickEvent, []);
+        if (res.prevent_default) {
             evt.preventDefault();
         }
     }, true);
@@ -190,14 +202,23 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
         });
         let r1 = chassis.interrupt(event, []);
 
-        let clickOrTapEvent = {
-            "ClickOrTap": {
-                "x": evt.touches[0].clientX,
-                "y": evt.touches[0].clientY,
-            }
-        };
-        let r2 = chassis.interrupt(clickOrTapEvent, []);
-        if (r1.prevent_default || r2.prevent_default) {
+        let tapPreventDefault = false;
+        if (evt.touches.length === 1) {
+            let touch = evt.touches[0];
+            lastTouchTap = {
+                x: touch.clientX,
+                y: touch.clientY,
+                timestamp: performance.now(),
+            };
+            let tapEvent = {
+                "Tap": {
+                    "x": touch.clientX,
+                    "y": touch.clientY,
+                }
+            };
+            tapPreventDefault = chassis.interrupt(tapEvent, []).prevent_default;
+        }
+        if (r1.prevent_default || tapPreventDefault) {
             evt.preventDefault();
         }
     }, {"passive": true, "capture": true});

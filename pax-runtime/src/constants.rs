@@ -1,5 +1,4 @@
 pub const SCROLL_HANDLERS: &str = "scroll";
-pub const CLICK_OR_TAP_HANDLERS: &str = "click_or_tap";
 pub const TOUCH_START_HANDLERS: &str = "touch_start";
 pub const TOUCH_MOVE_HANDLERS: &str = "touch_move";
 pub const TOUCH_END_HANDLERS: &str = "touch_end";
@@ -15,6 +14,7 @@ pub const TEXTBOX_CHANGE_HANDLERS: &str = "textbox_change";
 pub const TEXT_INPUT_HANDLERS: &str = "text_input";
 pub const TEXTBOX_INPUT_HANDLERS: &str = "textbox_input";
 pub const CLICK_HANDLERS: &str = "click";
+pub const TAP_HANDLERS: &str = "tap";
 pub const DROP_HANDLERS: &str = "drop";
 pub const MOUSE_DOWN_HANDLERS: &str = "mouse_down";
 pub const MOUSE_UP_HANDLERS: &str = "mouse_up";

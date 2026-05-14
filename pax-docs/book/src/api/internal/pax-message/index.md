@@ -188,8 +188,8 @@ Type: `Vec`<[`ModifierKeyMessage`](/api/internal/pax-message/index.md#modifierke
 
 ---
 
-### `ClickOrTapInterruptArgs`
-Pointer tap/click payload normalized to window coordinates.
+### `TapInterruptArgs`
+Single-touch tap payload normalized to window coordinates.
 
 #### Properties
 ##### `x`
@@ -1620,7 +1620,6 @@ Events and data packets sent from the chassis back into the Pax runtime.
 ##### `ChassisResizeRequestCollection`(`Vec`<[`ChassisResizeRequestArgs`](/api/internal/pax-message/index.md#chassisresizerequestargs)>)
 ##### `SelectStart`([`SelectStartArgs`](/api/internal/pax-message/index.md#selectstartargs))
 ##### `Focus`([`FocusInterruptArgs`](/api/internal/pax-message/index.md#focusinterruptargs))
-##### `ClickOrTap`([`ClickOrTapInterruptArgs`](/api/internal/pax-message/index.md#clickortapinterruptargs))
 ##### `Scroll`([`ScrollInterruptArgs`](/api/internal/pax-message/index.md#scrollinterruptargs))
 ##### `TouchStart`([`TouchStartInterruptArgs`](/api/internal/pax-message/index.md#touchstartinterruptargs))
 ##### `TouchMove`([`TouchMoveInterruptArgs`](/api/internal/pax-message/index.md#touchmoveinterruptargs))
@@ -1629,6 +1628,7 @@ Events and data packets sent from the chassis back into the Pax runtime.
 ##### `KeyUp`([`KeyUpInterruptArgs`](/api/internal/pax-message/index.md#keyupinterruptargs))
 ##### `KeyPress`([`KeyPressInterruptArgs`](/api/internal/pax-message/index.md#keypressinterruptargs))
 ##### `Click`([`ClickInterruptArgs`](/api/internal/pax-message/index.md#clickinterruptargs))
+##### `Tap`([`TapInterruptArgs`](/api/internal/pax-message/index.md#tapinterruptargs))
 ##### `DoubleClick`([`DoubleClickInterruptArgs`](/api/internal/pax-message/index.md#doubleclickinterruptargs))
 ##### `MouseMove`([`MouseMoveInterruptArgs`](/api/internal/pax-message/index.md#mousemoveinterruptargs))
 ##### `Wheel`([`WheelInterruptArgs`](/api/internal/pax-message/index.md#wheelinterruptargs))

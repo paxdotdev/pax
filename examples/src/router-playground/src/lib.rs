@@ -52,11 +52,11 @@ impl Example {
         self.sync_responsive_state(ctx);
     }
 
-    pub fn toggle_mobile_menu(&mut self, _ctx: &NodeContext, _args: Event<ClickOrTap>) {
+    pub fn toggle_mobile_menu(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
         self.mobile_menu_open.set(!self.mobile_menu_open.get());
     }
 
-    pub fn close_mobile_menu(&mut self, _ctx: &NodeContext, _args: Event<ClickOrTap>) {
+    pub fn close_mobile_menu(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
         self.mobile_menu_open.set(false);
     }
 

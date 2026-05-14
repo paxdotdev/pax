@@ -6,7 +6,7 @@ Event payloads and cancellation wrappers passed to Pax event handlers.
 
 ## Structs
 ### `ButtonClick`
-User clicks a button.
+User activates a native button by click or tap.
 
 ---
 
@@ -22,32 +22,16 @@ The new checked state.
 ---
 
 ### `Click`
-User clicks a mouse button over an element.
+User activates an element with a mouse click or single-touch tap.
+
+`@click` and `@tap` handlers both receive `Event<Click>`. A touch tap is
+normalized with `button` set to `MouseButton::Left` and no modifiers.
 
 #### Properties
 ##### `mouse`
 Type: [`MouseEventArgs`](/api/pax-runtime-api/events.md#mouseeventargs)
 
 Common mouse event data.
-
----
-
-### `ClickOrTap`
-A ClickOrTap describes either a "click" (mousedown followed by mouseup), OR a
-"tap" with one finger (singular fingerdown event).
-ClickOrTap is useful when you want the same behavior for both to be contained
-in one place.
-
-#### Properties
-##### `x`
-Type: `f64`
-
-The x-coordinate of the click-or-tap in the receiving node's local coordinate space.
-
-##### `y`
-Type: `f64`
-
-The y-coordinate of the click-or-tap in the receiving node's local coordinate space.
 
 ---
 
@@ -200,18 +184,18 @@ Common mouse event data.
 ---
 
 ### `MouseEventArgs`
-Common properties in mouse events.
+Common properties in mouse-backed events and normalized activation events.
 
 #### Properties
 ##### `x`
 Type: `f64`
 
-The x-coordinate of the mouse event in the receiving node's local coordinate space.
+The x-coordinate of the event in the receiving node's local coordinate space.
 
 ##### `y`
 Type: `f64`
 
-The y-coordinate of the mouse event in the receiving node's local coordinate space.
+The y-coordinate of the event in the receiving node's local coordinate space.
 
 ##### `button`
 Type: [`MouseButton`](/api/pax-runtime-api/events.md#mousebutton)

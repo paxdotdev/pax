@@ -18,9 +18,9 @@ use pax_gpu::render_backend::{RenderBackend, RenderConfig};
 use pax_gpu::{Transform2D, WgpuRenderer};
 use pax_runtime::api::math::Point2;
 use pax_runtime::api::{
-    Accel, ButtonClick, Click, ClickOrTap, Event, Focus, Gyro, ModifierKey, MouseButton,
-    MouseEventArgs, PhotoPickerChange, RenderContext, Scroll, SelectStart, TextboxChange,
-    TextboxInput, Touch, TouchEnd, TouchMove, TouchStart,
+    Accel, ButtonClick, Click, Event, Focus, Gyro, ModifierKey, MouseButton, MouseEventArgs,
+    PhotoPickerChange, RenderContext, Scroll, SelectStart, TextboxChange, TextboxInput, Touch,
+    TouchEnd, TouchMove, TouchStart,
 };
 use pax_runtime::engine::layer_tiling::{scroller_canvas_plan_with_policy, ScrollerTilingPolicy};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -672,15 +672,19 @@ pub extern "C" fn pax_interrupt(
                 );
             }
         }
-        NativeInterrupt::ClickOrTap(args) => {
+        NativeInterrupt::Tap(args) => {
             if let Some(topmost_node) = engine
                 .runtime_context
                 .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
             {
-                topmost_node.dispatch_click_or_tap(
-                    Event::new(ClickOrTap {
-                        x: args.x,
-                        y: args.y,
+                topmost_node.dispatch_tap(
+                    Event::new(Click {
+                        mouse: MouseEventArgs {
+                            x: args.x,
+                            y: args.y,
+                            button: MouseButton::Left,
+                            modifiers: vec![],
+                        },
                     }),
                     &globals,
                     &engine.runtime_context,

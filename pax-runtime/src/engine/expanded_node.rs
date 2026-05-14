@@ -9,11 +9,11 @@ use pax_runtime_api::{
 use crate::api::math::Point2;
 use crate::constants::{
     ACCEL_HANDLERS, BUTTON_CLICK_HANDLERS, CHECKBOX_CHANGE_HANDLERS, CLICK_HANDLERS,
-    CLICK_OR_TAP_HANDLERS, CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, DROP_HANDLERS,
-    FOCUSED_HANDLERS, GYRO_HANDLERS, KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS, KEY_UP_HANDLERS,
-    MOUSE_DOWN_HANDLERS, MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS, MOUSE_OVER_HANDLERS,
-    MOUSE_UP_HANDLERS, PHOTO_PICKER_CHANGE_HANDLERS, PRE_RENDER_HANDLERS, SCROLL_HANDLERS,
-    SELECT_START_HANDLERS, TEXTBOX_CHANGE_HANDLERS, TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS,
+    CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, DROP_HANDLERS, FOCUSED_HANDLERS, GYRO_HANDLERS,
+    KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS, KEY_UP_HANDLERS, MOUSE_DOWN_HANDLERS,
+    MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS, MOUSE_OVER_HANDLERS, MOUSE_UP_HANDLERS,
+    PHOTO_PICKER_CHANGE_HANDLERS, PRE_RENDER_HANDLERS, SCROLL_HANDLERS, SELECT_START_HANDLERS,
+    TAP_HANDLERS, TEXTBOX_CHANGE_HANDLERS, TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS,
     TICK_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use_RefCell!();
@@ -24,10 +24,10 @@ use std::collections::{BTreeMap, HashMap};
 use std::rc::{Rc, Weak};
 
 use crate::api::{
-    Accel, Axis, ButtonClick, CheckboxChange, Click, ClickOrTap, CommonProperties, ContextMenu,
-    DoubleClick, Drop, Event, Gyro, KeyDown, KeyPress, KeyUp, LayoutRole, MouseDown, MouseMove,
-    MouseOut, MouseOver, MouseUp, NodeContext, PhotoPickerChange, RenderContext, Scroll, Size,
-    TextboxChange, TextboxInput, TouchEnd, TouchMove, TouchStart, Wheel, Window,
+    Accel, Axis, ButtonClick, CheckboxChange, Click, CommonProperties, ContextMenu, DoubleClick,
+    Drop, Event, Gyro, KeyDown, KeyPress, KeyUp, LayoutRole, MouseDown, MouseMove, MouseOut,
+    MouseOver, MouseUp, NodeContext, PhotoPickerChange, RenderContext, Scroll, Size, TextboxChange,
+    TextboxInput, TouchEnd, TouchMove, TouchStart, Wheel, Window,
 };
 use pax_manifest::cartridge_generation::{
     TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT, TRANSITION_PHASE_IDLE, TRANSITION_PHASE_SYMBOL,
@@ -74,6 +74,12 @@ pub struct RuntimeResolvedPropertyEntry {
 }
 
 pub type RuntimeResolvedPropertyColumns = BTreeMap<String, Vec<RuntimeResolvedPropertyEntry>>;
+
+#[derive(Clone, Copy)]
+enum PointerActivationSource {
+    Mouse,
+    Touch,
+}
 
 #[derive(Clone)]
 pub struct ExpandedNode {
@@ -332,33 +338,7 @@ macro_rules! dispatch_event_handler {
             globals: &Globals,
             ctx: &Rc<RuntimeContext>,
         ) -> bool {
-            if let Some(registry) = borrow!(self.instance_node).base().get_handler_registry() {
-                let borrowed_registry = &borrow!(*registry);
-                if let Some(handlers) = borrowed_registry.handlers.get($handler_key) {
-                    if handlers.len() > 0 {
-                        let component_properties =
-                            if let Some(cc) = self.containing_component.upgrade() {
-                                Rc::clone(&*borrow!(cc.properties))
-                            } else {
-                                Rc::clone(&*borrow!(self.properties))
-                            };
-
-                        let context = self.get_node_context(ctx);
-                        handlers.iter().for_each(|handler| {
-                            let properties = if let HandlerLocation::Component = &handler.location {
-                                Rc::clone(&*borrow!(self.properties))
-                            } else {
-                                Rc::clone(&component_properties)
-                            };
-                            (handler.function)(
-                                Rc::clone(&properties),
-                                &context,
-                                Some(event.clone().to_pax_any()),
-                            );
-                        });
-                    }
-                };
-            }
+            self.run_event_handlers_for_key($handler_key, &event, ctx);
 
             if $recurse {
                 if let Some(parent) = self.template_parent.upgrade() {
@@ -382,6 +362,53 @@ impl ExpandedNode {
         root_node.bind_to_parent_bounds(ctx);
         Rc::clone(&root_node).recurse_mount(ctx);
         root_node
+    }
+
+    fn has_event_handlers(&self, handler_key: &str) -> bool {
+        borrow!(self.instance_node)
+            .base()
+            .get_handler_registry()
+            .is_some_and(|registry| {
+                borrow!(*registry)
+                    .handlers
+                    .get(handler_key)
+                    .is_some_and(|handlers| !handlers.is_empty())
+            })
+    }
+
+    fn run_event_handlers_for_key<T: Clone + 'static>(
+        self: &Rc<Self>,
+        handler_key: &str,
+        event: &Event<T>,
+        ctx: &Rc<RuntimeContext>,
+    ) {
+        if let Some(registry) = borrow!(self.instance_node).base().get_handler_registry() {
+            let borrowed_registry = &borrow!(*registry);
+            if let Some(handlers) = borrowed_registry.handlers.get(handler_key) {
+                if !handlers.is_empty() {
+                    let component_properties = if let Some(cc) = self.containing_component.upgrade()
+                    {
+                        Rc::clone(&*borrow!(cc.properties))
+                    } else {
+                        Rc::clone(&*borrow!(self.properties))
+                    };
+
+                    let context = self.get_node_context(ctx);
+                    handlers.iter().for_each(|handler| {
+                        let properties = if let HandlerLocation::Component = &handler.location {
+                            Rc::clone(&*borrow!(self.properties))
+                        } else {
+                            Rc::clone(&component_properties)
+                        };
+                        (handler.function)(
+                            Rc::clone(&properties),
+                            &context,
+                            Some(event.clone().to_pax_any()),
+                        );
+                    });
+                }
+            };
+        }
     }
 
     fn new(
@@ -1751,12 +1778,6 @@ impl ExpandedNode {
     }
 
     dispatch_event_handler!(dispatch_scroll, Scroll, SCROLL_HANDLERS, true);
-    dispatch_event_handler!(
-        dispatch_click_or_tap,
-        ClickOrTap,
-        CLICK_OR_TAP_HANDLERS,
-        true
-    );
     dispatch_event_handler!(dispatch_touch_start, TouchStart, TOUCH_START_HANDLERS, true);
 
     dispatch_event_handler!(dispatch_touch_move, TouchMove, TOUCH_MOVE_HANDLERS, true);
@@ -1812,7 +1833,50 @@ impl ExpandedNode {
         CONTEXT_MENU_HANDLERS,
         true
     );
-    dispatch_event_handler!(dispatch_click, Click, CLICK_HANDLERS, true);
+    fn dispatch_pointer_activation(
+        self: &Rc<Self>,
+        event: Event<Click>,
+        source: PointerActivationSource,
+        ctx: &Rc<RuntimeContext>,
+    ) -> bool {
+        let has_click = self.has_event_handlers(CLICK_HANDLERS);
+        let has_tap = self.has_event_handlers(TAP_HANDLERS);
+        let handler_key = match (has_click, has_tap, source) {
+            (true, true, PointerActivationSource::Mouse) => Some(CLICK_HANDLERS),
+            (true, true, PointerActivationSource::Touch) => Some(TAP_HANDLERS),
+            (true, false, _) => Some(CLICK_HANDLERS),
+            (false, true, _) => Some(TAP_HANDLERS),
+            (false, false, _) => None,
+        };
+
+        if let Some(handler_key) = handler_key {
+            self.run_event_handlers_for_key(handler_key, &event, ctx);
+        }
+
+        if let Some(parent) = self.template_parent.upgrade() {
+            return parent.dispatch_pointer_activation(event, source, ctx);
+        }
+        event.cancelled()
+    }
+
+    pub fn dispatch_click(
+        self: &Rc<Self>,
+        event: Event<Click>,
+        _globals: &Globals,
+        ctx: &Rc<RuntimeContext>,
+    ) -> bool {
+        self.dispatch_pointer_activation(event, PointerActivationSource::Mouse, ctx)
+    }
+
+    pub fn dispatch_tap(
+        self: &Rc<Self>,
+        event: Event<Click>,
+        _globals: &Globals,
+        ctx: &Rc<RuntimeContext>,
+    ) -> bool {
+        self.dispatch_pointer_activation(event, PointerActivationSource::Touch, ctx)
+    }
+
     dispatch_event_handler!(dispatch_wheel, Wheel, WHEEL_HANDLERS, true);
     dispatch_event_handler!(dispatch_drop, Drop, DROP_HANDLERS, true);
     dispatch_event_handler!(dispatch_gyro, Gyro, GYRO_HANDLERS, false);

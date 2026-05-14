@@ -69,7 +69,6 @@ pub enum NativeInterrupt {
     ChassisResizeRequestCollection(Vec<ChassisResizeRequestArgs>),
     SelectStart(SelectStartArgs),
     Focus(FocusInterruptArgs),
-    ClickOrTap(ClickOrTapInterruptArgs),
     Scroll(ScrollInterruptArgs),
     TouchStart(TouchStartInterruptArgs),
     TouchMove(TouchMoveInterruptArgs),
@@ -78,6 +77,7 @@ pub enum NativeInterrupt {
     KeyUp(KeyUpInterruptArgs),
     KeyPress(KeyPressInterruptArgs),
     Click(ClickInterruptArgs),
+    Tap(TapInterruptArgs),
     DoubleClick(DoubleClickInterruptArgs),
     MouseMove(MouseMoveInterruptArgs),
     Wheel(WheelInterruptArgs),
@@ -221,8 +221,8 @@ pub struct PhotoPickerInterruptArgs {
 
 #[derive(Deserialize)]
 #[repr(C)]
-/// Pointer tap/click payload normalized to window coordinates.
-pub struct ClickOrTapInterruptArgs {
+/// Single-touch tap payload normalized to window coordinates.
+pub struct TapInterruptArgs {
     pub x: f64,
     pub y: f64,
 }
