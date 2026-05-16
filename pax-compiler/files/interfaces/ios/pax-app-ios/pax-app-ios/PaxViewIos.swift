@@ -134,6 +134,7 @@ struct PaxViewIos: View {
         let sliderElements = SliderElements.singleton
         let textboxElements = TextboxElements.singleton
         let eventBlockerElements = EventBlockerElements.singleton
+        let glassSurfaceElements = GlassSurfaceElements.singleton
         private var displayLink: CADisplayLink?
         private var previousViewportSize: CGSize = .zero
         private var needsNativeTextRemeasure = false

@@ -2,8 +2,8 @@ use crate::api::TextInput;
 use crate::node_interface::NodeLocal;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::{
-    borrow, borrow_mut, use_RefCell, Focus, Interpolatable, Layer, Percent, Property, SelectStart,
-    Variable,
+    borrow, borrow_mut, use_RefCell, Focus, Interpolatable, Layer, NativeLiquidGlassScope, Percent,
+    Property, SelectStart, Variable,
 };
 
 use crate::api::math::Point2;
@@ -111,6 +111,9 @@ pub struct ExpandedNode {
     /// creating a native element to know what clipping context
     /// to attach to
     pub parent_frame: Property<Option<ExpandedNodeIdentifier>>,
+
+    /// Nearest active native liquid-glass scope inherited by descendants.
+    pub liquid_glass_scope: Property<Option<NativeLiquidGlassScope>>,
 
     /// Reference to the _component for which this `ExpandedNode` is a template member._ Used at least for
     /// resolving projected children for `slot`. `Option`al because the very root instance node (root component, root instance node)
@@ -531,6 +534,7 @@ impl ExpandedNode {
             // template parent
             render_parent: Default::default(),
             parent_frame: Default::default(),
+            liquid_glass_scope: Default::default(),
             template_parent: parent,
 
             containing_component,
@@ -881,6 +885,21 @@ impl ExpandedNode {
         context: &Rc<RuntimeContext>,
         parent_frame: &Property<Option<ExpandedNodeIdentifier>>,
     ) -> Vec<Rc<ExpandedNode>> {
+        self.attach_children_with_liquid_glass_scope(
+            new_children,
+            context,
+            parent_frame,
+            &self.liquid_glass_scope,
+        )
+    }
+
+    pub fn attach_children_with_liquid_glass_scope(
+        self: &Rc<Self>,
+        new_children: Vec<Rc<ExpandedNode>>,
+        context: &Rc<RuntimeContext>,
+        parent_frame: &Property<Option<ExpandedNodeIdentifier>>,
+        liquid_glass_scope: &Property<Option<NativeLiquidGlassScope>>,
+    ) -> Vec<Rc<ExpandedNode>> {
         for child in new_children.iter() {
             // set parent and connect up viewport bounds to new parent
             *borrow_mut!(child.render_parent) = Rc::downgrade(self);
@@ -890,6 +909,11 @@ impl ExpandedNode {
             child
                 .parent_frame
                 .replace_with(Property::computed(move || parent_frame.get(), &deps));
+            let liquid_glass_scope = liquid_glass_scope.clone();
+            let deps = [liquid_glass_scope.untyped()];
+            child
+                .liquid_glass_scope
+                .replace_with(Property::computed(move || liquid_glass_scope.get(), &deps));
 
             // suspension is used in the designer to turn of/on tick/update
             child.inherit_suspend(self);
@@ -942,6 +966,11 @@ impl ExpandedNode {
             child
                 .parent_frame
                 .replace_with(Property::computed(move || parent_frame.get(), &deps));
+            let liquid_glass_scope = self.liquid_glass_scope.clone();
+            let deps = [liquid_glass_scope.untyped()];
+            child
+                .liquid_glass_scope
+                .replace_with(Property::computed(move || liquid_glass_scope.get(), &deps));
             child.inherit_suspend(self);
             child.bind_to_parent_bounds(context);
         }
@@ -1031,6 +1060,7 @@ impl ExpandedNode {
             self.children.untyped(),
             self.transform_and_bounds.untyped(),
             self.computed_opacity.untyped(),
+            self.liquid_glass_scope.untyped(),
         ]);
 
         let context = Rc::clone(ctx);
@@ -1205,9 +1235,31 @@ impl ExpandedNode {
         parent_frame: &Property<Option<ExpandedNodeIdentifier>>,
         is_mount: bool,
     ) -> Vec<Rc<ExpandedNode>> {
+        self.generate_children_with_liquid_glass_scope(
+            templates,
+            context,
+            parent_frame,
+            &self.liquid_glass_scope,
+            is_mount,
+        )
+    }
+
+    pub fn generate_children_with_liquid_glass_scope(
+        self: &Rc<Self>,
+        templates: impl IntoIterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
+        context: &Rc<RuntimeContext>,
+        parent_frame: &Property<Option<ExpandedNodeIdentifier>>,
+        liquid_glass_scope: &Property<Option<NativeLiquidGlassScope>>,
+        is_mount: bool,
+    ) -> Vec<Rc<ExpandedNode>> {
         let new_children = self.create_children_detached(templates, context, &Rc::downgrade(&self));
         let res = if is_mount {
-            self.attach_children(new_children, context, parent_frame)
+            self.attach_children_with_liquid_glass_scope(
+                new_children,
+                context,
+                parent_frame,
+                liquid_glass_scope,
+            )
         } else {
             for child in new_children.iter() {
                 child.recurse_control_flow_expansion(context);

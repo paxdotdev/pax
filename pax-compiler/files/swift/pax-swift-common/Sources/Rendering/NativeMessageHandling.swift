@@ -17,9 +17,10 @@ public struct DirtyCollections {
     public var slider = false
     public var textbox = false
     public var eventBlocker = false
+    public var glassSurface = false
 
     public var hasAny: Bool {
-        text || frame || scroller || button || photoPicker || checkbox || nativeImage || youtubeVideo || dropdown || radioList || slider || textbox || eventBlocker
+        text || frame || scroller || button || photoPicker || checkbox || nativeImage || youtubeVideo || dropdown || radioList || slider || textbox || eventBlocker || glassSurface
     }
 
     public init() {}
@@ -50,6 +51,7 @@ public protocol NativeMessageHandling: AnyObject {
     var sliderElements: SliderElements { get }
     var textboxElements: TextboxElements { get }
     var eventBlockerElements: EventBlockerElements { get }
+    var glassSurfaceElements: GlassSurfaceElements { get }
 
     func handleImageLoad(patch: ImageLoadPatch)
     func handleNavigate(patch: NavigationPatchMessage)
@@ -144,6 +146,10 @@ public extension NativeMessageHandling {
             recomputeResolvedMask(for: element)
             return
         }
+        if let element = glassSurfaceElements.elements[id] {
+            recomputeResolvedMask(for: element)
+            return
+        }
         if let element = scrollerElements.elements[id] {
             recomputeResolvedMask(for: element)
         }
@@ -201,6 +207,7 @@ public extension NativeMessageHandling {
         recomputeResolvedMasks(in: sliderElements.elements)
         recomputeResolvedMasks(in: textboxElements.elements)
         recomputeResolvedMasks(in: eventBlockerElements.elements)
+        recomputeResolvedMasks(in: glassSurfaceElements.elements)
         recomputeResolvedMasks(in: scrollerElements.elements)
     }
 
@@ -368,7 +375,7 @@ public extension NativeMessageHandling {
     }
 
     func handlePhotoPickerCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
-        photoPickerElements.add(element: PhotoPickerElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+        photoPickerElements.add(element: PhotoPickerElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.photoPicker = true
     }
@@ -646,6 +653,41 @@ public extension NativeMessageHandling {
         dirty.eventBlocker = true
     }
 
+    func handleGlassSurfaceCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        glassSurfaceElements.add(element: GlassSurfaceElement.makeDefault(
+            id: patch.id,
+            parentFrame: patch.parentFrame,
+            renderLayerId: patch.renderLayerId
+        ))
+        masks.mark(patch.id)
+        dirty.glassSurface = true
+    }
+
+    func handleGlassSurfaceUpdate(patch: GlassSurfaceUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        if let element = glassSurfaceElements.elements[patch.id] {
+            let previousTransform = element.transform
+            let previousSizeX = element.size_x
+            let previousSizeY = element.size_y
+            element.applyPatch(patch)
+            element.applyResolvedPlacement(patch)
+            if geometryChanged(
+                element,
+                previousTransform: previousTransform,
+                previousSizeX: previousSizeX,
+                previousSizeY: previousSizeY
+            ) {
+                masks.mark(patch.id)
+            }
+        }
+        dirty.glassSurface = true
+    }
+
+    func handleGlassSurfaceDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
+        glassSurfaceElements.remove(id: patch.id)
+        removeResolvedNativeMask(id: patch.id)
+        dirty.glassSurface = true
+    }
+
     func handleNativeMaskUpdate(patch: NativeMaskPatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
         if let textElement = textElements.elements[patch.id] {
             textElement.applyNativeMaskPatch(patch)
@@ -713,6 +755,12 @@ public extension NativeMessageHandling {
             dirty.eventBlocker = true
             return
         }
+        if let glassSurfaceElement = glassSurfaceElements.elements[patch.id] {
+            glassSurfaceElement.applyNativeMaskPatch(patch)
+            masks.mark(patch.id)
+            dirty.glassSurface = true
+            return
+        }
         if let scrollerElement = scrollerElements.elements[patch.id] {
             scrollerElement.applyNativeMaskPatch(patch)
             masks.mark(patch.id)
@@ -776,6 +824,16 @@ public extension NativeMessageHandling {
             }
             if let photoPickerDeleteMessage = message["PhotoPickerDelete"] {
                 handlePhotoPickerDelete(patch: AnyDeletePatch(fb: photoPickerDeleteMessage), dirty: &dirty)
+            }
+
+            if let glassSurfaceCreateMessage = message["GlassSurfaceCreate"] {
+                handleGlassSurfaceCreate(patch: AnyCreatePatch(fb: glassSurfaceCreateMessage), dirty: &dirty, masks: &masks)
+            }
+            if let glassSurfaceUpdateMessage = message["GlassSurfaceUpdate"] {
+                handleGlassSurfaceUpdate(patch: GlassSurfaceUpdatePatch(fb: glassSurfaceUpdateMessage), dirty: &dirty, masks: &masks)
+            }
+            if let glassSurfaceDeleteMessage = message["GlassSurfaceDelete"] {
+                handleGlassSurfaceDelete(patch: AnyDeletePatch(fb: glassSurfaceDeleteMessage), dirty: &dirty)
             }
 
             if let checkboxCreateMessage = message["CheckboxCreate"] {

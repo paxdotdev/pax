@@ -2231,6 +2231,43 @@ public protocol NativePositionElement: NativeMaskableElement, ResolvedPlacementT
     var opacity: Double { get set }
 }
 
+public class AppleLiquidGlassPatchMessage {
+    public var groupId: UInt32
+    public var spacing: Double
+    public var interactive: Bool
+    public var tint: Color?
+    public var variant: String
+
+    public init(fb: FlxbReference) {
+        if let value = fb["group_id"]?.asUInt64 {
+            self.groupId = UInt32(truncatingIfNeeded: value)
+        } else if let value = fb["group_id"]?.asInt {
+            self.groupId = UInt32(truncatingIfNeeded: value)
+        } else {
+            self.groupId = 0
+        }
+        self.spacing = readDouble(fb["spacing"]) ?? 0.0
+        self.interactive = fb["interactive"]?.asBool ?? false
+        self.variant = fb["variant"]?.asString ?? "regular"
+        if let tint = fb["tint"], !tint.isNull {
+            self.tint = extractColorFromBuffer(tint)
+        } else {
+            self.tint = nil
+        }
+    }
+}
+
+private func readAppleLiquidGlass(_ fb: FlxbReference?) -> AppleLiquidGlassPatchMessage? {
+    guard let fb, !fb.isNull else {
+        return nil
+    }
+    return AppleLiquidGlassPatchMessage(fb: fb)
+}
+
+public protocol AppleLiquidGlassTarget: AnyObject {
+    var liquidGlass: AppleLiquidGlassPatchMessage? { get set }
+}
+
 public class EventBlockerPatchMessage: ResolvedPlacementPatch {
     public var id: PaxNodeId
     public var parentFrameUpdated: Bool
@@ -2289,6 +2326,74 @@ public class EventBlockerElement: NativePositionElement {
     }
 }
 
+public class GlassSurfaceUpdatePatch: ResolvedPlacementPatch {
+    public var id: PaxNodeId
+    public var parentFrameUpdated: Bool
+    public var parentFrame: PaxNodeId?
+    public var zIndexUpdated: Bool
+    public var zIndex: Int?
+    public var transform: [Float]?
+    public var size_x: Float?
+    public var size_y: Float?
+    public var opacity: Double?
+    public var borderRadius: Double?
+    public var liquidGlass: AppleLiquidGlassPatchMessage?
+
+    public init(fb: FlxbReference) {
+        self.id = readNodeId(fb["id"]) ?? 0
+        self.parentFrameUpdated = fieldExists(fb, "parent_frame")
+        self.parentFrame = readNodeId(fb["parent_frame"])
+        self.zIndexUpdated = fieldExists(fb, "z_index")
+        self.zIndex = readInt(fb["z_index"])
+        self.transform = readFloatArray(fb["transform"])
+        self.size_x = fb["size_x"]?.asFloat
+        self.size_y = fb["size_y"]?.asFloat
+        self.opacity = readDouble(fb["opacity"])
+        self.borderRadius = readDouble(fb["border_radius"])
+        self.liquidGlass = readAppleLiquidGlass(fb["liquid_glass"])
+    }
+}
+
+public class GlassSurfaceElement: NativePositionElement, AppleLiquidGlassTarget {
+    public var id: PaxNodeId
+    public var parentFrame: PaxNodeId?
+    public var renderLayerId: UInt32
+    public var zIndex: Int
+    public var transform: [Float]
+    public var size_x: Float
+    public var size_y: Float
+    public var opacity: Double
+    public var borderRadius: Double
+    public var liquidGlass: AppleLiquidGlassPatchMessage?
+    public var nativeMaskPatch: NativeMaskPatch? = nil
+
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, borderRadius: Double, liquidGlass: AppleLiquidGlassPatchMessage?) {
+        self.id = id
+        self.parentFrame = parentFrame
+        self.renderLayerId = renderLayerId
+        self.zIndex = zIndex
+        self.transform = transform
+        self.size_x = size_x
+        self.size_y = size_y
+        self.opacity = opacity
+        self.borderRadius = borderRadius
+        self.liquidGlass = liquidGlass
+    }
+
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32) -> GlassSurfaceElement {
+        GlassSurfaceElement(id: id, parentFrame: parentFrame, renderLayerId: renderLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0, borderRadius: 0, liquidGlass: nil)
+    }
+
+    public func applyPatch(_ patch: GlassSurfaceUpdatePatch) {
+        if let transform = patch.transform { self.transform = transform }
+        if let size_x = patch.size_x { self.size_x = size_x }
+        if let size_y = patch.size_y { self.size_y = size_y }
+        if let opacity = patch.opacity { self.opacity = opacity }
+        if let borderRadius = patch.borderRadius { self.borderRadius = borderRadius }
+        if let liquidGlass = patch.liquidGlass { self.liquidGlass = liquidGlass }
+    }
+}
+
 public class ButtonUpdatePatch: ResolvedPlacementPatch {
     public var id: PaxNodeId
     public var parentFrameUpdated: Bool
@@ -2306,6 +2411,8 @@ public class ButtonUpdatePatch: ResolvedPlacementPatch {
     public var content: String?
     public var color: Color?
     public var style: TextStyleMessage?
+    public var liquidGlassUpdated: Bool
+    public var liquidGlass: AppleLiquidGlassPatchMessage?
 
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? 0
@@ -2320,6 +2427,8 @@ public class ButtonUpdatePatch: ResolvedPlacementPatch {
         self.size_y = fb["size_y"]?.asFloat
         self.opacity = readDouble(fb["opacity"])
         self.content = fb["content"]?.asString
+        self.liquidGlassUpdated = fieldExists(fb, "liquid_glass")
+        self.liquidGlass = readAppleLiquidGlass(fb["liquid_glass"])
         if let hoverColor = fb["hover_color"], !hoverColor.isNull {
             self.hoverColor = extractColorFromBuffer(hoverColor)
         }
@@ -2335,7 +2444,7 @@ public class ButtonUpdatePatch: ResolvedPlacementPatch {
     }
 }
 
-public class ButtonElement: NativePositionElement {
+public class ButtonElement: NativePositionElement, AppleLiquidGlassTarget {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
     public var renderLayerId: UInt32
@@ -2351,6 +2460,7 @@ public class ButtonElement: NativePositionElement {
     public var content: String
     public var color: Color
     public var style: TextStyle
+    public var liquidGlass: AppleLiquidGlassPatchMessage?
     public var nativeMaskPatch: NativeMaskPatch? = nil
 
     public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, hoverColor: Color, outlineStrokeColor: Color, outlineStrokeWidth: Double, borderRadius: Double, content: String, color: Color, style: TextStyle) {
@@ -2403,6 +2513,7 @@ public class ButtonElement: NativePositionElement {
         if let content = patch.content { self.content = content }
         if let color = patch.color { self.color = color }
         if let style = patch.style { self.style.applyPatch(from: style) }
+        if patch.liquidGlassUpdated { self.liquidGlass = patch.liquidGlass }
     }
 }
 
@@ -2449,7 +2560,7 @@ public class PhotoPickerUpdatePatch: ResolvedPlacementPatch {
 public class PhotoPickerElement: NativePositionElement {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
-    public var occlusionLayerId: UInt32
+    public var renderLayerId: UInt32
     public var zIndex: Int
     public var transform: [Float]
     public var size_x: Float
@@ -2466,7 +2577,7 @@ public class PhotoPickerElement: NativePositionElement {
     public init(
         id: PaxNodeId,
         parentFrame: PaxNodeId?,
-        occlusionLayerId: UInt32,
+        renderLayerId: UInt32,
         zIndex: Int,
         transform: [Float],
         size_x: Float,
@@ -2481,7 +2592,7 @@ public class PhotoPickerElement: NativePositionElement {
     ) {
         self.id = id
         self.parentFrame = parentFrame
-        self.occlusionLayerId = occlusionLayerId
+        self.renderLayerId = renderLayerId
         self.zIndex = zIndex
         self.transform = transform
         self.size_x = size_x
@@ -2495,11 +2606,11 @@ public class PhotoPickerElement: NativePositionElement {
         self.maxBytesPerPhoto = maxBytesPerPhoto
     }
 
-    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> PhotoPickerElement {
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32) -> PhotoPickerElement {
         PhotoPickerElement(
             id: id,
             parentFrame: parentFrame,
-            occlusionLayerId: occlusionLayerId,
+            renderLayerId: renderLayerId,
             zIndex: 0,
             transform: [1, 0, 0, 1, 0, 0],
             size_x: 0,
@@ -2544,6 +2655,8 @@ public class CheckboxUpdatePatch: ResolvedPlacementPatch {
     public var size_y: Float?
     public var opacity: Double?
     public var checked: Bool?
+    public var liquidGlassUpdated: Bool
+    public var liquidGlass: AppleLiquidGlassPatchMessage?
 
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? 0
@@ -2558,6 +2671,8 @@ public class CheckboxUpdatePatch: ResolvedPlacementPatch {
         self.size_y = fb["size_y"]?.asFloat
         self.opacity = readDouble(fb["opacity"])
         self.checked = fb["checked"]?.asBool
+        self.liquidGlassUpdated = fieldExists(fb, "liquid_glass")
+        self.liquidGlass = readAppleLiquidGlass(fb["liquid_glass"])
         if let background = fb["background"], !background.isNull {
             self.background = extractColorFromBuffer(background)
         }
@@ -2570,7 +2685,7 @@ public class CheckboxUpdatePatch: ResolvedPlacementPatch {
     }
 }
 
-public class CheckboxElement: NativePositionElement {
+public class CheckboxElement: NativePositionElement, AppleLiquidGlassTarget {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
     public var renderLayerId: UInt32
@@ -2585,6 +2700,7 @@ public class CheckboxElement: NativePositionElement {
     public var outlineWidth: Double
     public var borderRadius: Double
     public var checked: Bool
+    public var liquidGlass: AppleLiquidGlassPatchMessage?
     public var nativeMaskPatch: NativeMaskPatch? = nil
 
     public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, background: Color, backgroundChecked: Color, outlineColor: Color, outlineWidth: Double, borderRadius: Double, checked: Bool) {
@@ -2619,6 +2735,7 @@ public class CheckboxElement: NativePositionElement {
         if let outlineWidth = patch.outlineWidth { self.outlineWidth = outlineWidth }
         if let borderRadius = patch.borderRadius { self.borderRadius = borderRadius }
         if let checked = patch.checked { self.checked = checked }
+        if patch.liquidGlassUpdated { self.liquidGlass = patch.liquidGlass }
     }
 }
 
@@ -2770,6 +2887,8 @@ public class DropdownUpdatePatch: ResolvedPlacementPatch {
     public var strokeWidth: Double?
     public var borderRadius: Double?
     public var style: TextStyleMessage?
+    public var liquidGlassUpdated: Bool
+    public var liquidGlass: AppleLiquidGlassPatchMessage?
 
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? 0
@@ -2785,6 +2904,8 @@ public class DropdownUpdatePatch: ResolvedPlacementPatch {
         self.opacity = readDouble(fb["opacity"])
         self.strokeWidth = readDouble(fb["stroke_width"])
         self.borderRadius = readDouble(fb["border_radius"])
+        self.liquidGlassUpdated = fieldExists(fb, "liquid_glass")
+        self.liquidGlass = readAppleLiquidGlass(fb["liquid_glass"])
         if let background = fb["background"], !background.isNull {
             self.background = extractColorFromBuffer(background)
         }
@@ -2797,7 +2918,7 @@ public class DropdownUpdatePatch: ResolvedPlacementPatch {
     }
 }
 
-public class DropdownElement: NativePositionElement {
+public class DropdownElement: NativePositionElement, AppleLiquidGlassTarget {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
     public var renderLayerId: UInt32
@@ -2813,6 +2934,7 @@ public class DropdownElement: NativePositionElement {
     public var strokeWidth: Double
     public var borderRadius: Double
     public var style: TextStyle
+    public var liquidGlass: AppleLiquidGlassPatchMessage?
     public var nativeMaskPatch: NativeMaskPatch? = nil
 
     public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, selectedId: UInt32, options: [String], background: Color, strokeColor: Color, strokeWidth: Double, borderRadius: Double, style: TextStyle) {
@@ -2849,6 +2971,7 @@ public class DropdownElement: NativePositionElement {
         if let strokeWidth = patch.strokeWidth { self.strokeWidth = strokeWidth }
         if let borderRadius = patch.borderRadius { self.borderRadius = borderRadius }
         if let style = patch.style { self.style.applyPatch(from: style) }
+        if patch.liquidGlassUpdated { self.liquidGlass = patch.liquidGlass }
     }
 }
 
@@ -2869,6 +2992,8 @@ public class RadioListUpdatePatch: ResolvedPlacementPatch {
     public var size_x: Float?
     public var size_y: Float?
     public var opacity: Double?
+    public var liquidGlassUpdated: Bool
+    public var liquidGlass: AppleLiquidGlassPatchMessage?
 
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? 0
@@ -2882,6 +3007,8 @@ public class RadioListUpdatePatch: ResolvedPlacementPatch {
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
         self.opacity = readDouble(fb["opacity"])
+        self.liquidGlassUpdated = fieldExists(fb, "liquid_glass")
+        self.liquidGlass = readAppleLiquidGlass(fb["liquid_glass"])
         self.outlineWidth = readDouble(fb["outline_width"])
         if let style = fb["style"], !style.isNull {
             self.style = TextStyleMessage(style)
@@ -2898,7 +3025,7 @@ public class RadioListUpdatePatch: ResolvedPlacementPatch {
     }
 }
 
-public class RadioListElement: NativePositionElement {
+public class RadioListElement: NativePositionElement, AppleLiquidGlassTarget {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
     public var renderLayerId: UInt32
@@ -2914,6 +3041,7 @@ public class RadioListElement: NativePositionElement {
     public var outlineColor: Color
     public var outlineWidth: Double
     public var background: Color
+    public var liquidGlass: AppleLiquidGlassPatchMessage?
     public var nativeMaskPatch: NativeMaskPatch? = nil
 
     public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, selectedId: UInt32, options: [String], style: TextStyle, backgroundChecked: Color, outlineColor: Color, outlineWidth: Double, background: Color) {
@@ -2950,6 +3078,7 @@ public class RadioListElement: NativePositionElement {
         if let outlineWidth = patch.outlineWidth { self.outlineWidth = outlineWidth }
         if let background = patch.background { self.background = background }
         if let style = patch.style { self.style.applyPatch(from: style) }
+        if patch.liquidGlassUpdated { self.liquidGlass = patch.liquidGlass }
     }
 }
 
@@ -2970,6 +3099,8 @@ public class SliderUpdatePatch: ResolvedPlacementPatch {
     public var accent: Color?
     public var background: Color?
     public var borderRadius: Double?
+    public var liquidGlassUpdated: Bool
+    public var liquidGlass: AppleLiquidGlassPatchMessage?
 
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? 0
@@ -2986,6 +3117,8 @@ public class SliderUpdatePatch: ResolvedPlacementPatch {
         self.size_y = fb["size_y"]?.asFloat
         self.opacity = readDouble(fb["opacity"])
         self.borderRadius = readDouble(fb["border_radius"])
+        self.liquidGlassUpdated = fieldExists(fb, "liquid_glass")
+        self.liquidGlass = readAppleLiquidGlass(fb["liquid_glass"])
         if let accent = fb["accent"], !accent.isNull {
             self.accent = extractColorFromBuffer(accent)
         }
@@ -2995,7 +3128,7 @@ public class SliderUpdatePatch: ResolvedPlacementPatch {
     }
 }
 
-public class SliderElement: NativePositionElement {
+public class SliderElement: NativePositionElement, AppleLiquidGlassTarget {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
     public var renderLayerId: UInt32
@@ -3011,6 +3144,7 @@ public class SliderElement: NativePositionElement {
     public var accent: Color
     public var background: Color
     public var borderRadius: Double
+    public var liquidGlass: AppleLiquidGlassPatchMessage?
     public var nativeMaskPatch: NativeMaskPatch? = nil
 
     public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, value: Double, step: Double, min: Double, max: Double, accent: Color, background: Color, borderRadius: Double) {
@@ -3047,6 +3181,7 @@ public class SliderElement: NativePositionElement {
         if let accent = patch.accent { self.accent = accent }
         if let background = patch.background { self.background = background }
         if let borderRadius = patch.borderRadius { self.borderRadius = borderRadius }
+        if patch.liquidGlassUpdated { self.liquidGlass = patch.liquidGlass }
     }
 }
 
@@ -3071,6 +3206,8 @@ public class TextboxUpdatePatch: ResolvedPlacementPatch {
     public var outlineColor: Color?
     public var outlineWidth: Double?
     public var isTextArea: Bool?
+    public var liquidGlassUpdated: Bool
+    public var liquidGlass: AppleLiquidGlassPatchMessage?
 
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? 0
@@ -3089,6 +3226,8 @@ public class TextboxUpdatePatch: ResolvedPlacementPatch {
         self.placeholder = fb["placeholder"]?.asString
         self.outlineWidth = readDouble(fb["outline_width"])
         self.isTextArea = fb["is_text_area"]?.asBool
+        self.liquidGlassUpdated = fieldExists(fb, "liquid_glass")
+        self.liquidGlass = readAppleLiquidGlass(fb["liquid_glass"])
         if let background = fb["background"], !background.isNull {
             self.background = extractColorFromBuffer(background)
         }
@@ -3104,7 +3243,7 @@ public class TextboxUpdatePatch: ResolvedPlacementPatch {
     }
 }
 
-public class TextboxElement: NativePositionElement {
+public class TextboxElement: NativePositionElement, AppleLiquidGlassTarget {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
     public var renderLayerId: UInt32
@@ -3124,6 +3263,7 @@ public class TextboxElement: NativePositionElement {
     public var outlineColor: Color
     public var outlineWidth: Double
     public var isTextArea: Bool
+    public var liquidGlass: AppleLiquidGlassPatchMessage?
     public var nativeMaskPatch: NativeMaskPatch? = nil
 
     public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, text: String, background: Color, strokeColor: Color, strokeWidth: Double, borderRadius: Double, style: TextStyle, focusOnMount: Bool, placeholder: String, outlineColor: Color, outlineWidth: Double, isTextArea: Bool) {
@@ -3168,6 +3308,7 @@ public class TextboxElement: NativePositionElement {
         if let outlineColor = patch.outlineColor { self.outlineColor = outlineColor }
         if let outlineWidth = patch.outlineWidth { self.outlineWidth = outlineWidth }
         if let isTextArea = patch.isTextArea { self.isTextArea = isTextArea }
+        if patch.liquidGlassUpdated { self.liquidGlass = patch.liquidGlass }
     }
 }
 

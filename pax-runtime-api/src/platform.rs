@@ -50,6 +50,36 @@ pub enum Platform {
     Unknown,
 }
 
+/// Runtime-inherited Apple liquid-glass effect scope.
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct NativeLiquidGlassScope {
+    /// Stable node id for the nearest liquid-glass scope.
+    pub group_id: u32,
+    /// Desired spacing between grouped glass surfaces, in pixels.
+    pub spacing: f64,
+    /// Whether supported Apple surfaces should use the interactive glass effect.
+    pub interactive: bool,
+    /// Optional tint for supported Apple surfaces.
+    pub tint: Option<Color>,
+    /// Apple glass style name, currently "regular" or "clear".
+    pub variant: String,
+}
+
+impl NativeLiquidGlassScope {
+    /// Converts runtime style data into the serialized native-message payload.
+    pub fn to_message(&self) -> AppleLiquidGlassPatch {
+        AppleLiquidGlassPatch {
+            group_id: self.group_id,
+            spacing: self.spacing,
+            interactive: self.interactive,
+            tint: self.tint.as_ref().map(Into::into),
+            variant: self.variant.clone(),
+        }
+    }
+}
+
+impl Interpolatable for NativeLiquidGlassScope {}
+
 /// Struct representing the outermost viewport of a rendering scene, for example a browser window
 /// or native application window.
 #[derive(Default, Debug, Clone, Copy)]

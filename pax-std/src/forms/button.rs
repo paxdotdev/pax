@@ -9,7 +9,7 @@ use pax_runtime::{
 };
 use std::rc::Rc;
 use_RefCell!();
-use crate::common::{native_surface_opacity, patch_if_needed};
+use crate::common::{native_surface_opacity, patch_if_needed, patch_liquid_glass_if_needed};
 use crate::TextStyle;
 
 /// A button control, delegating to a platform-specific native button.
@@ -107,6 +107,7 @@ impl InstanceNode for ButtonInstance {
                 expanded_node.transform_and_bounds.untyped(),
                 expanded_node.computed_opacity.untyped(),
                 expanded_node.occlusion.untyped(),
+                expanded_node.liquid_glass_scope.untyped(),
             ])
             .collect();
         expanded_node
@@ -188,6 +189,11 @@ impl InstanceNode for ButtonInstance {
                                 &mut old_state.opacity,
                                 &mut patch.opacity,
                                 native_surface_opacity(&expanded_node, &context),
+                            ),
+                            patch_liquid_glass_if_needed(
+                                &mut old_state.liquid_glass,
+                                &mut patch.liquid_glass,
+                                &expanded_node,
                             ),
                         ];
                         if updates.into_iter().any(|v| v == true) {

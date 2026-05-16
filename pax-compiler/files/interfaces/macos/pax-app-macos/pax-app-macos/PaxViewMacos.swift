@@ -663,6 +663,7 @@ struct PaxViewMacos: View {
         let sliderElements = SliderElements.singleton
         let textboxElements = TextboxElements.singleton
         let eventBlockerElements = EventBlockerElements.singleton
+        let glassSurfaceElements = GlassSurfaceElements.singleton
 
         private var displayLink: CVDisplayLink?
         private var isShuttingDown = false

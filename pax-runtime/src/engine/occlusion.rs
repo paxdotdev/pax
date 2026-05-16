@@ -314,7 +314,14 @@ fn update_node_occlusion_recursive(
             .browser_allows_nested_scroller_vector_layers
             .get()
             || active_container.is_none());
-    let layer = instance_node.base().flags().layer;
+    let materializes_native_surface = instance_node.materializes_native_surface(node);
+    let materializes_native_surface_before_children = materializes_native_surface
+        && instance_node.materializes_native_surface_before_children(node);
+    let layer = if materializes_native_surface {
+        Layer::Native
+    } else {
+        instance_node.base().flags().layer
+    };
     drop(instance_node);
 
     let descendant_layer_id = if scrolls_content && allow_scroller_vector_layers {
@@ -364,6 +371,31 @@ fn update_node_occlusion_recursive(
         Some(active_clip_bounds)
     };
 
+    if materializes_native_surface_before_children {
+        let new_occlusion = Occlusion {
+            render_layer_id: current_layer_id,
+            z_index: *z_index,
+            parent_frame: active_container,
+        };
+
+        if new_occlusion != node.occlusion.get() {
+            let previous_occlusion = node.occlusion.get();
+            let prev_layer = previous_occlusion.render_layer_id;
+            ctx.set_canvas_dirty(prev_layer);
+            ctx.set_canvas_dirty(new_occlusion.render_layer_id);
+            node.occlusion.set(new_occlusion);
+        }
+
+        drawables.push(DrawableInfo::Native {
+            node: Rc::clone(node),
+            layer,
+            layer_id: current_layer_id,
+            bounds: presented_bounds,
+            presentation_transform: active_scroll_transform,
+        });
+        *z_index += 1;
+    }
+
     for child in node.children.get().iter().rev() {
         let cp = child.get_common_properties();
         let cp = borrow!(cp);
@@ -391,6 +423,10 @@ fn update_node_occlusion_recursive(
             next_layer_id,
             drawables,
         );
+    }
+
+    if materializes_native_surface_before_children {
+        return;
     }
 
     if layer == Layer::DontCare && !has_effect_clip {

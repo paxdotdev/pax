@@ -21,6 +21,7 @@ use pax_runtime::api::borrow_mut;
 use pax_runtime::api::math::Point2;
 use pax_runtime::api::use_RefCell;
 use pax_runtime::api::ButtonClick;
+use pax_runtime::api::CheckboxChange;
 use pax_runtime::api::Event;
 use pax_runtime::api::Focus;
 use pax_runtime::api::Platform;
@@ -655,12 +656,19 @@ impl PaxChassisWeb {
                     engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
                 {
                     borrow!(node.instance_node).handle_native_interrupt(&node, &x);
+                    node.dispatch_checkbox_change(
+                        Event::new(CheckboxChange {
+                            checked: args.state,
+                        }),
+                        &globals,
+                        &engine.runtime_context,
+                    )
                 } else {
                     log::warn!(
                         "tried to dispatch event for checkbox toggle after node already removed"
                     );
+                    false
                 }
-                false
             }
 
             NativeInterrupt::AddedLayer(args) => {

@@ -1,5 +1,6 @@
 use kurbo::{Affine, Shape};
 pub use pax_engine::api::Size;
+use pax_message::AppleLiquidGlassPatch;
 use pax_runtime::api::RenderContext;
 use pax_runtime::{ExpandedNode, RuntimeContext};
 
@@ -23,6 +24,22 @@ pub fn patch_if_needed<T: PartialEq + Clone>(
     } else {
         false
     }
+}
+
+// Writes inherited liquid-glass scope changes, including explicit clears.
+pub fn patch_liquid_glass_if_needed(
+    old_state: &mut Option<Option<AppleLiquidGlassPatch>>,
+    patch: &mut Option<Option<AppleLiquidGlassPatch>>,
+    expanded_node: &ExpandedNode,
+) -> bool {
+    patch_if_needed(
+        old_state,
+        patch,
+        expanded_node
+            .liquid_glass_scope
+            .get()
+            .map(|scope| scope.to_message()),
+    )
 }
 
 // Converts computed world opacity into the relative opacity expected by native hosts.

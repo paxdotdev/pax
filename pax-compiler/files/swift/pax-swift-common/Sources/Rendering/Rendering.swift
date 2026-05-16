@@ -263,6 +263,23 @@ private func combineColor(_ color: Color, into hasher: inout Hasher) {
     }
 }
 
+private func combineLiquidGlass(_ glass: AppleLiquidGlassPatchMessage?, into hasher: inout Hasher) {
+    guard let glass else {
+        hasher.combine(0)
+        return
+    }
+    hasher.combine(1)
+    hasher.combine(glass.groupId)
+    combineDouble(glass.spacing, into: &hasher)
+    hasher.combine(glass.interactive)
+    hasher.combine(glass.variant)
+    if let tint = glass.tint {
+        combineColor(tint, into: &hasher)
+    } else {
+        hasher.combine(0)
+    }
+}
+
 private func combineFont(_ font: PaxFont, into hasher: inout Hasher) {
     hasher.combine(String(describing: font.type))
 }
@@ -529,6 +546,10 @@ private func platformColor(_ color: Color) -> UIColor {
     UIColor(color)
 }
 
+private func nativeFillColor(_ color: Color, liquidGlass: AppleLiquidGlassPatchMessage?) -> UIColor {
+    liquidGlass == nil ? platformColor(color) : .clear
+}
+
 private func alignedTextLayerFrame(containerSize: CGSize, measuredTextSize: CGSize, alignment: Alignment, clip: Bool) -> CGRect {
     let width = max(containerSize.width, 1)
     let clampedTextHeight = max(measuredTextSize.height, 1)
@@ -580,6 +601,10 @@ private func platformTextAlignment(_ alignment: TextAlignment) -> NSTextAlignmen
 #elseif os(macOS)
 private func platformColor(_ color: Color) -> NSColor {
     NSColor(color)
+}
+
+private func nativeFillColor(_ color: Color, liquidGlass: AppleLiquidGlassPatchMessage?) -> NSColor {
+    liquidGlass == nil ? platformColor(color) : .clear
 }
 
 private func alignedTextLayerFrame(containerSize: CGSize, measuredTextSize: CGSize, alignment: Alignment, clip: Bool) -> CGRect {
@@ -718,6 +743,7 @@ public enum PaxNativeHostState {
         SliderElements.singleton.reset()
         TextboxElements.singleton.reset()
         EventBlockerElements.singleton.reset()
+        GlassSurfaceElements.singleton.reset()
         ScrollerElements.singleton.reset()
         NativeScrollerHostRegistry.shared.reset()
         NativeLayerCountTracker.shared.reset()
@@ -743,9 +769,11 @@ public struct NativeRenderingLayer: View {
     let sliderElements = SliderElements.singleton
     let textboxElements = TextboxElements.singleton
     let eventBlockerElements = EventBlockerElements.singleton
+    let glassSurfaceElements = GlassSurfaceElements.singleton
 
     fileprivate enum NativeLeafKind {
         case text(TextElement)
+        case glassSurface(GlassSurfaceElement)
         case button(ButtonElement)
         case photoPicker(PhotoPickerElement)
         case checkbox(CheckboxElement)
@@ -770,6 +798,8 @@ public struct NativeRenderingLayer: View {
                     return "text-selectable"
                 }
                 return "text-static"
+            case .glassSurface:
+                return "glass-surface"
             case .button:
                 return "button"
             case .photoPicker:
@@ -793,6 +823,55 @@ public struct NativeRenderingLayer: View {
             }
         }
 
+        var liquidGlass: AppleLiquidGlassPatchMessage? {
+            switch self {
+            case .glassSurface(let element):
+                return element.liquidGlass
+            case .button(let element):
+                return element.liquidGlass
+            case .checkbox(let element):
+                return element.liquidGlass
+            case .slider(let element):
+                return element.liquidGlass
+            case .dropdown(let element):
+                return element.liquidGlass
+            case .radioList(let element):
+                return element.liquidGlass
+            case .textbox(let element):
+                return element.liquidGlass
+            default:
+                return nil
+            }
+        }
+
+        var wrapsLiquidGlass: Bool {
+            switch self {
+            case .button, .checkbox, .slider, .dropdown, .radioList, .textbox:
+                return liquidGlass != nil
+            default:
+                return false
+            }
+        }
+
+        var glassCornerRadius: CGFloat {
+            switch self {
+            case .glassSurface(let element):
+                return CGFloat(element.borderRadius)
+            case .button(let element):
+                return CGFloat(element.borderRadius)
+            case .checkbox(let element):
+                return CGFloat(element.borderRadius)
+            case .slider(let element):
+                return CGFloat(element.borderRadius)
+            case .dropdown(let element):
+                return CGFloat(element.borderRadius)
+            case .textbox(let element):
+                return CGFloat(element.borderRadius)
+            default:
+                return 0
+            }
+        }
+
         func contentSignature(size: CGSize) -> Int {
             var hasher = Hasher()
             hasher.combine(contentKey)
@@ -810,6 +889,9 @@ public struct NativeRenderingLayer: View {
                 } else {
                     hasher.combine(0)
                 }
+            case .glassSurface(let element):
+                combineDouble(element.borderRadius, into: &hasher)
+                combineLiquidGlass(element.liquidGlass, into: &hasher)
             case .button(let element):
                 hasher.combine(element.content)
                 combineColor(element.color, into: &hasher)
@@ -817,6 +899,7 @@ public struct NativeRenderingLayer: View {
                 combineColor(element.outlineStrokeColor, into: &hasher)
                 combineDouble(element.outlineStrokeWidth, into: &hasher)
                 combineDouble(element.borderRadius, into: &hasher)
+                combineLiquidGlass(element.liquidGlass, into: &hasher)
                 combineTextStyle(element.style, into: &hasher)
             case .photoPicker(let element):
                 hasher.combine(element.trigger)
@@ -832,6 +915,7 @@ public struct NativeRenderingLayer: View {
                 combineColor(element.outlineColor, into: &hasher)
                 combineDouble(element.outlineWidth, into: &hasher)
                 combineDouble(element.borderRadius, into: &hasher)
+                combineLiquidGlass(element.liquidGlass, into: &hasher)
             case .slider(let element):
                 combineDouble(element.value, into: &hasher)
                 combineDouble(element.step, into: &hasher)
@@ -840,6 +924,7 @@ public struct NativeRenderingLayer: View {
                 combineColor(element.accent, into: &hasher)
                 combineColor(element.background, into: &hasher)
                 combineDouble(element.borderRadius, into: &hasher)
+                combineLiquidGlass(element.liquidGlass, into: &hasher)
             case .dropdown(let element):
                 hasher.combine(element.selectedId)
                 hasher.combine(element.options)
@@ -847,6 +932,7 @@ public struct NativeRenderingLayer: View {
                 combineColor(element.strokeColor, into: &hasher)
                 combineDouble(element.strokeWidth, into: &hasher)
                 combineDouble(element.borderRadius, into: &hasher)
+                combineLiquidGlass(element.liquidGlass, into: &hasher)
                 combineTextStyle(element.style, into: &hasher)
             case .radioList(let element):
                 hasher.combine(element.selectedId)
@@ -856,6 +942,7 @@ public struct NativeRenderingLayer: View {
                 combineColor(element.outlineColor, into: &hasher)
                 combineDouble(element.outlineWidth, into: &hasher)
                 combineColor(element.background, into: &hasher)
+                combineLiquidGlass(element.liquidGlass, into: &hasher)
             case .textbox(let element):
                 hasher.combine(element.text)
                 hasher.combine(element.focusOnMount)
@@ -868,6 +955,7 @@ public struct NativeRenderingLayer: View {
                 combineTextStyle(element.style, into: &hasher)
                 combineColor(element.outlineColor, into: &hasher)
                 combineDouble(element.outlineWidth, into: &hasher)
+                combineLiquidGlass(element.liquidGlass, into: &hasher)
             case .nativeImage(let element):
                 hasher.combine(element.url)
                 hasher.combine(element.fit)
@@ -984,6 +1072,17 @@ public struct NativeRenderingLayer: View {
 
     private class PlatformContainerView: PlatformBaseView {
         private let clipMaskLayer = CAShapeLayer()
+#if os(iOS)
+        private var glassContainerView: UIVisualEffectView?
+#elseif os(macOS)
+        @available(macOS 26.0, *)
+        private final class GlassContainerContentView: NSView {
+            override var isFlipped: Bool { true }
+        }
+
+        private var glassContainerView: NSView?
+        private var glassContainerContentView: NSView?
+#endif
         private struct AppliedGeometry: Equatable {
             let size: CGSize
             let localTransform: CGAffineTransform
@@ -1028,6 +1127,16 @@ public struct NativeRenderingLayer: View {
             fatalError("init(coder:) has not been implemented")
         }
 
+        var childHostView: PlatformBaseView {
+#if os(iOS)
+            return glassContainerView?.contentView ?? self
+#elseif os(macOS)
+            return glassContainerContentView ?? self
+#else
+            return self
+#endif
+        }
+
         var backingLayer: CALayer {
 #if os(macOS)
             guard let layer = self.layer else {
@@ -1036,6 +1145,84 @@ public struct NativeRenderingLayer: View {
             return layer
 #else
             return self.layer
+#endif
+        }
+
+        func applyGlassContainerSpacing(_ spacing: CGFloat?) {
+            guard let spacing else {
+                return
+            }
+#if os(iOS)
+            if #available(iOS 26.0, *) {
+                let effectView: UIVisualEffectView
+                if let glassContainerView {
+                    effectView = glassContainerView
+                } else {
+                    let containerEffect = UIGlassContainerEffect()
+                    let view = UIVisualEffectView(effect: containerEffect)
+                    view.backgroundColor = .clear
+                    view.isOpaque = false
+                    view.frame = bounds
+                    view.autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
+                    insertSubview(view, at: 0)
+                    glassContainerView = view
+                    effectView = view
+                }
+                if let effect = effectView.effect as? UIGlassContainerEffect {
+                    effect.spacing = spacing
+                } else {
+                    let effect = UIGlassContainerEffect()
+                    effect.spacing = spacing
+                    effectView.effect = effect
+                }
+                syncGlassContainerFrame()
+            }
+#elseif os(macOS)
+            if #available(macOS 26.0, *) {
+                let containerView: NSGlassEffectContainerView
+                let contentView: NSView
+                if let existingContainer = glassContainerView as? NSGlassEffectContainerView,
+                   let existingContent = glassContainerContentView {
+                    containerView = existingContainer
+                    contentView = existingContent
+                } else {
+                    let container = NSGlassEffectContainerView(frame: bounds)
+                    let content = GlassContainerContentView(frame: bounds)
+                    container.contentView = content
+                    container.wantsLayer = true
+                    container.layer?.backgroundColor = NSColor.clear.cgColor
+                    addSubview(container, positioned: .below, relativeTo: nil)
+                    glassContainerView = container
+                    glassContainerContentView = content
+                    containerView = container
+                    contentView = content
+                }
+                containerView.spacing = spacing
+                syncGlassContainerFrame()
+                contentView.autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
+            }
+#endif
+        }
+
+        private func syncGlassContainerFrame() {
+#if os(iOS)
+            guard let glassContainerView else {
+                return
+            }
+            let rect = CGRect(origin: .zero, size: bounds.size)
+            glassContainerView.frame = rect
+            glassContainerView.bounds = rect
+            glassContainerView.contentView.frame = rect
+            glassContainerView.contentView.bounds = rect
+#elseif os(macOS)
+            guard let glassContainerView else {
+                return
+            }
+            let rect = CGRect(origin: .zero, size: bounds.size)
+            glassContainerView.frame = rect
+            glassContainerView.bounds = rect
+            glassContainerContentView?.frame = rect
+            glassContainerContentView?.bounds = rect
 #endif
         }
 
@@ -1129,6 +1316,7 @@ public struct NativeRenderingLayer: View {
             layer.zPosition = CGFloat(zIndex)
             layer.opacity = Float(opacity)
             CATransaction.commit()
+            syncGlassContainerFrame()
             appliedGeometry = geometry
         }
 
@@ -1238,7 +1426,7 @@ public struct NativeRenderingLayer: View {
         }
 
         private func ensureContentView(for kind: NativeLeafKind) {
-            let desiredKey = kind.contentKey
+            let desiredKey = kind.wrapsLiquidGlass ? "liquid-glass-\(kind.contentKey)" : kind.contentKey
             if contentKey == desiredKey, contentView != nil {
                 return
             }
@@ -2302,6 +2490,18 @@ public struct NativeRenderingLayer: View {
             }
         }
 
+        private func glassContainerSpacing(for nodes: [NativeRenderNode]) -> CGFloat? {
+            var maxSpacing: Double?
+            for node in nodes {
+                guard case .item(let item) = node,
+                      let spacing = item.kind.liquidGlass?.spacing else {
+                    continue
+                }
+                maxSpacing = max(maxSpacing ?? spacing, spacing)
+            }
+            return maxSpacing.map { CGFloat($0) }
+        }
+
         private func sync(
             nodes: [NativeRenderNode],
             parentView: PlatformContainerView,
@@ -2310,6 +2510,8 @@ public struct NativeRenderingLayer: View {
             activeScrollers: inout Set<PaxNodeId>,
             positiveClipPaths: [CGPath]
         ) {
+            parentView.applyGlassContainerSpacing(glassContainerSpacing(for: nodes))
+            let parentContentView = parentView.childHostView
             for node in nodes {
                 switch node {
                 case .frame(let frame):
@@ -2324,7 +2526,7 @@ public struct NativeRenderingLayer: View {
                         frameViews[frame.id] = view
                         return view
                     }()
-                    NativeRenderingLayer.attachPlatformSubview(frameView, to: parentView)
+                    NativeRenderingLayer.attachPlatformSubview(frameView, to: parentContentView)
                     frameView.applyGeometry(
                         size: frame.size,
                         localTransform: frame.localTransform,
@@ -2360,7 +2562,7 @@ public struct NativeRenderingLayer: View {
                         scrollerViews[scroller.id] = view
                         return view
                     }()
-                    NativeRenderingLayer.attachPlatformSubview(scrollerView, to: parentView)
+                    NativeRenderingLayer.attachPlatformSubview(scrollerView, to: parentContentView)
                     scrollerView.applyGeometry(
                         size: scroller.size,
                         localTransform: scroller.localTransform,
@@ -2393,7 +2595,7 @@ public struct NativeRenderingLayer: View {
                         leafViews[item.id] = view
                         return view
                     }()
-                    NativeRenderingLayer.attachPlatformSubview(leafView, to: parentView)
+                    NativeRenderingLayer.attachPlatformSubview(leafView, to: parentContentView)
                     leafView.applyGeometry(
                         size: item.size,
                         localTransform: item.localTransform,
@@ -2481,6 +2683,9 @@ public struct NativeRenderingLayer: View {
 
         items.append(contentsOf: sortedTextElements().map { element in
             textItem(for: element)
+        })
+        items.append(contentsOf: sortedElements(glassSurfaceElements.elements).map { element in
+            glassSurfaceItem(for: element)
         })
         items.append(contentsOf: sortedElements(nativeImageElements.elements).map { element in
             nativeImageItem(for: element)
@@ -2750,6 +2955,10 @@ public struct NativeRenderingLayer: View {
         renderItem(element: element, kind: .photoPicker(element))
     }
 
+    private func glassSurfaceItem(for element: GlassSurfaceElement) -> NativeRenderItem {
+        renderItem(element: element, kind: .glassSurface(element))
+    }
+
     private func checkboxItem(for element: CheckboxElement) -> NativeRenderItem {
         renderItem(element: element, kind: .checkbox(element))
     }
@@ -2915,9 +3124,19 @@ fileprivate extension NativeRenderingLayer {
     }
 
     static func makePlatformLeafView(for kind: NativeLeafKind) -> PlatformBaseView {
+        let view = makeBasePlatformLeafView(for: kind)
+        if kind.wrapsLiquidGlass {
+            return PaxNativeLiquidGlassWrappedView(contentView: view)
+        }
+        return view
+    }
+
+    private static func makeBasePlatformLeafView(for kind: NativeLeafKind) -> PlatformBaseView {
         switch kind {
         case .text:
             return PaxNativeTextLeafView()
+        case .glassSurface:
+            return PaxNativeGlassSurfaceView()
         case .button:
             return PaxNativeButtonView()
         case .photoPicker:
@@ -2950,9 +3169,24 @@ fileprivate extension NativeRenderingLayer {
         for kind: NativeLeafKind,
         size: CGSize
     ) {
+        if let wrapped = view as? PaxNativeLiquidGlassWrappedView {
+            wrapped.apply(
+                glass: kind.liquidGlass,
+                cornerRadius: kind.glassCornerRadius,
+                size: size
+            )
+            updatePlatformLeafView(wrapped.contentView, for: kind, size: size)
+            return
+        }
         switch kind {
         case .text(let element):
             (view as? PaxNativeTextLeafView)?.apply(element: element, size: size)
+        case .glassSurface(let element):
+            (view as? PaxNativeGlassSurfaceView)?.apply(
+                glass: element.liquidGlass,
+                cornerRadius: CGFloat(element.borderRadius),
+                size: size
+            )
         case .button(let element):
             (view as? PaxNativeButtonView)?.apply(element: element)
         case .photoPicker(let element):
@@ -2993,6 +3227,117 @@ private final class PaxNativeEventBlockerView: UIView {
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+}
+
+private final class PaxNativeGlassSurfaceView: UIView {
+    private let effectView = UIVisualEffectView()
+    private var appliedSignature: Int?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isOpaque = false
+        isUserInteractionEnabled = false
+        clipsToBounds = false
+        effectView.frame = bounds
+        effectView.autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
+        effectView.isUserInteractionEnabled = false
+        addSubview(effectView)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(glass: AppleLiquidGlassPatchMessage?, cornerRadius: CGFloat, size: CGSize) {
+        let signature = liquidGlassViewSignature(glass: glass, cornerRadius: cornerRadius, size: size)
+        if appliedSignature == signature {
+            return
+        }
+        clipsToBounds = cornerRadius > 0
+        configureLiquidGlassEffectView(effectView, glass: glass, cornerRadius: cornerRadius)
+        effectView.frame = CGRect(origin: .zero, size: size)
+        effectView.bounds = CGRect(origin: .zero, size: size)
+        appliedSignature = signature
+    }
+}
+
+private final class PaxNativeLiquidGlassWrappedView: UIView {
+    let contentView: UIView
+    private let glassSurface = PaxNativeGlassSurfaceView()
+
+    init(contentView: UIView) {
+        self.contentView = contentView
+        super.init(frame: .zero)
+        backgroundColor = .clear
+        isOpaque = false
+        clipsToBounds = false
+        glassSurface.isUserInteractionEnabled = false
+        addSubview(glassSurface)
+        addSubview(contentView)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(glass: AppleLiquidGlassPatchMessage?, cornerRadius: CGFloat, size: CGSize) {
+        let rect = CGRect(origin: .zero, size: size)
+        clipsToBounds = cornerRadius > 0
+        layer.cornerRadius = cornerRadius
+        layer.masksToBounds = cornerRadius > 0
+        contentView.clipsToBounds = cornerRadius > 0
+        contentView.layer.cornerRadius = cornerRadius
+        contentView.layer.masksToBounds = cornerRadius > 0
+        glassSurface.frame = rect
+        glassSurface.bounds = rect
+        contentView.frame = rect
+        contentView.bounds = rect
+        glassSurface.apply(glass: glass, cornerRadius: cornerRadius, size: size)
+    }
+}
+
+private func liquidGlassViewSignature(glass: AppleLiquidGlassPatchMessage?, cornerRadius: CGFloat, size: CGSize) -> Int {
+    var hasher = Hasher()
+    combineLiquidGlass(glass, into: &hasher)
+    combineCGFloat(cornerRadius, into: &hasher)
+    combineCGSize(size, into: &hasher)
+    return hasher.finalize()
+}
+
+private func configureLiquidGlassEffectView(
+    _ effectView: UIVisualEffectView,
+    glass: AppleLiquidGlassPatchMessage?,
+    cornerRadius: CGFloat
+) {
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    if let glass {
+#if os(iOS)
+        if #available(iOS 26.0, *) {
+            let style: UIGlassEffect.Style = glass.variant.lowercased() == "clear" ? .clear : .regular
+            let effect = UIGlassEffect(style: style)
+            effect.isInteractive = glass.interactive
+            if let tint = glass.tint {
+                effect.tintColor = platformColor(tint)
+            }
+            effectView.effect = effect
+        } else {
+            effectView.effect = UIBlurEffect(style: .systemUltraThinMaterial)
+            effectView.backgroundColor = glass.tint.map { platformColor($0).withAlphaComponent(0.18) } ?? .clear
+        }
+#else
+        effectView.effect = UIBlurEffect(style: .systemUltraThinMaterial)
+        effectView.backgroundColor = glass.tint.map { platformColor($0).withAlphaComponent(0.18) } ?? .clear
+#endif
+    } else {
+        effectView.effect = nil
+        effectView.backgroundColor = .clear
+    }
+    effectView.layer.cornerRadius = cornerRadius
+    effectView.layer.masksToBounds = cornerRadius > 0
+    effectView.clipsToBounds = cornerRadius > 0
+    CATransaction.commit()
 }
 
 private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
@@ -3147,7 +3492,7 @@ private final class PaxNativeButtonView: UIButton {
         setTitle(element.content.isEmpty ? " " : element.content, for: .normal)
         titleLabel?.font = element.style.font.getUIFont(size: element.style.font_size)
         setTitleColor(platformColor(element.style.fill), for: .normal)
-        backgroundColor = platformColor(element.color)
+        backgroundColor = nativeFillColor(element.color, liquidGlass: element.liquidGlass)
         layer.cornerRadius = CGFloat(element.borderRadius)
         layer.borderWidth = CGFloat(element.outlineStrokeWidth)
         layer.borderColor = platformColor(element.outlineStrokeColor).cgColor
@@ -3441,7 +3786,10 @@ private final class PaxNativeCheckboxView: UIButton {
 
     func apply(element: CheckboxElement, size: CGSize) {
         nodeId = element.id
-        backgroundColor = platformColor(element.checked ? element.backgroundChecked : element.background)
+        backgroundColor = nativeFillColor(
+            element.checked ? element.backgroundChecked : element.background,
+            liquidGlass: element.liquidGlass
+        )
         layer.cornerRadius = CGFloat(element.borderRadius)
         layer.borderWidth = CGFloat(element.outlineWidth)
         layer.borderColor = platformColor(element.outlineColor).cgColor
@@ -3474,7 +3822,7 @@ private final class PaxNativeSliderView: UISlider {
         maximumValue = Float(element.max > element.min ? element.max : element.min + 1)
         value = Float(element.value)
         minimumTrackTintColor = platformColor(element.accent)
-        maximumTrackTintColor = platformColor(element.background)
+        maximumTrackTintColor = nativeFillColor(element.background, liquidGlass: element.liquidGlass)
     }
 
     @objc private func handleChange() {
@@ -3497,7 +3845,7 @@ private final class PaxNativeDropdownView: UIButton {
 
     func apply(element: DropdownElement) {
         nodeId = element.id
-        backgroundColor = platformColor(element.background)
+        backgroundColor = nativeFillColor(element.background, liquidGlass: element.liquidGlass)
         layer.cornerRadius = CGFloat(element.borderRadius)
         layer.borderWidth = CGFloat(element.strokeWidth)
         layer.borderColor = platformColor(element.strokeColor).cgColor
@@ -3589,7 +3937,7 @@ private final class PaxNativeTextboxFieldView: UITextField, UITextFieldDelegate 
         textColor = platformColor(element.style.fill)
         textAlignment = platformTextAlignment(element.style.alignmentMultiline)
         contentVerticalAlignment = .center
-        backgroundColor = platformColor(element.background)
+        backgroundColor = nativeFillColor(element.background, liquidGlass: element.liquidGlass)
         layer.cornerRadius = CGFloat(element.borderRadius)
         layer.borderWidth = CGFloat(max(element.outlineWidth, element.strokeWidth))
         layer.borderColor = platformColor(element.outlineWidth > 0 ? element.outlineColor : element.strokeColor).cgColor
@@ -3633,7 +3981,7 @@ private final class PaxNativeTextboxAreaView: UITextView, UITextViewDelegate {
         font = element.style.font.getUIFont(size: element.style.font_size)
         textColor = platformColor(element.style.fill)
         textAlignment = platformTextAlignment(element.style.alignmentMultiline)
-        backgroundColor = platformColor(element.background)
+        backgroundColor = nativeFillColor(element.background, liquidGlass: element.liquidGlass)
         layer.cornerRadius = CGFloat(element.borderRadius)
         layer.borderWidth = CGFloat(max(element.outlineWidth, element.strokeWidth))
         layer.borderColor = platformColor(element.outlineWidth > 0 ? element.outlineColor : element.strokeColor).cgColor
@@ -3723,6 +4071,112 @@ private final class PaxNativeEventBlockerView: NSView {
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+}
+
+private final class PaxNativeGlassSurfaceView: NSView {
+    override var isFlipped: Bool { true }
+    private var effectView: NSView?
+    private var appliedSignature: Int?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(glass: AppleLiquidGlassPatchMessage?, cornerRadius: CGFloat, size: CGSize) {
+        let signature = liquidGlassViewSignature(glass: glass, cornerRadius: cornerRadius, size: size)
+        if appliedSignature == signature {
+            return
+        }
+        let rect = CGRect(origin: .zero, size: size)
+        let view = configuredLiquidGlassView(glass: glass, cornerRadius: cornerRadius, frame: rect)
+        if effectView !== view {
+            effectView?.removeFromSuperview()
+            addSubview(view, positioned: .below, relativeTo: nil)
+            effectView = view
+        }
+        view.frame = rect
+        view.autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
+        appliedSignature = signature
+    }
+}
+
+private final class PaxNativeLiquidGlassWrappedView: NSView {
+    override var isFlipped: Bool { true }
+    let contentView: NSView
+    private let glassSurface = PaxNativeGlassSurfaceView()
+
+    init(contentView: NSView) {
+        self.contentView = contentView
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+        addSubview(glassSurface)
+        addSubview(contentView)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(glass: AppleLiquidGlassPatchMessage?, cornerRadius: CGFloat, size: CGSize) {
+        let rect = CGRect(origin: .zero, size: size)
+        layer?.cornerRadius = cornerRadius
+        layer?.masksToBounds = cornerRadius > 0
+        contentView.layer?.cornerRadius = cornerRadius
+        contentView.layer?.masksToBounds = cornerRadius > 0
+        glassSurface.frame = rect
+        contentView.frame = rect
+        glassSurface.apply(glass: glass, cornerRadius: cornerRadius, size: size)
+    }
+}
+
+private func liquidGlassViewSignature(glass: AppleLiquidGlassPatchMessage?, cornerRadius: CGFloat, size: CGSize) -> Int {
+    var hasher = Hasher()
+    combineLiquidGlass(glass, into: &hasher)
+    combineCGFloat(cornerRadius, into: &hasher)
+    combineCGSize(size, into: &hasher)
+    return hasher.finalize()
+}
+
+private func configuredLiquidGlassView(
+    glass: AppleLiquidGlassPatchMessage?,
+    cornerRadius: CGFloat,
+    frame: CGRect
+) -> NSView {
+    if let glass {
+        if #available(macOS 26.0, *) {
+            let view = NSGlassEffectView(frame: frame)
+            view.style = glass.variant.lowercased() == "clear" ? .clear : .regular
+            view.cornerRadius = cornerRadius
+            if let tint = glass.tint {
+                view.tintColor = platformColor(tint)
+            }
+            view.wantsLayer = true
+            view.layer?.masksToBounds = cornerRadius > 0
+            return view
+        }
+        let view = NSVisualEffectView(frame: frame)
+        view.material = .hudWindow
+        view.blendingMode = .withinWindow
+        view.state = .active
+        view.wantsLayer = true
+        view.layer?.cornerRadius = cornerRadius
+        view.layer?.masksToBounds = cornerRadius > 0
+        if let tint = glass.tint {
+            view.layer?.backgroundColor = platformColor(tint).withAlphaComponent(0.18).cgColor
+        }
+        return view
+    }
+    let view = NSView(frame: frame)
+    view.wantsLayer = true
+    view.layer?.backgroundColor = NSColor.clear.cgColor
+    return view
 }
 
 private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
@@ -3886,7 +4340,7 @@ private final class PaxNativeButtonView: NSButton {
         title = element.content.isEmpty ? " " : element.content
         font = element.style.font.getNSFont(size: element.style.font_size)
         contentTintColor = platformColor(element.style.fill)
-        layer?.backgroundColor = platformColor(element.color).cgColor
+        layer?.backgroundColor = nativeFillColor(element.color, liquidGlass: element.liquidGlass).cgColor
         layer?.cornerRadius = CGFloat(element.borderRadius)
         layer?.borderWidth = CGFloat(element.outlineStrokeWidth)
         layer?.borderColor = platformColor(element.outlineStrokeColor).cgColor
@@ -4020,7 +4474,10 @@ private final class PaxNativeCheckboxView: NSButton {
         title = element.checked ? "✓" : ""
         font = NSFont.systemFont(ofSize: max(10, min(size.width, size.height) * 0.55), weight: .bold)
         contentTintColor = .white
-        layer?.backgroundColor = platformColor(element.checked ? element.backgroundChecked : element.background).cgColor
+        layer?.backgroundColor = nativeFillColor(
+            element.checked ? element.backgroundChecked : element.background,
+            liquidGlass: element.liquidGlass
+        ).cgColor
         layer?.cornerRadius = CGFloat(element.borderRadius)
         layer?.borderWidth = CGFloat(element.outlineWidth)
         layer?.borderColor = platformColor(element.outlineColor).cgColor
@@ -4101,7 +4558,8 @@ private final class PaxNativeDropdownView: NSPopUpButton {
         )
         contentTintColor = resolvedTextColor
         appearance = NSAppearance(named: .aqua)
-        layer?.backgroundColor = platformColor(element.background).cgColor
+        isBordered = element.liquidGlass == nil
+        layer?.backgroundColor = nativeFillColor(element.background, liquidGlass: element.liquidGlass).cgColor
         layer?.cornerRadius = CGFloat(element.borderRadius)
         layer?.borderWidth = CGFloat(element.strokeWidth)
         layer?.borderColor = platformColor(element.strokeColor).cgColor
@@ -4246,7 +4704,7 @@ private final class PaxNativeTextboxFieldView: NSTextField, NSTextFieldDelegate 
         textColor = platformColor(element.style.fill)
         alignment = platformTextAlignment(element.style.alignmentMultiline)
         drawsBackground = false
-        layer?.backgroundColor = platformColor(element.background).cgColor
+        layer?.backgroundColor = nativeFillColor(element.background, liquidGlass: element.liquidGlass).cgColor
         layer?.cornerRadius = CGFloat(element.borderRadius)
         layer?.masksToBounds = true
         layer?.borderWidth = CGFloat(max(element.outlineWidth, element.strokeWidth))
@@ -4322,7 +4780,7 @@ private final class PaxNativeTextboxAreaView: NSScrollView, NSTextViewDelegate {
         textView.font = element.style.font.getNSFont(size: element.style.font_size)
         textView.textColor = platformColor(element.style.fill)
         textView.alignment = platformTextAlignment(element.style.alignmentMultiline)
-        layer?.backgroundColor = platformColor(element.background).cgColor
+        layer?.backgroundColor = nativeFillColor(element.background, liquidGlass: element.liquidGlass).cgColor
         layer?.cornerRadius = CGFloat(element.borderRadius)
         layer?.borderWidth = CGFloat(max(element.outlineWidth, element.strokeWidth))
         layer?.borderColor = platformColor(element.outlineWidth > 0 ? element.outlineColor : element.strokeColor).cgColor
@@ -4446,7 +4904,7 @@ private struct PaxTextboxField: UIViewRepresentable {
         uiView.font = element.style.font.getUIFont(size: element.style.font_size)
         uiView.textColor = platformColor(element.style.fill)
         uiView.textAlignment = platformTextAlignment(element.style.alignmentMultiline)
-        uiView.backgroundColor = platformColor(element.background)
+        uiView.backgroundColor = nativeFillColor(element.background, liquidGlass: element.liquidGlass)
         uiView.layer.cornerRadius = element.borderRadius
         uiView.layer.borderWidth = CGFloat(max(element.outlineWidth, element.strokeWidth))
         uiView.layer.borderColor = platformColor(element.outlineWidth > 0 ? element.outlineColor : element.strokeColor).cgColor
@@ -4504,7 +4962,7 @@ private struct PaxTextboxArea: UIViewRepresentable {
 
         uiView.font = element.style.font.getUIFont(size: element.style.font_size)
         uiView.textColor = platformColor(element.style.fill)
-        uiView.backgroundColor = platformColor(element.background)
+        uiView.backgroundColor = nativeFillColor(element.background, liquidGlass: element.liquidGlass)
         uiView.layer.cornerRadius = element.borderRadius
         uiView.layer.borderWidth = CGFloat(max(element.outlineWidth, element.strokeWidth))
         uiView.layer.borderColor = platformColor(element.outlineWidth > 0 ? element.outlineColor : element.strokeColor).cgColor
@@ -4838,6 +5296,23 @@ public class EventBlockerElements: ObservableObject {
     @Published public var elements: [PaxNodeId: EventBlockerElement] = [:]
 
     public func add(element: EventBlockerElement) {
+        elements[element.id] = element
+    }
+
+    public func remove(id: PaxNodeId) {
+        elements.removeValue(forKey: id)
+    }
+
+    public func reset() {
+        elements.removeAll()
+    }
+}
+
+public class GlassSurfaceElements: ObservableObject {
+    public static let singleton = GlassSurfaceElements()
+    @Published public var elements: [PaxNodeId: GlassSurfaceElement] = [:]
+
+    public func add(element: GlassSurfaceElement) {
         elements[element.id] = element
     }
 

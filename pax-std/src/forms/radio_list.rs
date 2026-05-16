@@ -11,7 +11,7 @@ use pax_runtime_api::*;
 use pax_engine::pax;
 use std::rc::Rc;
 
-use crate::common::{native_surface_opacity, patch_if_needed};
+use crate::common::{native_surface_opacity, patch_if_needed, patch_liquid_glass_if_needed};
 
 /// A radio list control, delegating to a platform-specific native control.
 #[pax]
@@ -112,6 +112,7 @@ impl InstanceNode for RadioListInstance {
                 expanded_node.transform_and_bounds.untyped(),
                 expanded_node.computed_opacity.untyped(),
                 expanded_node.occlusion.untyped(),
+                expanded_node.liquid_glass_scope.untyped(),
             ])
             .collect();
         expanded_node
@@ -194,6 +195,11 @@ impl InstanceNode for RadioListInstance {
                                 &mut old_state.opacity,
                                 &mut patch.opacity,
                                 native_surface_opacity(&expanded_node, &context),
+                            ),
+                            patch_liquid_glass_if_needed(
+                                &mut old_state.liquid_glass,
+                                &mut patch.liquid_glass,
+                                &expanded_node,
                             ),
                         ];
                         if updates.into_iter().any(|v| v == true) {

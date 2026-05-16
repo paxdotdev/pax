@@ -50,6 +50,9 @@ pub enum NativeMessage {
     PhotoPickerCreate(AnyCreatePatch),
     PhotoPickerUpdate(PhotoPickerPatch),
     PhotoPickerDelete(u32),
+    GlassSurfaceCreate(AnyCreatePatch),
+    GlassSurfaceUpdate(GlassSurfacePatch),
+    GlassSurfaceDelete(u32),
     ScrollerCreate(AnyCreatePatch),
     ScrollerUpdate(ScrollerPatch),
     ScrollerDelete(u32),
@@ -571,6 +574,37 @@ pub struct FramePatch {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize, Clone, PartialEq)]
+#[repr(C)]
+/// Apple-specific native liquid-glass effect payload.
+pub struct AppleLiquidGlassPatch {
+    pub group_id: u32,
+    pub spacing: f64,
+    pub interactive: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tint: Option<ColorMessage>,
+    pub variant: String,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize)]
+#[repr(C)]
+/// Create/update patch for a materialized native liquid-glass surface.
+pub struct GlassSurfacePatch {
+    pub id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_frame: Option<Option<u32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub z_index: Option<i32>,
+    pub transform: Option<Vec<f64>>,
+    pub size_x: Option<f64>,
+    pub size_y: Option<f64>,
+    pub opacity: Option<f64>,
+    pub border_radius: Option<f64>,
+    pub liquid_glass: Option<AppleLiquidGlassPatch>,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize, Clone)]
 #[repr(C)]
 /// One vector coverage path entry for a native occlusion mask.
@@ -645,6 +679,8 @@ pub struct CheckboxPatch {
     pub size_y: Option<f64>,
     pub opacity: Option<f64>,
     pub checked: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub liquid_glass: Option<Option<AppleLiquidGlassPatch>>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -703,6 +739,8 @@ pub struct DropdownPatch {
     pub stroke_width: Option<f64>,
     pub border_radius: Option<f64>,
     pub style: Option<TextStyleMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub liquid_glass: Option<Option<AppleLiquidGlassPatch>>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -726,6 +764,8 @@ pub struct RadioListPatch {
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub opacity: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub liquid_glass: Option<Option<AppleLiquidGlassPatch>>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -749,6 +789,8 @@ pub struct SliderPatch {
     pub accent: Option<ColorMessage>,
     pub background: Option<ColorMessage>,
     pub border_radius: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub liquid_glass: Option<Option<AppleLiquidGlassPatch>>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -776,6 +818,8 @@ pub struct TextboxPatch {
     pub outline_color: Option<ColorMessage>,
     pub outline_width: Option<f64>,
     pub is_text_area: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub liquid_glass: Option<Option<AppleLiquidGlassPatch>>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -799,6 +843,8 @@ pub struct ButtonPatch {
     pub content: Option<String>,
     pub color: Option<ColorMessage>,
     pub style: Option<TextStyleMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub liquid_glass: Option<Option<AppleLiquidGlassPatch>>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]

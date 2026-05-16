@@ -18,9 +18,9 @@ use pax_gpu::render_backend::{RenderBackend, RenderConfig, SharedGpuContext};
 use pax_gpu::{Transform2D, WgpuRenderer, NATIVE_VECTOR_RESOURCE_CACHE_BYTES};
 use pax_runtime::api::math::Point2;
 use pax_runtime::api::{
-    Accel, ButtonClick, Click, Event, Focus, Gyro, ModifierKey, MouseButton, MouseEventArgs,
-    PhotoPickerChange, RenderContext, Scroll, SelectStart, TextboxChange, TextboxInput, Touch,
-    TouchEnd, TouchMove, TouchStart,
+    Accel, ButtonClick, CheckboxChange, Click, Event, Focus, Gyro, ModifierKey, MouseButton,
+    MouseEventArgs, PhotoPickerChange, RenderContext, Scroll, SelectStart, TextboxChange,
+    TextboxInput, Touch, TouchEnd, TouchMove, TouchStart,
 };
 use pax_runtime::engine::layer_tiling::{scroller_canvas_plan_with_policy, ScrollerTilingPolicy};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -875,6 +875,13 @@ pub extern "C" fn pax_interrupt(
                 engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
             {
                 borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
+                node.dispatch_checkbox_change(
+                    Event::new(CheckboxChange {
+                        checked: args.state,
+                    }),
+                    &globals,
+                    &engine.runtime_context,
+                );
             }
         }
         NativeInterrupt::ScrollerPosition(args) => {

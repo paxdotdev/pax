@@ -357,6 +357,21 @@ pub trait InstanceNode {
         true
     }
 
+    /// True when an otherwise layout-only primitive currently materializes a native surface.
+    fn materializes_native_surface(&self, _expanded_node: &ExpandedNode) -> bool {
+        false
+    }
+
+    /// True when a materialized native surface should be projected before descendants.
+    ///
+    /// Most renderables are post-order so their own pixels sit above descendants in logical
+    /// tree order. Native backing surfaces, such as liquid-glass Groups, need the opposite:
+    /// the chassis should create/project the native surface before descendant content while
+    /// still including the surface in native occlusion and vector-mask computation.
+    fn materializes_native_surface_before_children(&self, _expanded_node: &ExpandedNode) -> bool {
+        false
+    }
+
     /// Returns the current browser-owned scroll offset in local scroller coordinates.
     fn resolve_scroll_offset(&self, _expanded_node: &ExpandedNode) -> Option<(f64, f64)> {
         None
