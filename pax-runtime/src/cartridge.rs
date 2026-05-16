@@ -1695,7 +1695,10 @@ where
         pax_manifest::ValueDefinition::LiteralValue(lv) => {
             let val =
                 Option::<T>::try_coerce(resolve_literal_value(lv.clone())).unwrap_or_else(|err| {
-                    log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                    log::warn!(
+                        "Failed to coerce new value for property {name}. Error: {:?}",
+                        err
+                    );
                     Default::default()
                 });
             Property::new_with_name(val, name)
@@ -1729,6 +1732,7 @@ where
             }
             let cloned_ast = info.expression.clone();
             let expression_label = cloned_ast.to_string();
+            let property_name = name.to_string();
             Property::computed_with_name(
                 move || {
                     let new_value = cloned_ast
@@ -1738,7 +1742,10 @@ where
                             Default::default()
                         });
                     Option::<T>::try_coerce(new_value.clone()).unwrap_or_else(|err| {
-                        log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                        log::warn!(
+                            "Failed to coerce new value for property {property_name}. Error: {:?}",
+                            err
+                        );
                         Default::default()
                     })
                 },
@@ -1748,13 +1755,17 @@ where
         }
         pax_manifest::ValueDefinition::Identifier(ident) => {
             if let Some(variable) = stack.resolve_symbol_as_variable(&ident.name) {
+                let property_name = name.to_string();
                 let untyped = variable.get_untyped_property().clone();
                 let cloned_variable = variable.clone();
                 Property::computed_with_name(
                     move || {
                         let new_value = cloned_variable.get_as_pax_value();
                         Option::<T>::try_coerce(new_value).unwrap_or_else(|err| {
-                            log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                            log::warn!(
+                                "Failed to coerce new value for property {property_name}. Error: {:?}",
+                                err
+                            );
                             Default::default()
                         })
                     },
@@ -2740,7 +2751,10 @@ where
     match value_definition {
         ValueDefinition::LiteralValue(lv) => {
             let value = T::try_coerce(resolve_literal_value(lv.clone())).unwrap_or_else(|err| {
-                log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                log::warn!(
+                    "Failed to coerce new value for property {name}. Error: {:?}",
+                    err
+                );
                 Default::default()
             });
             Property::new_with_name(value, name)
@@ -2757,19 +2771,23 @@ where
         }
         ValueDefinition::Identifier(ident) => {
             if let Some(variable) = stack.resolve_symbol_as_variable(&ident.name) {
-                let name = ident.name.clone();
+                let identifier_name = ident.name.clone();
+                let property_name = name.to_string();
                 let untyped = variable.get_untyped_property().clone();
                 let cloned_variable = variable.clone();
                 Property::computed_with_name(
                     move || {
                         let new_value = cloned_variable.get_as_pax_value();
                         T::try_coerce(new_value).unwrap_or_else(|err| {
-                            log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                            log::warn!(
+                                "Failed to coerce new value for property {property_name}. Error: {:?}",
+                                err
+                            );
                             Default::default()
                         })
                     },
                     &[untyped],
-                    &name,
+                    &identifier_name,
                 )
             } else {
                 log::warn!("Failed to resolve symbol {}", ident.name);
@@ -2788,6 +2806,7 @@ where
             let cloned_stack = stack.clone();
             let cloned_ast = info.expression.clone();
             let expression_label = cloned_ast.to_string();
+            let property_name = name.to_string();
             Property::computed_with_name(
                 move || {
                     let new_value = cloned_ast
@@ -2797,7 +2816,10 @@ where
                             Default::default()
                         });
                     T::try_coerce(new_value.clone()).unwrap_or_else(|err| {
-                        log::warn!("Failed to coerce new value for property. Error: {:?}", err);
+                        log::warn!(
+                            "Failed to coerce new value for property {property_name}. Error: {:?}",
+                            err
+                        );
                         Default::default()
                     })
                 },

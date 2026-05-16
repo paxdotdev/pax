@@ -26,6 +26,7 @@ const SCROLLER_TARGET_TILE_BACKING_DIMENSION = 2496;
 // larger sizes. Clamp to 2048 to avoid wgpu surface-config validation failures.
 const IOS_FALLBACK_MAX_BACKING_DIMENSION = 2048;
 const IOS_MAX_BACKING_DIMENSION_CAP = 2048;
+const IOS_MAX_BACKING_AREA_CAP = IOS_MAX_BACKING_DIMENSION_CAP * IOS_MAX_BACKING_DIMENSION_CAP;
 const IOS_SCROLLER_RENDER_DPR = 1.0;
 const MIN_LOGICAL_TILE_SIZE = 256;
 const TILE_OVERSCAN_COLUMNS = 0;
@@ -116,8 +117,14 @@ function computeLayerCanvasPlanInternal(
     let iosHost =
         isIOSWebKitBrowser()
         && (host.dataset.role === "scroller-canvas-host" || host.id === "mount");
-    let tileSize = computeLogicalTileSize(host);
-    if (contentWidth <= tileSize && contentHeight <= tileSize) {
+    let tileDimensions = computeLogicalTileDimensions(
+        host,
+        contentWidth,
+        contentHeight,
+        horizontalScrollable,
+        verticalScrollable,
+    );
+    if (contentWidth <= tileDimensions.width && contentHeight <= tileDimensions.height) {
         return [
             {
                 id: String(layerId),
@@ -132,8 +139,8 @@ function computeLayerCanvasPlanInternal(
             },
         ];
     }
-    let maxColumn = Math.max(0, Math.ceil(contentWidth / tileSize) - 1);
-    let maxRow = Math.max(0, Math.ceil(contentHeight / tileSize) - 1);
+    let maxColumn = Math.max(0, Math.ceil(contentWidth / tileDimensions.width) - 1);
+    let maxRow = Math.max(0, Math.ceil(contentHeight / tileDimensions.height) - 1);
     let prewarmPadYMultiplier = isFirefoxBrowser()
         ? FIREFOX_PREWARM_VIEWPORT_PAD_Y_MULTIPLIER
         : PREWARM_VIEWPORT_PAD_Y_MULTIPLIER;
@@ -160,19 +167,19 @@ function computeLayerCanvasPlanInternal(
     }
     let activeColumns = Math.min(
         maxColumn + 1,
-        visibleTileSpan(paddedViewportWidth, tileSize, true) + overscanColumns * 2,
+        visibleTileSpan(paddedViewportWidth, tileDimensions.width, true) + overscanColumns * 2,
     );
     let activeRows = Math.min(
         maxRow + 1,
-        visibleTileSpan(paddedViewportHeight, tileSize, true) + overscanRows * 2,
+        visibleTileSpan(paddedViewportHeight, tileDimensions.height, true) + overscanRows * 2,
     );
     let startColumn = clampWindowStart(
-        Math.floor(paddedScrollX / tileSize) - overscanColumns,
+        Math.floor(paddedScrollX / tileDimensions.width) - overscanColumns,
         maxColumn,
         activeColumns,
     );
     let startRow = clampWindowStart(
-        Math.floor(paddedScrollY / tileSize) - overscanRows,
+        Math.floor(paddedScrollY / tileDimensions.height) - overscanRows,
         maxRow,
         activeRows,
     );
@@ -184,10 +191,10 @@ function computeLayerCanvasPlanInternal(
         for (let column = startColumn; column <= endColumn; column += 1) {
             let slotColumn = positiveModulo(column, activeColumns);
             let slotRow = positiveModulo(row, activeRows);
-            let left = column * tileSize;
-            let top = row * tileSize;
-            let width = Math.max(1, Math.min(tileSize, contentWidth - left));
-            let height = Math.max(1, Math.min(tileSize, contentHeight - top));
+            let left = column * tileDimensions.width;
+            let top = row * tileDimensions.height;
+            let width = Math.max(1, Math.min(tileDimensions.width, contentWidth - left));
+            let height = Math.max(1, Math.min(tileDimensions.height, contentHeight - top));
             let replayPriority = tileReplayPriority(
                 left,
                 top,
@@ -197,7 +204,8 @@ function computeLayerCanvasPlanInternal(
                 scrollY,
                 viewportWidth,
                 viewportHeight,
-                tileSize,
+                tileDimensions.width,
+                tileDimensions.height,
             );
             // Keep DOM ids and renderer keys stable by physical ring slot. Overlapping content
             // tiles retain their canvas/context across tile-window shifts; only the entering slot
@@ -298,15 +306,93 @@ function targetTileBackingDimension(host?: HTMLElement) {
         : TARGET_TILE_BACKING_DIMENSION;
 }
 
-function computeLogicalTileSize(host?: HTMLElement) {
+function effectiveRenderDpr(host?: HTMLElement) {
     let dpr = Math.max(1, globalThis.devicePixelRatio ?? 1);
     if (isIOSWebKitBrowser() && host?.dataset.role === "scroller-canvas-host") {
         dpr = Math.min(dpr, IOS_SCROLLER_RENDER_DPR);
     }
+    return dpr;
+}
+
+function tileBackingLimits(host?: HTMLElement) {
+    let dimension = targetTileBackingDimension(host);
+    let area = dimension * dimension;
+    if (isIOSWebKitBrowser()) {
+        area = Math.min(area, IOS_MAX_BACKING_AREA_CAP);
+    }
+    return {
+        width: dimension,
+        height: dimension,
+        area,
+    };
+}
+
+function computeLogicalTileSize(host?: HTMLElement) {
+    let dpr = effectiveRenderDpr(host);
     return Math.max(
         MIN_LOGICAL_TILE_SIZE,
         Math.floor(targetTileBackingDimension(host) / dpr),
     );
+}
+
+function computeLogicalTileDimensions(
+    host: HTMLElement | undefined,
+    contentWidth: number,
+    contentHeight: number,
+    horizontalScrollable: boolean,
+    verticalScrollable: boolean,
+) {
+    let dpr = effectiveRenderDpr(host);
+    let targetTileSize = computeLogicalTileSize(host);
+    let limits = tileBackingLimits(host);
+    let maxWidth = Math.max(1, Math.floor(limits.width / dpr));
+    let maxHeight = Math.max(1, Math.floor(limits.height / dpr));
+    let width = Math.max(1, Math.min(targetTileSize, maxWidth));
+    let height = Math.max(1, Math.min(targetTileSize, maxHeight));
+
+    if (verticalScrollable && !horizontalScrollable) {
+        width = Math.max(1, Math.min(contentWidth, maxWidth));
+        height = constrainAxisByArea(height, width, dpr, limits.area);
+    } else if (horizontalScrollable && !verticalScrollable) {
+        height = Math.max(1, Math.min(contentHeight, maxHeight));
+        width = constrainAxisByArea(width, height, dpr, limits.area);
+    } else {
+        [width, height] = constrainTileArea(width, height, dpr, limits.area);
+    }
+
+    return { width, height };
+}
+
+function backingExtent(logicalExtent: number, dpr: number) {
+    return Math.max(1, Math.ceil(Math.max(1, logicalExtent) * Math.max(1, dpr)));
+}
+
+function backingArea(width: number, height: number, dpr: number) {
+    return backingExtent(width, dpr) * backingExtent(height, dpr);
+}
+
+function constrainAxisByArea(axis: number, crossAxis: number, dpr: number, maxArea: number) {
+    let crossBacking = backingExtent(crossAxis, dpr);
+    let maxAxis = Math.max(1, Math.floor(maxArea / crossBacking / Math.max(1, dpr)));
+    return Math.max(1, Math.min(axis, maxAxis));
+}
+
+function constrainTileArea(width: number, height: number, dpr: number, maxArea: number) {
+    let area = backingArea(width, height, dpr);
+    if (area <= maxArea) {
+        return [width, height];
+    }
+
+    let scale = Math.min(1, Math.sqrt(maxArea / area));
+    width = Math.max(1, Math.floor(width * scale));
+    height = Math.max(1, Math.floor(height * scale));
+    if (backingArea(width, height, dpr) > maxArea) {
+        height = constrainAxisByArea(height, width, dpr, maxArea);
+    }
+    if (backingArea(width, height, dpr) > maxArea) {
+        width = constrainAxisByArea(width, height, dpr, maxArea);
+    }
+    return [width, height];
 }
 
 function shouldTileLayerSurface(layerId: number, host: HTMLElement) {
@@ -339,12 +425,13 @@ function shouldTileLayerSurface(layerId: number, host: HTMLElement) {
 function canRenderHostAsSingleSurface(host: HTMLElement) {
     let contentWidth = Math.max(1, host.clientWidth);
     let contentHeight = Math.max(1, host.clientHeight);
-    let desiredDpr = Math.max(1, globalThis.devicePixelRatio ?? 1);
-    let backingDimension = targetTileBackingDimension(host);
+    let desiredDpr = effectiveRenderDpr(host);
+    let limits = tileBackingLimits(host);
     let singleSurfaceDpr = Math.min(
         desiredDpr,
-        backingDimension / contentWidth,
-        backingDimension / contentHeight,
+        limits.width / contentWidth,
+        limits.height / contentHeight,
+        Math.sqrt(limits.area / (contentWidth * contentHeight)),
     );
     return singleSurfaceDpr >= MIN_UNTILED_RENDER_DPR;
 }
@@ -358,7 +445,8 @@ function tileReplayPriority(
     viewportTop: number,
     viewportWidth: number,
     viewportHeight: number,
-    tileSize: number,
+    tileStepWidth: number,
+    tileStepHeight: number,
 ) {
     let tileRight = tileLeft + tileWidth;
     let tileBottom = tileTop + tileHeight;
@@ -382,7 +470,9 @@ function tileReplayPriority(
         : tileTop > viewportBottom
             ? tileTop - viewportBottom
             : 0;
-    return Math.max(1, Math.ceil(Math.max(dx, dy) / Math.max(1, tileSize)) + 1);
+    let xPriority = dx > 0 ? Math.ceil(dx / Math.max(1, tileStepWidth)) : 0;
+    let yPriority = dy > 0 ? Math.ceil(dy / Math.max(1, tileStepHeight)) : 0;
+    return Math.max(1, Math.max(xPriority, yPriority) + 1);
 }
 
 export function isIOSWebKitBrowser() {

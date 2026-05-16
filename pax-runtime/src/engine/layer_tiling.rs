@@ -13,6 +13,9 @@ const DEFAULT_PREWARM_VIEWPORT_PAD_MIN_Y: f64 = 512.0;
 #[derive(Clone, Copy, Debug)]
 pub struct ScrollerTilingPolicy {
     pub target_tile_backing_dimension: f64,
+    pub max_tile_backing_width: Option<f64>,
+    pub max_tile_backing_height: Option<f64>,
+    pub max_tile_backing_area: Option<f64>,
     pub min_logical_tile_size: f64,
     pub tile_overscan_columns: i32,
     pub tile_overscan_rows: i32,
@@ -28,6 +31,9 @@ impl Default for ScrollerTilingPolicy {
     fn default() -> Self {
         Self {
             target_tile_backing_dimension: DEFAULT_SCROLLER_TARGET_TILE_BACKING_DIMENSION,
+            max_tile_backing_width: None,
+            max_tile_backing_height: None,
+            max_tile_backing_area: None,
             min_logical_tile_size: DEFAULT_MIN_LOGICAL_TILE_SIZE,
             tile_overscan_columns: DEFAULT_TILE_OVERSCAN_COLUMNS,
             tile_overscan_rows: DEFAULT_TILE_OVERSCAN_ROWS,
@@ -59,11 +65,17 @@ pub struct SurfaceCanvasDescriptor {
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-/// Canvas tiling plan for one logical occlusion layer.
+/// Canvas tiling plan for one logical render layer.
 pub struct LayerCanvasPlan {
     pub layer_id: usize,
     pub active: bool,
     pub surfaces: Vec<SurfaceCanvasDescriptor>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct LogicalTileDimensions {
+    width: f64,
+    height: f64,
 }
 
 /// Build a one-surface plan for layers that do not need tiling.
@@ -143,15 +155,22 @@ pub fn scroller_canvas_plan_with_policy(
         return single_surface_plan(layer_id, host_signature, content_width, content_height);
     }
 
-    let tile_size = compute_logical_tile_size(dpr, policy);
-    if content_width <= tile_size && content_height <= tile_size {
+    let horizontal_scrollable = content_width > viewport_width + 0.5;
+    let vertical_scrollable = content_height > viewport_height + 0.5;
+    let tile_dimensions = compute_logical_tile_dimensions(
+        content_width,
+        content_height,
+        horizontal_scrollable,
+        vertical_scrollable,
+        dpr,
+        policy,
+    );
+    if content_width <= tile_dimensions.width && content_height <= tile_dimensions.height {
         return single_surface_plan(layer_id, host_signature, content_width, content_height);
     }
 
-    let max_column = ((content_width / tile_size).ceil() as i32 - 1).max(0);
-    let max_row = ((content_height / tile_size).ceil() as i32 - 1).max(0);
-    let horizontal_scrollable = content_width > viewport_width + 0.5;
-    let vertical_scrollable = content_height > viewport_height + 0.5;
+    let max_column = ((content_width / tile_dimensions.width).ceil() as i32 - 1).max(0);
+    let max_row = ((content_height / tile_dimensions.height).ceil() as i32 - 1).max(0);
     let pad_x = if horizontal_scrollable {
         (viewport_width * policy.prewarm_viewport_pad_x_multiplier)
             .max(policy.prewarm_viewport_pad_min_x)
@@ -178,13 +197,23 @@ pub fn scroller_canvas_plan_with_policy(
     } else {
         0
     };
-    let active_columns = (max_column + 1)
-        .min(visible_tile_span(padded_viewport_width, tile_size, true) + overscan_columns * 2);
-    let active_rows = (max_row + 1)
-        .min(visible_tile_span(padded_viewport_height, tile_size, true) + overscan_rows * 2);
-    let min_active_columns =
-        (max_column + 1).min(visible_tile_span(viewport_width, tile_size, true));
-    let min_active_rows = (max_row + 1).min(visible_tile_span(viewport_height, tile_size, true));
+    let active_columns = (max_column + 1).min(
+        visible_tile_span(padded_viewport_width, tile_dimensions.width, true)
+            + overscan_columns * 2,
+    );
+    let active_rows = (max_row + 1).min(
+        visible_tile_span(padded_viewport_height, tile_dimensions.height, true) + overscan_rows * 2,
+    );
+    let min_active_columns = (max_column + 1).min(visible_tile_span(
+        viewport_width,
+        tile_dimensions.width,
+        true,
+    ));
+    let min_active_rows = (max_row + 1).min(visible_tile_span(
+        viewport_height,
+        tile_dimensions.height,
+        true,
+    ));
     let (active_columns, active_rows) = clamp_active_tile_window(
         active_columns,
         active_rows,
@@ -195,12 +224,12 @@ pub fn scroller_canvas_plan_with_policy(
         policy.max_surfaces_per_layer,
     );
     let start_column = clamp_window_start(
-        (padded_scroll_x / tile_size).floor() as i32 - overscan_columns,
+        (padded_scroll_x / tile_dimensions.width).floor() as i32 - overscan_columns,
         max_column,
         active_columns,
     );
     let start_row = clamp_window_start(
-        (padded_scroll_y / tile_size).floor() as i32 - overscan_rows,
+        (padded_scroll_y / tile_dimensions.height).floor() as i32 - overscan_rows,
         max_row,
         active_rows,
     );
@@ -212,10 +241,10 @@ pub fn scroller_canvas_plan_with_policy(
         for column in start_column..=end_column {
             let slot_column = column.rem_euclid(active_columns);
             let slot_row = row.rem_euclid(active_rows);
-            let left = column as f64 * tile_size;
-            let top = row as f64 * tile_size;
-            let width = (content_width - left).min(tile_size).max(1.0);
-            let height = (content_height - top).min(tile_size).max(1.0);
+            let left = column as f64 * tile_dimensions.width;
+            let top = row as f64 * tile_dimensions.height;
+            let width = (content_width - left).min(tile_dimensions.width).max(1.0);
+            let height = (content_height - top).min(tile_dimensions.height).max(1.0);
             let replay_priority = tile_replay_priority(
                 left,
                 top,
@@ -225,7 +254,8 @@ pub fn scroller_canvas_plan_with_policy(
                 scroll_y,
                 viewport_width,
                 viewport_height,
-                tile_size,
+                tile_dimensions.width,
+                tile_dimensions.height,
             );
             let key = format!("{slot_column}:{slot_row}");
             let id = format!("layer-{layer_id}-tile-{slot_column}-{slot_row}");
@@ -265,6 +295,33 @@ fn compute_logical_tile_size(device_pixel_ratio: f64, policy: ScrollerTilingPoli
     tile_size.max(policy.min_logical_tile_size.max(1.0))
 }
 
+fn compute_logical_tile_dimensions(
+    content_width: f64,
+    content_height: f64,
+    horizontal_scrollable: bool,
+    vertical_scrollable: bool,
+    device_pixel_ratio: f64,
+    policy: ScrollerTilingPolicy,
+) -> LogicalTileDimensions {
+    let target_tile_size = compute_logical_tile_size(device_pixel_ratio, policy);
+    let max_width = max_logical_tile_width(device_pixel_ratio, policy);
+    let max_height = max_logical_tile_height(device_pixel_ratio, policy);
+    let mut width = target_tile_size.min(max_width).max(1.0);
+    let mut height = target_tile_size.min(max_height).max(1.0);
+
+    if vertical_scrollable && !horizontal_scrollable {
+        width = content_width.max(1.0).min(max_width).max(1.0);
+        height = constrain_axis_by_area(height, width, device_pixel_ratio, policy);
+    } else if horizontal_scrollable && !vertical_scrollable {
+        height = content_height.max(1.0).min(max_height).max(1.0);
+        width = constrain_axis_by_area(width, height, device_pixel_ratio, policy);
+    } else {
+        (width, height) = constrain_tile_area(width, height, device_pixel_ratio, policy);
+    }
+
+    LogicalTileDimensions { width, height }
+}
+
 fn can_render_as_single_surface(
     content_width: f64,
     content_height: f64,
@@ -273,11 +330,102 @@ fn can_render_as_single_surface(
 ) -> bool {
     let safe_width = content_width.max(1.0);
     let safe_height = content_height.max(1.0);
-    let backing_dimension = policy.target_tile_backing_dimension.max(1.0);
+    let backing_width = max_tile_backing_width(policy);
+    let backing_height = max_tile_backing_height(policy);
+    let backing_area = max_tile_backing_area(policy);
     let single_surface_dpr = desired_dpr
-        .min(backing_dimension / safe_width)
-        .min(backing_dimension / safe_height);
+        .min(backing_width / safe_width)
+        .min(backing_height / safe_height)
+        .min((backing_area / (safe_width * safe_height)).sqrt());
     single_surface_dpr >= policy.min_untiled_render_dpr.max(0.0)
+}
+
+fn max_tile_backing_width(policy: ScrollerTilingPolicy) -> f64 {
+    finite_positive_or(
+        policy.max_tile_backing_width,
+        policy.target_tile_backing_dimension,
+    )
+}
+
+fn max_tile_backing_height(policy: ScrollerTilingPolicy) -> f64 {
+    finite_positive_or(
+        policy.max_tile_backing_height,
+        policy.target_tile_backing_dimension,
+    )
+}
+
+fn max_tile_backing_area(policy: ScrollerTilingPolicy) -> f64 {
+    finite_positive_or(
+        policy.max_tile_backing_area,
+        max_tile_backing_width(policy) * max_tile_backing_height(policy),
+    )
+}
+
+fn finite_positive_or(value: Option<f64>, fallback: f64) -> f64 {
+    value
+        .filter(|value| value.is_finite() && *value > 0.0)
+        .unwrap_or(fallback)
+        .max(1.0)
+}
+
+fn max_logical_tile_width(device_pixel_ratio: f64, policy: ScrollerTilingPolicy) -> f64 {
+    (max_tile_backing_width(policy) / device_pixel_ratio.max(1.0))
+        .floor()
+        .max(1.0)
+}
+
+fn max_logical_tile_height(device_pixel_ratio: f64, policy: ScrollerTilingPolicy) -> f64 {
+    (max_tile_backing_height(policy) / device_pixel_ratio.max(1.0))
+        .floor()
+        .max(1.0)
+}
+
+fn backing_extent(logical_extent: f64, device_pixel_ratio: f64) -> f64 {
+    (logical_extent.max(1.0) * device_pixel_ratio.max(1.0))
+        .ceil()
+        .max(1.0)
+}
+
+fn backing_area(width: f64, height: f64, device_pixel_ratio: f64) -> f64 {
+    backing_extent(width, device_pixel_ratio) * backing_extent(height, device_pixel_ratio)
+}
+
+fn constrain_axis_by_area(
+    axis: f64,
+    cross_axis: f64,
+    device_pixel_ratio: f64,
+    policy: ScrollerTilingPolicy,
+) -> f64 {
+    let max_area = max_tile_backing_area(policy);
+    let cross_backing = backing_extent(cross_axis, device_pixel_ratio);
+    let max_axis = (max_area / cross_backing / device_pixel_ratio.max(1.0))
+        .floor()
+        .max(1.0);
+    axis.min(max_axis).max(1.0)
+}
+
+fn constrain_tile_area(
+    mut width: f64,
+    mut height: f64,
+    device_pixel_ratio: f64,
+    policy: ScrollerTilingPolicy,
+) -> (f64, f64) {
+    let max_area = max_tile_backing_area(policy);
+    let area = backing_area(width, height, device_pixel_ratio);
+    if area <= max_area {
+        return (width, height);
+    }
+
+    let scale = (max_area / area).sqrt().min(1.0);
+    width = (width * scale).floor().max(1.0);
+    height = (height * scale).floor().max(1.0);
+    if backing_area(width, height, device_pixel_ratio) > max_area {
+        height = constrain_axis_by_area(height, width, device_pixel_ratio, policy);
+    }
+    if backing_area(width, height, device_pixel_ratio) > max_area {
+        width = constrain_axis_by_area(width, height, device_pixel_ratio, policy);
+    }
+    (width.max(1.0), height.max(1.0))
 }
 
 fn tile_replay_priority(
@@ -289,7 +437,8 @@ fn tile_replay_priority(
     viewport_top: f64,
     viewport_width: f64,
     viewport_height: f64,
-    tile_size: f64,
+    tile_step_width: f64,
+    tile_step_height: f64,
 ) -> i32 {
     let tile_right = tile_left + tile_width;
     let tile_bottom = tile_top + tile_height;
@@ -319,7 +468,17 @@ fn tile_replay_priority(
         0.0
     };
 
-    ((dx.max(dy) / tile_size.max(1.0)).ceil() as i32 + 1).max(1)
+    let x_priority = if dx > 0.0 {
+        (dx / tile_step_width.max(1.0)).ceil() as i32
+    } else {
+        0
+    };
+    let y_priority = if dy > 0.0 {
+        (dy / tile_step_height.max(1.0)).ceil() as i32
+    } else {
+        0
+    };
+    (x_priority.max(y_priority) + 1).max(1)
 }
 
 fn clamp_active_tile_window(
@@ -426,6 +585,84 @@ mod tests {
         );
 
         assert!(plan.surfaces.iter().all(|surface| surface.left == 0.0));
+    }
+
+    #[test]
+    fn vertical_only_scroller_uses_full_width_tiles_when_cap_allows() {
+        let mut policy = ScrollerTilingPolicy::default();
+        policy.target_tile_backing_dimension = 4096.0;
+        policy.max_tile_backing_width = Some(4096.0);
+        policy.max_tile_backing_height = Some(4096.0);
+        policy.max_tile_backing_area = Some(4096.0 * 4096.0);
+        policy.prewarm_viewport_pad_y_multiplier = 0.5;
+        policy.prewarm_viewport_pad_min_y = 384.0;
+        let plan = scroller_canvas_plan_with_policy(
+            1,
+            "test".to_string(),
+            1376.0,
+            120_000.0,
+            1376.0,
+            904.0,
+            0.0,
+            0.0,
+            2.0,
+            policy,
+        );
+
+        assert!(plan.surfaces.iter().all(|surface| surface.left == 0.0));
+        assert!(plan.surfaces.iter().all(|surface| surface.width == 1376.0));
+        assert!(plan.surfaces.len() <= 3);
+    }
+
+    #[test]
+    fn non_scrolling_axis_still_splits_when_backing_cap_requires_it() {
+        let mut policy = ScrollerTilingPolicy::default();
+        policy.target_tile_backing_dimension = 2048.0;
+        policy.max_tile_backing_width = Some(2048.0);
+        policy.max_tile_backing_height = Some(2048.0);
+        policy.max_tile_backing_area = Some(2048.0 * 2048.0);
+        let plan = scroller_canvas_plan_with_policy(
+            1,
+            "test".to_string(),
+            3000.0,
+            20_000.0,
+            3000.0,
+            600.0,
+            0.0,
+            0.0,
+            1.0,
+            policy,
+        );
+
+        assert!(plan.surfaces.iter().any(|surface| surface.left > 0.0));
+        assert!(plan.surfaces.iter().all(|surface| surface.width <= 2048.0));
+    }
+
+    #[test]
+    fn tile_area_cap_reduces_scroll_axis_extent() {
+        let mut policy = ScrollerTilingPolicy::default();
+        policy.target_tile_backing_dimension = 4096.0;
+        policy.max_tile_backing_width = Some(4096.0);
+        policy.max_tile_backing_height = Some(4096.0);
+        policy.max_tile_backing_area = Some(4_000_000.0);
+        let plan = scroller_canvas_plan_with_policy(
+            1,
+            "test".to_string(),
+            3000.0,
+            20_000.0,
+            3000.0,
+            600.0,
+            0.0,
+            0.0,
+            1.0,
+            policy,
+        );
+
+        assert!(plan
+            .surfaces
+            .iter()
+            .all(|surface| { (surface.width.ceil() * surface.height.ceil()) <= 4_000_000.0 }));
+        assert!(plan.surfaces.iter().all(|surface| surface.height <= 1333.0));
     }
 
     #[test]

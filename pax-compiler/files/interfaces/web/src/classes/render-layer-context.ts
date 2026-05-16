@@ -10,7 +10,7 @@ import type { LayerCanvasPlan } from "./surface-host-policy";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-export class OcclusionLayerManager {
+export class RenderLayerManager {
     private layers?: Layer[];
     private canvasMap?: Map<string, HTMLCanvasElement>;
     private canvasPool?: CanvasPool;
@@ -46,10 +46,10 @@ export class OcclusionLayerManager {
         this.growTo(0);
     }
 
-    growTo(newOcclusionLayerId: number) {
-        let occlusionLayerCount = newOcclusionLayerId + 1;
-        if(this.layers!.length < occlusionLayerCount) {
-            for(let i = this.layers!.length; i < occlusionLayerCount; i++) {
+    growTo(newRenderLayerId: number) {
+        let renderLayerCount = newRenderLayerId + 1;
+        if(this.layers!.length < renderLayerCount) {
+            for(let i = this.layers!.length; i < renderLayerCount; i++) {
                 let newLayer: Layer = this.objectManager.getFromPool(LAYER, this.objectManager);
                 newLayer.build(
                     this.parent!,
@@ -67,10 +67,9 @@ export class OcclusionLayerManager {
         if(this.layers === undefined){
             return
         }
-        // Rust publishes `ShrinkLayersTo` as the exact number of logical layers that should be
-        // alive, not the maximum retained layer id. Historically `OcclusionUpdate` calls also grew
-        // the layer stack as a side effect. Now layer sizing is driven by this message alone, so
-        // handle both growth and shrinkage here.
+        // Rust publishes `ShrinkLayersTo` as the exact number of logical render layers that should
+        // be alive, not the maximum retained layer id. Layer sizing is driven by this message alone,
+        // so handle both growth and shrinkage here.
         if (layerCount > 0) {
             this.growTo(layerCount - 1);
         }
@@ -85,14 +84,14 @@ export class OcclusionLayerManager {
     addElement(
         element: HTMLElement,
         parent_container: number | undefined,
-        occlusionLayerId: number,
+        renderLayerId: number,
     ) {
-        this.growTo(occlusionLayerId);
+        this.growTo(renderLayerId);
         let ownershipChanged = false;
         if (parent_container != null) {
-            ownershipChanged = this.claimLayerForParentFrame(occlusionLayerId, parent_container);
+            ownershipChanged = this.claimLayerForParentFrame(renderLayerId, parent_container);
         }
-        let attach_point = this.getOrCreateContainer(parent_container, occlusionLayerId);
+        let attach_point = this.getOrCreateContainer(parent_container, renderLayerId);
         if (!attach_point.contains(element)) {
             attach_point.appendChild(element);
         }
@@ -123,8 +122,8 @@ export class OcclusionLayerManager {
 
     // If a div for the container referenced already exists, returns it. if not,
     // create it (and all non-existent parents)
-    getOrCreateContainer(id: number | undefined, occlusionLayerId: number) {
-        let layer = this.layers![occlusionLayerId]!.native!;
+    getOrCreateContainer(id: number | undefined, renderLayerId: number) {
+        let layer = this.layers![renderLayerId]!.native!;
         if (id == undefined) {
             return layer;
         }
@@ -152,7 +151,7 @@ export class OcclusionLayerManager {
             container.styles.opacity,
         );
 
-        let parent_container = this.getOrCreateContainer(container.parentFrame, occlusionLayerId);
+        let parent_container = this.getOrCreateContainer(container.parentFrame, renderLayerId);
         parent_container.appendChild(new_container);
         return new_container;
     }

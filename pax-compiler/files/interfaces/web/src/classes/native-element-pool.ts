@@ -9,14 +9,14 @@ import {ScrollerUpdatePatch} from "./messages/scroller-update-patch";
 import {ButtonUpdatePatch} from "./messages/button-update-patch";
 import {PhotoPickerUpdatePatch} from "./messages/photo-picker-update-patch";
 import {ImageLoadPatch} from "./messages/image-load-patch";
-import {ContainerStyle, OcclusionLayerManager, setLeafLocalOpacity} from "./occlusion-context";
+import {ContainerStyle, RenderLayerManager, setLeafLocalOpacity} from "./render-layer-context";
 import {ObjectManager} from "../pools/object-manager";
 import {
     IMAGE,
     INPUT,
     BUTTON,
     DIV,
-    OCCLUSION_CONTEXT,
+    RENDER_LAYER_MANAGER,
     SELECT,
     YOUTUBE_VIDEO,
     YOUTUBE_VIDEO_UPDATE_PATCH
@@ -79,7 +79,7 @@ export class NativeElementPool {
     private lastCanvasTransformSignatures = new Map<string, string>();
     private lastCanvasLayerCounts = new Map<number, number>();
     private layerCanvasPlanCache = new Map<number, LayerCanvasPlan | null>();
-    layers: OcclusionLayerManager;
+    layers: RenderLayerManager;
     private nodesLookup = new Map<number, HTMLElement>();
     private scrollerHosts = new Map<number, ScrollerDomHosts>();
     private scrollerMeasurementStates = new Map<number, ScrollerMeasurementState>();
@@ -104,7 +104,7 @@ export class NativeElementPool {
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
         this.canvases = new Map();
-        this.layers = objectManager.getFromPool(OCCLUSION_CONTEXT, objectManager);
+        this.layers = objectManager.getFromPool(RENDER_LAYER_MANAGER, objectManager);
         this.registeredFontFaces = new Set<string>();
         this.pageScrollActivityListener = () => {
             if (this.activePageScrollScrollerId == null) {
@@ -293,7 +293,7 @@ export class NativeElementPool {
 
     checkboxCreate(patch: AnyCreatePatch) {
         console.assert(patch.id != null);
-        console.assert(patch.occlusionLayerId != null);
+        console.assert(patch.renderLayerId != null);
         
         const checkbox = this.objectManager.getFromPool(INPUT) as HTMLInputElement;
         checkbox.type = "checkbox";
@@ -317,8 +317,8 @@ export class NativeElementPool {
         checkbox_div.appendChild(checkbox);
         checkbox_div.setAttribute("class", NATIVE_LEAF_CLASS)
         checkbox_div.setAttribute("pax_id", String(patch.id));
-        if(patch.id != undefined && patch.occlusionLayerId != undefined){
-            this.layers.addElement(checkbox_div, patch.parentFrame, patch.occlusionLayerId);
+        if(patch.id != undefined && patch.renderLayerId != undefined){
+            this.layers.addElement(checkbox_div, patch.parentFrame, patch.renderLayerId);
         }
         this.nodesLookup.set(patch.id!, checkbox_div);
     }
@@ -366,7 +366,7 @@ export class NativeElementPool {
 
     nativeImageCreate(patch: AnyCreatePatch) {
         console.assert(patch.id != null);
-        console.assert(patch.occlusionLayerId != null);
+        console.assert(patch.renderLayerId != null);
         
         const nativeImage = this.objectManager.getFromPool(IMAGE) as HTMLInputElement;
         nativeImage.style.margin = "0";
@@ -375,8 +375,8 @@ export class NativeElementPool {
         nativeImage_div.appendChild(nativeImage);
         nativeImage_div.setAttribute("class", NATIVE_LEAF_CLASS)
         nativeImage_div.setAttribute("pax_id", String(patch.id));
-        if(patch.id != undefined && patch.occlusionLayerId != undefined){
-            this.layers.addElement(nativeImage_div, patch.parentFrame, patch.occlusionLayerId);
+        if(patch.id != undefined && patch.renderLayerId != undefined){
+            this.layers.addElement(nativeImage_div, patch.parentFrame, patch.renderLayerId);
         }
         this.nodesLookup.set(patch.id!, nativeImage_div);
     }
@@ -406,7 +406,7 @@ export class NativeElementPool {
 
     youtubeVideoCreate(patch: AnyCreatePatch) {
         console.assert(patch.id != null);
-        console.assert(patch.occlusionLayerId != null);
+        console.assert(patch.renderLayerId != null);
 
         const youtubeVideo = this.objectManager.getFromPool(YOUTUBE_VIDEO) as HTMLIFrameElement;
         youtubeVideo.width = "560";
@@ -423,8 +423,8 @@ export class NativeElementPool {
 
         youtubeVideo_div.setAttribute("class", NATIVE_LEAF_CLASS)
         youtubeVideo_div.setAttribute("pax_id", String(patch.id));
-        if(patch.id != undefined && patch.occlusionLayerId != undefined){
-            this.layers.addElement(youtubeVideo_div, patch.parentFrame, patch.occlusionLayerId);
+        if(patch.id != undefined && patch.renderLayerId != undefined){
+            this.layers.addElement(youtubeVideo_div, patch.parentFrame, patch.renderLayerId);
         }
         this.nodesLookup.set(patch.id!, youtubeVideo_div);
     }
@@ -506,11 +506,11 @@ export class NativeElementPool {
         textboxDiv.setAttribute("class", NATIVE_LEAF_CLASS)
         textboxDiv.setAttribute("pax_id", String(patch.id));
 
-        if(patch.id != undefined && patch.occlusionLayerId != undefined){
-            this.layers.addElement(textboxDiv, patch.parentFrame, patch.occlusionLayerId);
+        if(patch.id != undefined && patch.renderLayerId != undefined){
+            this.layers.addElement(textboxDiv, patch.parentFrame, patch.renderLayerId);
             this.nodesLookup.set(patch.id!, textboxDiv);
         } else {
-            throw new Error("undefined id or occlusionLayer");
+            throw new Error("undefined id or renderLayer");
         }
 
     }
@@ -650,11 +650,11 @@ export class NativeElementPool {
         radioListDiv.setAttribute("pax_id", String(patch.id));
         radioListDiv.appendChild(fields);
 
-        if(patch.id != undefined && patch.occlusionLayerId != undefined){
-            this.layers.addElement(radioListDiv, patch.parentFrame, patch.occlusionLayerId);
+        if(patch.id != undefined && patch.renderLayerId != undefined){
+            this.layers.addElement(radioListDiv, patch.parentFrame, patch.renderLayerId);
             this.nodesLookup.set(patch.id!, radioListDiv);
         } else {
-            throw new Error("undefined id or occlusionLayer");
+            throw new Error("undefined id or renderLayer");
         }
 
     }
@@ -755,11 +755,11 @@ export class NativeElementPool {
         sliderDiv.style.contain = "layout style";
         sliderDiv.setAttribute("pax_id", String(patch.id));
 
-        if(patch.id != undefined && patch.occlusionLayerId != undefined){
-            this.layers.addElement(sliderDiv, patch.parentFrame, patch.occlusionLayerId);
+        if(patch.id != undefined && patch.renderLayerId != undefined){
+            this.layers.addElement(sliderDiv, patch.parentFrame, patch.renderLayerId);
             this.nodesLookup.set(patch.id!, sliderDiv);
         } else {
-            throw new Error("undefined id or occlusionLayer");
+            throw new Error("undefined id or renderLayer");
         }
 
     }
@@ -826,11 +826,11 @@ export class NativeElementPool {
         textboxDiv.setAttribute("class", NATIVE_LEAF_CLASS)
         textboxDiv.setAttribute("pax_id", String(patch.id));
 
-        if(patch.id != undefined && patch.occlusionLayerId != undefined){
-            this.layers.addElement(textboxDiv, patch.parentFrame, patch.occlusionLayerId);
+        if(patch.id != undefined && patch.renderLayerId != undefined){
+            this.layers.addElement(textboxDiv, patch.parentFrame, patch.renderLayerId);
             this.nodesLookup.set(patch.id!, textboxDiv);
         } else {
-            throw new Error("undefined id or occlusionLayer");
+            throw new Error("undefined id or renderLayer");
         }
 
     }
@@ -889,7 +889,7 @@ export class NativeElementPool {
 
     buttonCreate(patch: AnyCreatePatch) {
         console.assert(patch.id != null);
-        console.assert(patch.occlusionLayerId != null);
+        console.assert(patch.renderLayerId != null);
         
         const button = this.objectManager.getFromPool(BUTTON) as HTMLButtonElement;
         const textContainer = this.objectManager.getFromPool(DIV) as HTMLDivElement;
@@ -912,11 +912,11 @@ export class NativeElementPool {
         buttonDiv.appendChild(button);
         buttonDiv.setAttribute("class", NATIVE_LEAF_CLASS)
         buttonDiv.setAttribute("pax_id", String(patch.id));
-        if(patch.id != undefined && patch.occlusionLayerId != undefined){
-            this.layers.addElement(buttonDiv, patch.parentFrame, patch.occlusionLayerId);
+        if(patch.id != undefined && patch.renderLayerId != undefined){
+            this.layers.addElement(buttonDiv, patch.parentFrame, patch.renderLayerId);
             this.nodesLookup.set(patch.id!, buttonDiv);
         } else {
-            throw new Error("undefined id or occlusionLayer");
+            throw new Error("undefined id or renderLayer");
         }
     }
 
@@ -1154,7 +1154,7 @@ export class NativeElementPool {
 
     textCreate(patch: AnyCreatePatch) {
         console.assert(patch.id != null);
-        console.assert(patch.occlusionLayerId != null);
+        console.assert(patch.renderLayerId != null);
 
         let textDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let textChild: HTMLDivElement = this.objectManager.getFromPool(DIV);
@@ -1183,11 +1183,11 @@ export class NativeElementPool {
         textDiv.setAttribute("class", NATIVE_LEAF_CLASS)
         textDiv.setAttribute("pax_id", String(patch.id));
 
-        if(patch.id != undefined && patch.occlusionLayerId != undefined){
-            this.layers.addElement(textDiv, patch.parentFrame, patch.occlusionLayerId);
+        if(patch.id != undefined && patch.renderLayerId != undefined){
+            this.layers.addElement(textDiv, patch.parentFrame, patch.renderLayerId);
             this.nodesLookup.set(patch.id!, textDiv);
         } else {
-            throw new Error("undefined id or occlusionLayer");
+            throw new Error("undefined id or renderLayer");
         }
     }
 
@@ -1480,13 +1480,6 @@ export class NativeElementPool {
         scrollerId: number,
         leaf: HTMLElement,
     ): { presentedBounds: AxisAlignedRect; presentedClipBounds: AxisAlignedRect } {
-        let record = this.presentationRecords.get(scrollerId);
-        if (record?.presentedBounds && record.presentedClipBounds) {
-            return {
-                presentedBounds: record.presentedBounds,
-                presentedClipBounds: record.presentedClipBounds,
-            };
-        }
         let rect = leaf.getBoundingClientRect();
         let viewport = {
             left: 0,
@@ -1495,6 +1488,24 @@ export class NativeElementPool {
             bottom: window.innerHeight ?? rect.bottom,
         };
         let clipBounds = viewport;
+        if (!isIOSWebKitBrowser()) {
+            return {
+                presentedBounds: {
+                    left: rect.left,
+                    top: rect.top,
+                    right: rect.right,
+                    bottom: rect.bottom,
+                },
+                presentedClipBounds: clipBounds,
+            };
+        }
+        let record = this.presentationRecords.get(scrollerId);
+        if (record?.presentedBounds && record.presentedClipBounds) {
+            return {
+                presentedBounds: record.presentedBounds,
+                presentedClipBounds: record.presentedClipBounds,
+            };
+        }
         if (isIOSWebKitBrowser()) {
             let node: HTMLElement | null = leaf;
             while (node != null) {
@@ -1648,20 +1659,23 @@ export class NativeElementPool {
             let record = this.getWarmthPresentationRecord(id, hosts.leaf, state);
             let horizontalScrollable = hosts.leaf.scrollWidth > hosts.leaf.clientWidth + 0.5;
             let verticalScrollable = hosts.leaf.scrollHeight > hosts.leaf.clientHeight + 0.5;
-        let prewarmClipBounds = expandRect(
-            record.presentedClipBounds,
-            horizontalScrollable
-                ? prewarmScrollablePadX(hosts.leaf.clientWidth)
-                : 240,
-            verticalScrollable
-                ? prewarmScrollablePadY(hosts.leaf.clientHeight)
-                : 240,
-        );
-        candidates.push({
-            id,
-            distance: rectCenterDistance(record.presentedBounds, record.presentedClipBounds),
+            let prewarmClipBounds = expandRect(
+                record.presentedClipBounds,
+                horizontalScrollable
+                    ? prewarmScrollablePadX(hosts.leaf.clientWidth)
+                    : 240,
+                verticalScrollable
+                    ? prewarmScrollablePadY(hosts.leaf.clientHeight)
+                    : 240,
+            );
+            if (!rectsIntersect(record.presentedBounds, prewarmClipBounds)) {
+                return;
+            }
+            candidates.push({
+                id,
+                distance: rectCenterDistance(record.presentedBounds, record.presentedClipBounds),
+            });
         });
-    });
         candidates.sort((left, right) => left.distance - right.distance || left.id - right.id);
         return candidates;
     }
@@ -1677,6 +1691,7 @@ export class NativeElementPool {
                 distance: number;
                 surfaceCost: number;
                 mandatory: boolean;
+                prewarmEligible: boolean;
             }> = [];
             let rootCanvasCost = 0;
             if (totalCanvasBudget != null && this.mount != null) {
@@ -1709,6 +1724,7 @@ export class NativeElementPool {
                         ? prewarmScrollablePadY(hosts.leaf.clientHeight)
                         : 240,
                 );
+                let prewarmEligible = rectsIntersect(record.presentedBounds, prewarmClipBounds);
                 let surfaceCost = this.estimateScrollerWarmSurfaceCost(hosts, state);
                 if (mandatory) {
                     mandatoryCost += surfaceCost;
@@ -1720,6 +1736,7 @@ export class NativeElementPool {
                     distance: rectCenterDistance(record.presentedBounds, record.presentedClipBounds),
                     surfaceCost,
                     mandatory,
+                    prewarmEligible,
                 });
             });
             candidates.sort((left, right) => {
@@ -1759,6 +1776,11 @@ export class NativeElementPool {
                     continue;
                 }
                 let cost = Math.max(1, candidate.surfaceCost);
+                let eligibleForWarmSlot =
+                    candidate.shouldWarm || candidate.hosts.warmed || candidate.prewarmEligible;
+                if (!eligibleForWarmSlot) {
+                    continue;
+                }
                 let canAfford = remainingBudget >= cost;
                 let mustKeep = totalCanvasBudget == null
                     && candidate.shouldWarm
@@ -2614,7 +2636,7 @@ export class NativeElementPool {
 
     scrollerCreate(patch: AnyCreatePatch){
         console.assert(patch.id != null);
-        console.assert(patch.occlusionLayerId != null);
+        console.assert(patch.renderLayerId != null);
 
         let scrollerDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         let innerPane: HTMLDivElement = this.objectManager.getFromPool(DIV);
@@ -2691,8 +2713,8 @@ export class NativeElementPool {
         scrollerDiv.style.contain = "layout style";
 
 
-        if(patch.id != undefined && patch.occlusionLayerId != undefined){
-            this.layers.addElement(scrollerDiv, patch.parentFrame, patch.occlusionLayerId);
+        if(patch.id != undefined && patch.renderLayerId != undefined){
+            this.layers.addElement(scrollerDiv, patch.parentFrame, patch.renderLayerId);
             this.layers.registerParentFrameHost(patch.id, contentHost);
             if (
                 vectorIslandEnabled
@@ -2737,7 +2759,7 @@ export class NativeElementPool {
             });
             this.replayPendingScrollerUpdate(patch.id);
         } else {
-            throw new Error("undefined id or occlusionLayer");
+            throw new Error("undefined id or renderLayer");
         }
     }
 
@@ -2987,7 +3009,7 @@ export class NativeElementPool {
 
     eventBlockerCreate(patch: AnyCreatePatch){
         console.assert(patch.id != null);
-        console.assert(patch.occlusionLayerId != null);
+        console.assert(patch.renderLayerId != null);
 
         let eventBlockerDiv: HTMLDivElement = this.objectManager.getFromPool(DIV);
         // let eventBlocker: HTMLDivElement = this.objectManager.getFromPool(DIV);
@@ -2995,11 +3017,11 @@ export class NativeElementPool {
         eventBlockerDiv.setAttribute("pax_id", String(patch.id));
 
 
-        if(patch.id != undefined && patch.occlusionLayerId != undefined){
-            this.layers.addElement(eventBlockerDiv, patch.parentFrame, patch.occlusionLayerId);
+        if(patch.id != undefined && patch.renderLayerId != undefined){
+            this.layers.addElement(eventBlockerDiv, patch.parentFrame, patch.renderLayerId);
             this.nodesLookup.set(patch.id!, eventBlockerDiv);
         } else {
-            throw new Error("undefined id or occlusionLayer");
+            throw new Error("undefined id or renderLayer");
         }
 
 

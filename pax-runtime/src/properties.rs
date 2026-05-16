@@ -1,6 +1,6 @@
 use crate::api::math::Point2;
 use crate::api::Window;
-use crate::constants::{PRE_RENDER_HANDLERS, TICK_HANDLERS};
+use crate::constants::{ACCEL_HANDLERS, GYRO_HANDLERS, PRE_RENDER_HANDLERS, TICK_HANDLERS};
 use pax_language::interpreter::property_resolution::IdentifierResolver;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, ScreenshotData};
@@ -55,8 +55,11 @@ pub struct RuntimeContext {
     removed_canvas_nodes: RefCell<Vec<(usize, u32)>>,
     occlusion_dirty: Cell<bool>,
     layer_canvas_plan_generation: Cell<u32>,
+    import_settings_node_count: Cell<usize>,
     tick_handler_nodes: RefCell<Vec<ExpandedNodeIdentifier>>,
     pre_render_handler_nodes: RefCell<Vec<ExpandedNodeIdentifier>>,
+    gyro_handler_nodes: RefCell<Vec<ExpandedNodeIdentifier>>,
+    accel_handler_nodes: RefCell<Vec<ExpandedNodeIdentifier>>,
     screenshot_map: Rc<RefCell<HashMap<u32, ScreenshotData>>>,
     scroller_surface_states: RefCell<HashMap<u32, ScrollerSurfaceState>>,
     layer_scroller_owners: RefCell<HashMap<usize, ExpandedNodeIdentifier>>,
@@ -76,6 +79,35 @@ pub struct ScrollerSurfaceState {
     pub presentation_scroll_x: f64,
     pub presentation_scroll_y: f64,
     pub clip_content: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Coarse classification of changes to a native or browser-owned scroller surface.
+pub enum ScrollerSurfaceStateChange {
+    Unchanged,
+    ScrollOnly,
+    Structural,
+}
+
+impl ScrollerSurfaceState {
+    fn close_enough(lhs: f64, rhs: f64) -> bool {
+        (lhs - rhs).abs() <= 1e-4
+    }
+
+    fn structural_eq(&self, other: &Self) -> bool {
+        Self::close_enough(self.viewport_width, other.viewport_width)
+            && Self::close_enough(self.viewport_height, other.viewport_height)
+            && Self::close_enough(self.content_width, other.content_width)
+            && Self::close_enough(self.content_height, other.content_height)
+            && self.clip_content == other.clip_content
+    }
+
+    fn scroll_eq(&self, other: &Self) -> bool {
+        Self::close_enough(self.scroll_x, other.scroll_x)
+            && Self::close_enough(self.scroll_y, other.scroll_y)
+            && Self::close_enough(self.presentation_scroll_x, other.presentation_scroll_x)
+            && Self::close_enough(self.presentation_scroll_y, other.presentation_scroll_y)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -145,8 +177,11 @@ impl RuntimeContext {
             removed_canvas_nodes: Default::default(),
             occlusion_dirty: Cell::new(true),
             layer_canvas_plan_generation: Cell::new(1),
+            import_settings_node_count: Cell::new(0),
             tick_handler_nodes: Default::default(),
             pre_render_handler_nodes: Default::default(),
+            gyro_handler_nodes: Default::default(),
+            accel_handler_nodes: Default::default(),
             screenshot_map: Default::default(),
             scroller_surface_states: Default::default(),
             layer_scroller_owners: Default::default(),
@@ -175,8 +210,11 @@ impl RuntimeContext {
             removed_canvas_nodes: Default::default(),
             occlusion_dirty: Cell::new(true),
             layer_canvas_plan_generation: Cell::new(1),
+            import_settings_node_count: Cell::new(0),
             tick_handler_nodes: Default::default(),
             pre_render_handler_nodes: Default::default(),
+            gyro_handler_nodes: Default::default(),
+            accel_handler_nodes: Default::default(),
             screenshot_map: Default::default(),
             scroller_surface_states: Default::default(),
             layer_scroller_owners: Default::default(),
@@ -205,8 +243,11 @@ impl RuntimeContext {
             removed_canvas_nodes: Default::default(),
             occlusion_dirty: Cell::new(true),
             layer_canvas_plan_generation: Cell::new(1),
+            import_settings_node_count: Cell::new(0),
             tick_handler_nodes: Default::default(),
             pre_render_handler_nodes: Default::default(),
+            gyro_handler_nodes: Default::default(),
+            accel_handler_nodes: Default::default(),
             screenshot_map: Default::default(),
             scroller_surface_states: Default::default(),
             layer_scroller_owners: Default::default(),
@@ -229,6 +270,10 @@ impl RuntimeContext {
     pub fn add_to_cache(&self, node: &Rc<ExpandedNode>) {
         borrow_mut!(self.node_cache).add_to_cache(node);
         self.register_node_lifecycle_handlers(node);
+        if node.is_import_settings_node() {
+            self.import_settings_node_count
+                .set(self.import_settings_node_count.get() + 1);
+        }
         self.mark_occlusion_dirty();
     }
 
@@ -236,7 +281,15 @@ impl RuntimeContext {
     pub fn remove_from_cache(&self, node: &Rc<ExpandedNode>) {
         borrow_mut!(self.node_cache).remove_from_cache(node);
         self.unregister_node_lifecycle_handlers(node.id);
+        if node.is_import_settings_node() {
+            self.import_settings_node_count
+                .set(self.import_settings_node_count.get().saturating_sub(1));
+        }
         self.mark_occlusion_dirty();
+    }
+
+    pub fn has_import_settings_nodes(&self) -> bool {
+        self.import_settings_node_count.get() > 0
     }
 
     pub fn register_node_effect_property(
@@ -277,6 +330,14 @@ impl RuntimeContext {
         borrow!(self.pre_render_handler_nodes).clone()
     }
 
+    pub fn gyro_handler_nodes(&self) -> Vec<ExpandedNodeIdentifier> {
+        borrow!(self.gyro_handler_nodes).clone()
+    }
+
+    pub fn accel_handler_nodes(&self) -> Vec<ExpandedNodeIdentifier> {
+        borrow!(self.accel_handler_nodes).clone()
+    }
+
     fn register_node_lifecycle_handlers(&self, node: &Rc<ExpandedNode>) {
         let registry = borrow!(node.instance_node)
             .base()
@@ -296,11 +357,19 @@ impl RuntimeContext {
         {
             self.register_lifecycle_handler(&self.pre_render_handler_nodes, node.id);
         }
+        if handlers.get(GYRO_HANDLERS).is_some_and(|h| !h.is_empty()) {
+            self.register_lifecycle_handler(&self.gyro_handler_nodes, node.id);
+        }
+        if handlers.get(ACCEL_HANDLERS).is_some_and(|h| !h.is_empty()) {
+            self.register_lifecycle_handler(&self.accel_handler_nodes, node.id);
+        }
     }
 
     fn unregister_node_lifecycle_handlers(&self, id: ExpandedNodeIdentifier) {
         borrow_mut!(self.tick_handler_nodes).retain(|node_id| *node_id != id);
         borrow_mut!(self.pre_render_handler_nodes).retain(|node_id| *node_id != id);
+        borrow_mut!(self.gyro_handler_nodes).retain(|node_id| *node_id != id);
+        borrow_mut!(self.accel_handler_nodes).retain(|node_id| *node_id != id);
     }
 
     fn register_lifecycle_handler(
@@ -331,10 +400,80 @@ impl RuntimeContext {
     }
 
     /// Remember browser-owned scroller state for native compositing and scroll transforms.
-    pub fn set_scroller_surface_state(&self, id: u32, state: ScrollerSurfaceState) {
-        borrow_mut!(self.scroller_surface_states).insert(id, state);
-        self.mark_layer_canvas_plans_dirty();
-        self.mark_occlusion_dirty();
+    pub fn set_scroller_surface_state(
+        &self,
+        id: u32,
+        state: ScrollerSurfaceState,
+    ) -> ScrollerSurfaceStateChange {
+        let change = {
+            let mut states = borrow_mut!(self.scroller_surface_states);
+            let change = match states.get(&id) {
+                Some(previous) if previous.structural_eq(&state) && previous.scroll_eq(&state) => {
+                    ScrollerSurfaceStateChange::Unchanged
+                }
+                Some(previous) if previous.structural_eq(&state) => {
+                    ScrollerSurfaceStateChange::ScrollOnly
+                }
+                _ => ScrollerSurfaceStateChange::Structural,
+            };
+            if change != ScrollerSurfaceStateChange::Unchanged {
+                states.insert(id, state);
+            }
+            change
+        };
+
+        match change {
+            ScrollerSurfaceStateChange::Unchanged => {}
+            ScrollerSurfaceStateChange::ScrollOnly => {
+                self.mark_layer_canvas_plans_dirty();
+            }
+            ScrollerSurfaceStateChange::Structural => {
+                self.mark_layer_canvas_plans_dirty();
+                self.mark_occlusion_dirty();
+            }
+        }
+
+        change
+    }
+
+    /// Update hot scroll offsets for an existing native scroller surface without touching
+    /// structural state.
+    pub fn update_scroller_surface_scroll(
+        &self,
+        id: u32,
+        scroll_x: f64,
+        scroll_y: f64,
+        presentation_scroll_x: f64,
+        presentation_scroll_y: f64,
+    ) -> ScrollerSurfaceStateChange {
+        let change = {
+            let mut states = borrow_mut!(self.scroller_surface_states);
+            let Some(state) = states.get_mut(&id) else {
+                return ScrollerSurfaceStateChange::Unchanged;
+            };
+            let next = ScrollerSurfaceState {
+                scroll_x,
+                scroll_y,
+                presentation_scroll_x,
+                presentation_scroll_y,
+                ..*state
+            };
+            let change = if state.scroll_eq(&next) {
+                ScrollerSurfaceStateChange::Unchanged
+            } else {
+                ScrollerSurfaceStateChange::ScrollOnly
+            };
+            if change != ScrollerSurfaceStateChange::Unchanged {
+                *state = next;
+            }
+            change
+        };
+
+        if change == ScrollerSurfaceStateChange::ScrollOnly {
+            self.mark_layer_canvas_plans_dirty();
+        }
+
+        change
     }
 
     /// Remove cached scroller surface state.
@@ -349,13 +488,31 @@ impl RuntimeContext {
         borrow!(self.scroller_surface_states).get(&id).cloned()
     }
 
-    /// Clear layer-to-scroller ownership before recomputing occlusion.
+    /// Fetch the presentation scroll offset for a native scroller surface, falling back to the
+    /// authoritative scroll position when presentation scroll is unavailable.
+    pub fn get_scroller_surface_scroll(&self, id: u32) -> Option<(f64, f64)> {
+        borrow!(self.scroller_surface_states).get(&id).map(|state| {
+            let scroll_x = if state.presentation_scroll_x.is_finite() {
+                state.presentation_scroll_x
+            } else {
+                state.scroll_x
+            };
+            let scroll_y = if state.presentation_scroll_y.is_finite() {
+                state.presentation_scroll_y
+            } else {
+                state.scroll_y
+            };
+            (scroll_x, scroll_y)
+        })
+    }
+
+    /// Clear render-layer-to-scroller ownership before recomputing occlusion.
     pub fn clear_layer_scroller_owners(&self) {
         borrow_mut!(self.layer_scroller_owners).clear();
         self.mark_layer_canvas_plans_dirty();
     }
 
-    /// Record that a canvas layer is owned by a particular scroller.
+    /// Record that a render layer is owned by a particular scroller.
     pub fn register_layer_scroller_owner(
         &self,
         layer_id: usize,
@@ -365,7 +522,7 @@ impl RuntimeContext {
         self.mark_layer_canvas_plans_dirty();
     }
 
-    /// Find the scroller that owns a canvas layer, when one exists.
+    /// Find the scroller that owns a render layer, when one exists.
     pub fn get_layer_scroller_owner(&self, layer_id: usize) -> Option<ExpandedNodeIdentifier> {
         borrow!(self.layer_scroller_owners).get(&layer_id).copied()
     }
@@ -497,14 +654,34 @@ impl RuntimeContext {
         borrow!(self.dirty_canvas_nodes).contains(id)
     }
 
+    pub fn dirty_canvas_node_ids(&self) -> Vec<ExpandedNodeIdentifier> {
+        borrow!(self.dirty_canvas_nodes).iter().copied().collect()
+    }
+
     pub fn mark_canvas_nodes_on_layer_dirty(&self, layer: usize) {
         let node_cache = borrow!(self.node_cache);
         let dirty_nodes = &mut *borrow_mut!(self.dirty_canvas_nodes);
         for node in node_cache.eid_to_node.values() {
-            if node.occlusion.get().occlusion_layer_id == layer
+            if node.occlusion.get().render_layer_id == layer
                 && borrow!(node.instance_node).base().flags().layer == crate::api::Layer::Canvas
             {
                 dirty_nodes.insert(node.id);
+            }
+        }
+    }
+
+    pub fn mark_canvas_nodes_on_layer_dirty_by_id(&self, layer: usize, node_ids: &[u32]) {
+        let node_cache = borrow!(self.node_cache);
+        let dirty_nodes = &mut *borrow_mut!(self.dirty_canvas_nodes);
+        for node_id in node_ids {
+            let id = ExpandedNodeIdentifier(*node_id);
+            let Some(node) = node_cache.eid_to_node.get(&id) else {
+                continue;
+            };
+            if node.occlusion.get().render_layer_id == layer
+                && borrow!(node.instance_node).base().flags().layer == crate::api::Layer::Canvas
+            {
+                dirty_nodes.insert(id);
             }
         }
     }
@@ -650,18 +827,18 @@ impl RuntimeContext {
                                             (visual_x, visual_y)
                                         }
                                     } else {
-                                        instance_node
-                                            .resolve_scroll_offset(&node)
+                                        self.get_scroller_surface_scroll(node.id.to_u32())
+                                            .or_else(|| instance_node.resolve_scroll_offset(&node))
                                             .unwrap_or((0.0, 0.0))
                                     }
                                 } else {
-                                    instance_node
-                                        .resolve_scroll_offset(&node)
+                                    self.get_scroller_surface_scroll(node.id.to_u32())
+                                        .or_else(|| instance_node.resolve_scroll_offset(&node))
                                         .unwrap_or((0.0, 0.0))
                                 }
                             } else {
-                                instance_node
-                                    .resolve_scroll_offset(&node)
+                                self.get_scroller_surface_scroll(node.id.to_u32())
+                                    .or_else(|| instance_node.resolve_scroll_offset(&node))
                                     .unwrap_or((0.0, 0.0))
                             };
                         if scroll_x.abs() > f64::EPSILON || scroll_y.abs() > f64::EPSILON {

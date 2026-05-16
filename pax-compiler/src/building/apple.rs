@@ -1492,26 +1492,6 @@ fn run_on_simulator(
     bundle_identifier: &str,
     process_child_ids: &Arc<Mutex<Vec<u64>>>,
 ) -> Result<(), eyre::Report> {
-    let simulators = list_available_ios_simulators(process_child_ids)?;
-    for simulator in simulators {
-        if simulator.state == "Booted" && simulator.udid != device_udid {
-            let mut cmd = Command::new("xcrun");
-            cmd.arg("simctl")
-                .arg("shutdown")
-                .arg(&simulator.udid)
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null());
-
-            #[cfg(unix)]
-            unsafe {
-                cmd.pre_exec(crate::pre_exec_hook);
-            }
-
-            let child = cmd.spawn().expect(ERR_SPAWN);
-            let _ = wait_with_output(process_child_ids, child);
-        }
-    }
-
     let mut cmd = Command::new("open");
     cmd.arg("-a")
         .arg("Simulator")

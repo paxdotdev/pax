@@ -99,17 +99,19 @@ impl InstanceNode for PathInstance {
                 elements: properties.elements.clone(),
             });
             let children = borrow!(self.base().get_instance_children());
-            let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
-            let new_children = expanded_node.generate_children(
-                children_with_envs,
-                context,
-                &expanded_node.parent_frame,
-                true,
-            );
-            // set slot children to all to make children compute and update their slot index
-            // (see expanded_node compute_expanded and flattened children)
-            *borrow_mut!(expanded_node.expanded_projected_children) = Some(new_children.clone());
-            expanded_node.children.set(new_children);
+            if !children.is_empty() {
+                let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
+                let new_children = expanded_node.generate_children(
+                    children_with_envs,
+                    context,
+                    &expanded_node.parent_frame,
+                    true,
+                );
+                // Path child nodes write PathElement values into the local PathContext store.
+                *borrow_mut!(expanded_node.expanded_projected_children) =
+                    Some(new_children.clone());
+                expanded_node.children.set(new_children);
+            }
         });
 
         let tab = expanded_node.transform_and_bounds.clone();
@@ -138,17 +140,22 @@ impl InstanceNode for PathInstance {
                 move || {
                     cloned_context.mark_canvas_node_dirty(cloned_expanded_node.id);
                     cloned_context
-                        .set_canvas_dirty(cloned_expanded_node.occlusion.get().occlusion_layer_id)
+                        .set_canvas_dirty(cloned_expanded_node.occlusion.get().render_layer_id)
                 },
                 deps,
             ));
     }
 
+    fn requires_non_reactive_update(&self, expanded_node: &ExpandedNode) -> bool {
+        borrow!(expanded_node.expanded_projected_children).is_some()
+    }
+
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
-        // NOTE: do not update children here,
-        // we know that all of the expanded and flattened children
-        // are the same as the once being rendered
-        expanded_node.compute_flattened_projected_children();
+        if borrow!(expanded_node.expanded_projected_children).is_some() {
+            // Path child nodes can change the path command list, but plain property-backed paths
+            // have no projected child structure to recompute on each tick.
+            expanded_node.compute_flattened_projected_children();
+        }
     }
 
     fn resolve_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {

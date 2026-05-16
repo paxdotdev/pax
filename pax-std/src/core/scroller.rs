@@ -7,7 +7,7 @@ use pax_runtime::api::{borrow, borrow_mut, use_RefCell, Layer, NodeContext};
 use pax_runtime::{
     bind_content_measurement_effect, measure_content_children_forward_extents, BaseInstance,
     ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode, InstantiationArgs,
-    RuntimeContext, ScrollerSurfaceState,
+    RuntimeContext, ScrollerSurfaceState, ScrollerSurfaceStateChange,
 };
 use std::iter;
 use std::rc::Rc;
@@ -154,18 +154,22 @@ fn mark_canvas_descendants_dirty(expanded_node: &ExpandedNode, context: &Rc<Runt
     for child in expanded_node.children.get().iter() {
         if borrow!(child.instance_node).base().flags().layer == Layer::Canvas {
             context.mark_canvas_node_dirty(child.id);
-            context.set_canvas_dirty(child.occlusion.get().occlusion_layer_id);
+            context.set_canvas_dirty(child.occlusion.get().render_layer_id);
         }
         mark_canvas_descendants_dirty(child, context);
     }
 }
 
 fn resolve_scroller_island_layer(expanded_node: &ExpandedNode) -> Option<usize> {
-    let own_layer = expanded_node.occlusion.get().occlusion_layer_id;
+    if let Some(layer_id) = expanded_node.browser_content_layer_id.get() {
+        return Some(layer_id as usize);
+    }
+
+    let own_layer = expanded_node.occlusion.get().render_layer_id;
     fn find_descendant_layer(node: &ExpandedNode, own_layer: usize) -> Option<usize> {
         let mut resolved: Option<usize> = None;
         for child in node.children.get().iter() {
-            let child_layer = child.occlusion.get().occlusion_layer_id;
+            let child_layer = child.occlusion.get().render_layer_id;
             if child_layer != own_layer {
                 resolved = Some(match resolved {
                     Some(current) => current.min(child_layer),
@@ -197,7 +201,7 @@ fn scroller_clip_path(
     let t_and_b = expanded_node.transform_and_bounds.get();
     let transform = t_and_b.transform;
     let (width, height) = t_and_b.bounds;
-    let max_radius = 0.5 * width.min(height);
+    let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
     let radius = border_radius.clamp(0.0, max_radius);
 
     let bez_path = if radius > f64::EPSILON {
@@ -238,12 +242,15 @@ fn effective_presentation_scroll(
     expanded_node: &ExpandedNode,
     context: &RuntimeContext,
 ) -> (f64, f64) {
-    let (scroll_x, scroll_y) =
-        expanded_node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
-            (
-                scroller._presentation_scroll_x.get(),
-                scroller._presentation_scroll_y.get(),
-            )
+    let (scroll_x, scroll_y) = context
+        .get_scroller_surface_scroll(expanded_node.id.to_u32())
+        .unwrap_or_else(|| {
+            expanded_node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
+                (
+                    scroller._presentation_scroll_x.get(),
+                    scroller._presentation_scroll_y.get(),
+                )
+            })
         });
     if context.get_root_scroller_id() == Some(expanded_node.id.to_u32()) {
         if let Some(visual) = context.get_visual_viewport_state() {
@@ -317,7 +324,7 @@ impl InstanceNode for ScrollerHostInstance {
             AnyCreatePatch {
                 id,
                 parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
-                occlusion_layer_id: 0,
+                render_layer_id: 0,
             },
         ));
 
@@ -366,7 +373,7 @@ impl InstanceNode for ScrollerHostInstance {
                         let computed_tab = expanded_node.transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
                         let border_radius = properties.border_radius.get();
-                        let max_radius = 0.5 * width.min(height);
+                        let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
                         let clamped_radius = border_radius.clamp(0.0, max_radius);
                         let scroll_width = properties.scroll_width.get().get_pixels(width);
                         let scroll_height = properties.scroll_height.get().get_pixels(height);
@@ -384,16 +391,21 @@ impl InstanceNode for ScrollerHostInstance {
                             .collect();
                         let scroll_enabled_x = scroll_width > width + 0.5;
                         let scroll_enabled_y = scroll_height > height + 0.5;
-                        let presentation_scroll = (
-                            properties._presentation_scroll_x.get(),
-                            properties._presentation_scroll_y.get(),
-                        );
+                        let presentation_scroll =
+                            context.get_scroller_surface_scroll(id).unwrap_or_else(|| {
+                                (
+                                    properties._presentation_scroll_x.get(),
+                                    properties._presentation_scroll_y.get(),
+                                )
+                            });
                         let presentation_changed =
                             (presentation_scroll.0 - previous_presentation_scroll.0).abs() > 1e-4
                                 || (presentation_scroll.1 - previous_presentation_scroll.1).abs()
                                     > 1e-4;
                         *previous_presentation_scroll = presentation_scroll;
-                        context.set_scroller_surface_state(
+                        let has_scroller_island =
+                            resolve_scroller_island_layer(&expanded_node).is_some();
+                        let surface_change = context.set_scroller_surface_state(
                             id,
                             ScrollerSurfaceState {
                                 viewport_width: width,
@@ -407,6 +419,11 @@ impl InstanceNode for ScrollerHostInstance {
                                 clip_content: properties._clip_content.get(),
                             },
                         );
+                        if surface_change == ScrollerSurfaceStateChange::ScrollOnly
+                            && !has_scroller_island
+                        {
+                            context.mark_occlusion_dirty();
+                        }
                         let updates = [
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
@@ -504,8 +521,6 @@ impl InstanceNode for ScrollerHostInstance {
                             || patch.transform.is_some()
                             || patch.opacity.is_some()
                             || patch.clip_content.is_some();
-                        let has_scroller_island =
-                            resolve_scroller_island_layer(&expanded_node).is_some();
                         if updates.into_iter().any(|updated| updated) {
                             context.enqueue_native_message(
                                 pax_message::NativeMessage::ScrollerUpdate(patch),
@@ -558,14 +573,6 @@ impl InstanceNode for ScrollerHostInstance {
                 if (props.scroll_pos_y.get() - args.scroll_y).abs() > 1e-4 {
                     props.scroll_pos_y.set(args.scroll_y);
                 }
-                let presentation_scroll_x = args.presentation_scroll_x.unwrap_or(args.scroll_x);
-                let presentation_scroll_y = args.presentation_scroll_y.unwrap_or(args.scroll_y);
-                if (props._presentation_scroll_x.get() - presentation_scroll_x).abs() > 1e-4 {
-                    props._presentation_scroll_x.set(presentation_scroll_x);
-                }
-                if (props._presentation_scroll_y.get() - presentation_scroll_y).abs() > 1e-4 {
-                    props._presentation_scroll_y.set(presentation_scroll_y);
-                }
             });
         }
     }
@@ -584,12 +591,9 @@ impl InstanceNode for ScrollerHostInstance {
         rtc: &Rc<RuntimeContext>,
         rcs: &mut dyn pax_runtime::api::RenderContext,
     ) {
-        let total_layer_count = rtc.layer_count.get();
-        let mut run_pre_render = false;
-        for i in 0..total_layer_count {
-            run_pre_render |= rtc.is_canvas_dirty(&i);
-        }
-        if !run_pre_render {
+        let layers = rcs.layers();
+        let has_dirty_layer = (0..layers).any(|layer| rtc.is_canvas_dirty(&layer));
+        if !has_dirty_layer {
             return;
         }
 
@@ -610,8 +614,13 @@ impl InstanceNode for ScrollerHostInstance {
             .then(|| self.resolve_effect_clip_path(expanded_node))
             .flatten();
 
-        let layers = rcs.layers();
+        #[cfg(debug_assertions)]
+        let mut applied_layers = 0;
+
         for layer in 0..layers {
+            if !rtc.is_canvas_dirty(&layer) {
+                continue;
+            }
             // Scroller clip/translation is inherited by descendants. Bounds-aware culling belongs
             // to leaf draw nodes so the transform stack remains balanced on every active renderer.
             if !rcs.begin_node(
@@ -629,7 +638,21 @@ impl InstanceNode for ScrollerHostInstance {
                 rcs.transform(layer, Affine::translate((-scroll_x, -scroll_y)));
             }
             let _ = rcs.end_node(layer, expanded_node.id.to_u32());
+            #[cfg(debug_assertions)]
+            {
+                applied_layers += 1;
+            }
         }
+
+        #[cfg(debug_assertions)]
+        log::trace!(
+            "scroller layer pre_render: node={}, total_layers={}, applied_layers={}, clip={}, translate={}",
+            expanded_node.id.to_u32(),
+            layers,
+            applied_layers,
+            clip_content,
+            should_translate,
+        );
     }
 
     fn handle_post_render(
@@ -651,18 +674,33 @@ impl InstanceNode for ScrollerHostInstance {
             return;
         }
 
-        let total_layer_count = rtc.layer_count.get();
-        let mut post_render = false;
-        for i in 0..total_layer_count {
-            post_render |= rtc.is_canvas_dirty(&i);
-        }
-        if !post_render {
+        let layers = rcs.layers();
+        let has_dirty_layer = (0..layers).any(|layer| rtc.is_canvas_dirty(&layer));
+        if !has_dirty_layer {
             return;
         }
 
-        for layer in 0..rcs.layers() {
+        #[cfg(debug_assertions)]
+        let mut restored_layers = 0;
+
+        for layer in 0..layers {
+            if !rtc.is_canvas_dirty(&layer) {
+                continue;
+            }
             rcs.restore(layer);
+            #[cfg(debug_assertions)]
+            {
+                restored_layers += 1;
+            }
         }
+
+        #[cfg(debug_assertions)]
+        log::trace!(
+            "scroller layer post_render: node={}, total_layers={}, restored_layers={}",
+            expanded_node.id.to_u32(),
+            layers,
+            restored_layers,
+        );
     }
 
     fn clips_content(&self, expanded_node: &ExpandedNode) -> bool {
@@ -672,6 +710,15 @@ impl InstanceNode for ScrollerHostInstance {
 
     fn scrolls_content(&self, _expanded_node: &ExpandedNode) -> bool {
         true
+    }
+
+    fn property_requires_occlusion_recompute(&self, property_name: &str) -> bool {
+        // Scroll deltas update presentation state without changing scroller ownership, clipping,
+        // or native mask structure; structural scroller properties still recompute occlusion.
+        !matches!(
+            property_name,
+            "scroll_pos_x" | "scroll_pos_y" | "_presentation_scroll_x" | "_presentation_scroll_y"
+        )
     }
 
     fn resolve_scroll_offset(&self, expanded_node: &ExpandedNode) -> Option<(f64, f64)> {

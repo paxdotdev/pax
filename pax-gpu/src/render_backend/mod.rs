@@ -1,13 +1,16 @@
 use anyhow::anyhow;
 use bytemuck::Pod;
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use std::ffi::c_void;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use lyon::lyon_tessellation::VertexBuffers;
 use wgpu::{
-    util::DeviceExt, BindGroup, BindGroupLayout, BufferUsages, CompositeAlphaMode, Device,
+    util::{DeviceExt, StagingBelt},
+    BindGroup, BindGroupLayout, BufferUsages, CommandBuffer, CompositeAlphaMode, Device,
     IndexFormat, PresentMode, RenderPipeline, SurfaceConfiguration, SurfaceTexture, Texture,
     TextureFormat, TextureFormatFeatureFlags, TextureUsages, TextureView,
 };
@@ -23,7 +26,8 @@ use data::{GpuGlobals, GpuPrimitive, GpuVertex};
 
 use crate::{
     render_backend::texture::{
-        corners_to_texture_vertices, RetainedImageResource, TextureRenderer,
+        corners_to_texture_vertices, RetainedImageResource, TexturePipelineResources,
+        TextureRenderer,
     },
     Box2D, Transform2D,
 };
@@ -31,7 +35,7 @@ use crate::{
 use self::{
     data::{GpuColor, GpuGradient, GpuTransform},
     gpu_resources::create_multisampled_framebuffer,
-    stencil::StencilRenderer,
+    stencil::{StencilPipelineResources, StencilRenderer},
 };
 
 const TRANSPARENT_CLEAR_COLOR: wgpu::Color = wgpu::Color {
@@ -47,6 +51,154 @@ const OPAQUE_FALLBACK_CLEAR_COLOR: wgpu::Color = wgpu::Color {
     b: 1.0,
     a: 1.0,
 };
+const STAGING_BELT_CHUNK_SIZE: wgpu::BufferAddress = 256 * 1024;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct VectorPipelineKey {
+    format: TextureFormat,
+    sample_count: u32,
+}
+
+/// Shared GPU device context used by sibling render surfaces.
+pub struct GpuContext {
+    instance: wgpu::Instance,
+    adapter: wgpu::Adapter,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    max_surface_dimension: u32,
+    primitive_bind_group_layout: BindGroupLayout,
+    vector_pipelines: RefCell<HashMap<VectorPipelineKey, Rc<RenderPipeline>>>,
+    texture_pipelines: RefCell<HashMap<VectorPipelineKey, TexturePipelineResources>>,
+    stencil_pipelines: RefCell<HashMap<VectorPipelineKey, StencilPipelineResources>>,
+}
+
+pub type SharedGpuContext = Rc<GpuContext>;
+
+impl GpuContext {
+    async fn new(
+        instance: wgpu::Instance,
+        compatible_surface: &wgpu::Surface<'_>,
+        _config: &RenderConfig,
+    ) -> Result<SharedGpuContext, anyhow::Error> {
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: default_power_preference(),
+                compatible_surface: Some(compatible_surface),
+                force_fallback_adapter: false,
+            })
+            .await
+            .map_err(|_| anyhow!("couldn't find adapter"))?;
+        let adapter_info = adapter.get_info();
+        log::info!(
+            "render backend: using {:?} adapter \"{}\"",
+            adapter_info.backend,
+            adapter_info.name
+        );
+        #[cfg(target_arch = "wasm32")]
+        let required_limits = wgpu::Limits::downlevel_webgl2_defaults();
+        #[cfg(not(target_arch = "wasm32"))]
+        let required_limits = adapter.limits();
+        let (device, queue) = adapter
+            .request_device(&wgpu::DeviceDescriptor {
+                label: None,
+                required_features: wgpu::Features::default(),
+                required_limits,
+                experimental_features: wgpu::ExperimentalFeatures::disabled(),
+                memory_hints: wgpu::MemoryHints::Performance,
+                trace: wgpu::Trace::Off,
+            })
+            .await
+            .expect("couldn't find device");
+        let max_surface_dimension = device.limits().max_texture_dimension_2d.max(1);
+        log::info!(
+            "render backend: max surface dimension {}",
+            max_surface_dimension
+        );
+        let primitive_bind_group_layout = create_primitive_bind_group_layout(&device);
+
+        Ok(Rc::new(Self {
+            instance,
+            adapter,
+            device,
+            queue,
+            max_surface_dimension,
+            primitive_bind_group_layout,
+            vector_pipelines: RefCell::new(HashMap::new()),
+            texture_pipelines: RefCell::new(HashMap::new()),
+            stencil_pipelines: RefCell::new(HashMap::new()),
+        }))
+    }
+
+    fn vector_pipeline(&self, format: TextureFormat, sample_count: u32) -> Rc<RenderPipeline> {
+        let key = VectorPipelineKey {
+            format,
+            sample_count,
+        };
+        if let Some(pipeline) = self.vector_pipelines.borrow().get(&key) {
+            return Rc::clone(pipeline);
+        }
+
+        let pipeline = Rc::new(RenderBackend::create_pipeline(
+            &self.device,
+            format,
+            sample_count,
+            &self.primitive_bind_group_layout,
+        ));
+        self.vector_pipelines
+            .borrow_mut()
+            .insert(key, Rc::clone(&pipeline));
+        pipeline
+    }
+
+    fn texture_pipeline_resources(
+        &self,
+        format: TextureFormat,
+        sample_count: u32,
+    ) -> TexturePipelineResources {
+        let key = VectorPipelineKey {
+            format,
+            sample_count,
+        };
+        if let Some(resources) = self.texture_pipelines.borrow().get(&key) {
+            return resources.clone();
+        }
+
+        let resources =
+            TextureRenderer::create_pipeline_resources(&self.device, format, sample_count);
+        self.texture_pipelines
+            .borrow_mut()
+            .insert(key, resources.clone());
+        resources
+    }
+
+    fn stencil_pipeline_resources(
+        &self,
+        format: TextureFormat,
+        sample_count: u32,
+    ) -> StencilPipelineResources {
+        let key = VectorPipelineKey {
+            format,
+            sample_count,
+        };
+        if let Some(resources) = self.stencil_pipelines.borrow().get(&key) {
+            return resources.clone();
+        }
+
+        let resources =
+            StencilRenderer::create_pipeline_resources(&self.device, sample_count, format);
+        self.stencil_pipelines
+            .borrow_mut()
+            .insert(key, resources.clone());
+        resources
+    }
+
+    pub(crate) fn submit_command_buffers<I>(&self, command_buffers: I)
+    where
+        I: IntoIterator<Item = CommandBuffer>,
+    {
+        self.queue.submit(command_buffers);
+    }
+}
 
 fn surface_clear_color(alpha_mode: CompositeAlphaMode) -> wgpu::Color {
     if alpha_mode == CompositeAlphaMode::Opaque {
@@ -56,6 +208,18 @@ fn surface_clear_color(alpha_mode: CompositeAlphaMode) -> wgpu::Color {
         // Alpha-capable surfaces must clear to transparent black so translucent geometry does not
         // accumulate white RGB in otherwise-transparent tile regions.
         TRANSPARENT_CLEAR_COLOR
+    }
+}
+
+fn default_power_preference() -> wgpu::PowerPreference {
+    #[cfg(any(target_os = "ios", target_os = "macos"))]
+    {
+        wgpu::PowerPreference::HighPerformance
+    }
+
+    #[cfg(not(any(target_os = "ios", target_os = "macos")))]
+    {
+        wgpu::PowerPreference::LowPower
     }
 }
 
@@ -128,24 +292,73 @@ fn write_u16_buffer_padded(queue: &wgpu::Queue, buffer: &wgpu::Buffer, data: &[u
     queue.write_buffer(buffer, 0, bytemuck::cast_slice(&padded));
 }
 
+fn write_staged_buffer(
+    staging_belt: &mut StagingBelt,
+    encoder: &mut wgpu::CommandEncoder,
+    buffer: &wgpu::Buffer,
+    bytes: &[u8],
+) {
+    if bytes.is_empty() {
+        return;
+    }
+
+    let size = wgpu::BufferSize::new(bytes.len() as wgpu::BufferAddress)
+        .expect("staged buffer writes must be non-empty");
+    let mut view = staging_belt.write_buffer(encoder, buffer, 0, size);
+    view.copy_from_slice(bytes);
+}
+
+fn physical_scissor_rect(
+    scissor: Option<ScissorRect>,
+    dpr: [f32; 2],
+    surface_width: u32,
+    surface_height: u32,
+) -> Option<(u32, u32, u32, u32)> {
+    let Some(scissor) = scissor else {
+        return Some((0, 0, surface_width.max(1), surface_height.max(1)));
+    };
+
+    let dpr_x = dpr[0].max(1.0);
+    let dpr_y = dpr[1].max(1.0);
+    let min_x = (scissor.min_x.min(scissor.max_x) * dpr_x)
+        .floor()
+        .clamp(0.0, surface_width as f32) as u32;
+    let min_y = (scissor.min_y.min(scissor.max_y) * dpr_y)
+        .floor()
+        .clamp(0.0, surface_height as f32) as u32;
+    let max_x = (scissor.min_x.max(scissor.max_x) * dpr_x)
+        .ceil()
+        .clamp(0.0, surface_width as f32) as u32;
+    let max_y = (scissor.min_y.max(scissor.max_y) * dpr_y)
+        .ceil()
+        .clamp(0.0, surface_height as f32) as u32;
+    let width = max_x.saturating_sub(min_x);
+    let height = max_y.saturating_sub(min_y);
+    if width == 0 || height == 0 {
+        return None;
+    }
+
+    Some((min_x, min_y, width, height))
+}
+
 /// Low-level wgpu backend that owns surface, pipeline, and GPU buffers.
 pub struct RenderBackend<'w> {
+    context: SharedGpuContext,
     //configuration
     config: RenderConfig,
     pub(crate) globals: GpuGlobals,
 
     //gpu pipeline references
-    _adapter: wgpu::Adapter,
     device: wgpu::Device,
     queue: wgpu::Queue,
+    staging_belt: StagingBelt,
     surface: wgpu::Surface<'w>,
     #[cfg(target_arch = "wasm32")]
     browser_canvas: Option<web_sys::HtmlCanvasElement>,
     surface_config: SurfaceConfiguration,
     max_surface_dimension: u32,
-    pipeline: RenderPipeline,
+    pipeline: Rc<RenderPipeline>,
     bind_group: BindGroup,
-    primitive_bind_group_layout: BindGroupLayout,
 
     //buffers
     globals_buffer: wgpu::Buffer,
@@ -168,6 +381,9 @@ pub struct RenderBackend<'w> {
     active_frame: Option<ActiveFrame>,
     capture_target: Option<CaptureTarget>,
     pending_clear: bool,
+    pending_command_buffers: Vec<CommandBuffer>,
+    staging_belt_pending_recall: bool,
+    needs_device_poll: bool,
     pending_capture_ids: Vec<u32>,
     completed_captures: Arc<Mutex<HashMap<u32, CapturedFrame>>>,
 }
@@ -207,8 +423,7 @@ pub struct CapturedFrame {
     pub rgba: Vec<u8>,
 }
 
-pub(crate) struct RetainedVectorResource {
-    bind_group: BindGroup,
+pub(crate) struct SharedRetainedVectorResource {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     index_count: u32,
@@ -220,6 +435,17 @@ pub(crate) struct RetainedVectorResource {
     _primitive_buffer: wgpu::Buffer,
     _colors_buffer: wgpu::Buffer,
     _gradients_buffer: wgpu::Buffer,
+}
+
+pub(crate) struct RetainedVectorResource {
+    bind_group: BindGroup,
+    shared: Rc<SharedRetainedVectorResource>,
+}
+
+impl RetainedVectorResource {
+    pub(crate) fn shared(&self) -> &Rc<SharedRetainedVectorResource> {
+        &self.shared
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -244,6 +470,99 @@ pub(crate) enum RetainedDraw<'a> {
     },
 }
 
+pub(crate) struct RetainedBatchRun<'a> {
+    pub stencil_index: u32,
+    pub scissor: Option<ScissorRect>,
+    pub draws: Vec<RetainedDraw<'a>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct ScissorRect {
+    pub min_x: f32,
+    pub min_y: f32,
+    pub max_x: f32,
+    pub max_y: f32,
+}
+
+pub(crate) struct PrimitiveBatch<'a> {
+    pub buffers: CpuBuffers,
+    pub segments: Vec<PrimitiveBatchSegment<'a>>,
+}
+
+pub(crate) struct PrimitiveBatchSegment<'a> {
+    pub stencil_depth: u32,
+    pub clips: Vec<stencil::ClipDraw<'a>>,
+    pub scissor: Option<ScissorRect>,
+    pub index_start: u32,
+    pub index_count: u32,
+}
+
+struct PrimitiveBatchRenderPlan {
+    stencil_sync: stencil::PreparedStencilSync,
+    stencil_reference: u32,
+    scissor: Option<(u32, u32, u32, u32)>,
+    index_start: u32,
+    index_count: u32,
+}
+
+fn create_primitive_bind_group_layout(device: &Device) -> BindGroupLayout {
+    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 2,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 3,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 4,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+        ],
+        label: Some("bind_group_layout"),
+    })
+}
+
 pub(crate) struct RetainedImageDraw {
     pub resource: RetainedImageResource,
 }
@@ -251,7 +570,7 @@ pub(crate) struct RetainedImageDraw {
 impl<'w> RenderBackend<'w> {
     fn rebuild_main_bind_group(&mut self) {
         self.bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &self.primitive_bind_group_layout,
+            layout: &self.context.primitive_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -361,17 +680,22 @@ impl<'w> RenderBackend<'w> {
         canvas: web_sys::HtmlCanvasElement,
         config: RenderConfig,
     ) -> Result<Self, anyhow::Error> {
+        let (backend, _) = Self::to_canvas_with_context(canvas, config, None).await?;
+        Ok(backend)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub async fn to_canvas_with_context(
+        canvas: web_sys::HtmlCanvasElement,
+        config: RenderConfig,
+        shared_context: Option<SharedGpuContext>,
+    ) -> Result<(Self, SharedGpuContext), anyhow::Error> {
         #[cfg(feature = "webgl")]
         let backends = wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL;
         #[cfg(not(feature = "webgl"))]
         let backends = wgpu::Backends::BROWSER_WEBGPU;
-        sync_browser_canvas_backing_size(&canvas, config.initial_width, config.initial_height);
-        let instance = Self::new_browser_instance(backends, config.debug, true).await;
-        let surface_target = wgpu::SurfaceTarget::Canvas(canvas.clone());
-        let surface = instance.create_surface(surface_target)?;
-        let mut backend = Self::new(surface, instance, config).await?;
-        backend.browser_canvas = Some(canvas);
-        Ok(backend)
+        Self::to_canvas_with_context_and_backends(canvas, config, shared_context, backends, true)
+            .await
     }
 
     #[cfg(all(target_arch = "wasm32", feature = "webgl"))]
@@ -379,13 +703,51 @@ impl<'w> RenderBackend<'w> {
         canvas: web_sys::HtmlCanvasElement,
         config: RenderConfig,
     ) -> Result<Self, anyhow::Error> {
+        let (backend, _) = Self::to_canvas_gl_with_context(canvas, config, None).await?;
+        Ok(backend)
+    }
+
+    #[cfg(all(target_arch = "wasm32", feature = "webgl"))]
+    pub async fn to_canvas_gl_with_context(
+        canvas: web_sys::HtmlCanvasElement,
+        config: RenderConfig,
+        shared_context: Option<SharedGpuContext>,
+    ) -> Result<(Self, SharedGpuContext), anyhow::Error> {
+        Self::to_canvas_with_context_and_backends(
+            canvas,
+            config,
+            shared_context,
+            wgpu::Backends::GL,
+            false,
+        )
+        .await
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    async fn to_canvas_with_context_and_backends(
+        canvas: web_sys::HtmlCanvasElement,
+        config: RenderConfig,
+        shared_context: Option<SharedGpuContext>,
+        backends: wgpu::Backends,
+        use_webgpu_detection: bool,
+    ) -> Result<(Self, SharedGpuContext), anyhow::Error> {
         sync_browser_canvas_backing_size(&canvas, config.initial_width, config.initial_height);
-        let instance = Self::new_browser_instance(wgpu::Backends::GL, config.debug, false).await;
+        if let Some(context) = shared_context {
+            let surface_target = wgpu::SurfaceTarget::Canvas(canvas.clone());
+            let surface = context.instance.create_surface(surface_target)?;
+            let mut backend = Self::new_with_context(surface, Rc::clone(&context), config)?;
+            backend.browser_canvas = Some(canvas);
+            return Ok((backend, context));
+        }
+
+        let instance =
+            Self::new_browser_instance(backends, config.debug, use_webgpu_detection).await;
         let surface_target = wgpu::SurfaceTarget::Canvas(canvas.clone());
         let surface = instance.create_surface(surface_target)?;
-        let mut backend = Self::new(surface, instance, config).await?;
+        let context = GpuContext::new(instance, &surface, &config).await?;
+        let mut backend = Self::new_with_context(surface, Rc::clone(&context), config)?;
         backend.browser_canvas = Some(canvas);
-        Ok(backend)
+        Ok((backend, context))
     }
 
     #[cfg(all(target_arch = "wasm32", not(feature = "webgl")))]
@@ -393,6 +755,17 @@ impl<'w> RenderBackend<'w> {
         _canvas: web_sys::HtmlCanvasElement,
         _config: RenderConfig,
     ) -> Result<Self, anyhow::Error> {
+        Err(anyhow!(
+            "WebGL support is not compiled into this build; rebuild with the `webgl` feature"
+        ))
+    }
+
+    #[cfg(all(target_arch = "wasm32", not(feature = "webgl")))]
+    pub async fn to_canvas_gl_with_context(
+        _canvas: web_sys::HtmlCanvasElement,
+        _config: RenderConfig,
+        _shared_context: Option<SharedGpuContext>,
+    ) -> Result<(Self, SharedGpuContext), anyhow::Error> {
         Err(anyhow!(
             "WebGL support is not compiled into this build; rebuild with the `webgl` feature"
         ))
@@ -409,10 +782,32 @@ impl<'w> RenderBackend<'w> {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
+    pub async fn to_canvas_with_context(
+        _canvas: web_sys::HtmlCanvasElement,
+        _config: RenderConfig,
+        _shared_context: Option<SharedGpuContext>,
+    ) -> Result<(Self, SharedGpuContext), anyhow::Error> {
+        Err(anyhow!(
+            "canvas surfaces are only supported on wasm32 targets"
+        ))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn to_canvas_gl(
         _canvas: web_sys::HtmlCanvasElement,
         _config: RenderConfig,
     ) -> Result<Self, anyhow::Error> {
+        Err(anyhow!(
+            "canvas GL surfaces are only supported on wasm32 targets"
+        ))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async fn to_canvas_gl_with_context(
+        _canvas: web_sys::HtmlCanvasElement,
+        _config: RenderConfig,
+        _shared_context: Option<SharedGpuContext>,
+    ) -> Result<(Self, SharedGpuContext), anyhow::Error> {
         Err(anyhow!(
             "canvas GL surfaces are only supported on wasm32 targets"
         ))
@@ -423,6 +818,28 @@ impl<'w> RenderBackend<'w> {
         layer: *mut c_void,
         config: RenderConfig,
     ) -> Result<RenderBackend<'static>, anyhow::Error> {
+        let (backend, _) =
+            unsafe { Self::to_core_animation_layer_with_context(layer, config, None).await? };
+        Ok(backend)
+    }
+
+    #[cfg(any(target_os = "ios", target_os = "macos"))]
+    pub async unsafe fn to_core_animation_layer_with_context(
+        layer: *mut c_void,
+        config: RenderConfig,
+        shared_context: Option<SharedGpuContext>,
+    ) -> Result<(RenderBackend<'static>, SharedGpuContext), anyhow::Error> {
+        if let Some(context) = shared_context {
+            let surface = unsafe {
+                context
+                    .instance
+                    .create_surface_unsafe(wgpu::SurfaceTargetUnsafe::CoreAnimationLayer(layer))?
+            };
+            let backend =
+                RenderBackend::<'static>::new_with_context(surface, Rc::clone(&context), config)?;
+            return Ok((backend, context));
+        }
+
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             flags: if config.debug {
@@ -436,7 +853,10 @@ impl<'w> RenderBackend<'w> {
         let surface = unsafe {
             instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::CoreAnimationLayer(layer))?
         };
-        RenderBackend::<'static>::new(surface, instance, config).await
+        let context = GpuContext::new(instance, &surface, &config).await?;
+        let backend =
+            RenderBackend::<'static>::new_with_context(surface, Rc::clone(&context), config)?;
+        Ok((backend, context))
     }
 
     pub async fn new(
@@ -444,40 +864,20 @@ impl<'w> RenderBackend<'w> {
         instance: wgpu::Instance,
         config: RenderConfig,
     ) -> Result<Self, anyhow::Error> {
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::LowPower,
-                compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
-            })
-            .await
-            .map_err(|_| anyhow!("couldn't find adapter"))?;
-        let adapter_info = adapter.get_info();
-        log::info!(
-            "render backend: using {:?} adapter \"{}\"",
-            adapter_info.backend,
-            adapter_info.name
-        );
-        #[cfg(target_arch = "wasm32")]
-        let required_limits = wgpu::Limits::downlevel_webgl2_defaults();
-        #[cfg(not(target_arch = "wasm32"))]
-        let required_limits = adapter.limits();
-        let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor {
-                label: None,
-                required_features: wgpu::Features::default(),
-                required_limits,
-                experimental_features: wgpu::ExperimentalFeatures::disabled(),
-                memory_hints: wgpu::MemoryHints::Performance,
-                trace: wgpu::Trace::Off,
-            })
-            .await
-            .expect("couldn't find device");
-        let max_surface_dimension = device.limits().max_texture_dimension_2d.max(1);
-        log::info!(
-            "render backend: max surface dimension {}",
-            max_surface_dimension
-        );
+        let context = GpuContext::new(instance, &surface, &config).await?;
+        Self::new_with_context(surface, context, config)
+    }
+
+    pub fn new_with_context(
+        surface: wgpu::Surface<'w>,
+        context: SharedGpuContext,
+        config: RenderConfig,
+    ) -> Result<Self, anyhow::Error> {
+        let adapter = &context.adapter;
+        let device = context.device.clone();
+        let queue = context.queue.clone();
+        let staging_belt = StagingBelt::new(device.clone(), STAGING_BELT_CHUNK_SIZE);
+        let max_surface_dimension = context.max_surface_dimension;
 
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps
@@ -643,64 +1043,8 @@ impl<'w> RenderBackend<'w> {
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         );
 
-        let primitive_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 3,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 4,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                ],
-                label: Some("bind_group_layout"),
-            });
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &primitive_bind_group_layout,
+            layout: &context.primitive_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -726,40 +1070,39 @@ impl<'w> RenderBackend<'w> {
             label: Some("bind_group"),
         });
 
-        let pipeline = Self::create_pipeline(
-            &device,
-            surface_config.format,
-            sample_count,
-            &primitive_bind_group_layout,
-        );
+        let pipeline = context.vector_pipeline(surface_config.format, sample_count);
 
-        let texture_renderer = TextureRenderer::new(&device, surface_config.format, sample_count);
-        let stencil_renderer = StencilRenderer::new(
+        let texture_renderer = TextureRenderer::with_pipeline_resources(
+            &device,
+            context.texture_pipeline_resources(surface_config.format, sample_count),
+        );
+        let stencil_renderer = StencilRenderer::with_pipeline_resources(
             &device,
             initial_width,
             initial_height,
             sample_count,
             &globals_buffer,
             &clip_transforms_buffer,
+            context.stencil_pipeline_resources(surface_config.format, sample_count),
         );
 
         let initial_width = initial_width;
         let initial_height = initial_height;
         let initial_dpr = config.initial_dpr;
         let mut backend = Self {
+            context: Rc::clone(&context),
             texture_renderer,
             stencil_renderer,
-            _adapter: adapter,
             surface,
             #[cfg(target_arch = "wasm32")]
             browser_canvas: None,
             device,
             queue,
+            staging_belt,
             config,
             surface_config,
             max_surface_dimension,
             bind_group,
-            primitive_bind_group_layout,
             pipeline,
             vertex_buffer,
             index_buffer,
@@ -777,6 +1120,9 @@ impl<'w> RenderBackend<'w> {
             active_frame: None,
             capture_target: None,
             pending_clear: false,
+            pending_command_buffers: Vec::new(),
+            staging_belt_pending_recall: false,
+            needs_device_poll: false,
             pending_capture_ids: Vec::new(),
             completed_captures: Arc::new(Mutex::new(HashMap::new())),
         };
@@ -915,6 +1261,9 @@ impl<'w> RenderBackend<'w> {
         // New backing attachments have undefined contents. Force the next render to clear before
         // translucent retained geometry blends over the target.
         self.pending_clear = true;
+        self.pending_command_buffers.clear();
+        self.staging_belt_pending_recall = false;
+        self.needs_device_poll = false;
         self.surface_config.width = width;
         self.surface_config.height = height;
         #[cfg(target_arch = "wasm32")]
@@ -949,9 +1298,55 @@ impl<'w> RenderBackend<'w> {
         );
     }
 
+    fn enqueue_command_buffer(&mut self, command_buffer: CommandBuffer) {
+        self.pending_command_buffers.push(command_buffer);
+    }
+
+    fn enqueue_staged_command_buffer(&mut self, encoder: wgpu::CommandEncoder) {
+        self.staging_belt.finish();
+        self.enqueue_command_buffer(encoder.finish());
+        self.staging_belt_pending_recall = true;
+        self.needs_device_poll = true;
+    }
+
+    pub(crate) fn take_pending_command_buffers(&mut self) -> Vec<CommandBuffer> {
+        std::mem::take(&mut self.pending_command_buffers)
+    }
+
+    pub(crate) fn has_pending_submission_cleanup(&self) -> bool {
+        self.staging_belt_pending_recall || self.needs_device_poll
+    }
+
+    pub(crate) fn complete_submitted_work(&mut self) {
+        if self.staging_belt_pending_recall {
+            self.staging_belt.recall();
+            self.staging_belt_pending_recall = false;
+        }
+        if self.needs_device_poll {
+            let _ = self.device.poll(wgpu::PollType::Poll);
+            self.needs_device_poll = false;
+        }
+    }
+
+    pub(crate) fn submit_command_buffers(&self, command_buffers: Vec<CommandBuffer>) {
+        self.context.submit_command_buffers(command_buffers);
+    }
+
+    pub(crate) fn submit_pending_commands(&mut self) {
+        let command_buffers = self.take_pending_command_buffers();
+        if !command_buffers.is_empty() {
+            self.context.submit_command_buffers(command_buffers);
+        }
+        self.complete_submitted_work();
+    }
+
     /// Maximum texture dimension supported by the active adapter.
     pub fn max_surface_dimension(&self) -> u32 {
         self.max_surface_dimension
+    }
+
+    pub fn shared_context_id(&self) -> usize {
+        Rc::as_ptr(&self.context) as usize
     }
 
     pub(crate) fn request_screenshot_capture(&mut self, request_id: u32) {
@@ -972,7 +1367,7 @@ impl<'w> RenderBackend<'w> {
         gradients_buffer: &wgpu::Buffer,
     ) -> BindGroup {
         self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &self.primitive_bind_group_layout,
+            layout: &self.context.primitive_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -999,11 +1394,25 @@ impl<'w> RenderBackend<'w> {
         })
     }
 
-    pub(crate) fn create_vector_resource(
+    pub(crate) fn create_vector_resource_from_shared(
+        &self,
+        shared: Rc<SharedRetainedVectorResource>,
+    ) -> RetainedVectorResource {
+        RetainedVectorResource {
+            bind_group: self.create_retained_bind_group(
+                &shared._primitive_buffer,
+                &shared._colors_buffer,
+                &shared._gradients_buffer,
+            ),
+            shared,
+        }
+    }
+
+    pub(crate) fn create_shared_vector_resource(
         &self,
         buffers: &mut CpuBuffers,
         retained_primitives: &[GpuPrimitive],
-    ) -> RetainedVectorResource {
+    ) -> (Rc<SharedRetainedVectorResource>, u64) {
         let (vertices, indices, _, _, mut colors, mut gradients) = aligned_cpu_buffers(buffers);
         let vertex_capacity = vertices.len();
         let index_capacity = indices.len();
@@ -1020,6 +1429,11 @@ impl<'w> RenderBackend<'w> {
             self.config.gradients_buffer_size as usize,
             GpuGradient::default(),
         );
+        let upload_bytes = (std::mem::size_of_val(vertices.as_slice())
+            + std::mem::size_of_val(indices.as_slice())
+            + std::mem::size_of_val(primitives.as_slice())
+            + std::mem::size_of_val(colors.as_slice())
+            + std::mem::size_of_val(gradients.as_slice())) as u64;
         let vertex_buffer = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -1055,23 +1469,22 @@ impl<'w> RenderBackend<'w> {
                 contents: bytemuck::cast_slice(&gradients),
                 usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             });
-        let bind_group =
-            self.create_retained_bind_group(&primitive_buffer, &colors_buffer, &gradients_buffer);
-
-        RetainedVectorResource {
-            bind_group,
-            vertex_buffer,
-            index_buffer,
-            index_count: buffers.geometry.indices.len() as u32,
-            vertex_capacity,
-            index_capacity,
-            primitive_capacity,
-            color_capacity,
-            gradient_capacity,
-            _primitive_buffer: primitive_buffer,
-            _colors_buffer: colors_buffer,
-            _gradients_buffer: gradients_buffer,
-        }
+        (
+            Rc::new(SharedRetainedVectorResource {
+                vertex_buffer,
+                index_buffer,
+                index_count: buffers.geometry.indices.len() as u32,
+                vertex_capacity,
+                index_capacity,
+                primitive_capacity,
+                color_capacity,
+                gradient_capacity,
+                _primitive_buffer: primitive_buffer,
+                _colors_buffer: colors_buffer,
+                _gradients_buffer: gradients_buffer,
+            }),
+            upload_bytes,
+        )
     }
 
     pub(crate) fn update_vector_resource(
@@ -1080,40 +1493,64 @@ impl<'w> RenderBackend<'w> {
         buffers: &mut CpuBuffers,
         retained_primitives: &[GpuPrimitive],
         dirty: VectorResourceDirty,
-    ) -> bool {
-        let (vertices, indices, _, _, colors, gradients) = aligned_cpu_buffers(buffers);
-        if vertices.len() > resource.vertex_capacity
-            || indices.len() > resource.index_capacity
-            || retained_primitives.len() > resource.primitive_capacity
-            || colors.len() > resource.color_capacity
-            || gradients.len() > resource.gradient_capacity
-        {
-            return false;
+    ) -> Option<u64> {
+        let shared = Rc::get_mut(&mut resource.shared)?;
+        let mut geometry = None;
+        if dirty.geometry {
+            let aligned = aligned_geometry_buffers(buffers);
+            if aligned.0.len() > shared.vertex_capacity || aligned.1.len() > shared.index_capacity {
+                return None;
+            }
+            geometry = Some(aligned);
         }
 
+        if dirty.primitives && retained_primitives.len() > shared.primitive_capacity {
+            return None;
+        }
+
+        let mut fill = None;
+        if dirty.fill {
+            let colors = aligned_pod_slice(&buffers.colors);
+            let gradients = aligned_pod_slice(&buffers.gradients);
+            if colors.len() > shared.color_capacity || gradients.len() > shared.gradient_capacity {
+                return None;
+            }
+            fill = Some((colors, gradients));
+        }
+
+        let mut upload_bytes = 0;
         if dirty.geometry {
+            let (vertices, indices) =
+                geometry.expect("aligned geometry should be available for dirty geometry");
+            upload_bytes += std::mem::size_of_val(vertices.as_slice()) as u64;
+            upload_bytes += std::mem::size_of_val(indices.as_slice()) as u64;
             self.queue
-                .write_buffer(&resource.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
-            write_u16_buffer_padded(&self.queue, &resource.index_buffer, &indices);
+                .write_buffer(&shared.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+            write_u16_buffer_padded(&self.queue, &shared.index_buffer, &indices);
         }
         if dirty.primitives {
+            upload_bytes += std::mem::size_of_val(retained_primitives) as u64;
             self.queue.write_buffer(
-                &resource._primitive_buffer,
+                &shared._primitive_buffer,
                 0,
                 bytemuck::cast_slice(retained_primitives),
             );
         }
         if dirty.fill {
+            let (colors, gradients) =
+                fill.expect("aligned fill should be available for dirty fill");
+            upload_bytes += std::mem::size_of_val(colors.as_slice()) as u64;
+            upload_bytes += std::mem::size_of_val(gradients.as_slice()) as u64;
             self.queue
-                .write_buffer(&resource._colors_buffer, 0, bytemuck::cast_slice(&colors));
+                .write_buffer(&shared._colors_buffer, 0, bytemuck::cast_slice(&colors));
             self.queue.write_buffer(
-                &resource._gradients_buffer,
+                &shared._gradients_buffer,
                 0,
                 bytemuck::cast_slice(&gradients),
             );
         }
-        resource.index_count = buffers.geometry.indices.len() as u32;
-        true
+        shared.index_count = buffers.geometry.indices.len() as u32;
+        Some(upload_bytes)
     }
 
     pub(crate) fn update_scene_transforms(&self, transforms: &[GpuTransform]) {
@@ -1165,12 +1602,13 @@ impl<'w> RenderBackend<'w> {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            render_pass.set_pipeline(&self.pipeline);
+            render_pass.set_pipeline(self.pipeline.as_ref());
             render_pass.set_bind_group(0, &resource.bind_group, &[]);
-            render_pass.set_vertex_buffer(0, resource.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(0, resource.shared.vertex_buffer.slice(..));
             render_pass.set_stencil_reference(stencil_index);
-            render_pass.set_index_buffer(resource.index_buffer.slice(..), IndexFormat::Uint16);
-            render_pass.draw_indexed(0..resource.index_count, 0, 0..1);
+            render_pass
+                .set_index_buffer(resource.shared.index_buffer.slice(..), IndexFormat::Uint16);
+            render_pass.draw_indexed(0..resource.shared.index_count, 0, 0..1);
         }
 
         if self.should_render_capture_target() {
@@ -1202,35 +1640,55 @@ impl<'w> RenderBackend<'w> {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            render_pass.set_pipeline(&self.pipeline);
+            render_pass.set_pipeline(self.pipeline.as_ref());
             render_pass.set_bind_group(0, &resource.bind_group, &[]);
-            render_pass.set_vertex_buffer(0, resource.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(0, resource.shared.vertex_buffer.slice(..));
             render_pass.set_stencil_reference(stencil_index);
-            render_pass.set_index_buffer(resource.index_buffer.slice(..), IndexFormat::Uint16);
-            render_pass.draw_indexed(0..resource.index_count, 0, 0..1);
+            render_pass
+                .set_index_buffer(resource.shared.index_buffer.slice(..), IndexFormat::Uint16);
+            render_pass.draw_indexed(0..resource.shared.index_count, 0, 0..1);
         }
 
-        self.queue.submit(std::iter::once(encoder.finish()));
+        self.enqueue_command_buffer(encoder.finish());
     }
 
-    pub(crate) fn draw_retained_batch(&mut self, stencil_index: u32, draws: &[RetainedDraw<'_>]) {
-        if draws.is_empty() {
+    pub(crate) fn draw_retained_batch_runs(&mut self, runs: &[RetainedBatchRun<'_>]) {
+        if runs.iter().all(|run| run.draws.is_empty()) {
+            return;
+        }
+
+        let physical_scissors: Vec<_> = runs
+            .iter()
+            .map(|run| {
+                physical_scissor_rect(
+                    run.scissor,
+                    self.globals.dpr,
+                    self.surface_config.width,
+                    self.surface_config.height,
+                )
+            })
+            .collect();
+        if runs
+            .iter()
+            .zip(physical_scissors.iter())
+            .all(|(run, scissor)| run.draws.is_empty() || scissor.is_none())
+        {
             return;
         }
 
         let load_op = self.take_color_load_op();
         self.ensure_active_frame();
-        let (screen_texture, resolve_target) = self.current_color_attachment_views();
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Retained Batch Encoder"),
+                label: Some("Retained Batch Runs Encoder"),
             });
 
         {
-            let (stencil_texture, _) = self.stencil_renderer.get_stencil();
+            let (screen_texture, resolve_target) = self.current_color_attachment_view_clones();
+            let stencil_texture = self.stencil_renderer.stencil_view_clone();
             let depth_stencil_attachment = Some(wgpu::RenderPassDepthStencilAttachment {
-                view: stencil_texture,
+                view: &stencil_texture,
                 depth_ops: None,
                 stencil_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Load,
@@ -1238,11 +1696,11 @@ impl<'w> RenderBackend<'w> {
                 }),
             });
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Retained Batch Pass"),
+                label: Some("Retained Batch Runs Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: screen_texture,
+                    view: &screen_texture,
                     depth_slice: None,
-                    resolve_target,
+                    resolve_target: resolve_target.as_ref(),
                     ops: wgpu::Operations {
                         load: load_op,
                         store: wgpu::StoreOp::Store,
@@ -1253,23 +1711,36 @@ impl<'w> RenderBackend<'w> {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            render_pass.set_stencil_reference(stencil_index);
-            for draw in draws {
-                match draw {
-                    RetainedDraw::Vector(resource) => {
-                        render_pass.set_pipeline(&self.pipeline);
-                        render_pass.set_bind_group(0, &resource.bind_group, &[]);
-                        render_pass.set_vertex_buffer(0, resource.vertex_buffer.slice(..));
-                        render_pass
-                            .set_index_buffer(resource.index_buffer.slice(..), IndexFormat::Uint16);
-                        render_pass.draw_indexed(0..resource.index_count, 0, 0..1);
-                    }
-                    RetainedDraw::Image { texture, draw } => {
-                        self.texture_renderer.draw_retained_image_in_pass(
-                            &mut render_pass,
-                            texture,
-                            &draw.resource,
-                        );
+
+            for (run, scissor) in runs.iter().zip(physical_scissors.iter()) {
+                let Some(scissor) = scissor else {
+                    continue;
+                };
+                if run.draws.is_empty() {
+                    continue;
+                }
+                render_pass.set_stencil_reference(run.stencil_index);
+                render_pass.set_scissor_rect(scissor.0, scissor.1, scissor.2, scissor.3);
+                for draw in &run.draws {
+                    match draw {
+                        RetainedDraw::Vector(resource) => {
+                            render_pass.set_pipeline(self.pipeline.as_ref());
+                            render_pass.set_bind_group(0, &resource.bind_group, &[]);
+                            render_pass
+                                .set_vertex_buffer(0, resource.shared.vertex_buffer.slice(..));
+                            render_pass.set_index_buffer(
+                                resource.shared.index_buffer.slice(..),
+                                IndexFormat::Uint16,
+                            );
+                            render_pass.draw_indexed(0..resource.shared.index_count, 0, 0..1);
+                        }
+                        RetainedDraw::Image { texture, draw } => {
+                            self.texture_renderer.draw_retained_image_in_pass(
+                                &mut render_pass,
+                                texture,
+                                &draw.resource,
+                            );
+                        }
                     }
                 }
             }
@@ -1280,9 +1751,9 @@ impl<'w> RenderBackend<'w> {
             let capture_load_op = self.take_capture_color_load_op(load_op);
             let capture_target = self.capture_target.as_ref().unwrap();
             let (capture_texture, capture_resolve_target) = capture_target.color_attachment_views();
-            let (stencil_texture, _) = self.stencil_renderer.get_stencil();
+            let stencil_texture = self.stencil_renderer.stencil_view_clone();
             let depth_stencil_attachment = Some(wgpu::RenderPassDepthStencilAttachment {
-                view: stencil_texture,
+                view: &stencil_texture,
                 depth_ops: None,
                 stencil_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Load,
@@ -1290,7 +1761,7 @@ impl<'w> RenderBackend<'w> {
                 }),
             });
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Retained Batch Screenshot Mirror Pass"),
+                label: Some("Retained Batch Runs Screenshot Mirror Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: capture_texture,
                     depth_slice: None,
@@ -1305,34 +1776,55 @@ impl<'w> RenderBackend<'w> {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            render_pass.set_stencil_reference(stencil_index);
-            for draw in draws {
-                match draw {
-                    RetainedDraw::Vector(resource) => {
-                        render_pass.set_pipeline(&self.pipeline);
-                        render_pass.set_bind_group(0, &resource.bind_group, &[]);
-                        render_pass.set_vertex_buffer(0, resource.vertex_buffer.slice(..));
-                        render_pass
-                            .set_index_buffer(resource.index_buffer.slice(..), IndexFormat::Uint16);
-                        render_pass.draw_indexed(0..resource.index_count, 0, 0..1);
-                    }
-                    RetainedDraw::Image { texture, draw } => {
-                        self.texture_renderer.draw_retained_image_in_pass(
-                            &mut render_pass,
-                            texture,
-                            &draw.resource,
-                        );
+            for (run, scissor) in runs.iter().zip(physical_scissors.iter()) {
+                let Some(scissor) = scissor else {
+                    continue;
+                };
+                if run.draws.is_empty() {
+                    continue;
+                }
+                render_pass.set_stencil_reference(run.stencil_index);
+                render_pass.set_scissor_rect(scissor.0, scissor.1, scissor.2, scissor.3);
+                for draw in &run.draws {
+                    match draw {
+                        RetainedDraw::Vector(resource) => {
+                            render_pass.set_pipeline(self.pipeline.as_ref());
+                            render_pass.set_bind_group(0, &resource.bind_group, &[]);
+                            render_pass
+                                .set_vertex_buffer(0, resource.shared.vertex_buffer.slice(..));
+                            render_pass.set_index_buffer(
+                                resource.shared.index_buffer.slice(..),
+                                IndexFormat::Uint16,
+                            );
+                            render_pass.draw_indexed(0..resource.shared.index_count, 0, 0..1);
+                        }
+                        RetainedDraw::Image { texture, draw } => {
+                            self.texture_renderer.draw_retained_image_in_pass(
+                                &mut render_pass,
+                                texture,
+                                &draw.resource,
+                            );
+                        }
                     }
                 }
             }
         }
 
-        self.queue.submit(std::iter::once(encoder.finish()));
+        self.enqueue_command_buffer(encoder.finish());
     }
 
     pub(crate) fn sync_stencil_stack(&mut self, depth: u32, clips: &[stencil::ClipDraw<'_>]) {
+        if !self.stencil_renderer.needs_stack_sync(depth, clips) {
+            return;
+        }
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Stencil Sync Encoder"),
+            });
         self.stencil_renderer
-            .sync_stencil_stack(&self.device, &self.queue, depth, clips);
+            .encode_stencil_stack_sync(&self.device, &mut encoder, depth, clips);
+        self.enqueue_command_buffer(encoder.finish());
     }
 
     pub(crate) fn retain_stencil_resources(
@@ -1426,7 +1918,7 @@ impl<'w> RenderBackend<'w> {
         }
     }
 
-    fn write_buffers(&mut self, buffers: &mut CpuBuffers) {
+    fn write_buffers(&mut self, buffers: &mut CpuBuffers, encoder: &mut wgpu::CommandEncoder) {
         let CpuBuffers {
             geometry: ref mut geom,
             ref mut primitives,
@@ -1466,106 +1958,338 @@ impl<'w> RenderBackend<'w> {
             gradients.len(),
         );
 
-        write_u16_buffer_padded(&self.queue, &self.index_buffer, &geom.indices);
-        self.queue
-            .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&geom.vertices));
-        self.queue
-            .write_buffer(&self.primitive_buffer, 0, bytemuck::cast_slice(primitives));
-        self.queue
-            .write_buffer(&self.colors_buffer, 0, bytemuck::cast_slice(colors));
-        self.queue
-            .write_buffer(&self.gradients_buffer, 0, bytemuck::cast_slice(gradients));
-        self.queue
-            .write_buffer(&self.transforms_buffer, 0, bytemuck::cast_slice(transforms));
+        write_staged_buffer(
+            &mut self.staging_belt,
+            encoder,
+            &self.index_buffer,
+            bytemuck::cast_slice(&geom.indices),
+        );
+        write_staged_buffer(
+            &mut self.staging_belt,
+            encoder,
+            &self.vertex_buffer,
+            bytemuck::cast_slice(&geom.vertices),
+        );
+        write_staged_buffer(
+            &mut self.staging_belt,
+            encoder,
+            &self.primitive_buffer,
+            bytemuck::cast_slice(primitives),
+        );
+        write_staged_buffer(
+            &mut self.staging_belt,
+            encoder,
+            &self.colors_buffer,
+            bytemuck::cast_slice(colors),
+        );
+        write_staged_buffer(
+            &mut self.staging_belt,
+            encoder,
+            &self.gradients_buffer,
+            bytemuck::cast_slice(gradients),
+        );
+        write_staged_buffer(
+            &mut self.staging_belt,
+            encoder,
+            &self.transforms_buffer,
+            bytemuck::cast_slice(transforms),
+        );
 
         self.index_count = geom.indices.len() as u64;
     }
 
-    pub(crate) fn render_primitives(&mut self, buffers: &mut CpuBuffers) {
-        self.write_buffers(buffers);
-        let load_op = self.take_color_load_op();
-        self.ensure_active_frame();
-        let (screen_texture, resolve_target) = self.current_color_attachment_views();
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
-
-        {
-            let (stencil_texture, stencil_reference) = self.stencil_renderer.get_stencil();
-            let depth_stencil_attachment = Some(wgpu::RenderPassDepthStencilAttachment {
-                view: stencil_texture,
-                depth_ops: None,
-                stencil_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                }),
-            });
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: screen_texture,
-                    depth_slice: None,
-                    resolve_target,
-                    ops: wgpu::Operations {
-                        load: load_op,
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            render_pass.set_pipeline(&self.pipeline);
-            render_pass.set_bind_group(0, &self.bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_stencil_reference(stencil_reference);
-            render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
-            render_pass.draw_indexed(0..self.index_count as u32, 0, 0..1);
+    pub(crate) fn render_primitive_batches(&mut self, batches: &mut [PrimitiveBatch<'_>]) {
+        if batches.is_empty() {
+            return;
         }
 
         if self.should_render_capture_target() {
-            self.ensure_capture_target();
-            let capture_load_op = self.take_capture_color_load_op(load_op);
-            let capture_target = self.capture_target.as_ref().unwrap();
-            let (capture_texture, capture_resolve_target) = capture_target.color_attachment_views();
-            let (stencil_texture, stencil_reference) = self.stencil_renderer.get_stencil();
-            let depth_stencil_attachment = Some(wgpu::RenderPassDepthStencilAttachment {
-                view: stencil_texture,
-                depth_ops: None,
-                stencil_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                }),
-            });
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Screenshot Mirror Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: capture_texture,
-                    depth_slice: None,
-                    resolve_target: capture_resolve_target,
-                    ops: wgpu::Operations {
-                        load: capture_load_op,
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            render_pass.set_pipeline(&self.pipeline);
-            render_pass.set_bind_group(0, &self.bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_stencil_reference(stencil_reference);
-            render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
-            render_pass.draw_indexed(0..self.index_count as u32, 0, 0..1);
+            self.render_primitive_batches_segmented(batches);
+            return;
         }
 
-        //render primitives
-        self.queue.submit(std::iter::once(encoder.finish()));
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Primitive Batch Encoder"),
+            });
+
+        if !self.pending_clear {
+            self.stencil_renderer.encode_clear(&mut encoder);
+            self.pending_clear = true;
+        }
+
+        for batch in batches {
+            self.write_buffers(&mut batch.buffers, &mut encoder);
+
+            let mut plans = Vec::new();
+            for segment in &batch.segments {
+                let stencil_sync = if self
+                    .stencil_renderer
+                    .needs_stack_sync(segment.stencil_depth, &segment.clips)
+                {
+                    self.stencil_renderer.prepare_stencil_stack_sync(
+                        &self.device,
+                        segment.stencil_depth,
+                        &segment.clips,
+                    )
+                } else {
+                    stencil::PreparedStencilSync::default()
+                };
+                let stencil_reference = self.stencil_renderer.get_stencil().1;
+                let scissor = physical_scissor_rect(
+                    segment.scissor,
+                    self.globals.dpr,
+                    self.surface_config.width,
+                    self.surface_config.height,
+                );
+                plans.push(PrimitiveBatchRenderPlan {
+                    stencil_sync,
+                    stencil_reference,
+                    scissor,
+                    index_start: segment.index_start,
+                    index_count: segment.index_count,
+                });
+            }
+
+            let has_work = plans.iter().any(|plan| {
+                !plan.stencil_sync.is_empty() || (plan.scissor.is_some() && plan.index_count > 0)
+            });
+            if !has_work {
+                continue;
+            }
+
+            let load_op = self.take_color_load_op();
+            self.ensure_active_frame();
+            {
+                let (screen_texture, resolve_target) = self.current_color_attachment_view_clones();
+                let stencil_texture = self.stencil_renderer.stencil_view_clone();
+                let depth_stencil_attachment = Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &stencil_texture,
+                    depth_ops: None,
+                    stencil_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                });
+                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Primitive Batch Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &screen_texture,
+                        depth_slice: None,
+                        resolve_target: resolve_target.as_ref(),
+                        ops: wgpu::Operations {
+                            load: load_op,
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+
+                let full_surface_scissor = (
+                    0,
+                    0,
+                    self.surface_config.width.max(1),
+                    self.surface_config.height.max(1),
+                );
+                for plan in &plans {
+                    if !plan.stencil_sync.is_empty() {
+                        // Scissor state is sticky within a render pass. Stencil syncs must cover
+                        // their full geometry, then drawable segments can restore their own scissor.
+                        render_pass.set_scissor_rect(
+                            full_surface_scissor.0,
+                            full_surface_scissor.1,
+                            full_surface_scissor.2,
+                            full_surface_scissor.3,
+                        );
+                        self.stencil_renderer.encode_prepared_stencil_sync(
+                            &mut render_pass,
+                            &plan.stencil_sync,
+                            true,
+                        );
+                    }
+
+                    let Some(scissor) = plan.scissor else {
+                        continue;
+                    };
+                    if plan.index_count == 0 {
+                        continue;
+                    }
+                    render_pass.set_pipeline(self.pipeline.as_ref());
+                    render_pass.set_bind_group(0, &self.bind_group, &[]);
+                    render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                    render_pass.set_stencil_reference(plan.stencil_reference);
+                    render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
+                    render_pass.set_scissor_rect(scissor.0, scissor.1, scissor.2, scissor.3);
+                    render_pass.draw_indexed(
+                        plan.index_start..plan.index_start + plan.index_count,
+                        0,
+                        0..1,
+                    );
+                }
+            }
+        }
+
+        self.enqueue_staged_command_buffer(encoder);
+    }
+
+    fn render_primitive_batches_segmented(&mut self, batches: &mut [PrimitiveBatch<'_>]) {
+        if batches.is_empty() {
+            return;
+        }
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Primitive Batch Encoder"),
+            });
+
+        if !self.pending_clear {
+            self.stencil_renderer.encode_clear(&mut encoder);
+            self.pending_clear = true;
+        }
+
+        for batch in batches {
+            self.write_buffers(&mut batch.buffers, &mut encoder);
+
+            let mut segment_index = 0;
+            while segment_index < batch.segments.len() {
+                let segment = &batch.segments[segment_index];
+                if self
+                    .stencil_renderer
+                    .needs_stack_sync(segment.stencil_depth, &segment.clips)
+                {
+                    self.stencil_renderer.encode_stencil_stack_sync(
+                        &self.device,
+                        &mut encoder,
+                        segment.stencil_depth,
+                        &segment.clips,
+                    );
+                }
+                let stencil_reference = self.stencil_renderer.get_stencil().1;
+                let run_start = segment_index;
+                segment_index += 1;
+                while segment_index < batch.segments.len() {
+                    let next = &batch.segments[segment_index];
+                    if self
+                        .stencil_renderer
+                        .needs_stack_sync(next.stencil_depth, &next.clips)
+                    {
+                        break;
+                    }
+                    segment_index += 1;
+                }
+                let drawable_segments: Vec<_> = batch.segments[run_start..segment_index]
+                    .iter()
+                    .filter_map(|segment| {
+                        physical_scissor_rect(
+                            segment.scissor,
+                            self.globals.dpr,
+                            self.surface_config.width,
+                            self.surface_config.height,
+                        )
+                        .map(|scissor| (segment, scissor))
+                    })
+                    .collect();
+                if drawable_segments.is_empty() {
+                    continue;
+                }
+                let load_op = self.take_color_load_op();
+                self.ensure_active_frame();
+                {
+                    let (screen_texture, resolve_target) = self.current_color_attachment_views();
+                    let (stencil_texture, _) = self.stencil_renderer.get_stencil();
+                    let depth_stencil_attachment = Some(wgpu::RenderPassDepthStencilAttachment {
+                        view: stencil_texture,
+                        depth_ops: None,
+                        stencil_ops: Some(wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Store,
+                        }),
+                    });
+                    let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("Primitive Batch Pass"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: screen_texture,
+                            depth_slice: None,
+                            resolve_target,
+                            ops: wgpu::Operations {
+                                load: load_op,
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })],
+                        depth_stencil_attachment,
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                        multiview_mask: None,
+                    });
+                    render_pass.set_pipeline(self.pipeline.as_ref());
+                    render_pass.set_bind_group(0, &self.bind_group, &[]);
+                    render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                    render_pass.set_stencil_reference(stencil_reference);
+                    render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
+                    for (segment, scissor) in &drawable_segments {
+                        render_pass.set_scissor_rect(scissor.0, scissor.1, scissor.2, scissor.3);
+                        render_pass.draw_indexed(
+                            segment.index_start..segment.index_start + segment.index_count,
+                            0,
+                            0..1,
+                        );
+                    }
+                }
+
+                if self.should_render_capture_target() {
+                    self.ensure_capture_target();
+                    let capture_load_op = self.take_capture_color_load_op(load_op);
+                    let capture_target = self.capture_target.as_ref().unwrap();
+                    let (capture_texture, capture_resolve_target) =
+                        capture_target.color_attachment_views();
+                    let (stencil_texture, _) = self.stencil_renderer.get_stencil();
+                    let depth_stencil_attachment = Some(wgpu::RenderPassDepthStencilAttachment {
+                        view: stencil_texture,
+                        depth_ops: None,
+                        stencil_ops: Some(wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Store,
+                        }),
+                    });
+                    let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("Primitive Batch Screenshot Mirror Pass"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: capture_texture,
+                            depth_slice: None,
+                            resolve_target: capture_resolve_target,
+                            ops: wgpu::Operations {
+                                load: capture_load_op,
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })],
+                        depth_stencil_attachment,
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                        multiview_mask: None,
+                    });
+                    render_pass.set_pipeline(self.pipeline.as_ref());
+                    render_pass.set_bind_group(0, &self.bind_group, &[]);
+                    render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                    render_pass.set_stencil_reference(stencil_reference);
+                    render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
+                    for (segment, scissor) in &drawable_segments {
+                        render_pass.set_scissor_rect(scissor.0, scissor.1, scissor.2, scissor.3);
+                        render_pass.draw_indexed(
+                            segment.index_start..segment.index_start + segment.index_count,
+                            0,
+                            0..1,
+                        );
+                    }
+                }
+            }
+        }
+
+        self.enqueue_staged_command_buffer(encoder);
     }
 
     fn ensure_active_frame(&mut self) {
@@ -1628,7 +2352,13 @@ impl<'w> RenderBackend<'w> {
     }
 
     pub(crate) fn clear(&mut self) {
-        self.stencil_renderer.clear(&self.device, &self.queue);
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Stencil Clear Encoder"),
+            });
+        self.stencil_renderer.encode_clear(&mut encoder);
+        self.enqueue_command_buffer(encoder.finish());
         self.pending_clear = true;
     }
 
@@ -1638,7 +2368,7 @@ impl<'w> RenderBackend<'w> {
         }
     }
 
-    pub(crate) fn present(&mut self) {
+    pub(crate) fn finish_frame(&mut self) {
         if self.pending_clear {
             let load_op = self.take_color_load_op();
             self.ensure_active_frame();
@@ -1690,14 +2420,22 @@ impl<'w> RenderBackend<'w> {
                     multiview_mask: None,
                 });
             }
-            self.queue.submit(std::iter::once(encoder.finish()));
+            self.enqueue_command_buffer(encoder.finish());
         }
 
         self.capture_surface_for_pending_requests();
+    }
 
+    pub(crate) fn present_queued_frame(&mut self) {
         if let Some(screen_surface) = self.active_frame.take() {
             screen_surface.surface.present();
         }
+    }
+
+    pub(crate) fn present(&mut self) {
+        self.finish_frame();
+        self.submit_pending_commands();
+        self.present_queued_frame();
     }
 
     fn current_color_attachment_views(&self) -> (&TextureView, Option<&TextureView>) {
@@ -1708,6 +2446,20 @@ impl<'w> RenderBackend<'w> {
             .view;
         if let Some(multisampled_target) = &self.multisampled_target {
             (&multisampled_target.view, Some(surface_view))
+        } else {
+            (surface_view, None)
+        }
+    }
+
+    fn current_color_attachment_view_clones(&self) -> (TextureView, Option<TextureView>) {
+        let surface_view = self
+            .active_frame
+            .as_ref()
+            .expect("active frame should exist after acquisition")
+            .view
+            .clone();
+        if let Some(multisampled_target) = &self.multisampled_target {
+            (multisampled_target.view.clone(), Some(surface_view))
         } else {
             (surface_view, None)
         }
@@ -1848,8 +2600,8 @@ impl<'w> RenderBackend<'w> {
                 depth_or_array_layers: 1,
             },
         );
-        self.queue.submit(std::iter::once(encoder.finish()));
-        let _ = self.device.poll(wgpu::PollType::Poll);
+        self.enqueue_command_buffer(encoder.finish());
+        self.needs_device_poll = true;
 
         let completed_captures = Arc::clone(&self.completed_captures);
         let readback_for_callback = readback.clone();
@@ -1975,6 +2727,37 @@ fn aligned_cpu_buffers(
     }
 
     (vertices, indices, primitives, transforms, colors, gradients)
+}
+
+fn aligned_geometry_buffers(buffers: &CpuBuffers) -> (Vec<GpuVertex>, Vec<u16>) {
+    let mut vertices = buffers.geometry.vertices.clone();
+    let mut indices = buffers.geometry.indices.clone();
+
+    const ALIGNMENT: usize = 16;
+    while indices.len() * std::mem::size_of::<u16>() % ALIGNMENT != 0 {
+        indices.push(0);
+        indices.push(0);
+        indices.push(0);
+    }
+    while vertices.len() * std::mem::size_of::<GpuVertex>() % ALIGNMENT != 0 {
+        vertices.push(GpuVertex::default());
+    }
+
+    (vertices, indices)
+}
+
+fn aligned_pod_slice<T: Default + Clone + Pod>(slice: &[T]) -> Vec<T> {
+    let mut aligned = slice.to_vec();
+
+    const ALIGNMENT: usize = 16;
+    if aligned.is_empty() {
+        aligned.push(T::default());
+    }
+    while aligned.len() * std::mem::size_of::<T>() % ALIGNMENT != 0 {
+        aligned.push(T::default());
+    }
+
+    aligned
 }
 
 fn transformed_corners(rect: &Box2D, transform: &Transform2D) -> [[f32; 2]; 4] {

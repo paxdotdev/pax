@@ -40,7 +40,7 @@ Type: `u32`
 ##### `parent_frame`
 Type: `Option`<`u32`>
 
-##### `occlusion_layer_id`
+##### `render_layer_id`
 Type: `u32`
 
 ---
@@ -583,15 +583,6 @@ Type: `Vec`<[`ModifierKeyMessage`](/api/internal/pax-message/index.md#modifierke
 
 ##### `is_repeat`
 Type: `bool`
-
----
-
-### `LayerAddPatch`
-Request to allocate additional native/canvas layers.
-
-#### Properties
-##### `num_layers_to_add`
-Type: `usize`
 
 ---
 
@@ -1702,7 +1693,6 @@ Messages emitted by the runtime to create, update, delete, or configure native/c
 ##### `ScrollerUpdate`([`ScrollerPatch`](/api/internal/pax-message/index.md#scrollerpatch))
 ##### `ScrollerDelete`(`u32`)
 ##### `ImageLoad`([`ImagePatch`](/api/internal/pax-message/index.md#imagepatch))
-##### `LayerAdd`([`LayerAddPatch`](/api/internal/pax-message/index.md#layeraddpatch))
 ##### `ShrinkLayersTo`(`u32`)
 ##### `NativeMaskUpdate`([`NativeMaskPatch`](/api/internal/pax-message/index.md#nativemaskpatch))
 ##### `Navigate`([`NavigationPatch`](/api/internal/pax-message/index.md#navigationpatch))

@@ -1,14 +1,15 @@
 use crate::render_backend::stencil;
 use crate::render_backend::CpuBuffers;
-use crate::render_backend::RetainedDraw;
 use crate::render_backend::RetainedImageDraw;
 use crate::render_backend::RetainedVectorResource;
+use crate::render_backend::SharedRetainedVectorResource;
 use crate::render_backend::MAX_BATCH_COLORS;
 use crate::render_backend::MAX_BATCH_GRADIENTS;
 use crate::render_backend::MAX_BATCH_PRIMITIVES;
 use crate::render_backend::MAX_BATCH_TRANSFORMS;
 use crate::render_backend::MAX_SCENE_CLIPS;
 use crate::render_backend::MAX_SCENE_TRANSFORMS;
+use crate::render_backend::{RetainedBatchRun, RetainedDraw};
 use crate::Box2D;
 use crate::Image;
 use crate::Point2D;
@@ -33,13 +34,110 @@ use crate::render_backend::data::GpuTransform;
 use crate::render_backend::data::GpuVertex;
 use crate::render_backend::CachedTextureResource;
 use crate::render_backend::CapturedFrame;
+use crate::render_backend::PrimitiveBatch;
+use crate::render_backend::PrimitiveBatchSegment;
 use crate::render_backend::RenderBackend;
+use crate::render_backend::ScissorRect;
 use crate::render_backend::VectorResourceDirty;
+use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
+use std::rc::Rc;
 
 const DEFAULT_TESSELLATION_TOLERANCE: f32 = 0.1;
+const MAX_VECTOR_GEOMETRY_CACHE_BYTES: usize = 16 * 1024 * 1024;
+const MAX_VECTOR_RESOURCE_CACHE_BYTES: usize = 128 * 1024 * 1024;
+pub const NATIVE_VECTOR_RESOURCE_CACHE_BYTES: usize = 256 * 1024 * 1024;
+
+type SharedVectorGeometryCache = Rc<RefCell<VectorGeometryCache>>;
+type SharedVectorResourceCache = Rc<RefCell<VectorResourceCache>>;
+
+/// Resource churn counters for renderer profiling.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ResourceChurnStats {
+    pub flushes: u64,
+    pub retained_scene_resets: u64,
+    pub vector_batch_flushes: u64,
+    pub vector_buffer_rebuilds: u64,
+    pub vector_geometry_rebuilds: u64,
+    pub vector_geometry_cache_hits: u64,
+    pub vector_geometry_cache_misses: u64,
+    pub vector_geometry_cache_evictions: u64,
+    pub vector_geometry_cache_bytes: u64,
+    pub tessellated_vertices: u64,
+    pub tessellated_indices: u64,
+    pub cached_vertices_reused: u64,
+    pub cached_indices_reused: u64,
+    pub vector_resource_creates: u64,
+    pub vector_resource_updates: u64,
+    pub vector_resource_recreates: u64,
+    pub vector_resource_create_bytes: u64,
+    pub vector_resource_update_bytes: u64,
+    pub vector_resource_cache_hits: u64,
+    pub vector_resource_cache_misses: u64,
+    pub vector_resource_cache_evictions: u64,
+    pub vector_resource_cache_bytes: u64,
+    pub texture_creates: u64,
+    pub texture_upload_bytes: u64,
+    pub retained_nodes_considered: u64,
+    pub retained_nodes_visible: u64,
+    pub retained_draw_batches: u64,
+    pub retained_draws: u64,
+    pub retained_vector_draws: u64,
+    pub retained_image_draws: u64,
+}
+
+impl ResourceChurnStats {
+    pub fn merge(&mut self, other: Self) {
+        self.flushes += other.flushes;
+        self.retained_scene_resets += other.retained_scene_resets;
+        self.vector_batch_flushes += other.vector_batch_flushes;
+        self.vector_buffer_rebuilds += other.vector_buffer_rebuilds;
+        self.vector_geometry_rebuilds += other.vector_geometry_rebuilds;
+        self.vector_geometry_cache_hits += other.vector_geometry_cache_hits;
+        self.vector_geometry_cache_misses += other.vector_geometry_cache_misses;
+        self.vector_geometry_cache_evictions += other.vector_geometry_cache_evictions;
+        self.vector_geometry_cache_bytes = self
+            .vector_geometry_cache_bytes
+            .max(other.vector_geometry_cache_bytes);
+        self.tessellated_vertices += other.tessellated_vertices;
+        self.tessellated_indices += other.tessellated_indices;
+        self.cached_vertices_reused += other.cached_vertices_reused;
+        self.cached_indices_reused += other.cached_indices_reused;
+        self.vector_resource_creates += other.vector_resource_creates;
+        self.vector_resource_updates += other.vector_resource_updates;
+        self.vector_resource_recreates += other.vector_resource_recreates;
+        self.vector_resource_create_bytes += other.vector_resource_create_bytes;
+        self.vector_resource_update_bytes += other.vector_resource_update_bytes;
+        self.vector_resource_cache_hits += other.vector_resource_cache_hits;
+        self.vector_resource_cache_misses += other.vector_resource_cache_misses;
+        self.vector_resource_cache_evictions += other.vector_resource_cache_evictions;
+        self.vector_resource_cache_bytes = self
+            .vector_resource_cache_bytes
+            .max(other.vector_resource_cache_bytes);
+        self.texture_creates += other.texture_creates;
+        self.texture_upload_bytes += other.texture_upload_bytes;
+        self.retained_nodes_considered += other.retained_nodes_considered;
+        self.retained_nodes_visible += other.retained_nodes_visible;
+        self.retained_draw_batches += other.retained_draw_batches;
+        self.retained_draws += other.retained_draws;
+        self.retained_vector_draws += other.retained_vector_draws;
+        self.retained_image_draws += other.retained_image_draws;
+    }
+
+    pub fn has_resource_churn(&self) -> bool {
+        let mut stats = *self;
+        stats.flushes = 0;
+        stats.retained_nodes_considered = 0;
+        stats.retained_nodes_visible = 0;
+        stats.retained_draw_batches = 0;
+        stats.retained_draws = 0;
+        stats.retained_vector_draws = 0;
+        stats.retained_image_draws = 0;
+        stats != Self::default()
+    }
+}
 
 /// Retained scene renderer that records Pax vector/image commands and flushes them through wgpu.
 pub struct WgpuRenderer<'w> {
@@ -57,11 +155,237 @@ pub struct WgpuRenderer<'w> {
     saves: Vec<SceneStateSave>,
     current_node: Option<PendingNode>,
     tolerance: f32,
+    vector_geometry_cache: SharedVectorGeometryCache,
+    vector_resource_cache: SharedVectorResourceCache,
+    resource_churn_stats: ResourceChurnStats,
 }
 
 struct CachedImageEntry {
     texture: CachedTextureResource,
     version: u64,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+struct VectorGeometryCacheKey {
+    geometry_signature: u64,
+    tolerance_bits: u32,
+}
+
+struct CachedVectorGeometry {
+    vertices: Vec<GpuVertex>,
+    indices: Vec<u16>,
+    bytes: usize,
+    last_used: u64,
+}
+
+#[derive(Default)]
+struct VectorGeometryCacheInsertStats {
+    evicted_entries: u64,
+    current_bytes: usize,
+}
+
+struct VectorGeometryCache {
+    entries: HashMap<VectorGeometryCacheKey, CachedVectorGeometry>,
+    current_bytes: usize,
+    max_bytes: usize,
+    clock: u64,
+}
+
+impl Default for VectorGeometryCache {
+    fn default() -> Self {
+        Self {
+            entries: HashMap::new(),
+            current_bytes: 0,
+            max_bytes: MAX_VECTOR_GEOMETRY_CACHE_BYTES,
+            clock: 0,
+        }
+    }
+}
+
+impl VectorGeometryCache {
+    fn get(&mut self, key: &VectorGeometryCacheKey) -> Option<&CachedVectorGeometry> {
+        self.clock = self.clock.wrapping_add(1);
+        let entry = self.entries.get_mut(key)?;
+        entry.last_used = self.clock;
+        Some(entry)
+    }
+
+    fn insert(
+        &mut self,
+        key: VectorGeometryCacheKey,
+        vertices: Vec<GpuVertex>,
+        indices: Vec<u16>,
+    ) -> VectorGeometryCacheInsertStats {
+        let bytes = vector_geometry_bytes(vertices.len(), indices.len());
+        if bytes > self.max_bytes {
+            return VectorGeometryCacheInsertStats {
+                current_bytes: self.current_bytes,
+                ..Default::default()
+            };
+        }
+
+        if let Some(previous) = self.entries.remove(&key) {
+            self.current_bytes = self.current_bytes.saturating_sub(previous.bytes);
+        }
+
+        self.clock = self.clock.wrapping_add(1);
+        self.current_bytes += bytes;
+        self.entries.insert(
+            key,
+            CachedVectorGeometry {
+                vertices,
+                indices,
+                bytes,
+                last_used: self.clock,
+            },
+        );
+
+        let mut stats = VectorGeometryCacheInsertStats {
+            current_bytes: self.current_bytes,
+            ..Default::default()
+        };
+        while self.current_bytes > self.max_bytes {
+            let Some(oldest_key) = self
+                .entries
+                .iter()
+                .min_by_key(|(_, entry)| entry.last_used)
+                .map(|(key, _)| *key)
+            else {
+                break;
+            };
+            if let Some(removed) = self.entries.remove(&oldest_key) {
+                self.current_bytes = self.current_bytes.saturating_sub(removed.bytes);
+                stats.evicted_entries += 1;
+            }
+        }
+        stats.current_bytes = self.current_bytes;
+        stats
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct VectorResourceKey {
+    tolerance_bits: u32,
+    geometry_signatures: Vec<u64>,
+    fill_signature: u64,
+    transform_layout_signature: u64,
+}
+
+struct CachedVectorResource {
+    resource: Rc<SharedRetainedVectorResource>,
+    bytes: usize,
+    last_used: u64,
+}
+
+#[derive(Default)]
+struct VectorResourceCacheStats {
+    evicted_entries: u64,
+    current_bytes: usize,
+}
+
+struct VectorResourceCache {
+    entries: HashMap<VectorResourceKey, CachedVectorResource>,
+    current_bytes: usize,
+    max_bytes: usize,
+    clock: u64,
+}
+
+impl Default for VectorResourceCache {
+    fn default() -> Self {
+        Self {
+            entries: HashMap::new(),
+            current_bytes: 0,
+            max_bytes: MAX_VECTOR_RESOURCE_CACHE_BYTES,
+            clock: 0,
+        }
+    }
+}
+
+impl VectorResourceCache {
+    fn set_max_bytes(&mut self, max_bytes: usize) -> VectorResourceCacheStats {
+        self.max_bytes = max_bytes.max(1);
+        self.evict_if_needed()
+    }
+
+    fn get(&mut self, key: &VectorResourceKey) -> Option<Rc<SharedRetainedVectorResource>> {
+        self.clock = self.clock.wrapping_add(1);
+        let entry = self.entries.get_mut(key)?;
+        entry.last_used = self.clock;
+        Some(Rc::clone(&entry.resource))
+    }
+
+    fn current_bytes(&self) -> usize {
+        self.current_bytes
+    }
+
+    fn insert(
+        &mut self,
+        key: VectorResourceKey,
+        resource: Rc<SharedRetainedVectorResource>,
+        bytes: u64,
+    ) -> VectorResourceCacheStats {
+        let bytes = bytes as usize;
+        if bytes > self.max_bytes {
+            return VectorResourceCacheStats {
+                current_bytes: self.current_bytes,
+                ..Default::default()
+            };
+        }
+
+        if let Some(previous) = self.entries.remove(&key) {
+            self.current_bytes = self.current_bytes.saturating_sub(previous.bytes);
+        }
+
+        self.clock = self.clock.wrapping_add(1);
+        self.current_bytes += bytes;
+        self.entries.insert(
+            key,
+            CachedVectorResource {
+                resource,
+                bytes,
+                last_used: self.clock,
+            },
+        );
+        self.evict_if_needed()
+    }
+
+    fn remove_if_same(
+        &mut self,
+        key: &VectorResourceKey,
+        resource: &Rc<SharedRetainedVectorResource>,
+    ) -> Option<CachedVectorResource> {
+        let entry = self.entries.get(key)?;
+        if !Rc::ptr_eq(&entry.resource, resource) {
+            return None;
+        }
+        let removed = self.entries.remove(key)?;
+        self.current_bytes = self.current_bytes.saturating_sub(removed.bytes);
+        Some(removed)
+    }
+
+    fn evict_if_needed(&mut self) -> VectorResourceCacheStats {
+        let mut stats = VectorResourceCacheStats {
+            current_bytes: self.current_bytes,
+            ..Default::default()
+        };
+        while self.current_bytes > self.max_bytes {
+            let Some(oldest_key) = self
+                .entries
+                .iter()
+                .filter(|(_, entry)| Rc::strong_count(&entry.resource) == 1)
+                .min_by_key(|(_, entry)| entry.last_used)
+                .map(|(key, _)| key.clone())
+            else {
+                break;
+            };
+            if let Some(removed) = self.entries.remove(&oldest_key) {
+                self.current_bytes = self.current_bytes.saturating_sub(removed.bytes);
+                stats.evicted_entries += 1;
+            }
+        }
+        stats.current_bytes = self.current_bytes;
+        stats
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -84,9 +408,10 @@ struct ClipArenaKey {
     clip_index: u32,
 }
 
-#[derive(Clone, Copy)]
-struct ClipReference {
-    clip_id: u32,
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum ClipReference {
+    Stencil { clip_id: u32 },
+    Scissor(ScissorRect),
 }
 
 struct ClipArenaEntry {
@@ -299,7 +624,33 @@ impl<'w> WgpuRenderer<'w> {
             clip_stack: Vec::new(),
             saves: vec![],
             current_node: None,
+            vector_geometry_cache: Rc::new(RefCell::new(VectorGeometryCache::default())),
+            vector_resource_cache: Rc::new(RefCell::new(VectorResourceCache::default())),
+            resource_churn_stats: ResourceChurnStats::default(),
         }
+    }
+
+    /// Share vector resource caches with another renderer for the same logical layer.
+    pub fn share_vector_caches_from(&mut self, other: &Self) {
+        self.vector_geometry_cache = Rc::clone(&other.vector_geometry_cache);
+        self.vector_resource_cache = Rc::clone(&other.vector_resource_cache);
+    }
+
+    pub fn set_vector_resource_cache_max_bytes(&mut self, max_bytes: usize) {
+        let stats = self
+            .vector_resource_cache
+            .borrow_mut()
+            .set_max_bytes(max_bytes);
+        self.merge_vector_resource_cache_stats(stats);
+    }
+
+    pub fn shared_gpu_context_id(&self) -> usize {
+        self.render_backend.shared_context_id()
+    }
+
+    /// Return and reset accumulated resource churn counters.
+    pub fn take_resource_churn_stats(&mut self) -> ResourceChurnStats {
+        std::mem::take(&mut self.resource_churn_stats)
     }
 
     /// Current transform at the top of the render-state stack.
@@ -327,6 +678,7 @@ impl<'w> WgpuRenderer<'w> {
 
     /// Drop retained scene state for a surface that has been rebound to a new tile origin.
     pub fn reset_retained_scene(&mut self) {
+        self.resource_churn_stats.retained_scene_resets += 1;
         // Reusing a physical browser surface for a different tile origin is only safe if the
         // retained scene is truly origin-agnostic. The current retained vector path still caches
         // per-node transforms/resources against the previous slot assignment, so drop that state
@@ -410,6 +762,8 @@ impl<'w> WgpuRenderer<'w> {
             .map(|entry| entry.version != image_version)
             .unwrap_or(true);
         if needs_upload {
+            self.resource_churn_stats.texture_creates += 1;
+            self.resource_churn_stats.texture_upload_bytes += image.rgba.len() as u64;
             self.cached_images.insert(
                 image_key.to_owned(),
                 CachedImageEntry {
@@ -439,6 +793,15 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     pub fn flush(&mut self) {
+        self.flush_internal(false);
+    }
+
+    pub fn flush_deferred(&mut self) {
+        self.flush_internal(true);
+    }
+
+    fn flush_internal(&mut self, defer_submit: bool) {
+        self.resource_churn_stats.flushes += 1;
         if !self.scene_dirty {
             self.transform_stack.truncate(1);
             self.clip_stack.clear();
@@ -456,8 +819,8 @@ impl<'w> WgpuRenderer<'w> {
             self.order_dirty = false;
         }
         if self.should_use_vector_scene_batch() {
-            self.render_backend.ensure_frame_cleared();
-            self.flush_vector_scene_batch();
+            self.resource_churn_stats.vector_batch_flushes += 1;
+            self.flush_vector_scene_batch(defer_submit);
             self.scene_dirty = false;
             self.transform_stack.truncate(1);
             self.clip_stack.clear();
@@ -469,12 +832,14 @@ impl<'w> WgpuRenderer<'w> {
         self.ensure_vector_resources_for_immediate_scene();
         self.transform_arena.flush_to_gpu(&self.render_backend);
         self.clip_arena.flush_to_gpu(&self.render_backend);
+        self.resource_churn_stats.retained_nodes_considered += self.sorted_nodes.len() as u64;
         // Each retained renderer represents one physical surface tile. Cull retained nodes against
         // that tile-local viewport before batching so newly revealed tiles do not replay the full
         // layer scene.
         let viewport_bounds = self.viewport_bounds();
         let mut current_clip_stack: Vec<u32> = Vec::new();
         let mut current_batch: Vec<RetainedDraw<'_>> = Vec::new();
+        let mut retained_runs: Vec<RetainedBatchRun<'_>> = Vec::new();
         let mut current_batch_clip_stack: Option<Vec<ClipReference>> = None;
         for (_, node_id) in &self.sorted_nodes {
             let Some(node) = self.scene.get(node_id) else {
@@ -483,6 +848,7 @@ impl<'w> WgpuRenderer<'w> {
             if !node.intersects_bounds(&viewport_bounds) {
                 continue;
             }
+            self.resource_churn_stats.retained_nodes_visible += 1;
             if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
                 if !clip_stacks_match(batch_clip_stack, node.clip_stack()) {
                     sync_clip_stack(
@@ -492,9 +858,15 @@ impl<'w> WgpuRenderer<'w> {
                         &self.clip_arena,
                     );
                     let stencil_index = self.render_backend.get_clip_depth();
-                    self.render_backend
-                        .draw_retained_batch(stencil_index, &current_batch);
-                    current_batch.clear();
+                    let scissor = scissor_for_clip_stack(batch_clip_stack);
+                    record_retained_batch_stats(&mut self.resource_churn_stats, &current_batch);
+                    if !current_batch.is_empty() {
+                        retained_runs.push(RetainedBatchRun {
+                            stencil_index,
+                            scissor,
+                            draws: std::mem::take(&mut current_batch),
+                        });
+                    }
                     current_batch_clip_stack = Some(node.clip_stack().to_vec());
                 }
             } else {
@@ -527,9 +899,17 @@ impl<'w> WgpuRenderer<'w> {
                 &self.clip_arena,
             );
             let stencil_index = self.render_backend.get_clip_depth();
-            self.render_backend
-                .draw_retained_batch(stencil_index, &current_batch);
+            let scissor = scissor_for_clip_stack(batch_clip_stack);
+            record_retained_batch_stats(&mut self.resource_churn_stats, &current_batch);
+            if !current_batch.is_empty() {
+                retained_runs.push(RetainedBatchRun {
+                    stencil_index,
+                    scissor,
+                    draws: std::mem::take(&mut current_batch),
+                });
+            }
         }
+        self.render_backend.draw_retained_batch_runs(&retained_runs);
         self.cached_images.retain(|image_key, _| {
             self.scene.values().any(|node| {
                 matches!(
@@ -543,7 +923,7 @@ impl<'w> WgpuRenderer<'w> {
             collect_active_clip_resources(&self.scene, &self.clip_arena);
         self.render_backend
             .retain_stencil_resources(&active_clip_signatures, &active_clip_ids);
-        self.render_backend.present();
+        self.finish_backend_frame(defer_submit);
         self.scene_dirty = false;
         self.transform_stack.truncate(1);
         self.clip_stack.clear();
@@ -576,6 +956,10 @@ impl<'w> WgpuRenderer<'w> {
             log::warn!("clip called without an active node");
             return;
         };
+        if let Some(scissor) = axis_aligned_rect_scissor(&path, &transform) {
+            self.clip_stack.push(ClipReference::Scissor(scissor));
+            return;
+        }
         let options = FillOptions::tolerance(self.tolerance);
         let mut geometry = VertexBuffers::new();
         let mut geometry_builder =
@@ -598,7 +982,7 @@ impl<'w> WgpuRenderer<'w> {
             return;
         };
         current_node.owned_clip_keys.push(clip_key);
-        self.clip_stack.push(ClipReference { clip_id });
+        self.clip_stack.push(ClipReference::Stencil { clip_id });
     }
 
     pub fn resize(&mut self, width: f32, height: f32) {
@@ -698,6 +1082,12 @@ impl<'w> WgpuRenderer<'w> {
                 let (transform_keys, transform_ids) =
                     self.transform_arena.sync_node(node_id, &local_transforms);
                 let transform_layout_signature = hash_transform_ids(&transform_ids);
+                let resource_key = VectorResourceKey {
+                    tolerance_bits: self.tolerance.to_bits(),
+                    geometry_signatures: geometry_signatures.clone(),
+                    fill_signature,
+                    transform_layout_signature,
+                };
 
                 match previous {
                     Some(RetainedNode::Vector(mut existing)) => {
@@ -719,6 +1109,8 @@ impl<'w> WgpuRenderer<'w> {
                                 &mut existing.buffers,
                                 reuse_geometry,
                                 !fill_changed,
+                                &self.vector_geometry_cache,
+                                &mut self.resource_churn_stats,
                             );
                         }
 
@@ -741,6 +1133,7 @@ impl<'w> WgpuRenderer<'w> {
                         existing.fill_signature = fill_signature;
                         existing.transform_signature = transform_signature;
                         existing.transform_layout_signature = transform_layout_signature;
+                        existing.resource_key = resource_key;
                         existing.bounds = compute_vector_node_bounds(&buffers.ops);
                         Some(RetainedNode::Vector(existing))
                     }
@@ -752,6 +1145,8 @@ impl<'w> WgpuRenderer<'w> {
                             &mut buffers_out,
                             false,
                             false,
+                            &self.vector_geometry_cache,
+                            &mut self.resource_churn_stats,
                         );
                         let retained_primitives =
                             build_retained_primitives(&buffers_out.primitives, &transform_ids);
@@ -773,6 +1168,8 @@ impl<'w> WgpuRenderer<'w> {
                             fill_signature,
                             transform_signature,
                             transform_layout_signature,
+                            resource_key,
+                            active_resource_key: None,
                         }))
                     }
                     None => {
@@ -783,6 +1180,8 @@ impl<'w> WgpuRenderer<'w> {
                             &mut buffers_out,
                             false,
                             false,
+                            &self.vector_geometry_cache,
+                            &mut self.resource_churn_stats,
                         );
                         let retained_primitives =
                             build_retained_primitives(&buffers_out.primitives, &transform_ids);
@@ -804,6 +1203,8 @@ impl<'w> WgpuRenderer<'w> {
                             fill_signature,
                             transform_signature,
                             transform_layout_signature,
+                            resource_key,
+                            active_resource_key: None,
                         }))
                     }
                 }
@@ -898,50 +1299,126 @@ impl<'w> WgpuRenderer<'w> {
             .map(|(_, node_id)| *node_id)
             .collect();
         for node_id in node_ids {
-            let Some(RetainedNode::Vector(node)) = self.scene.get_mut(&node_id) else {
+            let Some(retained_node) = self.scene.remove(&node_id) else {
+                continue;
+            };
+            let RetainedNode::Vector(mut node) = retained_node else {
+                self.scene.insert(node_id, retained_node);
                 continue;
             };
             if !boxes_intersect(&node.bounds, &viewport_bounds) {
+                self.scene.insert(node_id, RetainedNode::Vector(node));
                 continue;
             }
-            if !node.resource_dirty.any() {
+            if !node.resource_dirty.any() && node.resource.is_some() {
+                self.scene.insert(node_id, RetainedNode::Vector(node));
                 continue;
             }
 
-            match node.resource.as_mut() {
-                Some(resource) => {
-                    if !self.render_backend.update_vector_resource(
-                        resource,
-                        &mut node.buffers,
-                        &node.retained_primitives,
-                        node.resource_dirty,
-                    ) {
-                        node.resource =
-                            Some(self.render_backend.create_vector_resource(
-                                &mut node.buffers,
-                                &node.retained_primitives,
-                            ));
-                    }
-                }
-                None => {
-                    node.resource = Some(
-                        self.render_backend
-                            .create_vector_resource(&mut node.buffers, &node.retained_primitives),
-                    );
-                }
-            }
-            node.resource_dirty = VectorResourceDirty::default();
+            self.ensure_vector_resource_for_node(&mut node);
+            self.scene.insert(node_id, RetainedNode::Vector(node));
         }
     }
 
-    fn flush_vector_scene_batch(&mut self) {
+    fn ensure_vector_resource_for_node(&mut self, node: &mut RetainedVectorNode) {
+        let resource_key = node.resource_key.clone();
+        if node.resource.is_some() && node.active_resource_key.as_ref() == Some(&resource_key) {
+            node.resource_dirty = VectorResourceDirty::default();
+            return;
+        }
+
+        if let (Some(old_key), Some(resource)) =
+            (node.active_resource_key.clone(), node.resource.as_mut())
+        {
+            let removed_cache_entry = if Rc::strong_count(resource.shared()) == 2 {
+                self.vector_resource_cache
+                    .borrow_mut()
+                    .remove_if_same(&old_key, resource.shared())
+            } else {
+                None
+            };
+            if let Some(removed_cache_entry) = removed_cache_entry {
+                self.resource_churn_stats.vector_resource_updates += 1;
+                if let Some(upload_bytes) = self.render_backend.update_vector_resource(
+                    resource,
+                    &mut node.buffers,
+                    &node.retained_primitives,
+                    node.resource_dirty,
+                ) {
+                    self.resource_churn_stats.vector_resource_update_bytes += upload_bytes;
+                    let cache_stats = self.vector_resource_cache.borrow_mut().insert(
+                        resource_key.clone(),
+                        Rc::clone(resource.shared()),
+                        removed_cache_entry.bytes as u64,
+                    );
+                    self.merge_vector_resource_cache_stats(cache_stats);
+                    node.active_resource_key = Some(resource_key);
+                    node.resource_dirty = VectorResourceDirty::default();
+                    return;
+                }
+            }
+            self.resource_churn_stats.vector_resource_recreates += 1;
+        }
+
+        let (cached_resource, cache_bytes) = {
+            let mut cache = self.vector_resource_cache.borrow_mut();
+            let cached_resource = cache.get(&resource_key);
+            (cached_resource, cache.current_bytes())
+        };
+        if let Some(shared_resource) = cached_resource {
+            self.resource_churn_stats.vector_resource_cache_hits += 1;
+            self.resource_churn_stats.vector_resource_cache_bytes = self
+                .resource_churn_stats
+                .vector_resource_cache_bytes
+                .max(cache_bytes as u64);
+            node.resource = Some(
+                self.render_backend
+                    .create_vector_resource_from_shared(shared_resource),
+            );
+            node.active_resource_key = Some(resource_key);
+            node.resource_dirty = VectorResourceDirty::default();
+            return;
+        }
+
+        self.resource_churn_stats.vector_resource_cache_misses += 1;
+        self.resource_churn_stats.vector_resource_creates += 1;
+        let (shared_resource, upload_bytes) = self
+            .render_backend
+            .create_shared_vector_resource(&mut node.buffers, &node.retained_primitives);
+        self.resource_churn_stats.vector_resource_create_bytes += upload_bytes;
+        let cache_stats = self.vector_resource_cache.borrow_mut().insert(
+            resource_key.clone(),
+            Rc::clone(&shared_resource),
+            upload_bytes,
+        );
+        self.merge_vector_resource_cache_stats(cache_stats);
+        node.resource = Some(
+            self.render_backend
+                .create_vector_resource_from_shared(shared_resource),
+        );
+        node.active_resource_key = Some(resource_key);
+        node.resource_dirty = VectorResourceDirty::default();
+    }
+
+    fn merge_vector_resource_cache_stats(&mut self, stats: VectorResourceCacheStats) {
+        self.resource_churn_stats.vector_resource_cache_evictions += stats.evicted_entries;
+        self.resource_churn_stats.vector_resource_cache_bytes = self
+            .resource_churn_stats
+            .vector_resource_cache_bytes
+            .max(stats.current_bytes as u64);
+    }
+
+    fn flush_vector_scene_batch(&mut self, defer_submit: bool) {
         self.transform_arena.flush_to_gpu(&self.render_backend);
         self.clip_arena.flush_to_gpu(&self.render_backend);
         let viewport_bounds = self.viewport_bounds();
         let mut current_clip_stack: Vec<u32> = Vec::new();
         let mut current_batch_clip_stack: Option<Vec<ClipReference>> = None;
         let mut current_buffers = new_cpu_buffers();
+        let mut current_segment_start: Option<usize> = None;
         let mut has_geometry = false;
+        let mut segments = Vec::new();
+        let mut batches = Vec::new();
         for (_, node_id) in &self.sorted_nodes {
             let Some(RetainedNode::Vector(node)) = self.scene.get(node_id) else {
                 continue;
@@ -953,14 +1430,15 @@ impl<'w> WgpuRenderer<'w> {
             if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
                 if !clip_stacks_match(batch_clip_stack, &node.clip_stack) {
                     if has_geometry {
-                        sync_clip_stack(
-                            &mut self.render_backend,
+                        push_primitive_segment(
+                            &mut segments,
                             &mut current_clip_stack,
                             batch_clip_stack,
                             &self.clip_arena,
+                            current_segment_start.take().unwrap_or(0),
+                            current_buffers.geometry.indices.len(),
                         );
-                        self.render_backend.render_primitives(&mut current_buffers);
-                        current_buffers = new_cpu_buffers();
+                        has_geometry = false;
                     }
                     current_batch_clip_stack = Some(node.clip_stack.clone());
                 }
@@ -970,39 +1448,82 @@ impl<'w> WgpuRenderer<'w> {
 
             if has_geometry && would_exceed_batch_capacity(&current_buffers, &node.buffers) {
                 if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
-                    sync_clip_stack(
-                        &mut self.render_backend,
+                    push_primitive_segment(
+                        &mut segments,
                         &mut current_clip_stack,
                         batch_clip_stack,
                         &self.clip_arena,
+                        current_segment_start.take().unwrap_or(0),
+                        current_buffers.geometry.indices.len(),
+                    );
+                    push_primitive_batch(
+                        &mut batches,
+                        std::mem::replace(&mut current_buffers, new_cpu_buffers()),
+                        std::mem::take(&mut segments),
                     );
                 }
-                self.render_backend.render_primitives(&mut current_buffers);
-                current_buffers = new_cpu_buffers();
                 current_batch_clip_stack = Some(node.clip_stack.clone());
             }
 
+            if current_segment_start.is_none() {
+                current_segment_start = Some(current_buffers.geometry.indices.len());
+            }
             append_cpu_buffers(&mut current_buffers, &node.buffers);
             has_geometry = true;
         }
 
         if has_geometry {
             if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
-                sync_clip_stack(
-                    &mut self.render_backend,
+                push_primitive_segment(
+                    &mut segments,
                     &mut current_clip_stack,
                     batch_clip_stack,
                     &self.clip_arena,
+                    current_segment_start.take().unwrap_or(0),
+                    current_buffers.geometry.indices.len(),
                 );
             }
-            self.render_backend.render_primitives(&mut current_buffers);
+        }
+        push_primitive_batch(&mut batches, current_buffers, segments);
+        if batches.is_empty() {
+            self.render_backend.ensure_frame_cleared();
+        } else {
+            self.render_backend.render_primitive_batches(&mut batches);
         }
 
         let (active_clip_signatures, active_clip_ids) =
             collect_active_clip_resources(&self.scene, &self.clip_arena);
         self.render_backend
             .retain_stencil_resources(&active_clip_signatures, &active_clip_ids);
-        self.render_backend.present();
+        self.finish_backend_frame(defer_submit);
+    }
+
+    fn finish_backend_frame(&mut self, defer_submit: bool) {
+        if defer_submit {
+            self.render_backend.finish_frame();
+        } else {
+            self.render_backend.present();
+        }
+    }
+
+    pub fn take_pending_command_buffers(&mut self) -> Vec<wgpu::CommandBuffer> {
+        self.render_backend.take_pending_command_buffers()
+    }
+
+    pub fn submit_command_buffers(&self, command_buffers: Vec<wgpu::CommandBuffer>) {
+        self.render_backend.submit_command_buffers(command_buffers);
+    }
+
+    pub fn complete_submitted_work(&mut self) {
+        self.render_backend.complete_submitted_work();
+    }
+
+    pub fn has_pending_submission_cleanup(&self) -> bool {
+        self.render_backend.has_pending_submission_cleanup()
+    }
+
+    pub fn present_deferred_frame(&mut self) {
+        self.render_backend.present_queued_frame();
     }
 
     fn viewport_bounds(&self) -> Box2D {
@@ -1099,6 +1620,8 @@ struct RetainedVectorNode {
     fill_signature: u64,
     transform_signature: u64,
     transform_layout_signature: u64,
+    resource_key: VectorResourceKey,
+    active_resource_key: Option<VectorResourceKey>,
 }
 
 struct RetainedImageNode {
@@ -1134,6 +1657,20 @@ fn build_retained_primitives(
         .collect()
 }
 
+fn record_retained_batch_stats(stats: &mut ResourceChurnStats, draws: &[RetainedDraw<'_>]) {
+    if draws.is_empty() {
+        return;
+    }
+    stats.retained_draw_batches += 1;
+    stats.retained_draws += draws.len() as u64;
+    for draw in draws {
+        match draw {
+            RetainedDraw::Vector(_) => stats.retained_vector_draws += 1,
+            RetainedDraw::Image { .. } => stats.retained_image_draws += 1,
+        }
+    }
+}
+
 fn build_local_transform_table(ops: &[PendingVectorOp]) -> Vec<GpuTransform> {
     let mut transforms = vec![GpuTransform::default()];
     for op in ops {
@@ -1164,8 +1701,12 @@ fn rebuild_vector_buffers(
     buffers: &mut CpuBuffers,
     reuse_geometry: bool,
     reuse_fill: bool,
+    geometry_cache: &SharedVectorGeometryCache,
+    stats: &mut ResourceChurnStats,
 ) {
+    stats.vector_buffer_rebuilds += 1;
     if !reuse_geometry {
+        stats.vector_geometry_rebuilds += 1;
         buffers.geometry.vertices.clear();
         buffers.geometry.indices.clear();
     }
@@ -1197,47 +1738,137 @@ fn rebuild_vector_buffers(
             continue;
         }
 
-        match op.kind {
-            PendingVectorOpKind::Fill => {
-                let options = FillOptions::tolerance(tolerance);
-                let mut geometry_builder =
-                    BuffersBuilder::new(&mut buffers.geometry, |vertex: FillVertex| GpuVertex {
-                        position: vertex.position().to_array(),
-                        normal: [0.0; 2],
-                        prim_id,
-                    });
-                if let Err(err) = FillTessellator::new().tessellate_path(
-                    &op.path,
-                    &options,
-                    &mut geometry_builder,
-                ) {
-                    log::warn!("{:?}", err);
-                }
+        let cache_key = VectorGeometryCacheKey {
+            geometry_signature: op.geometry_signature,
+            tolerance_bits: tolerance.to_bits(),
+        };
+        let mut cache_hit = false;
+        {
+            let mut cache = geometry_cache.borrow_mut();
+            if let Some(geometry) = cache.get(&cache_key) {
+                stats.vector_geometry_cache_hits += 1;
+                stats.cached_vertices_reused += geometry.vertices.len() as u64;
+                stats.cached_indices_reused += geometry.indices.len() as u64;
+                append_cached_geometry(
+                    buffers,
+                    &geometry.vertices,
+                    &geometry.indices,
+                    prim_id,
+                    op.geometry_signature,
+                );
+                cache_hit = true;
             }
-            PendingVectorOpKind::Stroke(stroke_width, stroke_cap) => {
-                let options = StrokeOptions::tolerance(tolerance)
-                    .with_line_width(stroke_width)
-                    .with_line_cap(match stroke_cap {
-                        StrokeCap::Butt => lyon::tessellation::LineCap::Butt,
-                        StrokeCap::Round => lyon::tessellation::LineCap::Round,
-                        StrokeCap::Square => lyon::tessellation::LineCap::Square,
-                    });
-                let mut geometry_builder =
-                    BuffersBuilder::new(&mut buffers.geometry, |vertex: StrokeVertex| GpuVertex {
-                        position: vertex.position().to_array(),
-                        normal: [0.0; 2],
-                        prim_id,
-                    });
-                if let Err(err) = StrokeTessellator::new().tessellate_path(
-                    &op.path,
-                    &options,
-                    &mut geometry_builder,
-                ) {
-                    log::warn!("{:?}", err);
-                }
+        }
+        if cache_hit {
+            continue;
+        }
+
+        stats.vector_geometry_cache_misses += 1;
+        let geometry = tessellate_vector_geometry(tolerance, op);
+        stats.tessellated_vertices += geometry.vertices.len() as u64;
+        stats.tessellated_indices += geometry.indices.len() as u64;
+        append_cached_geometry(
+            buffers,
+            &geometry.vertices,
+            &geometry.indices,
+            prim_id,
+            op.geometry_signature,
+        );
+        let insert_stats =
+            geometry_cache
+                .borrow_mut()
+                .insert(cache_key, geometry.vertices, geometry.indices);
+        stats.vector_geometry_cache_evictions += insert_stats.evicted_entries;
+        stats.vector_geometry_cache_bytes = insert_stats.current_bytes as u64;
+    }
+}
+
+fn tessellate_vector_geometry(
+    tolerance: f32,
+    op: &PendingVectorOp,
+) -> VertexBuffers<GpuVertex, u16> {
+    let mut geometry = VertexBuffers::new();
+    match op.kind {
+        PendingVectorOpKind::Fill => {
+            let options = FillOptions::tolerance(tolerance);
+            let mut geometry_builder =
+                BuffersBuilder::new(&mut geometry, |vertex: FillVertex| GpuVertex {
+                    position: vertex.position().to_array(),
+                    normal: [0.0; 2],
+                    prim_id: 0,
+                });
+            if let Err(err) =
+                FillTessellator::new().tessellate_path(&op.path, &options, &mut geometry_builder)
+            {
+                log::warn!("{:?}", err);
+            }
+        }
+        PendingVectorOpKind::Stroke(stroke_width, stroke_cap) => {
+            let options = StrokeOptions::tolerance(tolerance)
+                .with_line_width(stroke_width)
+                .with_line_cap(match stroke_cap {
+                    StrokeCap::Butt => lyon::tessellation::LineCap::Butt,
+                    StrokeCap::Round => lyon::tessellation::LineCap::Round,
+                    StrokeCap::Square => lyon::tessellation::LineCap::Square,
+                });
+            let mut geometry_builder =
+                BuffersBuilder::new(&mut geometry, |vertex: StrokeVertex| GpuVertex {
+                    position: vertex.position().to_array(),
+                    normal: [0.0; 2],
+                    prim_id: 0,
+                });
+            if let Err(err) =
+                StrokeTessellator::new().tessellate_path(&op.path, &options, &mut geometry_builder)
+            {
+                log::warn!("{:?}", err);
             }
         }
     }
+    geometry
+}
+
+fn append_cached_geometry(
+    buffers: &mut CpuBuffers,
+    vertices: &[GpuVertex],
+    indices: &[u16],
+    prim_id: u32,
+    geometry_signature: u64,
+) {
+    let vertex_offset = buffers.geometry.vertices.len();
+    let Some(vertex_offset) = u16::try_from(vertex_offset).ok() else {
+        log::warn!(
+            "vector geometry cache append exceeded u16 vertex offset for signature {}",
+            geometry_signature
+        );
+        return;
+    };
+    if indices
+        .iter()
+        .any(|index| (*index as usize) + vertex_offset as usize > u16::MAX as usize)
+    {
+        log::warn!(
+            "vector geometry cache append exceeded u16 index capacity for signature {}",
+            geometry_signature
+        );
+        return;
+    }
+
+    buffers
+        .geometry
+        .vertices
+        .extend(vertices.iter().map(|vertex| {
+            let mut vertex = *vertex;
+            vertex.prim_id = prim_id;
+            vertex
+        }));
+    buffers
+        .geometry
+        .indices
+        .extend(indices.iter().map(|index| *index + vertex_offset));
+}
+
+fn vector_geometry_bytes(vertices: usize, indices: usize) -> usize {
+    vertices * std::mem::size_of::<GpuVertex>() + indices * std::mem::size_of::<u16>()
 }
 
 fn append_cpu_buffers(dst: &mut CpuBuffers, src: &CpuBuffers) {
@@ -1474,6 +2105,92 @@ fn boxes_intersect(left: &Box2D, right: &Box2D) -> bool {
         && left.max.y >= right.min.y
 }
 
+fn axis_aligned_rect_scissor(path: &Path, transform: &Transform2D) -> Option<ScissorRect> {
+    const EPSILON: f32 = 0.001;
+    let mut points = Vec::new();
+    for event in path.iter() {
+        match event {
+            PathEvent::Begin { at } => {
+                push_unique_point(&mut points, transform.transform_point(at))
+            }
+            PathEvent::Line { to, .. } => {
+                push_unique_point(&mut points, transform.transform_point(to));
+            }
+            PathEvent::End { close, .. } => {
+                if !close {
+                    return None;
+                }
+            }
+            PathEvent::Quadratic { .. } | PathEvent::Cubic { .. } => return None,
+        }
+    }
+
+    if points.len() > 1 && points_close(points[0], *points.last().unwrap(), EPSILON) {
+        points.pop();
+    }
+    if points.len() != 4 {
+        return None;
+    }
+
+    let mut xs = Vec::new();
+    let mut ys = Vec::new();
+    for point in &points {
+        push_unique_scalar(&mut xs, point.x, EPSILON);
+        push_unique_scalar(&mut ys, point.y, EPSILON);
+    }
+    if xs.len() != 2 || ys.len() != 2 {
+        return None;
+    }
+    xs.sort_by(|left, right| left.partial_cmp(right).unwrap_or(std::cmp::Ordering::Equal));
+    ys.sort_by(|left, right| left.partial_cmp(right).unwrap_or(std::cmp::Ordering::Equal));
+    let rect = ScissorRect {
+        min_x: xs[0],
+        min_y: ys[0],
+        max_x: xs[1],
+        max_y: ys[1],
+    };
+    if rect.max_x - rect.min_x <= EPSILON || rect.max_y - rect.min_y <= EPSILON {
+        return None;
+    }
+    let has_all_corners = [
+        (rect.min_x, rect.min_y),
+        (rect.max_x, rect.min_y),
+        (rect.max_x, rect.max_y),
+        (rect.min_x, rect.max_y),
+    ]
+    .iter()
+    .all(|(x, y)| {
+        points
+            .iter()
+            .any(|point| (point.x - *x).abs() <= EPSILON && (point.y - *y).abs() <= EPSILON)
+    });
+    has_all_corners.then_some(rect)
+}
+
+fn push_unique_point(points: &mut Vec<Point2D>, point: Point2D) {
+    const EPSILON: f32 = 0.001;
+    if points
+        .last()
+        .is_some_and(|previous| points_close(*previous, point, EPSILON))
+    {
+        return;
+    }
+    points.push(point);
+}
+
+fn points_close(left: Point2D, right: Point2D, epsilon: f32) -> bool {
+    (left.x - right.x).abs() <= epsilon && (left.y - right.y).abs() <= epsilon
+}
+
+fn push_unique_scalar(values: &mut Vec<f32>, value: f32, epsilon: f32) {
+    if !values
+        .iter()
+        .any(|existing| (*existing - value).abs() <= epsilon)
+    {
+        values.push(value);
+    }
+}
+
 fn hash_transform_bits<H: Hasher>(transform: &Transform2D, opacity: f32, state: &mut H) {
     for row in transform.to_arrays() {
         for value in row {
@@ -1679,32 +2396,114 @@ fn hash_clip_geometry(geometry: &VertexBuffers<stencil::Vertex, u16>) -> u64 {
     hasher.finish()
 }
 
+fn clip_stack_sync<'a>(
+    current_clip_stack: &[u32],
+    desired_clip_stack: &[ClipReference],
+    clip_arena: &'a ClipArena,
+) -> (usize, Vec<stencil::ClipDraw<'a>>) {
+    let desired_stencil_clip_ids: Vec<u32> = desired_clip_stack
+        .iter()
+        .filter_map(|clip| match clip {
+            ClipReference::Stencil { clip_id } => Some(*clip_id),
+            ClipReference::Scissor(_) => None,
+        })
+        .collect();
+    let shared_prefix = current_clip_stack
+        .iter()
+        .zip(desired_stencil_clip_ids.iter())
+        .take_while(|(left, right)| left == right)
+        .count();
+    let mut clip_draws = Vec::new();
+    for clip_id in desired_stencil_clip_ids.iter().skip(shared_prefix) {
+        let Some(entry) = clip_arena.get(*clip_id) else {
+            log::error!("missing clip arena entry for clip {}", clip_id);
+            continue;
+        };
+        clip_draws.push(stencil::ClipDraw {
+            clip_id: *clip_id,
+            geometry_signature: entry.geometry_signature,
+            geometry: &entry.geometry,
+        });
+    }
+    (shared_prefix, clip_draws)
+}
+
+fn update_current_clip_stack(
+    current_clip_stack: &mut Vec<u32>,
+    shared_prefix: usize,
+    clip_draws: &[stencil::ClipDraw<'_>],
+) {
+    current_clip_stack.truncate(shared_prefix);
+    current_clip_stack.extend(clip_draws.iter().map(|clip| clip.clip_id));
+}
+
+fn push_primitive_segment<'a>(
+    segments: &mut Vec<PrimitiveBatchSegment<'a>>,
+    current_clip_stack: &mut Vec<u32>,
+    desired_clip_stack: &[ClipReference],
+    clip_arena: &'a ClipArena,
+    index_start: usize,
+    index_end: usize,
+) {
+    if index_end <= index_start {
+        return;
+    }
+    let (shared_prefix, clip_draws) =
+        clip_stack_sync(current_clip_stack, desired_clip_stack, clip_arena);
+    update_current_clip_stack(current_clip_stack, shared_prefix, &clip_draws);
+    segments.push(PrimitiveBatchSegment {
+        stencil_depth: shared_prefix as u32,
+        clips: clip_draws,
+        scissor: scissor_for_clip_stack(desired_clip_stack),
+        index_start: index_start as u32,
+        index_count: (index_end - index_start) as u32,
+    });
+}
+
+fn push_primitive_batch<'a>(
+    batches: &mut Vec<PrimitiveBatch<'a>>,
+    buffers: CpuBuffers,
+    segments: Vec<PrimitiveBatchSegment<'a>>,
+) {
+    if segments.is_empty() {
+        return;
+    }
+    batches.push(PrimitiveBatch { buffers, segments });
+}
+
 fn sync_clip_stack<'w>(
     render_backend: &mut RenderBackend<'w>,
     current_clip_stack: &mut Vec<u32>,
     desired_clip_stack: &[ClipReference],
     clip_arena: &ClipArena,
 ) {
-    let shared_prefix = current_clip_stack
-        .iter()
-        .zip(desired_clip_stack.iter().map(|clip| clip.clip_id))
-        .take_while(|(left, right)| left == &right)
-        .count();
-    let mut clip_draws = Vec::new();
-    for clip in desired_clip_stack.iter().skip(shared_prefix) {
-        let Some(entry) = clip_arena.get(clip.clip_id) else {
-            log::error!("missing clip arena entry for clip {}", clip.clip_id);
+    let (shared_prefix, clip_draws) =
+        clip_stack_sync(current_clip_stack, desired_clip_stack, clip_arena);
+    render_backend.sync_stencil_stack(shared_prefix as u32, &clip_draws);
+    update_current_clip_stack(current_clip_stack, shared_prefix, &clip_draws);
+}
+
+fn scissor_for_clip_stack(clip_stack: &[ClipReference]) -> Option<ScissorRect> {
+    let mut scissor = None;
+    for clip in clip_stack {
+        let ClipReference::Scissor(rect) = clip else {
             continue;
         };
-        clip_draws.push(stencil::ClipDraw {
-            clip_id: clip.clip_id,
-            geometry_signature: entry.geometry_signature,
-            geometry: &entry.geometry,
+        scissor = Some(match scissor {
+            Some(existing) => intersect_scissor_rects(existing, *rect),
+            None => *rect,
         });
     }
-    render_backend.sync_stencil_stack(shared_prefix as u32, &clip_draws);
-    current_clip_stack.truncate(shared_prefix);
-    current_clip_stack.extend(clip_draws.iter().map(|clip| clip.clip_id));
+    scissor
+}
+
+fn intersect_scissor_rects(left: ScissorRect, right: ScissorRect) -> ScissorRect {
+    ScissorRect {
+        min_x: left.min_x.max(right.min_x),
+        min_y: left.min_y.max(right.min_y),
+        max_x: left.max_x.min(right.max_x),
+        max_y: left.max_y.min(right.max_y),
+    }
 }
 
 fn collect_active_clip_resources(
@@ -1715,8 +2514,11 @@ fn collect_active_clip_resources(
     let mut clip_ids = HashSet::new();
     for node in scene.values() {
         for clip in node.clip_stack() {
-            clip_ids.insert(clip.clip_id);
-            if let Some(entry) = clip_arena.get(clip.clip_id) {
+            let ClipReference::Stencil { clip_id } = clip else {
+                continue;
+            };
+            clip_ids.insert(*clip_id);
+            if let Some(entry) = clip_arena.get(*clip_id) {
                 signatures.insert(entry.geometry_signature);
             }
         }
@@ -1725,11 +2527,7 @@ fn collect_active_clip_resources(
 }
 
 fn clip_stacks_match(left: &[ClipReference], right: &[ClipReference]) -> bool {
-    left.len() == right.len()
-        && left
-            .iter()
-            .zip(right.iter())
-            .all(|(left, right)| left.clip_id == right.clip_id)
+    left == right
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1859,4 +2657,115 @@ pub struct Stroke {
     pub fill: Fill,
     pub weight: f32,
     pub cap: StrokeCap,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rect_path(width: f32, height: f32) -> Path {
+        let mut builder = Path::builder();
+        builder.begin(point(0.0, 0.0));
+        builder.line_to(point(width, 0.0));
+        builder.line_to(point(width, height));
+        builder.line_to(point(0.0, height));
+        builder.end(true);
+        builder.build()
+    }
+
+    #[test]
+    fn axis_aligned_rect_clip_becomes_scissor() {
+        let transform = Transform2D::from_array([2.0, 0.0, 0.0, 3.0, 5.0, 7.0]);
+        let scissor = axis_aligned_rect_scissor(&rect_path(10.0, 5.0), &transform).unwrap();
+        assert_eq!(scissor.min_x, 5.0);
+        assert_eq!(scissor.min_y, 7.0);
+        assert_eq!(scissor.max_x, 25.0);
+        assert_eq!(scissor.max_y, 22.0);
+    }
+
+    #[test]
+    fn sheared_rect_clip_stays_on_stencil_path() {
+        let transform = Transform2D::from_array([1.0, 0.5, 0.0, 1.0, 0.0, 0.0]);
+        assert!(axis_aligned_rect_scissor(&rect_path(10.0, 5.0), &transform).is_none());
+    }
+
+    #[test]
+    fn vector_geometry_cache_reuses_tessellation_and_remaps_primitive_ids() {
+        let path = rect_path(10.0, 5.0);
+        let op = PendingVectorOp {
+            path: path.clone(),
+            fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
+            transform: Transform2D::identity(),
+            opacity: 1.0,
+            kind: PendingVectorOpKind::Fill,
+            geometry_signature: hash_vector_path(&path, PendingVectorOpKind::Fill),
+        };
+        let ops = vec![
+            PendingVectorOp {
+                path,
+                fill: Fill::Solid(Color::rgba(0.0, 1.0, 0.0, 1.0)),
+                transform: Transform2D::identity(),
+                opacity: 1.0,
+                kind: PendingVectorOpKind::Fill,
+                geometry_signature: op.geometry_signature,
+            },
+            op,
+        ];
+        let cache = Rc::new(RefCell::new(VectorGeometryCache::default()));
+        let mut stats = ResourceChurnStats::default();
+        let mut buffers = new_cpu_buffers();
+
+        rebuild_vector_buffers(
+            DEFAULT_TESSELLATION_TOLERANCE,
+            &ops,
+            &mut buffers,
+            false,
+            false,
+            &cache,
+            &mut stats,
+        );
+
+        assert_eq!(stats.vector_geometry_cache_misses, 1);
+        assert_eq!(stats.vector_geometry_cache_hits, 1);
+        assert!(buffers
+            .geometry
+            .vertices
+            .iter()
+            .any(|vertex| vertex.prim_id == 0));
+        assert!(buffers
+            .geometry
+            .vertices
+            .iter()
+            .any(|vertex| vertex.prim_id == 1));
+
+        let mut second_stats = ResourceChurnStats::default();
+        let mut second_buffers = new_cpu_buffers();
+        rebuild_vector_buffers(
+            DEFAULT_TESSELLATION_TOLERANCE,
+            &ops,
+            &mut second_buffers,
+            false,
+            false,
+            &cache,
+            &mut second_stats,
+        );
+
+        assert_eq!(second_stats.vector_geometry_cache_misses, 0);
+        assert_eq!(second_stats.vector_geometry_cache_hits, 2);
+        assert_eq!(second_stats.tessellated_vertices, 0);
+        assert_eq!(
+            buffers.geometry.vertices.len(),
+            second_buffers.geometry.vertices.len()
+        );
+        for (left, right) in buffers
+            .geometry
+            .vertices
+            .iter()
+            .zip(second_buffers.geometry.vertices.iter())
+        {
+            assert_eq!(left.position, right.position);
+            assert_eq!(left.prim_id, right.prim_id);
+        }
+        assert_eq!(buffers.geometry.indices, second_buffers.geometry.indices);
+    }
 }

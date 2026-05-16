@@ -6,6 +6,7 @@ use wgpu::IndexFormat;
 
 use crate::Box2D;
 use crate::Transform2D;
+use std::rc::Rc;
 use wgpu::util::DeviceExt;
 use wgpu::TextureFormat;
 
@@ -16,9 +17,16 @@ pub struct TextureRenderer {
     vertices_buffer: wgpu::Buffer,
     indices_buffer: wgpu::Buffer,
 
-    texture_sampler: wgpu::Sampler,
-    texture_pipeline: wgpu::RenderPipeline,
-    texture_bind_group_layout: wgpu::BindGroupLayout,
+    texture_sampler: Rc<wgpu::Sampler>,
+    texture_pipeline: Rc<wgpu::RenderPipeline>,
+    texture_bind_group_layout: Rc<wgpu::BindGroupLayout>,
+}
+
+#[derive(Clone)]
+pub(crate) struct TexturePipelineResources {
+    texture_sampler: Rc<wgpu::Sampler>,
+    texture_pipeline: Rc<wgpu::RenderPipeline>,
+    texture_bind_group_layout: Rc<wgpu::BindGroupLayout>,
 }
 
 pub(crate) struct CachedTextureResource {
@@ -36,7 +44,42 @@ pub(crate) struct RetainedImageResource {
 }
 
 impl TextureRenderer {
+    #[allow(dead_code)]
     pub fn new(device: &wgpu::Device, target_format: TextureFormat, sample_count: u32) -> Self {
+        let resources = Self::create_pipeline_resources(device, target_format, sample_count);
+        Self::with_pipeline_resources(device, resources)
+    }
+
+    pub(crate) fn with_pipeline_resources(
+        device: &wgpu::Device,
+        resources: TexturePipelineResources,
+    ) -> Self {
+        let vertices = [TextureVertex::default(); 6];
+        let vertices_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(&vertices),
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+        });
+        let indices: &[u16] = &[1, 0, 2, 1, 2, 3];
+        let indices_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(&indices),
+            usage: BufferUsages::INDEX,
+        });
+        Self {
+            vertices_buffer,
+            indices_buffer,
+            texture_sampler: resources.texture_sampler,
+            texture_pipeline: resources.texture_pipeline,
+            texture_bind_group_layout: resources.texture_bind_group_layout,
+        }
+    }
+
+    pub(crate) fn create_pipeline_resources(
+        device: &wgpu::Device,
+        target_format: TextureFormat,
+        sample_count: u32,
+    ) -> TexturePipelineResources {
         let texture_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Texture Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("textures.wgsl").into()),
@@ -135,18 +178,6 @@ impl TextureRenderer {
             cache: None,
         });
 
-        let vertices = [TextureVertex::default(); 6];
-        let vertices_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(&vertices),
-            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-        });
-        let indices: &[u16] = &[1, 0, 2, 1, 2, 3];
-        let indices_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(&indices),
-            usage: BufferUsages::INDEX,
-        });
         let texture_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
@@ -159,12 +190,11 @@ impl TextureRenderer {
             mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             ..Default::default()
         });
-        Self {
-            vertices_buffer,
-            indices_buffer,
-            texture_sampler,
-            texture_pipeline,
-            texture_bind_group_layout,
+
+        TexturePipelineResources {
+            texture_sampler: Rc::new(texture_sampler),
+            texture_pipeline: Rc::new(texture_pipeline),
+            texture_bind_group_layout: Rc::new(texture_bind_group_layout),
         }
     }
 
@@ -244,7 +274,7 @@ impl TextureRenderer {
         let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &self.texture_bind_group_layout,
+            layout: self.texture_bind_group_layout.as_ref(),
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -256,7 +286,7 @@ impl TextureRenderer {
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: wgpu::BindingResource::Sampler(&self.texture_sampler),
+                    resource: wgpu::BindingResource::Sampler(self.texture_sampler.as_ref()),
                 },
             ],
             label: Some("texture_bind_group"),
@@ -292,7 +322,7 @@ impl TextureRenderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            render_pass.set_pipeline(&self.texture_pipeline);
+            render_pass.set_pipeline(self.texture_pipeline.as_ref());
             render_pass.set_bind_group(0, &bind_group, &[]);
             render_pass.set_stencil_reference(stencil_index);
             render_pass.set_vertex_buffer(0, self.vertices_buffer.slice(..));
@@ -345,7 +375,7 @@ impl TextureRenderer {
 
         let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &self.texture_bind_group_layout,
+            layout: self.texture_bind_group_layout.as_ref(),
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -357,7 +387,7 @@ impl TextureRenderer {
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: wgpu::BindingResource::Sampler(&self.texture_sampler),
+                    resource: wgpu::BindingResource::Sampler(self.texture_sampler.as_ref()),
                 },
             ],
             label: Some("retained_texture_bind_group"),
@@ -444,7 +474,7 @@ impl TextureRenderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            render_pass.set_pipeline(&self.texture_pipeline);
+            render_pass.set_pipeline(self.texture_pipeline.as_ref());
             render_pass.set_bind_group(0, &texture.bind_group, &[]);
             render_pass.set_stencil_reference(stencil_index);
             render_pass.set_vertex_buffer(0, resource.vertices_buffer.slice(..));
@@ -460,7 +490,7 @@ impl TextureRenderer {
         texture: &'a CachedTextureResource,
         resource: &'a RetainedImageResource,
     ) {
-        render_pass.set_pipeline(&self.texture_pipeline);
+        render_pass.set_pipeline(self.texture_pipeline.as_ref());
         render_pass.set_bind_group(0, &texture.bind_group, &[]);
         render_pass.set_vertex_buffer(0, resource.vertices_buffer.slice(..));
         render_pass.set_index_buffer(self.indices_buffer.slice(..), IndexFormat::Uint16);

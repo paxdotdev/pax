@@ -137,9 +137,6 @@ struct PaxViewIos: View {
         private var displayLink: CADisplayLink?
         private var previousViewportSize: CGSize = .zero
         private var needsNativeTextRemeasure = false
-        private var debugLayoutLogCount = 0
-        private var debugTickLogCount = 0
-        private var debugHeadingLogCount = 0
         private let surfaceManager = SurfaceManager()
         private var lastTouchPositions: [ObjectIdentifier: CGPoint] = [:]
 
@@ -263,14 +260,6 @@ struct PaxViewIos: View {
 
         override func layoutSubviews() {
             super.layoutSubviews()
-            let scale = currentScale()
-            if debugLayoutLogCount < 8 {
-                NSLog("[pax-ios-debug] layoutSubviews bounds=%@ frame=%@ scale=%0.2f",
-                      NSCoder.string(for: bounds),
-                      NSCoder.string(for: frame),
-                      scale)
-                debugLayoutLogCount += 1
-            }
 
             if bounds.size != previousViewportSize {
                 previousViewportSize = bounds.size
@@ -296,7 +285,7 @@ struct PaxViewIos: View {
             displayLink?.add(to: .current, forMode: .common)
         }
 
-        @objc private func handleDisplayLink() {
+        @objc private func handleDisplayLink(_ displayLink: CADisplayLink) {
             processRequestAnimationFrameQueue()
             tick()
         }
@@ -313,15 +302,6 @@ struct PaxViewIos: View {
             let width = Float(bounds.width)
             let height = Float(bounds.height)
             let scale = Float(currentScale())
-            if debugTickLogCount < 8 {
-                NSLog("[pax-ios-debug] tick bounds=%@ width=%0.2f height=%0.2f scale=%0.2f engine=%@",
-                      NSCoder.string(for: bounds),
-                      width,
-                      height,
-                      scale,
-                      PaxEngineContainer.paxEngineContainer == nil ? "nil" : "ready")
-                debugTickLogCount += 1
-            }
 
             if PaxEngineContainer.paxEngineContainer == nil {
                 PaxEngineContainer.paxEngineContainer = pax_init(width, height)
@@ -405,16 +385,6 @@ struct PaxViewIos: View {
         }
 
         func didUpdateTextElement(_ textElement: TextElement) {
-            if debugHeadingLogCount < 6, textElement.content == "Afterimage Observatory" {
-                NSLog("[pax-ios-debug] heading-update transform=%@ size=(%0.2f,%0.2f) opacity=%0.3f parentFrame=%@ measured=%@",
-                      textElement.transform.map { String(format: "%0.3f", $0) }.joined(separator: ","),
-                      textElement.size_x,
-                      textElement.size_y,
-                      textElement.opacity,
-                      textElement.parentFrame.map(String.init(describing:)) ?? "nil",
-                      textElement.lastMeasuredSize.map { NSCoder.string(for: CGRect(origin: .zero, size: $0)) } ?? "nil")
-                debugHeadingLogCount += 1
-            }
             requestTextResizeIfNeeded(textElement)
         }
 

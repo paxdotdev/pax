@@ -73,7 +73,14 @@ impl InstanceNode for GroupInstance {
         &self.base
     }
 
+    fn requires_non_reactive_update(&self, expanded_node: &ExpandedNode) -> bool {
+        !expanded_node.content_measurement_bound.get()
+    }
+
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
+        if expanded_node.content_measurement_bound.get() {
+            return;
+        }
         let ctx = expanded_node.get_node_context(context);
         let (autosize, autosize_x, autosize_y) =
             expanded_node.with_properties_unwrapped(|group: &mut Group| {

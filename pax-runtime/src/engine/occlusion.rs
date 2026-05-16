@@ -11,6 +11,11 @@ use crate::{node_interface::NodeLocal, ExpandedNode, RuntimeContext, TransformAn
 
 use super::expanded_node::Occlusion;
 
+// This pass still carries the historical "occlusion" name, but it no longer builds an
+// alternating stack of vector/native compositing layers. It assigns z-order, computes native
+// punch-through masks, and partitions canvas work into logical render layers. Layer 0 is the root
+// surface stack; non-root layers are reserved for scroller-owned vector islands.
+
 #[derive(Clone, Copy, Debug)]
 /// Axis-aligned bounds used by the occlusion and native-mask pass.
 pub struct OcclusionBox {
@@ -29,6 +34,15 @@ impl OcclusionBox {
             return false;
         }
         true
+    }
+
+    fn union(&self, other: &Self) -> Self {
+        Self {
+            x1: self.x1.min(other.x1),
+            y1: self.y1.min(other.y1),
+            x2: self.x2.max(other.x2),
+            y2: self.y2.max(other.y2),
+        }
     }
 
     fn new_from_transform_and_bounds_with_affine(
@@ -96,6 +110,22 @@ struct CoverageEntry {
     opacity: f64,
 }
 
+#[derive(Default)]
+struct LayerCoverage {
+    bounds: Option<OcclusionBox>,
+    entries: Vec<CoverageEntry>,
+}
+
+impl LayerCoverage {
+    fn push(&mut self, entry: CoverageEntry) {
+        self.bounds = Some(match self.bounds {
+            Some(bounds) => bounds.union(&entry.bounds),
+            None => entry.bounds,
+        });
+        self.entries.push(entry);
+    }
+}
+
 enum DrawableInfo {
     Canvas {
         layer_id: usize,
@@ -110,8 +140,23 @@ enum DrawableInfo {
     },
 }
 
-/// Recompute z ordering, native masks, and canvas/native layer assignments for the tree.
+#[cfg(debug_assertions)]
+#[derive(Default)]
+struct NativeMaskStats {
+    native_nodes: usize,
+    updated_masks: usize,
+    mask_entries: usize,
+}
+
+#[cfg(not(debug_assertions))]
+#[derive(Default)]
+struct NativeMaskStats;
+
+/// Recompute z-order, native masks, and logical render-layer assignments for the tree.
 pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
+    #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+    let pass_start = std::time::Instant::now();
+
     let mut drawables = Vec::new();
     let mut z_index = 0;
     let mut next_layer_id = 1;
@@ -131,7 +176,7 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
         &mut next_layer_id,
         &mut drawables,
     );
-    update_native_masks(&drawables, ctx);
+    let _native_mask_stats = update_native_masks(&drawables, ctx);
 
     let new_layer_count = next_layer_id;
     if ctx.layer_count.get() != new_layer_count {
@@ -140,9 +185,44 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
             new_layer_count as u32,
         ));
     }
+
+    #[cfg(debug_assertions)]
+    {
+        let canvas_drawables = drawables
+            .iter()
+            .filter(|drawable| matches!(drawable, DrawableInfo::Canvas { .. }))
+            .count();
+        let native_drawables = drawables.len().saturating_sub(canvas_drawables);
+
+        #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+        log::trace!(
+            "occlusion pass: {}us, layers={}, scroller_layers={}, drawables={} canvas/{} native, native_masks={} updates/{} entries/{} nodes",
+            pass_start.elapsed().as_micros(),
+            new_layer_count,
+            new_layer_count.saturating_sub(1),
+            canvas_drawables,
+            native_drawables,
+            _native_mask_stats.updated_masks,
+            _native_mask_stats.mask_entries,
+            _native_mask_stats.native_nodes,
+        );
+
+        #[cfg(target_arch = "wasm32")]
+        log::trace!(
+            "occlusion pass: layers={}, scroller_layers={}, drawables={} canvas/{} native, native_masks={} updates/{} entries/{} nodes",
+            new_layer_count,
+            new_layer_count.saturating_sub(1),
+            canvas_drawables,
+            native_drawables,
+            _native_mask_stats.updated_masks,
+            _native_mask_stats.mask_entries,
+            _native_mask_stats.native_nodes,
+        );
+    }
 }
 
-// runtime is O(n^2) atm, but all native punchout work is now confined to one native overlay.
+// Runtime is O(n^2) atm, but native punch-through work is grouped by logical render layer instead
+// of by the old alternating vector/native layer stack.
 fn update_node_occlusion_recursive(
     node: &Rc<ExpandedNode>,
     ctx: &RuntimeContext,
@@ -202,18 +282,18 @@ fn update_node_occlusion_recursive(
                             (visual_x, visual_y)
                         }
                     } else {
-                        instance_node
-                            .resolve_scroll_offset(node)
+                        ctx.get_scroller_surface_scroll(node.id.to_u32())
+                            .or_else(|| instance_node.resolve_scroll_offset(node))
                             .unwrap_or((0.0, 0.0))
                     }
                 } else {
-                    instance_node
-                        .resolve_scroll_offset(node)
+                    ctx.get_scroller_surface_scroll(node.id.to_u32())
+                        .or_else(|| instance_node.resolve_scroll_offset(node))
                         .unwrap_or((0.0, 0.0))
                 }
             } else {
-                instance_node
-                    .resolve_scroll_offset(node)
+                ctx.get_scroller_surface_scroll(node.id.to_u32())
+                    .or_else(|| instance_node.resolve_scroll_offset(node))
                     .unwrap_or((0.0, 0.0))
             };
             if scroll_x.abs() > f64::EPSILON || scroll_y.abs() > f64::EPSILON {
@@ -318,7 +398,7 @@ fn update_node_occlusion_recursive(
     }
 
     let new_occlusion = Occlusion {
-        occlusion_layer_id: current_layer_id,
+        render_layer_id: current_layer_id,
         z_index: *z_index,
         parent_frame: active_container,
     };
@@ -359,15 +439,15 @@ fn update_node_occlusion_recursive(
 
     if new_occlusion != node.occlusion.get() {
         let previous_occlusion = node.occlusion.get();
-        let prev_layer = previous_occlusion.occlusion_layer_id;
-        if layer == Layer::Canvas && prev_layer != new_occlusion.occlusion_layer_id {
+        let prev_layer = previous_occlusion.render_layer_id;
+        if layer == Layer::Canvas && prev_layer != new_occlusion.render_layer_id {
             ctx.enqueue_canvas_node_removal(prev_layer, node.id.to_u32());
         }
         if layer == Layer::Canvas {
             ctx.mark_canvas_node_dirty(node.id);
         }
         ctx.set_canvas_dirty(prev_layer);
-        ctx.set_canvas_dirty(new_occlusion.occlusion_layer_id);
+        ctx.set_canvas_dirty(new_occlusion.render_layer_id);
         node.occlusion.set(new_occlusion);
     }
 
@@ -406,8 +486,12 @@ fn update_node_occlusion_recursive(
     *z_index += 1;
 }
 
-fn update_native_masks(drawables: &[DrawableInfo], ctx: &RuntimeContext) {
-    let mut vector_above = HashMap::<usize, Vec<CoverageEntry>>::new();
+fn update_native_masks(drawables: &[DrawableInfo], ctx: &RuntimeContext) -> NativeMaskStats {
+    let mut vector_above = HashMap::<usize, LayerCoverage>::new();
+    #[cfg(debug_assertions)]
+    let mut stats = NativeMaskStats::default();
+    #[cfg(not(debug_assertions))]
+    let stats = NativeMaskStats::default();
 
     for drawable in drawables.iter().rev() {
         match drawable {
@@ -424,26 +508,39 @@ fn update_native_masks(drawables: &[DrawableInfo], ctx: &RuntimeContext) {
                 bounds,
                 presentation_transform,
             } => {
+                #[cfg(debug_assertions)]
+                {
+                    stats.native_nodes += 1;
+                }
                 let t_and_b = node.transform_and_bounds.get();
                 let size = t_and_b.bounds;
-                let layer_vectors = vector_above.get(layer_id);
+                let layer_coverage = vector_above.get(layer_id);
                 let mut entries = if *layer == Layer::Native {
-                    let inverse = Affine::from(t_and_b.transform.inverse())
-                        * presentation_transform.inverse();
-                    layer_vectors
-                        .into_iter()
-                        .flat_map(|entries| entries.iter())
-                        .filter(|entry| entry.bounds.intersects(bounds))
-                        .map(|entry| MaskPathPatch {
-                            path: bez_path_to_svg_path_data(&(inverse * entry.path.clone())),
-                            clips: entry
-                                .clips
-                                .iter()
-                                .map(|clip| bez_path_to_svg_path_data(&(inverse * clip.clone())))
-                                .collect(),
-                            opacity: Some(entry.opacity),
-                        })
-                        .collect::<Vec<_>>()
+                    let has_overlap = layer_coverage
+                        .and_then(|coverage| coverage.bounds)
+                        .is_some_and(|coverage_bounds| coverage_bounds.intersects(bounds));
+                    if has_overlap {
+                        let inverse = Affine::from(t_and_b.transform.inverse())
+                            * presentation_transform.inverse();
+                        layer_coverage
+                            .into_iter()
+                            .flat_map(|coverage| coverage.entries.iter())
+                            .filter(|entry| entry.bounds.intersects(bounds))
+                            .map(|entry| MaskPathPatch {
+                                path: bez_path_to_svg_path_data(&(inverse * entry.path.clone())),
+                                clips: entry
+                                    .clips
+                                    .iter()
+                                    .map(|clip| {
+                                        bez_path_to_svg_path_data(&(inverse * clip.clone()))
+                                    })
+                                    .collect(),
+                                opacity: Some(entry.opacity),
+                            })
+                            .collect::<Vec<_>>()
+                    } else {
+                        Vec::new()
+                    }
                 } else {
                     Vec::new()
                 };
@@ -466,6 +563,11 @@ fn update_native_masks(drawables: &[DrawableInfo], ctx: &RuntimeContext) {
                 };
                 if node.native_mask_hash.get() != new_hash {
                     node.native_mask_hash.set(new_hash);
+                    #[cfg(debug_assertions)]
+                    {
+                        stats.updated_masks += 1;
+                        stats.mask_entries += entries.len();
+                    }
                     ctx.enqueue_native_message(pax_message::NativeMessage::NativeMaskUpdate(
                         NativeMaskPatch {
                             id: node.id.to_u32(),
@@ -478,6 +580,8 @@ fn update_native_masks(drawables: &[DrawableInfo], ctx: &RuntimeContext) {
             }
         }
     }
+
+    stats
 }
 
 fn hash_mask_entries(size: (f64, f64), entries: &[MaskPathPatch]) -> u64 {

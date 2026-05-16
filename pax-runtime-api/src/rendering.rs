@@ -2,6 +2,14 @@
 
 use super::*;
 
+/// Replay invalidation for one logical canvas layer.
+#[derive(Clone, Debug)]
+pub struct ReplayCanvasLayerUpdate {
+    pub layer: usize,
+    /// `None` means the layer should fall back to region/full-layer dirtification.
+    pub node_ids: Option<Vec<u32>>,
+}
+
 /// The Pax render trait, used as a layer of indirection and contract for backend-agnostic rendering.
 pub trait RenderContext {
     // Drawing
@@ -67,6 +75,17 @@ pub trait RenderContext {
         vec![]
     }
 
+    /// Returns canvas layer replay work, optionally narrowed to exact retained node ids.
+    fn take_replay_canvas_layer_updates(&mut self) -> Vec<ReplayCanvasLayerUpdate> {
+        self.take_replay_canvas_layers()
+            .into_iter()
+            .map(|layer| ReplayCanvasLayerUpdate {
+                layer,
+                node_ids: None,
+            })
+            .collect()
+    }
+
     /// Requests a screenshot for one render layer.
     fn request_layer_screenshot(&mut self, _layer: usize, _request_id: u32) {}
 
@@ -112,6 +131,11 @@ pub trait RenderContext {
         _coverage_bounds: kurbo::Rect,
     ) -> bool {
         self.begin_node(layer, node_id, z_index)
+    }
+
+    /// Returns true when a bounded node skipped by `begin_node_with_bounds` is clean for now.
+    fn take_clean_skipped_node(&mut self, _layer: usize, _node_id: u32) -> bool {
+        false
     }
 
     /// Ends rendering a node and returns true when the node was recorded.

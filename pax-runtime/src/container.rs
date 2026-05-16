@@ -195,10 +195,7 @@ pub fn sync_content_autosize_with_axes(
     }
 }
 
-pub fn measured_size_needs_update(
-    previous: Option<(f64, f64)>,
-    next: (f64, f64),
-) -> bool {
+pub fn measured_size_needs_update(previous: Option<(f64, f64)>, next: (f64, f64)) -> bool {
     match previous {
         Some((previous_width, previous_height)) => {
             axis_needs_update(previous_width, next.0) || axis_needs_update(previous_height, next.1)

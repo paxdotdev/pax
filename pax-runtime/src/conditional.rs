@@ -236,9 +236,9 @@ mod tests {
         ) -> Option<Rc<RefCell<PaxAny>>>,
     > {
         Box::new(|_, expanded_node| {
-            expanded_node.is_none().then(|| {
-                Rc::new(RefCell::new(PaxAny::Builtin(Default::default())))
-            })
+            expanded_node
+                .is_none()
+                .then(|| Rc::new(RefCell::new(PaxAny::Builtin(Default::default()))))
         })
     }
 
@@ -346,10 +346,8 @@ mod tests {
     fn detached_conditional_keeps_cached_children_on_same_branch_recompute() {
         let condition = Property::new(true);
         let leaf: Rc<dyn InstanceNode> = TestLeaf::instantiate(component_args(Some(Vec::new())));
-        let conditional = ConditionalInstance::instantiate(conditional_args(
-            condition.clone(),
-            vec![leaf],
-        ));
+        let conditional =
+            ConditionalInstance::instantiate(conditional_args(condition.clone(), vec![leaf]));
         let root_component = ComponentInstance::instantiate(component_args(None));
         let context = Rc::new(RuntimeContext::new(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);

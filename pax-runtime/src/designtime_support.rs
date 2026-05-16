@@ -720,7 +720,7 @@ fn serialize_designtime_inspect_tree_node(
                 .map(|(width, height)| [width, height]),
         },
         occlusion: DesigntimeInspectNodeOcclusion {
-            layer_id: occlusion.occlusion_layer_id,
+            layer_id: occlusion.render_layer_id,
             z_index: occlusion.z_index,
             parent_frame: occlusion.parent_frame,
         },

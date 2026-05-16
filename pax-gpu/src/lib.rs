@@ -17,6 +17,8 @@ pub use render_context::Color;
 pub use render_context::Fill;
 pub use render_context::GradientStop;
 pub use render_context::GradientType;
+pub use render_context::ResourceChurnStats;
 pub use render_context::Stroke;
 pub use render_context::StrokeCap;
 pub use render_context::WgpuRenderer;
+pub use render_context::NATIVE_VECTOR_RESOURCE_CACHE_BYTES;

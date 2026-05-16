@@ -57,6 +57,26 @@ public protocol NativeMessageHandling: AnyObject {
 }
 
 public extension NativeMessageHandling {
+    private func hasScrollerScrollUpdate(_ patch: ScrollerUpdatePatch) -> Bool {
+        patch.scroll_x != nil
+            || patch.scroll_y != nil
+            || patch.presentation_scroll_x != nil
+            || patch.presentation_scroll_y != nil
+    }
+
+    private func applyScrollOnlyScrollerPatch(_ scroller: ScrollerElement) -> Bool {
+        let scrollX = scroller.presentationScrollX.isFinite
+            ? scroller.presentationScrollX
+            : scroller.scrollX
+        let scrollY = scroller.presentationScrollY.isFinite
+            ? scroller.presentationScrollY
+            : scroller.scrollY
+        return NativeScrollerHostRegistry.shared.updateScrollPosition(
+            id: scroller.id,
+            position: CGPoint(x: scrollX, y: scrollY)
+        )
+    }
+
     private func geometryChanged<T: NativePositionElement>(
         _ element: T,
         previousTransform: [Float],
@@ -192,7 +212,7 @@ public extension NativeMessageHandling {
     }
 
     func handleTextCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
-        textElements.add(element: TextElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+        textElements.add(element: TextElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.text = true
     }
@@ -240,25 +260,65 @@ public extension NativeMessageHandling {
         scrollerElements.add(element: ScrollerElement.makeDefault(
             id: patch.id,
             parentFrame: patch.parentFrame,
-            occlusionLayerId: patch.occlusionLayerId
+            renderLayerId: patch.renderLayerId
         ))
         masks.mark(patch.id)
         dirty.scroller = true
     }
 
     func handleScrollerUpdate(patch: ScrollerUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        let hasScrollUpdate = hasScrollerScrollUpdate(patch)
         if let scroller = scrollerElements.elements[patch.id] {
+            let previousParentFrame = scroller.parentFrame
+            let previousZIndex = scroller.zIndex
             let previousTransform = scroller.transform
             let previousSizeX = scroller.size_x
             let previousSizeY = scroller.size_y
+            let previousOpacity = scroller.opacity
+            let previousClipContent = scroller.clipContent
+            let previousBorderRadius = scroller.borderRadius
+            let previousSizeInnerPaneX = scroller.sizeInnerPaneX
+            let previousSizeInnerPaneY = scroller.sizeInnerPaneY
+            let previousSnapPointsX = scroller.snapPointsX
+            let previousSnapPointsY = scroller.snapPointsY
+            let previousScrollEnabledX = scroller.scrollEnabledX
+            let previousScrollEnabledY = scroller.scrollEnabledY
+            let previousContentLayerId = scroller.contentLayerId
+            let previousPresentedBounds = scroller.presentedBounds
+            let previousPresentedClipBounds = scroller.presentedClipBounds
+            let previousSubtreeDepth = scroller.subtreeDepth
             scroller.applyPatch(patch: patch)
             scroller.applyResolvedPlacement(patch)
-            if geometryChanged(
+            let scrollerGeometryChanged = geometryChanged(
                 scroller,
                 previousTransform: previousTransform,
                 previousSizeX: previousSizeX,
                 previousSizeY: previousSizeY
-            ) {
+            )
+            let structuralChanged = scrollerGeometryChanged
+                || previousParentFrame != scroller.parentFrame
+                || previousZIndex != scroller.zIndex
+                || previousOpacity != scroller.opacity
+                || previousClipContent != scroller.clipContent
+                || previousBorderRadius != scroller.borderRadius
+                || previousSizeInnerPaneX != scroller.sizeInnerPaneX
+                || previousSizeInnerPaneY != scroller.sizeInnerPaneY
+                || previousSnapPointsX != scroller.snapPointsX
+                || previousSnapPointsY != scroller.snapPointsY
+                || previousScrollEnabledX != scroller.scrollEnabledX
+                || previousScrollEnabledY != scroller.scrollEnabledY
+                || previousContentLayerId != scroller.contentLayerId
+                || previousPresentedBounds != scroller.presentedBounds
+                || previousPresentedClipBounds != scroller.presentedClipBounds
+                || previousSubtreeDepth != scroller.subtreeDepth
+
+            if hasScrollUpdate && !structuralChanged {
+                if !applyScrollOnlyScrollerPatch(scroller) {
+                    dirty.scroller = true
+                }
+                return
+            }
+            if scrollerGeometryChanged {
                 masks.mark(patch.id)
             }
         }
@@ -277,7 +337,7 @@ public extension NativeMessageHandling {
     }
 
     func handleButtonCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
-        buttonElements.add(element: ButtonElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+        buttonElements.add(element: ButtonElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.button = true
     }
@@ -339,7 +399,7 @@ public extension NativeMessageHandling {
     }
 
     func handleCheckboxCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
-        checkboxElements.add(element: CheckboxElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+        checkboxElements.add(element: CheckboxElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.checkbox = true
     }
@@ -370,7 +430,7 @@ public extension NativeMessageHandling {
     }
 
     func handleNativeImageCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
-        nativeImageElements.add(element: NativeImageElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+        nativeImageElements.add(element: NativeImageElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.nativeImage = true
     }
@@ -401,7 +461,7 @@ public extension NativeMessageHandling {
     }
 
     func handleYoutubeVideoCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
-        youtubeVideoElements.add(element: YoutubeVideoElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+        youtubeVideoElements.add(element: YoutubeVideoElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.youtubeVideo = true
     }
@@ -432,7 +492,7 @@ public extension NativeMessageHandling {
     }
 
     func handleDropdownCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
-        dropdownElements.add(element: DropdownElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+        dropdownElements.add(element: DropdownElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.dropdown = true
     }
@@ -463,7 +523,7 @@ public extension NativeMessageHandling {
     }
 
     func handleRadioListCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
-        radioListElements.add(element: RadioListElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+        radioListElements.add(element: RadioListElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.radioList = true
     }
@@ -494,7 +554,7 @@ public extension NativeMessageHandling {
     }
 
     func handleSliderCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
-        sliderElements.add(element: SliderElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+        sliderElements.add(element: SliderElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.slider = true
     }
@@ -525,7 +585,7 @@ public extension NativeMessageHandling {
     }
 
     func handleTextboxCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
-        textboxElements.add(element: TextboxElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+        textboxElements.add(element: TextboxElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.textbox = true
     }
@@ -556,7 +616,7 @@ public extension NativeMessageHandling {
     }
 
     func handleEventBlockerCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
-        eventBlockerElements.add(element: EventBlockerElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, occlusionLayerId: patch.occlusionLayerId))
+        eventBlockerElements.add(element: EventBlockerElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.eventBlocker = true
     }
@@ -814,12 +874,6 @@ public extension NativeMessageHandling {
                 } else if let count = shrinkLayersMessage.asInt {
                     NativeLayerCountTracker.shared.update(Int(count))
                 }
-            }
-
-            if let layerAddMessage = message["LayerAdd"] {
-                let patch = LayerAddPatchMessage(fb: layerAddMessage)
-                let current = NativeLayerCountTracker.shared.layerCount
-                NativeLayerCountTracker.shared.update(current + Int(patch.numLayersToAdd))
             }
 
             let _ = message["SetCursor"]

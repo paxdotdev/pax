@@ -54,7 +54,6 @@ pub enum NativeMessage {
     ScrollerUpdate(ScrollerPatch),
     ScrollerDelete(u32),
     ImageLoad(ImagePatch),
-    LayerAdd(LayerAddPatch), //FUTURE: native form controls
     ShrinkLayersTo(u32),
     NativeMaskUpdate(NativeMaskPatch),
     Navigate(NavigationPatch),
@@ -982,7 +981,7 @@ pub struct ScrollerPatch {
 pub struct AnyCreatePatch {
     pub id: u32,
     pub parent_frame: Option<u32>,
-    pub occlusion_layer_id: u32,
+    pub render_layer_id: u32,
 }
 
 // Possible approach to heterogeneous rich text:
@@ -1077,14 +1076,6 @@ pub enum FontWeightMessage {
     Bold,
     ExtraBold,
     Black,
-}
-
-#[cfg_attr(debug_assertions, derive(Debug))]
-#[derive(Serialize)]
-#[repr(C)]
-/// Request to allocate additional native/canvas layers.
-pub struct LayerAddPatch {
-    pub num_layers_to_add: usize,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]

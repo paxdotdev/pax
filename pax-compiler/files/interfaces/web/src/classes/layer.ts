@@ -7,7 +7,7 @@ import type { LayerCanvasPlan, SurfaceCanvasDescriptor } from "./surface-host-po
 export class Layer {
     canvasMap?: Map<string, HTMLCanvasElement>;
     native?: HTMLDivElement;
-    occlusionLayerId?: number;
+    renderLayerId?: number;
     objectManager: ObjectManager;
     private visibleCanvasParent?: Element;
     private canvases: Map<string, HTMLCanvasElement>;
@@ -27,20 +27,20 @@ export class Layer {
 
     build(
         parent: Element,
-        occlusionLayerId: number,
+        renderLayerId: number,
         canvasMap: Map<string, HTMLCanvasElement>,
         canvasPool?: CanvasPool,
     ) {
-        this.occlusionLayerId = occlusionLayerId;
+        this.renderLayerId = renderLayerId;
         this.canvasMap = canvasMap;
         this.canvasPool = canvasPool;
         // Non-root layers are currently reserved for browser-owned scroller islands. Avoid
         // creating root canvases for them until they are claimed by a scroller host.
-        this.islandOnly = occlusionLayerId > 0;
-        this.canvasZIndex = String(occlusionLayerId * 2);
+        this.islandOnly = renderLayerId > 0;
+        this.canvasZIndex = String(renderLayerId * 2);
         this.native = this.objectManager.getFromPool(DIV);
         this.native.className = NATIVE_OVERLAY_CLASS;
-        this.native.style.zIndex = String(occlusionLayerId * 2 + 1);
+        this.native.style.zIndex = String(renderLayerId * 2 + 1);
         this.attachToParents(parent, parent);
     }
 
@@ -91,7 +91,7 @@ export class Layer {
     }
 
     syncCanvasLayout() {
-        if (this.occlusionLayerId == null || this.canvasMap == null) {
+        if (this.renderLayerId == null || this.canvasMap == null) {
             return;
         }
         if (this.canvasPlan == null) {
@@ -188,12 +188,12 @@ export class Layer {
             parent?.removeChild(this.native);
             this.objectManager.returnToPool(DIV, this.native);
         }
-        this.occlusionLayerId = undefined;
+        this.renderLayerId = undefined;
     }
 
     private configureCanvas(canvas: HTMLCanvasElement, descriptor: SurfaceCanvasDescriptor) {
         canvas.id = descriptor.id;
-        canvas.dataset.layerId = String(this.occlusionLayerId);
+        canvas.dataset.layerId = String(this.renderLayerId);
         canvas.dataset.tileKey = descriptor.key;
         canvas.dataset.tileOriginX = String(descriptor.left);
         canvas.dataset.tileOriginY = String(descriptor.top);

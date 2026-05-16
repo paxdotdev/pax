@@ -162,9 +162,8 @@ impl<T: PropertyValue> Property<T> {
     where
         T: PartialEq,
     {
-        let should_set = PROPERTY_TABLE.with(|t| t.read_value(self.untyped.id, |current: &T| {
-            current != &val
-        }));
+        let should_set =
+            PROPERTY_TABLE.with(|t| t.read_value(self.untyped.id, |current: &T| current != &val));
         if should_set {
             self.set(val);
         }

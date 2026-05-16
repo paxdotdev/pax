@@ -254,14 +254,20 @@ impl PaxChassisWeb {
                 .mark_canvas_nodes_on_layer_dirty(layer_id);
             engine.runtime_context.set_canvas_dirty(layer_id);
         }
-        for layer_id in self.render_context.take_replay_canvas_layers() {
+        for update in self.render_context.take_replay_canvas_layer_updates() {
             // A retained surface was reused for a different tile origin or resized host; force the
-            // runtime to replay that layer's canvas nodes before the frame renders.
+            // runtime to replay affected canvas nodes before the frame renders.
             let engine = borrow!(self.engine);
-            engine
-                .runtime_context
-                .mark_canvas_nodes_on_layer_dirty(layer_id);
-            engine.runtime_context.set_canvas_dirty(layer_id);
+            if let Some(node_ids) = update.node_ids {
+                engine
+                    .runtime_context
+                    .mark_canvas_nodes_on_layer_dirty_by_id(update.layer, &node_ids);
+            } else {
+                engine
+                    .runtime_context
+                    .mark_canvas_nodes_on_layer_dirty(update.layer);
+            }
+            engine.runtime_context.set_canvas_dirty(update.layer);
         }
     }
 
@@ -698,6 +704,13 @@ impl PaxChassisWeb {
                 if let Some(node) = node {
                     let presentation_scroll_x = args.presentation_scroll_x.unwrap_or(args.scroll_x);
                     let presentation_scroll_y = args.presentation_scroll_y.unwrap_or(args.scroll_y);
+                    engine.runtime_context.update_scroller_surface_scroll(
+                        args.id,
+                        args.scroll_x,
+                        args.scroll_y,
+                        presentation_scroll_x,
+                        presentation_scroll_y,
+                    );
                     let previous = self
                         .native_scroller_positions
                         .insert(args.id, (presentation_scroll_x, presentation_scroll_y));

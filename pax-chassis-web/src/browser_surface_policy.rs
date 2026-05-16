@@ -97,6 +97,9 @@ impl BrowserSurfacePolicy {
             // Keep Safari's fixed WebGL budget explicit at the planner boundary. The JS canvas
             // pool still enforces the page-wide cap, but the engine should not request a per-layer
             // surface set that the chassis can never materialize.
+            policy.max_tile_backing_width = Some(IOS_BROWSER_SURFACE_DIMENSION_CAP as f64);
+            policy.max_tile_backing_height = Some(IOS_BROWSER_SURFACE_DIMENSION_CAP as f64);
+            policy.max_tile_backing_area = Some((IOS_BROWSER_SURFACE_DIMENSION_CAP as f64).powi(2));
             policy.tile_overscan_rows = 0;
             policy.max_surfaces_per_layer = Some(IOS_TOTAL_CANVAS_BUDGET);
         }

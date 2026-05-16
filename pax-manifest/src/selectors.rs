@@ -27,7 +27,10 @@ impl SelectorExpr {
             return Ok(Self::Class(stripped.to_string()));
         }
 
-        if trimmed.split("::").all(|segment| is_selector_identifier(segment)) {
+        if trimmed
+            .split("::")
+            .all(|segment| is_selector_identifier(segment))
+        {
             return Ok(Self::Type(trimmed.to_string()));
         }
 
@@ -165,14 +168,8 @@ mod tests {
         let type_id = TypeId::build_singleton("crate::Thing", Some("Thing"));
 
         assert!(info.matches(&type_id, &SelectorExpr::Id("hero".to_string())));
-        assert!(info.matches(
-            &type_id,
-            &SelectorExpr::Class("card".to_string())
-        ));
-        assert!(info.matches(
-            &type_id,
-            &SelectorExpr::Type("crate::Thing".to_string())
-        ));
+        assert!(info.matches(&type_id, &SelectorExpr::Class("card".to_string())));
+        assert!(info.matches(&type_id, &SelectorExpr::Type("crate::Thing".to_string())));
         assert!(info.matches(&type_id, &SelectorExpr::Type("Thing".to_string())));
     }
 }

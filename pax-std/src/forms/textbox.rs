@@ -104,7 +104,7 @@ impl InstanceNode for TextboxInstance {
         context.enqueue_native_message(pax_message::NativeMessage::TextboxCreate(AnyCreatePatch {
             id: id.to_u32(),
             parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
-            occlusion_layer_id: 0,
+            render_layer_id: 0,
         }));
 
         // send update message when relevant properties change
@@ -243,6 +243,10 @@ impl InstanceNode for TextboxInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
+    }
+
+    fn property_requires_occlusion_recompute(&self, _property_name: &str) -> bool {
+        false
     }
 
     fn handle_native_interrupt(

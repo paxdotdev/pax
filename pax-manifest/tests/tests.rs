@@ -1012,9 +1012,7 @@ mod tests {
                         elements: vec![
                             TimelineTrackElement::Keyframe(TimelineKeyframe {
                                 marker: TimelineMarker::Duration(
-                                    pax_manifest::pax_runtime_api::Duration::Milliseconds(
-                                        0.into(),
-                                    ),
+                                    pax_manifest::pax_runtime_api::Duration::Milliseconds(0.into()),
                                 ),
                                 value: ValueDefinition::LiteralValue(PaxValue::Numeric(
                                     0.35.into(),

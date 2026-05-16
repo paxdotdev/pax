@@ -12,15 +12,15 @@ use crate::constants::{
     CONTEXT_MENU_HANDLERS, DOUBLE_CLICK_HANDLERS, DROP_HANDLERS, FOCUSED_HANDLERS, GYRO_HANDLERS,
     KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS, KEY_UP_HANDLERS, MOUSE_DOWN_HANDLERS,
     MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS, MOUSE_OVER_HANDLERS, MOUSE_UP_HANDLERS,
-    PHOTO_PICKER_CHANGE_HANDLERS, PRE_RENDER_HANDLERS, SCROLL_HANDLERS, SELECT_START_HANDLERS,
-    TAP_HANDLERS, TEXTBOX_CHANGE_HANDLERS, TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS,
-    TICK_HANDLERS, TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
+    PHOTO_PICKER_CHANGE_HANDLERS, SCROLL_HANDLERS, SELECT_START_HANDLERS, TAP_HANDLERS,
+    TEXTBOX_CHANGE_HANDLERS, TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS, TOUCH_END_HANDLERS,
+    TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use_RefCell!();
 use crate::{ExpandedNodeIdentifier, Globals, LayoutHull, LayoutProperties, TransformAndBounds};
 use core::fmt;
 use std::cell::Cell;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::{Rc, Weak};
 
 use crate::api::{
@@ -79,6 +79,13 @@ pub type RuntimeResolvedPropertyColumns = BTreeMap<String, Vec<RuntimeResolvedPr
 enum PointerActivationSource {
     Mouse,
     Touch,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct FilteredRenderStats {
+    pub path_nodes_visited: usize,
+    pub dirty_nodes_rendered: usize,
+    pub skipped_subtrees: usize,
 }
 
 #[derive(Clone)]
@@ -194,9 +201,10 @@ pub struct ExpandedNode {
     /// trigger mount/dismount updates
     pub attached: Cell<u32>,
 
-    /// Occlusion layer for this node. Used by canvas elements to decide what canvas to draw on, and
-    /// by native elements to move to the correct native layer.
-    // occlusionID (canvas/native layer) + z-index
+    /// Logical render-layer assignment plus z-order for the current render tree pass.
+    ///
+    /// Layer 0 is the root surface stack, and non-root layers are reserved for scroller-owned
+    /// vector islands.
     pub occlusion: Property<Occlusion>,
 
     /// Hash of the last native occlusion mask emitted for this node.
@@ -236,6 +244,10 @@ pub struct ExpandedNode {
     pub content_measurement_rebind_listener: Property<()>,
     /// Guards one-time setup of the reactive content-measurement listener pair.
     pub content_measurement_bound: Cell<bool>,
+    /// Cached update traversal state. Structural effects mark ancestors dirty when child
+    /// ownership changes; the update pass clears this for subtrees with no remaining
+    /// imperative update work.
+    subtree_requires_non_reactive_update: Cell<bool>,
 
     /// Dirty signal emitted when the projected child set changes structurally.
     pub projected_children_changed: Property<()>,
@@ -271,7 +283,8 @@ pub struct ExpandedNode {
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub struct Occlusion {
-    pub occlusion_layer_id: usize,
+    /// Logical render layer: 0 for the root surface stack, >0 for scroller-owned vector islands.
+    pub render_layer_id: usize,
     pub z_index: i32,
     // this is used to perform last patches logic,
     // and is updated to reflect this nodes parent_frame
@@ -427,32 +440,40 @@ impl ExpandedNode {
             context.globals().elapsed_millis.get(),
             "transition origin millis",
         );
-        let frames_elapsed = context.globals().frames_elapsed.clone();
-        let elapsed_millis = context.globals().elapsed_millis.clone();
-        let frames_elapsed_for_playhead = frames_elapsed.clone();
-        let transition_origin_frame_for_playhead = transition_origin_frame.clone();
-        let transition_playhead = Property::computed_with_name(
-            move || {
-                frames_elapsed_for_playhead
-                    .get()
-                    .saturating_sub(transition_origin_frame_for_playhead.get())
-                    as f64
-            },
-            &[frames_elapsed.untyped(), transition_origin_frame.untyped()],
-            "transition playhead",
-        );
-        let elapsed_millis_for_playhead = elapsed_millis.clone();
-        let transition_origin_millis_for_playhead = transition_origin_millis.clone();
-        let transition_playhead_millis = Property::computed_with_name(
-            move || {
-                elapsed_millis_for_playhead
-                    .get()
-                    .saturating_sub(transition_origin_millis_for_playhead.get())
-                    as f64
-            },
-            &[elapsed_millis.untyped(), transition_origin_millis.untyped()],
-            "transition playhead millis",
-        );
+        let (transition_playhead, transition_playhead_millis) = if has_transition_bindings {
+            let frames_elapsed = context.globals().frames_elapsed.clone();
+            let elapsed_millis = context.globals().elapsed_millis.clone();
+            let frames_elapsed_for_playhead = frames_elapsed.clone();
+            let transition_origin_frame_for_playhead = transition_origin_frame.clone();
+            let transition_playhead = Property::computed_with_name(
+                move || {
+                    frames_elapsed_for_playhead
+                        .get()
+                        .saturating_sub(transition_origin_frame_for_playhead.get())
+                        as f64
+                },
+                &[frames_elapsed.untyped(), transition_origin_frame.untyped()],
+                "transition playhead",
+            );
+            let elapsed_millis_for_playhead = elapsed_millis.clone();
+            let transition_origin_millis_for_playhead = transition_origin_millis.clone();
+            let transition_playhead_millis = Property::computed_with_name(
+                move || {
+                    elapsed_millis_for_playhead
+                        .get()
+                        .saturating_sub(transition_origin_millis_for_playhead.get())
+                        as f64
+                },
+                &[elapsed_millis.untyped(), transition_origin_millis.untyped()],
+                "transition playhead millis",
+            );
+            (transition_playhead, transition_playhead_millis)
+        } else {
+            (
+                Property::new_with_name(0.0, "transition playhead"),
+                Property::new_with_name(0.0, "transition playhead millis"),
+            )
+        };
 
         let env = if has_transition_bindings {
             env.push(
@@ -544,6 +565,7 @@ impl ExpandedNode {
             content_measurement_listener: Property::default(),
             content_measurement_rebind_listener: Property::default(),
             content_measurement_bound: Cell::new(false),
+            subtree_requires_non_reactive_update: Cell::new(true),
             projected_children_changed: Property::default(),
             subscriptions: Default::default(),
             transition_phase,
@@ -597,8 +619,9 @@ impl ExpandedNode {
         self.refresh_properties_scope(&template);
         self.bind_to_parent_bounds(context);
         self.bind_occlusion_listener(context);
+        self.mark_non_reactive_update_subtree_dirty();
         context.mark_occlusion_dirty();
-        context.set_canvas_dirty(self.occlusion.get().occlusion_layer_id);
+        context.set_canvas_dirty(self.occlusion.get().render_layer_id);
     }
 
     pub fn fully_recreate_with_new_data(
@@ -624,6 +647,7 @@ impl ExpandedNode {
 
         self.bind_to_parent_bounds(context);
         self.bind_occlusion_listener(context);
+        self.mark_non_reactive_update_subtree_dirty();
         context.mark_occlusion_dirty();
         Rc::clone(self).recurse_mount(context);
         context.drain_node_effects();
@@ -722,6 +746,15 @@ impl ExpandedNode {
             .base()
             .transition_config()
             .has_exit
+    }
+
+    fn mark_non_reactive_update_subtree_dirty(&self) {
+        if self.subtree_requires_non_reactive_update.replace(true) {
+            return;
+        }
+        if let Some(parent) = borrow!(self.render_parent).upgrade() {
+            parent.mark_non_reactive_update_subtree_dirty();
+        }
     }
 
     fn start_self_enter_transition(&self, context: &Rc<RuntimeContext>) {
@@ -891,7 +924,9 @@ impl ExpandedNode {
             }
         }
         *borrow_mut!(self.active_children) = new_children;
-        self.sync_mounted_children_from_active_and_exiting()
+        let mounted = self.sync_mounted_children_from_active_and_exiting();
+        self.mark_non_reactive_update_subtree_dirty();
+        mounted
     }
 
     pub fn attach_sidecar_children(
@@ -911,6 +946,7 @@ impl ExpandedNode {
             child.bind_to_parent_bounds(context);
         }
         *borrow_mut!(self.sidecar_children) = new_children.clone();
+        self.mark_non_reactive_update_subtree_dirty();
         new_children
     }
 
@@ -983,10 +1019,14 @@ impl ExpandedNode {
     }
 
     fn bind_occlusion_listener(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
+        let instance_node = borrow!(self.instance_node);
         let mut deps: Vec<_> = borrow!(self.properties_scope)
-            .values()
-            .map(|v| v.get_untyped_property().clone())
+            .iter()
+            .filter(|(name, _)| instance_node.property_requires_occlusion_recompute(name))
+            .map(|(_, v)| v.get_untyped_property().clone())
             .collect();
+        drop(instance_node);
+
         deps.extend([
             self.children.untyped(),
             self.transform_and_bounds.untyped(),
@@ -1043,7 +1083,6 @@ impl ExpandedNode {
             ));
         ctx.register_node_effect_property(self.id, &self.subtree_layout_hull_listener);
     }
-
     fn rebind_subtree_layout_hull(self: &Rc<Self>) {
         let self_transform_and_bounds = self.transform_and_bounds.clone();
         let layout_properties = self.layout_properties();
@@ -1204,25 +1243,37 @@ impl ExpandedNode {
     }
 
     pub fn recurse_update(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
-        self.run_lifecycle_handlers(TICK_HANDLERS, context);
-        Rc::clone(&*borrow!(self.instance_node)).update(&self, context);
-        // trigger native message sending
-        self.changed_listener.get();
-        self.occlusion_listener.get();
-        self.run_lifecycle_handlers(PRE_RENDER_HANDLERS, context);
-        for subscription in &*borrow!(self.subscriptions) {
-            // fire dirty bit if present
-            subscription.get();
+        // Settle queued reactive effects before checking which subtrees still need
+        // imperative work, then flush any effects produced by that non-reactive pass.
+        context.drain_node_effects();
+        self.recurse_update_mounted(context);
+        context.drain_node_effects();
+    }
+
+    fn recurse_update_mounted(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        if !self.subtree_requires_non_reactive_update.get() {
+            return;
         }
-        if borrow!(self.instance_node).base().flags().is_component {
-            self.compute_flattened_projected_children();
+        let instance_node = Rc::clone(&*borrow!(self.instance_node));
+        if instance_node.requires_non_reactive_update(self) {
+            instance_node.update(&self, context);
         }
-        for child in self.children.get().iter() {
-            child.recurse_update(context);
+        let mut subtree_requires_non_reactive_update =
+            Rc::clone(&*borrow!(self.instance_node)).requires_non_reactive_update(self);
+        let children = borrow!(self.mounted_children).clone();
+        for child in children.iter() {
+            child.recurse_update_mounted(context);
+            subtree_requires_non_reactive_update |=
+                child.subtree_requires_non_reactive_update.get();
         }
-        for child in borrow!(self.sidecar_children).iter() {
-            child.recurse_update(context);
+        let sidecar_children = borrow!(self.sidecar_children).clone();
+        for child in sidecar_children.iter() {
+            child.recurse_update_mounted(context);
+            subtree_requires_non_reactive_update |=
+                child.subtree_requires_non_reactive_update.get();
         }
+        self.subtree_requires_non_reactive_update
+            .set(subtree_requires_non_reactive_update);
     }
 
     pub fn recurse_sync_import_settings(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
@@ -1340,10 +1391,10 @@ impl ExpandedNode {
 
             if self.instance_node.borrow().base().flags().layer == Layer::Canvas {
                 context.enqueue_canvas_node_removal(
-                    self.occlusion.get().occlusion_layer_id,
+                    self.occlusion.get().render_layer_id,
                     self.id.to_u32(),
                 );
-                context.set_canvas_dirty(self.occlusion.get().occlusion_layer_id);
+                context.set_canvas_dirty(self.occlusion.get().render_layer_id);
             }
 
             // Needed because occlusion updates are only sent on diffs so we reset it when unmounting
@@ -1501,6 +1552,40 @@ impl ExpandedNode {
         } else {
             self.recurse_render(ctx, rcs);
         }
+    }
+
+    pub(crate) fn render_parent_node(&self) -> Option<Rc<ExpandedNode>> {
+        borrow!(self.render_parent).upgrade()
+    }
+
+    pub(crate) fn is_unclippable(&self) -> bool {
+        let cp = self.get_common_properties();
+        let cp = borrow!(cp);
+        cp.unclippable.get().unwrap_or(false)
+    }
+
+    pub(crate) fn recurse_render_filtered(
+        self: &Rc<Self>,
+        ctx: &Rc<RuntimeContext>,
+        rcs: &mut dyn RenderContext,
+        render_path_nodes: &HashSet<ExpandedNodeIdentifier>,
+        dirty_nodes: &HashSet<ExpandedNodeIdentifier>,
+        stats: &mut FilteredRenderStats,
+    ) {
+        stats.path_nodes_visited += 1;
+        borrow!(self.instance_node).handle_pre_render(&self, ctx, rcs);
+        for child in self.children.get().iter().rev() {
+            if render_path_nodes.contains(&child.id) {
+                child.recurse_render_filtered(ctx, rcs, render_path_nodes, dirty_nodes, stats);
+            } else {
+                stats.skipped_subtrees += 1;
+            }
+        }
+        if dirty_nodes.contains(&self.id) {
+            borrow!(self.instance_node).render(&self, ctx, rcs);
+            stats.dirty_nodes_rendered += 1;
+        }
+        borrow!(self.instance_node).handle_post_render(&self, ctx, rcs);
     }
 
     pub fn recurse_render(self: &Rc<Self>, ctx: &Rc<RuntimeContext>, rcs: &mut dyn RenderContext) {
@@ -2081,7 +2166,7 @@ impl std::fmt::Debug for ExpandedNode {
                     .map(|v| v.id)
                     .collect::<Vec<_>>(),
             )
-            .field("occlusion_id", &self.occlusion.get())
+            .field("render_placement", &self.occlusion.get())
             .field(
                 "containing_component",
                 &self.containing_component.upgrade().map(|v| v.id.clone()),

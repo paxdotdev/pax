@@ -170,7 +170,7 @@ impl InstanceNode for PhotoPickerInputInstance {
             AnyCreatePatch {
                 id,
                 parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
-                occlusion_layer_id: 0,
+                render_layer_id: 0,
             },
         ));
 

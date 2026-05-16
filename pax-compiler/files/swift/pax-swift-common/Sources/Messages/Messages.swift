@@ -700,14 +700,14 @@ public class AnyCreatePatch {
     /// Used for clipping -- each `[UInt64]` is an `id_chain` for an associated clipping mask (`Frame`)
     public var clipping_ids: [[UInt64]]
     public var parentFrame: PaxNodeId?
-    public var occlusionLayerId: UInt32
+    public var renderLayerId: UInt32
     
     public init(fb:FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? decodeId(fb) ?? 0
         self.id_chain = decodeIdChain(fb)
         self.clipping_ids = decodeClippingIds(fb)
         self.parentFrame = readNodeId(fb["parent_frame"])
-        self.occlusionLayerId = UInt32(truncatingIfNeeded: fb["occlusion_layer_id"]?.asUInt64 ?? 0)
+        self.renderLayerId = UInt32(truncatingIfNeeded: fb["render_layer_id"]?.asUInt64 ?? 0)
     }
 }
 
@@ -769,7 +769,7 @@ public class TextStyle {
 public class TextElement: NativePositionElement {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
-    public var occlusionLayerId: UInt32
+    public var renderLayerId: UInt32
     public var zIndex: Int
     public var content: String
     public var editable: Bool
@@ -785,10 +785,10 @@ public class TextElement: NativePositionElement {
     public var lastMeasuredSize: CGSize?
     public var nativeMaskPatch: NativeMaskPatch? = nil
     
-    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, content: String, editable: Bool, clip: Bool, transform: [Float], size_x: Float, size_y: Float, opacity: Double, textStyle: TextStyle, selectable: Bool, markdown: Bool, style_link: TextStyle?, lastMeasuredSize: CGSize? = nil) {
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, content: String, editable: Bool, clip: Bool, transform: [Float], size_x: Float, size_y: Float, opacity: Double, textStyle: TextStyle, selectable: Bool, markdown: Bool, style_link: TextStyle?, lastMeasuredSize: CGSize? = nil) {
         self.id = id
         self.parentFrame = parentFrame
-        self.occlusionLayerId = occlusionLayerId
+        self.renderLayerId = renderLayerId
         self.zIndex = zIndex
         self.content = content
         self.editable = editable
@@ -804,9 +804,9 @@ public class TextElement: NativePositionElement {
         self.lastMeasuredSize = lastMeasuredSize
     }
     
-    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> TextElement {
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32) -> TextElement {
         let defaultTextStyle = TextStyle(font: PaxFont.makeDefault(), fill: Color(.black), alignmentMultiline: .leading, alignment: .topLeading, font_size: 5.0, underline: false)
-        return TextElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, content: "", editable: false, clip: false, transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, opacity: 1.0, textStyle: defaultTextStyle, selectable: false, markdown: false, style_link: nil)
+        return TextElement(id: id, parentFrame: parentFrame, renderLayerId: renderLayerId, zIndex: 0, content: "", editable: false, clip: false, transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, opacity: 1.0, textStyle: defaultTextStyle, selectable: false, markdown: false, style_link: nil)
     }
     
     public func applyPatch(patch: TextUpdatePatch) {
@@ -1942,7 +1942,7 @@ public class FrameElement: ResolvedPlacementTarget {
 public class ScrollerElement: NativePositionElement {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
-    public var occlusionLayerId: UInt32
+    public var renderLayerId: UInt32
     public var zIndex: Int
     public var transform: [Float]
     public var size_x: Float
@@ -1969,7 +1969,7 @@ public class ScrollerElement: NativePositionElement {
     public init(
         id: PaxNodeId,
         parentFrame: PaxNodeId?,
-        occlusionLayerId: UInt32,
+        renderLayerId: UInt32,
         zIndex: Int,
         transform: [Float],
         size_x: Float,
@@ -1994,7 +1994,7 @@ public class ScrollerElement: NativePositionElement {
     ) {
         self.id = id
         self.parentFrame = parentFrame
-        self.occlusionLayerId = occlusionLayerId
+        self.renderLayerId = renderLayerId
         self.zIndex = zIndex
         self.transform = transform
         self.size_x = size_x
@@ -2021,12 +2021,12 @@ public class ScrollerElement: NativePositionElement {
     public static func makeDefault(
         id: PaxNodeId,
         parentFrame: PaxNodeId?,
-        occlusionLayerId: UInt32
+        renderLayerId: UInt32
     ) -> ScrollerElement {
         ScrollerElement(
             id: id,
             parentFrame: parentFrame,
-            occlusionLayerId: occlusionLayerId,
+            renderLayerId: renderLayerId,
             zIndex: 0,
             transform: [1, 0, 0, 1, 0, 0],
             size_x: 0,
@@ -2223,7 +2223,7 @@ public extension ResolvedPlacementTarget {
 public protocol NativePositionElement: NativeMaskableElement, ResolvedPlacementTarget {
     var id: PaxNodeId { get }
     var parentFrame: PaxNodeId? { get set }
-    var occlusionLayerId: UInt32 { get set }
+    var renderLayerId: UInt32 { get set }
     var zIndex: Int { get set }
     var transform: [Float] { get set }
     var size_x: Float { get set }
@@ -2258,7 +2258,7 @@ public class EventBlockerPatchMessage: ResolvedPlacementPatch {
 public class EventBlockerElement: NativePositionElement {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
-    public var occlusionLayerId: UInt32
+    public var renderLayerId: UInt32
     public var zIndex: Int
     public var transform: [Float]
     public var size_x: Float
@@ -2266,10 +2266,10 @@ public class EventBlockerElement: NativePositionElement {
     public var opacity: Double
     public var nativeMaskPatch: NativeMaskPatch? = nil
 
-    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double) {
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double) {
         self.id = id
         self.parentFrame = parentFrame
-        self.occlusionLayerId = occlusionLayerId
+        self.renderLayerId = renderLayerId
         self.zIndex = zIndex
         self.transform = transform
         self.size_x = size_x
@@ -2277,8 +2277,8 @@ public class EventBlockerElement: NativePositionElement {
         self.opacity = opacity
     }
 
-    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> EventBlockerElement {
-        EventBlockerElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0)
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32) -> EventBlockerElement {
+        EventBlockerElement(id: id, parentFrame: parentFrame, renderLayerId: renderLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0)
     }
 
     public func applyPatch(_ patch: EventBlockerPatchMessage) {
@@ -2338,7 +2338,7 @@ public class ButtonUpdatePatch: ResolvedPlacementPatch {
 public class ButtonElement: NativePositionElement {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
-    public var occlusionLayerId: UInt32
+    public var renderLayerId: UInt32
     public var zIndex: Int
     public var transform: [Float]
     public var size_x: Float
@@ -2353,10 +2353,10 @@ public class ButtonElement: NativePositionElement {
     public var style: TextStyle
     public var nativeMaskPatch: NativeMaskPatch? = nil
 
-    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, hoverColor: Color, outlineStrokeColor: Color, outlineStrokeWidth: Double, borderRadius: Double, content: String, color: Color, style: TextStyle) {
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, hoverColor: Color, outlineStrokeColor: Color, outlineStrokeWidth: Double, borderRadius: Double, content: String, color: Color, style: TextStyle) {
         self.id = id
         self.parentFrame = parentFrame
-        self.occlusionLayerId = occlusionLayerId
+        self.renderLayerId = renderLayerId
         self.zIndex = zIndex
         self.transform = transform
         self.size_x = size_x
@@ -2371,11 +2371,11 @@ public class ButtonElement: NativePositionElement {
         self.style = style
     }
 
-    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> ButtonElement {
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32) -> ButtonElement {
         ButtonElement(
             id: id,
             parentFrame: parentFrame,
-            occlusionLayerId: occlusionLayerId,
+            renderLayerId: renderLayerId,
             zIndex: 0,
             transform: [1, 0, 0, 1, 0, 0],
             size_x: 0,
@@ -2573,7 +2573,7 @@ public class CheckboxUpdatePatch: ResolvedPlacementPatch {
 public class CheckboxElement: NativePositionElement {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
-    public var occlusionLayerId: UInt32
+    public var renderLayerId: UInt32
     public var zIndex: Int
     public var transform: [Float]
     public var size_x: Float
@@ -2587,10 +2587,10 @@ public class CheckboxElement: NativePositionElement {
     public var checked: Bool
     public var nativeMaskPatch: NativeMaskPatch? = nil
 
-    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, background: Color, backgroundChecked: Color, outlineColor: Color, outlineWidth: Double, borderRadius: Double, checked: Bool) {
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, background: Color, backgroundChecked: Color, outlineColor: Color, outlineWidth: Double, borderRadius: Double, checked: Bool) {
         self.id = id
         self.parentFrame = parentFrame
-        self.occlusionLayerId = occlusionLayerId
+        self.renderLayerId = renderLayerId
         self.zIndex = zIndex
         self.transform = transform
         self.size_x = size_x
@@ -2604,8 +2604,8 @@ public class CheckboxElement: NativePositionElement {
         self.checked = checked
     }
 
-    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> CheckboxElement {
-        CheckboxElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0, background: Color(.white), backgroundChecked: Color(.blue), outlineColor: Color(.gray), outlineWidth: 1, borderRadius: 5, checked: false)
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32) -> CheckboxElement {
+        CheckboxElement(id: id, parentFrame: parentFrame, renderLayerId: renderLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0, background: Color(.white), backgroundChecked: Color(.blue), outlineColor: Color(.gray), outlineWidth: 1, borderRadius: 5, checked: false)
     }
 
     public func applyPatch(_ patch: CheckboxUpdatePatch) {
@@ -2653,7 +2653,7 @@ public class NativeImageUpdatePatch: ResolvedPlacementPatch {
 public class NativeImageElement: NativePositionElement {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
-    public var occlusionLayerId: UInt32
+    public var renderLayerId: UInt32
     public var zIndex: Int
     public var transform: [Float]
     public var size_x: Float
@@ -2663,10 +2663,10 @@ public class NativeImageElement: NativePositionElement {
     public var fit: String
     public var nativeMaskPatch: NativeMaskPatch? = nil
 
-    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, url: String, fit: String) {
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, url: String, fit: String) {
         self.id = id
         self.parentFrame = parentFrame
-        self.occlusionLayerId = occlusionLayerId
+        self.renderLayerId = renderLayerId
         self.zIndex = zIndex
         self.transform = transform
         self.size_x = size_x
@@ -2676,8 +2676,8 @@ public class NativeImageElement: NativePositionElement {
         self.fit = fit
     }
 
-    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> NativeImageElement {
-        NativeImageElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0, url: "", fit: "contain")
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32) -> NativeImageElement {
+        NativeImageElement(id: id, parentFrame: parentFrame, renderLayerId: renderLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0, url: "", fit: "contain")
     }
 
     public func applyPatch(_ patch: NativeImageUpdatePatch) {
@@ -2719,7 +2719,7 @@ public class YoutubeVideoUpdatePatch: ResolvedPlacementPatch {
 public class YoutubeVideoElement: NativePositionElement {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
-    public var occlusionLayerId: UInt32
+    public var renderLayerId: UInt32
     public var zIndex: Int
     public var transform: [Float]
     public var size_x: Float
@@ -2728,10 +2728,10 @@ public class YoutubeVideoElement: NativePositionElement {
     public var url: String
     public var nativeMaskPatch: NativeMaskPatch? = nil
 
-    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, url: String) {
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, url: String) {
         self.id = id
         self.parentFrame = parentFrame
-        self.occlusionLayerId = occlusionLayerId
+        self.renderLayerId = renderLayerId
         self.zIndex = zIndex
         self.transform = transform
         self.size_x = size_x
@@ -2740,8 +2740,8 @@ public class YoutubeVideoElement: NativePositionElement {
         self.url = url
     }
 
-    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> YoutubeVideoElement {
-        YoutubeVideoElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0, url: "")
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32) -> YoutubeVideoElement {
+        YoutubeVideoElement(id: id, parentFrame: parentFrame, renderLayerId: renderLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0, url: "")
     }
 
     public func applyPatch(_ patch: YoutubeVideoUpdatePatch) {
@@ -2800,7 +2800,7 @@ public class DropdownUpdatePatch: ResolvedPlacementPatch {
 public class DropdownElement: NativePositionElement {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
-    public var occlusionLayerId: UInt32
+    public var renderLayerId: UInt32
     public var zIndex: Int
     public var transform: [Float]
     public var size_x: Float
@@ -2815,10 +2815,10 @@ public class DropdownElement: NativePositionElement {
     public var style: TextStyle
     public var nativeMaskPatch: NativeMaskPatch? = nil
 
-    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, selectedId: UInt32, options: [String], background: Color, strokeColor: Color, strokeWidth: Double, borderRadius: Double, style: TextStyle) {
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, selectedId: UInt32, options: [String], background: Color, strokeColor: Color, strokeWidth: Double, borderRadius: Double, style: TextStyle) {
         self.id = id
         self.parentFrame = parentFrame
-        self.occlusionLayerId = occlusionLayerId
+        self.renderLayerId = renderLayerId
         self.zIndex = zIndex
         self.transform = transform
         self.size_x = size_x
@@ -2833,8 +2833,8 @@ public class DropdownElement: NativePositionElement {
         self.style = style
     }
 
-    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> DropdownElement {
-        DropdownElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0, selectedId: 0, options: [], background: Color(.white), strokeColor: Color(.gray), strokeWidth: 1, borderRadius: 8, style: defaultPaxTextStyle())
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32) -> DropdownElement {
+        DropdownElement(id: id, parentFrame: parentFrame, renderLayerId: renderLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0, selectedId: 0, options: [], background: Color(.white), strokeColor: Color(.gray), strokeWidth: 1, borderRadius: 8, style: defaultPaxTextStyle())
     }
 
     public func applyPatch(_ patch: DropdownUpdatePatch) {
@@ -2901,7 +2901,7 @@ public class RadioListUpdatePatch: ResolvedPlacementPatch {
 public class RadioListElement: NativePositionElement {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
-    public var occlusionLayerId: UInt32
+    public var renderLayerId: UInt32
     public var zIndex: Int
     public var transform: [Float]
     public var size_x: Float
@@ -2916,10 +2916,10 @@ public class RadioListElement: NativePositionElement {
     public var background: Color
     public var nativeMaskPatch: NativeMaskPatch? = nil
 
-    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, selectedId: UInt32, options: [String], style: TextStyle, backgroundChecked: Color, outlineColor: Color, outlineWidth: Double, background: Color) {
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, selectedId: UInt32, options: [String], style: TextStyle, backgroundChecked: Color, outlineColor: Color, outlineWidth: Double, background: Color) {
         self.id = id
         self.parentFrame = parentFrame
-        self.occlusionLayerId = occlusionLayerId
+        self.renderLayerId = renderLayerId
         self.zIndex = zIndex
         self.transform = transform
         self.size_x = size_x
@@ -2934,8 +2934,8 @@ public class RadioListElement: NativePositionElement {
         self.background = background
     }
 
-    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> RadioListElement {
-        RadioListElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0, selectedId: 0, options: [], style: defaultPaxTextStyle(), backgroundChecked: Color(.blue), outlineColor: Color(.gray), outlineWidth: 1, background: Color(.white))
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32) -> RadioListElement {
+        RadioListElement(id: id, parentFrame: parentFrame, renderLayerId: renderLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0, selectedId: 0, options: [], style: defaultPaxTextStyle(), backgroundChecked: Color(.blue), outlineColor: Color(.gray), outlineWidth: 1, background: Color(.white))
     }
 
     public func applyPatch(_ patch: RadioListUpdatePatch) {
@@ -2998,7 +2998,7 @@ public class SliderUpdatePatch: ResolvedPlacementPatch {
 public class SliderElement: NativePositionElement {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
-    public var occlusionLayerId: UInt32
+    public var renderLayerId: UInt32
     public var zIndex: Int
     public var transform: [Float]
     public var size_x: Float
@@ -3013,10 +3013,10 @@ public class SliderElement: NativePositionElement {
     public var borderRadius: Double
     public var nativeMaskPatch: NativeMaskPatch? = nil
 
-    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, value: Double, step: Double, min: Double, max: Double, accent: Color, background: Color, borderRadius: Double) {
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, value: Double, step: Double, min: Double, max: Double, accent: Color, background: Color, borderRadius: Double) {
         self.id = id
         self.parentFrame = parentFrame
-        self.occlusionLayerId = occlusionLayerId
+        self.renderLayerId = renderLayerId
         self.zIndex = zIndex
         self.transform = transform
         self.size_x = size_x
@@ -3031,8 +3031,8 @@ public class SliderElement: NativePositionElement {
         self.borderRadius = borderRadius
     }
 
-    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> SliderElement {
-        SliderElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0, value: 0, step: 1, min: 0, max: 100, accent: Color(.blue), background: Color(.gray), borderRadius: 5)
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32) -> SliderElement {
+        SliderElement(id: id, parentFrame: parentFrame, renderLayerId: renderLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0, value: 0, step: 1, min: 0, max: 100, accent: Color(.blue), background: Color(.gray), borderRadius: 5)
     }
 
     public func applyPatch(_ patch: SliderUpdatePatch) {
@@ -3107,7 +3107,7 @@ public class TextboxUpdatePatch: ResolvedPlacementPatch {
 public class TextboxElement: NativePositionElement {
     public var id: PaxNodeId
     public var parentFrame: PaxNodeId?
-    public var occlusionLayerId: UInt32
+    public var renderLayerId: UInt32
     public var zIndex: Int
     public var transform: [Float]
     public var size_x: Float
@@ -3126,10 +3126,10 @@ public class TextboxElement: NativePositionElement {
     public var isTextArea: Bool
     public var nativeMaskPatch: NativeMaskPatch? = nil
 
-    public init(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, text: String, background: Color, strokeColor: Color, strokeWidth: Double, borderRadius: Double, style: TextStyle, focusOnMount: Bool, placeholder: String, outlineColor: Color, outlineWidth: Double, isTextArea: Bool) {
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, text: String, background: Color, strokeColor: Color, strokeWidth: Double, borderRadius: Double, style: TextStyle, focusOnMount: Bool, placeholder: String, outlineColor: Color, outlineWidth: Double, isTextArea: Bool) {
         self.id = id
         self.parentFrame = parentFrame
-        self.occlusionLayerId = occlusionLayerId
+        self.renderLayerId = renderLayerId
         self.zIndex = zIndex
         self.transform = transform
         self.size_x = size_x
@@ -3148,8 +3148,8 @@ public class TextboxElement: NativePositionElement {
         self.isTextArea = isTextArea
     }
 
-    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, occlusionLayerId: UInt32) -> TextboxElement {
-        TextboxElement(id: id, parentFrame: parentFrame, occlusionLayerId: occlusionLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0, text: "", background: Color(.white), strokeColor: Color(.gray), strokeWidth: 1, borderRadius: 8, style: defaultPaxTextStyle(), focusOnMount: false, placeholder: "", outlineColor: Color(.clear), outlineWidth: 0, isTextArea: false)
+    public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32) -> TextboxElement {
+        TextboxElement(id: id, parentFrame: parentFrame, renderLayerId: renderLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0, text: "", background: Color(.white), strokeColor: Color(.gray), strokeWidth: 1, borderRadius: 8, style: defaultPaxTextStyle(), focusOnMount: false, placeholder: "", outlineColor: Color(.clear), outlineWidth: 0, isTextArea: false)
     }
 
     public func applyPatch(_ patch: TextboxUpdatePatch) {
@@ -3186,13 +3186,5 @@ public class SetCursorPatchMessage {
 
     public init(fb: FlxbReference) {
         self.cursor = fb["cursor"]?.asString ?? "default"
-    }
-}
-
-public class LayerAddPatchMessage {
-    public var numLayersToAdd: UInt32
-
-    public init(fb: FlxbReference) {
-        self.numLayersToAdd = UInt32(truncatingIfNeeded: fb["num_layers_to_add"]?.asUInt64 ?? 0)
     }
 }

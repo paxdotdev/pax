@@ -378,8 +378,8 @@ fn pax_full_component(
         .unwrap_or_else(|_| ".".into());
     let build_config = template_build_config();
     let needs_runtime_cartridge = is_main_component && is_root_crate();
-    let needs_runtime_target_cartridge = needs_runtime_cartridge
-        && (build_config.web || build_config.macos || build_config.ios);
+    let needs_runtime_target_cartridge =
+        needs_runtime_cartridge && (build_config.web || build_config.macos || build_config.ios);
     let missing_cartridge_snippet = |reason: String| {
         if needs_runtime_target_cartridge {
             format!("compile_error!({reason:?});")

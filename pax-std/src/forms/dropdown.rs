@@ -94,7 +94,7 @@ impl InstanceNode for DropdownInstance {
             AnyCreatePatch {
                 id: id.to_u32(),
                 parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
-                occlusion_layer_id: 0,
+                render_layer_id: 0,
             },
         ));
 
@@ -222,6 +222,10 @@ impl InstanceNode for DropdownInstance {
         _expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result {
         f.debug_struct("Dropdown").finish_non_exhaustive()
+    }
+
+    fn property_requires_occlusion_recompute(&self, _property_name: &str) -> bool {
+        false
     }
 
     fn handle_native_interrupt(

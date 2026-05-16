@@ -155,7 +155,7 @@ pub(crate) fn get_render_context(
     surface_policy: BrowserSurfacePolicy,
 ) -> impl RenderContext {
     use pax_gpu::{
-        render_backend::{RenderBackend, RenderConfig},
+        render_backend::{RenderBackend, RenderConfig, SharedGpuContext},
         Transform2D, WgpuRenderer,
     };
     use pax_runtime::pax_gpu_render_context::{LayerRenderer, LayerTarget, PaxGpuRenderer};
@@ -188,12 +188,13 @@ pub(crate) fn get_render_context(
 
             let mut renderers = Vec::with_capacity(initial_targets.len());
             let mut backend_limit = u32::MAX;
+            let mut shared_context: Option<SharedGpuContext> = None;
             for target in &initial_targets {
                 target.canvas.set_width(target.surface.surface_width);
                 target.canvas.set_height(target.surface.surface_height);
 
-                let backend = match if force_gl {
-                    RenderBackend::to_canvas_gl(
+                let (backend, context) = match if force_gl {
+                    RenderBackend::to_canvas_gl_with_context(
                         target.canvas.clone(),
                         RenderConfig::new(
                             false,
@@ -201,10 +202,11 @@ pub(crate) fn get_render_context(
                             target.surface.surface_height,
                             target.surface.dpr,
                         ),
+                        shared_context.clone(),
                     )
                     .await
                 } else {
-                    RenderBackend::to_canvas(
+                    RenderBackend::to_canvas_with_context(
                         target.canvas.clone(),
                         RenderConfig::new(
                             false,
@@ -212,6 +214,7 @@ pub(crate) fn get_render_context(
                             target.surface.surface_height,
                             target.surface.dpr,
                         ),
+                        shared_context.clone(),
                     )
                     .await
                 } {
@@ -226,6 +229,7 @@ pub(crate) fn get_render_context(
                         return None;
                     }
                 };
+                shared_context.get_or_insert(context);
 
                 let mut renderer = WgpuRenderer::new(backend);
                 renderer.set_surface_transform(Transform2D::from_array([

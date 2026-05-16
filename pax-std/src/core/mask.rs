@@ -30,7 +30,7 @@ impl MaskInstance {
         for child in expanded_node.children.get().iter() {
             if borrow!(child.instance_node).base().flags().layer == Layer::Canvas {
                 context.mark_canvas_node_dirty(child.id);
-                context.set_canvas_dirty(child.occlusion.get().occlusion_layer_id);
+                context.set_canvas_dirty(child.occlusion.get().render_layer_id);
             }
             Self::mark_canvas_descendants_dirty(child, context);
         }
@@ -166,7 +166,7 @@ impl InstanceNode for MaskInstance {
         context.enqueue_native_message(pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
             id,
             parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
-            occlusion_layer_id: 0,
+            render_layer_id: 0,
         }));
 
         let env = Rc::clone(&expanded_node.stack);
@@ -300,12 +300,9 @@ impl InstanceNode for MaskInstance {
         rtc: &Rc<RuntimeContext>,
         rcs: &mut dyn RenderContext,
     ) {
-        let total_layer_count = rtc.layer_count.get();
-        let mut run_pre_render = false;
-        for i in 0..total_layer_count {
-            run_pre_render |= rtc.is_canvas_dirty(&i);
-        }
-        if !run_pre_render {
+        let layers = rcs.layers();
+        let has_dirty_layer = (0..layers).any(|layer| rtc.is_canvas_dirty(&layer));
+        if !has_dirty_layer {
             return;
         }
 
@@ -313,9 +310,20 @@ impl InstanceNode for MaskInstance {
             return;
         };
 
-        let layers = rcs.layers();
+        #[cfg(debug_assertions)]
+        let mut applied_layers = 0;
+        #[cfg(debug_assertions)]
+        let mut scroller_dom_layers = 0;
+
         for layer in 0..layers {
+            if !rtc.is_canvas_dirty(&layer) {
+                continue;
+            }
             if Self::layer_clip_is_handled_by_scroller_dom(expanded_node, layer, rtc) {
+                #[cfg(debug_assertions)]
+                {
+                    scroller_dom_layers += 1;
+                }
                 continue;
             }
             // Mask clips are stack effects for descendants, not leaf draw nodes. Keep them
@@ -333,7 +341,20 @@ impl InstanceNode for MaskInstance {
                 Self::mask_path_for_layer(&mask_path, expanded_node, layer, rtc),
             );
             let _ = rcs.end_node(layer, expanded_node.id.to_u32());
+            #[cfg(debug_assertions)]
+            {
+                applied_layers += 1;
+            }
         }
+
+        #[cfg(debug_assertions)]
+        log::trace!(
+            "mask clip pre_render: node={}, total_layers={}, applied_layers={}, scroller_dom_layers={}",
+            expanded_node.id.to_u32(),
+            layers,
+            applied_layers,
+            scroller_dom_layers,
+        );
     }
 
     fn handle_post_render(
@@ -342,25 +363,46 @@ impl InstanceNode for MaskInstance {
         rtc: &Rc<RuntimeContext>,
         rcs: &mut dyn RenderContext,
     ) {
-        let total_layer_count = rtc.layer_count.get();
-        let mut post_render = false;
-        for i in 0..total_layer_count {
-            post_render |= rtc.is_canvas_dirty(&i);
-        }
-        if !post_render {
+        let layers = rcs.layers();
+        let has_dirty_layer = (0..layers).any(|layer| rtc.is_canvas_dirty(&layer));
+        if !has_dirty_layer {
             return;
         }
         if Self::resolve_mask_path(expanded_node).is_none() {
             return;
         }
 
-        let layers = rcs.layers();
+        #[cfg(debug_assertions)]
+        let mut restored_layers = 0;
+        #[cfg(debug_assertions)]
+        let mut scroller_dom_layers = 0;
+
         for layer in 0..layers {
+            if !rtc.is_canvas_dirty(&layer) {
+                continue;
+            }
             if Self::layer_clip_is_handled_by_scroller_dom(expanded_node, layer, rtc) {
+                #[cfg(debug_assertions)]
+                {
+                    scroller_dom_layers += 1;
+                }
                 continue;
             }
             rcs.restore(layer);
+            #[cfg(debug_assertions)]
+            {
+                restored_layers += 1;
+            }
         }
+
+        #[cfg(debug_assertions)]
+        log::trace!(
+            "mask clip post_render: node={}, total_layers={}, restored_layers={}, scroller_dom_layers={}",
+            expanded_node.id.to_u32(),
+            layers,
+            restored_layers,
+            scroller_dom_layers,
+        );
     }
 
     fn resolve_effect_clip_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {

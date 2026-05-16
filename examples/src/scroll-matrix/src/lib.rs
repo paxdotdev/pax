@@ -58,9 +58,10 @@ impl Example {
             2 => "MASKED",
             _ => "TILE",
         };
-        self.route_label.set(route.to_string());
-        self.armed_label.set(if self.armed.get() { "ARMED" } else { "SAFE" }.to_string());
+        self.route_label.set_if_neq(route.to_string());
+        self.armed_label
+            .set_if_neq(if self.armed.get() { "ARMED" } else { "SAFE" }.to_string());
         self.tap_label
-            .set(format!("STAMP {}", self.tap_count.get()));
+            .set_if_neq(format!("STAMP {}", self.tap_count.get()));
     }
 }

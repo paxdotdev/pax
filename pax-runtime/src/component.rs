@@ -122,6 +122,11 @@ impl InstanceNode for ComponentInstance {
         &self.base
     }
 
+    fn property_requires_occlusion_recompute(&self, _property_name: &str) -> bool {
+        // Components do not draw; state-driven occlusion changes surface through concrete children.
+        false
+    }
+
     fn get_template(&self) -> Option<&InstanceNodePtrList> {
         Some(&self.template)
     }

@@ -170,7 +170,7 @@ impl WebSocketConnection {
                         match msg {
                             AgentMessage::LoadManifestResponse(resp) => {
                                 match rmp_serde::from_slice::<PaxManifest>(&resp.manifest) {
-                                    Ok(manifest) => manager.set_manifest(manifest),
+                                    Ok(manifest) => manager.set_initial_server_manifest(manifest),
                                     Err(err) => log::warn!(
                                         "{} received invalid manifest payload: {err}",
                                         self.label

@@ -77,7 +77,7 @@ strong {
 }
 
 .native-leaf.masked-native-leaf {
-    /* See occlusion-context.ts: Blink/WebKit can cull masked native descendants
+    /* See render-layer-context.ts: Blink/WebKit can cull masked native descendants
        too aggressively when paint containment stays enabled. */
     contain: layout style;
     will-change: auto;

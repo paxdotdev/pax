@@ -30,3 +30,4 @@ Cargo.lock
 pax-chassis-web/interface/
 pax-chassis-web/interface/
 .idea
+.codex-artifacts

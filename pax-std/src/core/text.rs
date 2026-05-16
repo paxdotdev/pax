@@ -102,7 +102,7 @@ impl InstanceNode for TextInstance {
             let bez_path = rect.to_path(0.1);
             let transformed_bez_path = Into::<kurbo::Affine>::into(tab.transform) * bez_path;
             _rc.fill(
-                _expanded_node.occlusion.get().occlusion_layer_id,
+                _expanded_node.occlusion.get().render_layer_id,
                 transformed_bez_path,
                 &Fill::Solid(Color::rgba(0.into(), 255.into(), 0.into(), 100.into())),
             );
@@ -119,7 +119,7 @@ impl InstanceNode for TextInstance {
         context.enqueue_native_message(pax_message::NativeMessage::TextCreate(AnyCreatePatch {
             id,
             parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
-            occlusion_layer_id: 0,
+            render_layer_id: 0,
         }));
 
         // send update message when relevant properties change
@@ -272,6 +272,11 @@ impl InstanceNode for TextInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
+    }
+
+    fn property_requires_occlusion_recompute(&self, _property_name: &str) -> bool {
+        // Native text occludes by its frame; content/style updates are native patches.
+        false
     }
 
     fn handle_native_interrupt(

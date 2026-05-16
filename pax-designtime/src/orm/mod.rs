@@ -159,6 +159,19 @@ impl PaxManifestORM {
         self.insert_reload(ReloadType::Tree);
     }
 
+    pub fn set_initial_server_manifest(&mut self, manifest: PaxManifest) {
+        if !self.manifest_loaded_from_server.get()
+            && self.manifest_version.get() == 0
+            && self.reload_queue.is_empty()
+        {
+            self.manifest = manifest;
+            self.manifest_loaded_from_server.set(true);
+            return;
+        }
+
+        self.set_manifest(manifest);
+    }
+
     pub fn get_manifest_version(&self) -> Property<usize> {
         self.manifest_version.clone()
     }

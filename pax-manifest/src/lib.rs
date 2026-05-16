@@ -1676,10 +1676,8 @@ impl ComponentTemplate {
 
     pub fn merge_with_settings(&mut self, settings_block: &Option<Vec<SettingsBlockElement>>) {
         for node in self.get_nodes_mut() {
-            node.settings = PaxManifest::merge_inline_settings_with_settings_block(
-                node,
-                settings_block,
-            );
+            node.settings =
+                PaxManifest::merge_inline_settings_with_settings_block(node, settings_block);
             node.normalize_selector_info();
         }
     }

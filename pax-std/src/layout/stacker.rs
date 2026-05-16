@@ -168,6 +168,10 @@ impl InstanceNode for StackerInstance {
         });
     }
 
+    fn requires_non_reactive_update(&self, _expanded_node: &ExpandedNode) -> bool {
+        true
+    }
+
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
         expanded_node.compute_flattened_projected_children();
     }

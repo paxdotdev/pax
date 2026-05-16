@@ -96,7 +96,7 @@ impl InstanceNode for ImageInstance {
         let tab_changed = Property::computed(
             move || {
                 cloned_context.mark_canvas_node_dirty(expanded_node_id);
-                cloned_context.set_canvas_dirty(occlusion.get().occlusion_layer_id);
+                cloned_context.set_canvas_dirty(occlusion.get().render_layer_id);
             },
             &deps,
         );
@@ -135,7 +135,7 @@ impl InstanceNode for ImageInstance {
                     }
                 });
                 cloned_context.mark_canvas_node_dirty(expanded_node.id);
-                cloned_context.set_canvas_dirty(expanded_node.occlusion.get().occlusion_layer_id)
+                cloned_context.set_canvas_dirty(expanded_node.occlusion.get().render_layer_id)
             },
             &deps,
         );
@@ -151,8 +151,6 @@ impl InstanceNode for ImageInstance {
                 &deps,
             ))
     }
-
-    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {}
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {
         let id = expanded_node.id.clone();

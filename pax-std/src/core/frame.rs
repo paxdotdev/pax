@@ -17,7 +17,7 @@ fn mark_canvas_descendants_dirty(expanded_node: &ExpandedNode, context: &Rc<Runt
     for child in expanded_node.children.get().iter() {
         if borrow!(child.instance_node).base().flags().layer == Layer::Canvas {
             context.mark_canvas_node_dirty(child.id);
-            context.set_canvas_dirty(child.occlusion.get().occlusion_layer_id);
+            context.set_canvas_dirty(child.occlusion.get().render_layer_id);
         }
         mark_canvas_descendants_dirty(child, context);
     }
@@ -83,7 +83,14 @@ impl InstanceNode for FrameInstance {
         })
     }
 
+    fn requires_non_reactive_update(&self, expanded_node: &ExpandedNode) -> bool {
+        !expanded_node.content_measurement_bound.get()
+    }
+
     fn update(self: Rc<Self>, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
+        if expanded_node.content_measurement_bound.get() {
+            return;
+        }
         let ctx = expanded_node.get_node_context(context);
         let (autosize, autosize_x, autosize_y) =
             expanded_node.with_properties_unwrapped(|frame: &mut Frame| {
@@ -127,7 +134,7 @@ impl InstanceNode for FrameInstance {
         let transform = t_and_b.transform;
         let (width, height) = t_and_b.bounds;
 
-        let max_radius = 0.5 * width.min(height);
+        let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
         let radius = border_radius.clamp(0.0, max_radius);
         let rect = RoundedRect::new(0.0, 0.0, width, height, radius);
         let bez_path = rect.to_path(0.1);
@@ -141,10 +148,10 @@ impl InstanceNode for FrameInstance {
         rtc: &Rc<RuntimeContext>,
         rcs: &mut dyn RenderContext,
     ) {
-        // Only clip the node's own occlusion layer; other layers can be hosted in different
+        // Only clip the node's own render layer; other layers can be hosted in different
         // DOM coordinate spaces (browser-owned scroller islands), so cross-layer clipping
         // can misalign and cull content.
-        let layer_id = expanded_node.occlusion.get().occlusion_layer_id;
+        let layer_id = expanded_node.occlusion.get().render_layer_id;
 
         if !rtc.is_canvas_dirty(&layer_id) {
             return;
@@ -179,7 +186,7 @@ impl InstanceNode for FrameInstance {
             return;
         }
 
-        let layer_id = expanded_node.occlusion.get().occlusion_layer_id;
+        let layer_id = expanded_node.occlusion.get().render_layer_id;
 
         if !rtc.is_canvas_dirty(&layer_id) {
             return;
@@ -198,7 +205,7 @@ impl InstanceNode for FrameInstance {
         context.enqueue_native_message(pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
             id: id.to_u32(),
             parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
-            occlusion_layer_id: 0,
+            render_layer_id: 0,
         }));
 
         // below is the same as default impl for adding children in instance_node
@@ -249,7 +256,7 @@ impl InstanceNode for FrameInstance {
                         let computed_tab = expanded_node.transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
                         let border_radius = properties.border_radius.get();
-                        let max_radius = 0.5 * width.min(height);
+                        let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
                         let clamped_radius = border_radius.clamp(0.0, max_radius);
                         let clip_path = if properties._clip_content.get()
                             && clamped_radius > f64::EPSILON

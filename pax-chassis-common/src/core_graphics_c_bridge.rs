@@ -13,9 +13,9 @@ use std::rc::Rc;
 use core_graphics::context::CGContext;
 use flexbuffers::DeserializationError;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
-use pax_gpu::render_backend::{RenderBackend, RenderConfig};
+use pax_gpu::render_backend::{RenderBackend, RenderConfig, SharedGpuContext};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
-use pax_gpu::{Transform2D, WgpuRenderer};
+use pax_gpu::{Transform2D, WgpuRenderer, NATIVE_VECTOR_RESOURCE_CACHE_BYTES};
 use pax_runtime::api::math::Point2;
 use pax_runtime::api::{
     Accel, ButtonClick, Click, Event, Focus, Gyro, ModifierKey, MouseButton, MouseEventArgs,
@@ -362,6 +362,7 @@ impl AppleRenderContext {
                 }
 
                 let mut renderers = Vec::with_capacity(registrations.len());
+                let mut shared_context: Option<SharedGpuContext> = None;
                 for surface in registrations {
                     if surface.layer_ptr.is_null() {
                         log::warn!(
@@ -371,8 +372,8 @@ impl AppleRenderContext {
                         );
                         return None;
                     }
-                    let backend = match unsafe {
-                        RenderBackend::to_core_animation_layer(
+                    let (backend, context) = match unsafe {
+                        RenderBackend::to_core_animation_layer_with_context(
                             surface.layer_ptr,
                             RenderConfig::new(
                                 false,
@@ -380,6 +381,7 @@ impl AppleRenderContext {
                                 surface.surface_height,
                                 surface.dpr,
                             ),
+                            shared_context.clone(),
                         )
                     }
                     .await
@@ -395,8 +397,11 @@ impl AppleRenderContext {
                             return None;
                         }
                     };
+                    shared_context.get_or_insert(context);
 
                     let mut renderer = WgpuRenderer::new(backend);
+                    renderer
+                        .set_vector_resource_cache_max_bytes(NATIVE_VECTOR_RESOURCE_CACHE_BYTES);
                     renderer.set_surface_transform(Transform2D::from_array([
                         1.0,
                         0.0,
@@ -471,6 +476,9 @@ pub fn native_scroller_tiling_policy() -> ScrollerTilingPolicy {
     // Prefer fewer/larger surfaces and a tight warm band to reduce replay work on constrained
     // mobile GPUs.
     policy.target_tile_backing_dimension = 4096.0;
+    policy.max_tile_backing_width = Some(4096.0);
+    policy.max_tile_backing_height = Some(4096.0);
+    policy.max_tile_backing_area = Some(4096.0 * 4096.0);
     policy.prewarm_viewport_pad_x_multiplier = 0.5;
     policy.prewarm_viewport_pad_y_multiplier = 0.5;
     policy.prewarm_viewport_pad_min_x = 384.0;
@@ -487,6 +495,9 @@ pub fn native_scroller_tiling_policy() -> ScrollerTilingPolicy {
     // visible before replay catches up, even on slow scrolls. Keep tiles large enough to cover
     // common full-width windows with a single column.
     policy.target_tile_backing_dimension = 4096.0;
+    policy.max_tile_backing_width = Some(4096.0);
+    policy.max_tile_backing_height = Some(4096.0);
+    policy.max_tile_backing_area = Some(4096.0 * 4096.0);
     policy.prewarm_viewport_pad_x_multiplier = 0.5;
     policy.prewarm_viewport_pad_y_multiplier = 0.5;
     policy.prewarm_viewport_pad_min_x = 384.0;
@@ -871,6 +882,13 @@ pub extern "C" fn pax_interrupt(
             if let Some(node) = node {
                 let presentation_scroll_x = args.presentation_scroll_x.unwrap_or(args.scroll_x);
                 let presentation_scroll_y = args.presentation_scroll_y.unwrap_or(args.scroll_y);
+                engine.runtime_context.update_scroller_surface_scroll(
+                    args.id,
+                    args.scroll_x,
+                    args.scroll_y,
+                    presentation_scroll_x,
+                    presentation_scroll_y,
+                );
                 let previous = NATIVE_SCROLLER_POSITIONS.with(|positions| {
                     positions
                         .borrow_mut()
@@ -1251,11 +1269,17 @@ pub extern "C" fn pax_render(engine_container: *mut PaxEngineContainer) {
                 .runtime_context
                 .mark_canvas_nodes_on_layer_dirty(layer_id);
         }
-        for layer_id in renderer.take_replay_canvas_layers() {
-            engine.runtime_context.set_canvas_dirty(layer_id);
-            engine
-                .runtime_context
-                .mark_canvas_nodes_on_layer_dirty(layer_id);
+        for update in renderer.take_replay_canvas_layer_updates() {
+            engine.runtime_context.set_canvas_dirty(update.layer);
+            if let Some(node_ids) = update.node_ids {
+                engine
+                    .runtime_context
+                    .mark_canvas_nodes_on_layer_dirty_by_id(update.layer, &node_ids);
+            } else {
+                engine
+                    .runtime_context
+                    .mark_canvas_nodes_on_layer_dirty(update.layer);
+            }
         }
         engine.render(renderer as &mut dyn RenderContext);
     }

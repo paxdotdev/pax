@@ -60,7 +60,7 @@ impl InstanceNode for NativeImageInstance {
             AnyCreatePatch {
                 id,
                 parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
-                occlusion_layer_id: 0,
+                render_layer_id: 0,
             },
         ));
         let weak_self_ref = Rc::downgrade(&expanded_node);
@@ -157,6 +157,10 @@ impl InstanceNode for NativeImageInstance {
 
     fn base(&self) -> &BaseInstance {
         &self.base
+    }
+
+    fn property_requires_occlusion_recompute(&self, _property_name: &str) -> bool {
+        false
     }
 
     fn resolve_debug(

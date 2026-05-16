@@ -77,13 +77,11 @@ impl InstanceNode for RectangleInstance {
                 move || {
                     cloned_context.mark_canvas_node_dirty(cloned_expanded_node.id);
                     cloned_context
-                        .set_canvas_dirty(cloned_expanded_node.occlusion.get().occlusion_layer_id)
+                        .set_canvas_dirty(cloned_expanded_node.occlusion.get().render_layer_id)
                 },
                 deps,
             ));
     }
-
-    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {}
 
     fn resolve_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {

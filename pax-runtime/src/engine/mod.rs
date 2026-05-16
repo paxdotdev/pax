@@ -4,7 +4,7 @@ use crate::{
     TransformAndBounds, INTERNAL_ROUTE_LOCATION_SYMBOL,
 };
 use_RefCell!();
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -41,6 +41,11 @@ use self::node_interface::NodeLocal;
 
 fn saturating_u128_to_u64(value: u128) -> u64 {
     value.min(u64::MAX as u128) as u64
+}
+
+struct FilteredRenderPlan {
+    dirty_nodes: HashSet<ExpandedNodeIdentifier>,
+    render_path_nodes: HashSet<ExpandedNodeIdentifier>,
 }
 
 #[cfg(feature = "designtime")]
@@ -453,10 +458,13 @@ impl PaxEngine {
         //
         if let Some(root_expanded_node) = &self.root_expanded_node {
             root_expanded_node.recurse_update(&self.runtime_context);
-            root_expanded_node.recurse_sync_import_settings(&self.runtime_context);
+            if self.runtime_context.has_import_settings_nodes() {
+                root_expanded_node.recurse_sync_import_settings(&self.runtime_context);
+            }
         }
 
         let ctx = &self.runtime_context;
+        ctx.drain_node_effects();
         self.run_lifecycle_handlers(TICK_HANDLERS, ctx.tick_handler_nodes());
         ctx.drain_node_effects();
         self.run_lifecycle_handlers(PRE_RENDER_HANDLERS, ctx.pre_render_handler_nodes());
@@ -488,6 +496,45 @@ impl PaxEngine {
         }
     }
 
+    fn build_filtered_render_plan(
+        &self,
+        root: &Rc<ExpandedNode>,
+        dirty_node_ids: &[ExpandedNodeIdentifier],
+    ) -> Result<FilteredRenderPlan, &'static str> {
+        let dirty_nodes: HashSet<_> = dirty_node_ids.iter().copied().collect();
+        let mut render_path_nodes = HashSet::new();
+
+        for dirty_node_id in &dirty_nodes {
+            let mut node = self
+                .runtime_context
+                .get_expanded_node_by_eid(*dirty_node_id)
+                .ok_or("missing_dirty_node")?;
+            let mut local_path = HashSet::new();
+            loop {
+                if !local_path.insert(node.id) {
+                    return Err("render_parent_cycle");
+                }
+                if node.is_unclippable() {
+                    return Err("unclippable_path");
+                }
+                render_path_nodes.insert(node.id);
+                if node.id == root.id {
+                    break;
+                }
+                node = node.render_parent_node().ok_or("missing_render_parent")?;
+            }
+        }
+
+        if !render_path_nodes.contains(&root.id) {
+            return Err("missing_root_path");
+        }
+
+        Ok(FilteredRenderPlan {
+            dirty_nodes,
+            render_path_nodes,
+        })
+    }
+
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
         self.update_layer_count(rcs);
 
@@ -500,7 +547,8 @@ impl PaxEngine {
         dirty_layers.extend(removals.iter().map(|(layer, _)| *layer));
         dirty_layers.sort_unstable();
         dirty_layers.dedup();
-        let has_dirty_nodes = self.runtime_context.has_dirty_canvas_nodes();
+        let dirty_node_ids = self.runtime_context.dirty_canvas_node_ids();
+        let has_dirty_nodes = !dirty_node_ids.is_empty();
         let has_node_removals = !removals.is_empty();
         if !has_dirty_nodes && !has_node_removals {
             for layer in &dirty_layers {
@@ -519,8 +567,39 @@ impl PaxEngine {
 
         // This is pretty useful during debugging - left it here since I use it often. /Sam
         // crate::api::log(&format!("tree: {:#?}", self.root_node));
-        if let Some(root_expanded_node) = &self.root_expanded_node {
-            root_expanded_node.recurse_render_queue(&self.runtime_context, rcs);
+        if has_dirty_nodes {
+            if let Some(root_expanded_node) = &self.root_expanded_node {
+                match self.build_filtered_render_plan(root_expanded_node, &dirty_node_ids) {
+                    Ok(plan) => {
+                        let mut stats = expanded_node::FilteredRenderStats::default();
+                        root_expanded_node.recurse_render_filtered(
+                            &self.runtime_context,
+                            rcs,
+                            &plan.render_path_nodes,
+                            &plan.dirty_nodes,
+                            &mut stats,
+                        );
+                        #[cfg(debug_assertions)]
+                        log::trace!(
+                            "[pax-render-filter] dirty_nodes={} path_nodes={} visited_path_nodes={} dirty_nodes_rendered={} skipped_subtrees={}",
+                            plan.dirty_nodes.len(),
+                            plan.render_path_nodes.len(),
+                            stats.path_nodes_visited,
+                            stats.dirty_nodes_rendered,
+                            stats.skipped_subtrees,
+                        );
+                    }
+                    Err(reason) => {
+                        #[cfg(debug_assertions)]
+                        log::trace!(
+                            "[pax-render-filter] fallback={} dirty_nodes={}",
+                            reason,
+                            dirty_node_ids.len(),
+                        );
+                        root_expanded_node.recurse_render_queue(&self.runtime_context, rcs);
+                    }
+                }
+            }
         }
         self.runtime_context.recurse_flush_queued_renders(rcs);
 
@@ -541,6 +620,14 @@ impl PaxEngine {
 
     /// Called by chassis when viewport size changes, e.g. with native window resizes
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {
+        const VIEWPORT_SIZE_EPSILON: f64 = 0.001;
+        let current_viewport_size = self.runtime_context.globals().viewport.get().bounds;
+        if (current_viewport_size.0 - new_viewport_size.0).abs() <= VIEWPORT_SIZE_EPSILON
+            && (current_viewport_size.1 - new_viewport_size.1).abs() <= VIEWPORT_SIZE_EPSILON
+        {
+            return;
+        }
+
         self.runtime_context.edit_globals(|globals| {
             globals
                 .viewport
@@ -641,32 +728,32 @@ impl PaxEngine {
     }
 
     pub fn global_dispatch_gyro(&self, args: Gyro) -> bool {
-        let Some(root_expanded_node) = &self.root_expanded_node else {
-            return false;
-        };
         let mut prevent_default = false;
-        root_expanded_node.recurse_visit_postorder(&mut |expanded_node| {
+        for node_id in self.runtime_context.gyro_handler_nodes() {
+            let Some(expanded_node) = self.runtime_context.get_expanded_node_by_eid(node_id) else {
+                continue;
+            };
             prevent_default |= expanded_node.dispatch_gyro(
                 Event::new(args.clone()),
                 &self.runtime_context.globals(),
                 &self.runtime_context,
             );
-        });
+        }
         prevent_default
     }
 
     pub fn global_dispatch_accel(&self, args: Accel) -> bool {
-        let Some(root_expanded_node) = &self.root_expanded_node else {
-            return false;
-        };
         let mut prevent_default = false;
-        root_expanded_node.recurse_visit_postorder(&mut |expanded_node| {
+        for node_id in self.runtime_context.accel_handler_nodes() {
+            let Some(expanded_node) = self.runtime_context.get_expanded_node_by_eid(node_id) else {
+                continue;
+            };
             prevent_default |= expanded_node.dispatch_accel(
                 Event::new(args.clone()),
                 &self.runtime_context.globals(),
                 &self.runtime_context,
             );
-        });
+        }
         prevent_default
     }
 }
@@ -674,9 +761,48 @@ impl PaxEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::constants::{ACCEL_HANDLERS, GYRO_HANDLERS, PRE_RENDER_HANDLERS, TICK_HANDLERS};
     use crate::{InstanceNode, InstantiationArgs};
     use pax_runtime_api::pax_value::{PaxAny, PaxValue};
     use std::cell::RefCell;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static TICK_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static PRE_RENDER_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static GYRO_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static ACCEL_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+    fn count_tick_handler(
+        _properties: Rc<RefCell<PaxAny>>,
+        _ctx: &NodeContext,
+        _event: Option<PaxAny>,
+    ) {
+        TICK_CALLS.fetch_add(1, Ordering::SeqCst);
+    }
+
+    fn count_pre_render_handler(
+        _properties: Rc<RefCell<PaxAny>>,
+        _ctx: &NodeContext,
+        _event: Option<PaxAny>,
+    ) {
+        PRE_RENDER_CALLS.fetch_add(1, Ordering::SeqCst);
+    }
+
+    fn count_gyro_handler(
+        _properties: Rc<RefCell<PaxAny>>,
+        _ctx: &NodeContext,
+        _event: Option<PaxAny>,
+    ) {
+        GYRO_CALLS.fetch_add(1, Ordering::SeqCst);
+    }
+
+    fn count_accel_handler(
+        _properties: Rc<RefCell<PaxAny>>,
+        _ctx: &NodeContext,
+        _event: Option<PaxAny>,
+    ) {
+        ACCEL_CALLS.fetch_add(1, Ordering::SeqCst);
+    }
 
     fn empty_component() -> Rc<ComponentInstance> {
         <ComponentInstance as InstanceNode>::instantiate(InstantiationArgs {
@@ -685,6 +811,62 @@ mod tests {
                 Some(Rc::new(RefCell::new(PaxAny::Builtin(PaxValue::default()))))
             })),
             handler_registry: None,
+            children: None,
+            component_template: None,
+            component_settings: None,
+            template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
+            transition_config: Default::default(),
+            properties_scope: crate::PropertiesScopeInit::None,
+        })
+    }
+
+    fn component_with_lifecycle_handlers() -> Rc<ComponentInstance> {
+        let mut registry = HandlerRegistry::default();
+        registry.handlers.insert(
+            TICK_HANDLERS.to_string(),
+            vec![Handler::new_inline_handler(count_tick_handler)],
+        );
+        registry.handlers.insert(
+            PRE_RENDER_HANDLERS.to_string(),
+            vec![Handler::new_inline_handler(count_pre_render_handler)],
+        );
+
+        <ComponentInstance as InstanceNode>::instantiate(InstantiationArgs {
+            prototypical_common_properties: crate::CommonPropertiesInit::Default,
+            prototypical_properties: crate::PropertiesInit::Factory(Box::new(|_, _| {
+                Some(Rc::new(RefCell::new(PaxAny::Builtin(PaxValue::default()))))
+            })),
+            handler_registry: Some(Rc::new(RefCell::new(registry))),
+            children: None,
+            component_template: None,
+            component_settings: None,
+            template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
+            transition_config: Default::default(),
+            properties_scope: crate::PropertiesScopeInit::None,
+        })
+    }
+
+    fn component_with_sensor_handlers() -> Rc<ComponentInstance> {
+        let mut registry = HandlerRegistry::default();
+        registry.handlers.insert(
+            GYRO_HANDLERS.to_string(),
+            vec![Handler::new_inline_handler(count_gyro_handler)],
+        );
+        registry.handlers.insert(
+            ACCEL_HANDLERS.to_string(),
+            vec![Handler::new_inline_handler(count_accel_handler)],
+        );
+
+        <ComponentInstance as InstanceNode>::instantiate(InstantiationArgs {
+            prototypical_common_properties: crate::CommonPropertiesInit::Default,
+            prototypical_properties: crate::PropertiesInit::Factory(Box::new(|_, _| {
+                Some(Rc::new(RefCell::new(PaxAny::Builtin(PaxValue::default()))))
+            })),
+            handler_registry: Some(Rc::new(RefCell::new(registry))),
             children: None,
             component_template: None,
             component_settings: None,
@@ -795,5 +977,46 @@ mod tests {
                 .collect(),
             )
         );
+    }
+
+    #[test]
+    fn lifecycle_handlers_run_once_per_tick() {
+        TICK_CALLS.store(0, Ordering::SeqCst);
+        PRE_RENDER_CALLS.store(0, Ordering::SeqCst);
+        let mut engine = PaxEngine::new_empty(
+            (320.0, 240.0),
+            Platform::Web,
+            OS::Mac,
+            Box::new(|| 0),
+            layer_tiling::ScrollerTilingPolicy::default(),
+        );
+
+        engine.mount_root_component(component_with_lifecycle_handlers());
+        let _ = engine.tick();
+
+        assert_eq!(TICK_CALLS.load(Ordering::SeqCst), 1);
+        assert_eq!(PRE_RENDER_CALLS.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn sensor_handlers_dispatch_through_registered_nodes() {
+        GYRO_CALLS.store(0, Ordering::SeqCst);
+        ACCEL_CALLS.store(0, Ordering::SeqCst);
+        let mut engine = PaxEngine::new_empty(
+            (320.0, 240.0),
+            Platform::Web,
+            OS::Mac,
+            Box::new(|| 0),
+            layer_tiling::ScrollerTilingPolicy::default(),
+        );
+
+        assert!(!engine.global_dispatch_gyro(Gyro::default()));
+        assert!(!engine.global_dispatch_accel(Accel::default()));
+        engine.mount_root_component(component_with_sensor_handlers());
+        assert!(!engine.global_dispatch_gyro(Gyro::default()));
+        assert!(!engine.global_dispatch_accel(Accel::default()));
+
+        assert_eq!(GYRO_CALLS.load(Ordering::SeqCst), 1);
+        assert_eq!(ACCEL_CALLS.load(Ordering::SeqCst), 1);
     }
 }

@@ -230,7 +230,13 @@ pub trait InstanceNode {
         expanded_node: Option<&ExpandedNode>,
     ) -> std::fmt::Result;
 
-    /// Updates the expanded node, recomputing its properties and possibly updating its children
+    /// Whether this instance has per-frame update work that cannot be driven entirely through
+    /// reactive property effects.
+    fn requires_non_reactive_update(&self, _expanded_node: &ExpandedNode) -> bool {
+        false
+    }
+
+    /// Updates the expanded node, recomputing its properties and possibly updating its children.
     fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {}
 
     /// Second lifecycle method during each render loop, occurs after
@@ -338,6 +344,17 @@ pub trait InstanceNode {
     /// Used by scroller-like primitives to allocate a browser-owned presentation layer.
     fn scrolls_content(&self, _expanded_node: &ExpandedNode) -> bool {
         false
+    }
+
+    /// Returns whether changes to a named typed property require recomputing the full
+    /// occlusion/native-mask/layer-partition pass.
+    ///
+    /// Common geometry, transform, opacity, and child-list dependencies are tracked separately
+    /// for every node. Override this for typed properties that only affect local content or
+    /// native patches and cannot change occlusion coverage, clipping, z-order, or layer
+    /// ownership.
+    fn property_requires_occlusion_recompute(&self, _property_name: &str) -> bool {
+        true
     }
 
     /// Returns the current browser-owned scroll offset in local scroller coordinates.

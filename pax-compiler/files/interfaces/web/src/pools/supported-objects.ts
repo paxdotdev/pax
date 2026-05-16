@@ -7,7 +7,7 @@ import { ImageLoadPatch } from "../classes/messages/image-load-patch";
 import { CANVAS_CLASS } from "../utils/constants";
 import { ObjectManager } from "./object-manager";
 import { Layer } from "../classes/layer";
-import { OcclusionLayerManager } from "../classes/occlusion-context";
+import { RenderLayerManager } from "../classes/render-layer-context";
 import { Font, TextStyle } from "../classes/text";
 import { CheckboxUpdatePatch } from "../classes/messages/checkbox-update-patch";
 import { ButtonUpdatePatch } from "../classes/messages/button-update-patch";
@@ -54,7 +54,7 @@ export const SLIDER_UPDATE_PATCH = "Slider Update Patch";
 export const RADIO_LIST_UPDATE_PATCH = "Radio List Update Patch";
 
 export const LAYER = "LAYER";
-export const OCCLUSION_CONTEXT = "Occlusion Context";
+export const RENDER_LAYER_MANAGER = "Render Layer Manager";
 
 export const FONT = "Font";
 
@@ -248,9 +248,9 @@ export let SUPPORTED_OBJECTS = [{
     cleanUp: (layer: Layer) => { layer.cleanUp() },
 },
 {
-    name: OCCLUSION_CONTEXT,
-    factory: (objectManager: ObjectManager) => new OcclusionLayerManager(objectManager),
-    cleanUp: (oc: OcclusionLayerManager) => { oc.cleanUp() },
+    name: RENDER_LAYER_MANAGER,
+    factory: (objectManager: ObjectManager) => new RenderLayerManager(objectManager),
+    cleanUp: (oc: RenderLayerManager) => { oc.cleanUp() },
 },
 {
     name: FONT,

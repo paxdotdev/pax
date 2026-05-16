@@ -666,8 +666,6 @@ impl InstanceNode for RepeatInstance {
         &self.base
     }
 
-    fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {}
-
     fn handle_mount(
         self: Rc<Self>,
         expanded_node: &Rc<ExpandedNode>,

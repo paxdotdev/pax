@@ -657,6 +657,7 @@ public final class NativeScrollerHostRegistry {
     public struct Hosts {
         public let canvasHost: HostView
         public let contentHost: HostView
+        fileprivate let scrollUpdater: ((CGPoint) -> Void)?
     }
 
     public static let shared = NativeScrollerHostRegistry()
@@ -664,8 +665,17 @@ public final class NativeScrollerHostRegistry {
 
     private init() {}
 
-    public func register(id: PaxNodeId, canvasHost: HostView, contentHost: HostView) {
-        hosts[id] = Hosts(canvasHost: canvasHost, contentHost: contentHost)
+    public func register(
+        id: PaxNodeId,
+        canvasHost: HostView,
+        contentHost: HostView,
+        scrollUpdater: ((CGPoint) -> Void)? = nil
+    ) {
+        hosts[id] = Hosts(
+            canvasHost: canvasHost,
+            contentHost: contentHost,
+            scrollUpdater: scrollUpdater
+        )
     }
 
     public func unregister(id: PaxNodeId) {
@@ -678,6 +688,15 @@ public final class NativeScrollerHostRegistry {
 
     public func contentHost(for id: PaxNodeId) -> HostView? {
         hosts[id]?.contentHost
+    }
+
+    @discardableResult
+    public func updateScrollPosition(id: PaxNodeId, position: CGPoint) -> Bool {
+        guard let scrollUpdater = hosts[id]?.scrollUpdater else {
+            return false
+        }
+        scrollUpdater(position)
+        return true
     }
 
     public func reset() {
@@ -1598,7 +1617,10 @@ public struct NativeRenderingLayer: View {
             NativeScrollerHostRegistry.shared.register(
                 id: scrollerId,
                 canvasHost: canvasHostViewInternal,
-                contentHost: contentHostViewInternal
+                contentHost: contentHostViewInternal,
+                scrollUpdater: { [weak self] position in
+                    self?.updateScrollPosition(position)
+                }
             )
         }
 
