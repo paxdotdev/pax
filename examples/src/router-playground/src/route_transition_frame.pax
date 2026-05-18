@@ -1,4 +1,24 @@
-<Group width=100% autosize=true autosize_x=false autosize_y=true>
+<Group
+    width=100%
+    autosize=true
+    autosize_x=false
+    autosize_y=true
+    @in=@timeline {
+        duration: 72,
+        rotate: {
+            0: {$base - 3.5deg}, Hold,
+            12: {$base - 3.5deg}, OutQuad,
+            72: {$base},
+        },
+    }
+    @out=@timeline {
+        duration: 18,
+        rotate: {
+            0: {$base}, OutQuad,
+            18: {$base - 1deg},
+        },
+    }
+>
     slot(0)
 </Group>
 

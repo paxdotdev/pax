@@ -44,8 +44,13 @@ pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_")*}
 event_id = {"@" ~ identifier}
 
 //Describes an attribute k/v pair like `id="some_element"` or `@click=self.handle_click`. Supports expressions.
-attribute_key_value_pair = {double_binding | attribute_event_binding | (identifier ~ "=" ~ any_template_value) }
+attribute_key_value_pair = {double_binding | attribute_transition_binding | attribute_event_binding | (identifier ~ "=" ~ any_template_value) }
+attribute_transition_binding = {transition_id ~ "=" ~ transition_binding_value}
 attribute_event_binding = {event_id ~ "=" ~ literal_function}
+transition_id = {"@" ~ ("in" | "out")}
+transition_binding_value = {transition_inline_timeline_value | literal_function}
+transition_inline_timeline_value = { "@" ~ "timeline" ~ transition_inline_timeline_body }
+transition_inline_timeline_body = { "{" ~ (timeline_block_setting | timeline_property_key_value_pair | comment )* ~ "}" }
 
 double_binding = {identifier ~ "=" ~ "bind" ~ ":" ~ literal_function}
 

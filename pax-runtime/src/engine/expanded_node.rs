@@ -33,7 +33,9 @@ use pax_manifest::cartridge_generation::{
     TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT, TRANSITION_PHASE_IDLE, TRANSITION_PHASE_SYMBOL,
     TRANSITION_PLAYHEAD_MILLIS_SYMBOL, TRANSITION_PLAYHEAD_SYMBOL,
 };
-use pax_manifest::{SelectorExpr, SettingsBlockElement, TypeId, ValueDefinition};
+use pax_manifest::{
+    SelectorExpr, SettingsBlockElement, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
+};
 
 use crate::{
     add_symmetric_padding_to_content_layout_hull, apply_container_frame, apply_padding_frame,
@@ -745,11 +747,41 @@ impl ExpandedNode {
         children.iter().any(|child| Rc::ptr_eq(child, target))
     }
 
-    fn has_exit_transition(&self) -> bool {
+    fn template_node_identifier(&self) -> Option<UniqueTemplateNodeIdentifier> {
         borrow!(self.instance_node)
             .base()
-            .transition_config()
-            .has_exit
+            .template_node_identifier
+            .clone()
+    }
+
+    fn transition_source_matches(
+        sources: &[UniqueTemplateNodeIdentifier],
+        own_identifier: Option<&UniqueTemplateNodeIdentifier>,
+        requested_source: Option<&UniqueTemplateNodeIdentifier>,
+    ) -> bool {
+        if let Some(source) = requested_source {
+            return sources.contains(source);
+        }
+        if sources.is_empty() {
+            return true;
+        }
+        own_identifier
+            .map(|identifier| sources.contains(identifier))
+            .unwrap_or(false)
+    }
+
+    fn has_exit_transition_for_source(
+        &self,
+        requested_source: Option<&UniqueTemplateNodeIdentifier>,
+    ) -> bool {
+        let instance_node = borrow!(self.instance_node);
+        let transition_config = instance_node.base().transition_config();
+        transition_config.has_exit
+            && Self::transition_source_matches(
+                &transition_config.exit_sources,
+                instance_node.base().template_node_identifier.as_ref(),
+                requested_source,
+            )
     }
 
     fn mark_non_reactive_update_subtree_dirty(&self) {
@@ -761,24 +793,47 @@ impl ExpandedNode {
         }
     }
 
-    fn start_self_enter_transition(&self, context: &Rc<RuntimeContext>) {
-        if !borrow!(self.instance_node)
-            .base()
-            .transition_config()
-            .has_enter
+    fn start_self_enter_transition_for_source(
+        &self,
+        context: &Rc<RuntimeContext>,
+        requested_source: Option<&UniqueTemplateNodeIdentifier>,
+    ) -> bool {
+        let instance_node = borrow!(self.instance_node);
+        let transition_config = instance_node.base().transition_config();
+        if !transition_config.has_enter
+            || !Self::transition_source_matches(
+                &transition_config.enter_sources,
+                instance_node.base().template_node_identifier.as_ref(),
+                requested_source,
+            )
         {
-            return;
+            return false;
         }
+        drop(instance_node);
         self.transition_phase.set(TRANSITION_PHASE_ENTER);
         self.transition_origin_frame
             .set(context.globals().frames_elapsed.get());
         self.transition_origin_millis
             .set(context.globals().elapsed_millis.get());
         self.exit_started_millis.set(None);
+        true
     }
 
-    fn start_self_exit_transition(&self, context: &Rc<RuntimeContext>) -> bool {
-        if !self.has_exit_transition() {
+    fn start_self_enter_transition(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        let started = self.start_self_enter_transition_for_source(context, None);
+        if started {
+            if let Some(source) = self.template_node_identifier() {
+                self.start_bound_enter_transitions(context, &source);
+            }
+        }
+    }
+
+    fn start_self_exit_transition_for_source(
+        self: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+        requested_source: Option<&UniqueTemplateNodeIdentifier>,
+    ) -> bool {
+        if !self.has_exit_transition_for_source(requested_source) {
             return false;
         }
         self.transition_phase.set(TRANSITION_PHASE_EXIT);
@@ -789,6 +844,119 @@ impl ExpandedNode {
         self.exit_started_millis
             .set(Some((context.globals().get_elapsed_millis)()));
         true
+    }
+
+    fn start_self_exit_transition(self: &Rc<Self>, context: &Rc<RuntimeContext>) -> bool {
+        let started = self.start_self_exit_transition_for_source(context, None);
+        if started {
+            if let Some(source) = self.template_node_identifier() {
+                self.start_bound_exit_transitions(context, &source);
+            }
+        }
+        started
+    }
+
+    fn start_bound_enter_transitions(
+        self: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+        source: &UniqueTemplateNodeIdentifier,
+    ) {
+        if let Some(containing_component) = self.containing_component.upgrade() {
+            containing_component.start_descendant_enter_transitions_for_source(context, source);
+        }
+    }
+
+    fn start_bound_exit_transitions(
+        self: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+        source: &UniqueTemplateNodeIdentifier,
+    ) {
+        if let Some(containing_component) = self.containing_component.upgrade() {
+            containing_component.start_descendant_exit_transitions_for_source(context, source);
+        }
+    }
+
+    fn start_descendant_enter_transitions_for_source(
+        self: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+        source: &UniqueTemplateNodeIdentifier,
+    ) {
+        for child in borrow!(self.mounted_children).iter() {
+            child.start_enter_transition_for_source_recursive(context, source);
+        }
+        for child in borrow!(self.sidecar_children).iter() {
+            child.start_enter_transition_for_source_recursive(context, source);
+        }
+    }
+
+    fn start_descendant_exit_transitions_for_source(
+        self: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+        source: &UniqueTemplateNodeIdentifier,
+    ) {
+        for child in borrow!(self.mounted_children).iter() {
+            child.start_exit_transition_for_source_recursive(context, source);
+        }
+        for child in borrow!(self.sidecar_children).iter() {
+            child.start_exit_transition_for_source_recursive(context, source);
+        }
+    }
+
+    fn start_enter_transition_for_source_recursive(
+        self: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+        source: &UniqueTemplateNodeIdentifier,
+    ) {
+        if self.template_node_identifier().as_ref() != Some(source) {
+            self.start_self_enter_transition_for_source(context, Some(source));
+        }
+        for child in borrow!(self.mounted_children).iter() {
+            child.start_enter_transition_for_source_recursive(context, source);
+        }
+        for child in borrow!(self.sidecar_children).iter() {
+            child.start_enter_transition_for_source_recursive(context, source);
+        }
+    }
+
+    fn trigger_bound_enter_transitions_for_mounted_sources_recursive(
+        self: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+    ) {
+        if let Some(source) = self.template_node_identifier() {
+            let should_trigger = {
+                let instance_node = borrow!(self.instance_node);
+                instance_node
+                    .base()
+                    .transition_config()
+                    .enter_sources
+                    .contains(&source)
+            };
+            if should_trigger {
+                self.start_bound_enter_transitions(context, &source);
+            }
+        }
+        for child in borrow!(self.mounted_children).iter() {
+            child.trigger_bound_enter_transitions_for_mounted_sources_recursive(context);
+        }
+        for child in borrow!(self.sidecar_children).iter() {
+            child.trigger_bound_enter_transitions_for_mounted_sources_recursive(context);
+        }
+    }
+
+    fn start_exit_transition_for_source_recursive(
+        self: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+        source: &UniqueTemplateNodeIdentifier,
+    ) {
+        if self.template_node_identifier().as_ref() != Some(source) {
+            self.start_self_exit_transition_for_source(context, Some(source));
+        }
+        for child in borrow!(self.mounted_children).iter() {
+            child.start_exit_transition_for_source_recursive(context, source);
+        }
+        for child in borrow!(self.sidecar_children).iter() {
+            child.start_exit_transition_for_source_recursive(context, source);
+        }
     }
 
     fn start_exit_transition_tree(self: &Rc<Self>, context: &Rc<RuntimeContext>) -> bool {
@@ -919,6 +1087,7 @@ impl ExpandedNode {
             child.inherit_suspend(self);
             child.bind_to_parent_bounds(context);
         }
+        let mut newly_mounted_children = Vec::new();
         if self.attached.get() > 0 {
             let old_active_children = borrow!(self.active_children).clone();
             for child in old_active_children.iter() {
@@ -944,11 +1113,15 @@ impl ExpandedNode {
             for child in new_children.iter() {
                 if !Self::has_child(&old_active_children, child) {
                     Rc::clone(child).recurse_mount(context);
+                    newly_mounted_children.push(Rc::clone(child));
                 }
             }
         }
         *borrow_mut!(self.active_children) = new_children;
         let mounted = self.sync_mounted_children_from_active_and_exiting();
+        for child in newly_mounted_children {
+            child.trigger_bound_enter_transitions_for_mounted_sources_recursive(context);
+        }
         self.mark_non_reactive_update_subtree_dirty();
         mounted
     }

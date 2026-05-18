@@ -74,7 +74,9 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::matched_tag => vec![Box::new(MatchTagDefaultRule)],
         Rule::inner_nodes => vec![Box::new(InnerNodesDefaultRule)],
         Rule::attribute_key_value_pair => vec![Box::new(AttributeKeyValuePairDefaultRule)],
-        Rule::attribute_event_binding => vec![Box::new(AttributeEventBindingDefaultRule)],
+        Rule::attribute_transition_binding | Rule::attribute_event_binding => {
+            vec![Box::new(AttributeEventBindingDefaultRule)]
+        }
         Rule::double_binding => vec![Box::new(AttributeDoubleBindingDefaultRule)],
         Rule::settings_block_declaration => vec![Box::new(SettingsBlockDeclarationDefaultRule)],
         Rule::settings_event_binding => vec![Box::new(SettingsEventBindingDefaultRule)],
@@ -82,13 +84,17 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::timeline_block_declaration => vec![Box::new(TimelineBlockDeclarationDefaultRule)],
         Rule::timeline_block_setting => vec![Box::new(TimelineBlockSettingDefaultRule)],
         Rule::timeline_selector_block => vec![Box::new(TimelineSelectorBlockDefaultRule)],
-        Rule::timeline_selector_body | Rule::timeline_track => {
+        Rule::transition_inline_timeline_body
+        | Rule::timeline_selector_body
+        | Rule::timeline_track => {
             vec![Box::new(TimelineObjectDefaultRule)]
         }
         Rule::timeline_property_key_value_pair => {
             vec![Box::new(TimelinePropertyKeyValuePairDefaultRule)]
         }
-        Rule::timeline_inline_value => vec![Box::new(TimelineInlineValueDefaultRule)],
+        Rule::transition_inline_timeline_value | Rule::timeline_inline_value => {
+            vec![Box::new(TimelineInlineValueDefaultRule)]
+        }
         Rule::timeline_keyframe => vec![Box::new(TimelineKeyframeDefaultRule)],
         Rule::literal_object | Rule::xo_object => vec![Box::new(ObjectDefaultRule)],
         Rule::settings_key_value_pair => vec![Box::new(SettingsKeyValuePairDefaultRule)],
@@ -132,7 +138,10 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::statement_else_if_branch => vec![Box::new(StatementElseIfBranchDefaultRule)],
         Rule::statement_else_branch => vec![Box::new(StatementElseBranchDefaultRule)],
         Rule::statement_slot => vec![Box::new(StatementSlotDefaultRule)],
-        Rule::any_template_value | Rule::node_inner_content | Rule::settings_value => {
+        Rule::transition_binding_value
+        | Rule::any_template_value
+        | Rule::node_inner_content
+        | Rule::settings_value => {
             vec![Box::new(WrapExpressionRule), Box::new(ForwardRule)]
         }
         Rule::timeline_block_setting_value | Rule::timeline_keyframe_value => {
@@ -169,6 +178,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
 
         Rule::identifier
         | Rule::pascal_identifier
+        | Rule::transition_id
         | Rule::statement_for_predicate_declaration
         | Rule::statement_for_source
         | Rule::comment

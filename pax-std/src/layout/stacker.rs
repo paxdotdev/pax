@@ -12,9 +12,9 @@ use pax_engine::pax_manifest::cartridge_generation::TRANSITION_PHASE_ENTER;
 use pax_engine::*;
 use pax_runtime::api::{borrow, borrow_mut, Layer, NodeContext};
 use pax_runtime::{
-    measured_size_needs_update, resolve_padded_autosize_axis, BaseInstance, Container,
-    ContainerFrame, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, LayoutHull,
-    ReceivedChildrenSource, RuntimeContext,
+    bind_content_measurement_effect, measured_size_needs_update, resolve_padded_autosize_axis,
+    BaseInstance, Container, ContainerFrame, ExpandedNode, InstanceFlags, InstanceNode,
+    InstantiationArgs, LayoutHull, ReceivedChildrenSource, RuntimeContext,
 };
 
 const STACKER_REFLOW_FRAMES: u64 = 12;
@@ -419,11 +419,16 @@ impl Container for Stacker {
             autosize_y.untyped(),
             exit_mode.untyped(),
             reflow_transition.untyped(),
-            ctx.received_children.untyped(),
             ctx.retained_received_children.untyped(),
+            ctx.retained_received_children_changed.untyped(),
         ];
+        let Some(node) = ctx.expanded_node.upgrade() else {
+            return;
+        };
         let update_layout_callback = Rc::clone(&update_layout);
-        ctx.subscribe(&deps, move || update_layout_callback());
+        bind_content_measurement_effect(&node, ctx, "stacker layout", &deps, move |_node, _ctx| {
+            update_layout_callback();
+        });
     }
 }
 

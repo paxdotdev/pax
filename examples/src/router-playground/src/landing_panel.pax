@@ -11,6 +11,21 @@
             autosize=true
             direction=StackerDirection::Vertical
             gutter=10px
+            @in=@timeline {
+                duration: 96,
+                rotate: {
+                    0: {$base - 11deg}, OutQuad,
+                    54: {$base},
+                    100%: {$base},
+                },
+            }
+            @out=@timeline {
+                duration: 18,
+                rotate: {
+                    0: {$base}, OutQuad,
+                    18: {$base + 2deg},
+                },
+            }
         >
             <Text class=page_eyebrow width=100% text="Root route" />
             <Text
@@ -25,7 +40,27 @@
             />
         </Stacker>
 
-        <RouteInspector class=route_stage_1 width=100% title="root scope" />
+        <RouteInspector
+            class=route_stage_1
+            width=100%
+            title="root scope"
+            @in=@timeline {
+                duration: 96,
+                rotate: {
+                    0: {$base + 4.5deg}, Hold,
+                    12: {$base + 4.5deg}, OutQuad,
+                    66: {$base},
+                    100%: {$base},
+                },
+            }
+            @out=@timeline {
+                duration: 18,
+                rotate: {
+                    0: {$base}, OutQuad,
+                    18: {$base - 2deg},
+                },
+            }
+        />
 
         if is_mobile {
             <Stacker
@@ -34,6 +69,22 @@
                 autosize=true
                 direction=StackerDirection::Vertical
                 gutter=14px
+                @in=@timeline {
+                    duration: 96,
+                    rotate: {
+                        0: {$base - 9deg}, Hold,
+                        24: {$base - 9deg}, OutQuad,
+                        84: {$base},
+                        100%: {$base},
+                    },
+                }
+                @out=@timeline {
+                    duration: 18,
+                    rotate: {
+                        0: {$base}, OutQuad,
+                        18: {$base + 1.5deg},
+                    },
+                }
             >
                 <Group width=100% autosize=true autosize_x=false autosize_y=true>
                     <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
@@ -73,6 +124,22 @@
                 direction=StackerDirection::Horizontal
                 gutter=18px
                 sizes=[None, None, None]
+                @in=@timeline {
+                    duration: 96,
+                    rotate: {
+                        0: {$base + 3deg}, Hold,
+                        24: {$base + 3deg}, OutQuad,
+                        84: {$base},
+                        100%: {$base},
+                    },
+                }
+                @out=@timeline {
+                    duration: 18,
+                    rotate: {
+                        0: {$base}, OutQuad,
+                        18: {$base - 1.5deg},
+                    },
+                }
             >
                 <Group width=100% autosize=true autosize_x=false autosize_y=true>
                     <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=12% padding_y=14%>
@@ -104,7 +171,26 @@
             </Stacker>
         }
 
-        <Group class=route_stage_3 width=100% height=16px />
+        <Group
+            class=route_stage_3
+            width=100%
+            height=16px
+            @in=@timeline {
+                duration: 96,
+                rotate: {
+                    0: {$base + 6.5deg}, Hold,
+                    36: {$base + 6.5deg}, OutQuad,
+                    96: {$base},
+                },
+            }
+            @out=@timeline {
+                duration: 18,
+                rotate: {
+                    0: {$base}, OutQuad,
+                    18: {$base - 1deg},
+                },
+            }
+        />
     </Stacker>
 </Group>
 

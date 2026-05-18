@@ -38,6 +38,7 @@ impl Add for PaxValue {
             },
             (PaxValue::Numeric(a), PaxValue::Percent(b)) => Size::Combined(a, b.0).to_pax_value(),
             (PaxValue::Percent(a), PaxValue::Numeric(b)) => Size::Combined(b, a.0).to_pax_value(),
+            (PaxValue::Rotation(a), PaxValue::Rotation(b)) => (a + b).to_pax_value(),
             (a, b) => {
                 log::warn!("can't add {:?} and {:?}", a, b);
                 PaxValue::default()
@@ -95,6 +96,7 @@ impl Sub for PaxValue {
                 Size::Percent(per) => Size::Percent(per - b).to_pax_value(),
                 Size::Combined(px, per) => Size::Combined(px - b, per - b).to_pax_value(),
             },
+            (PaxValue::Rotation(a), PaxValue::Rotation(b)) => (a + -b).to_pax_value(),
             (a, b) => {
                 log::warn!("can't subtract {:?} and {:?}", a, b);
                 PaxValue::default()
@@ -373,5 +375,32 @@ impl PaxAny {
             (PaxAny::Builtin(a), PaxAny::Builtin(b)) => a.pow(b).to_pax_any(),
             _ => panic!("{}", ANY_ARITH_UNSUPPORTED),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Rotation;
+
+    fn deg(value: f64) -> PaxValue {
+        PaxValue::Rotation(Rotation::Degrees(value.into()))
+    }
+
+    fn assert_degrees(value: PaxValue, expected: f64) {
+        let PaxValue::Rotation(rotation) = value else {
+            panic!("expected rotation, got {:?}", value);
+        };
+        assert!((rotation.get_as_degrees() - expected).abs() < 0.0001);
+    }
+
+    #[test]
+    fn pax_value_adds_rotations() {
+        assert_degrees(deg(2.0) + deg(3.0), 5.0);
+    }
+
+    #[test]
+    fn pax_value_subtracts_rotations() {
+        assert_degrees(deg(2.0) - deg(3.5), -1.5);
     }
 }

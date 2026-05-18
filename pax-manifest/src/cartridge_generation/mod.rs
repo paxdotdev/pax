@@ -5,9 +5,10 @@ use pax_language::interpreter::{PaxExpression, PaxPrimary, PaxUnit};
 
 use crate::{
     constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_TYPE},
-    PaxManifest, PropertyDefinition, SelectorExpr, SettingElement, SettingsBlockElement,
-    TemplateNodeDefinition, TimelineBlockElement, TimelineDefinition, TimelineSelectorElement,
-    TransitionDefinition, TypeId, ValueDefinition,
+    LiteralBlockDefinition, PaxManifest, PropertyDefinition, SelectorExpr, SettingElement,
+    SettingsBlockElement, TemplateNodeDefinition, TemplateNodeId, TimelineBlockElement,
+    TimelineDefinition, TimelineSelectorBlockDefinition, TimelineSelectorElement,
+    TransitionDefinition, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 
 pub const TRANSITION_PHASE_IDLE: u64 = 0;
@@ -24,15 +25,62 @@ pub struct ComponentTransitionBindingInfo {
     pub exit: Option<String>,
 }
 
+#[derive(Clone, Debug)]
+enum ElementTransitionBinding {
+    Named(String),
+    Inline(LiteralBlockDefinition),
+}
+
+#[derive(Clone, Default, Debug)]
+struct ElementTransitionBindingInfo {
+    enter: Option<ElementTransitionBinding>,
+    exit: Option<ElementTransitionBinding>,
+}
+
 #[derive(Clone, Default, Debug)]
 pub struct ComponentTransitionConfig {
     pub has_enter: bool,
     pub enter_frame_count: u64,
     pub enter_millis_count: Option<u64>,
+    pub enter_sources: Vec<UniqueTemplateNodeIdentifier>,
     pub has_exit: bool,
     pub exit_frame_count: u64,
     pub exit_millis_count: Option<u64>,
+    pub exit_sources: Vec<UniqueTemplateNodeIdentifier>,
     pub timeout_ms: u64,
+}
+
+impl ComponentTransitionConfig {
+    pub fn merge_from(&mut self, other: ComponentTransitionConfig) {
+        self.has_enter |= other.has_enter;
+        self.enter_frame_count = self.enter_frame_count.max(other.enter_frame_count);
+        self.enter_millis_count =
+            max_optional_u64(self.enter_millis_count, other.enter_millis_count);
+        self.has_exit |= other.has_exit;
+        self.exit_frame_count = self.exit_frame_count.max(other.exit_frame_count);
+        self.exit_millis_count = max_optional_u64(self.exit_millis_count, other.exit_millis_count);
+        self.timeout_ms = self.timeout_ms.max(other.timeout_ms);
+
+        for source in other.enter_sources {
+            if !self.enter_sources.contains(&source) {
+                self.enter_sources.push(source);
+            }
+        }
+        for source in other.exit_sources {
+            if !self.exit_sources.contains(&source) {
+                self.exit_sources.push(source);
+            }
+        }
+    }
+}
+
+fn max_optional_u64(a: Option<u64>, b: Option<u64>) -> Option<u64> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(a.max(b)),
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -205,6 +253,7 @@ impl PaxManifest {
     pub fn get_inline_properties(
         &self,
         containing_component_type_id: &TypeId,
+        node_id: &TemplateNodeId,
         tnd: &TemplateNodeDefinition,
     ) -> BTreeMap<String, ValueDefinition> {
         let component = self.components.get(&containing_component_type_id).unwrap();
@@ -213,6 +262,9 @@ impl PaxManifest {
         if let Some(settings) = &settings {
             for setting in settings {
                 if let SettingElement::Setting(key, value) = setting {
+                    if Self::is_transition_setting_key(&key.token_value) {
+                        continue;
+                    }
                     match value {
                         ValueDefinition::LiteralValue(_)
                         | ValueDefinition::Block(_)
@@ -234,12 +286,19 @@ impl PaxManifest {
             &component.timelines,
             &component.settings,
         );
+        self.merge_element_level_transitions_with_timeline_blocks(
+            &mut map,
+            containing_component_type_id,
+            node_id,
+            tnd,
+        );
         map
     }
 
     pub fn get_inline_common_properties(
         &self,
         containing_component_type_id: &TypeId,
+        node_id: &TemplateNodeId,
         tnd: &TemplateNodeDefinition,
     ) -> BTreeMap<String, ValueDefinition> {
         let component = self.components.get(containing_component_type_id).unwrap();
@@ -248,6 +307,9 @@ impl PaxManifest {
         if let Some(settings) = &settings {
             for setting in settings {
                 if let SettingElement::Setting(key, value) = setting {
+                    if Self::is_transition_setting_key(&key.token_value) {
+                        continue;
+                    }
                     match value {
                         ValueDefinition::LiteralValue(_)
                         | ValueDefinition::Block(_)
@@ -269,6 +331,12 @@ impl PaxManifest {
             &tnd.settings,
             &component.timelines,
             &component.settings,
+        );
+        self.merge_element_level_transitions_with_timeline_blocks(
+            &mut map,
+            containing_component_type_id,
+            node_id,
+            tnd,
         );
         map.retain(|key, _| CommonProperty::get_common_properties().contains(key));
         map
@@ -384,6 +452,10 @@ impl PaxManifest {
             .unwrap_or(false)
     }
 
+    fn is_transition_setting_key(key: &str) -> bool {
+        matches!(key, "in" | "out")
+    }
+
     fn timeline_target_matches_node(target: &str, classes: &[String], ids: &[String]) -> bool {
         if let Some(class) = target.strip_prefix('.') {
             return classes.iter().any(|candidate| candidate == class);
@@ -425,6 +497,35 @@ impl PaxManifest {
                         "out" => bindings.exit = Some(value.token_value.clone()),
                         _ => {}
                     }
+                }
+            }
+        }
+        bindings
+    }
+
+    fn transition_bindings_from_inline_settings(
+        settings: &Option<Vec<SettingElement>>,
+    ) -> ElementTransitionBindingInfo {
+        let mut bindings = ElementTransitionBindingInfo::default();
+        if let Some(settings) = settings {
+            for setting in settings {
+                let SettingElement::Setting(key, value) = setting else {
+                    continue;
+                };
+                let binding = match value {
+                    ValueDefinition::Identifier(identifier)
+                    | ValueDefinition::EventBindingTarget(identifier) => {
+                        Some(ElementTransitionBinding::Named(identifier.name.clone()))
+                    }
+                    ValueDefinition::Block(block) => {
+                        Some(ElementTransitionBinding::Inline(block.clone()))
+                    }
+                    _ => None,
+                };
+                match (key.token_value.as_str(), binding) {
+                    ("in", Some(binding)) => bindings.enter = Some(binding),
+                    ("out", Some(binding)) => bindings.exit = Some(binding),
+                    _ => {}
                 }
             }
         }
@@ -659,6 +760,121 @@ impl PaxManifest {
         config
     }
 
+    fn add_timeline_to_transition_config(
+        config: &mut ComponentTransitionConfig,
+        timeline: &TimelineDefinition,
+        transition_kind: u64,
+        source: &UniqueTemplateNodeIdentifier,
+    ) {
+        config.timeout_ms = config.timeout_ms.max(DEFAULT_OUT_TRANSITION_TIMEOUT_MS);
+        match transition_kind {
+            TRANSITION_PHASE_ENTER => {
+                config.has_enter = true;
+                config.enter_frame_count = config
+                    .enter_frame_count
+                    .max(Self::timeline_frame_count(timeline));
+                if let Some(millis) = Self::timeline_millis_count(timeline) {
+                    config.enter_millis_count =
+                        Some(config.enter_millis_count.unwrap_or_default().max(millis));
+                }
+                if !config.enter_sources.contains(source) {
+                    config.enter_sources.push(source.clone());
+                }
+            }
+            TRANSITION_PHASE_EXIT => {
+                config.has_exit = true;
+                config.exit_frame_count = config
+                    .exit_frame_count
+                    .max(Self::timeline_frame_count(timeline));
+                if let Some(millis) = Self::timeline_millis_count(timeline) {
+                    config.exit_millis_count =
+                        Some(config.exit_millis_count.unwrap_or_default().max(millis));
+                }
+                if !config.exit_sources.contains(source) {
+                    config.exit_sources.push(source.clone());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    pub fn get_template_node_transition_config(
+        &self,
+        containing_component_type_id: &TypeId,
+        target_node_id: &TemplateNodeId,
+    ) -> ComponentTransitionConfig {
+        let mut config = ComponentTransitionConfig {
+            timeout_ms: DEFAULT_OUT_TRANSITION_TIMEOUT_MS,
+            ..Default::default()
+        };
+        let Some(component) = self.components.get(containing_component_type_id) else {
+            return config;
+        };
+        let Some(template) = component.template.as_ref() else {
+            return config;
+        };
+        let Some(target_tnd) = template.get_node(target_node_id) else {
+            return config;
+        };
+
+        for source_node_id in template.get_ids() {
+            let Some(source_node) = template.get_node(source_node_id) else {
+                continue;
+            };
+            let source = UniqueTemplateNodeIdentifier::build(
+                containing_component_type_id.clone(),
+                source_node_id.clone(),
+            );
+            let bindings = Self::transition_bindings_from_inline_settings(&source_node.settings);
+            for transition_kind in [TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT] {
+                let Some(binding) = Self::transition_binding_for_kind(&bindings, transition_kind)
+                else {
+                    continue;
+                };
+                match binding {
+                    ElementTransitionBinding::Named(name) => {
+                        let Some((_, timeline)) = Self::named_timeline(&component.timelines, name)
+                        else {
+                            continue;
+                        };
+                        if source_node_id == target_node_id
+                            || Self::timeline_targets_template_node(
+                                timeline,
+                                source_node_id,
+                                target_node_id,
+                                target_tnd,
+                            )
+                        {
+                            Self::add_timeline_to_transition_config(
+                                &mut config,
+                                timeline,
+                                transition_kind,
+                                &source,
+                            );
+                        }
+                    }
+                    ElementTransitionBinding::Inline(block) => {
+                        if source_node_id != target_node_id {
+                            continue;
+                        }
+                        let Some(timeline) = Self::inline_transition_timeline_definition(block)
+                        else {
+                            continue;
+                        };
+                        Self::add_timeline_to_transition_config(
+                            &mut config,
+                            &timeline,
+                            transition_kind,
+                            &source,
+                        );
+                    }
+                }
+            }
+        }
+
+        config
+    }
+
     fn timeline_transition_kind(
         timeline_definition: &TimelineDefinition,
         bindings: &ComponentTransitionBindingInfo,
@@ -840,6 +1056,221 @@ impl PaxManifest {
                                 false,
                             );
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    fn inline_transition_timeline_definition(
+        block: &LiteralBlockDefinition,
+    ) -> Option<TimelineDefinition> {
+        let mut timeline = TimelineDefinition::default();
+        let mut selector_elements = Vec::new();
+
+        for element in &block.elements {
+            let SettingElement::Setting(key, value) = element else {
+                continue;
+            };
+            match (key.token_value.as_str(), value) {
+                ("duration", value) => timeline.duration = Some(value.clone()),
+                ("loop", ValueDefinition::LiteralValue(pax_runtime_api::PaxValue::Bool(value))) => {
+                    timeline.repeat = *value;
+                }
+                ("playhead", value) => timeline.playhead = Some(value.clone()),
+                (_, ValueDefinition::Timeline(track)) => selector_elements
+                    .push(TimelineSelectorElement::Track(key.clone(), track.clone())),
+                _ => {}
+            }
+        }
+
+        if selector_elements.is_empty() {
+            return None;
+        }
+
+        timeline.elements.push(TimelineBlockElement::SelectorBlock(
+            crate::Token::new_without_location("self".to_string()),
+            TimelineSelectorBlockDefinition {
+                elements: selector_elements,
+            },
+        ));
+        Some(timeline)
+    }
+
+    fn transition_binding_for_kind(
+        bindings: &ElementTransitionBindingInfo,
+        transition_kind: u64,
+    ) -> Option<&ElementTransitionBinding> {
+        match transition_kind {
+            TRANSITION_PHASE_ENTER => bindings.enter.as_ref(),
+            TRANSITION_PHASE_EXIT => bindings.exit.as_ref(),
+            _ => None,
+        }
+    }
+
+    fn named_timeline<'a>(
+        timelines: &'a [TimelineDefinition],
+        name: &str,
+    ) -> Option<(usize, &'a TimelineDefinition)> {
+        timelines.iter().enumerate().find(|(_, timeline)| {
+            timeline
+                .name
+                .as_ref()
+                .map(|token| token.token_value.as_str() == name)
+                .unwrap_or(false)
+        })
+    }
+
+    fn timeline_target_matches_template_node(
+        target: &str,
+        source_node_id: &TemplateNodeId,
+        target_node_id: &TemplateNodeId,
+        tnd: &TemplateNodeDefinition,
+    ) -> bool {
+        if Self::timeline_target_is_local(target) {
+            return source_node_id == target_node_id;
+        }
+        if let Some(class) = target.strip_prefix('.') {
+            return tnd
+                .selector_info
+                .classes
+                .iter()
+                .any(|candidate| candidate.token_value == class);
+        }
+        if let Some(id) = target.strip_prefix('#') {
+            return tnd
+                .selector_info
+                .id
+                .as_ref()
+                .map(|candidate| candidate.token_value == id)
+                .unwrap_or(false);
+        }
+        false
+    }
+
+    fn timeline_targets_template_node(
+        timeline_definition: &TimelineDefinition,
+        source_node_id: &TemplateNodeId,
+        target_node_id: &TemplateNodeId,
+        tnd: &TemplateNodeDefinition,
+    ) -> bool {
+        timeline_definition.elements.iter().any(|timeline_value| {
+            let TimelineBlockElement::SelectorBlock(token, value) = timeline_value else {
+                return false;
+            };
+            Self::timeline_target_matches_template_node(
+                &token.token_value,
+                source_node_id,
+                target_node_id,
+                tnd,
+            ) && value
+                .elements
+                .iter()
+                .any(|element| matches!(element, TimelineSelectorElement::Track(_, _)))
+        })
+    }
+
+    fn merge_element_transition_timeline_for_target(
+        map: &mut BTreeMap<String, ValueDefinition>,
+        base_map: &BTreeMap<String, ValueDefinition>,
+        timeline_definition: &TimelineDefinition,
+        timeline_ordinal: usize,
+        source_node_id: &TemplateNodeId,
+        target_node_id: &TemplateNodeId,
+        target_tnd: &TemplateNodeDefinition,
+        transition_kind: u64,
+    ) {
+        for timeline_value in timeline_definition.elements.iter() {
+            let TimelineBlockElement::SelectorBlock(token, value) = timeline_value else {
+                continue;
+            };
+            if !Self::timeline_target_matches_template_node(
+                &token.token_value,
+                source_node_id,
+                target_node_id,
+                target_tnd,
+            ) {
+                continue;
+            }
+
+            for element in value.elements.iter() {
+                if let TimelineSelectorElement::Track(property, track) = element {
+                    Self::merge_transition_track_into_map(
+                        map,
+                        base_map,
+                        timeline_definition,
+                        timeline_ordinal,
+                        &property.token_value,
+                        track,
+                        transition_kind,
+                    );
+                }
+            }
+        }
+    }
+
+    fn merge_element_level_transitions_with_timeline_blocks(
+        &self,
+        map: &mut BTreeMap<String, ValueDefinition>,
+        containing_component_type_id: &TypeId,
+        target_node_id: &TemplateNodeId,
+        target_tnd: &TemplateNodeDefinition,
+    ) {
+        let Some(component) = self.components.get(containing_component_type_id) else {
+            return;
+        };
+        let Some(template) = component.template.as_ref() else {
+            return;
+        };
+
+        let base_map = map.clone();
+        for source_node_id in template.get_ids() {
+            let Some(source_node) = template.get_node(source_node_id) else {
+                continue;
+            };
+            let bindings = Self::transition_bindings_from_inline_settings(&source_node.settings);
+            for transition_kind in [TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT] {
+                let Some(binding) = Self::transition_binding_for_kind(&bindings, transition_kind)
+                else {
+                    continue;
+                };
+                match binding {
+                    ElementTransitionBinding::Named(name) => {
+                        let Some((timeline_ordinal, timeline_definition)) =
+                            Self::named_timeline(&component.timelines, name)
+                        else {
+                            continue;
+                        };
+                        Self::merge_element_transition_timeline_for_target(
+                            map,
+                            &base_map,
+                            timeline_definition,
+                            timeline_ordinal,
+                            source_node_id,
+                            target_node_id,
+                            target_tnd,
+                            transition_kind,
+                        );
+                    }
+                    ElementTransitionBinding::Inline(block) => {
+                        if source_node_id != target_node_id {
+                            continue;
+                        }
+                        let Some(timeline_definition) =
+                            Self::inline_transition_timeline_definition(block)
+                        else {
+                            continue;
+                        };
+                        Self::merge_element_transition_timeline_for_target(
+                            map,
+                            &base_map,
+                            &timeline_definition,
+                            component.timelines.len(),
+                            source_node_id,
+                            target_node_id,
+                            target_tnd,
+                            transition_kind,
+                        );
                     }
                 }
             }

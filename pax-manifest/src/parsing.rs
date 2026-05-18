@@ -591,6 +591,17 @@ fn parse_event_id(event_id_full: Pair<Rule>) -> Token {
     event_id_token
 }
 
+fn parse_transition_id(transition_id_full: Pair<Rule>) -> Token {
+    let location_info = span_to_location(&transition_id_full.as_span());
+    Token::new(
+        transition_id_full
+            .as_str()
+            .trim_start_matches('@')
+            .to_string(),
+        location_info,
+    )
+}
+
 fn parse_inline_attribute_from_final_pairs_of_tag(
     final_pairs_of_tag: Pairs<Rule>,
 ) -> Option<Vec<SettingElement>> {
@@ -629,6 +640,34 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                         event_id_token,
                         ValueDefinition::EventBindingTarget(PaxIdentifier::new(literal_function)),
                     )
+                }
+                Rule::attribute_transition_binding => {
+                    let mut kv = attribute_key_value_pair.into_inner();
+                    let mut attribute_transition_binding = kv.next().unwrap().into_inner();
+
+                    let transition_id_token =
+                        parse_transition_id(attribute_transition_binding.next().unwrap());
+                    let transition_value = attribute_transition_binding
+                        .next()
+                        .unwrap()
+                        .into_inner()
+                        .next()
+                        .unwrap();
+                    let transition_value_definition = match transition_value.as_rule() {
+                        Rule::literal_function => {
+                            let token = parse_literal_function(transition_value);
+                            ValueDefinition::Identifier(PaxIdentifier::new(&token.token_value))
+                        }
+                        Rule::transition_inline_timeline_value => ValueDefinition::Block(
+                            derive_inline_transition_timeline_block(transition_value),
+                        ),
+                        _ => unreachable!(
+                            "Unexpected transition binding value: {:?}",
+                            transition_value.as_rule()
+                        ),
+                    };
+
+                    SettingElement::Setting(transition_id_token, transition_value_definition)
                 }
                 _ => {
                     //Vanilla `key=value` setting pair
@@ -798,6 +837,50 @@ fn derive_timeline_track_definition(timeline_track: Pair<Rule>) -> TimelineTrack
     }
 
     track
+}
+
+fn derive_inline_transition_timeline_block(
+    transition_inline_timeline_value: Pair<Rule>,
+) -> LiteralBlockDefinition {
+    let transition_inline_timeline_body = transition_inline_timeline_value
+        .into_inner()
+        .next()
+        .unwrap();
+
+    LiteralBlockDefinition {
+        explicit_type_pascal_identifier: None,
+        elements: transition_inline_timeline_body
+            .into_inner()
+            .map(|pair| match pair.as_rule() {
+                Rule::timeline_block_setting => {
+                    let mut pairs = pair.into_inner();
+                    let setting_key = pairs.next().unwrap().into_inner().next().unwrap();
+                    let setting_key_location = span_to_location(&setting_key.as_span());
+                    let setting_key_token =
+                        Token::new(setting_key.as_str().to_string(), setting_key_location);
+                    let value = pairs.next().unwrap();
+                    let setting_value_definition = parse_value_definition(value);
+
+                    SettingElement::Setting(setting_key_token, setting_value_definition)
+                }
+                Rule::timeline_property_key_value_pair => {
+                    let mut pairs = pair.into_inner();
+                    let property_key = pairs.next().unwrap().into_inner().next().unwrap();
+                    let property_key_location = span_to_location(&property_key.as_span());
+                    let property_key_token =
+                        Token::new(property_key.as_str().to_string(), property_key_location);
+                    let track = derive_timeline_track_definition(pairs.next().unwrap());
+
+                    SettingElement::Setting(property_key_token, ValueDefinition::Timeline(track))
+                }
+                Rule::comment => SettingElement::Comment(pair.as_str().to_string()),
+                _ => unreachable!(
+                    "Unexpected inline transition timeline rule: {:?}",
+                    pair.as_rule()
+                ),
+            })
+            .collect(),
+    }
 }
 
 fn derive_timeline_selector_block_definition(

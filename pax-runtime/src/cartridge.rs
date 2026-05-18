@@ -106,6 +106,10 @@ fn setting_value_can_define_property(value: &ValueDefinition) -> bool {
     )
 }
 
+fn is_lifecycle_transition_setting_key(key: &str) -> bool {
+    matches!(key, "in" | "out")
+}
+
 fn append_2d_common_property_entries(
     columns: &mut RuntimeResolvedPropertyColumns,
     key: &str,
@@ -177,6 +181,9 @@ fn append_setting_elements(
         let SettingElement::Setting(key, value) = element else {
             continue;
         };
+        if is_lifecycle_transition_setting_key(&key.token_value) {
+            continue;
+        }
         if setting_value_can_define_property(value) {
             append_2d_common_property_entries(
                 columns,
@@ -192,6 +199,9 @@ fn append_setting_elements(
         let SettingElement::Setting(key, value) = element else {
             continue;
         };
+        if is_lifecycle_transition_setting_key(&key.token_value) {
+            continue;
+        }
         if common_property_2d_axes(&key.token_value).is_some()
             || !setting_value_can_define_property(value)
         {
@@ -1544,7 +1554,7 @@ pub trait DefinitionToInstanceTraverser {
 
         // update properties from tnd
         let mut inline_properties =
-            manifest.get_inline_properties(containing_component_type_id, &node);
+            manifest.get_inline_properties(containing_component_type_id, node_id, &node);
         manifest
             .merge_component_self_timelines_with_properties(&node.type_id, &mut inline_properties);
         let base_defined_properties = inline_properties.clone();
@@ -1606,6 +1616,10 @@ pub trait DefinitionToInstanceTraverser {
                     &stack_frame,
                 ))
             }));
+
+        args.transition_config.merge_from(
+            manifest.get_template_node_transition_config(containing_component_type_id, node_id),
+        );
 
         instantiate_component_from_descriptor(node_component_descriptor, args)
     }
@@ -2866,13 +2880,15 @@ mod timeline_tests {
     use super::build_timeline_property;
     use super::build_transition_property;
     use super::evaluate_value_definition_to_pax_value;
+    use super::BASE_SYMBOL;
     use crate::RuntimePropertiesStackFrame;
+    use pax_language::parse_pax_expression;
     use pax_manifest::cartridge_generation::{
         TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT, TRANSITION_PHASE_SYMBOL,
         TRANSITION_PLAYHEAD_SYMBOL,
     };
     use pax_manifest::{
-        PaxIdentifier, TimelineKeyframe, TimelineMarker, TimelineTrackDefinition,
+        ExpressionInfo, PaxIdentifier, TimelineKeyframe, TimelineMarker, TimelineTrackDefinition,
         TimelineTrackElement, Token, TransitionDefinition, ValueDefinition,
     };
     use pax_runtime_api::{PaxValue, Property, Variable};
@@ -2902,6 +2918,11 @@ mod timeline_tests {
     fn build_stack(frames_elapsed: &Property<u64>) -> Rc<RuntimePropertiesStackFrame> {
         let elapsed_millis = Property::new(0_u64);
         build_stack_with_clocks(frames_elapsed, &elapsed_millis)
+    }
+
+    fn expression(raw: &str) -> ValueDefinition {
+        pax_runtime_api::pax_value::functions::Functions::register_all_functions();
+        ValueDefinition::Expression(ExpressionInfo::new(parse_pax_expression(raw).unwrap()))
     }
 
     #[test]
@@ -3075,6 +3096,62 @@ mod timeline_tests {
         assert!((property.get().get_as_degrees() - 2.0).abs() < 0.0001);
         frames_elapsed.set(100);
         assert!((property.get().get_as_degrees() - 8.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn transition_rotation_tracks_can_arrive_at_base() {
+        let phase = Property::new(TRANSITION_PHASE_ENTER);
+        let playhead = Property::new(0.0_f64);
+        let base = Property::new(pax_runtime_api::Rotation::Degrees(1.0.into()));
+        let scope: HashMap<String, Variable> = vec![
+            (
+                TRANSITION_PHASE_SYMBOL.to_string(),
+                Variable::new_from_typed_property(phase.clone()),
+            ),
+            (
+                TRANSITION_PLAYHEAD_SYMBOL.to_string(),
+                Variable::new_from_typed_property(playhead.clone()),
+            ),
+            (
+                BASE_SYMBOL.to_string(),
+                Variable::new_from_typed_property(base.clone()),
+            ),
+        ]
+        .into_iter()
+        .collect();
+        let stack = RuntimePropertiesStackFrame::new(scope);
+        let playhead_binding = Some(Box::new(ValueDefinition::Identifier(PaxIdentifier::new(
+            TRANSITION_PLAYHEAD_SYMBOL,
+        ))));
+        let enter = TimelineTrackDefinition {
+            elements: vec![
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(0),
+                    value: expression("$base + 4deg"),
+                    easing: Some(Token::new_without_location("Linear".to_string())),
+                }),
+                TimelineTrackElement::Keyframe(TimelineKeyframe {
+                    marker: TimelineMarker::Frame(10),
+                    value: expression("$base"),
+                    easing: None,
+                }),
+            ],
+            playhead: playhead_binding,
+            duration: None,
+            repeat: Some(false),
+            starting_value: None,
+            use_local_property_scope: false,
+        };
+        let transition = TransitionDefinition {
+            enter: Some(enter),
+            ..Default::default()
+        };
+        let property =
+            build_transition_property::<pax_runtime_api::Rotation>("rotate", &transition, stack);
+
+        assert!((property.get().get_as_degrees() - 5.0).abs() < 0.0001);
+        playhead.set(10.0);
+        assert!((property.get().get_as_degrees() - 1.0).abs() < 0.0001);
     }
 
     #[test]

@@ -2,6 +2,7 @@ use crate::api::math::Point2;
 use crate::api::Window;
 use crate::constants::{ACCEL_HANDLERS, GYRO_HANDLERS, PRE_RENDER_HANDLERS, TICK_HANDLERS};
 use pax_language::interpreter::property_resolution::IdentifierResolver;
+use pax_manifest::cartridge_generation::TRANSITION_PHASE_EXIT;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, ScreenshotData};
 use pax_runtime_api::properties::{drain_effects, register_effect_property, UntypedProperty};
@@ -780,6 +781,9 @@ impl RuntimeContext {
         while let Some((node, clipped, active_scroll_transform)) = to_process.pop() {
             // make sure slot sources are updated for this node
             node.compute_flattened_projected_children();
+            if !hit_invisible && node.transition_phase.get() == TRANSITION_PHASE_EXIT {
+                continue;
+            }
             // Browser-composited scrollers move descendants outside the engine transform tree.
             // Fold active scroll offsets into hit-testing so event rays line up with presented content.
             let (scroll_transform, clips_content) = {

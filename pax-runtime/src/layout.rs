@@ -231,7 +231,14 @@ pub fn project_child_layout_hull_to_parent_space(
     child_hull: LayoutHull,
 ) -> LayoutHull {
     let relative_transform = parent.transform.inverse() * child.transform;
-    project_layout_hull(relative_transform, child_hull)
+    // Layout hulls describe flow-space measurement. Presentation transforms such
+    // as rotation, scale, and skew should not make autosize parents expand or
+    // lose partial-axis measurements while an element animates.
+    let layout_transform: Transform2<NodeLocal, NodeLocal> = Transform2::translate(Vector2::new(
+        relative_transform.m[4],
+        relative_transform.m[5],
+    ));
+    project_layout_hull(layout_transform, child_hull)
 }
 
 /// Expand a content-space hull into the node's padded outer layout space.
@@ -706,6 +713,25 @@ fn test_project_layout_hull_invalidates_partial_axes_when_transform_mixes_axes()
     );
 
     assert_eq!(projected, LayoutHull::default());
+}
+
+#[test]
+fn test_project_child_layout_hull_ignores_rotation_for_flow_measurement() {
+    let parent = TransformAndBounds::<NodeLocal, Window> {
+        transform: Transform2::identity(),
+        bounds: (100.0, 100.0),
+    };
+    let child = TransformAndBounds::<NodeLocal, Window> {
+        transform: Transform2::<NodeLocal, Window>::translate(Vector2::new(10.0, 20.0))
+            * Transform2::<NodeLocal, NodeLocal>::rotate(std::f64::consts::FRAC_PI_4),
+        bounds: (100.0, 100.0),
+    };
+    let hull = LayoutHull::from_axis_ranges(None, Some((0.0, 50.0)));
+
+    let projected = project_child_layout_hull_to_parent_space(parent, child, hull);
+
+    assert_eq!(projected.x_range(), None);
+    assert_eq!(projected.y_range(), Some((20.0, 70.0)));
 }
 
 impl Interpolatable for LayoutProperties {}

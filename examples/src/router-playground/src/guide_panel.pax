@@ -5,7 +5,28 @@
         direction=StackerDirection::Vertical
         gutter=20px
     >
-        <Group class=route_stage_0 width=100% autosize=true autosize_x=false autosize_y=true>
+        <Group
+            class=route_stage_0
+            width=100%
+            autosize=true
+            autosize_x=false
+            autosize_y=true
+            @in=@timeline {
+                duration: 96,
+                rotate: {
+                    0: {$base + 5.5deg}, OutQuad,
+                    54: {$base},
+                    100%: {$base},
+                },
+            }
+            @out=@timeline {
+                duration: 18,
+                rotate: {
+                    0: {$base}, OutQuad,
+                    18: {$base - 2deg},
+                },
+            }
+        >
             <Stacker
                 width=100%
                 autosize=true
@@ -28,6 +49,22 @@
                 autosize=true
                 direction=StackerDirection::Vertical
                 gutter=10px
+                @in=@timeline {
+                    duration: 96,
+                    rotate: {
+                        0: {$base - 10deg}, Hold,
+                        12: {$base - 10deg}, OutQuad,
+                        66: {$base},
+                        100%: {$base},
+                    },
+                }
+                @out=@timeline {
+                    duration: 18,
+                    rotate: {
+                        0: {$base}, OutQuad,
+                        18: {$base + 1.5deg},
+                    },
+                }
             >
                 <Link width=100% height=44px url="/guide">
                     <Text class=chip_text width=100% height=100% text="Guide Home" />
@@ -56,6 +93,22 @@
                 direction=StackerDirection::Horizontal
                 gutter=14px
                 sizes=[None, None, None, None]
+                @in=@timeline {
+                    duration: 96,
+                    rotate: {
+                        0: {$base + 9deg}, Hold,
+                        12: {$base + 9deg}, OutQuad,
+                        66: {$base},
+                        100%: {$base},
+                    },
+                }
+                @out=@timeline {
+                    duration: 18,
+                    rotate: {
+                        0: {$base}, OutQuad,
+                        18: {$base - 1.5deg},
+                    },
+                }
             >
                 <Link width=100% height=44px url="/guide">
                     <Text class=chip_text width=100% height=100% text="Guide Home" />
@@ -76,9 +129,50 @@
             </Stacker>
         }
 
-        <RouteInspector class=route_stage_2 width=100% title="guide scope" />
+        <RouteInspector
+            class=route_stage_2
+            width=100%
+            title="guide scope"
+            @in=@timeline {
+                duration: 96,
+                rotate: {
+                    0: {$base - 4deg}, Hold,
+                    24: {$base - 4deg}, OutQuad,
+                    84: {$base},
+                    100%: {$base},
+                },
+            }
+            @out=@timeline {
+                duration: 18,
+                rotate: {
+                    0: {$base}, OutQuad,
+                    18: {$base - 2deg},
+                },
+            }
+        />
 
-        <Group class=route_stage_3 width=100% autosize=true autosize_x=false autosize_y=true>
+        <Group
+            class=route_stage_3
+            width=100%
+            autosize=true
+            autosize_x=false
+            autosize_y=true
+            @in=@timeline {
+                duration: 96,
+                rotate: {
+                    0: {$base + 3.5deg}, Hold,
+                    36: {$base + 3.5deg}, OutQuad,
+                    96: {$base},
+                },
+            }
+            @out=@timeline {
+                duration: 18,
+                rotate: {
+                    0: {$base}, OutQuad,
+                    18: {$base + 1deg},
+                },
+            }
+        >
             <Router>
                 <Route default=true>
                     <RouteTransitionFrame width=100%>

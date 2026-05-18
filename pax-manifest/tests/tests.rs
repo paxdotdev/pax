@@ -14,17 +14,16 @@ mod tests {
         },
         utils, ComponentDefinition, ControlFlowConditionalBranchKind,
         ControlFlowRepeatPredicateDefinition, PaxIdentifier, PaxManifest, SettingElement,
-        SettingsBlockElement, TemplateNodeDefinition, TimelineBlockElement, Token, TypeId,
-        ValueDefinition,
+        SettingsBlockElement, TemplateNodeDefinition, TemplateNodeId, TimelineBlockElement,
+        TimelineMarker, Token, TypeId, ValueDefinition,
     };
 
     #[cfg(feature = "code_serialization")]
     use pax_manifest::code_serialization::press_code_serialization_template;
     #[cfg(feature = "code_serialization")]
     use pax_manifest::{
-        ComponentTemplate, TimelineDefinition, TimelineKeyframe, TimelineMarker,
-        TimelineSelectorBlockDefinition, TimelineSelectorElement, TimelineTrackDefinition,
-        TimelineTrackElement,
+        ComponentTemplate, TimelineDefinition, TimelineKeyframe, TimelineSelectorBlockDefinition,
+        TimelineSelectorElement, TimelineTrackDefinition, TimelineTrackElement,
     };
 
     fn write_temp_rust_source(contents: &str) -> std::path::PathBuf {
@@ -56,6 +55,24 @@ mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    fn template_node_id_by_id(
+        template: &pax_manifest::ComponentTemplate,
+        inline_id: &str,
+    ) -> TemplateNodeId {
+        template
+            .get_ids()
+            .into_iter()
+            .find(|id| {
+                template
+                    .get_node(id)
+                    .and_then(|node| node.selector_info.id.as_ref())
+                    .map(|token| token.token_value.as_str() == inline_id)
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .expect("template node id should exist")
     }
 
     fn assemble_component_definition_with_inferred_rust_source(
@@ -362,7 +379,7 @@ mod tests {
         let template = component.template.as_ref().unwrap();
         let root_id = template.get_root().remove(0);
         let node = template.get_node(&root_id).unwrap();
-        let common = manifest.get_inline_common_properties(&component_type_id, node);
+        let common = manifest.get_inline_common_properties(&component_type_id, &root_id, node);
 
         match common.get("opacity") {
             Some(ValueDefinition::Transition(transition)) => {
@@ -375,6 +392,188 @@ mod tests {
             }
             other => panic!("expected transition opacity, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_parse_element_level_transition_bindings() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let group_type_id = TypeId::build_singleton("Group", Some("Group"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Group".to_string(), group_type_id);
+
+        let pax = r#"
+            <Group
+                @in=enter
+                @out=@timeline {
+                    opacity: {
+                        0: 1,
+                        10: 0,
+                    },
+                }
+            />
+        "#;
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            pax,
+            false,
+            template_map,
+            "crate",
+            component_type_id,
+            "example.pax",
+            file!(),
+        );
+
+        let template = component.template.unwrap();
+        let root_id = template.get_root().remove(0);
+        let node = template.get_node(&root_id).unwrap();
+        let settings = node.settings.as_ref().expect("settings should parse");
+        assert!(matches!(
+            &settings[0],
+            SettingElement::Setting(key, ValueDefinition::Identifier(identifier))
+                if key.token_value == "in" && identifier.name == "enter"
+        ));
+        assert!(matches!(
+            &settings[1],
+            SettingElement::Setting(key, ValueDefinition::Block(block))
+                if key.token_value == "out" && block.elements.len() == 1
+        ));
+    }
+
+    #[test]
+    fn test_element_transition_named_timeline_can_target_sibling() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let group_type_id = TypeId::build_singleton("Group", Some("Group"));
+        let text_type_id = TypeId::build_singleton("Text", Some("Text"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Group".to_string(), group_type_id);
+        template_map.insert("Text".to_string(), text_type_id);
+
+        let pax = r#"
+            <Group id=panel @in=enter />
+            <Text id=caption opacity=0.5 />
+
+            @timeline enter {
+                duration: 10,
+                self {
+                    opacity: {
+                        0: 0,
+                        10: 1,
+                    },
+                },
+                #caption {
+                    opacity: {
+                        0: 0,
+                        10: 1,
+                    },
+                },
+            }
+        "#;
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            pax,
+            false,
+            template_map,
+            "crate",
+            component_type_id.clone(),
+            "example.pax",
+            file!(),
+        );
+        let mut components = BTreeMap::new();
+        components.insert(component_type_id.clone(), component);
+        let manifest = PaxManifest {
+            components,
+            main_component_type_id: component_type_id.clone(),
+            type_table: Default::default(),
+            assets_dirs: vec![],
+            engine_import_path: "pax_kit::pax_engine".to_string(),
+        };
+
+        let component = manifest.components.get(&component_type_id).unwrap();
+        let template = component.template.as_ref().unwrap();
+        let panel_id = template_node_id_by_id(template, "panel");
+        let caption_id = template_node_id_by_id(template, "caption");
+        let panel = template.get_node(&panel_id).unwrap();
+        let caption = template.get_node(&caption_id).unwrap();
+
+        let panel_common =
+            manifest.get_inline_common_properties(&component_type_id, &panel_id, panel);
+        let caption_common =
+            manifest.get_inline_common_properties(&component_type_id, &caption_id, caption);
+
+        assert!(matches!(
+            panel_common.get("opacity"),
+            Some(ValueDefinition::Transition(transition)) if transition.enter.is_some()
+        ));
+        assert!(matches!(
+            caption_common.get("opacity"),
+            Some(ValueDefinition::Transition(transition)) if transition.enter.is_some()
+        ));
+
+        let panel_config =
+            manifest.get_template_node_transition_config(&component_type_id, &panel_id);
+        let caption_config =
+            manifest.get_template_node_transition_config(&component_type_id, &caption_id);
+        assert!(panel_config.has_enter);
+        assert!(caption_config.has_enter);
+        assert_eq!(panel_config.enter_sources, caption_config.enter_sources);
+    }
+
+    #[test]
+    fn test_element_transition_inline_timeline_lowers_to_self_transition() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let group_type_id = TypeId::build_singleton("Group", Some("Group"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Group".to_string(), group_type_id);
+
+        let pax = r#"
+            <Group
+                id=panel
+                opacity=0.5
+                @in=@timeline {
+                    duration: 10,
+                    opacity: {
+                        0: 0,
+                        10: 1,
+                    },
+                }
+            />
+        "#;
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            pax,
+            false,
+            template_map,
+            "crate",
+            component_type_id.clone(),
+            "example.pax",
+            file!(),
+        );
+        let mut components = BTreeMap::new();
+        components.insert(component_type_id.clone(), component);
+        let manifest = PaxManifest {
+            components,
+            main_component_type_id: component_type_id.clone(),
+            type_table: Default::default(),
+            assets_dirs: vec![],
+            engine_import_path: "pax_kit::pax_engine".to_string(),
+        };
+
+        let component = manifest.components.get(&component_type_id).unwrap();
+        let template = component.template.as_ref().unwrap();
+        let panel_id = template_node_id_by_id(template, "panel");
+        let panel = template.get_node(&panel_id).unwrap();
+        let common = manifest.get_inline_common_properties(&component_type_id, &panel_id, panel);
+
+        assert!(matches!(
+            common.get("opacity"),
+            Some(ValueDefinition::Transition(transition)) if transition.enter.is_some()
+        ));
+        let config = manifest.get_template_node_transition_config(&component_type_id, &panel_id);
+        assert!(config.has_enter);
+        assert_eq!(config.enter_frame_count, 10);
     }
 
     #[test]

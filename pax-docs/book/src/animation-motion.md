@@ -98,6 +98,43 @@ An `@in` transition plays when a component instance enters the mounted tree.  Bi
 
 The transition timeline targets the entering component's own template.  Use `self` for properties on the component itself, and selectors such as `#title` or `.item` for children.
 
+`@in` can also be bound directly on an element.  A named element-level transition uses a timeline from the containing component, so selector targets are resolved in that same template:
+
+```pax
+<Group id=panel @in=panel_enter />
+<Text id=caption text="Ready" />
+
+@timeline panel_enter {
+    duration: 300ms,
+    self {
+        opacity: {
+            0ms: 0,
+            300ms: 1,
+        },
+    },
+    #caption {
+        y: {
+            0ms: {$base + 12px},
+            300ms: {$base},
+        },
+    },
+}
+```
+
+For a transition that only affects the element itself, declare the timeline inline with property tracks:
+
+```pax
+<Group
+    @in=@timeline {
+        duration: 300ms,
+        opacity: {
+            0ms: 0,
+            300ms: 1,
+        },
+    }
+/>
+```
+
 ## `@out` Transitions
 
 An `@out` transition plays when a component instance leaves the mounted tree, such as when an `if` branch changes or a keyed `for` item is removed.  Bind it the same way as `@in`.
@@ -120,6 +157,8 @@ An `@out` transition plays when a component instance leaves the mounted tree, su
 ```
 
 Exiting instances remain mounted while their `@out` transition is running, then are removed.  If an exit transition cannot complete, Pax applies a default timeout so stale nodes are not retained indefinitely.
+
+Element-level `@out` uses the same named and inline forms as element-level `@in`.
 
 Entering and exiting children run in parallel by default.  For repeated lists, use keyed `for` loops when the identity of an item should survive reordering or insertion; removed keys can then play `@out` while retained keys keep their existing component instances.
 
