@@ -565,7 +565,8 @@ struct PaxViewMacos: View {
             // SwiftUI can recreate the view tree independently of the backing NSView. Install the
             // interrupt bridge here so native controls always have a live path back into pax_interrupt.
             NativeInterruptDispatcher.shared.sendData = sendInterruptToEngine
-        }.gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global).onEnded { dragGesture in
+        }.contentShape(Rectangle())
+        .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .local).onEnded { dragGesture in
                     //FUTURE: especially if parsing is a bottleneck, could use a different encoding than JSON
             let json = String(format: "{\"Click\": {\"x\": %f, \"y\": %f, \"button\": \"Left\", \"modifiers\":[] } }", dragGesture.location.x, dragGesture.location.y);
             let buffer = try! FlexBufferBuilder.fromJSON(json)
