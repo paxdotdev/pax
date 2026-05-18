@@ -44,7 +44,7 @@
     pub use <%= engine_import_path %>::pax_chassis_web::*;
     <% } %>
 
-    <% if build_config.macos || build_config.ios { %>
+    <% if build_config.macos || build_config.ios || build_config.ipados { %>
     #[no_mangle]
     pub extern "C" fn pax_init(initial_width: f32, initial_height: f32) -> *mut <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
         let _ = <%= engine_import_path %>::pax_chassis_common::env_logger::try_init();
@@ -79,7 +79,7 @@
                         ),
                         designtime_manager.clone(),
                         Platform::Native,
-                        <% if build_config.macos { %>OS::Mac,<% } else { %>OS::IPhone,<% } %>
+                        <% if build_config.macos { %>OS::Mac,<% } else if build_config.ipados { %>OS::IPad,<% } else { %>OS::IPhone,<% } %>
                         Box::new(move || start.elapsed().as_millis()),
                         <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::native_scroller_tiling_policy()
                     )));
@@ -117,7 +117,7 @@
                         ),
                         designtime_manager.clone(),
                         Platform::Native,
-                        <% if build_config.macos { %>OS::Mac,<% } else { %>OS::IPhone,<% } %>
+                        <% if build_config.macos { %>OS::Mac,<% } else if build_config.ipados { %>OS::IPad,<% } else { %>OS::IPhone,<% } %>
                         Box::new(move || start.elapsed().as_millis()),
                         <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::native_scroller_tiling_policy()
                     )));
@@ -151,7 +151,7 @@
                         initial_height.max(1.0) as f64,
                     ),
                     Platform::Native,
-                    <% if build_config.macos { %>OS::Mac,<% } else { %>OS::IPhone,<% } %>
+                    <% if build_config.macos { %>OS::Mac,<% } else if build_config.ipados { %>OS::IPad,<% } else { %>OS::IPhone,<% } %>
                     Box::new(move || start.elapsed().as_millis()),
                     <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::native_scroller_tiling_policy()
                 )));

@@ -91,7 +91,7 @@ impl SpaceGame {
         // Read properties
         let (w_o, h_o) = ctx.bounds_parent.get();
         let (w, h) = (w_o / SCALE, h_o / SCALE);
-        let ticks = ctx.frames_elapsed.get();
+        let ticks = ctx.elapsed_frames.get();
         let mut bullets = self.bullets.get();
         let mut asteroids = self.asteroids.get();
         let mut ship_x = self.ship_x.get();

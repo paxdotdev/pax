@@ -440,7 +440,11 @@ pub fn build_apple_project_with_cartridge(
         } else {
             "ios"
         }];
-        let pax_build_target = requested_features[0];
+        let pax_build_target = if matches!(target, RunTarget::iPadOS) {
+            "ipados"
+        } else {
+            requested_features[0]
+        };
         if should_run_designer {
             requested_features.extend(["designtime", "designer"]);
         } else if should_run_designtime {

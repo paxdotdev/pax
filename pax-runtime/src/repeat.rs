@@ -69,12 +69,12 @@ mod tests {
     use pax_language::parse_pax_expression;
     use pax_manifest::cartridge_generation::{ComponentTransitionConfig, TRANSITION_PHASE_EXIT};
     use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
-    use pax_runtime_api::{borrow, CoercionRules, Numeric, Platform, Size, OS};
+    use pax_runtime_api::{borrow, CoercionRules, Numeric, Platform, Size, TargetInfo, OS};
     use std::cell::RefCell;
 
     fn test_globals() -> Globals {
         Globals {
-            frames_elapsed: Property::new(0),
+            elapsed_frames: Property::new(0),
             elapsed_millis: Property::new(0),
             viewport: Property::new(TransformAndBounds {
                 transform: Transform2::identity(),
@@ -87,6 +87,7 @@ mod tests {
             browser_allows_nested_scroller_vector_layers: Property::new(true),
             platform: Platform::Unknown,
             os: OS::Unknown,
+            target: TargetInfo::new(Platform::Unknown, OS::Unknown),
             get_elapsed_millis: Rc::new(|| 0),
         }
     }

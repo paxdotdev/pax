@@ -300,7 +300,23 @@ pub enum SettingsBlockElement {
     SelectorBlock(Token, LiteralBlockDefinition),
     Handler(Token, Vec<Token>),
     Transition(Token, Token),
+    Conditional(SettingsConditionalBlock),
     Comment(String),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(crate = "pax_message::serde")]
+/// Top-level conditional content inside a settings block.
+pub struct SettingsConditionalBlock {
+    pub branches: Vec<SettingsConditionalBranch>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(crate = "pax_message::serde")]
+/// One branch inside a settings conditional. `None` represents `else`.
+pub struct SettingsConditionalBranch {
+    pub condition_expression: Option<ExpressionInfo>,
+    pub elements: Vec<SettingsBlockElement>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

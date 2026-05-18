@@ -34,7 +34,8 @@ use pax_manifest::cartridge_generation::{
     TRANSITION_PLAYHEAD_MILLIS_SYMBOL, TRANSITION_PLAYHEAD_SYMBOL,
 };
 use pax_manifest::{
-    SelectorExpr, SettingsBlockElement, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
+    ExpressionInfo, SelectorExpr, SettingsBlockElement, TypeId, UniqueTemplateNodeIdentifier,
+    ValueDefinition,
 };
 
 use crate::{
@@ -67,11 +68,18 @@ pub enum RuntimeSettingsSource {
     Inline,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct RuntimeSettingsCondition {
+    pub positive: Vec<ExpressionInfo>,
+    pub negative: Vec<ExpressionInfo>,
+}
+
 #[derive(Clone, Debug)]
 pub struct RuntimeResolvedPropertyEntry {
     pub source: RuntimeSettingsSource,
     pub selector: Option<SelectorExpr>,
     pub value: ValueDefinition,
+    pub condition: Option<RuntimeSettingsCondition>,
     pub axis_index: Option<usize>,
 }
 
@@ -440,13 +448,13 @@ impl ExpandedNode {
         let has_transition_bindings = transition_config.has_enter || transition_config.has_exit;
         let transition_phase = Property::new_with_name(TRANSITION_PHASE_IDLE, "transition phase");
         let transition_origin_frame =
-            Property::new_with_name(context.globals().frames_elapsed.get(), "transition origin");
+            Property::new_with_name(context.globals().elapsed_frames.get(), "transition origin");
         let transition_origin_millis = Property::new_with_name(
             context.globals().elapsed_millis.get(),
             "transition origin millis",
         );
         let (transition_playhead, transition_playhead_millis) = if has_transition_bindings {
-            let frames_elapsed = context.globals().frames_elapsed.clone();
+            let frames_elapsed = context.globals().elapsed_frames.clone();
             let elapsed_millis = context.globals().elapsed_millis.clone();
             let frames_elapsed_for_playhead = frames_elapsed.clone();
             let transition_origin_frame_for_playhead = transition_origin_frame.clone();
@@ -812,7 +820,7 @@ impl ExpandedNode {
         drop(instance_node);
         self.transition_phase.set(TRANSITION_PHASE_ENTER);
         self.transition_origin_frame
-            .set(context.globals().frames_elapsed.get());
+            .set(context.globals().elapsed_frames.get());
         self.transition_origin_millis
             .set(context.globals().elapsed_millis.get());
         self.exit_started_millis.set(None);
@@ -838,7 +846,7 @@ impl ExpandedNode {
         }
         self.transition_phase.set(TRANSITION_PHASE_EXIT);
         self.transition_origin_frame
-            .set(context.globals().frames_elapsed.get());
+            .set(context.globals().elapsed_frames.get());
         self.transition_origin_millis
             .set(context.globals().elapsed_millis.get());
         self.exit_started_millis
@@ -1006,7 +1014,7 @@ impl ExpandedNode {
         self.exit_cleanup_active.set(true);
         let weak_self = Rc::downgrade(self);
         let cloned_context = Rc::clone(context);
-        let frames_elapsed = context.globals().frames_elapsed.clone();
+        let frames_elapsed = context.globals().elapsed_frames.clone();
         let frames_elapsed_dep = frames_elapsed.untyped();
         self.exit_cleanup_listener
             .replace_with(Property::computed_with_name(
@@ -1861,6 +1869,8 @@ impl ExpandedNode {
 
     pub fn get_node_context(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) -> NodeContext {
         let globals = ctx.globals();
+        let viewport = super::viewport_info_property(&globals.viewport);
+        let target = Property::new(globals.target);
         let t_and_b = self.transform_and_bounds.clone();
         let deps = [t_and_b.untyped()];
         let bounds_self = Property::computed(move || t_and_b.get().bounds, &deps);
@@ -1975,9 +1985,9 @@ impl ExpandedNode {
             &[retained_received_children.untyped()],
         );
 
-        let last_frame = Rc::new(RefCell::new(globals.frames_elapsed.get()));
+        let last_frame = Rc::new(RefCell::new(globals.elapsed_frames.get()));
         let suspended = self.suspended.clone();
-        let frames_elapsed = globals.frames_elapsed.clone();
+        let frames_elapsed = globals.elapsed_frames.clone();
         let elapsed_millis = globals.elapsed_millis.clone();
         let deps = [frames_elapsed.untyped(), suspended.untyped()];
         // TODO: this still triggers the dirty dag dependencies of elapsed
@@ -2003,7 +2013,7 @@ impl ExpandedNode {
             local_stack_frame: Rc::clone(&self.stack),
             expanded_node: Rc::downgrade(&self),
             containing_component: Weak::clone(&self.containing_component),
-            frames_elapsed: frames_elapsed_frozen_if_suspended,
+            elapsed_frames: frames_elapsed_frozen_if_suspended,
             elapsed_millis,
             gyro: globals.gyro.clone(),
             accel: globals.accel.clone(),
@@ -2014,6 +2024,8 @@ impl ExpandedNode {
             runtime_context: ctx.clone(),
             platform: globals.platform.clone(),
             os: globals.os.clone(),
+            target,
+            viewport,
             get_elapsed_millis: globals.get_elapsed_millis,
             projected_children_count,
             projected_children,

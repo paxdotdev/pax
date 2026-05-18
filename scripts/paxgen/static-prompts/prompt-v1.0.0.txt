@@ -725,7 +725,7 @@ Same as `ease_to`, but enqueues the specified transition to occur after all curr
 
 ```jsx
 <Rectangle transform={
-    rotate(engine.frames_elapsed / 200.0) *
+    rotate(engine.elapsed_frames / 200.0) *
     translate(in.mouse_x, in.mouse_y)
 }/>
 ```
@@ -1454,7 +1454,7 @@ impl Ball {
     }
 
     pub fn update(&mut self, ctx: &NodeContext) {
-        if ctx.frames_elapsed.get() % (crate::LOOP_FRAMES as u64) == 0 {
+        if ctx.elapsed_frames.get() % (crate::LOOP_FRAMES as u64) == 0 {
             let magnitude = self.magnitude.get().to_float();
             self.magnitude.set(random::<f64>().into());
 
@@ -1786,7 +1786,7 @@ impl RotatingSquareWithBalls {
 
     fn randomize_balls(&mut self, ctx: &NodeContext) {
         let (width, height) = ctx.bounds_parent.get();
-        let seed = ctx.frames_elapsed.get() as u64;
+        let seed = ctx.elapsed_frames.get() as u64;
         let mut rng = StdRng::seed_from_u64(seed);
 
         let mut new_balls = Vec::new();
@@ -1957,7 +1957,7 @@ impl SpaceGame {
         // Read properties
         let (w_o, h_o) = ctx.bounds_parent.get();
         let (w, h) = (w_o / SCALE, h_o / SCALE);
-        let ticks = ctx.frames_elapsed.get();
+        let ticks = ctx.elapsed_frames.get();
         let mut bullets = self.bullets.get();
         let mut asteroids = self.asteroids.get();
         let mut ship_x = self.ship_x.get();

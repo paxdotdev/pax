@@ -2139,6 +2139,7 @@ fn parse_user_agent_str(user_agent: &str) -> Option<OS> {
     // NOTE: the ordering here is important: Android/iOS can contain Linux/MacOS strings
     const STR_PLATFORM_PAIRS: &[(&str, OS)] = &[
         ("Android", OS::Android),
+        ("iPad", OS::IPad),
         ("iPhone", OS::IPhone),
         ("Windows", OS::Windows),
         ("Mac", OS::Mac),

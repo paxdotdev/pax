@@ -38,10 +38,10 @@ Type: `Weak`<`ExpandedNode`>
 
 Reference to the ExpandedNode of the component containing this node
 
-##### `frames_elapsed`
+##### `elapsed_frames`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`u64`>
 
-The current global engine tick count
+The current global engine frame count.
 
 ##### `elapsed_millis`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`u64`>

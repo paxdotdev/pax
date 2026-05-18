@@ -94,7 +94,7 @@ impl PickUpSticks {
 
         if self.locked.get()
             && !self.finished.get()
-            && ctx.frames_elapsed.get() >= self.unlock_frame.get()
+            && ctx.elapsed_frames.get() >= self.unlock_frame.get()
         {
             self.locked.set(false);
             let remaining = self.remaining_active_count();
@@ -171,7 +171,7 @@ impl PickUpSticks {
             self.status_text.set(String::from("Stick pulled."));
             self.chance_text.set(roll_text);
             self.unlock_frame
-                .set(ctx.frames_elapsed.get() + REMOVAL_FRAMES + LOCK_BUFFER_FRAMES);
+                .set(ctx.elapsed_frames.get() + REMOVAL_FRAMES + LOCK_BUFFER_FRAMES);
         }
     }
 

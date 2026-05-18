@@ -255,7 +255,7 @@ impl BreakoutGame {
         }
 
         let (width, height) = ctx.bounds_parent.get();
-        let current_frame = ctx.frames_elapsed.get();
+        let current_frame = ctx.elapsed_frames.get();
 
         let mut paddle = self.paddle.get();
         let mut balls = self.balls.get();

@@ -1,0 +1,633 @@
+<Group width=100% height=100%>
+    <Scroller
+        x=0px
+        y=0px
+        width=100%
+        height=100%
+        scroll_width=100%
+        scroll_height=1660px
+    >
+        <Group width=100% height=1660px>
+            <Text class=eyebrow x=42px y=38px width=260px height=22px text="ADAPTIVE DISPATCH" />
+            <Text class=title x=40px y=66px width={100% - 390px} height=74px text="Incident Dispatch" />
+            <Text
+                class=subtitle
+                x=44px
+                y=142px
+                width={100% - 470px}
+                height=30px
+                text="One template reshaped by target, viewport, and orientation settings."
+            />
+
+            <Group id=branch_badge class=branch_badge>
+                <Text
+                    class=badge_text
+                    x=44px
+                    y=7px
+                    width={100% - 62px}
+                    height=22px
+                    text={($desktop && $landscape ? "desktop landscape" : ($landscape ? "landscape" : ($mobile ? "mobile portrait" : "portrait")))}
+                />
+                <Ellipse class=accent_mark x=24px y=18px width=12px height=12px anchor=50% />
+                <Rectangle class=badge_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group id=card_resolve class=card>
+                <Text class=phase_chip_text x={100% - 102px} y=21px width=78px height=18px text="TARGET" />
+                <Text class=card_kicker x=24px y=22px width={100% - 48px} height=18px text="03 RESOLVE" />
+                <Text class=card_title x=24px y=54px width={100% - 48px} height=34px text="Ship response" />
+                <Text class=card_copy x=24px y=102px width={100% - 48px} height=54px text="Target-specific settings change the final response signature." />
+                <Text class=metric_value x=24px y=144px width=110px height=40px text={$macos ? "MAC" : ($web ? "WEB" : "APP")} />
+                <Text class=metric_label x=132px y=158px width={100% - 158px} height=20px text="target branch" />
+                <Rectangle class=mini_bar x={100% - 104px} y=160px width=72px height=6px />
+                <Rectangle class=mini_bar_soft x={100% - 104px} y=174px width=48px height=6px />
+                <Rectangle class=phase_chip_surface x={100% - 112px} y=18px width=88px height=24px />
+                <Rectangle class=accent_rail x=0px y=0px width=6px height=100% />
+                <Rectangle class=card_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group id=card_route class=card>
+                <Text class=phase_chip_text x={100% - 102px} y=21px width=78px height=18px text="PAXEL" />
+                <Text class=card_kicker x=24px y=22px width={100% - 48px} height=18px text="02 ROUTE" />
+                <Text class=card_title x=24px y=54px width={100% - 48px} height=34px text="Assign path" />
+                <Text class=card_copy x=24px y=102px width={100% - 48px} height=54px text="PAXEL chooses the active path from viewport and target helpers." />
+                <Text class=metric_value x=24px y=144px width=74px height=40px text={$landscape ? "W" : "H"} />
+                <Text class=metric_label x=98px y=158px width={100% - 122px} height=20px text={$landscape ? "landscape branch" : "portrait branch"} />
+                <Ellipse class=mini_dot x={100% - 96px} y=164px width=16px height=16px anchor=50% />
+                <Ellipse class=mini_dot_soft x={100% - 68px} y=164px width=16px height=16px anchor=50% />
+                <Ellipse class=mini_dot_soft x={100% - 40px} y=164px width=16px height=16px anchor=50% />
+                <Rectangle class=phase_chip_surface x={100% - 112px} y=18px width=88px height=24px />
+                <Rectangle class=accent_rail x=0px y=0px width=6px height=100% />
+                <Rectangle class=card_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group id=card_triage class=card>
+                <Text class=phase_chip_text x={100% - 102px} y=21px width=78px height=18px text="BASE" />
+                <Text class=card_kicker x=24px y=22px width={100% - 48px} height=18px text="01 TRIAGE" />
+                <Text class=card_title x=24px y=54px width={100% - 48px} height=34px text="Assess signal" />
+                <Text class=card_copy x=24px y=102px width={100% - 48px} height=54px text="Shared styles define the dispatch object before settings move it." />
+                <Text class=metric_value x=24px y=144px width=74px height=40px text="3" />
+                <Text class=metric_label x=98px y=158px width={100% - 122px} height=20px text="settings layers" />
+                <Rectangle class=mini_bar x={100% - 104px} y=160px width=68px height=6px />
+                <Rectangle class=mini_bar_soft x={100% - 104px} y=174px width=84px height=6px />
+                <Rectangle class=phase_chip_surface x={100% - 112px} y=18px width=88px height=24px />
+                <Rectangle class=accent_rail x=0px y=0px width=6px height=100% />
+                <Rectangle class=card_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group id=status_panel class=status_panel>
+                <Text class=panel_label x=34px y=28px width={100% - 68px} height=20px text="LIVE SETTINGS BRANCH" />
+                <Text class=panel_value x=34px y=62px width={100% - 470px} height=50px text={$desktop && $landscape ? "wide command layout" : ($landscape ? "compact landscape layout" : "stacked field layout")} />
+                <Text class=panel_copy x=36px y=122px width={100% - 470px} height=36px text={$landscape ? "Command mode keeps the incident phases on one horizontal timeline." : "Field mode stacks phases along a vertical checklist rail."} />
+                <Text class=panel_chip_text x={100% - 392px} y=56px width=92px height=20px text="$desktop" />
+                <Text class=panel_chip_text x={100% - 262px} y=56px width=104px height=20px text="$landscape" />
+                <Text class=panel_chip_text x={100% - 124px} y=56px width=78px height=20px text="$macos" />
+                <Text class=panel_chip_value x={100% - 392px} y=88px width=92px height=28px text={$desktop ? "true" : "false"} />
+                <Text class=panel_chip_value x={100% - 262px} y=88px width=104px height=28px text={$landscape ? "true" : "false"} />
+                <Text class=panel_chip_value x={100% - 124px} y=88px width=78px height=28px text={$macos ? "true" : "false"} />
+                <Rectangle class=panel_chip_surface x={100% - 410px} y=42px width=124px height=92px />
+                <Rectangle class=panel_chip_surface x={100% - 278px} y=42px width=132px height=92px />
+                <Rectangle class=panel_chip_surface x={100% - 138px} y=42px width=112px height=92px />
+                <Rectangle class=scan_track x=36px y=160px width={100% - 72px} height=7px />
+                <Rectangle class=scan_bar x={36px + (($millis %% 1800) * 0.14)px} y=158px width=90px height=11px />
+                <Ellipse class=accent_mark x={100% - 46px} y=38px width={20px + (($frames %% 18) * 0.4)px} height={20px + (($frames %% 18) * 0.4)px} anchor=50% />
+                <Rectangle class=panel_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Text class=timeline_label x=58px y=244px width=170px height=18px text="INCIDENT FLOW" />
+            <Ellipse id=node_triage class=accent_mark x=76px y=282px width=22px height=22px anchor=50% />
+            <Ellipse id=node_route class=accent_mark x=50% y=282px width=22px height=22px anchor=50% />
+            <Ellipse id=node_resolve class=accent_mark x={100% - 78px} y=282px width=22px height=22px anchor=50% />
+            <Rectangle class=timeline_line x=76px y=279px width={100% - 152px} height=6px />
+            <Rectangle class=top_rule x=42px y=188px width={100% - 84px} height=1px />
+            <Rectangle class=left_band x=0px y=0px width=310px height=1660px />
+            <Rectangle class=header_wash x=0px y=0px width=100% height=250px />
+            <Rectangle class=ambient_panel x=1.5% y=220px width=97% height=880px />
+        </Group>
+    </Scroller>
+
+    <Rectangle class=background x=0px y=0px width=100% height=100% />
+</Group>
+
+@settings {
+    .eyebrow {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 12px
+            fill: rgb(93, 108, 111)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+
+    .title {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 58px
+            fill: rgb(21, 29, 32)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+
+    .subtitle {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font_size: 16px
+            fill: rgb(75, 91, 94)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .branch_badge {
+        x: {100% - 306px}
+        y: 64px
+        width: 250px
+        height: 36px
+    }
+
+    .badge_text {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font_size: 13px
+            fill: rgb(36, 48, 51)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+
+    .badge_surface {
+        fill: Fill::linearGradient(
+            (0%, 0%),
+            (100%, 100%),
+            [
+                GradientStop::get(Color::rgba(255, 255, 255, 250), 0%),
+                GradientStop::get(Color::rgba(240, 248, 247, 238), 100%)
+            ]
+        )
+        border_radius: 5
+        stroke: Stroke {
+            color: Color::rgba(119, 143, 146, 82)
+            width: 1px
+        }
+    }
+
+    .card {
+        x: 28px
+        width: {100% - 56px}
+        height: 226px
+    }
+
+    #card_triage {
+        y: 174px
+    }
+
+    #card_route {
+        y: 390px
+    }
+
+    #card_resolve {
+        y: 606px
+    }
+
+    .card_surface {
+        fill: Fill::linearGradient(
+            (0%, 0%),
+            (0%, 100%),
+            [
+                GradientStop::get(Color::rgba(255, 255, 255, 252), 0%),
+                GradientStop::get(Color::rgba(248, 252, 250, 246), 62%),
+                GradientStop::get(Color::rgba(238, 246, 244, 238), 100%)
+            ]
+        )
+        border_radius: 10
+        stroke: Stroke {
+            color: Color::rgba(100, 122, 125, 80)
+            width: 1px
+        }
+    }
+
+    .card_kicker {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 11px
+            fill: rgb(91, 104, 108)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+
+    .card_title {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 26px
+            fill: rgb(22, 30, 33)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+
+    .card_copy {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font_size: 14px
+            fill: rgb(70, 84, 88)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .metric_value {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 36px
+            fill: rgb(20, 29, 32)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+
+    .metric_label {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font_size: 12px
+            fill: rgb(88, 101, 105)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+
+    .phase_chip_text {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 10px
+            fill: rgb(46, 60, 63)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+        }
+    }
+
+    .phase_chip_surface {
+        fill: Fill::linearGradient(
+            (0%, 0%),
+            (100%, 0%),
+            [
+                GradientStop::get(Color::rgba(238, 247, 245, 250), 0%),
+                GradientStop::get(Color::rgba(221, 235, 232, 230), 100%)
+            ]
+        )
+        border_radius: 5
+    }
+
+    .mini_bar {
+        fill: rgb(40, 56, 59)
+        border_radius: 5
+    }
+
+    .mini_bar_soft {
+        fill: Color::rgba(40, 56, 59, 72)
+        border_radius: 5
+    }
+
+    .mini_dot {
+        fill: rgb(40, 56, 59)
+    }
+
+    .mini_dot_soft {
+        fill: Color::rgba(40, 56, 59, 70)
+    }
+
+    .status_panel {
+        x: 28px
+        y: 826px
+        width: {100% - 56px}
+        height: 360px
+    }
+
+    .timeline_label {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 11px
+            fill: rgb(90, 106, 110)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+
+    .panel_surface {
+        fill: Fill::linearGradient(
+            (0%, 0%),
+            (100%, 100%),
+            [
+                GradientStop::get(Color::rgba(25, 39, 42, 250), 0%),
+                GradientStop::get(Color::rgba(31, 51, 53, 246), 58%),
+                GradientStop::get(Color::rgba(20, 30, 34, 250), 100%)
+            ]
+        )
+        border_radius: 10
+    }
+
+    .panel_label {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 12px
+            fill: rgb(151, 178, 180)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+
+    .panel_value {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 28px
+            fill: rgb(255, 255, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+
+    .panel_copy {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font_size: 14px
+            fill: rgb(212, 224, 224)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .panel_chip_text {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 11px
+            fill: rgb(155, 178, 180)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+        }
+    }
+
+    .panel_chip_value {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 14px
+            fill: rgb(255, 255, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+        }
+    }
+
+    .panel_chip_surface {
+        fill: Color::rgba(255, 255, 255, 30)
+        border_radius: 5
+        stroke: Stroke {
+            color: Color::rgba(255, 255, 255, 44)
+            width: 1px
+        }
+    }
+
+    .scan_track {
+        fill: Color::rgba(255, 255, 255, 36)
+        border_radius: 5
+    }
+
+    .scan_bar {
+        fill: Color::rgba(255, 255, 255, 174)
+        border_radius: 5
+    }
+
+    .left_band {
+        fill: Fill::linearGradient(
+            (0%, 0%),
+            (100%, 0%),
+            [
+                GradientStop::get(Color::rgba(32, 50, 54, 34), 0%),
+                GradientStop::get(Color::rgba(32, 50, 54, 18), 58%),
+                GradientStop::get(Color::rgba(32, 50, 54, 0), 100%)
+            ]
+        )
+    }
+
+    .header_wash {
+        fill: Fill::linearGradient(
+            (0%, 0%),
+            (0%, 100%),
+            [
+                GradientStop::get(Color::rgba(255, 255, 255, 120), 0%),
+                GradientStop::get(Color::rgba(255, 255, 255, 52), 58%),
+                GradientStop::get(Color::rgba(255, 255, 255, 0), 100%)
+            ]
+        )
+    }
+
+    .ambient_panel {
+        fill: Fill::linearGradient(
+            (0%, 0%),
+            (100%, 100%),
+            [
+                GradientStop::get(Color::rgba(255, 255, 255, 54), 0%),
+                GradientStop::get(Color::rgba(65, 112, 128, 28), 58%),
+                GradientStop::get(Color::rgba(255, 255, 255, 0), 100%)
+            ]
+        )
+        border_radius: 10
+    }
+
+    .top_rule {
+        fill: Color::rgba(43, 57, 60, 58)
+        border_radius: 5
+    }
+
+    .timeline_line {
+        fill: Color::rgba(35, 48, 52, 74)
+        border_radius: 5
+    }
+
+    .accent_rail {
+        fill: rgb(70, 127, 191)
+        border_radius: 5
+    }
+
+    .accent_mark {
+        fill: rgb(70, 127, 191)
+    }
+
+    .background {
+        fill: Fill::linearGradient(
+            (0%, 0%),
+            (100%, 100%),
+            [
+                GradientStop::get(Color::rgba(237, 244, 242, 255), 0%),
+                GradientStop::get(Color::rgba(224, 235, 233, 255), 48%),
+                GradientStop::get(Color::rgba(217, 229, 226, 255), 100%)
+            ]
+        )
+    }
+
+    if $desktop && $landscape {
+        .card {
+            y: 300px
+            width: 29%
+            height: 390px
+        }
+
+        #card_triage {
+            x: 24px
+            y: 300px
+        }
+
+        #card_route {
+            x: 50%
+            y: 300px
+        }
+
+        #card_resolve {
+            x: {100% - 24px}
+            y: 300px
+        }
+
+        .status_panel {
+            x: 24px
+            y: 774px
+            width: {100% - 48px}
+            height: 900px
+        }
+
+        .branch_badge {
+            width: 276px
+        }
+    } else if $landscape {
+        .card {
+            width: 30%
+            height: 270px
+        }
+
+        #card_triage {
+            x: 3.5%
+            y: 250px
+        }
+
+        #card_route {
+            x: 35%
+            y: 250px
+        }
+
+        #card_resolve {
+            x: 66.5%
+            y: 250px
+        }
+
+        .status_panel {
+            x: 3.5%
+            y: 560px
+            width: 93%
+            height: 360px
+        }
+    } else {
+        .card {
+            x: 86px
+            width: {100% - 114px}
+            height: 226px
+        }
+
+        #card_triage {
+            y: 184px
+        }
+
+        #card_route {
+            y: 452px
+        }
+
+        #card_resolve {
+            y: 720px
+        }
+
+        .status_panel {
+            x: 28px
+            y: 990px
+            width: {100% - 56px}
+            height: 420px
+        }
+
+        .timeline_line {
+            x: 54px
+            y: 210px
+            width: 4px
+            height: 780px
+        }
+
+        #node_triage {
+            x: 56px
+            y: 238px
+        }
+
+        #node_route {
+            x: 56px
+            y: 506px
+        }
+
+        #node_resolve {
+            x: 56px
+            y: 774px
+        }
+    }
+
+    if $mobile {
+        .card {
+            height: 240px
+        }
+
+        #card_route {
+            y: 452px
+        }
+
+        #card_resolve {
+            y: 720px
+        }
+
+        .status_panel {
+            y: 990px
+            height: 420px
+        }
+
+        .title {
+            style: TextStyle {
+                font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+                font_size: 34px
+                fill: rgb(21, 29, 32)
+                align_vertical: TextAlignVertical::Center
+                align_horizontal: TextAlignHorizontal::Left
+            }
+        }
+    }
+
+    if $macos {
+        .accent_mark {
+            fill: rgb(66, 113, 196)
+        }
+
+        .accent_rail {
+            fill: rgb(66, 113, 196)
+        }
+    } else if $web {
+        .accent_mark {
+            fill: rgb(35, 148, 108)
+        }
+
+        .accent_rail {
+            fill: rgb(35, 148, 108)
+        }
+    } else {
+        .accent_mark {
+            fill: rgb(219, 129, 58)
+        }
+
+        .accent_rail {
+            fill: rgb(219, 129, 58)
+        }
+    }
+}

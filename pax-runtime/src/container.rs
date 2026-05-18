@@ -372,14 +372,14 @@ mod tests {
         TransformAndBounds,
     };
     use pax_runtime_api::pax_value::PaxAny;
-    use pax_runtime_api::{Platform, Property, OS};
+    use pax_runtime_api::{Platform, Property, TargetInfo, OS};
     use std::cell::RefCell;
     use std::fmt;
     use std::rc::Rc;
 
     fn test_globals() -> Globals {
         Globals {
-            frames_elapsed: Property::new(0),
+            elapsed_frames: Property::new(0),
             elapsed_millis: Property::new(0),
             viewport: Property::new(TransformAndBounds {
                 transform: Transform2::identity(),
@@ -392,6 +392,7 @@ mod tests {
             browser_allows_nested_scroller_vector_layers: Property::new(true),
             platform: Platform::Unknown,
             os: OS::Unknown,
+            target: TargetInfo::new(Platform::Unknown, OS::Unknown),
             get_elapsed_millis: Rc::new(|| 0),
         }
     }

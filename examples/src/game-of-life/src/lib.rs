@@ -30,7 +30,7 @@ impl Default for GameOfLife {
 impl GameOfLife {
     pub fn tick(&mut self, ctx: &NodeContext) {
         let interval = (100.0 / self.speed.get()) as u64;
-        if ctx.frames_elapsed.get() % interval == 0 && self.running.get() {
+        if ctx.elapsed_frames.get() % interval == 0 && self.running.get() {
             self.update();
         }
     }

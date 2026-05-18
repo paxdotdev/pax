@@ -16,9 +16,10 @@ const {{component.pascal_identifier}}PropertyDescriptors: [{{ engine_import_path
             let default_properties = <{{component.type_id.import_path}} as std::default::Default>::default();
             let mut layered_property = {{ engine_import_path }}::api::Property::new(default_properties.{{property.name}}.get());
             for entry in entries {
+                let previous_property = layered_property.clone();
                 let stack_with_base = {{ engine_import_path }}::pax_runtime::stack_with_base(
                     stack_frame,
-                    layered_property.clone(),
+                    previous_property.clone(),
                 );
                 let uses_local_property_scope = match &entry.value {
                     {{ engine_import_path }}::pax_manifest::ValueDefinition::Timeline(track) => track.use_local_property_scope,
@@ -41,12 +42,19 @@ const {{component.pascal_identifier}}PropertyDescriptors: [{{ engine_import_path
                 } else {
                     stack_with_base.clone()
                 };
-                layered_property = {{ engine_import_path }}::pax_runtime::build_component_property(
+                let candidate_property = {{ engine_import_path }}::pax_runtime::build_component_property(
                     "{{property.name}}",
                     &entry.value,
                     &stack_with_base,
                     timeline_stack,
                     |block, cloned_stack| {{ engine_import_path }}::pax_runtime::build_literal_block_property(&{{property.property_type.type_id._type_id_escaped}}TypeDescriptor, block, cloned_stack),
+                );
+                layered_property = {{ engine_import_path }}::pax_runtime::apply_runtime_settings_condition(
+                    "{{property.name}}",
+                    entry.condition.as_ref(),
+                    stack_frame,
+                    previous_property,
+                    candidate_property,
                 );
             }
             properties.{{property.name}}.replace_with(layered_property);

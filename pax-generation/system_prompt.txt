@@ -508,7 +508,7 @@ Notice that Pax builds off of Rust's import and namespace resolution mechanisms,
 
 ```pax copy
 <Rectangle transform={
-    rotate(engine.frames_elapsed / 200.0) *
+    rotate(engine.elapsed_frames / 200.0) *
     translate(in.mouse_x, in.mouse_y)
 }/>
 ```
@@ -2029,7 +2029,7 @@ impl Default for GameOfLife {
 impl GameOfLife {
     pub fn tick(&mut self, ctx: &NodeContext) {
         let interval = (100.0 / self.speed.get()) as u64;
-        if ctx.frames_elapsed.get() % interval == 0 && self.running.get() {
+        if ctx.elapsed_frames.get() % interval == 0 && self.running.get() {
             self.update();
         }
     }
@@ -2239,7 +2239,7 @@ impl SpaceGame {
         // Read properties
         let (w_o, h_o) = ctx.bounds_parent.get();
         let (w, h) = (w_o / SCALE, h_o / SCALE);
-        let ticks = ctx.frames_elapsed.get();
+        let ticks = ctx.elapsed_frames.get();
         let mut bullets = self.bullets.get();
         let mut asteroids = self.asteroids.get();
         let mut ship_x = self.ship_x.get();

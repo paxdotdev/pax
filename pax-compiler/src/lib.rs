@@ -742,6 +742,11 @@ fn collect_settings_block_elements(
             SettingsBlockElement::SelectorBlock(_, block) => {
                 collect_literal_block_definition(block, seen, collected);
             }
+            SettingsBlockElement::Conditional(block) => {
+                for branch in &block.branches {
+                    collect_settings_block_elements(&branch.elements, seen, collected);
+                }
+            }
             SettingsBlockElement::Handler(_, _)
             | SettingsBlockElement::Transition(_, _)
             | SettingsBlockElement::Comment(_) => {}

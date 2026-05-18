@@ -499,7 +499,7 @@ Notice that Pax builds off of Rust's import and namespace resolution mechanisms,
 
 ```pax copy
 <Rectangle transform={
-    rotate(engine.frames_elapsed / 200.0) *
+    rotate(engine.elapsed_frames / 200.0) *
     translate(in.mouse_x, in.mouse_y)
 }/>
 ```
@@ -1592,7 +1592,7 @@ impl Default for GameOfLife {
 impl GameOfLife {
     pub fn tick(&mut self, ctx: &NodeContext) {
         let interval = (100.0 / self.speed.get()) as u64;
-        if ctx.frames_elapsed.get() % interval == 0 && self.running.get() {
+        if ctx.elapsed_frames.get() % interval == 0 && self.running.get() {
             self.update();
         }
     }

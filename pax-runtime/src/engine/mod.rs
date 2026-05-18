@@ -10,7 +10,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use pax_message::NativeMessage;
 use pax_runtime_api::{
-    pax_value::PaxAny, use_RefCell, Accel, Event, Focus, Gyro, SelectStart, Variable, Window, OS,
+    pax_value::PaxAny, use_RefCell, Accel, Event, Focus, Gyro, SelectStart, TargetInfo, Variable,
+    Viewport, Window, OS,
 };
 
 use crate::api::{KeyDown, KeyPress, KeyUp, NodeContext, RenderContext};
@@ -34,7 +35,8 @@ pub mod piet_render_context;
 mod expanded_node;
 pub use expanded_node::{
     ExpandedNode, RuntimeResolvedPropertyColumns, RuntimeResolvedPropertyEntry,
-    RuntimeSettingsLayer, RuntimeSettingsSignatureEntry, RuntimeSettingsSource,
+    RuntimeSettingsCondition, RuntimeSettingsLayer, RuntimeSettingsSignatureEntry,
+    RuntimeSettingsSource,
 };
 
 use self::node_interface::NodeLocal;
@@ -48,6 +50,40 @@ struct FilteredRenderPlan {
     render_path_nodes: HashSet<ExpandedNodeIdentifier>,
 }
 
+fn viewport_info_property(
+    viewport_bounds: &Property<TransformAndBounds<NodeLocal, Window>>,
+) -> Property<Viewport> {
+    let cloned_viewport = viewport_bounds.clone();
+    let deps = [cloned_viewport.untyped()];
+    Property::computed(
+        move || {
+            let viewport = cloned_viewport.get();
+            Viewport::new(viewport.bounds.0, viewport.bounds.1)
+        },
+        &deps,
+    )
+}
+
+fn viewport_number_property(
+    viewport: &Property<Viewport>,
+    name: &str,
+    accessor: fn(Viewport) -> f64,
+) -> Property<f64> {
+    let cloned_viewport = viewport.clone();
+    let deps = [cloned_viewport.untyped()];
+    Property::computed_with_name(move || accessor(cloned_viewport.get()), &deps, name)
+}
+
+fn viewport_bool_property(
+    viewport: &Property<Viewport>,
+    name: &str,
+    accessor: fn(Viewport) -> bool,
+) -> Property<bool> {
+    let cloned_viewport = viewport.clone();
+    let deps = [cloned_viewport.untyped()];
+    Property::computed_with_name(move || accessor(cloned_viewport.get()), &deps, name)
+}
+
 #[cfg(feature = "designtime")]
 use {
     crate::InstanceNode,
@@ -58,7 +94,7 @@ use {
 #[derive(Clone)]
 /// Engine-wide reactive globals exposed to every component frame.
 pub struct Globals {
-    pub frames_elapsed: Property<u64>,
+    pub elapsed_frames: Property<u64>,
     pub elapsed_millis: Property<u64>,
     pub viewport: Property<TransformAndBounds<NodeLocal, Window>>,
     pub gyro: Property<Gyro>,
@@ -68,6 +104,7 @@ pub struct Globals {
     pub browser_allows_nested_scroller_vector_layers: Property<bool>,
     pub platform: Platform,
     pub os: OS,
+    pub target: TargetInfo,
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
     pub get_elapsed_millis: Rc<dyn Fn() -> u128>,
@@ -76,39 +113,116 @@ pub struct Globals {
 impl Globals {
     /// Build the root stack frame containing built-in globals plus internal engine state.
     pub fn stack_frame(&self) -> Rc<RuntimePropertiesStackFrame> {
-        let mobile = Property::new(self.os.is_mobile());
-        let desktop = Property::new(self.os.is_desktop());
+        let target = self.target;
+        let viewport = viewport_info_property(&self.viewport);
 
-        let cloned_viewport = self.viewport.clone();
-        let deps = [cloned_viewport.untyped()];
-        let viewport = Property::computed(
-            move || {
-                let viewport = cloned_viewport.get();
-                pax_runtime_api::Viewport {
-                    width: viewport.bounds.0,
-                    height: viewport.bounds.1,
-                }
-            },
-            &deps,
-        );
-
-        let mobile_var = Variable::new_from_typed_property(mobile);
-        let desktop_var = Variable::new_from_typed_property(desktop);
-        let viewport_var = Variable::new_from_typed_property(viewport);
+        let target_var = Variable::new_from_typed_property(Property::new(target));
+        let viewport_var = Variable::new_from_typed_property(viewport.clone());
         let gyro_var = Variable::new_from_typed_property(self.gyro.clone());
         let accel_var = Variable::new_from_typed_property(self.accel.clone());
-        let frames_elapsed_var = Variable::new_from_typed_property(self.frames_elapsed.clone());
+        let frames_elapsed_var = Variable::new_from_typed_property(self.elapsed_frames.clone());
         let elapsed_millis_var = Variable::new_from_typed_property(self.elapsed_millis.clone());
         let route_location_var = Variable::new_from_typed_property(self.route_location.clone());
 
         let global_scope = vec![
-            ("$mobile".to_string(), mobile_var),
-            ("$desktop".to_string(), desktop_var),
+            ("$target".to_string(), target_var),
             ("$viewport".to_string(), viewport_var),
+            (
+                "$web".to_string(),
+                Variable::new_from_typed_property(Property::new(target.web)),
+            ),
+            (
+                "$native".to_string(),
+                Variable::new_from_typed_property(Property::new(target.native)),
+            ),
+            (
+                "$ios".to_string(),
+                Variable::new_from_typed_property(Property::new(target.ios)),
+            ),
+            (
+                "$iphone".to_string(),
+                Variable::new_from_typed_property(Property::new(target.iphone)),
+            ),
+            (
+                "$ipad".to_string(),
+                Variable::new_from_typed_property(Property::new(target.ipad)),
+            ),
+            (
+                "$macos".to_string(),
+                Variable::new_from_typed_property(Property::new(target.macos)),
+            ),
+            (
+                "$android".to_string(),
+                Variable::new_from_typed_property(Property::new(target.android)),
+            ),
+            (
+                "$windows".to_string(),
+                Variable::new_from_typed_property(Property::new(target.windows)),
+            ),
+            (
+                "$linux".to_string(),
+                Variable::new_from_typed_property(Property::new(target.linux)),
+            ),
+            (
+                "$mobile".to_string(),
+                Variable::new_from_typed_property(Property::new(target.mobile)),
+            ),
+            (
+                "$desktop".to_string(),
+                Variable::new_from_typed_property(Property::new(target.desktop)),
+            ),
+            (
+                "$major".to_string(),
+                Variable::new_from_typed_property(viewport_number_property(
+                    &viewport,
+                    "$major",
+                    |viewport| viewport.major,
+                )),
+            ),
+            (
+                "$minor".to_string(),
+                Variable::new_from_typed_property(viewport_number_property(
+                    &viewport,
+                    "$minor",
+                    |viewport| viewport.minor,
+                )),
+            ),
+            (
+                "$aspect".to_string(),
+                Variable::new_from_typed_property(viewport_number_property(
+                    &viewport,
+                    "$aspect",
+                    |viewport| viewport.aspect,
+                )),
+            ),
+            (
+                "$landscape".to_string(),
+                Variable::new_from_typed_property(viewport_bool_property(
+                    &viewport,
+                    "$landscape",
+                    |viewport| viewport.landscape,
+                )),
+            ),
+            (
+                "$portrait".to_string(),
+                Variable::new_from_typed_property(viewport_bool_property(
+                    &viewport,
+                    "$portrait",
+                    |viewport| viewport.portrait,
+                )),
+            ),
+            (
+                "$square".to_string(),
+                Variable::new_from_typed_property(viewport_bool_property(
+                    &viewport,
+                    "$square",
+                    |viewport| viewport.square,
+                )),
+            ),
             ("$gyro".to_string(), gyro_var),
             ("$accel".to_string(), accel_var),
-            ("$frames_elapsed".to_string(), frames_elapsed_var),
-            ("$elapsed_millis".to_string(), elapsed_millis_var),
+            ("$frames".to_string(), frames_elapsed_var),
+            ("$millis".to_string(), elapsed_millis_var),
             (
                 INTERNAL_ROUTE_LOCATION_SYMBOL.to_string(),
                 route_location_var,
@@ -125,12 +239,13 @@ impl Globals {
 impl std::fmt::Debug for Globals {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Globals")
-            .field("frames_elapsed", &self.frames_elapsed)
+            .field("elapsed_frames", &self.elapsed_frames)
             .field("elapsed_millis", &self.elapsed_millis)
             .field("viewport", &self.viewport)
             .field("gyro", &self.gyro)
             .field("accel", &self.accel)
             .field("route_location", &self.route_location)
+            .field("target", &self.target)
             .finish_non_exhaustive()
     }
 }
@@ -204,12 +319,12 @@ impl PaxEngine {
         use pax_runtime_api::{properties, Functions};
         Functions::register_all_functions();
 
-        let frames_elapsed = Property::new(0);
+        let elapsed_frames = Property::new(0);
         let elapsed_millis = Property::new(saturating_u128_to_u64(get_elapsed_millis()));
-        properties::register_time(&frames_elapsed);
+        properties::register_time(&elapsed_frames);
         properties::register_millis(&elapsed_millis);
         Globals {
-            frames_elapsed,
+            elapsed_frames,
             elapsed_millis,
             viewport: Property::new(TransformAndBounds {
                 transform: Transform2::identity(),
@@ -222,6 +337,7 @@ impl PaxEngine {
             browser_allows_nested_scroller_vector_layers: Property::new(true),
             platform,
             os,
+            target: TargetInfo::new(platform, os),
             get_elapsed_millis: Rc::from(get_elapsed_millis),
         }
     }
@@ -237,12 +353,12 @@ impl PaxEngine {
         use pax_runtime_api::{math::Transform2, properties, Functions};
         Functions::register_all_functions();
 
-        let frames_elapsed = Property::new(0);
+        let elapsed_frames = Property::new(0);
         let elapsed_millis = Property::new(saturating_u128_to_u64(get_elapsed_millis()));
-        properties::register_time(&frames_elapsed);
+        properties::register_time(&elapsed_frames);
         properties::register_millis(&elapsed_millis);
         Globals {
-            frames_elapsed,
+            elapsed_frames,
             elapsed_millis,
             viewport: Property::new(TransformAndBounds {
                 transform: Transform2::identity(),
@@ -255,6 +371,7 @@ impl PaxEngine {
             browser_allows_nested_scroller_vector_layers: Property::new(true),
             platform,
             os,
+            target: TargetInfo::new(platform, os),
             designtime: designtime.clone(),
             get_elapsed_millis: Rc::from(get_elapsed_millis),
         }
@@ -477,7 +594,7 @@ impl PaxEngine {
             ctx.drain_node_effects();
         }
         let globals = ctx.globals();
-        let time = &globals.frames_elapsed;
+        let time = &globals.elapsed_frames;
         time.set(time.get() + 1);
         globals
             .elapsed_millis
@@ -878,6 +995,16 @@ mod tests {
         })
     }
 
+    fn object_field(value: PaxValue, field: &str) -> PaxValue {
+        let PaxValue::Object(fields) = value else {
+            panic!("expected object value");
+        };
+        fields
+            .into_iter()
+            .find_map(|(name, value)| (name == field).then_some(value))
+            .unwrap_or_else(|| panic!("expected object field {field}"))
+    }
+
     #[test]
     fn empty_engine_can_tick_and_mount_later() {
         let mut engine = PaxEngine::new_empty(
@@ -1018,5 +1145,119 @@ mod tests {
 
         assert_eq!(GYRO_CALLS.load(Ordering::SeqCst), 1);
         assert_eq!(ACCEL_CALLS.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn globals_expose_clock_aliases_to_stack_frame() {
+        let engine = PaxEngine::new_empty(
+            (320.0, 240.0),
+            Platform::Web,
+            OS::Mac,
+            Box::new(|| 123),
+            layer_tiling::ScrollerTilingPolicy::default(),
+        );
+        let globals = engine.runtime_context.globals();
+        let stack = globals.stack_frame();
+
+        assert_eq!(
+            stack.resolve_symbol("$frames").unwrap().get_as_pax_value(),
+            PaxValue::Numeric(0.into())
+        );
+        assert_eq!(
+            stack.resolve_symbol("$millis").unwrap().get_as_pax_value(),
+            PaxValue::Numeric(123.into())
+        );
+        let old_frames_symbol = format!("{}{}", "$frames", "_elapsed");
+        let old_millis_symbol = format!("{}{}", "$elapsed", "_millis");
+        assert!(stack.resolve_symbol(&old_frames_symbol).is_none());
+        assert!(stack.resolve_symbol(&old_millis_symbol).is_none());
+    }
+
+    #[test]
+    fn globals_expose_target_aliases_to_stack_frame() {
+        let engine = PaxEngine::new_empty(
+            (320.0, 240.0),
+            Platform::Native,
+            OS::IPad,
+            Box::new(|| 0),
+            layer_tiling::ScrollerTilingPolicy::default(),
+        );
+        let globals = engine.runtime_context.globals();
+        let stack = globals.stack_frame();
+
+        assert_eq!(
+            stack.resolve_symbol("$ios").unwrap().get_as_pax_value(),
+            PaxValue::Bool(true)
+        );
+        assert_eq!(
+            stack.resolve_symbol("$ipad").unwrap().get_as_pax_value(),
+            PaxValue::Bool(true)
+        );
+        assert_eq!(
+            stack.resolve_symbol("$iphone").unwrap().get_as_pax_value(),
+            PaxValue::Bool(false)
+        );
+        assert_eq!(
+            stack.resolve_symbol("$native").unwrap().get_as_pax_value(),
+            PaxValue::Bool(true)
+        );
+        assert_eq!(
+            object_field(
+                stack.resolve_symbol("$target").unwrap().get_as_pax_value(),
+                "ipad"
+            ),
+            PaxValue::Bool(true)
+        );
+    }
+
+    #[test]
+    fn globals_expose_viewport_orientation_aliases_to_stack_frame() {
+        let engine = PaxEngine::new_empty(
+            (320.0, 240.0),
+            Platform::Web,
+            OS::Mac,
+            Box::new(|| 0),
+            layer_tiling::ScrollerTilingPolicy::default(),
+        );
+        let globals = engine.runtime_context.globals();
+        let stack = globals.stack_frame();
+
+        assert_eq!(
+            stack
+                .resolve_symbol("$landscape")
+                .unwrap()
+                .get_as_pax_value(),
+            PaxValue::Bool(true)
+        );
+        assert_eq!(
+            stack.resolve_symbol("$major").unwrap().get_as_pax_value(),
+            PaxValue::Numeric(320.0.into())
+        );
+        assert_eq!(
+            object_field(
+                stack
+                    .resolve_symbol("$viewport")
+                    .unwrap()
+                    .get_as_pax_value(),
+                "minor"
+            ),
+            PaxValue::Numeric(240.0.into())
+        );
+
+        globals.viewport.update(|viewport| {
+            viewport.bounds = (240.0, 320.0);
+        });
+
+        assert_eq!(
+            stack
+                .resolve_symbol("$portrait")
+                .unwrap()
+                .get_as_pax_value(),
+            PaxValue::Bool(true)
+        );
+        assert_eq!(
+            stack.resolve_symbol("$minor").unwrap().get_as_pax_value(),
+            PaxValue::Numeric(240.0.into())
+        );
     }
 }

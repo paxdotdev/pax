@@ -117,7 +117,7 @@ impl Console {
                 deps,
             ));
 
-        let frames_elapsed = ctx.frames_elapsed.clone();
+        let frames_elapsed = ctx.elapsed_frames.clone();
         let messages_cloned = self.messages.clone();
         self.enqueue_scroll_set.replace_with(Property::computed(
             move || {
@@ -151,7 +151,7 @@ impl Console {
 
     pub fn update(&mut self, _ctx: &NodeContext) {
         if let Some(e) = self.enqueue_scroll_set.get() {
-            if e.frame == _ctx.frames_elapsed.get() {
+            if e.frame == _ctx.elapsed_frames.get() {
                 self.scroll_y.set(e.scroll_y);
                 self.enqueue_scroll_set.set(None);
             }

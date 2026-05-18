@@ -35,6 +35,7 @@ pub struct TemplateBuildConfig {
     pub web: bool,
     pub macos: bool,
     pub ios: bool,
+    pub ipados: bool,
     pub designtime: bool,
     pub designer: bool,
 }

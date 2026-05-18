@@ -396,7 +396,7 @@ pub fn x(input: isize) -> isize {
 ### helpers, injectables
 2022-01-28
 
-e.g. Engine.frames_elapsed, or a userland helper function hue_shift()
+e.g. Engine.elapsed_frames, or a userland helper function hue_shift()
 
 API thought: can continue the `#[pax ...]` convention, decorating a function declaration like so:
 ```
@@ -860,7 +860,7 @@ for
 ```
 stroke: {
     color: Color::rgba(255, 255, 255, 255);
-    width: @{ $frames_elapsed * 0.001}
+    width: @{ $frames * 0.001}
 }
 ```
 
@@ -4833,7 +4833,6 @@ so that we can transfer that state when we swap out a wasm slug
 Detail: We may want to use something other than JSON for our state transfer mechanism, e.g. protobufs or flatbuffers.  It's probably worth
 the disk footprint overhead for the designer, since it should significantly boost speed of state transfer
 when reloading the designer
-
 
 
 

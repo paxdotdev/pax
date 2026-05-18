@@ -1,0 +1,310 @@
+<Group width=100% height=100%>
+    <Scroller
+        x=0px
+        y=0px
+        width=100%
+        height=100%
+        scroll_width=100%
+        scroll_height=1830px
+    >
+        <Group width=100% height=1830px>
+            <Text
+                class=title
+                x=32px
+                y=34px
+                width={100% - 64px}
+                height=46px
+                text="Responsive Helper Globals"
+            />
+            <Text
+                class=subtitle
+                x=32px
+                y=86px
+                width={100% - 64px}
+                height=28px
+                text="Target, viewport, orientation, motion, and time values"
+            />
+
+            <Text class=section_label x=32px y=154px width={100% - 64px} height=24px text="Target object and aliases" />
+
+            <Group x=32px y=194px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$target.web / $web" />
+                <Text class=row_value x={100% - 154px} y=7px width=128px height=28px text={($target.web ? "true" : "false") + " / " + ($web ? "true" : "false")} />
+                <Ellipse x=24px y=21px width=16px height=16px anchor=50% fill={$web ? rgb(37, 156, 112) : rgb(139, 149, 158)} />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=242px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$target.native / $native" />
+                <Text class=row_value x={100% - 154px} y=7px width=128px height=28px text={($target.native ? "true" : "false") + " / " + ($native ? "true" : "false")} />
+                <Ellipse x=24px y=21px width=16px height=16px anchor=50% fill={$native ? rgb(37, 156, 112) : rgb(139, 149, 158)} />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=290px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$target.ios / $ios" />
+                <Text class=row_value x={100% - 154px} y=7px width=128px height=28px text={($target.ios ? "true" : "false") + " / " + ($ios ? "true" : "false")} />
+                <Ellipse x=24px y=21px width=16px height=16px anchor=50% fill={$ios ? rgb(37, 156, 112) : rgb(139, 149, 158)} />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=338px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$target.iphone / $iphone" />
+                <Text class=row_value x={100% - 154px} y=7px width=128px height=28px text={($target.iphone ? "true" : "false") + " / " + ($iphone ? "true" : "false")} />
+                <Ellipse x=24px y=21px width=16px height=16px anchor=50% fill={$iphone ? rgb(37, 156, 112) : rgb(139, 149, 158)} />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=386px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$target.ipad / $ipad" />
+                <Text class=row_value x={100% - 154px} y=7px width=128px height=28px text={($target.ipad ? "true" : "false") + " / " + ($ipad ? "true" : "false")} />
+                <Ellipse x=24px y=21px width=16px height=16px anchor=50% fill={$ipad ? rgb(37, 156, 112) : rgb(139, 149, 158)} />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=434px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$target.macos / $macos" />
+                <Text class=row_value x={100% - 154px} y=7px width=128px height=28px text={($target.macos ? "true" : "false") + " / " + ($macos ? "true" : "false")} />
+                <Ellipse x=24px y=21px width=16px height=16px anchor=50% fill={$macos ? rgb(37, 156, 112) : rgb(139, 149, 158)} />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=482px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$target.android / $android" />
+                <Text class=row_value x={100% - 154px} y=7px width=128px height=28px text={($target.android ? "true" : "false") + " / " + ($android ? "true" : "false")} />
+                <Ellipse x=24px y=21px width=16px height=16px anchor=50% fill={$android ? rgb(37, 156, 112) : rgb(139, 149, 158)} />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=530px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$target.windows / $windows" />
+                <Text class=row_value x={100% - 154px} y=7px width=128px height=28px text={($target.windows ? "true" : "false") + " / " + ($windows ? "true" : "false")} />
+                <Ellipse x=24px y=21px width=16px height=16px anchor=50% fill={$windows ? rgb(37, 156, 112) : rgb(139, 149, 158)} />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=578px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$target.linux / $linux" />
+                <Text class=row_value x={100% - 154px} y=7px width=128px height=28px text={($target.linux ? "true" : "false") + " / " + ($linux ? "true" : "false")} />
+                <Ellipse x=24px y=21px width=16px height=16px anchor=50% fill={$linux ? rgb(37, 156, 112) : rgb(139, 149, 158)} />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=626px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$target.mobile / $mobile" />
+                <Text class=row_value x={100% - 154px} y=7px width=128px height=28px text={($target.mobile ? "true" : "false") + " / " + ($mobile ? "true" : "false")} />
+                <Ellipse x=24px y=21px width=16px height=16px anchor=50% fill={$mobile ? rgb(37, 156, 112) : rgb(139, 149, 158)} />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=674px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$target.desktop / $desktop" />
+                <Text class=row_value x={100% - 154px} y=7px width=128px height=28px text={($target.desktop ? "true" : "false") + " / " + ($desktop ? "true" : "false")} />
+                <Ellipse x=24px y=21px width=16px height=16px anchor=50% fill={$desktop ? rgb(37, 156, 112) : rgb(139, 149, 158)} />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Text class=section_label x=32px y=762px width={100% - 64px} height=24px text="Viewport object and aliases" />
+
+            <Group x=32px y=802px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$viewport.width" />
+                <Text class=row_value x={100% - 184px} y=7px width=158px height=28px text={"" + $viewport.width + "px"} />
+                <Rectangle x=18px y=16px width=14px height=10px fill=rgb(70, 125, 193) />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=850px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$viewport.height" />
+                <Text class=row_value x={100% - 184px} y=7px width=158px height=28px text={"" + $viewport.height + "px"} />
+                <Rectangle x=20px y=13px width=10px height=16px fill=rgb(70, 125, 193) />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=898px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$viewport.major / $major" />
+                <Text class=row_value x={100% - 184px} y=7px width=158px height=28px text={"" + $viewport.major + " / " + $major + "px"} />
+                <Rectangle x=16px y=17px width=18px height=8px fill=rgb(70, 125, 193) />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=946px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$viewport.minor / $minor" />
+                <Text class=row_value x={100% - 184px} y=7px width=158px height=28px text={"" + $viewport.minor + " / " + $minor + "px"} />
+                <Rectangle x=18px y=17px width=14px height=8px fill=rgb(70, 125, 193) />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=994px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$viewport.aspect / $aspect" />
+                <Text class=row_value x={100% - 184px} y=7px width=158px height=28px text={"" + $viewport.aspect + " / " + $aspect} />
+                <Rectangle x=16px y=14px width=18px height=14px fill=rgb(70, 125, 193) />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=1042px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$viewport.landscape / $landscape" />
+                <Text class=row_value x={100% - 154px} y=7px width=128px height=28px text={($viewport.landscape ? "true" : "false") + " / " + ($landscape ? "true" : "false")} />
+                <Ellipse x=24px y=21px width=16px height=16px anchor=50% fill={$landscape ? rgb(226, 133, 63) : rgb(139, 149, 158)} />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=1090px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$viewport.portrait / $portrait" />
+                <Text class=row_value x={100% - 154px} y=7px width=128px height=28px text={($viewport.portrait ? "true" : "false") + " / " + ($portrait ? "true" : "false")} />
+                <Ellipse x=24px y=21px width=16px height=16px anchor=50% fill={$portrait ? rgb(226, 133, 63) : rgb(139, 149, 158)} />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=1138px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$viewport.square / $square" />
+                <Text class=row_value x={100% - 154px} y=7px width=128px height=28px text={($viewport.square ? "true" : "false") + " / " + ($square ? "true" : "false")} />
+                <Ellipse x=24px y=21px width=16px height=16px anchor=50% fill={$square ? rgb(226, 133, 63) : rgb(139, 149, 158)} />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Text class=section_label x=32px y=1226px width={100% - 64px} height=24px text="Motion and time helpers" />
+
+            <Group x=32px y=1266px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$gyro.x" />
+                <Text class=row_value x={100% - 184px} y=7px width=158px height=28px text={"" + $gyro.x + "deg"} />
+                <Ellipse x={24px + ($gyro.x * 0.08)px} y=21px width=14px height=14px anchor=50% fill=rgb(168, 96, 214) />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=1314px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$gyro.y" />
+                <Text class=row_value x={100% - 184px} y=7px width=158px height=28px text={"" + $gyro.y + "deg"} />
+                <Ellipse x={24px + ($gyro.y * 0.08)px} y=21px width=14px height=14px anchor=50% fill=rgb(168, 96, 214) />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=1362px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$gyro.z" />
+                <Text class=row_value x={100% - 184px} y=7px width=158px height=28px text={"" + $gyro.z + "deg"} />
+                <Ellipse x={24px + ($gyro.z * 0.08)px} y=21px width=14px height=14px anchor=50% fill=rgb(168, 96, 214) />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=1410px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$accel.x" />
+                <Text class=row_value x={100% - 184px} y=7px width=158px height=28px text={"" + $accel.x + "m/s^2"} />
+                <Rectangle x={20px + ($accel.x * 0.7)px} y=15px width=8px height=12px fill=rgb(216, 181, 73) />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=1458px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$accel.y" />
+                <Text class=row_value x={100% - 184px} y=7px width=158px height=28px text={"" + $accel.y + "m/s^2"} />
+                <Rectangle x={20px + ($accel.y * 0.7)px} y=15px width=8px height=12px fill=rgb(216, 181, 73) />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=1506px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$accel.z" />
+                <Text class=row_value x={100% - 184px} y=7px width=158px height=28px text={"" + $accel.z + "m/s^2"} />
+                <Rectangle x={20px + ($accel.z * 0.7)px} y=15px width=8px height=12px fill=rgb(216, 181, 73) />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=1554px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$frames" />
+                <Text class=row_value x={100% - 184px} y=7px width=158px height=28px text={"" + $frames + " frames"} />
+                <Rectangle x=18px y=16px width={8px + (($frames %% 24) * 0.7)px} height=10px fill=rgb(55, 151, 164) />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Group x=32px y=1602px width={100% - 64px} height=42px>
+                <Text class=row_label x=50px y=7px width={100% - 220px} height=28px text="$millis" />
+                <Text class=row_value x={100% - 184px} y=7px width=158px height=28px text={"" + $millis + "ms"} />
+                <Rectangle x=18px y=16px width={8px + (($millis %% 1000) * 0.018)px} height=10px fill=rgb(55, 151, 164) />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+
+            <Text class=section_label x=32px y=1690px width={100% - 64px} height=24px text="Conditional settings" />
+
+            <Group class=conditional_card x=32px y=1730px height=52px>
+                <Text class=row_label x=50px y=12px width={100% - 260px} height=28px text="@settings if $landscape" />
+                <Text class=row_value x={100% - 226px} y=12px width=200px height=28px text={$landscape ? "landscape: 55%" : "portrait/full width"} />
+                <Rectangle x=18px y=18px width=18px height=16px fill={$landscape ? rgb(226, 133, 63) : rgb(70, 125, 193)} />
+                <Rectangle class=row_surface x=0px y=0px width=100% height=100% />
+            </Group>
+        </Group>
+    </Scroller>
+
+    <Rectangle class=background x=0px y=0px width=100% height=100% />
+</Group>
+
+@settings {
+    .title {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 34px
+            fill: rgb(31, 43, 48)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+
+    .subtitle {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font_size: 15px
+            fill: rgb(89, 102, 110)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+
+    .section_label {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 15px
+            fill: rgb(36, 79, 111)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+
+    .row_label {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font_size: 14px
+            fill: rgb(36, 44, 48)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+
+    .row_value {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font_size: 13px
+            fill: rgb(83, 94, 101)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Right
+        }
+    }
+
+    .row_surface {
+        fill: Color::rgba(255, 255, 255, 238)
+        border_radius: 8
+        stroke: Stroke {
+            color: Color::rgba(136, 157, 169, 80)
+            width: 1px
+        }
+    }
+
+    .background {
+        fill: rgb(238, 242, 240)
+    }
+
+    .conditional_card {
+        width: {100% - 64px}
+    }
+
+    if $landscape {
+        .conditional_card {
+            width: 55%
+        }
+    }
+}

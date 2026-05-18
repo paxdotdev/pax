@@ -4,10 +4,10 @@ use pax_message::serde::{Deserialize, Serialize};
 
 use crate::{
     ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, PaxManifest, SettingElement,
-    SettingsBlockElement, TemplateNodeDefinition, TemplateNodeId, TimelineBlockElement,
-    TimelineDefinition, TimelineSelectorBlockDefinition, TimelineSelectorElement,
-    TimelineTrackDefinition, TimelineTrackElement, Token, TransitionDefinition, TypeDefinition,
-    TypeId, ValueDefinition,
+    SettingsBlockElement, SettingsConditionalBlock, SettingsConditionalBranch,
+    TemplateNodeDefinition, TemplateNodeId, TimelineBlockElement, TimelineDefinition,
+    TimelineSelectorBlockDefinition, TimelineSelectorElement, TimelineTrackDefinition,
+    TimelineTrackElement, Token, TransitionDefinition, TypeDefinition, TypeId, ValueDefinition,
 };
 
 const MAGIC: &[u8; 8] = b"PAXP\x00IR\x00";
@@ -183,6 +183,18 @@ fn sanitize_settings_block_elements(
             SettingsBlockElement::Transition(token, value) => Some(
                 SettingsBlockElement::Transition(strip_token(token), strip_token(value)),
             ),
+            SettingsBlockElement::Conditional(block) => Some(SettingsBlockElement::Conditional(
+                SettingsConditionalBlock {
+                    branches: block
+                        .branches
+                        .iter()
+                        .map(|branch| SettingsConditionalBranch {
+                            condition_expression: branch.condition_expression.clone(),
+                            elements: sanitize_settings_block_elements(&branch.elements),
+                        })
+                        .collect(),
+                },
+            )),
             SettingsBlockElement::Comment(_) => None,
         })
         .collect()
@@ -432,7 +444,7 @@ mod tests {
                 timelines: vec![TimelineDefinition {
                     name: Some(Token::new("spin".to_string(), test_location())),
                     playhead: Some(ValueDefinition::Identifier(PaxIdentifier::new(
-                        "self.frames_elapsed",
+                        "self.elapsed_frames",
                     ))),
                     duration: Some(ValueDefinition::LiteralValue(PaxValue::Numeric(120.into()))),
                     repeat: true,

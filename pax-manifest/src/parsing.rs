@@ -1059,6 +1059,78 @@ fn derive_value_definition_from_literal_object_pair(
     }
 }
 
+fn parse_settings_event_binding(pair: Pair<Rule>) -> SettingsBlockElement {
+    //event handler binding in the form of `@pre_render: handle_pre_render`
+    let mut settings_event_binding_pairs = pair.into_inner();
+    let event_id_token = parse_event_id(settings_event_binding_pairs.next().unwrap());
+    let literal_function_token =
+        parse_literal_function(settings_event_binding_pairs.next().unwrap());
+    let event_name = event_id_token.token_value.as_str();
+    if matches!(event_name, "in" | "out") {
+        SettingsBlockElement::Transition(event_id_token, literal_function_token)
+    } else {
+        SettingsBlockElement::Handler(event_id_token, vec![literal_function_token])
+    }
+}
+
+fn parse_selector_block(pair: Pair<Rule>) -> SettingsBlockElement {
+    let mut selector_block_pairs = pair.into_inner();
+    let raw_selector = selector_block_pairs.next().unwrap();
+    let raw_value_location = span_to_location(&raw_selector.as_span());
+    let selector: String = raw_selector
+        .as_str()
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
+    let token = Token::new(selector, raw_value_location);
+    let literal_object = selector_block_pairs.next().unwrap();
+
+    SettingsBlockElement::SelectorBlock(
+        token,
+        derive_value_definition_from_literal_object_pair(literal_object),
+    )
+}
+
+fn parse_settings_conditional(pair: Pair<Rule>) -> SettingsBlockElement {
+    let mut branches = Vec::new();
+
+    for branch in pair.into_inner() {
+        let branch_rule = branch.as_rule();
+        let mut branch_inner = branch.into_inner();
+        let condition_expression = match branch_rule {
+            Rule::settings_if_branch | Rule::settings_else_if_branch => {
+                let expression_body = branch_inner.next().unwrap();
+                Some(ExpressionInfo::new(
+                    parse_pax_expression(expression_body.as_str()).unwrap(),
+                ))
+            }
+            Rule::settings_else_branch => None,
+            _ => unreachable!("Parsing error: {:?}", branch_rule),
+        };
+        let elements = parse_settings_block_elements(branch_inner);
+        branches.push(SettingsConditionalBranch {
+            condition_expression,
+            elements,
+        });
+    }
+
+    SettingsBlockElement::Conditional(SettingsConditionalBlock { branches })
+}
+
+fn parse_settings_block_elements(pairs: Pairs<Rule>) -> Vec<SettingsBlockElement> {
+    pairs
+        .filter_map(|settings_entity| match settings_entity.as_rule() {
+            Rule::settings_event_binding => Some(parse_settings_event_binding(settings_entity)),
+            Rule::selector_block => Some(parse_selector_block(settings_entity)),
+            Rule::settings_conditional => Some(parse_settings_conditional(settings_entity)),
+            Rule::comment => Some(SettingsBlockElement::Comment(
+                settings_entity.as_str().to_string(),
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
 pub fn parse_settings_from_component_definition_string(
     pax_component_definition: Pair<Rule>,
 ) -> Vec<SettingsBlockElement> {
@@ -1066,77 +1138,11 @@ pub fn parse_settings_from_component_definition_string(
 
     pax_component_definition
         .into_inner()
-        .for_each(|top_level_pair| {
-            match top_level_pair.as_rule() {
-                Rule::settings_block_declaration => {
-                    top_level_pair
-                        .into_inner()
-                        .for_each(|top_level_settings_block_entity| {
-                            match top_level_settings_block_entity.as_rule() {
-                                Rule::settings_event_binding => {
-                                    //event handler binding in the form of `@pre_render: handle_pre_render`
-                                    let mut settings_event_binding_pairs =
-                                        top_level_settings_block_entity.into_inner();
-                                    let event_id_token = parse_event_id(
-                                        settings_event_binding_pairs.next().unwrap(),
-                                    );
-                                    let literal_function_token = parse_literal_function(
-                                        settings_event_binding_pairs.next().unwrap(),
-                                    );
-                                    let event_name = event_id_token.token_value.as_str();
-                                    if matches!(event_name, "in" | "out") {
-                                        settings.push(SettingsBlockElement::Transition(
-                                            event_id_token,
-                                            literal_function_token,
-                                        ));
-                                    } else {
-                                        let handler_element: SettingsBlockElement =
-                                            SettingsBlockElement::Handler(
-                                                event_id_token,
-                                                vec![literal_function_token],
-                                            );
-                                        settings.push(handler_element);
-                                    }
-                                }
-                                Rule::selector_block => {
-                                    //selector_block => settings_key_value_pair where v is a ValueDefinition
-                                    let mut selector_block_pairs =
-                                        top_level_settings_block_entity.into_inner();
-                                    //first pair is the selector itself
-                                    let raw_selector = selector_block_pairs.next().unwrap();
-                                    let raw_value_location =
-                                        span_to_location(&raw_selector.as_span());
-                                    let selector: String = raw_selector
-                                        .as_str()
-                                        .chars()
-                                        .filter(|c| !c.is_whitespace())
-                                        .collect();
-                                    let token = Token::new(selector, raw_value_location);
-                                    let literal_object = selector_block_pairs.next().unwrap();
-
-                                    settings.push(SettingsBlockElement::SelectorBlock(
-                                        token,
-                                        derive_value_definition_from_literal_object_pair(
-                                            literal_object,
-                                        ),
-                                    ));
-                                }
-                                Rule::comment => {
-                                    let comment =
-                                        top_level_settings_block_entity.as_str().to_string();
-                                    settings.push(SettingsBlockElement::Comment(comment));
-                                }
-                                _ => {
-                                    unreachable!(
-                                        "Parsing error: {:?}",
-                                        top_level_settings_block_entity.as_rule()
-                                    );
-                                }
-                            }
-                        });
-                }
-                _ => {}
+        .for_each(|top_level_pair| match top_level_pair.as_rule() {
+            Rule::settings_block_declaration => {
+                settings.extend(parse_settings_block_elements(top_level_pair.into_inner()));
             }
+            _ => {}
         });
     settings
 }
@@ -1621,4 +1627,54 @@ pub fn clean_and_split_symbols(possibly_nested_symbols: &str) -> Vec<String> {
         .split(".")
         .map(|atomic_symbol| atomic_symbol.to_string())
         .collect::<Vec<_>>()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_top_level_settings_conditionals() {
+        let ast = parse_pax_str(
+            Rule::pax_component_definition,
+            r#"
+<Group />
+
+@settings {
+    .card {
+        width: 100%
+    }
+
+    if $ios && $landscape {
+        .card {
+            width: 50%
+        }
+    } else if $macos {
+        .card {
+            width: 75%
+        }
+    } else {
+        .card {
+            width: 90%
+        }
+    }
+}
+"#,
+        )
+        .expect("settings conditional should parse");
+
+        let settings = parse_settings_from_component_definition_string(ast);
+        assert_eq!(settings.len(), 2);
+        let SettingsBlockElement::Conditional(block) = &settings[1] else {
+            panic!("expected conditional settings element");
+        };
+        assert_eq!(block.branches.len(), 3);
+        assert!(block.branches[0].condition_expression.is_some());
+        assert!(block.branches[1].condition_expression.is_some());
+        assert!(block.branches[2].condition_expression.is_none());
+        assert!(matches!(
+            block.branches[0].elements.first(),
+            Some(SettingsBlockElement::SelectorBlock(token, _)) if token.token_value == ".card"
+        ));
+    }
 }

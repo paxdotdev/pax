@@ -227,7 +227,7 @@ Notice that Pax builds off of Rust's import and namespace resolution mechanisms,
 
 ```pax copy
 <Rectangle transform={
-    rotate(engine.frames_elapsed / 200.0) *
+    rotate(engine.elapsed_frames / 200.0) *
     translate(in.mouse_x, in.mouse_y)
 }/>
 ```
@@ -1325,8 +1325,8 @@ impl<T: Interpolatable> TransitionManager<T> {
         self.origin_frames_elapsed = current_time;
     }
 
-    pub fn compute_eased_value(&mut self, frames_elapsed: u64) -> Option<T> {
-        let global_fe = frames_elapsed;
+    pub fn compute_eased_value(&mut self, elapsed_frames: u64) -> Option<T> {
+        let global_fe = elapsed_frames;
         let origin_fe = &mut self.origin_frames_elapsed;
 
         // Fast-forward transitions that have already passed
@@ -3038,7 +3038,7 @@ impl Default for GameOfLife {
 impl GameOfLife {
     pub fn tick(&mut self, ctx: &NodeContext) {
         let interval = (100.0 / self.speed.get()) as u64;
-        if ctx.frames_elapsed.get() % interval == 0 && self.running.get() {
+        if ctx.elapsed_frames.get() % interval == 0 && self.running.get() {
             self.update();
         }
     }

@@ -201,6 +201,18 @@ impl RustManifestWriter {
                 token = self.token(token),
                 value = self.token(value),
             ),
+            SettingsBlockElement::Conditional(block) => format!(
+                "{mp}::SettingsBlockElement::Conditional({mp}::SettingsConditionalBlock {{ branches: {branches} }})",
+                mp = self.manifest_path,
+                branches = self.vec(&block.branches, |branch| {
+                    format!(
+                        "{mp}::SettingsConditionalBranch {{ condition_expression: {condition_expression}, elements: {elements} }}",
+                        mp = self.manifest_path,
+                        condition_expression = self.option(&branch.condition_expression, |value| self.expression_info(value)),
+                        elements = self.vec(&branch.elements, |element| self.settings_block_element(element)),
+                    )
+                }),
+            ),
             SettingsBlockElement::Comment(comment) => format!(
                 "{mp}::SettingsBlockElement::Comment({comment})",
                 mp = self.manifest_path,

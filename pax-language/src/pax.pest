@@ -75,7 +75,13 @@ char = {
 /// BEGIN SETTINGS
 //////
 
-settings_block_declaration = {"@" ~ "settings" ~ "{" ~ (settings_event_binding | selector_block | comment )* ~ "}"}
+settings_block_declaration = {"@" ~ "settings" ~ "{" ~ settings_block_element* ~ "}"}
+settings_block_element = _{ settings_event_binding | settings_conditional | selector_block | comment }
+settings_conditional = { settings_if_branch ~ settings_else_if_branch* ~ settings_else_branch? }
+settings_if_branch = { "if" ~ expression_body ~ "{" ~ settings_conditional_body* ~ "}" }
+settings_else_if_branch = { "else" ~ "if" ~ expression_body ~ "{" ~ settings_conditional_body* ~ "}" }
+settings_else_branch = { "else" ~ "{" ~ settings_conditional_body* ~ "}" }
+settings_conditional_body = _{ settings_conditional | selector_block | comment }
 selector_block = {selector ~ literal_object ~  silent_comma? }
 literal_object = { pascal_identifier? ~ "{" ~ (settings_key_value_pair  | comment)* ~ "}" }
 //Describes a CSS-style selector, used for joining settings to elements

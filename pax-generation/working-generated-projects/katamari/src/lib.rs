@@ -70,7 +70,7 @@ impl Katamari {
             return;
         }
 
-        let elapsed = ctx.frames_elapsed.get();
+        let elapsed = ctx.elapsed_frames.get();
         self.time_left.set(GAME_DURATION.saturating_sub(elapsed / 60));
 
         if self.time_left.get() == 0 {

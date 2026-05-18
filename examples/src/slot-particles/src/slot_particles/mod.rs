@@ -16,7 +16,7 @@ pub struct SlotParticles {
 
 impl SlotParticles {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let tick = ctx.frames_elapsed.clone();
+        let tick = ctx.elapsed_frames.clone();
         let num = ctx.projected_children_count.clone();
         let rng = Rc::new(std::cell::RefCell::new(rand::thread_rng()));
         let bounds = ctx.bounds_self.clone();
@@ -68,7 +68,7 @@ impl SlotParticles {
             },
             &[
                 self.persistent_rng_data.untyped(),
-                ctx.frames_elapsed.untyped(),
+                ctx.elapsed_frames.untyped(),
                 ctx.bounds_self.untyped(),
             ],
         ));

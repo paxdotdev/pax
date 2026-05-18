@@ -45,8 +45,8 @@ pub struct NodeContext {
     pub local_stack_frame: Rc<RuntimePropertiesStackFrame>,
     /// Reference to the ExpandedNode of the component containing this node
     pub containing_component: Weak<ExpandedNode>,
-    /// The current global engine tick count
-    pub frames_elapsed: Property<u64>,
+    /// The current global engine frame count.
+    pub elapsed_frames: Property<u64>,
     /// The current global engine wall-clock time in milliseconds.
     pub elapsed_millis: Property<u64>,
     /// Current device orientation sensor reading.
@@ -65,6 +65,10 @@ pub struct NodeContext {
     pub platform: Platform,
     /// Current os (Android/Windows/Mac/Linux) this app is running on
     pub os: OS,
+    /// Derived target facts for platform/OS checks.
+    pub target: Property<TargetInfo>,
+    /// Derived viewport facts for size and orientation checks.
+    pub viewport: Property<Viewport>,
     /// The number of projected children available to this node.
     ///
     /// This is the raw transport count used by slot-driven implementations.

@@ -102,13 +102,22 @@ In timeline keyframes, wrap `$base` in an expression. This lets an animation mov
 
 ## Built-In Globals
 
-Built-in globals use a `$` prefix and can be read from any PAXEL expression. `$viewport.width` and `$viewport.height` expose the current scene size. `$gyro` exposes device orientation as `{x, y, z}` in degrees, and `$accel` exposes acceleration as `{x, y, z}` in meters per second squared. On web targets, `$accel` uses acceleration including gravity when available.
+Built-in globals use a `$` prefix and can be read from any PAXEL expression.
+
+`$target` exposes the current platform and operating system as booleans:
+`web`, `native`, `ios`, `iphone`, `ipad`, `macos`, `android`, `windows`, `linux`, `mobile`, and `desktop`.
+Each field also has a top-level alias with the same name, such as `$web`, `$ios`, `$ipad`, `$mobile`, and `$desktop`.
+
+`$viewport` exposes the current scene size and orientation:
+`width`, `height`, `major`, `minor`, `aspect`, `landscape`, `portrait`, and `square`.
+`major`, `minor`, `aspect`, `landscape`, `portrait`, and `square` are also available as top-level aliases.
+
+`$gyro` exposes device orientation as `{x, y, z}` in degrees, and `$accel` exposes acceleration as `{x, y, z}` in meters per second squared. On web targets, `$accel` uses acceleration including gravity when available. `$frames` and `$millis` expose runtime clock values.
 
 ```pax
 <Group
-    x={50% + ($gyro.y * 4)px}
-    y={50% + ($gyro.x * 3)px}
-    rotate={($gyro.z * 0.08)deg}
+    width={$landscape ? 50% : 100%}
+    x={$ios ? 12px : 24px}
 />
 ```
 

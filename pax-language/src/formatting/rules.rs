@@ -80,6 +80,10 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::double_binding => vec![Box::new(AttributeDoubleBindingDefaultRule)],
         Rule::settings_block_declaration => vec![Box::new(SettingsBlockDeclarationDefaultRule)],
         Rule::settings_event_binding => vec![Box::new(SettingsEventBindingDefaultRule)],
+        Rule::settings_conditional => vec![Box::new(SettingsConditionalDefaultRule)],
+        Rule::settings_if_branch => vec![Box::new(SettingsIfBranchDefaultRule)],
+        Rule::settings_else_if_branch => vec![Box::new(SettingsElseIfBranchDefaultRule)],
+        Rule::settings_else_branch => vec![Box::new(SettingsElseBranchDefaultRule)],
         Rule::selector_block => vec![Box::new(SelectorBlockDefaultRule)],
         Rule::timeline_block_declaration => vec![Box::new(TimelineBlockDeclarationDefaultRule)],
         Rule::timeline_block_setting => vec![Box::new(TimelineBlockSettingDefaultRule)],
@@ -150,6 +154,8 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::root_tag_pair
         | Rule::xo_literal
         | Rule::literal_value
+        | Rule::settings_block_element
+        | Rule::settings_conditional_body
         | Rule::statement_control_flow => vec![Box::new(ForwardRule)],
 
         Rule::selector
@@ -430,7 +436,9 @@ impl FormattingRule for SettingsBlockDeclarationDefaultRule {
         let mut selectors: VecDeque<Child> = VecDeque::new();
 
         for child in children.iter().rev() {
-            if child.node_type == Rule::selector_block {
+            if child.node_type == Rule::selector_block
+                || child.node_type == Rule::settings_conditional
+            {
                 current = SettingType::Selector;
                 selectors.push_front(child.clone());
             } else if child.node_type == Rule::settings_event_binding {
@@ -477,6 +485,66 @@ impl FormattingRule for SettingsBlockDeclarationDefaultRule {
         let indented_settings = indent_every_line_of_string(settings);
         formatted_node.push_str(format!("@settings {{\n{}\n}}", indented_settings).as_str());
         formatted_node
+    }
+}
+
+#[derive(Clone)]
+struct SettingsConditionalDefaultRule;
+
+impl FormattingRule for SettingsConditionalDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        children
+            .iter()
+            .map(|child| child.formatted_node.clone())
+            .collect::<Vec<String>>()
+            .join("")
+    }
+}
+
+#[derive(Clone)]
+struct SettingsIfBranchDefaultRule;
+
+impl FormattingRule for SettingsIfBranchDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        let exp = children[0].formatted_node.clone();
+        let body = children[1..]
+            .iter()
+            .map(|child| child.formatted_node.clone())
+            .collect::<Vec<String>>()
+            .join("\n");
+        let body = indent_every_line_of_string(body);
+        format!("if {} {{\n{}\n}}", exp, body)
+    }
+}
+
+#[derive(Clone)]
+struct SettingsElseIfBranchDefaultRule;
+
+impl FormattingRule for SettingsElseIfBranchDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        let exp = children[0].formatted_node.clone();
+        let body = children[1..]
+            .iter()
+            .map(|child| child.formatted_node.clone())
+            .collect::<Vec<String>>()
+            .join("\n");
+        let body = indent_every_line_of_string(body);
+        format!(" else if {} {{\n{}\n}}", exp, body)
+    }
+}
+
+#[derive(Clone)]
+struct SettingsElseBranchDefaultRule;
+
+impl FormattingRule for SettingsElseBranchDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        let body = children
+            .iter()
+            .map(|child| child.formatted_node.clone())
+            .collect::<Vec<String>>()
+            .join("\n");
+        let body = indent_every_line_of_string(body);
+        format!(" else {{\n{}\n}}", body)
     }
 }
 

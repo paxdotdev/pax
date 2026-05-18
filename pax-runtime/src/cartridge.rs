@@ -3,8 +3,9 @@ use crate::api::NodeContext;
 use crate::{
     ConditionalProperties, ExpandedNode, Handler, HandlerRegistry, InstanceNode, InstantiationArgs,
     ReusableInstanceNodeArgs, RouteLocation, RouteMatch, RuntimePropertiesStackFrame,
-    RuntimeResolvedPropertyColumns, RuntimeResolvedPropertyEntry, RuntimeSettingsLayer,
-    RuntimeSettingsSource, INTERNAL_ROUTE_LOCATION_SYMBOL, INTERNAL_ROUTE_MATCH_SYMBOL,
+    RuntimeResolvedPropertyColumns, RuntimeResolvedPropertyEntry, RuntimeSettingsCondition,
+    RuntimeSettingsLayer, RuntimeSettingsSource, INTERNAL_ROUTE_LOCATION_SYMBOL,
+    INTERNAL_ROUTE_MATCH_SYMBOL,
 };
 use pax_language::Computable;
 use pax_manifest::cartridge_generation::{
@@ -77,12 +78,14 @@ fn runtime_property_entry(
     source: RuntimeSettingsSource,
     selector: Option<pax_manifest::SelectorExpr>,
     value: ValueDefinition,
+    condition: Option<RuntimeSettingsCondition>,
     axis_index: Option<usize>,
 ) -> RuntimeResolvedPropertyEntry {
     RuntimeResolvedPropertyEntry {
         source,
         selector,
         value,
+        condition,
         axis_index,
     }
 }
@@ -116,6 +119,7 @@ fn append_2d_common_property_entries(
     value: &ValueDefinition,
     source: RuntimeSettingsSource,
     selector: Option<pax_manifest::SelectorExpr>,
+    condition: Option<RuntimeSettingsCondition>,
 ) -> bool {
     let Some(axes) = common_property_2d_axes(key) else {
         return false;
@@ -124,7 +128,13 @@ fn append_2d_common_property_entries(
     append_resolved_property_entry(
         columns,
         key,
-        runtime_property_entry(source.clone(), selector.clone(), value.clone(), None),
+        runtime_property_entry(
+            source.clone(),
+            selector.clone(),
+            value.clone(),
+            condition.clone(),
+            None,
+        ),
     );
     for (axis_index, axis_name) in axes.iter().enumerate() {
         append_resolved_property_entry(
@@ -134,6 +144,7 @@ fn append_2d_common_property_entries(
                 source.clone(),
                 selector.clone(),
                 value.clone(),
+                condition.clone(),
                 Some(axis_index),
             ),
         );
@@ -155,6 +166,7 @@ pub fn property_columns_from_defined_properties(
                 value,
                 RuntimeSettingsSource::Inline,
                 None,
+                None,
             );
         }
     }
@@ -165,7 +177,13 @@ pub fn property_columns_from_defined_properties(
         append_resolved_property_entry(
             &mut columns,
             key,
-            runtime_property_entry(RuntimeSettingsSource::Inline, None, value.clone(), None),
+            runtime_property_entry(
+                RuntimeSettingsSource::Inline,
+                None,
+                value.clone(),
+                None,
+                None,
+            ),
         );
     }
     columns
@@ -176,6 +194,7 @@ fn append_setting_elements(
     elements: &[SettingElement],
     source: RuntimeSettingsSource,
     selector: Option<pax_manifest::SelectorExpr>,
+    condition: Option<RuntimeSettingsCondition>,
 ) {
     for element in elements {
         let SettingElement::Setting(key, value) = element else {
@@ -191,6 +210,7 @@ fn append_setting_elements(
                 value,
                 source.clone(),
                 selector.clone(),
+                condition.clone(),
             );
         }
     }
@@ -210,8 +230,80 @@ fn append_setting_elements(
         append_resolved_property_entry(
             columns,
             &key.token_value,
-            runtime_property_entry(source.clone(), selector.clone(), value.clone(), None),
+            runtime_property_entry(
+                source.clone(),
+                selector.clone(),
+                value.clone(),
+                condition.clone(),
+                None,
+            ),
         );
+    }
+}
+
+#[derive(Clone)]
+struct SelectorLayerBlock {
+    selector: String,
+    elements: Vec<SettingElement>,
+    condition: Option<RuntimeSettingsCondition>,
+}
+
+fn combine_settings_conditions(
+    parent: Option<&RuntimeSettingsCondition>,
+    branch_condition: Option<&ExpressionInfo>,
+    prior_branch_conditions: &[ExpressionInfo],
+) -> Option<RuntimeSettingsCondition> {
+    let mut condition = parent.cloned().unwrap_or_default();
+    condition
+        .negative
+        .extend(prior_branch_conditions.iter().cloned());
+    if let Some(branch_condition) = branch_condition {
+        condition.positive.push(branch_condition.clone());
+    }
+
+    if condition.positive.is_empty() && condition.negative.is_empty() {
+        None
+    } else {
+        Some(condition)
+    }
+}
+
+fn collect_selector_layer_blocks(
+    settings: &[SettingsBlockElement],
+    condition: Option<&RuntimeSettingsCondition>,
+    blocks: &mut Vec<SelectorLayerBlock>,
+) {
+    for setting in settings {
+        match setting {
+            SettingsBlockElement::SelectorBlock(token, block) => {
+                blocks.push(SelectorLayerBlock {
+                    selector: token.token_value.clone(),
+                    elements: block.elements.clone(),
+                    condition: condition.cloned(),
+                });
+            }
+            SettingsBlockElement::Conditional(block) => {
+                let mut prior_branch_conditions = Vec::new();
+                for branch in &block.branches {
+                    let branch_condition = combine_settings_conditions(
+                        condition,
+                        branch.condition_expression.as_ref(),
+                        &prior_branch_conditions,
+                    );
+                    collect_selector_layer_blocks(
+                        &branch.elements,
+                        branch_condition.as_ref(),
+                        blocks,
+                    );
+                    if let Some(condition_expression) = &branch.condition_expression {
+                        prior_branch_conditions.push(condition_expression.clone());
+                    }
+                }
+            }
+            SettingsBlockElement::Handler(_, _)
+            | SettingsBlockElement::Transition(_, _)
+            | SettingsBlockElement::Comment(_) => {}
+        }
     }
 }
 
@@ -225,51 +317,59 @@ fn append_selector_layer_entries(
         return;
     };
 
-    for settings_value in settings_block.iter() {
-        let SettingsBlockElement::SelectorBlock(token, value) = settings_value else {
-            continue;
-        };
-        let Ok(selector) = pax_manifest::SelectorExpr::parse(&token.token_value) else {
+    let mut selector_blocks = Vec::new();
+    collect_selector_layer_blocks(settings_block, None, &mut selector_blocks);
+
+    for settings_value in &selector_blocks {
+        let Ok(selector) = pax_manifest::SelectorExpr::parse(&settings_value.selector) else {
             continue;
         };
         if matches!(selector, pax_manifest::SelectorExpr::Type(_))
             && tnd.selector_info.matches(&tnd.type_id, &selector)
         {
-            append_setting_elements(columns, &value.elements, source.clone(), Some(selector));
+            append_setting_elements(
+                columns,
+                &settings_value.elements,
+                source.clone(),
+                Some(selector),
+                settings_value.condition.clone(),
+            );
         }
     }
 
     for class in &tnd.selector_info.classes {
         let selector = pax_manifest::SelectorExpr::Class(class.token_value.clone());
-        let mut matched = Vec::new();
-        for settings_value in settings_block.iter() {
-            let SettingsBlockElement::SelectorBlock(token, value) = settings_value else {
-                continue;
-            };
-            let Ok(candidate) = pax_manifest::SelectorExpr::parse(&token.token_value) else {
+        for settings_value in &selector_blocks {
+            let Ok(candidate) = pax_manifest::SelectorExpr::parse(&settings_value.selector) else {
                 continue;
             };
             if candidate == selector {
-                matched.extend(value.elements.clone());
+                append_setting_elements(
+                    columns,
+                    &settings_value.elements,
+                    source.clone(),
+                    Some(selector.clone()),
+                    settings_value.condition.clone(),
+                );
             }
         }
-        append_setting_elements(columns, &matched, source.clone(), Some(selector));
     }
     if let Some(id) = &tnd.selector_info.id {
         let selector = pax_manifest::SelectorExpr::Id(id.token_value.clone());
-        let mut matched = Vec::new();
-        for settings_value in settings_block.iter() {
-            let SettingsBlockElement::SelectorBlock(token, value) = settings_value else {
-                continue;
-            };
-            let Ok(candidate) = pax_manifest::SelectorExpr::parse(&token.token_value) else {
+        for settings_value in &selector_blocks {
+            let Ok(candidate) = pax_manifest::SelectorExpr::parse(&settings_value.selector) else {
                 continue;
             };
             if candidate == selector {
-                matched.extend(value.elements.clone());
+                append_setting_elements(
+                    columns,
+                    &settings_value.elements,
+                    source.clone(),
+                    Some(selector.clone()),
+                    settings_value.condition.clone(),
+                );
             }
         }
-        append_setting_elements(columns, &matched, source, Some(selector));
     }
 }
 
@@ -288,13 +388,20 @@ fn overlay_static_runtime_properties(
                 value,
                 RuntimeSettingsSource::Inline,
                 None,
+                None,
             ) {
                 continue;
             }
             append_resolved_property_entry(
                 columns,
                 key,
-                runtime_property_entry(RuntimeSettingsSource::Inline, None, value.clone(), None),
+                runtime_property_entry(
+                    RuntimeSettingsSource::Inline,
+                    None,
+                    value.clone(),
+                    None,
+                    None,
+                ),
             );
         }
     }
@@ -330,6 +437,7 @@ fn resolve_runtime_settings_with_layers_for_node(
             &mut columns,
             inline_settings,
             RuntimeSettingsSource::Inline,
+            None,
             None,
         );
     }
@@ -2045,12 +2153,13 @@ where
     };
     let mut layered_property = Property::default();
     for entry in entries {
+        let previous_property = layered_property.clone();
         let stack_with_base = stack_with_optional_base_or(
             stack,
-            layered_property.clone(),
+            previous_property.clone(),
             common_property_base_fallback(name),
         );
-        layered_property = if let Some(axis_index) = entry.axis_index {
+        let candidate_property = if let Some(axis_index) = entry.axis_index {
             build_common_property_axis_component_value(
                 name,
                 &entry.value,
@@ -2060,6 +2169,13 @@ where
         } else {
             build_common_property_value(name, &entry.value, &stack_with_base)
         };
+        layered_property = apply_runtime_settings_condition(
+            name,
+            entry.condition.as_ref(),
+            stack,
+            previous_property,
+            candidate_property,
+        );
     }
     layered_property
 }
@@ -2112,10 +2228,10 @@ fn collect_value_definition_dependencies(
             if let Some(playhead) = &track.playhead {
                 collect_value_definition_dependencies(playhead, stack, dependents);
             } else {
-                if let Some(property) = stack.resolve_symbol_as_erased_property("$frames_elapsed") {
+                if let Some(property) = stack.resolve_symbol_as_erased_property("$frames") {
                     dependents.push(property);
                 }
-                if let Some(property) = stack.resolve_symbol_as_erased_property("$elapsed_millis") {
+                if let Some(property) = stack.resolve_symbol_as_erased_property("$millis") {
                     dependents.push(property);
                 }
             }
@@ -2241,6 +2357,88 @@ fn evaluate_value_definition_to_pax_value(
         ValueDefinition::Timeline(_) | ValueDefinition::Transition(_) => None,
         ValueDefinition::EventBindingTarget(_) | ValueDefinition::Undefined => None,
     }
+}
+
+fn evaluate_settings_condition_expression(
+    condition: &ExpressionInfo,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+) -> bool {
+    match condition.expression.compute(stack.clone()) {
+        Ok(value) => bool::try_coerce(value).unwrap_or_else(|err| {
+            log::warn!(
+                "Settings conditional `{}` did not evaluate to bool: {}",
+                condition,
+                err
+            );
+            false
+        }),
+        Err(err) => {
+            log::warn!(
+                "Failed to compute settings conditional `{}`: {}",
+                condition,
+                err
+            );
+            false
+        }
+    }
+}
+
+fn settings_condition_is_active(
+    condition: &RuntimeSettingsCondition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+) -> bool {
+    condition
+        .negative
+        .iter()
+        .all(|expression| !evaluate_settings_condition_expression(expression, stack))
+        && condition
+            .positive
+            .iter()
+            .all(|expression| evaluate_settings_condition_expression(expression, stack))
+}
+
+fn collect_settings_condition_dependencies(
+    condition: &RuntimeSettingsCondition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+    dependents: &mut Vec<UntypedProperty>,
+) {
+    for expression in condition.positive.iter().chain(condition.negative.iter()) {
+        for dependency in &expression.dependencies {
+            if let Some(property) = stack.resolve_symbol_as_erased_property(dependency) {
+                dependents.push(property);
+            }
+        }
+    }
+}
+
+pub fn apply_runtime_settings_condition<T>(
+    name: &str,
+    condition: Option<&RuntimeSettingsCondition>,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+    previous_property: Property<T>,
+    candidate_property: Property<T>,
+) -> Property<T>
+where
+    T: PropertyValue,
+{
+    let Some(condition) = condition.cloned() else {
+        return candidate_property;
+    };
+
+    let mut dependents = vec![previous_property.untyped(), candidate_property.untyped()];
+    collect_settings_condition_dependencies(&condition, stack, &mut dependents);
+    let cloned_stack = stack.clone();
+    Property::computed_with_name(
+        move || {
+            if settings_condition_is_active(&condition, &cloned_stack) {
+                candidate_property.get()
+            } else {
+                previous_property.get()
+            }
+        },
+        &dependents,
+        name,
+    )
 }
 
 fn easing_curve_from_name(name: Option<&str>) -> EasingCurve {
@@ -2429,8 +2627,8 @@ fn sample_timeline_playhead(
         .and_then(|value| timeline_playhead_value_to_position(value, scale.unit))
         .or_else(|| {
             let symbol = match scale.unit {
-                TimelineClockUnit::Frames => "$frames_elapsed",
-                TimelineClockUnit::Millis => "$elapsed_millis",
+                TimelineClockUnit::Frames => "$frames",
+                TimelineClockUnit::Millis => "$millis",
             };
             stack
                 .resolve_symbol_as_variable(symbol)
@@ -2577,10 +2775,10 @@ pub fn build_timeline_property<T: CoercionRules + PropertyValue>(
     if let Some(playhead) = &track.playhead {
         collect_value_definition_dependencies(playhead, &stack, &mut dependents);
     } else {
-        if let Some(property) = stack.resolve_symbol_as_erased_property("$frames_elapsed") {
+        if let Some(property) = stack.resolve_symbol_as_erased_property("$frames") {
             dependents.push(property);
         }
-        if let Some(property) = stack.resolve_symbol_as_erased_property("$elapsed_millis") {
+        if let Some(property) = stack.resolve_symbol_as_erased_property("$millis") {
             dependents.push(property);
         }
     }
@@ -2902,11 +3100,11 @@ mod timeline_tests {
     ) -> Rc<RuntimePropertiesStackFrame> {
         let scope: HashMap<String, Variable> = vec![
             (
-                "$frames_elapsed".to_string(),
+                "$frames".to_string(),
                 Variable::new_from_typed_property(frames_elapsed.clone()),
             ),
             (
-                "$elapsed_millis".to_string(),
+                "$millis".to_string(),
                 Variable::new_from_typed_property(elapsed_millis.clone()),
             ),
         ]
@@ -3160,7 +3358,7 @@ mod timeline_tests {
         let playhead = Property::new(0.0_f64);
         let scope: HashMap<String, Variable> = vec![
             (
-                "$frames_elapsed".to_string(),
+                "$frames".to_string(),
                 Variable::new_from_typed_property(frames_elapsed.clone()),
             ),
             (
@@ -3317,7 +3515,8 @@ mod base_symbol_tests {
     use super::{
         build_component_property, create_new_common_properties_from_columns,
         property_columns_from_defined_properties, stack_with_base, RuntimePropertiesStackFrame,
-        RuntimeResolvedPropertyColumns, RuntimeResolvedPropertyEntry, RuntimeSettingsSource,
+        RuntimeResolvedPropertyColumns, RuntimeResolvedPropertyEntry, RuntimeSettingsCondition,
+        RuntimeSettingsSource,
     };
     use pax_language::parse_pax_expression;
     use pax_manifest::cartridge_generation::{
@@ -3361,7 +3560,20 @@ mod base_symbol_tests {
             source: RuntimeSettingsSource::Inline,
             selector: None,
             value,
+            condition: None,
             axis_index: None,
+        }
+    }
+
+    fn conditional_entry(value: ValueDefinition, condition: &str) -> RuntimeResolvedPropertyEntry {
+        RuntimeResolvedPropertyEntry {
+            condition: Some(RuntimeSettingsCondition {
+                positive: vec![ExpressionInfo::new(
+                    parse_pax_expression(condition).unwrap(),
+                )],
+                negative: Vec::new(),
+            }),
+            ..entry(value)
         }
     }
 
@@ -3429,10 +3641,32 @@ mod base_symbol_tests {
     }
 
     #[test]
+    fn settings_condition_preserves_previous_layer_until_active() {
+        let landscape = Property::new(false);
+        let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
+            "$landscape".to_string(),
+            Variable::new_from_typed_property(landscape.clone()),
+        )]));
+        let columns = columns_for(
+            "width",
+            vec![
+                entry(size_literal(100.0)),
+                conditional_entry(size_literal(50.0), "$landscape"),
+            ],
+        );
+
+        let common = create_new_common_properties_from_columns(&columns, &stack);
+        assert!((common.borrow().width.get().unwrap().get_pixels(100.0) - 100.0).abs() < 0.0001);
+
+        landscape.set(true);
+        assert!((common.borrow().width.get().unwrap().get_pixels(100.0) - 50.0).abs() < 0.0001);
+    }
+
+    #[test]
     fn base_symbol_supplies_timeline_starting_values() {
         let frames_elapsed = Property::new(0_u64);
         let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
-            "$frames_elapsed".to_string(),
+            "$frames".to_string(),
             Variable::new_from_typed_property(frames_elapsed.clone()),
         )]));
         let track = TimelineTrackDefinition {
