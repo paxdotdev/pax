@@ -36,6 +36,8 @@ New features are often proven on one "chassis" at a time (platform target.)  In 
 
 **Binary baking maintenance callout** -- release builds now rely on baked program representations, not just the rich in-memory manifest.  Rule of thumb: if you touch manifest de/serialize behavior for anything the runtime needs in order to execute a program, audit the release cartridge path too unless the change is clearly debug-only or source-only.  More broadly, if you add or change anything that crosses the compiler/runtime boundary, expect to update the binary baking path as well.  Typical triggers include: new manifest fields that affect runtime behavior; new node kinds, control-flow semantics, property/value shapes, expression/PAXEL forms, timelines, event bindings, handler metadata, or asset references; and any change to component/type descriptors used by cartridge generation.  In practice, that usually means checking `pax-manifest`'s `program_ir`, `binary`, and `rust_manifest` paths, plus the compiler's cartridge generation/templates and the corresponding roundtrip tests.  Designtime-only/source-only metadata should usually stay out of the release-baked format unless the runtime truly needs it.
 
+**Take note of the pain points.**  Much of our work requires building an example projct as a test-bed.  In the course of building examples, we will often stub our toes on the same things, especially since the corpus of training data lives almost entirely in this repo and most models are likely unaware of Pax a priori.  Any time we discover a pain point and a solution to said pain point, make a note inside pax-docs/book/src/design/pain-points.md 
+
 ## Writing Pax
 
 * Authoring Pax happens in two layers:
