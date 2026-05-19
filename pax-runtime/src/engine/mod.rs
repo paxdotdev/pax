@@ -120,7 +120,7 @@ impl Globals {
         let viewport_var = Variable::new_from_typed_property(viewport.clone());
         let gyro_var = Variable::new_from_typed_property(self.gyro.clone());
         let accel_var = Variable::new_from_typed_property(self.accel.clone());
-        let frames_elapsed_var = Variable::new_from_typed_property(self.elapsed_frames.clone());
+        let elapsed_frames_var = Variable::new_from_typed_property(self.elapsed_frames.clone());
         let elapsed_millis_var = Variable::new_from_typed_property(self.elapsed_millis.clone());
         let route_location_var = Variable::new_from_typed_property(self.route_location.clone());
 
@@ -221,7 +221,7 @@ impl Globals {
             ),
             ("$gyro".to_string(), gyro_var),
             ("$accel".to_string(), accel_var),
-            ("$frames".to_string(), frames_elapsed_var),
+            ("$frames".to_string(), elapsed_frames_var),
             ("$millis".to_string(), elapsed_millis_var),
             (
                 INTERNAL_ROUTE_LOCATION_SYMBOL.to_string(),

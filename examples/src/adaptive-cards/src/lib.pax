@@ -8,14 +8,14 @@
         scroll_height=1660px
     >
         <Group width=100% height=1660px>
-            <Text class=eyebrow x=42px y=38px width=260px height=22px text="ADAPTIVE DISPATCH" />
-            <Text class=title x=40px y=66px width={100% - 390px} height=74px text="Incident Dispatch" />
+            <Text class=eyebrow x=24px y={$portrait ? 28px : 38px} width=260px height=22px text="ADAPTIVE DISPATCH" />
+            <Text class=title x=24px y={$portrait ? 54px : 66px} width={$portrait ? (100% - 48px) : (100% - 384px)} height={$portrait ? 54px : 78px} text="Incident Dispatch" />
             <Text
                 class=subtitle
-                x=44px
-                y=142px
-                width={100% - 470px}
-                height=30px
+                x=24px
+                y={$portrait ? 112px : 146px}
+                width={$portrait ? (100% - 48px) : (100% - 454px)}
+                height={$portrait ? 48px : 30px}
                 text="One template reshaped by target, viewport, and orientation settings."
             />
 
@@ -28,78 +28,115 @@
                     height=22px
                     text={($desktop && $landscape ? "desktop landscape" : ($landscape ? "landscape" : ($mobile ? "mobile portrait" : "portrait")))}
                 />
-                <Ellipse class=accent_mark x=24px y=18px width=12px height=12px anchor=50% />
+                <Ellipse class=badge_accent x=24px y=18px width=12px height=12px anchor=50% />
                 <Rectangle class=badge_surface x=0px y=0px width=100% height=100% />
             </Group>
 
-            <Group id=card_resolve class=card>
-                <Text class=phase_chip_text x={100% - 102px} y=21px width=78px height=18px text="TARGET" />
-                <Text class=card_kicker x=24px y=22px width={100% - 48px} height=18px text="03 RESOLVE" />
-                <Text class=card_title x=24px y=54px width={100% - 48px} height=34px text="Ship response" />
-                <Text class=card_copy x=24px y=102px width={100% - 48px} height=54px text="Target-specific settings change the final response signature." />
-                <Text class=metric_value x=24px y=144px width=110px height=40px text={$macos ? "MAC" : ($web ? "WEB" : "APP")} />
-                <Text class=metric_label x=132px y=158px width={100% - 158px} height=20px text="target branch" />
-                <Rectangle class=mini_bar x={100% - 104px} y=160px width=72px height=6px />
-                <Rectangle class=mini_bar_soft x={100% - 104px} y=174px width=48px height=6px />
-                <Rectangle class=phase_chip_surface x={100% - 112px} y=18px width=88px height=24px />
-                <Rectangle class=accent_rail x=0px y=0px width=6px height=100% />
-                <Rectangle class=card_surface x=0px y=0px width=100% height=100% />
-            </Group>
+            <LiquidGlass id=card_resolve class=card enabled={$macos || $ios} spacing=18px interactive=true variant="clear" tint=Some(rgba(232, 240, 246, 96))>
+                <Group width=100% height=100% border_radius=28.0>
+                    <LiquidGlass enabled=false>
+                        <Group width=100% height=100%>
+                            <Text class=phase_chip_text x={100% - 116px} y=25px width=82px height=18px text="TARGET" />
+                            <Text class=card_kicker x=30px y=28px width={100% - 60px} height=18px text="03 RESOLVE" />
+                            <Text class=card_title x=30px y=66px width={100% - 60px} height=36px text="Ship response" />
+                            <Text class=card_copy x=30px y=122px width={100% - 60px} height=56px text="Target-specific settings change the final response signature." />
+                            <Text class=metric_value x=30px y=182px width=114px height=42px text={$macos ? "MAC" : ($web ? "WEB" : "APP")} />
+                            <Text class=metric_label x=144px y=197px width={100% - 174px} height=20px text="target branch" />
+                            <Ellipse class=mini_dot x={100% - 110px} y=210px width=16px height=16px anchor=50% />
+                            <Ellipse class=mini_dot_soft x={100% - 80px} y=210px width=16px height=16px anchor=50% />
+                            <Ellipse class=mini_dot_soft x={100% - 50px} y=210px width=16px height=16px anchor=50% />
+                            <Rectangle class=phase_chip_surface x={100% - 128px} y=21px width=100px height=30px />
+                            <Group x=30px y={100% - 76px} width={100% - 60px} height=11px>
+                                <Rectangle class=card_signal x={(100.0 * (($millis %% 1300) / 1300.0))%} y=50% width=92px height=11px />
+                            </Group>
+                            <Rectangle class=card_baseline x=30px y={100% - 71px} width={100% - 60px} height=1px />
+                            <Rectangle class=accent_rail x=30px y=54px width=42px height=4px />
+                            <Rectangle class=card_sheen x=10px y=10px width={100% - 20px} height=42% />
+                            <Rectangle class=card_surface x=0px y=0px width=100% height=100% />
+                        </Group>
+                    </LiquidGlass>
+                </Group>
+            </LiquidGlass>
 
-            <Group id=card_route class=card>
-                <Text class=phase_chip_text x={100% - 102px} y=21px width=78px height=18px text="PAXEL" />
-                <Text class=card_kicker x=24px y=22px width={100% - 48px} height=18px text="02 ROUTE" />
-                <Text class=card_title x=24px y=54px width={100% - 48px} height=34px text="Assign path" />
-                <Text class=card_copy x=24px y=102px width={100% - 48px} height=54px text="PAXEL chooses the active path from viewport and target helpers." />
-                <Text class=metric_value x=24px y=144px width=74px height=40px text={$landscape ? "W" : "H"} />
-                <Text class=metric_label x=98px y=158px width={100% - 122px} height=20px text={$landscape ? "landscape branch" : "portrait branch"} />
-                <Ellipse class=mini_dot x={100% - 96px} y=164px width=16px height=16px anchor=50% />
-                <Ellipse class=mini_dot_soft x={100% - 68px} y=164px width=16px height=16px anchor=50% />
-                <Ellipse class=mini_dot_soft x={100% - 40px} y=164px width=16px height=16px anchor=50% />
-                <Rectangle class=phase_chip_surface x={100% - 112px} y=18px width=88px height=24px />
-                <Rectangle class=accent_rail x=0px y=0px width=6px height=100% />
-                <Rectangle class=card_surface x=0px y=0px width=100% height=100% />
-            </Group>
+            <LiquidGlass id=card_route class=card enabled={$macos || $ios} spacing=18px interactive=true variant="clear" tint=Some(rgba(232, 240, 246, 96))>
+                <Group width=100% height=100% border_radius=28.0>
+                    <LiquidGlass enabled=false>
+                        <Group width=100% height=100%>
+                            <Text class=phase_chip_text x={100% - 116px} y=25px width=82px height=18px text="PAXEL" />
+                            <Text class=card_kicker x=30px y=28px width={100% - 60px} height=18px text="02 ROUTE" />
+                            <Text class=card_title x=30px y=66px width={100% - 60px} height=36px text="Assign path" />
+                            <Text class=card_copy x=30px y=122px width={100% - 60px} height=56px text="PAXEL chooses the active path from viewport and target helpers." />
+                            <Text class=metric_value x=30px y=182px width=78px height=42px text={$landscape ? "W" : "H"} />
+                            <Text class=metric_label x=112px y=197px width={100% - 142px} height=20px text={$landscape ? "landscape branch" : "portrait branch"} />
+                            <Ellipse class=mini_dot x={100% - 110px} y=210px width=16px height=16px anchor=50% />
+                            <Ellipse class=mini_dot_soft x={100% - 80px} y=210px width=16px height=16px anchor=50% />
+                            <Ellipse class=mini_dot_soft x={100% - 50px} y=210px width=16px height=16px anchor=50% />
+                            <Rectangle class=phase_chip_surface x={100% - 128px} y=21px width=100px height=30px />
+                            <Group x=30px y={100% - 76px} width={100% - 60px} height=11px>
+                                <Rectangle class=card_signal x={(100.0 * (($millis %% 1500) / 1500.0))%} y=50% width=92px height=11px />
+                            </Group>
+                            <Rectangle class=card_baseline x=30px y={100% - 71px} width={100% - 60px} height=1px />
+                            <Rectangle class=accent_rail x=30px y=54px width=42px height=4px />
+                            <Rectangle class=card_sheen x=10px y=10px width={100% - 20px} height=42% />
+                            <Rectangle class=card_surface x=0px y=0px width=100% height=100% />
+                        </Group>
+                    </LiquidGlass>
+                </Group>
+            </LiquidGlass>
 
-            <Group id=card_triage class=card>
-                <Text class=phase_chip_text x={100% - 102px} y=21px width=78px height=18px text="BASE" />
-                <Text class=card_kicker x=24px y=22px width={100% - 48px} height=18px text="01 TRIAGE" />
-                <Text class=card_title x=24px y=54px width={100% - 48px} height=34px text="Assess signal" />
-                <Text class=card_copy x=24px y=102px width={100% - 48px} height=54px text="Shared styles define the dispatch object before settings move it." />
-                <Text class=metric_value x=24px y=144px width=74px height=40px text="3" />
-                <Text class=metric_label x=98px y=158px width={100% - 122px} height=20px text="settings layers" />
-                <Rectangle class=mini_bar x={100% - 104px} y=160px width=68px height=6px />
-                <Rectangle class=mini_bar_soft x={100% - 104px} y=174px width=84px height=6px />
-                <Rectangle class=phase_chip_surface x={100% - 112px} y=18px width=88px height=24px />
-                <Rectangle class=accent_rail x=0px y=0px width=6px height=100% />
-                <Rectangle class=card_surface x=0px y=0px width=100% height=100% />
-            </Group>
+            <LiquidGlass id=card_triage class=card enabled={$macos || $ios} spacing=18px interactive=true variant="clear" tint=Some(rgba(232, 240, 246, 96))>
+                <Group width=100% height=100% border_radius=28.0>
+                    <LiquidGlass enabled=false>
+                        <Group width=100% height=100%>
+                            <Text class=phase_chip_text x={100% - 116px} y=25px width=82px height=18px text="BASE" />
+                            <Text class=card_kicker x=30px y=28px width={100% - 60px} height=18px text="01 TRIAGE" />
+                            <Text class=card_title x=30px y=66px width={100% - 60px} height=36px text="Assess signal" />
+                            <Text class=card_copy x=30px y=122px width={100% - 60px} height=56px text="Shared styles define the dispatch object before settings move it." />
+                            <Text class=metric_value x=30px y=182px width=78px height=42px text="3" />
+                            <Text class=metric_label x=112px y=197px width={100% - 142px} height=20px text="settings layers" />
+                            <Ellipse class=mini_dot x={100% - 110px} y=210px width=16px height=16px anchor=50% />
+                            <Ellipse class=mini_dot_soft x={100% - 80px} y=210px width=16px height=16px anchor=50% />
+                            <Ellipse class=mini_dot_soft x={100% - 50px} y=210px width=16px height=16px anchor=50% />
+                            <Rectangle class=phase_chip_surface x={100% - 128px} y=21px width=100px height=30px />
+                            <Group x=30px y={100% - 76px} width={100% - 60px} height=11px>
+                                <Rectangle class=card_signal x={(100.0 * (($millis %% 1100) / 1100.0))%} y=50% width=92px height=11px />
+                            </Group>
+                            <Rectangle class=card_baseline x=30px y={100% - 71px} width={100% - 60px} height=1px />
+                            <Rectangle class=accent_rail x=30px y=54px width=42px height=4px />
+                            <Rectangle class=card_sheen x=10px y=10px width={100% - 20px} height=42% />
+                            <Rectangle class=card_surface x=0px y=0px width=100% height=100% />
+                        </Group>
+                    </LiquidGlass>
+                </Group>
+            </LiquidGlass>
 
             <Group id=status_panel class=status_panel>
-                <Text class=panel_label x=34px y=28px width={100% - 68px} height=20px text="LIVE SETTINGS BRANCH" />
-                <Text class=panel_value x=34px y=62px width={100% - 470px} height=50px text={$desktop && $landscape ? "wide command layout" : ($landscape ? "compact landscape layout" : "stacked field layout")} />
-                <Text class=panel_copy x=36px y=122px width={100% - 470px} height=36px text={$landscape ? "Command mode keeps the incident phases on one horizontal timeline." : "Field mode stacks phases along a vertical checklist rail."} />
-                <Text class=panel_chip_text x={100% - 392px} y=56px width=92px height=20px text="$desktop" />
-                <Text class=panel_chip_text x={100% - 262px} y=56px width=104px height=20px text="$landscape" />
-                <Text class=panel_chip_text x={100% - 124px} y=56px width=78px height=20px text="$macos" />
-                <Text class=panel_chip_value x={100% - 392px} y=88px width=92px height=28px text={$desktop ? "true" : "false"} />
-                <Text class=panel_chip_value x={100% - 262px} y=88px width=104px height=28px text={$landscape ? "true" : "false"} />
-                <Text class=panel_chip_value x={100% - 124px} y=88px width=78px height=28px text={$macos ? "true" : "false"} />
-                <Rectangle class=panel_chip_surface x={100% - 410px} y=42px width=124px height=92px />
-                <Rectangle class=panel_chip_surface x={100% - 278px} y=42px width=132px height=92px />
-                <Rectangle class=panel_chip_surface x={100% - 138px} y=42px width=112px height=92px />
-                <Rectangle class=scan_track x=36px y=160px width={100% - 72px} height=7px />
-                <Rectangle class=scan_bar x={36px + (($millis %% 1800) * 0.14)px} y=158px width=90px height=11px />
-                <Ellipse class=accent_mark x={100% - 46px} y=38px width={20px + (($frames %% 18) * 0.4)px} height={20px + (($frames %% 18) * 0.4)px} anchor=50% />
+                <Text class=panel_label x={$landscape ? 34px : 28px} y=28px width={100% - 68px} height=20px text="LIVE SETTINGS BRANCH" />
+                <Text class=panel_value x={$landscape ? 34px : 28px} y={$landscape ? 62px : 58px} width={$landscape ? (100% - 470px) : (100% - 56px)} height={$landscape ? 50px : 64px} text={$desktop && $landscape ? "wide command layout" : ($landscape ? "compact landscape layout" : "stacked field layout")} />
+                <Text class=panel_copy x={$landscape ? 36px : 28px} y={$landscape ? 122px : 128px} width={$landscape ? (100% - 470px) : (100% - 56px)} height={$landscape ? 36px : 52px} text={$landscape ? "Command mode keeps the incident phases in one wide scan lane." : "Field mode stacks phases in one column with a compact flow cue."} />
+                <Text id=chip_desktop_text class=panel_chip_text x={$landscape ? (100% - 408px) : 36px} y={$landscape ? 56px : 220px} width={$landscape ? 112px : 74px} height=20px text="$desktop" />
+                <Text id=chip_landscape_text class=panel_chip_text x={$landscape ? (100% - 278px) : 138px} y={$landscape ? 56px : 220px} width={$landscape ? 112px : 84px} height=20px text="$landscape" />
+                <Text id=chip_target_text class=panel_chip_text x={$landscape ? (100% - 148px) : 250px} y={$landscape ? 56px : 220px} width={$landscape ? 112px : 58px} height=20px text="$macos" />
+                <Text id=chip_desktop_value class=panel_chip_value x={$landscape ? (100% - 408px) : 36px} y={$landscape ? 88px : 250px} width={$landscape ? 112px : 74px} height=28px text={$desktop ? "true" : "false"} />
+                <Text id=chip_landscape_value class=panel_chip_value x={$landscape ? (100% - 278px) : 138px} y={$landscape ? 88px : 250px} width={$landscape ? 112px : 84px} height=28px text={$landscape ? "true" : "false"} />
+                <Text id=chip_target_value class=panel_chip_value x={$landscape ? (100% - 148px) : 250px} y={$landscape ? 88px : 250px} width={$landscape ? 112px : 58px} height=28px text={$macos ? "true" : "false"} />
+                <Rectangle id=chip_desktop_surface class=panel_chip_surface x={$landscape ? (100% - 408px) : 24px} y={$landscape ? 42px : 206px} width={$landscape ? 112px : 98px} height={$landscape ? 92px : 82px} />
+                <Rectangle id=chip_landscape_surface class=panel_chip_surface x={$landscape ? (100% - 278px) : 130px} y={$landscape ? 42px : 206px} width={$landscape ? 112px : 104px} height={$landscape ? 92px : 82px} />
+                <Rectangle id=chip_target_surface class=panel_chip_surface x={$landscape ? (100% - 148px) : 242px} y={$landscape ? 42px : 206px} width={$landscape ? 112px : 82px} height={$landscape ? 92px : 82px} />
+                <Group x={$landscape ? 36px : 28px} y={$landscape ? 158px : 314px} width={$landscape ? (100% - 72px) : (100% - 56px)} height=11px>
+                    <Rectangle class=scan_bar x={(100.0 * (($millis %% 1800) / 1800.0))%} y=50% width=92px height=11px />
+                </Group>
+                <Rectangle class=scan_track x={$landscape ? 36px : 28px} y={$landscape ? 160px : 316px} width={$landscape ? (100% - 72px) : (100% - 56px)} height=7px />
+                <Ellipse class=panel_accent x={100% - 46px} y=38px width={20px + (($frames %% 18) * 0.4)px} height={20px + (($frames %% 18) * 0.4)px} anchor=50% />
+                <Text class=panel_lane_label x={$landscape ? 42px : 30px} y={$landscape ? (100% - 122px) : (100% - 70px)} width={100% - 84px} height=18px text="TRIAGE / ROUTE / RESOLVE" />
+                <Text class=panel_stage x={$landscape ? 40px : 28px} y={$landscape ? 238px : 336px} width={100% - 56px} height={$landscape ? 250px : 58px} text={$landscape ? "WIDE" : "STACK"} />
+                <Rectangle class=panel_grid_line x={$landscape ? 42px : 30px} y={$landscape ? 530px : 342px} width={$landscape ? (100% - 84px) : (100% - 60px)} height=1px />
+                <Rectangle class=panel_grid_line x={$landscape ? 42px : 30px} y={$landscape ? 610px : 382px} width={$landscape ? (100% - 84px) : (100% - 60px)} height=1px />
+                <Rectangle class=panel_sheen x=10px y=10px width={100% - 20px} height={$landscape ? 46% : 156px} />
+                <Rectangle class=panel_floor x=0px y={$landscape ? (100% - 240px) : (100% - 146px)} width=100% height={$landscape ? 240px : 146px} />
                 <Rectangle class=panel_surface x=0px y=0px width=100% height=100% />
             </Group>
 
-            <Text class=timeline_label x=58px y=244px width=170px height=18px text="INCIDENT FLOW" />
-            <Ellipse id=node_triage class=accent_mark x=76px y=282px width=22px height=22px anchor=50% />
-            <Ellipse id=node_route class=accent_mark x=50% y=282px width=22px height=22px anchor=50% />
-            <Ellipse id=node_resolve class=accent_mark x={100% - 78px} y=282px width=22px height=22px anchor=50% />
-            <Rectangle class=timeline_line x=76px y=279px width={100% - 152px} height=6px />
-            <Rectangle class=top_rule x=42px y=188px width={100% - 84px} height=1px />
             <Rectangle class=left_band x=0px y=0px width=310px height=1660px />
             <Rectangle class=header_wash x=0px y=0px width=100% height=250px />
             <Rectangle class=ambient_panel x=1.5% y=220px width=97% height=880px />
@@ -123,7 +160,7 @@
     .title {
         style: TextStyle {
             font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
-            font_size: 58px
+            font_size: 62px
             fill: rgb(21, 29, 32)
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
@@ -167,7 +204,7 @@
                 GradientStop::get(Color::rgba(240, 248, 247, 238), 100%)
             ]
         )
-        border_radius: 5
+        corner_radii: RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)
         stroke: Stroke {
             color: Color::rgba(119, 143, 146, 82)
             width: 1px
@@ -177,19 +214,19 @@
     .card {
         x: 28px
         width: {100% - 56px}
-        height: 226px
+        height: 250px
     }
 
     #card_triage {
-        y: 174px
+        y: 190px
     }
 
     #card_route {
-        y: 390px
+        y: 472px
     }
 
     #card_resolve {
-        y: 606px
+        y: 754px
     }
 
     .card_surface {
@@ -197,16 +234,29 @@
             (0%, 0%),
             (0%, 100%),
             [
-                GradientStop::get(Color::rgba(255, 255, 255, 252), 0%),
-                GradientStop::get(Color::rgba(248, 252, 250, 246), 62%),
-                GradientStop::get(Color::rgba(238, 246, 244, 238), 100%)
+                GradientStop::get(Color::rgba(255, 255, 255, 136), 0%),
+                GradientStop::get(Color::rgba(250, 253, 252, 82), 58%),
+                GradientStop::get(Color::rgba(226, 240, 244, 62), 100%)
             ]
         )
-        border_radius: 10
+        corner_radii: RectangleCornerRadii::radii(28.0, 28.0, 28.0, 28.0)
         stroke: Stroke {
-            color: Color::rgba(100, 122, 125, 80)
+            color: Color::rgba(255, 255, 255, 156)
             width: 1px
         }
+    }
+
+    .card_sheen {
+        fill: Fill::linearGradient(
+            (0%, 0%),
+            (100%, 100%),
+            [
+                GradientStop::get(Color::rgba(255, 255, 255, 112), 0%),
+                GradientStop::get(Color::rgba(255, 255, 255, 44), 58%),
+                GradientStop::get(Color::rgba(255, 255, 255, 0), 100%)
+            ]
+        )
+        corner_radii: RectangleCornerRadii::radii(22.0, 22.0, 18.0, 18.0)
     }
 
     .card_kicker {
@@ -222,7 +272,7 @@
     .card_title {
         style: TextStyle {
             font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
-            font_size: 26px
+            font_size: 28px
             fill: rgb(22, 30, 33)
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
@@ -279,17 +329,7 @@
                 GradientStop::get(Color::rgba(221, 235, 232, 230), 100%)
             ]
         )
-        border_radius: 5
-    }
-
-    .mini_bar {
-        fill: rgb(40, 56, 59)
-        border_radius: 5
-    }
-
-    .mini_bar_soft {
-        fill: Color::rgba(40, 56, 59, 72)
-        border_radius: 5
+        corner_radii: RectangleCornerRadii::radii(15.0, 15.0, 15.0, 15.0)
     }
 
     .mini_dot {
@@ -301,20 +341,10 @@
     }
 
     .status_panel {
-        x: 28px
-        y: 826px
-        width: {100% - 56px}
+        x: 32px
+        y: 1040px
+        width: {100% - 64px}
         height: 360px
-    }
-
-    .timeline_label {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
-            font_size: 11px
-            fill: rgb(90, 106, 110)
-            align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Left
-        }
     }
 
     .panel_surface {
@@ -327,7 +357,7 @@
                 GradientStop::get(Color::rgba(20, 30, 34, 250), 100%)
             ]
         )
-        border_radius: 10
+        corner_radii: RectangleCornerRadii::radii(26.0, 26.0, 26.0, 26.0)
     }
 
     .panel_label {
@@ -381,9 +411,29 @@
         }
     }
 
+    .panel_stage {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 118px
+            fill: Color::rgba(255, 255, 255, 18)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Right
+        }
+    }
+
+    .panel_lane_label {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 11px
+            fill: Color::rgba(183, 207, 207, 152)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+
     .panel_chip_surface {
         fill: Color::rgba(255, 255, 255, 30)
-        border_radius: 5
+        corner_radii: RectangleCornerRadii::radii(16.0, 16.0, 16.0, 16.0)
         stroke: Stroke {
             color: Color::rgba(255, 255, 255, 44)
             width: 1px
@@ -392,12 +442,41 @@
 
     .scan_track {
         fill: Color::rgba(255, 255, 255, 36)
-        border_radius: 5
+        corner_radii: RectangleCornerRadii::radii(4.0, 4.0, 4.0, 4.0)
     }
 
     .scan_bar {
         fill: Color::rgba(255, 255, 255, 174)
-        border_radius: 5
+        corner_radii: RectangleCornerRadii::radii(6.0, 6.0, 6.0, 6.0)
+    }
+
+    .panel_grid_line {
+        fill: Color::rgba(255, 255, 255, 28)
+    }
+
+    .panel_sheen {
+        fill: Fill::linearGradient(
+            (0%, 0%),
+            (100%, 100%),
+            [
+                GradientStop::get(Color::rgba(255, 255, 255, 42), 0%),
+                GradientStop::get(Color::rgba(255, 255, 255, 16), 58%),
+                GradientStop::get(Color::rgba(255, 255, 255, 0), 100%)
+            ]
+        )
+        corner_radii: RectangleCornerRadii::radii(22.0, 22.0, 18.0, 18.0)
+    }
+
+    .panel_floor {
+        fill: Fill::linearGradient(
+            (0%, 0%),
+            (100%, 100%),
+            [
+                GradientStop::get(Color::rgba(56, 96, 111, 0), 0%),
+                GradientStop::get(Color::rgba(70, 118, 139, 38), 100%)
+            ]
+        )
+        corner_radii: RectangleCornerRadii::radii(0.0, 0.0, 26.0, 26.0)
     }
 
     .left_band {
@@ -434,26 +513,30 @@
                 GradientStop::get(Color::rgba(255, 255, 255, 0), 100%)
             ]
         )
-        border_radius: 10
-    }
-
-    .top_rule {
-        fill: Color::rgba(43, 57, 60, 58)
-        border_radius: 5
-    }
-
-    .timeline_line {
-        fill: Color::rgba(35, 48, 52, 74)
-        border_radius: 5
+        corner_radii: RectangleCornerRadii::radii(32.0, 32.0, 32.0, 32.0)
     }
 
     .accent_rail {
-        fill: rgb(70, 127, 191)
-        border_radius: 5
+        fill: Color::rgba(70, 127, 191, 118)
+        corner_radii: RectangleCornerRadii::radii(2.0, 2.0, 2.0, 2.0)
     }
 
-    .accent_mark {
+    .card_baseline {
+        fill: Color::rgba(42, 58, 63, 24)
+        corner_radii: RectangleCornerRadii::radii(1.0, 1.0, 1.0, 1.0)
+    }
+
+    .card_signal {
+        fill: Color::rgba(42, 94, 155, 238)
+        corner_radii: RectangleCornerRadii::radii(6.0, 6.0, 6.0, 6.0)
+    }
+
+    .badge_accent {
         fill: rgb(70, 127, 191)
+    }
+
+    .panel_accent {
+        fill: Color::rgba(70, 127, 191, 190)
     }
 
     .background {
@@ -470,31 +553,31 @@
 
     if $desktop && $landscape {
         .card {
-            y: 300px
+            y: 288px
             width: 29%
-            height: 390px
+            height: 410px
         }
 
         #card_triage {
-            x: 24px
-            y: 300px
+            x: 32px
+            y: 288px
         }
 
         #card_route {
             x: 50%
-            y: 300px
+            y: 288px
         }
 
         #card_resolve {
-            x: {100% - 24px}
-            y: 300px
+            x: {100% - 32px}
+            y: 288px
         }
 
         .status_panel {
-            x: 24px
-            y: 774px
-            width: {100% - 48px}
-            height: 900px
+            x: 32px
+            y: 738px
+            width: {100% - 64px}
+            height: 800px
         }
 
         .branch_badge {
@@ -502,96 +585,125 @@
         }
     } else if $landscape {
         .card {
-            width: 30%
-            height: 270px
+            x: 24px
+            width: {100% - 48px}
+            height: 240px
         }
 
         #card_triage {
-            x: 3.5%
-            y: 250px
+            y: 232px
         }
 
         #card_route {
-            x: 35%
-            y: 250px
+            x: 24px
+            y: 504px
         }
 
         #card_resolve {
-            x: 66.5%
-            y: 250px
+            x: 24px
+            y: 776px
         }
 
         .status_panel {
-            x: 3.5%
-            y: 560px
-            width: 93%
+            x: 24px
+            y: 1048px
+            width: {100% - 48px}
             height: 360px
         }
     } else {
         .card {
-            x: 86px
-            width: {100% - 114px}
-            height: 226px
+            x: 24px
+            width: {100% - 48px}
+            height: 250px
         }
 
         #card_triage {
-            y: 184px
+            y: 286px
         }
 
         #card_route {
-            y: 452px
+            y: 568px
         }
 
         #card_resolve {
-            y: 720px
+            y: 850px
         }
 
         .status_panel {
-            x: 28px
-            y: 990px
-            width: {100% - 56px}
+            x: 24px
+            y: 1132px
+            width: {100% - 48px}
             height: 420px
         }
 
-        .timeline_line {
-            x: 54px
-            y: 210px
-            width: 4px
-            height: 780px
+        .branch_badge {
+            x: 24px
+            y: 170px
+            width: 252px
         }
 
-        #node_triage {
-            x: 56px
-            y: 238px
+        .title {
+            style: TextStyle {
+                font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+                font_size: 36px
+                fill: rgb(21, 29, 32)
+                align_vertical: TextAlignVertical::Center
+                align_horizontal: TextAlignHorizontal::Left
+            }
         }
 
-        #node_route {
-            x: 56px
-            y: 506px
+        .subtitle {
+            style: TextStyle {
+                font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+                font_size: 14px
+                fill: rgb(75, 91, 94)
+                align_vertical: TextAlignVertical::Top
+                align_horizontal: TextAlignHorizontal::Left
+                align_multiline: TextAlignHorizontal::Left
+            }
         }
 
-        #node_resolve {
-            x: 56px
-            y: 774px
+        .panel_stage {
+            style: TextStyle {
+                font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+                font_size: 48px
+                fill: Color::rgba(255, 255, 255, 20)
+                align_vertical: TextAlignVertical::Center
+                align_horizontal: TextAlignHorizontal::Right
+            }
         }
     }
 
     if $mobile {
         .card {
+            x: 24px
+            width: {100% - 48px}
             height: 240px
         }
 
+        #card_triage {
+            y: 286px
+        }
+
         #card_route {
-            y: 452px
+            y: 556px
         }
 
         #card_resolve {
-            y: 720px
+            y: 826px
         }
 
         .status_panel {
-            y: 990px
+            x: 24px
+            y: 1102px
+            width: {100% - 48px}
             height: 420px
+        }
+
+        .branch_badge {
+            x: 24px
+            y: 170px
+            width: 252px
         }
 
         .title {
@@ -603,31 +715,104 @@
                 align_horizontal: TextAlignHorizontal::Left
             }
         }
+
+        .subtitle {
+            style: TextStyle {
+                font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+                font_size: 14px
+                fill: rgb(75, 91, 94)
+                align_vertical: TextAlignVertical::Top
+                align_horizontal: TextAlignHorizontal::Left
+                align_multiline: TextAlignHorizontal::Left
+            }
+        }
+
+        .panel_stage {
+            style: TextStyle {
+                font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+                font_size: 44px
+                fill: Color::rgba(255, 255, 255, 20)
+                align_vertical: TextAlignVertical::Center
+                align_horizontal: TextAlignHorizontal::Right
+            }
+        }
+    }
+
+    if $mobile && $landscape {
+        .card {
+            x: 24px
+            width: {100% - 48px}
+        }
+
+        #card_triage {
+            x: 24px
+        }
+
+        #card_route {
+            x: 24px
+        }
+
+        #card_resolve {
+            x: 24px
+        }
+
+        .status_panel {
+            x: 24px
+            width: {100% - 48px}
+        }
+
+        #card_triage {
+            y: 232px
+        }
+
+        #card_route {
+            y: 504px
+        }
+
+        #card_resolve {
+            y: 776px
+        }
+
+        .status_panel {
+            y: 1048px
+        }
     }
 
     if $macos {
-        .accent_mark {
+        .badge_accent {
             fill: rgb(66, 113, 196)
         }
 
+        .panel_accent {
+            fill: Color::rgba(66, 113, 196, 190)
+        }
+
         .accent_rail {
-            fill: rgb(66, 113, 196)
+            fill: Color::rgba(66, 113, 196, 118)
         }
     } else if $web {
-        .accent_mark {
+        .badge_accent {
             fill: rgb(35, 148, 108)
         }
 
+        .panel_accent {
+            fill: Color::rgba(35, 148, 108, 190)
+        }
+
         .accent_rail {
-            fill: rgb(35, 148, 108)
+            fill: Color::rgba(35, 148, 108, 118)
         }
     } else {
-        .accent_mark {
+        .badge_accent {
             fill: rgb(219, 129, 58)
         }
 
+        .panel_accent {
+            fill: Color::rgba(219, 129, 58, 190)
+        }
+
         .accent_rail {
-            fill: rgb(219, 129, 58)
+            fill: Color::rgba(219, 129, 58, 118)
         }
     }
 }

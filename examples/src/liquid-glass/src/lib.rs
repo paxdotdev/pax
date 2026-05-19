@@ -61,12 +61,12 @@ impl Example {
         self.ticks.set(self.ticks.get() + 1);
         let checked = self.armed.get();
         if checked != self.panel_last_checked.get() {
-            self.animate_panel(checked, ctx.frames_elapsed.get());
+            self.animate_panel(checked, ctx.elapsed_frames.get());
             self.panel_last_checked.set(checked);
         }
 
         let hide_frame = self.panel_hide_frame.get();
-        if hide_frame != 0 && ctx.frames_elapsed.get() >= hide_frame {
+        if hide_frame != 0 && ctx.elapsed_frames.get() >= hide_frame {
             self.panel_opacity.set(0.0);
             self.panel_visible.set(false);
             self.panel_hide_frame.set(0);
@@ -85,7 +85,7 @@ impl Example {
 
     pub fn update_armed(&mut self, ctx: &NodeContext, args: Event<CheckboxChange>) {
         self.armed.set(args.checked);
-        self.animate_panel(args.checked, ctx.frames_elapsed.get());
+        self.animate_panel(args.checked, ctx.elapsed_frames.get());
         self.panel_last_checked.set(args.checked);
         self.refresh_labels();
     }

@@ -3095,13 +3095,13 @@ mod timeline_tests {
     use std::sync::Arc;
 
     fn build_stack_with_clocks(
-        frames_elapsed: &Property<u64>,
+        elapsed_frames: &Property<u64>,
         elapsed_millis: &Property<u64>,
     ) -> Rc<RuntimePropertiesStackFrame> {
         let scope: HashMap<String, Variable> = vec![
             (
                 "$frames".to_string(),
-                Variable::new_from_typed_property(frames_elapsed.clone()),
+                Variable::new_from_typed_property(elapsed_frames.clone()),
             ),
             (
                 "$millis".to_string(),
@@ -3113,9 +3113,9 @@ mod timeline_tests {
         RuntimePropertiesStackFrame::new(scope)
     }
 
-    fn build_stack(frames_elapsed: &Property<u64>) -> Rc<RuntimePropertiesStackFrame> {
+    fn build_stack(elapsed_frames: &Property<u64>) -> Rc<RuntimePropertiesStackFrame> {
         let elapsed_millis = Property::new(0_u64);
-        build_stack_with_clocks(frames_elapsed, &elapsed_millis)
+        build_stack_with_clocks(elapsed_frames, &elapsed_millis)
     }
 
     fn expression(raw: &str) -> ValueDefinition {
@@ -3135,8 +3135,8 @@ mod timeline_tests {
                 )]))
             }),
         );
-        let frames_elapsed = Property::new(0_u64);
-        let stack = build_stack(&frames_elapsed);
+        let elapsed_frames = Property::new(0_u64);
+        let stack = build_stack(&elapsed_frames);
         let literal = ValueDefinition::LiteralValue(PaxValue::Enum(Box::new((
             "LiteralHelper".to_string(),
             "make_object".to_string(),
@@ -3154,8 +3154,8 @@ mod timeline_tests {
 
     #[test]
     fn timeline_property_loops_over_declared_frame_range() {
-        let frames_elapsed = Property::new(0_u64);
-        let stack = build_stack(&frames_elapsed);
+        let elapsed_frames = Property::new(0_u64);
+        let stack = build_stack(&elapsed_frames);
         let track = TimelineTrackDefinition {
             elements: vec![
                 TimelineTrackElement::Keyframe(TimelineKeyframe {
@@ -3178,19 +3178,19 @@ mod timeline_tests {
         let property = build_timeline_property::<f64>("progress", &track, stack);
 
         assert_eq!(property.get(), 0.0);
-        frames_elapsed.set(50);
+        elapsed_frames.set(50);
         assert_eq!(property.get(), 50.0);
-        frames_elapsed.set(100);
+        elapsed_frames.set(100);
         assert_eq!(property.get(), 100.0);
-        frames_elapsed.set(101);
+        elapsed_frames.set(101);
         assert_eq!(property.get(), 0.0);
     }
 
     #[test]
     fn timeline_property_samples_millisecond_duration_from_elapsed_millis() {
-        let frames_elapsed = Property::new(0_u64);
+        let elapsed_frames = Property::new(0_u64);
         let elapsed_millis = Property::new(0_u64);
-        let stack = build_stack_with_clocks(&frames_elapsed, &elapsed_millis);
+        let stack = build_stack_with_clocks(&elapsed_frames, &elapsed_millis);
         let track = TimelineTrackDefinition {
             elements: vec![
                 TimelineTrackElement::Keyframe(TimelineKeyframe {
@@ -3215,7 +3215,7 @@ mod timeline_tests {
         let property = build_timeline_property::<f64>("progress", &track, stack);
 
         assert_eq!(property.get(), 0.0);
-        frames_elapsed.set(30);
+        elapsed_frames.set(30);
         assert_eq!(property.get(), 0.0);
         elapsed_millis.set(500);
         assert_eq!(property.get(), 50.0);
@@ -3225,8 +3225,8 @@ mod timeline_tests {
 
     #[test]
     fn timeline_property_holds_starting_value_before_first_keyframe() {
-        let frames_elapsed = Property::new(0_u64);
-        let stack = build_stack(&frames_elapsed);
+        let elapsed_frames = Property::new(0_u64);
+        let stack = build_stack(&elapsed_frames);
         let track = TimelineTrackDefinition {
             elements: vec![
                 TimelineTrackElement::Keyframe(TimelineKeyframe {
@@ -3251,18 +3251,18 @@ mod timeline_tests {
         let property = build_timeline_property::<f64>("progress", &track, stack);
 
         assert_eq!(property.get(), 5.0);
-        frames_elapsed.set(25);
+        elapsed_frames.set(25);
         assert_eq!(property.get(), 5.0);
-        frames_elapsed.set(75);
+        elapsed_frames.set(75);
         assert_eq!(property.get(), 5.0);
-        frames_elapsed.set(100);
+        elapsed_frames.set(100);
         assert_eq!(property.get(), 0.0);
     }
 
     #[test]
     fn timeline_property_interpolates_rotation_tracks() {
-        let frames_elapsed = Property::new(0_u64);
-        let stack = build_stack(&frames_elapsed);
+        let elapsed_frames = Property::new(0_u64);
+        let stack = build_stack(&elapsed_frames);
         let track = TimelineTrackDefinition {
             elements: vec![
                 TimelineTrackElement::Keyframe(TimelineKeyframe {
@@ -3290,9 +3290,9 @@ mod timeline_tests {
             build_timeline_property::<pax_runtime_api::Rotation>("rotate", &track, stack);
 
         assert!((property.get().get_as_degrees() - (-4.0)).abs() < 0.0001);
-        frames_elapsed.set(50);
+        elapsed_frames.set(50);
         assert!((property.get().get_as_degrees() - 2.0).abs() < 0.0001);
-        frames_elapsed.set(100);
+        elapsed_frames.set(100);
         assert!((property.get().get_as_degrees() - 8.0).abs() < 0.0001);
     }
 
@@ -3354,12 +3354,12 @@ mod timeline_tests {
 
     #[test]
     fn timeline_property_samples_from_bound_playhead_property() {
-        let frames_elapsed = Property::new(0_u64);
+        let elapsed_frames = Property::new(0_u64);
         let playhead = Property::new(0.0_f64);
         let scope: HashMap<String, Variable> = vec![
             (
                 "$frames".to_string(),
-                Variable::new_from_typed_property(frames_elapsed.clone()),
+                Variable::new_from_typed_property(elapsed_frames.clone()),
             ),
             (
                 "phase".to_string(),
@@ -3477,8 +3477,8 @@ mod timeline_tests {
 
     #[test]
     fn timeline_property_skips_keyframes_that_fail_typed_coercion() {
-        let frames_elapsed = Property::new(0_u64);
-        let stack = build_stack(&frames_elapsed);
+        let elapsed_frames = Property::new(0_u64);
+        let stack = build_stack(&elapsed_frames);
         let track = TimelineTrackDefinition {
             elements: vec![
                 TimelineTrackElement::Keyframe(TimelineKeyframe {
@@ -3505,7 +3505,7 @@ mod timeline_tests {
         };
         let property = build_timeline_property::<f64>("progress", &track, stack);
 
-        frames_elapsed.set(75);
+        elapsed_frames.set(75);
         assert!((property.get() - 75.0).abs() < 0.0001);
     }
 }
@@ -3664,10 +3664,10 @@ mod base_symbol_tests {
 
     #[test]
     fn base_symbol_supplies_timeline_starting_values() {
-        let frames_elapsed = Property::new(0_u64);
+        let elapsed_frames = Property::new(0_u64);
         let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
             "$frames".to_string(),
-            Variable::new_from_typed_property(frames_elapsed.clone()),
+            Variable::new_from_typed_property(elapsed_frames.clone()),
         )]));
         let track = TimelineTrackDefinition {
             elements: vec![
@@ -3701,7 +3701,7 @@ mod base_symbol_tests {
         let common = create_new_common_properties_from_columns(&columns, &stack);
         assert!((common.borrow().y.get().unwrap().get_pixels(100.0) - 90.0).abs() < 0.0001);
 
-        frames_elapsed.set(10);
+        elapsed_frames.set(10);
         assert!((common.borrow().y.get().unwrap().get_pixels(100.0) - 100.0).abs() < 0.0001);
     }
 

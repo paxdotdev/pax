@@ -454,18 +454,18 @@ impl ExpandedNode {
             "transition origin millis",
         );
         let (transition_playhead, transition_playhead_millis) = if has_transition_bindings {
-            let frames_elapsed = context.globals().elapsed_frames.clone();
+            let elapsed_frames = context.globals().elapsed_frames.clone();
             let elapsed_millis = context.globals().elapsed_millis.clone();
-            let frames_elapsed_for_playhead = frames_elapsed.clone();
+            let elapsed_frames_for_playhead = elapsed_frames.clone();
             let transition_origin_frame_for_playhead = transition_origin_frame.clone();
             let transition_playhead = Property::computed_with_name(
                 move || {
-                    frames_elapsed_for_playhead
+                    elapsed_frames_for_playhead
                         .get()
                         .saturating_sub(transition_origin_frame_for_playhead.get())
                         as f64
                 },
-                &[frames_elapsed.untyped(), transition_origin_frame.untyped()],
+                &[elapsed_frames.untyped(), transition_origin_frame.untyped()],
                 "transition playhead",
             );
             let elapsed_millis_for_playhead = elapsed_millis.clone();
@@ -1014,17 +1014,17 @@ impl ExpandedNode {
         self.exit_cleanup_active.set(true);
         let weak_self = Rc::downgrade(self);
         let cloned_context = Rc::clone(context);
-        let frames_elapsed = context.globals().elapsed_frames.clone();
-        let frames_elapsed_dep = frames_elapsed.untyped();
+        let elapsed_frames = context.globals().elapsed_frames.clone();
+        let elapsed_frames_dep = elapsed_frames.untyped();
         self.exit_cleanup_listener
             .replace_with(Property::computed_with_name(
                 move || {
-                    let _ = frames_elapsed.get();
+                    let _ = elapsed_frames.get();
                     if let Some(node) = weak_self.upgrade() {
                         node.prune_completed_exit_children(&cloned_context);
                     }
                 },
-                &[frames_elapsed_dep],
+                &[elapsed_frames_dep],
                 "exit transition cleanup",
             ));
         context.register_node_effect_property(self.id, &self.exit_cleanup_listener);
@@ -1987,18 +1987,18 @@ impl ExpandedNode {
 
         let last_frame = Rc::new(RefCell::new(globals.elapsed_frames.get()));
         let suspended = self.suspended.clone();
-        let frames_elapsed = globals.elapsed_frames.clone();
+        let elapsed_frames = globals.elapsed_frames.clone();
         let elapsed_millis = globals.elapsed_millis.clone();
-        let deps = [frames_elapsed.untyped(), suspended.untyped()];
+        let deps = [elapsed_frames.untyped(), suspended.untyped()];
         // TODO: this still triggers the dirty dag dependencies of elapsed
         // frames even if the value is the same. Try to make it not trigger
         // dependencides when frozen
-        let frames_elapsed_frozen_if_suspended = Property::computed(
+        let elapsed_frames_frozen_if_suspended = Property::computed(
             move || {
                 if suspended.get() {
                     *borrow!(last_frame)
                 } else {
-                    let val = frames_elapsed.get();
+                    let val = elapsed_frames.get();
                     *borrow_mut!(last_frame) = val;
                     val
                 }
@@ -2013,7 +2013,7 @@ impl ExpandedNode {
             local_stack_frame: Rc::clone(&self.stack),
             expanded_node: Rc::downgrade(&self),
             containing_component: Weak::clone(&self.containing_component),
-            elapsed_frames: frames_elapsed_frozen_if_suspended,
+            elapsed_frames: elapsed_frames_frozen_if_suspended,
             elapsed_millis,
             gyro: globals.gyro.clone(),
             accel: globals.accel.clone(),
