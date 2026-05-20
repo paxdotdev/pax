@@ -144,6 +144,7 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
                     },
                 )],
             }],
+            route_branch: None,
         },
     );
 

@@ -25,6 +25,7 @@ mod tests {
                     LiteralBlockDefinition::new(vec![]),
                 )]),
                 timelines: vec![],
+                route_branch: None,
             },
         );
 

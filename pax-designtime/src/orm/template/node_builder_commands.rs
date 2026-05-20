@@ -1243,6 +1243,7 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
             template: Some(new_template),
             settings: None,
             timelines: vec![],
+            route_branch: None,
         };
 
         manifest

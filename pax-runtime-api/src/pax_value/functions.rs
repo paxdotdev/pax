@@ -325,6 +325,8 @@ impl HelperFunctions for crate::Color {}
 
 impl HelperFunctions for crate::Rotation {}
 
+impl HelperFunctions for crate::Duration {}
+
 impl HelperFunctions for String {}
 
 impl HelperFunctions for crate::Numeric {}

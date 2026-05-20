@@ -3,20 +3,22 @@
 mod tests {
     use std::collections::{BTreeMap, HashMap};
     use std::fs;
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use pax_language::{parse_pax_str, Rule};
     use pax_manifest::pax_runtime_api::{Numeric, PaxValue, Size};
     use pax_manifest::{
         parsing::{
-            assemble_component_definition, parse_settings_from_component_definition_string,
+            assemble_component_definition as assemble_component_definition_raw,
+            parse_settings_from_component_definition_string,
             parse_timeline_from_component_definition_string, ParsingContext,
         },
         utils, ComponentDefinition, ControlFlowConditionalBranchKind,
         ControlFlowRepeatPredicateDefinition, GradientDefinition, GradientElement,
         GradientShapeDefinition, GradientStopDefinition, PaxIdentifier, PaxManifest,
-        SettingElement, SettingsBlockElement, TemplateNodeDefinition, TemplateNodeId,
-        TimelineBlockElement, TimelineMarker, Token, TypeId, ValueDefinition,
+        RouteBranchDescriptor, SettingElement, SettingsBlockElement, TemplateNodeDefinition,
+        TemplateNodeId, TimelineBlockElement, TimelineMarker, Token, TypeId, ValueDefinition,
     };
 
     #[cfg(feature = "code_serialization")]
@@ -28,14 +30,17 @@ mod tests {
     };
 
     fn write_temp_rust_source(contents: &str) -> std::path::PathBuf {
+        static TEMP_SOURCE_COUNTER: AtomicU64 = AtomicU64::new(0);
         let unique_suffix = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
+        let counter = TEMP_SOURCE_COUNTER.fetch_add(1, Ordering::Relaxed);
         let path = std::env::temp_dir().join(format!(
-            "pax-manifest-implicit-handlers-{}-{}.rs",
+            "pax-manifest-implicit-handlers-{}-{}-{}.rs",
             std::process::id(),
-            unique_suffix
+            unique_suffix,
+            counter
         ));
         fs::write(&path, contents).expect("temporary Rust source should be writable");
         path
@@ -99,6 +104,62 @@ mod tests {
             template_source_file_path,
             &rust_source_file_path,
         )
+    }
+
+    fn assemble_component_definition(
+        ctx: ParsingContext,
+        pax: &str,
+        is_main_component: bool,
+        template_map: HashMap<String, TypeId>,
+        module_path: &str,
+        self_type_id: TypeId,
+        template_source_file_path: &str,
+        rust_source_file_path: &str,
+    ) -> (ParsingContext, ComponentDefinition) {
+        assemble_component_definition_raw(
+            ctx,
+            pax,
+            is_main_component,
+            template_map,
+            HashMap::new(),
+            None,
+            module_path,
+            self_type_id,
+            template_source_file_path,
+            rust_source_file_path,
+        )
+    }
+
+    fn assemble_component_definition_with_route_branches(
+        ctx: ParsingContext,
+        pax: &str,
+        is_main_component: bool,
+        template_map: HashMap<String, TypeId>,
+        route_branch_descriptors: HashMap<TypeId, RouteBranchDescriptor>,
+        module_path: &str,
+        self_type_id: TypeId,
+        template_source_file_path: &str,
+        rust_source_file_path: &str,
+    ) -> (ParsingContext, ComponentDefinition) {
+        assemble_component_definition_raw(
+            ctx,
+            pax,
+            is_main_component,
+            template_map,
+            route_branch_descriptors,
+            None,
+            module_path,
+            self_type_id,
+            template_source_file_path,
+            rust_source_file_path,
+        )
+    }
+
+    fn default_route_branch_descriptor() -> RouteBranchDescriptor {
+        RouteBranchDescriptor {
+            path_property: "path".to_string(),
+            default_property: "default".to_string(),
+        }
     }
 
     #[test]
@@ -808,9 +869,13 @@ mod tests {
         let component_type_id = TypeId::build_singleton("Example", Some("Example"));
         let text_type_id = TypeId::build_singleton("Text", Some("Text"));
         let group_type_id = TypeId::build_singleton("Group", Some("Group"));
+        let route_type_id = TypeId::build_singleton("Route", Some("Route"));
         let mut template_map = HashMap::new();
         template_map.insert("Text".to_string(), text_type_id);
         template_map.insert("Group".to_string(), group_type_id);
+        template_map.insert("Route".to_string(), route_type_id.clone());
+        let mut route_branch_descriptors = HashMap::new();
+        route_branch_descriptors.insert(route_type_id, default_route_branch_descriptor());
 
         let pax = r#"
             <Router>
@@ -827,11 +892,12 @@ mod tests {
             </Router>
         "#;
 
-        let (_, component) = assemble_component_definition(
+        let (_, component) = assemble_component_definition_with_route_branches(
             ParsingContext::default(),
             pax,
             false,
             template_map,
+            route_branch_descriptors,
             "crate",
             component_type_id,
             "example.pax",
@@ -858,17 +924,170 @@ mod tests {
         );
         assert!(control_flow_settings.route_branches[2].default);
         assert_eq!(control_flow_settings.route_branches[0].child_ids.len(), 1);
-        assert_eq!(control_flow_settings.route_branches[1].child_ids.len(), 2);
+        assert_eq!(control_flow_settings.route_branches[1].child_ids.len(), 1);
         assert_eq!(control_flow_settings.route_branches[2].child_ids.len(), 1);
-        assert_eq!(template.get_children(&router_id).unwrap().len(), 4);
+        assert_eq!(template.get_children(&router_id).unwrap().len(), 3);
+
+        let settings_route_id = control_flow_settings.route_branches[1].child_ids[0].clone();
+        assert_eq!(template.get_children(&settings_route_id).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_parse_route_card_preserves_component_shell() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let text_type_id = TypeId::build_singleton("Text", Some("Text"));
+        let route_card_type_id = TypeId::build_singleton("RouteCard", Some("RouteCard"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Text".to_string(), text_type_id);
+        template_map.insert("RouteCard".to_string(), route_card_type_id.clone());
+        let mut route_branch_descriptors = HashMap::new();
+        route_branch_descriptors.insert(
+            route_card_type_id.clone(),
+            default_route_branch_descriptor(),
+        );
+
+        let pax = r#"
+            <Router>
+                <RouteCard path="/details" edge=RouteCardEdge::Bottom duration=240ms curve=OutBack>
+                    <Text id=details />
+                </RouteCard>
+            </Router>
+        "#;
+
+        let (_, component) = assemble_component_definition_with_route_branches(
+            ParsingContext::default(),
+            pax,
+            false,
+            template_map,
+            route_branch_descriptors,
+            "crate",
+            component_type_id.clone(),
+            "example.pax",
+            file!(),
+        );
+        let mut components = BTreeMap::new();
+        components.insert(component_type_id.clone(), component);
+        let manifest = PaxManifest {
+            components,
+            main_component_type_id: component_type_id.clone(),
+            type_table: Default::default(),
+            assets_dirs: vec![],
+            engine_import_path: "pax_kit::pax_engine".to_string(),
+        };
+
+        let component = manifest.components.get(&component_type_id).unwrap();
+        let template = component.template.as_ref().unwrap();
+        let router_id = template.get_root().remove(0);
+        let router_node = template.get_node(&router_id).unwrap();
+        let control_flow_settings = router_node.control_flow_settings.as_ref().unwrap();
+
+        assert_eq!(control_flow_settings.route_branches.len(), 1);
+        assert_eq!(
+            control_flow_settings.route_branches[0].path.as_deref(),
+            Some("/details")
+        );
+        assert_eq!(control_flow_settings.route_branches[0].child_ids.len(), 1);
+
+        let route_card_id = control_flow_settings.route_branches[0].child_ids[0].clone();
+        let route_card = template.get_node(&route_card_id).unwrap();
+        assert_eq!(route_card.type_id, route_card_type_id);
+        assert_eq!(template.get_children(&route_card_id).unwrap().len(), 1);
+
+        let settings = route_card.settings.as_ref().unwrap();
+        assert!(settings.iter().any(|setting| matches!(
+            setting,
+            SettingElement::Setting(token, _value) if token.token_value == "edge"
+        )));
+        assert!(settings.iter().any(|setting| matches!(
+            setting,
+            SettingElement::Setting(token, _value) if token.token_value == "duration"
+        )));
+        assert!(settings.iter().any(|setting| matches!(
+            setting,
+            SettingElement::Setting(token, _value) if token.token_value == "curve"
+        )));
+        assert!(settings.iter().all(|setting| !matches!(
+            setting,
+            SettingElement::Setting(token, ValueDefinition::Block(_))
+                if token.token_value == "in" || token.token_value == "out"
+        )));
+    }
+
+    #[test]
+    fn test_parse_custom_route_branch_descriptor() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let text_type_id = TypeId::build_singleton("Text", Some("Text"));
+        let sheet_route_type_id = TypeId::build_singleton("SheetRoute", Some("SheetRoute"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Text".to_string(), text_type_id);
+        template_map.insert("SheetRoute".to_string(), sheet_route_type_id.clone());
+        let mut route_branch_descriptors = HashMap::new();
+        route_branch_descriptors.insert(
+            sheet_route_type_id.clone(),
+            RouteBranchDescriptor {
+                path_property: "pattern".to_string(),
+                default_property: "fallback".to_string(),
+            },
+        );
+
+        let pax = r#"
+            <Router>
+                <SheetRoute pattern="/sheet/:id" motion=2>
+                    <Text id=sheet />
+                </SheetRoute>
+                <SheetRoute fallback=true motion=0 />
+            </Router>
+        "#;
+
+        let (_, component) = assemble_component_definition_with_route_branches(
+            ParsingContext::default(),
+            pax,
+            false,
+            template_map,
+            route_branch_descriptors,
+            "crate",
+            component_type_id,
+            "example.pax",
+            file!(),
+        );
+
+        let template = component.template.unwrap();
+        let router_id = template.get_root().remove(0);
+        let router_node = template.get_node(&router_id).unwrap();
+        let control_flow_settings = router_node.control_flow_settings.as_ref().unwrap();
+
+        assert_eq!(
+            control_flow_settings.route_branches[0].path.as_deref(),
+            Some("/sheet/:id")
+        );
+        assert!(control_flow_settings.route_branches[1].default);
+
+        let sheet_route_id = control_flow_settings.route_branches[0].child_ids[0].clone();
+        let sheet_route = template.get_node(&sheet_route_id).unwrap();
+        assert_eq!(sheet_route.type_id, sheet_route_type_id);
+        assert!(sheet_route
+            .settings
+            .as_ref()
+            .unwrap()
+            .iter()
+            .any(|setting| {
+                matches!(
+                    setting,
+                    SettingElement::Setting(token, _value) if token.token_value == "motion"
+                )
+            }));
     }
 
     #[test]
     fn test_parse_relative_nested_router_template() {
         let component_type_id = TypeId::build_singleton("Example", Some("Example"));
         let text_type_id = TypeId::build_singleton("Text", Some("Text"));
+        let route_type_id = TypeId::build_singleton("Route", Some("Route"));
         let mut template_map = HashMap::new();
         template_map.insert("Text".to_string(), text_type_id);
+        template_map.insert("Route".to_string(), route_type_id.clone());
+        let mut route_branch_descriptors = HashMap::new();
+        route_branch_descriptors.insert(route_type_id, default_route_branch_descriptor());
 
         let pax = r#"
             <Router>
@@ -885,11 +1104,12 @@ mod tests {
             </Router>
         "#;
 
-        let (_, component) = assemble_component_definition(
+        let (_, component) = assemble_component_definition_with_route_branches(
             ParsingContext::default(),
             pax,
             false,
             template_map,
+            route_branch_descriptors,
             "crate",
             component_type_id,
             "example.pax",
@@ -907,7 +1127,12 @@ mod tests {
             .route_branches[0]
             .child_ids[0]
             .clone();
-        let nested_router_id = root_branch;
+        let nested_router_id = template
+            .get_children(&root_branch)
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
         assert!(matches!(
             template
                 .get_node(&nested_router_id)
@@ -1089,9 +1314,13 @@ mod tests {
         let component_type_id = TypeId::build_singleton("Example", Some("Example"));
         let text_type_id = TypeId::build_singleton("Text", Some("Text"));
         let group_type_id = TypeId::build_singleton("Group", Some("Group"));
+        let route_type_id = TypeId::build_singleton("Route", Some("Route"));
         let mut template_map = HashMap::new();
         template_map.insert("Text".to_string(), text_type_id);
         template_map.insert("Group".to_string(), group_type_id);
+        template_map.insert("Route".to_string(), route_type_id.clone());
+        let mut route_branch_descriptors = HashMap::new();
+        route_branch_descriptors.insert(route_type_id, default_route_branch_descriptor());
 
         let pax = r#"
             <Router>
@@ -1108,11 +1337,12 @@ mod tests {
             </Router>
         "#;
 
-        let (_, component) = assemble_component_definition(
+        let (_, component) = assemble_component_definition_with_route_branches(
             ParsingContext::default(),
             pax,
             false,
             template_map.clone(),
+            route_branch_descriptors.clone(),
             "crate",
             component_type_id.clone(),
             "example.pax",
@@ -1124,11 +1354,12 @@ mod tests {
         assert!(rendered.contains(r#"<Route path="/settings/*">"#));
         assert!(rendered.contains("<Route default=true>"));
 
-        let (_, parsed_component) = assemble_component_definition(
+        let (_, parsed_component) = assemble_component_definition_with_route_branches(
             ParsingContext::default(),
             &rendered,
             false,
             template_map,
+            route_branch_descriptors,
             "crate",
             component_type_id,
             "example.pax",
@@ -1146,7 +1377,7 @@ mod tests {
 
         assert_eq!(branches.len(), 3);
         assert_eq!(branches[0].child_ids.len(), 1);
-        assert_eq!(branches[1].child_ids.len(), 2);
+        assert_eq!(branches[1].child_ids.len(), 1);
         assert_eq!(branches[2].child_ids.len(), 1);
         assert!(branches[2].default);
     }
@@ -1308,6 +1539,7 @@ mod tests {
                     },
                 )],
             }],
+            route_branch: None,
         };
 
         let rendered = press_code_serialization_template(component).unwrap();
@@ -1448,6 +1680,7 @@ mod tests {
                     },
                 )],
             }],
+            route_branch: None,
         };
 
         let rendered = press_code_serialization_template(component).unwrap();

@@ -1373,6 +1373,16 @@ pub(super) fn parse_pax_source_update(
     catch_unwind(AssertUnwindSafe(|| {
         let mut tpc = TemplateNodeParseContext {
             pascal_identifier_to_type_id_map: template_map,
+            route_branch_descriptors: manifest
+                .components
+                .iter()
+                .filter_map(|(type_id, definition)| {
+                    definition
+                        .route_branch
+                        .clone()
+                        .map(|descriptor| (type_id.clone(), descriptor))
+                })
+                .collect(),
             template: ComponentTemplate::new(
                 self_type_id.clone(),
                 original_template.get_file_path(),
@@ -2248,6 +2258,7 @@ mod tests {
                 )),
                 settings: Some(vec![]),
                 timelines: vec![],
+                route_branch: None,
             },
         );
         components.insert(
@@ -2262,6 +2273,7 @@ mod tests {
                 template: None,
                 settings: None,
                 timelines: vec![],
+                route_branch: None,
             },
         );
         let manifest = PaxManifest {

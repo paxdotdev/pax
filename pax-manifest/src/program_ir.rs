@@ -5,10 +5,11 @@ use pax_message::serde::{Deserialize, Serialize};
 use crate::{
     ComponentDefinition, ComponentTemplate, GradientDefinition, GradientElement,
     GradientShapeDefinition, GradientStopDefinition, LiteralBlockDefinition, PaxManifest,
-    SettingElement, SettingsBlockElement, SettingsConditionalBlock, SettingsConditionalBranch,
-    TemplateNodeDefinition, TemplateNodeId, TimelineBlockElement, TimelineDefinition,
-    TimelineSelectorBlockDefinition, TimelineSelectorElement, TimelineTrackDefinition,
-    TimelineTrackElement, Token, TransitionDefinition, TypeDefinition, TypeId, ValueDefinition,
+    RouteBranchDescriptor, SettingElement, SettingsBlockElement, SettingsConditionalBlock,
+    SettingsConditionalBranch, TemplateNodeDefinition, TemplateNodeId, TimelineBlockElement,
+    TimelineDefinition, TimelineSelectorBlockDefinition, TimelineSelectorElement,
+    TimelineTrackDefinition, TimelineTrackElement, Token, TransitionDefinition, TypeDefinition,
+    TypeId, ValueDefinition,
 };
 
 const MAGIC: &[u8; 8] = b"PAXP\x00IR\x00";
@@ -40,6 +41,8 @@ pub struct ProgramComponent {
     pub settings: Option<Vec<SettingsBlockElement>>,
     #[serde(default)]
     pub timelines: Vec<TimelineDefinition>,
+    #[serde(default)]
+    pub route_branch: Option<RouteBranchDescriptor>,
 }
 
 impl ProgramIR {
@@ -83,6 +86,7 @@ impl From<&ComponentDefinition> for ProgramComponent {
                 .as_ref()
                 .map(sanitize_settings_block_elements),
             timelines: definition.timelines.iter().map(sanitize_timeline).collect(),
+            route_branch: definition.route_branch.clone(),
         }
     }
 }
@@ -555,6 +559,7 @@ mod tests {
                         ),
                     ],
                 }],
+                route_branch: None,
             },
         );
 

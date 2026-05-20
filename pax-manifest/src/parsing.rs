@@ -32,6 +32,7 @@ pub fn parse_template_from_component_definition_string(
 pub struct TemplateNodeParseContext {
     pub template: ComponentTemplate,
     pub pascal_identifier_to_type_id_map: HashMap<String, TypeId>,
+    pub route_branch_descriptors: HashMap<TypeId, RouteBranchDescriptor>,
 }
 
 fn recurse_visit_tag_pairs_for_template(
@@ -53,10 +54,6 @@ fn recurse_visit_tag_pairs_for_template(
             if pascal_identifier == "Router" {
                 parse_router_matched_tag(ctx, matched_tag, pax, location);
                 return;
-            }
-
-            if pascal_identifier == "Route" {
-                panic!("Route must be a direct child of Router");
             }
 
             let template_node = TemplateNodeDefinition {
@@ -108,10 +105,6 @@ fn recurse_visit_tag_pairs_for_template(
             if pascal_identifier == "Router" {
                 parse_router_self_closing_tag(ctx, location);
                 return;
-            }
-
-            if pascal_identifier == "Route" {
-                panic!("Route must be a direct child of Router");
             }
 
             let type_id = if let Some(type_id) =
@@ -401,15 +394,19 @@ fn parse_router_matched_tag(
                             .as_str()
                             .to_string();
 
-                        if route_pascal_identifier != "Route" {
-                            panic!("Router expects direct Route children");
-                        }
+                        let descriptor =
+                            route_branch_descriptor_for_pascal(ctx, &route_pascal_identifier)
+                                .unwrap_or_else(|| {
+                                    panic!("Router expects direct route branch children")
+                                });
 
                         route_branches.push(parse_route_branch_from_matched_tag(
                             ctx,
                             sub_tag_pair,
                             pax,
                             &router_node_id,
+                            &route_pascal_identifier,
+                            &descriptor,
                         ));
                     }
                     Rule::self_closing_tag => {
@@ -421,11 +418,19 @@ fn parse_router_matched_tag(
                             .as_str()
                             .to_string();
 
-                        if route_pascal_identifier != "Route" {
-                            panic!("Router expects direct Route children");
-                        }
+                        let descriptor =
+                            route_branch_descriptor_for_pascal(ctx, &route_pascal_identifier)
+                                .unwrap_or_else(|| {
+                                    panic!("Router expects direct route branch children")
+                                });
 
-                        route_branches.push(parse_route_branch_from_self_closing_tag(sub_tag_pair));
+                        route_branches.push(parse_route_branch_from_self_closing_tag(
+                            ctx,
+                            sub_tag_pair,
+                            &router_node_id,
+                            &route_pascal_identifier,
+                            &descriptor,
+                        ));
                     }
                     Rule::comment => recurse_visit_tag_pairs_for_template(
                         ctx,
@@ -433,7 +438,7 @@ fn parse_router_matched_tag(
                         pax,
                         TreeLocation::Parent(router_node_id.clone()),
                     ),
-                    _ => panic!("Router expects direct Route children"),
+                    _ => panic!("Router expects direct route branch children"),
                 }
             }
         }
@@ -466,25 +471,51 @@ fn parse_router_self_closing_tag(ctx: &mut TemplateNodeParseContext, location: T
     };
 }
 
+fn route_branch_descriptor_for_pascal(
+    ctx: &TemplateNodeParseContext,
+    pascal_identifier: &str,
+) -> Option<RouteBranchDescriptor> {
+    ctx.pascal_identifier_to_type_id_map
+        .get(pascal_identifier)
+        .and_then(|type_id| ctx.route_branch_descriptors.get(type_id))
+        .cloned()
+}
+
+fn type_id_for_pascal(ctx: &TemplateNodeParseContext, pascal_identifier: &str) -> TypeId {
+    ctx.pascal_identifier_to_type_id_map
+        .get(pascal_identifier)
+        .cloned()
+        .unwrap_or_else(|| TypeId::build_blank_component(pascal_identifier))
+}
+
 fn parse_route_branch_from_matched_tag(
     ctx: &mut TemplateNodeParseContext,
     matched_tag: Pair<Rule>,
     pax: &str,
     router_node_id: &TemplateNodeId,
+    route_tag: &str,
+    descriptor: &RouteBranchDescriptor,
 ) -> ControlFlowRouteBranchDefinition {
-    let mut open_tag = matched_tag
-        .clone()
-        .into_inner()
-        .next()
-        .unwrap()
-        .into_inner();
+    let open_tag_pair = matched_tag.clone().into_inner().next().unwrap();
+    let source_location = Some(span_to_location(&open_tag_pair.as_span()));
+    let mut open_tag = open_tag_pair.into_inner();
     let _ = open_tag.next().unwrap();
     let route_settings = parse_inline_attribute_from_final_pairs_of_tag(open_tag);
-    let existing_children_count = ctx
+
+    let template_node = TemplateNodeDefinition {
+        type_id: type_id_for_pascal(ctx, route_tag),
+        settings: route_settings.clone(),
+        selector_info: TemplateNodeSelectorInfo::from_inline_settings(
+            source_location,
+            &route_settings,
+        ),
+        raw_comment_string: None,
+        control_flow_settings: None,
+    };
+    let route_node_id = ctx
         .template
-        .get_children(router_node_id)
-        .unwrap_or_default()
-        .len();
+        .add_child_back(router_node_id.clone(), template_node)
+        .get_template_node_id();
 
     if let Some(inner_nodes) = matched_tag.into_inner().nth(1) {
         inner_nodes.into_inner().for_each(|sub_tag_pair| {
@@ -492,32 +523,46 @@ fn parse_route_branch_from_matched_tag(
                 ctx,
                 sub_tag_pair,
                 pax,
-                TreeLocation::Parent(router_node_id.clone()),
+                TreeLocation::Parent(route_node_id.clone()),
             );
         });
     }
 
-    let child_ids = ctx
-        .template
-        .get_children(router_node_id)
-        .unwrap_or_default()
-        .into_iter()
-        .skip(existing_children_count)
-        .collect::<Vec<_>>();
-
-    parse_route_branch_settings(route_settings, child_ids)
+    parse_route_branch_settings(descriptor, route_settings, vec![route_node_id])
 }
 
 fn parse_route_branch_from_self_closing_tag(
+    ctx: &mut TemplateNodeParseContext,
     self_closing_tag: Pair<Rule>,
+    router_node_id: &TemplateNodeId,
+    route_tag: &str,
+    descriptor: &RouteBranchDescriptor,
 ) -> ControlFlowRouteBranchDefinition {
+    let source_location = Some(span_to_location(&self_closing_tag.as_span()));
     let mut tag_pairs = self_closing_tag.into_inner();
     let _ = tag_pairs.next().unwrap();
     let route_settings = parse_inline_attribute_from_final_pairs_of_tag(tag_pairs);
-    parse_route_branch_settings(route_settings, vec![])
+
+    let template_node = TemplateNodeDefinition {
+        type_id: type_id_for_pascal(ctx, route_tag),
+        settings: route_settings.clone(),
+        selector_info: TemplateNodeSelectorInfo::from_inline_settings(
+            source_location,
+            &route_settings,
+        ),
+        raw_comment_string: None,
+        control_flow_settings: None,
+    };
+    let route_node_id = ctx
+        .template
+        .add_child_back(router_node_id.clone(), template_node)
+        .get_template_node_id();
+
+    parse_route_branch_settings(descriptor, route_settings, vec![route_node_id])
 }
 
 fn parse_route_branch_settings(
+    descriptor: &RouteBranchDescriptor,
     settings: Option<Vec<SettingElement>>,
     child_ids: Vec<TemplateNodeId>,
 ) -> ControlFlowRouteBranchDefinition {
@@ -530,22 +575,22 @@ fn parse_route_branch_settings(
         };
 
         match token.token_value.as_str() {
-            "path" => {
+            key if key == descriptor.path_property => {
                 path = Some(parse_route_path_setting(&value));
             }
-            "default" => {
+            key if key == descriptor.default_property => {
                 is_default = parse_route_default_setting(&value);
             }
-            other => panic!("Unsupported Route attribute {other}"),
+            _ => {}
         }
     }
 
     if is_default && path.is_some() {
-        panic!("default Route cannot also declare path");
+        panic!("default route branch cannot also declare path");
     }
 
     if !is_default && path.is_none() {
-        panic!("Route requires path or default=true");
+        panic!("route branch requires path or default=true");
     }
 
     ControlFlowRouteBranchDefinition {
@@ -559,18 +604,18 @@ fn parse_route_path_setting(value: &ValueDefinition) -> String {
     match value {
         ValueDefinition::LiteralValue(PaxValue::String(path)) => {
             if path.is_empty() {
-                panic!("Route path must not be empty");
+                panic!("route branch path must not be empty");
             }
             path.clone()
         }
-        _ => panic!("Route path must be a string literal"),
+        _ => panic!("route branch path must be a string literal"),
     }
 }
 
 fn parse_route_default_setting(value: &ValueDefinition) -> bool {
     match value {
         ValueDefinition::LiteralValue(PaxValue::Bool(value)) => *value,
-        _ => panic!("Route default must be a boolean literal"),
+        _ => panic!("route branch default must be a boolean literal"),
     }
 }
 
@@ -1585,6 +1630,8 @@ pub fn assemble_component_definition(
     pax: &str,
     is_main_component: bool,
     template_map: HashMap<String, TypeId>,
+    route_branch_descriptors: HashMap<TypeId, RouteBranchDescriptor>,
+    route_branch: Option<RouteBranchDescriptor>,
     module_path: &str,
     self_type_id: TypeId,
     template_source_file_path: &str,
@@ -1592,6 +1639,7 @@ pub fn assemble_component_definition(
 ) -> (ParsingContext, ComponentDefinition) {
     let mut tpc = TemplateNodeParseContext {
         pascal_identifier_to_type_id_map: template_map,
+        route_branch_descriptors,
         template: ComponentTemplate::new(
             self_type_id.clone(),
             Some(template_source_file_path.to_owned()),
@@ -1628,6 +1676,7 @@ pub fn assemble_component_definition(
         template: Some(tpc.template),
         settings: Some(settings),
         timelines,
+        route_branch,
         module_path: modified_module_path,
     };
 
@@ -1648,6 +1697,7 @@ pub fn assemble_struct_only_component_definition(
     ctx: ParsingContext,
     module_path: &str,
     self_type_id: TypeId,
+    route_branch: Option<RouteBranchDescriptor>,
 ) -> (ParsingContext, ComponentDefinition) {
     let modified_module_path = clean_module_path(module_path);
 
@@ -1661,6 +1711,7 @@ pub fn assemble_struct_only_component_definition(
         template: None,
         settings: None,
         timelines: vec![],
+        route_branch,
     };
     (ctx, new_def)
 }
@@ -1670,6 +1721,7 @@ pub fn assemble_primitive_definition(
     module_path: &str,
     primitive_instance_import_path: String,
     self_type_id: TypeId,
+    route_branch: Option<RouteBranchDescriptor>,
 ) -> ComponentDefinition {
     let modified_module_path = clean_module_path(module_path);
 
@@ -1682,6 +1734,7 @@ pub fn assemble_primitive_definition(
         template: None,
         settings: None,
         timelines: vec![],
+        route_branch,
         module_path: modified_module_path,
     }
 }

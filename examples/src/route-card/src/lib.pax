@@ -1,0 +1,461 @@
+<Frame width=100% height=100%>
+    <Router>
+        <Route path="/" />
+
+        <RouteCard
+            path="/contact/:name"
+            edge=RouteCardEdge::Trailing
+            duration=18f
+        >
+            <Group width=100% height=100%>
+                <Group x=0px y=0px width=100% height=100% anchor_x=0% anchor_y=0%>
+                    <Scroller x=28px y=30px width={100% - 56px} height={100% - 60px} autosize=true>
+                        <Stacker
+                            width=100%
+                            autosize=true
+                            direction=StackerDirection::Vertical
+                            gutter=18px
+                        >
+                            <Text class=eyebrow width=100% text="Trailing card route" />
+                            if is_mobile {
+                                <Text class=mobile_card_title width=100% text={"Profile: " + route.params.name} />
+                            } else {
+                                <Text class=card_title width=100% text={"Profile: " + route.params.name} />
+                            }
+                        <Text
+                            class=copy
+                            width=100%
+                            text="This branch uses RouteCard. The component shell owns the edge slide with ordinary element-level lifecycle transitions."
+                        />
+                            <Group width=100% autosize=true autosize_x=false autosize_y=true>
+                                <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
+                                    <Stacker
+                                        width=100%
+                                        autosize=true
+                                        direction=StackerDirection::Vertical
+                                        gutter=10px
+                                    >
+                                        <Text class=label width=100% text="Card configuration" />
+                                        <Text class=copy width=100% text="edge = Trailing" />
+                                        <Text class=copy width=100% text="duration = 18f" />
+                                    </Stacker>
+                                </Group>
+                                <Rectangle layout_role=LayoutRole::Breakout class=tile width=100% height=100% />
+                            </Group>
+                            <Link width=156px height=44px url="/">
+                                <Text class=button_text width=100% height=100% text="Close card" />
+                                <Rectangle class=button width=100% height=100% />
+                            </Link>
+                            <Group width=100% height=8px />
+                        </Stacker>
+                    </Scroller>
+                    <Rectangle class=panel width=100% height=100% />
+                </Group>
+            </Group>
+        </RouteCard>
+
+        <RouteCard
+            path="/tools"
+            edge=RouteCardEdge::Bottom
+            duration=20f
+        >
+            <Group width=100% height=100%>
+                <Group x=0px y=10% width=100% height=90% anchor_x=0% anchor_y=0%>
+                    <Scroller x=24px y=28px width={100% - 48px} height={100% - 56px} autosize=true>
+                        <Stacker
+                            width=100%
+                            autosize=true
+                            direction=StackerDirection::Vertical
+                            gutter=18px
+                        >
+                            <Text class=eyebrow width=100% text="Bottom card route" />
+                            if is_mobile {
+                                <Text class=mobile_sheet_title width=100% text="Route tools" />
+                            } else {
+                                <Text class=sheet_title width=100% text="Route tools" />
+                            }
+                            <Text
+                                class=copy
+                                width=100%
+                                text="A different RouteCard edge changes the shell transition without parser-owned route behavior."
+                            />
+                            if is_mobile {
+                                <Stacker
+                                    width=100%
+                                    autosize=true
+                                    direction=StackerDirection::Vertical
+                                    gutter=12px
+                                >
+                                    <Group width=100% autosize=true autosize_x=false autosize_y=true>
+                                        <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
+                                            <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=8px>
+                                                <Text class=tile_title width=100% text="Typed edge" />
+                                                <Text class=tile_copy width=100% text="RouteCardEdge::Bottom" />
+                                            </Stacker>
+                                        </Group>
+                                        <Rectangle layout_role=LayoutRole::Breakout class=tile width=100% height=100% />
+                                    </Group>
+                                    <Group width=100% autosize=true autosize_x=false autosize_y=true>
+                                        <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
+                                            <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=8px>
+                                                <Text class=tile_title width=100% text="Inline route" />
+                                                <Text class=tile_copy width=100% text="/tools" />
+                                            </Stacker>
+                                        </Group>
+                                        <Rectangle layout_role=LayoutRole::Breakout class=tile width=100% height=100% />
+                                    </Group>
+                                    <Group width=100% autosize=true autosize_x=false autosize_y=true>
+                                        <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
+                                            <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=8px>
+                                                <Text class=tile_title width=100% text="Plain lifecycle" />
+                                                <Text class=tile_copy width=100% text="@in / @out" />
+                                            </Stacker>
+                                        </Group>
+                                        <Rectangle layout_role=LayoutRole::Breakout class=tile width=100% height=100% />
+                                    </Group>
+                                </Stacker>
+                            } else {
+                                <Stacker
+                                    width=100%
+                                    autosize=true
+                                    autosize_x=false
+                                    autosize_y=true
+                                    direction=StackerDirection::Horizontal
+                                    gutter=14px
+                                    sizes=[None, None, None]
+                                >
+                                    <Group width=100% autosize=true autosize_x=false autosize_y=true>
+                                        <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
+                                            <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=8px>
+                                                <Text class=tile_title width=100% text="Typed edge" />
+                                                <Text class=tile_copy width=100% text="RouteCardEdge::Bottom" />
+                                            </Stacker>
+                                        </Group>
+                                        <Rectangle layout_role=LayoutRole::Breakout class=tile width=100% height=100% />
+                                    </Group>
+                                    <Group width=100% autosize=true autosize_x=false autosize_y=true>
+                                        <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
+                                            <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=8px>
+                                                <Text class=tile_title width=100% text="Inline route" />
+                                                <Text class=tile_copy width=100% text="/tools" />
+                                            </Stacker>
+                                        </Group>
+                                        <Rectangle layout_role=LayoutRole::Breakout class=tile width=100% height=100% />
+                                    </Group>
+                                    <Group width=100% autosize=true autosize_x=false autosize_y=true>
+                                        <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
+                                            <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=8px>
+                                                <Text class=tile_title width=100% text="Plain lifecycle" />
+                                                <Text class=tile_copy width=100% text="@in / @out" />
+                                            </Stacker>
+                                        </Group>
+                                        <Rectangle layout_role=LayoutRole::Breakout class=tile width=100% height=100% />
+                                    </Group>
+                                </Stacker>
+                            }
+                            <Link width=156px height=44px url="/">
+                                <Text class=button_text width=100% height=100% text="Close sheet" />
+                                <Rectangle class=button width=100% height=100% />
+                            </Link>
+                            <Group width=100% height=8px />
+                        </Stacker>
+                    </Scroller>
+                    <Rectangle class=sheet width=100% height=100% />
+                    <Rectangle class=sheet_shadow x=0px y=-8px width=100% height=100% />
+                </Group>
+            </Group>
+        </RouteCard>
+
+        <Route default=true />
+    </Router>
+
+    if is_mobile {
+        <Scroller x=24px y=28px width={100% - 48px} height={100% - 56px} autosize=true>
+            <Stacker
+                width=100%
+                autosize=true
+                direction=StackerDirection::Vertical
+                gutter=18px
+            >
+                <Text class=eyebrow width=100% text="RouteCard example" />
+                <Text
+                    class=mobile_hero
+                    width=100%
+                    text="Specialized route tags can own focused route behavior."
+                />
+                <Text
+                    class=copy
+                    width=100%
+                    text="Open the cards below. Each card route wraps its contents with card-specific lifecycle animation."
+                />
+                <Stacker
+                    width=100%
+                    autosize=true
+                    direction=StackerDirection::Vertical
+                    gutter=14px
+                >
+                    <Link width=100% autosize=true url="/contact/atlas">
+                        <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=22px padding_y=20px>
+                            <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=10px>
+                                <Text class=tile_title width=100% text="Open trailing profile" />
+                                <Text class=tile_copy width=100% text="RouteCard path /contact/:name enters from the trailing edge." />
+                            </Stacker>
+                        </Group>
+                        <Rectangle layout_role=LayoutRole::Breakout class=home_card width=100% height=100% />
+                    </Link>
+                    <Link width=100% autosize=true url="/tools">
+                        <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=22px padding_y=20px>
+                            <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=10px>
+                                <Text class=tile_title width=100% text="Open bottom sheet" />
+                                <Text class=tile_copy width=100% text="The same route kind uses a bottom edge and different timing." />
+                            </Stacker>
+                        </Group>
+                        <Rectangle layout_role=LayoutRole::Breakout class=home_card width=100% height=100% />
+                    </Link>
+                </Stacker>
+                <Group width=100% height=8px />
+            </Stacker>
+        </Scroller>
+    } else {
+        <Scroller x=48px y=46px width={100% - 96px} height={100% - 92px} autosize=true>
+            <Stacker
+                width=100%
+                autosize=true
+                direction=StackerDirection::Vertical
+                gutter=22px
+            >
+                <Text class=eyebrow width=100% text="RouteCard example" />
+                <Text
+                    class=hero
+                    width=100%
+                    text="Specialized route tags can provide focused behavior without a generic presentation object."
+                />
+                <Text
+                    class=copy
+                    width=72%
+                    text="Open the cards below. Each card route is a normal branch component that wraps its contents with card-specific lifecycle animation."
+                />
+                <Stacker
+                    width=100%
+                    autosize=true
+                    autosize_x=false
+                    autosize_y=true
+                    direction=StackerDirection::Horizontal
+                    gutter=18px
+                    sizes=[None, None]
+                >
+                    <Link width=100% autosize=true url="/contact/atlas">
+                        <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=24px padding_y=22px>
+                            <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=10px>
+                                <Text class=tile_title width=100% text="Open trailing profile" />
+                                <Text class=tile_copy width=100% text="RouteCard path /contact/:name enters from the trailing edge." />
+                            </Stacker>
+                        </Group>
+                        <Rectangle layout_role=LayoutRole::Breakout class=home_card width=100% height=100% />
+                    </Link>
+                    <Link width=100% autosize=true url="/tools">
+                        <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=24px padding_y=22px>
+                            <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=10px>
+                                <Text class=tile_title width=100% text="Open bottom sheet" />
+                                <Text class=tile_copy width=100% text="The same route kind uses a bottom edge and different timing." />
+                            </Stacker>
+                        </Group>
+                        <Rectangle layout_role=LayoutRole::Breakout class=home_card width=100% height=100% />
+                    </Link>
+                </Stacker>
+            </Stacker>
+        </Scroller>
+    }
+
+    <Rectangle width=100% height=100% fill=rgba(246, 242, 232, 255) />
+</Frame>
+
+@settings {
+    @mount: handle_mount
+    @pre_render: handle_pre_render
+
+    .eyebrow {
+        style: {
+            font: Font::Web("IBM Plex Mono", "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font_size: 14px
+            fill: rgba(0, 127, 116, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Center
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .hero {
+        style: {
+            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 38px
+            fill: rgba(26, 36, 45, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Top
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .mobile_hero {
+        style: {
+            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 28px
+            fill: rgba(26, 36, 45, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Top
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .card_title {
+        style: {
+            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 42px
+            fill: rgba(26, 36, 45, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Top
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .mobile_card_title {
+        style: {
+            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 32px
+            fill: rgba(26, 36, 45, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Top
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .sheet_title {
+        style: {
+            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 30px
+            fill: rgba(26, 36, 45, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Top
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .mobile_sheet_title {
+        style: {
+            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 28px
+            fill: rgba(26, 36, 45, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Top
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .copy {
+        style: {
+            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font_size: 16px
+            fill: rgba(79, 91, 101, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Top
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .label {
+        style: {
+            font: Font::Web("IBM Plex Mono", "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font_size: 13px
+            fill: rgba(198, 79, 58, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Center
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .tile_title {
+        style: {
+            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 20px
+            fill: rgba(31, 43, 52, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Top
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .tile_copy {
+        style: {
+            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font_size: 14px
+            fill: rgba(86, 99, 110, 255)
+            align_horizontal: TextAlignHorizontal::Left
+            align_vertical: TextAlignVertical::Top
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .button_text {
+        style: {
+            font: Font::Web("IBM Plex Mono", "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font_size: 14px
+            fill: rgba(255, 250, 239, 255)
+            align_horizontal: TextAlignHorizontal::Center
+            align_vertical: TextAlignVertical::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+
+    .home_card {
+        fill: rgba(255, 250, 239, 255)
+        corner_radii: RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)
+        stroke: {
+            color: rgba(19, 115, 132, 94)
+            width: 1px
+        }
+    }
+
+    .panel {
+        fill: rgba(255, 250, 239, 255)
+        corner_radii: RectangleCornerRadii::radii(0.0, 0.0, 0.0, 0.0)
+        stroke: {
+            color: rgba(14, 111, 126, 120)
+            width: 1px
+        }
+    }
+
+    .sheet {
+        fill: rgba(255, 250, 239, 255)
+        corner_radii: RectangleCornerRadii::radii(25.0, 25.0, 0.0, 0.0)
+        stroke: {
+            color: rgba(14, 111, 126, 120)
+            width: 1px
+        }
+    }
+
+    .sheet_shadow {
+        fill: Fill::linearGradient(
+            (50%, 0px),
+            (50%, 33px),
+            [
+                GradientStop::get(Color::rgba(0, 0, 0, 0), 0%),
+                GradientStop::get(Color::rgba(0, 0, 0, 64), 100%)
+            ]
+        )
+        corner_radii: RectangleCornerRadii::radii(25.0, 25.0, 0.0, 0.0)
+    }
+
+    .tile {
+        fill: rgba(236, 248, 244, 255)
+        corner_radii: RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)
+        stroke: {
+            color: rgba(0, 127, 116, 80)
+            width: 1px
+        }
+    }
+
+    .button {
+        fill: rgba(198, 79, 58, 255)
+        corner_radii: RectangleCornerRadii::radii(6.0, 6.0, 6.0, 6.0)
+    }
+}

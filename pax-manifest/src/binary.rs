@@ -12,8 +12,9 @@ use pax_message::serde::ser::{
 use pax_message::serde::{Deserialize, Serialize};
 
 use crate::{
-    ComponentDefinition, ComponentTemplate, PaxManifest, SettingsBlockElement,
-    TemplateNodeDefinition, TemplateNodeId, TimelineDefinition, TypeDefinition, TypeId,
+    ComponentDefinition, ComponentTemplate, PaxManifest, RouteBranchDescriptor,
+    SettingsBlockElement, TemplateNodeDefinition, TemplateNodeId, TimelineDefinition,
+    TypeDefinition, TypeId,
 };
 
 const MAGIC: &[u8; 8] = b"PAXM\x00BIN";
@@ -82,6 +83,7 @@ struct BinaryComponentDefinition {
     template: Option<BinaryComponentTemplate>,
     settings: Option<Vec<SettingsBlockElement>>,
     timelines: Vec<TimelineDefinition>,
+    route_branch: Option<RouteBranchDescriptor>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -153,6 +155,7 @@ impl From<&ComponentDefinition> for BinaryComponentDefinition {
                 .map(BinaryComponentTemplate::from),
             settings: definition.settings.clone(),
             timelines: definition.timelines.clone(),
+            route_branch: definition.route_branch.clone(),
         }
     }
 }
@@ -171,6 +174,7 @@ impl BinaryComponentDefinition {
                 .map(BinaryComponentTemplate::into_component_template),
             settings: self.settings,
             timelines: self.timelines,
+            route_branch: self.route_branch,
         }
     }
 }
@@ -1136,6 +1140,7 @@ mod tests {
                 template: Some(template),
                 settings: None,
                 timelines: vec![],
+                route_branch: None,
             },
         );
 

@@ -285,12 +285,23 @@ pub struct ComponentDefinition {
     pub settings: Option<Vec<SettingsBlockElement>>,
     #[serde(default)]
     pub timelines: Vec<TimelineDefinition>,
+    #[serde(default)]
+    pub route_branch: Option<RouteBranchDescriptor>,
 }
 
 impl ComponentDefinition {
     pub fn get_property_definitions<'a>(&self, tt: &'a TypeTable) -> &'a Vec<PropertyDefinition> {
         &tt.get(&self.type_id).unwrap().property_definitions
     }
+}
+
+/// Compile-time contract allowing a component or primitive to act as a direct
+/// route branch child of `Router`.
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[serde(crate = "pax_message::serde")]
+pub struct RouteBranchDescriptor {
+    pub path_property: String,
+    pub default_property: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

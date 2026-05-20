@@ -530,6 +530,9 @@ fn parse_config(attrs: &mut Vec<syn::Attribute>) -> Config {
                     }
                 }
             }
+            Some(s) if s == "route_branch" => {
+                return false;
+            }
             Some(s) if s == "inlined" => {
                 let tokens = attr.tokens.clone();
                 let mut content = proc_macro2::TokenStream::new();

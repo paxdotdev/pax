@@ -6,7 +6,8 @@ use pax_manifest::parsing::{
     assemble_struct_only_component_definition, ParsingContext,
 };
 use pax_manifest::{
-    PaxManifest, PropertyDefinition, PropertyDefinitionFlags, TypeDefinition, TypeId,
+    PaxManifest, PropertyDefinition, PropertyDefinitionFlags, RouteBranchDescriptor,
+    TypeDefinition, TypeId,
 };
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -36,6 +37,9 @@ const PAX_STD_DESIGNTIME_SEED_IDENTIFIERS: &[&str] = &[
     "Link",
     "Router",
     "Route",
+    "RouteCard",
+    "RouteCardCurve",
+    "RouteCardEdge",
     "Target",
     "NativeImage",
     "Scroller",
@@ -247,6 +251,7 @@ fn build_item_recursive(
             }
 
             let mut template_map = HashMap::new();
+            let mut route_branch_descriptors = HashMap::new();
             for dependency_identifier in template_dependencies {
                 let dependency_import_path = resolve_identifier_to_import_path(
                     &dependency_identifier,
@@ -260,7 +265,15 @@ fn build_item_recursive(
                     .ok_or_else(|| {
                         eyre!("Resolved dependency `{dependency_import_path}` is not a Pax item")
                     })?;
-                template_map.insert(dependency_identifier, dependency_item.type_id());
+                let dependency_type_id = dependency_item.type_id();
+                if let Some(route_branch) = ctx
+                    .component_definitions
+                    .get(&dependency_type_id)
+                    .and_then(|definition| definition.route_branch.clone())
+                {
+                    route_branch_descriptors.insert(dependency_type_id.clone(), route_branch);
+                }
+                template_map.insert(dependency_identifier, dependency_type_id);
             }
 
             let component_source_file_path = associated_pax_file_path
@@ -275,6 +288,8 @@ fn build_item_recursive(
                 raw_pax,
                 *is_main_component,
                 template_map,
+                route_branch_descriptors,
+                item.route_branch.clone(),
                 &item.module_path,
                 self_type_id.clone(),
                 &component_source_file_path,
@@ -289,6 +304,7 @@ fn build_item_recursive(
             &item.module_path,
             primitive_instance_import_path.clone(),
             self_type_id.clone(),
+            item.route_branch.clone(),
         ),
         PaxItemKind::StructOnly => {
             let owned_ctx = std::mem::take(ctx);
@@ -296,6 +312,7 @@ fn build_item_recursive(
                 owned_ctx,
                 &item.module_path,
                 self_type_id.clone(),
+                item.route_branch.clone(),
             );
             *ctx = new_ctx;
             component_definition
@@ -487,6 +504,7 @@ fn ensure_known_type_definition(ctx: &mut ParsingContext, import_path: &str) -> 
         "pax_engine::api::ColorChannel" => {
             TypeId::build_singleton(import_path, Some("ColorChannel"))
         }
+        "pax_engine::api::Duration" => TypeId::build_singleton(import_path, Some("Duration")),
         "pax_engine::api::Rotation" => TypeId::build_singleton(import_path, Some("Rotation")),
         "pax_engine::api::Numeric" => TypeId::build_singleton(import_path, Some("Numeric")),
         "pax_engine::api::UnitValue" => TypeId::build_singleton(import_path, Some("UnitValue")),
@@ -935,6 +953,7 @@ fn register_struct_item(
         engine_import_path: config
             .engine_import_path
             .unwrap_or_else(|| DEFAULT_ENGINE_IMPORT_PATH.to_string()),
+        route_branch: config.route_branch,
         package_name: package_context.package_name.clone(),
     })
 }
@@ -962,6 +981,7 @@ fn register_enum_item(
         engine_import_path: config
             .engine_import_path
             .unwrap_or_else(|| DEFAULT_ENGINE_IMPORT_PATH.to_string()),
+        route_branch: config.route_branch,
         package_name: package_context.package_name.clone(),
     })
 }
@@ -1163,6 +1183,9 @@ fn parse_pax_config(attrs: &[Attribute], source_file_contents: &str) -> Result<P
                     }
                 }
             }
+            Some(ref ident) if ident == "route_branch" => {
+                config.route_branch = Some(parse_route_branch_descriptor(attr)?);
+            }
             Some(ref ident) if ident == "inlined" => {
                 if let Some(inlined_contents) =
                     extract_inlined_contents(attr, source_file_contents)?
@@ -1182,6 +1205,46 @@ fn parse_pax_config(attrs: &[Attribute], source_file_contents: &str) -> Result<P
     }
 
     Ok(config)
+}
+
+fn parse_route_branch_descriptor(attr: &Attribute) -> Result<RouteBranchDescriptor> {
+    let mut descriptor = RouteBranchDescriptor {
+        path_property: "path".to_string(),
+        default_property: "default".to_string(),
+    };
+
+    match attr.parse_meta()? {
+        Meta::Path(_) => Ok(descriptor),
+        Meta::List(meta_list) => {
+            for nested in meta_list.nested {
+                let NestedMeta::Meta(Meta::NameValue(name_value)) = nested else {
+                    return Err(eyre!("`#[route_branch(...)]` expects name-value arguments"));
+                };
+                let key = name_value
+                    .path
+                    .get_ident()
+                    .map(|ident| ident.to_string())
+                    .ok_or_else(|| eyre!("route_branch argument must be a bare identifier"))?;
+                let Lit::Str(value) = name_value.lit else {
+                    return Err(eyre!("route_branch `{key}` value must be a string"));
+                };
+                let value = value.value();
+                if value.is_empty() {
+                    return Err(eyre!("route_branch `{key}` value must not be empty"));
+                }
+
+                match key.as_str() {
+                    "path" => descriptor.path_property = value,
+                    "default" => descriptor.default_property = value,
+                    _ => return Err(eyre!("unsupported route_branch argument `{key}`")),
+                }
+            }
+            Ok(descriptor)
+        }
+        _ => Err(eyre!(
+            "`#[route_branch]` must be bare or `#[route_branch(path = \"...\", default = \"...\")]`"
+        )),
+    }
 }
 
 fn extract_inlined_contents(
@@ -1339,6 +1402,7 @@ fn canonical_special_import_path_for_ident(ident: &str) -> Option<&'static str> 
         "Vector3" => Some("pax_engine::api::Vector3"),
         "PathElement" => Some("pax_engine::api::PathElement"),
         "ColorChannel" => Some("pax_engine::api::ColorChannel"),
+        "Duration" => Some("pax_engine::api::Duration"),
         "Rotation" => Some("pax_engine::api::Rotation"),
         "Numeric" => Some("pax_engine::api::Numeric"),
         "UnitValue" => Some("pax_engine::api::UnitValue"),
@@ -1387,6 +1451,9 @@ fn canonical_special_import_path_for_path(path: &str) -> Option<&'static str> {
         "pax_engine::api::ColorChannel"
         | "pax_runtime::api::ColorChannel"
         | "pax_runtime_api::ColorChannel" => Some("pax_engine::api::ColorChannel"),
+        "pax_engine::api::Duration"
+        | "pax_runtime::api::Duration"
+        | "pax_runtime_api::Duration" => Some("pax_engine::api::Duration"),
         "pax_engine::api::Rotation"
         | "pax_runtime::api::Rotation"
         | "pax_runtime_api::Rotation" => Some("pax_engine::api::Rotation"),
@@ -1891,6 +1958,7 @@ struct ScannedPaxItem {
     kind: PaxItemKind,
     data: DataSummary,
     engine_import_path: String,
+    route_branch: Option<RouteBranchDescriptor>,
     package_name: String,
 }
 
@@ -1956,6 +2024,7 @@ struct PaxConfig {
     engine_import_path: Option<String>,
     primitive_instance_import_path: Option<String>,
     is_primitive: bool,
+    route_branch: Option<RouteBranchDescriptor>,
 }
 
 #[cfg(test)]

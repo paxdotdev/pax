@@ -318,6 +318,7 @@ fn prepare_cartridge_sources_with_timings(
             template: Some(wrapper_component_template),
             settings: None,
             timelines: vec![],
+            route_branch: None,
         },
     );
 

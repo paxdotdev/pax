@@ -426,41 +426,56 @@ impl Size {
 
 impl Interpolatable for Size {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
-        match &self {
-            Self::Pixels(sp) => match other {
-                Self::Pixels(op) => Self::Pixels(*sp + ((*op - *sp) * Numeric::F64(t))),
-                Self::Percent(op) => Self::Percent(*op),
-                Self::Combined(pix, per) => {
-                    let pix = *sp + ((*pix - *sp) * Numeric::F64(t));
-                    let per = *per;
-                    Self::Combined(pix, per)
-                }
-            },
-            Self::Percent(sp) => match other {
-                Self::Pixels(op) => Self::Pixels(*op),
-                Self::Percent(op) => Self::Percent(*sp + ((*op - *sp) * Numeric::F64(t))),
-                Self::Combined(pix, per) => {
-                    let pix = *pix;
-                    let per = *sp + ((*per - *sp) * Numeric::F64(t));
-                    Self::Combined(pix, per)
-                }
-            },
-            Self::Combined(pix, per) => match other {
-                Self::Pixels(op) => {
-                    let pix = *pix + ((*op - *pix) * Numeric::F64(t));
-                    Self::Combined(pix, *per)
-                }
-                Self::Percent(op) => {
-                    let per = *per + ((*op - *per) * Numeric::F64(t));
-                    Self::Combined(*pix, per)
-                }
-                Self::Combined(pix0, per0) => {
-                    let pix = *pix + ((*pix0 - *pix) * Numeric::F64(t));
-                    let per = *per + ((*per0 - *per) * Numeric::F64(t));
-                    Self::Combined(pix, per)
-                }
-            },
+        fn components(size: &Size) -> (Numeric, Numeric) {
+            match size {
+                Size::Pixels(pixels) => (*pixels, Numeric::F64(0.0)),
+                Size::Percent(percent) => (Numeric::F64(0.0), *percent),
+                Size::Combined(pixels, percent) => (*pixels, *percent),
+            }
         }
+
+        fn from_components(pixels: Numeric, percent: Numeric) -> Size {
+            let has_pixels = pixels.to_float().abs() > f64::EPSILON;
+            let has_percent = percent.to_float().abs() > f64::EPSILON;
+            match (has_pixels, has_percent) {
+                (true, true) => Size::Combined(pixels, percent),
+                (true, false) => Size::Pixels(pixels),
+                (false, true) => Size::Percent(percent),
+                (false, false) => Size::Pixels(Numeric::F64(0.0)),
+            }
+        }
+
+        let (self_pixels, self_percent) = components(self);
+        let (other_pixels, other_percent) = components(other);
+        let t = Numeric::F64(t);
+
+        from_components(
+            self_pixels + ((other_pixels - self_pixels) * t),
+            self_percent + ((other_percent - self_percent) * t),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn size_interpolation_blends_pixel_and_percent_components() {
+        let start = Size::Pixels(0.into());
+        let end = Size::Percent(100.into());
+        let midpoint = start.interpolate(&end, 0.5);
+
+        assert!((midpoint.get_pixels(200.0) - 100.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn size_interpolation_can_settle_from_percent_offset_to_pixel_base() {
+        let start = Size::Combined(0.into(), 100.into());
+        let end = Size::Pixels(0.into());
+
+        assert!((start.interpolate(&end, 0.5).get_pixels(200.0) - 100.0).abs() < 0.0001);
+        assert!(start.interpolate(&end, 1.0).get_pixels(200.0).abs() < 0.0001);
     }
 }
 

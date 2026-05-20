@@ -4,10 +4,11 @@ use crate::{
     ControlFlowRouteBranchDefinition, ControlFlowSettingsDefinition, ExpressionInfo,
     GradientDefinition, GradientElement, GradientShapeDefinition, GradientStopDefinition,
     LiteralBlockDefinition, LocationInfo, PaxManifest, PaxType, PropertyDefinition,
-    PropertyDefinitionFlags, SettingElement, SettingsBlockElement, TemplateNodeDefinition,
-    TemplateNodeId, TimelineBlockElement, TimelineDefinition, TimelineKeyframe, TimelineMarker,
-    TimelineSelectorBlockDefinition, TimelineSelectorElement, TimelineTrackDefinition,
-    TimelineTrackElement, TransitionDefinition, TypeDefinition, TypeId, ValueDefinition,
+    PropertyDefinitionFlags, RouteBranchDescriptor, SettingElement, SettingsBlockElement,
+    TemplateNodeDefinition, TemplateNodeId, TimelineBlockElement, TimelineDefinition,
+    TimelineKeyframe, TimelineMarker, TimelineSelectorBlockDefinition, TimelineSelectorElement,
+    TimelineTrackDefinition, TimelineTrackElement, TransitionDefinition, TypeDefinition, TypeId,
+    ValueDefinition,
 };
 use pax_language::interpreter::{PaxAccessor, PaxExpression, PaxPrimary, PaxUnit};
 use pax_runtime_api::{
@@ -74,7 +75,7 @@ impl RustManifestWriter {
 
     fn component_definition(&self, definition: &ComponentDefinition) -> String {
         format!(
-            "{mp}::ComponentDefinition {{ type_id: {type_id}, is_main_component: {is_main_component}, is_primitive: {is_primitive}, is_struct_only_component: {is_struct_only_component}, module_path: {module_path}, primitive_instance_import_path: {primitive_instance_import_path}, template: {template}, settings: {settings}, timelines: {timelines} }}",
+            "{mp}::ComponentDefinition {{ type_id: {type_id}, is_main_component: {is_main_component}, is_primitive: {is_primitive}, is_struct_only_component: {is_struct_only_component}, module_path: {module_path}, primitive_instance_import_path: {primitive_instance_import_path}, template: {template}, settings: {settings}, timelines: {timelines}, route_branch: {route_branch} }}",
             mp = self.manifest_path,
             type_id = self.type_id(&definition.type_id),
             is_main_component = definition.is_main_component,
@@ -85,6 +86,16 @@ impl RustManifestWriter {
             template = self.option(&definition.template, |value| self.component_template(value)),
             settings = self.option(&definition.settings, |value| self.vec(value, |element| self.settings_block_element(element))),
             timelines = self.vec(&definition.timelines, |timeline| self.timeline_definition(timeline)),
+            route_branch = self.option(&definition.route_branch, |descriptor| self.route_branch_descriptor(descriptor)),
+        )
+    }
+
+    fn route_branch_descriptor(&self, descriptor: &RouteBranchDescriptor) -> String {
+        format!(
+            "{mp}::RouteBranchDescriptor {{ path_property: {path_property}, default_property: {default_property} }}",
+            mp = self.manifest_path,
+            path_property = rust_string(&descriptor.path_property),
+            default_property = rust_string(&descriptor.default_property),
         )
     }
 

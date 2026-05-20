@@ -560,6 +560,16 @@ fn parse_designtime_subtemplate(
                     .map(|identifier| (identifier, type_id.clone()))
             })
             .collect(),
+        route_branch_descriptors: manifest
+            .components
+            .iter()
+            .filter_map(|(type_id, definition)| {
+                definition
+                    .route_branch
+                    .clone()
+                    .map(|descriptor| (type_id.clone(), descriptor))
+            })
+            .collect(),
     };
     pax_manifest::parsing::parse_template_from_component_definition_string(
         &mut parse_context,
