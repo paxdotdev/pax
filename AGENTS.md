@@ -60,6 +60,27 @@ New features are often proven on one "chassis" at a time (platform target.)  In 
 
 *Units* -- Pax offers first-class unit support for declaring property values.  For example `25px`, `25%`, `25deg`, `25rad`. `{100% - 25px}` is an expressive construct for filling a container minus a fixed amount, and you can group units, too `(some_property + 25)px`.  Rely on % for responsive sizing.
 
+## Hot reloading
+
+Currently, changes to .pax files are hot-reloaded in the running debug-mode app hosts for all supported targets.
+In other words, no need to rebuild if the only changes being made are to .pax files.  If .rs files are changed or added, then we'll need a full rebuild.
+This should allow you to have a tight feedback loop for iterating on visual content and design.  
+
+## Creative fidelity
+
+One of Pax's driving goals is to enable "creative fidelity" -- to enable an artist's creative vision to be expressed with the maximum possible quality and control. 
+
+Whenever implementing a concept, spec, or comp, take an artist's pride in iterating until the details are captured, using Pax's artists' toolkit to execute the finest details.  
+
+Where details are not provided, take a conscious visual design pass, stepping through concept -> textual wireframe -> textual visuospatial design spec -> implemented Pax (iterated as needed via hot reloading and computer use)
+
+For all projects, consider: 
+ - motion, for example Disney's 12 principles of animation (@timeline enables this)
+ - gradients, opacity, and masks as tools for adding depth and drama
+ - Scroller as a host not just for spatial content, but for driving an orchestrated timeline for engaging expository or "kinetic" artistic content
+ - responsive targets for any app -- consider breakpoints and shifts in content hierarchy, navigation, and touch vs. mouse.  `if` in `@settings` enables this kind of platform fine-tuning.
+ - cogent visual identities: typography mapped to content hierarchies, themes, palettes, and moods. almost any app can benefit from encoding this data in a theme, which can be easily imported and applied with `ImportSettings`
+
 
 ## `pax-cli dev` AI + Developer tools
 
