@@ -2,6 +2,16 @@
 
 use pax_kit::*;
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = window, js_name = paxRequestDeviceSensorPermissions)]
+    fn request_device_sensor_permissions();
+}
+
 #[pax]
 #[main]
 #[file("lib.pax")]
@@ -14,6 +24,7 @@ pub struct Example {
     pub accel_y: Property<f64>,
     pub accel_energy: Property<f64>,
     pub glow: Property<f64>,
+    pub motion_prompt_visible: Property<bool>,
 }
 
 impl Example {
@@ -27,6 +38,15 @@ impl Example {
         self.accel_x.set(0.0);
         self.accel_y.set(0.0);
         self.glow.set(0.74);
+        self.motion_prompt_visible.set(true);
+    }
+
+    pub fn enable_motion(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
+        #[cfg(target_arch = "wasm32")]
+        request_device_sensor_permissions();
+
+        self.status_label
+            .set("Motion permission requested. Move the device to stream data.".to_string());
     }
 
     pub fn on_gyro(&mut self, _ctx: &NodeContext, event: Event<Gyro>) {
@@ -36,6 +56,7 @@ impl Example {
         ));
         let target = (event.y * 0.72 + event.x * 0.24).clamp(-34.0, 34.0);
         self.wobble.ease_to(target, 10, EasingCurve::OutQuad);
+        self.motion_prompt_visible.set(false);
         self.status_label.set("Live @gyro handler".to_string());
     }
 
@@ -53,6 +74,7 @@ impl Example {
         let gyro = ctx.gyro.get();
         let glow = (0.42 + energy / 36.0 + gyro.y.abs() / 180.0).clamp(0.42, 1.0);
         self.glow.ease_to(glow, 12, EasingCurve::OutQuad);
+        self.motion_prompt_visible.set(false);
         self.status_label.set("Live @accel handler".to_string());
     }
 }

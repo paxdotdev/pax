@@ -112,7 +112,7 @@ Each field also has a top-level alias with the same name, such as `$web`, `$ios`
 `width`, `height`, `major`, `minor`, `aspect`, `landscape`, `portrait`, and `square`.
 `major`, `minor`, `aspect`, `landscape`, `portrait`, and `square` are also available as top-level aliases.
 
-`$gyro` exposes device orientation as `{x, y, z}` in degrees, and `$accel` exposes acceleration as `{x, y, z}` in meters per second squared. On web targets, `$accel` uses acceleration including gravity when available. `$frames` and `$millis` expose runtime clock values.
+`$gyro` exposes device orientation as `{x, y, z}` in degrees, and `$accel` exposes acceleration as `{x, y, z}` in meters per second squared. On web targets, `$accel` uses acceleration including gravity when available. Mobile WebKit requires a user gesture before these sensors stream; web apps that need motion input can call `window.paxRequestDeviceSensorPermissions()` from an app-owned button or tap handler. `$frames` and `$millis` expose runtime clock values.
 
 ```pax
 <Group

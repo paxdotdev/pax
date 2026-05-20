@@ -421,12 +421,17 @@ function setupDeviceSensorListeners(
         }, true);
     };
 
-    let removePermissionPrompt = () => {};
-
     let requestPermissionAndStart = (evt?: Event) => {
         evt?.preventDefault();
         evt?.stopPropagation();
-        if (permissionRequested || sensorsStarted) {
+        if (sensorsStarted) {
+            return;
+        }
+        if (!needsPermission) {
+            startSensors();
+            return;
+        }
+        if (permissionRequested) {
             return;
         }
         permissionRequested = true;
@@ -442,7 +447,6 @@ function setupDeviceSensorListeners(
         }
         Promise.all(requests).then(results => {
             if (results.some(result => result === 'granted')) {
-                removePermissionPrompt();
                 startSensors();
             } else {
                 permissionRequested = false;
@@ -452,36 +456,28 @@ function setupDeviceSensorListeners(
         });
     };
 
+    addDisposer(installSensorPermissionRequester(requestPermissionAndStart));
     if (!needsPermission) {
         startSensors();
-    } else {
-        removePermissionPrompt = showSensorPermissionPrompt(requestPermissionAndStart);
-        addDisposer(removePermissionPrompt);
     }
 }
 
-function showSensorPermissionPrompt(onClick: (evt: Event) => void): () => void {
-    let button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = 'Enable motion';
-    button.style.position = 'fixed';
-    button.style.left = '50%';
-    button.style.bottom = '28px';
-    button.style.transform = 'translateX(-50%)';
-    button.style.zIndex = '2147483647';
-    button.style.padding = '13px 18px';
-    button.style.border = '1px solid rgba(255,255,255,0.42)';
-    button.style.borderRadius = '8px';
-    button.style.background = 'rgba(16, 23, 38, 0.94)';
-    button.style.color = '#ffffff';
-    button.style.font = '600 16px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
-    button.style.boxShadow = '0 10px 30px rgba(0,0,0,0.28)';
-    button.style.touchAction = 'manipulation';
-    button.addEventListener('click', onClick, {"capture": true});
-    document.body.appendChild(button);
+function installSensorPermissionRequester(onRequest: (evt?: Event) => void): () => void {
+    let previousRequester = (window as any).paxRequestDeviceSensorPermissions;
+    let eventType = 'pax-request-device-sensor-permission';
+    let requestFromJs = () => onRequest();
+    let requestFromEvent = (evt: Event) => onRequest(evt);
+    (window as any).paxRequestDeviceSensorPermissions = requestFromJs;
+    window.addEventListener(eventType, requestFromEvent, {"capture": true});
 
     return () => {
-        button.removeEventListener('click', onClick, {"capture": true});
-        button.remove();
+        window.removeEventListener(eventType, requestFromEvent, {"capture": true});
+        if ((window as any).paxRequestDeviceSensorPermissions === requestFromJs) {
+            if (previousRequester === undefined) {
+                delete (window as any).paxRequestDeviceSensorPermissions;
+            } else {
+                (window as any).paxRequestDeviceSensorPermissions = previousRequester;
+            }
+        }
     };
 }

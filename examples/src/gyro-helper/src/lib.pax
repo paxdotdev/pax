@@ -1,4 +1,16 @@
 <Group width=100% height=100%>
+    if $web && $mobile && self.motion_prompt_visible {
+        <Button
+            class=motion_button
+            x={50% - 95px}
+            y={100% - 110px}
+            width=190px
+            height=48px
+            label="Enable motion"
+            @button_click=self.enable_motion
+        />
+    }
+
     <Text class=title x=50% y=54px width=86% height=48px text="Gyroscope & Accelerometer"/>
     <Text class=readout x=50% y=102px width=86% height=24px text={self.gyro_label}/>
     <Text class=readout x=50% y=130px width=86% height=24px text={self.accel_label}/>
@@ -87,6 +99,22 @@
     }
     .field_mark {
         fill: Color::rgba(84, 120, 255, 30)
+    }
+    .motion_button {
+        color: Color::rgba(16, 23, 38, 240)
+        hover_color: rgb(28, 39, 64)
+        border_radius: 8
+        outline: {
+            color: Color::rgba(255, 255, 255, 110)
+            width: 1px
+        }
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 16px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+        }
     }
     .background {
         fill: rgb(9, 14, 30)
