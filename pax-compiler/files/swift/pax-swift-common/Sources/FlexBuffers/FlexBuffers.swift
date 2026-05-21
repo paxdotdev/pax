@@ -780,6 +780,18 @@ public struct FlxbValueMap: FlxbValue, ExpressibleByDictionaryLiteral {
 
 // MARK: - DECODER
 
+fileprivate final class FlxbBufferStorage {
+    let pointer: UnsafeMutableRawPointer
+
+    init(pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    deinit {
+        pointer.deallocate()
+    }
+}
+
 extension FlexBuffer {
     public static func decode(data: Data) -> FlxbReference? {
         guard data.count > 2 else {
@@ -789,12 +801,13 @@ extension FlexBuffer {
         let packedType = data[data.count - 2]
 
         let p2 = UnsafeMutableRawPointer.allocate(byteCount: data.count, alignment: 1)
+        let storage = FlxbBufferStorage(pointer: p2)
 
         data.withUnsafeBytes { (p) in
             p2.copyMemory(from: p.baseAddress!, byteCount: data.count)
         }
         let p = p2.advanced(by: (data.count - Int(byteWidth) - 2))
-        return FlxbReference(dataPointer: UnsafeRawPointer(p), parentWidth: byteWidth, packedType: packedType)
+        return FlxbReference(dataPointer: UnsafeRawPointer(p), parentWidth: byteWidth, packedType: packedType, storage: storage)
     }
 }
 
@@ -1305,8 +1318,9 @@ public struct FlxbReference : CustomDebugStringConvertible {
     fileprivate let parentWidth : UInt8
     fileprivate let byteWidth : UInt8
     fileprivate let type : Type
+    fileprivate let storage : FlxbBufferStorage?
     
-    fileprivate init?(dataPointer : UnsafeRawPointer, parentWidth : UInt8, packedType : UInt8) {
+    fileprivate init?(dataPointer : UnsafeRawPointer, parentWidth : UInt8, packedType : UInt8, storage : FlxbBufferStorage? = nil) {
         self.dataPointer = dataPointer
         self.parentWidth = parentWidth
         guard let byteWidth = BitWidth(rawValue: packedType & 3)?.rawValue,
@@ -1315,13 +1329,15 @@ public struct FlxbReference : CustomDebugStringConvertible {
         }
         self.byteWidth = 1 << byteWidth
         self.type = type
+        self.storage = storage
     }
     
-    fileprivate init(dataPointer : UnsafeRawPointer, parentWidth : UInt8, byteWidth : UInt8, type : Type){
+    fileprivate init(dataPointer : UnsafeRawPointer, parentWidth : UInt8, byteWidth : UInt8, type : Type, storage : FlxbBufferStorage? = nil){
         self.dataPointer = dataPointer
         self.parentWidth = parentWidth
         self.byteWidth = byteWidth
         self.type = type
+        self.storage = storage
     }
     
     public subscript(index: Int) -> FlxbReference? {
@@ -1505,20 +1521,20 @@ public struct FlxbReference : CustomDebugStringConvertible {
     public var asVector : FlxbVector? {
         if type.isTypedVector {
             if let p = self.indirect {
-                return FlxbVector(dataPointer: p, byteWidth: byteWidth, type: type.typedVectorElementType)
+                return FlxbVector(dataPointer: p, byteWidth: byteWidth, type: type.typedVectorElementType, storage: storage)
             }
             return nil
         }
         if type.isFixedTypedVector {
             if let p = self.indirect {
                 let (type, length) = self.type.fixedTypedVectorElementType
-                return FlxbVector(dataPointer: p, byteWidth: byteWidth, type: type, length: length)
+                return FlxbVector(dataPointer: p, byteWidth: byteWidth, type: type, length: length, storage: storage)
             }
         }
         switch type {
         case .vector :
             if let p = self.indirect {
-                return FlxbVector(dataPointer: p, byteWidth: byteWidth)
+                return FlxbVector(dataPointer: p, byteWidth: byteWidth, storage: storage)
             }
             return nil
         default:
@@ -1530,7 +1546,7 @@ public struct FlxbReference : CustomDebugStringConvertible {
         switch type {
         case .map :
             if let p = self.indirect {
-                return FlxbMap(dataPointer: p, byteWidth: byteWidth)
+                return FlxbMap(dataPointer: p, byteWidth: byteWidth, storage: storage)
             }
             return nil
         default:
@@ -1720,12 +1736,14 @@ public struct FlxbVector : Sequence, CustomDebugStringConvertible {
     fileprivate let byteWidth : UInt8
     fileprivate let type : Type?
     fileprivate let length: UInt8?
+    fileprivate let storage : FlxbBufferStorage?
     
-    fileprivate init(dataPointer : UnsafeRawPointer, byteWidth : UInt8, type : Type? = nil, length: UInt8? = nil) {
+    fileprivate init(dataPointer : UnsafeRawPointer, byteWidth : UInt8, type : Type? = nil, length: UInt8? = nil, storage : FlxbBufferStorage? = nil) {
         self.dataPointer = dataPointer
         self.byteWidth = byteWidth
         self.type = type
         self.length = length
+        self.storage = storage
     }
     
     public var count : Int {
@@ -1753,12 +1771,12 @@ public struct FlxbVector : Sequence, CustomDebugStringConvertible {
     private func get(_ index : Int, _ length : Int) -> FlxbReference? {
         let packedType = (dataPointer + (length * Int(byteWidth))).load(fromByteOffset: index, as: UInt8.self)
         let elem = dataPointer + (index * Int(byteWidth))
-        return FlxbReference(dataPointer: elem, parentWidth: byteWidth, packedType: packedType)
+        return FlxbReference(dataPointer: elem, parentWidth: byteWidth, packedType: packedType, storage: storage)
     }
     
     private func get(_ index : Int, _ length : Int, _ type : Type) -> FlxbReference? {
         let elem = dataPointer + (index * Int(byteWidth))
-        return FlxbReference(dataPointer: elem, parentWidth: byteWidth, byteWidth: 1, type: type)
+        return FlxbReference(dataPointer: elem, parentWidth: byteWidth, byteWidth: 1, type: type, storage: storage)
     }
     
     public func makeIterator() -> AnyIterator<FlxbReference> {
@@ -1792,6 +1810,7 @@ public struct FlxbVector : Sequence, CustomDebugStringConvertible {
 public struct FlxbMap : Sequence, CustomDebugStringConvertible {
     fileprivate let dataPointer : UnsafeRawPointer
     fileprivate let byteWidth : UInt8
+    fileprivate let storage : FlxbBufferStorage?
     
     public var count : Int {
         if let size = readUInt(pointer: dataPointer - Int(byteWidth), width: byteWidth) {
@@ -1818,13 +1837,13 @@ public struct FlxbMap : Sequence, CustomDebugStringConvertible {
         let keysOffset = dataPointer - Int(byteWidth) * 3
         if let p = _indirect(pointer: keysOffset, width: byteWidth),
             let bWidth = readUInt(pointer: keysOffset + Int(byteWidth), width: byteWidth) {
-            return FlxbVector(dataPointer: p, byteWidth: UInt8(bWidth), type: .key)
+            return FlxbVector(dataPointer: p, byteWidth: UInt8(bWidth), type: .key, storage: storage)
         }
         return nil
     }
     
     private var values : FlxbVector? {
-        return FlxbVector(dataPointer: dataPointer, byteWidth: byteWidth)
+        return FlxbVector(dataPointer: dataPointer, byteWidth: byteWidth, storage: storage)
     }
     
     private func keyIndex(key : String) -> Int? {

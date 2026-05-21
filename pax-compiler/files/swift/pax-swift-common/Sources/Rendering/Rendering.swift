@@ -325,6 +325,11 @@ private struct PendingMaskRender {
     let payload: RasterizedNativeMaskPayload
 }
 
+private let nativeMaskRasterQueue = DispatchQueue(
+    label: "dev.pax.apple.native-mask-raster",
+    qos: .userInitiated
+)
+
 private func currentNativeMaskScale() -> CGFloat {
 #if os(iOS) || os(tvOS) || os(watchOS)
     #if targetEnvironment(simulator)
@@ -389,22 +394,39 @@ private struct RasterizedNativeMaskCacheKey: Hashable {
 
 private enum RasterizedNativeMaskImageCache {
     static var images: [RasterizedNativeMaskCacheKey: CGImage] = [:]
+    static var costs: [RasterizedNativeMaskCacheKey: Int] = [:]
     static var insertionOrder: [RasterizedNativeMaskCacheKey] = []
-    static let maxEntries = 256
+    static var totalCost = 0
+    static let maxEntries = 64
+    static let maxCostBytes = 24 * 1024 * 1024
 
     static func image(for key: RasterizedNativeMaskCacheKey) -> CGImage? {
         images[key]
     }
 
     static func store(_ image: CGImage, for key: RasterizedNativeMaskCacheKey) {
+        let cost = image.bytesPerRow * image.height
         if images[key] == nil {
             insertionOrder.append(key)
-            if insertionOrder.count > maxEntries, let oldest = insertionOrder.first {
-                insertionOrder.removeFirst()
-                images.removeValue(forKey: oldest)
-            }
+        } else if let previousCost = costs[key] {
+            totalCost -= previousCost
         }
         images[key] = image
+        costs[key] = cost
+        totalCost += cost
+        evictIfNeeded()
+    }
+
+    static func evictIfNeeded() {
+        while (insertionOrder.count > maxEntries || totalCost > maxCostBytes),
+              let oldest = insertionOrder.first
+        {
+            insertionOrder.removeFirst()
+            images.removeValue(forKey: oldest)
+            if let cost = costs.removeValue(forKey: oldest) {
+                totalCost -= cost
+            }
+        }
     }
 }
 
@@ -1439,11 +1461,6 @@ public struct NativeRenderingLayer: View {
     }
 
     private final class PlatformMaskedLeafView: PlatformContainerView {
-        private static let maskRasterQueue = DispatchQueue(
-            label: "dev.pax.apple.native-mask-raster",
-            qos: .userInitiated
-        )
-
         private var currentMaskLayer: CALayer?
 #if os(macOS)
         private let snapshotLayer = CALayer()
@@ -1618,7 +1635,7 @@ public struct NativeRenderingLayer: View {
             queuedMaskRender = nil
             inFlightMaskRender = render
 
-            Self.maskRasterQueue.async { [weak self] in
+            nativeMaskRasterQueue.async { [weak self] in
                 let image = cachedRasterizedMaskImage(payload: render.payload, scale: render.scale)
                 DispatchQueue.main.async {
                     guard let self else {
@@ -1628,10 +1645,10 @@ public struct NativeRenderingLayer: View {
                         return
                     }
                     self.inFlightMaskRender = nil
-                   if self.requestedMaskSignature == render.payload.signature,
-                      self.requestedMaskSize == render.payload.size,
-                      let image
-                   {
+                    if self.requestedMaskSignature == render.payload.signature,
+                       self.requestedMaskSize == render.payload.size,
+                       let image
+                    {
                         let nextMaskLayer = CALayer()
                         nextMaskLayer.frame = CGRect(origin: .zero, size: render.payload.size)
                         nextMaskLayer.contents = image
@@ -1854,12 +1871,25 @@ public struct NativeRenderingLayer: View {
 #endif
         private var appliedMaskSignature: UInt64?
         private var appliedMaskSize: CGSize = .zero
+        private var requestedMaskSignature: UInt64?
+        private var requestedMaskSize: CGSize = .zero
+        private var nextMaskGeneration: UInt64 = 0
+        private var inFlightMaskRender: PendingMaskRender?
+        private var queuedMaskRender: PendingMaskRender?
         private var currentNativeMaskLayer: CALayer?
         private let positiveClipMaskLayer = CAShapeLayer()
         private var appliedPositiveClipSignature: Int?
         private var suppressScrollEvents = false
 
         var contentHostView: PlatformContainerView { contentHostViewInternal }
+
+        private static func shouldRasterizeMaskAsynchronously() -> Bool {
+#if os(macOS)
+            false
+#else
+            true
+#endif
+        }
 
         init(id: PaxNodeId) {
             self.scrollerId = id
@@ -2067,7 +2097,11 @@ public struct NativeRenderingLayer: View {
 
         func updateNativeMask(_ mask: ResolvedNativeMask?) {
             guard let mask else {
-                guard appliedMaskSignature != nil || currentNativeMaskLayer != nil else {
+                let hadAppliedMask = appliedMaskSignature != nil || currentNativeMaskLayer != nil
+                requestedMaskSignature = nil
+                requestedMaskSize = .zero
+                queuedMaskRender = nil
+                guard hadAppliedMask else {
                     return
                 }
                 CATransaction.begin()
@@ -2080,16 +2114,83 @@ public struct NativeRenderingLayer: View {
                 return
             }
 
+            requestedMaskSignature = mask.signature
+            requestedMaskSize = mask.size
             if appliedMaskSignature == mask.signature && appliedMaskSize == mask.size {
+                return
+            }
+            if let inFlightMaskRender,
+               inFlightMaskRender.payload.signature == mask.signature,
+               inFlightMaskRender.payload.size == mask.size
+            {
+                return
+            }
+            if let queuedMaskRender,
+               queuedMaskRender.payload.signature == mask.signature,
+               queuedMaskRender.payload.size == mask.size
+            {
                 return
             }
 
             let payload = rasterPayload(from: mask)
             let scale = currentNativeMaskScale()
-            guard let image = cachedRasterizedMaskImage(payload: payload, scale: scale) else {
+            if Self.shouldRasterizeMaskAsynchronously() {
+                enqueueMaskRender(payload: payload, scale: scale)
                 return
             }
 
+            inFlightMaskRender = nil
+            queuedMaskRender = nil
+            guard let image = cachedRasterizedMaskImage(payload: payload, scale: scale) else {
+                return
+            }
+            applyNativeMaskImage(image, payload: payload, scale: scale)
+        }
+
+        private func enqueueMaskRender(payload: RasterizedNativeMaskPayload, scale: CGFloat) {
+            nextMaskGeneration &+= 1
+            let render = PendingMaskRender(
+                generation: nextMaskGeneration,
+                scale: scale,
+                payload: payload
+            )
+            queuedMaskRender = render
+            startNextMaskRenderIfNeeded()
+        }
+
+        private func startNextMaskRenderIfNeeded() {
+            guard inFlightMaskRender == nil, let render = queuedMaskRender else {
+                return
+            }
+            queuedMaskRender = nil
+            inFlightMaskRender = render
+
+            nativeMaskRasterQueue.async { [weak self] in
+                let image = cachedRasterizedMaskImage(payload: render.payload, scale: render.scale)
+                DispatchQueue.main.async {
+                    guard let self else {
+                        return
+                    }
+                    guard self.inFlightMaskRender?.generation == render.generation else {
+                        return
+                    }
+                    self.inFlightMaskRender = nil
+                    if self.requestedMaskSignature == render.payload.signature,
+                       self.requestedMaskSize == render.payload.size,
+                       let image
+                    {
+                        self.applyNativeMaskImage(image, payload: render.payload, scale: render.scale)
+                    }
+                    self.startNextMaskRenderIfNeeded()
+                }
+            }
+        }
+
+        private func applyNativeMaskImage(
+            _ image: CGImage,
+            payload: RasterizedNativeMaskPayload,
+            scale: CGFloat
+        ) {
             let maskLayer = CALayer()
             maskLayer.frame = CGRect(origin: .zero, size: payload.size)
             maskLayer.contents = image
@@ -2102,8 +2203,8 @@ public struct NativeRenderingLayer: View {
             backingLayer.rasterizationScale = scale
             CATransaction.commit()
 
-            appliedMaskSignature = mask.signature
-            appliedMaskSize = mask.size
+            appliedMaskSignature = payload.signature
+            appliedMaskSize = payload.size
             currentNativeMaskLayer = maskLayer
         }
 
