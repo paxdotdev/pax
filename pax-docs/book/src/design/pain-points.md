@@ -23,3 +23,18 @@ Recommendations: document the helper near `$gyro` / `$accel` web-target docs if
 this becomes an officially supported developer-facing API, and consider a
 typed Pax runtime API for requesting platform permissions instead of direct web
 JS interop.
+
+## 2026-05-21
+
+Tried to use `examples/src/starter-project` as a quick iOS chassis smoke test,
+but its path dependencies include other example crates with their own `#[pax]`
+roots. Building it through `pax-cli` set `PAX_DIR` to `starter-project/.pax`,
+then the dependent examples failed the active-project guard because their roots
+did not match that `PAX_DIR`.
+
+Solved by switching chassis validation to a single-root example such as
+`examples/src/increment` or `examples/src/router-playground`.
+
+Recommendations: document preferred single-root smoke-test examples for chassis
+work, or add a dedicated minimal iOS/macOS validation example that avoids
+cross-example Pax dependencies.

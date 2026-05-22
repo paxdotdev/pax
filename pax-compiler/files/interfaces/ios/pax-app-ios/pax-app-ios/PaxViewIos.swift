@@ -137,6 +137,7 @@ struct PaxViewIos: View {
         let glassSurfaceElements = GlassSurfaceElements.singleton
         private var displayLink: CADisplayLink?
         private var previousViewportSize: CGSize = .zero
+        private let viewportSizeEpsilon: CGFloat = 0.5
         private var needsNativeTextRemeasure = false
         private let surfaceManager = SurfaceManager()
         private var lastTouchPositions: [ObjectIdentifier: CGPoint] = [:]
@@ -262,13 +263,78 @@ struct PaxViewIos: View {
         override func layoutSubviews() {
             super.layoutSubviews()
 
-            if bounds.size != previousViewportSize {
-                previousViewportSize = bounds.size
-                needsNativeTextRemeasure = true
-                for textElement in textElements.elements.values {
-                    textElement.lastMeasuredSize = nil
-                }
+            noteViewportSize(bounds.size)
+        }
+
+        private func noteViewportSize(_ size: CGSize) {
+            guard size.width > 0, size.height > 0 else {
+                return
             }
+
+            if viewportSizesMatch(size, previousViewportSize) {
+                return
+            }
+
+            previousViewportSize = size
+            needsNativeTextRemeasure = true
+            for textElement in textElements.elements.values {
+                textElement.lastMeasuredSize = nil
+            }
+        }
+
+        private func isUsableViewportSize(_ size: CGSize) -> Bool {
+            size.width.isFinite
+                && size.height.isFinite
+                && size.width > 0
+                && size.height > 0
+        }
+
+        private func viewportSizesMatch(_ lhs: CGSize, _ rhs: CGSize) -> Bool {
+            abs(lhs.width - rhs.width) <= viewportSizeEpsilon
+                && abs(lhs.height - rhs.height) <= viewportSizeEpsilon
+        }
+
+        private func presentedAnimatedSize(for layer: CALayer) -> CGSize? {
+            guard let presentationLayer = layer.presentation() else {
+                return nil
+            }
+
+            let presentedFrameSize = presentationLayer.frame.size
+            if isUsableViewportSize(presentedFrameSize)
+                && !viewportSizesMatch(presentedFrameSize, layer.frame.size) {
+                return presentedFrameSize
+            }
+
+            let presentedBoundsSize = presentationLayer.bounds.size
+            if isUsableViewportSize(presentedBoundsSize)
+                && !viewportSizesMatch(presentedBoundsSize, layer.bounds.size) {
+                return presentedBoundsSize
+            }
+
+            return nil
+        }
+
+        private func overdrawViewportSize(from animatedSize: CGSize, toward targetSize: CGSize) -> CGSize {
+            CGSize(
+                width: max(animatedSize.width, targetSize.width),
+                height: max(animatedSize.height, targetSize.height)
+            )
+        }
+
+        private func viewportSizeForCurrentFrame() -> CGSize {
+            // During UIKit rotation, model geometry can jump to the destination while
+            // container presentation layers animate through in-flight bounds or transforms.
+            // Use an overdraw viewport while presentation geometry is active so a compositor
+            // measurement lag cannot expose the UIKit/window background at the expanding edge.
+            var currentLayer: CALayer? = layer
+            while let candidate = currentLayer {
+                if let animatedSize = presentedAnimatedSize(for: candidate) {
+                    return overdrawViewportSize(from: animatedSize, toward: bounds.size)
+                }
+                currentLayer = candidate.superlayer
+            }
+
+            return bounds.size
         }
 
         private func createDisplayLink() {
@@ -296,12 +362,14 @@ struct PaxViewIos: View {
         }
 
         private func tick() {
-            guard bounds.width > 0, bounds.height > 0 else {
+            let viewportSize = viewportSizeForCurrentFrame()
+            guard viewportSize.width > 0, viewportSize.height > 0 else {
                 return
             }
+            noteViewportSize(viewportSize)
 
-            let width = Float(bounds.width)
-            let height = Float(bounds.height)
+            let width = Float(viewportSize.width)
+            let height = Float(viewportSize.height)
             let scale = Float(currentScale())
 
             if PaxEngineContainer.paxEngineContainer == nil {
