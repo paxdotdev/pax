@@ -15,7 +15,10 @@ use tera::{Context, Tera};
 
 use include_dir::{include_dir, Dir};
 
-use crate::{pax_runtime_api::PaxValue, ComponentDefinition, ExpressionInfo, PaxManifest, PaxType};
+use crate::{
+    pax_runtime_api::{Numeric, PaxValue, Size},
+    ComponentDefinition, ExpressionInfo, PaxManifest, PaxType,
+};
 use pax_language::{
     formatting::format_pax_template,
     helpers::{replace_by_line_column, InlinedTemplateFinder},
@@ -41,6 +44,44 @@ fn to_pax_value(args: &HashMap<String, tera::Value>) -> tera::Result<tera::Value
         }
         None => Err(tera::Error::msg(
             "No value provided to to_pax_value function",
+        )),
+    }
+}
+
+fn format_numeric(value: &Numeric) -> String {
+    let value = value.to_float();
+    if value.fract() == 0.0 {
+        format!("{}", value as i64)
+    } else {
+        value.to_string()
+    }
+}
+
+fn format_size(value: &Size) -> String {
+    match value {
+        Size::Pixels(value) => format!("{}px", format_numeric(value)),
+        Size::Percent(value) => format!("{}%", format_numeric(value)),
+        Size::Combined(pixels, percent) => {
+            format!(
+                "{}px + {}%",
+                format_numeric(pixels),
+                format_numeric(percent)
+            )
+        }
+    }
+}
+
+fn to_pax_size(args: &HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
+    match args.get("value") {
+        Some(val) => {
+            let value: Result<Size, serde_json::Error> = serde_json::from_value(val.clone());
+            if let Ok(value) = value {
+                return Ok(tera::Value::String(format_size(&value)));
+            }
+            Err(tera::Error::msg("Failed to deserialize value to Size"))
+        }
+        None => Err(tera::Error::msg(
+            "No value provided to to_pax_size function",
         )),
     }
 }
@@ -106,6 +147,7 @@ pub fn press_code_serialization_template(args: ComponentDefinition) -> Result<St
     let mut tera = Tera::default();
 
     tera.register_function("to_pax_value", to_pax_value);
+    tera.register_function("to_pax_size", to_pax_size);
     tera.register_function("to_pax_expression", to_pax_expression);
     tera.register_function("to_timeline_marker", to_timeline_marker);
 

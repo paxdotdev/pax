@@ -127,9 +127,10 @@ fn gradient(fill_id: u32, coord: vec2<f32>) -> vec4<f32> {
     let g_p = gradient.position * globals.dpr;
     let g_a = gradient.main_axis * globals.dpr;
     let p_t = coord - g_p;
-    let m_a_l = length(g_a);
+    let m_a_l = max(length(g_a), 0.0001);
     let n = g_a / m_a_l;
-    let color_space = dot(p_t, n);
+    let stop_scale = m_a_l / max(length(gradient.main_axis), 0.0001);
+    let color_space = dot(p_t, n) / stop_scale;
 
     // Find the appropriate stop segment
     var left_idx = 0u;

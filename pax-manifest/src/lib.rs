@@ -8,7 +8,7 @@ pub use pax_language::interpreter::{PaxExpression, PaxIdentifier, PaxPrimary};
 use pax_language::DependencyCollector;
 use pax_message::serde::{Deserialize, Serialize};
 pub use pax_runtime_api;
-use pax_runtime_api::{CoercionRules, HelperFunctions, Interpolatable, PaxValue, ToPaxValue};
+use pax_runtime_api::{CoercionRules, HelperFunctions, Interpolatable, PaxValue, Size, ToPaxValue};
 pub mod binary;
 #[cfg(feature = "parsing")]
 pub mod parsing;
@@ -337,6 +337,73 @@ pub struct TransitionDefinition {
     pub enter: Option<TimelineTrackDefinition>,
     pub exit: Option<TimelineTrackDefinition>,
     pub starting_value: Option<Box<ValueDefinition>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(crate = "pax_message::serde")]
+/// Compile-time representation of an inline `@gradient` value.
+pub struct GradientDefinition {
+    pub shape: GradientShapeDefinition,
+    pub elements: Vec<GradientElement>,
+}
+
+impl Default for GradientDefinition {
+    fn default() -> Self {
+        Self {
+            shape: GradientShapeDefinition::default(),
+            elements: vec![],
+        }
+    }
+}
+
+impl GradientDefinition {
+    /// Iterate only stop entries, skipping comments.
+    pub fn stops(&self) -> impl Iterator<Item = &GradientStopDefinition> {
+        self.elements.iter().filter_map(|element| match element {
+            GradientElement::Stop(stop) => Some(stop),
+            GradientElement::Comment(_) => None,
+        })
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(crate = "pax_message::serde")]
+/// Shape-specific parameters for a gradient. V1 maps directly to runtime `Fill` variants.
+pub enum GradientShapeDefinition {
+    Linear {
+        start: Option<Box<ValueDefinition>>,
+        end: Option<Box<ValueDefinition>>,
+    },
+    Radial {
+        start: Box<ValueDefinition>,
+        end: Box<ValueDefinition>,
+        radius: Box<ValueDefinition>,
+    },
+}
+
+impl Default for GradientShapeDefinition {
+    fn default() -> Self {
+        Self::Linear {
+            start: None,
+            end: None,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(crate = "pax_message::serde")]
+/// One entry inside a gradient block.
+pub enum GradientElement {
+    Stop(GradientStopDefinition),
+    Comment(String),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(crate = "pax_message::serde")]
+/// A single color stop in a gradient ramp.
+pub struct GradientStopDefinition {
+    pub position: Size,
+    pub color: ValueDefinition,
 }
 
 impl Default for TimelineDefinition {
@@ -1905,6 +1972,7 @@ pub enum ValueDefinition {
     LiteralValue(PaxValue),
     Block(LiteralBlockDefinition),
     Timeline(TimelineTrackDefinition),
+    Gradient(GradientDefinition),
     Transition(TransitionDefinition),
     /// (Expression contents, vtable id binding)
     Expression(ExpressionInfo),
@@ -1922,6 +1990,7 @@ impl Display for ValueDefinition {
             ValueDefinition::LiteralValue(value) => write!(f, "{}", value),
             ValueDefinition::Block(block) => write!(f, "{}", block),
             ValueDefinition::Timeline(track) => write!(f, "@timeline {}", track),
+            ValueDefinition::Gradient(gradient) => write!(f, "@gradient {}", gradient),
             ValueDefinition::Transition(_) => write!(f, "@transition"),
             ValueDefinition::Expression(e) => write!(f, "{{{}}}", e.expression),
             ValueDefinition::Identifier(i) => write!(f, "{}", i),
@@ -2057,6 +2126,44 @@ impl Display for LiteralBlockDefinition {
         }
         write!(f, "}}")?;
         Ok(())
+    }
+}
+
+impl Display for GradientDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{{")?;
+        match &self.shape {
+            GradientShapeDefinition::Linear { start, end } => {
+                if start.is_some() || end.is_some() {
+                    writeln!(f, "linear: {{")?;
+                    if let Some(start) = start {
+                        writeln!(f, "start: {},", start)?;
+                    }
+                    if let Some(end) = end {
+                        writeln!(f, "end: {},", end)?;
+                    }
+                    writeln!(f, "}},")?;
+                }
+            }
+            GradientShapeDefinition::Radial { start, end, radius } => {
+                writeln!(f, "radial: {{")?;
+                writeln!(f, "start: {},", start)?;
+                writeln!(f, "end: {},", end)?;
+                writeln!(f, "radius: {},", radius)?;
+                writeln!(f, "}},")?;
+            }
+        }
+        for element in &self.elements {
+            match element {
+                GradientElement::Stop(stop) => {
+                    writeln!(f, "{}: {},", stop.position, stop.color)?;
+                }
+                GradientElement::Comment(comment) => {
+                    writeln!(f, "{}", comment)?;
+                }
+            }
+        }
+        write!(f, "}}")
     }
 }
 

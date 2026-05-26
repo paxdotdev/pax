@@ -4,7 +4,7 @@ use pax_runtime_api::{
     functions::Functions, CoercionRules, Color, ColorChannel, Duration, Numeric, PaxValue, Size,
 };
 
-use crate::{interpreter::compute_paxel, DependencyCollector};
+use crate::{interpreter::compute_paxel, parse_pax_pairs, DependencyCollector, Rule};
 
 use super::{parse_pax_expression, PaxExpression, PaxInfix, PaxOperator, PaxPrimary};
 
@@ -306,6 +306,15 @@ fn test_parentheses_units() {
     let expected = PaxValue::Size(Size::Pixels(Numeric::I64(14)));
     let result = compute_paxel(expr, idr).unwrap();
     assert_eq!(expected, result);
+}
+
+#[test]
+fn test_parentheses_units_must_be_adjacent() {
+    let adjacent = parse_pax_pairs(Rule::expression_body, "(10 + 4)px").unwrap();
+    assert_eq!(adjacent.as_str(), "(10 + 4)px");
+
+    let spaced = parse_pax_pairs(Rule::expression_body, "(10 + 4) px").unwrap();
+    assert_ne!(spaced.as_str(), "(10 + 4) px");
 }
 
 #[test]

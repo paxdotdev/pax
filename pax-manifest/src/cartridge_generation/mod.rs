@@ -270,6 +270,7 @@ impl PaxManifest {
                         | ValueDefinition::Block(_)
                         | ValueDefinition::Timeline(_)
                         | ValueDefinition::Transition(_)
+                        | ValueDefinition::Gradient(_)
                         | ValueDefinition::Expression(_)
                         | ValueDefinition::Identifier(_)
                         | ValueDefinition::DoubleBinding(_) => {
@@ -315,6 +316,7 @@ impl PaxManifest {
                         | ValueDefinition::Block(_)
                         | ValueDefinition::Timeline(_)
                         | ValueDefinition::Transition(_)
+                        | ValueDefinition::Gradient(_)
                         | ValueDefinition::Expression(_)
                         | ValueDefinition::Identifier(_) => {
                             if CommonProperty::get_common_properties().contains(&key.token_value) {

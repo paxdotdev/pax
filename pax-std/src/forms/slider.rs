@@ -51,6 +51,11 @@ impl Default for Slider {
 // Runtime instance backing `<Slider>`.
 pub struct SliderInstance {
     base: BaseInstance,
+    native_value_to_ack: Rc<RefCell<Option<f64>>>,
+}
+
+fn slider_values_equal(lhs: f64, rhs: f64) -> bool {
+    (lhs - rhs).abs() <= 0.000001
 }
 
 impl InstanceNode for SliderInstance {
@@ -69,6 +74,7 @@ impl InstanceNode for SliderInstance {
                     is_slot: false,
                 },
             ),
+            native_value_to_ack: Rc::new(RefCell::new(None)),
         })
     }
 
@@ -92,6 +98,7 @@ impl InstanceNode for SliderInstance {
             id: id.to_u32(),
             ..Default::default()
         }));
+        let native_value_to_ack = self.native_value_to_ack.clone();
 
         let deps: Vec<_> = borrow_mut!(expanded_node.properties_scope)
             .values()
@@ -121,6 +128,17 @@ impl InstanceNode for SliderInstance {
                     expanded_node.with_properties_unwrapped(|properties: &mut Slider| {
                         let computed_tab = expanded_node.transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
+                        let current_value = properties.value.get();
+                        let pending_native_value = *native_value_to_ack.borrow();
+                        let value_updated = if pending_native_value
+                            .is_some_and(|value| slider_values_equal(value, current_value))
+                        {
+                            old_state.value = Some(current_value);
+                            *borrow_mut!(native_value_to_ack) = None;
+                            false
+                        } else {
+                            patch_if_needed(&mut old_state.value, &mut patch.value, current_value)
+                        };
                         let updates = [
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
@@ -144,11 +162,7 @@ impl InstanceNode for SliderInstance {
                                 &mut patch.accent,
                                 (&properties.accent.get()).into(),
                             ),
-                            patch_if_needed(
-                                &mut old_state.value,
-                                &mut patch.value,
-                                properties.value.get(),
-                            ),
+                            value_updated,
                             patch_if_needed(
                                 &mut old_state.step,
                                 &mut patch.step,
@@ -227,6 +241,7 @@ impl InstanceNode for SliderInstance {
         interrupt: &NativeInterrupt,
     ) {
         if let NativeInterrupt::FormSliderChange(args) = interrupt {
+            *borrow_mut!(self.native_value_to_ack) = Some(args.value);
             expanded_node
                 .with_properties_unwrapped(|props: &mut Slider| props.value.set(args.value));
         }

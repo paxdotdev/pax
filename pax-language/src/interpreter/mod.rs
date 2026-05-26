@@ -483,7 +483,7 @@ fn recurse_pratt_parse(
                 let expr = inner.next().unwrap();
                 let expr_val = recurse_pratt_parse(expr.into_inner(), pratt_parser)?;
                 let ret: Result<PaxExpression, String> = if let Some(unit) = inner.next() {
-                    let unit = unit.as_str().trim();
+                    let unit = unit.as_str().trim().trim_start_matches(')');
                     match unit {
                         "%" => Ok(PaxExpression::Primary(Box::new(PaxPrimary::Grouped(
                             Box::new(expr_val),

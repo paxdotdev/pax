@@ -13,7 +13,8 @@ use pax_manifest::cartridge_generation::{
     TRANSITION_PLAYHEAD_MILLIS_SYMBOL, TRANSITION_PLAYHEAD_SYMBOL,
 };
 use pax_manifest::{
-    ExpressionInfo, LiteralBlockDefinition, PaxIdentifier, SettingElement, SettingsBlockElement,
+    ExpressionInfo, GradientDefinition, GradientElement, GradientShapeDefinition,
+    LiteralBlockDefinition, PaxIdentifier, SettingElement, SettingsBlockElement,
     TemplateNodeDefinition, TimelineKeyframe, TimelineMarker, TimelineTrackDefinition,
     TimelineTrackElement, TransitionDefinition, TypeId, ValueDefinition,
 };
@@ -102,6 +103,7 @@ fn setting_value_can_define_property(value: &ValueDefinition) -> bool {
         ValueDefinition::LiteralValue(_)
             | ValueDefinition::Block(_)
             | ValueDefinition::Timeline(_)
+            | ValueDefinition::Gradient(_)
             | ValueDefinition::Transition(_)
             | ValueDefinition::Expression(_)
             | ValueDefinition::Identifier(_)
@@ -1875,6 +1877,31 @@ where
                 name,
             )
         }
+        pax_manifest::ValueDefinition::Gradient(_) => {
+            let mut dependents = Vec::new();
+            collect_value_definition_dependencies(value_definition, stack, &mut dependents);
+            let value_definition = value_definition.clone();
+            let property_name = name.to_string();
+            Property::computed_with_name(
+                move || {
+                    evaluate_value_definition_to_pax_value(&value_definition, &cloned_stack)
+                        .and_then(|new_value| {
+                            Option::<T>::try_coerce(new_value)
+                                .map_err(|err| {
+                                    log::warn!(
+                                        "Failed to coerce new value for property {property_name}. Error: {:?}",
+                                        err
+                                    );
+                                    err
+                                })
+                                .ok()
+                        })
+                        .unwrap_or_default()
+                },
+                &dependents,
+                name,
+            )
+        }
         pax_manifest::ValueDefinition::Identifier(ident) => {
             if let Some(variable) = stack.resolve_symbol_as_variable(&ident.name) {
                 let property_name = name.to_string();
@@ -2112,6 +2139,7 @@ where
         }
         ValueDefinition::LiteralValue(_)
         | ValueDefinition::Block(_)
+        | ValueDefinition::Gradient(_)
         | ValueDefinition::Expression(_)
         | ValueDefinition::Identifier(_)
         | ValueDefinition::DoubleBinding(_) => {
@@ -2224,6 +2252,28 @@ fn collect_value_definition_dependencies(
                 }
             }
         }
+        ValueDefinition::Gradient(gradient) => {
+            match &gradient.shape {
+                GradientShapeDefinition::Linear { start, end } => {
+                    if let Some(start) = start {
+                        collect_value_definition_dependencies(start, stack, dependents);
+                    }
+                    if let Some(end) = end {
+                        collect_value_definition_dependencies(end, stack, dependents);
+                    }
+                }
+                GradientShapeDefinition::Radial { start, end, radius } => {
+                    collect_value_definition_dependencies(start, stack, dependents);
+                    collect_value_definition_dependencies(end, stack, dependents);
+                    collect_value_definition_dependencies(radius, stack, dependents);
+                }
+            }
+            for element in &gradient.elements {
+                if let GradientElement::Stop(stop) = element {
+                    collect_value_definition_dependencies(&stop.color, stack, dependents);
+                }
+            }
+        }
         ValueDefinition::Timeline(track) => {
             if let Some(playhead) = &track.playhead {
                 collect_value_definition_dependencies(playhead, stack, dependents);
@@ -2302,6 +2352,73 @@ fn evaluate_literal_block_to_pax_value(
     Some(PaxValue::Object(values))
 }
 
+fn gradient_default_start() -> PaxValue {
+    PaxValue::Vec(vec![
+        PaxValue::Size(Size::Percent(Numeric::F64(0.0))),
+        PaxValue::Size(Size::Percent(Numeric::F64(0.0))),
+    ])
+}
+
+fn gradient_default_end() -> PaxValue {
+    PaxValue::Vec(vec![
+        PaxValue::Size(Size::Percent(Numeric::F64(100.0))),
+        PaxValue::Size(Size::Percent(Numeric::F64(0.0))),
+    ])
+}
+
+fn evaluate_gradient_to_pax_value(
+    gradient: &GradientDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+) -> Option<PaxValue> {
+    let stops = gradient
+        .elements
+        .iter()
+        .filter_map(|element| match element {
+            GradientElement::Stop(stop) => {
+                let color = evaluate_value_definition_to_pax_value(&stop.color, stack)?;
+                Some(PaxValue::Enum(Box::new((
+                    "GradientStop".to_string(),
+                    "get".to_string(),
+                    vec![color, PaxValue::Size(stop.position.clone())],
+                ))))
+            }
+            GradientElement::Comment(_) => None,
+        })
+        .collect::<Vec<_>>();
+
+    if stops.len() < 2 {
+        log::warn!("@gradient requires at least two stops");
+        return None;
+    }
+
+    let stops = PaxValue::Vec(stops);
+    let (variant, args) = match &gradient.shape {
+        GradientShapeDefinition::Linear { start, end } => {
+            let start = start
+                .as_ref()
+                .and_then(|value| evaluate_value_definition_to_pax_value(value, stack))
+                .unwrap_or_else(gradient_default_start);
+            let end = end
+                .as_ref()
+                .and_then(|value| evaluate_value_definition_to_pax_value(value, stack))
+                .unwrap_or_else(gradient_default_end);
+            ("linearGradient", vec![start, end, stops])
+        }
+        GradientShapeDefinition::Radial { start, end, radius } => {
+            let start = evaluate_value_definition_to_pax_value(start, stack)?;
+            let end = evaluate_value_definition_to_pax_value(end, stack)?;
+            let radius = evaluate_value_definition_to_pax_value(radius, stack)?;
+            ("radialGradient", vec![start, end, stops, radius])
+        }
+    };
+
+    Some(PaxValue::Enum(Box::new((
+        "Fill".to_string(),
+        variant.to_string(),
+        args,
+    ))))
+}
+
 fn resolve_literal_value(value: PaxValue) -> PaxValue {
     match value {
         PaxValue::Enum(contents) => {
@@ -2348,6 +2465,7 @@ fn evaluate_value_definition_to_pax_value(
     match value_definition {
         ValueDefinition::LiteralValue(value) => Some(resolve_literal_value(value.clone())),
         ValueDefinition::Block(block) => evaluate_literal_block_to_pax_value(block, stack),
+        ValueDefinition::Gradient(gradient) => evaluate_gradient_to_pax_value(gradient, stack),
         ValueDefinition::Expression(info) => info.expression.compute(stack.clone()).ok(),
         ValueDefinition::Identifier(identifier) | ValueDefinition::DoubleBinding(identifier) => {
             stack
@@ -3039,6 +3157,32 @@ where
                 name,
             )
         }
+        ValueDefinition::Gradient(_) => {
+            let mut dependents = Vec::new();
+            collect_value_definition_dependencies(value_definition, stack, &mut dependents);
+            let value_definition = value_definition.clone();
+            let cloned_stack = stack.clone();
+            let property_name = name.to_string();
+            Property::computed_with_name(
+                move || {
+                    evaluate_value_definition_to_pax_value(&value_definition, &cloned_stack)
+                        .and_then(|new_value| {
+                            T::try_coerce(new_value)
+                                .map_err(|err| {
+                                    log::warn!(
+                                        "Failed to coerce new value for property {property_name}. Error: {:?}",
+                                        err
+                                    );
+                                    err
+                                })
+                                .ok()
+                        })
+                        .unwrap_or_default()
+                },
+                &dependents,
+                name,
+            )
+        }
         ValueDefinition::Timeline(track) => {
             let track = timeline_track_with_base_starting_value(track);
             build_timeline_property(name, &track, timeline_stack)
@@ -3064,13 +3208,18 @@ pub fn apply_component_property<T>(
 ) where
     T: CoercionRules + PropertyValue + ToPaxValue,
 {
-    property.replace_with(build_component_property(
+    let resolved_property = build_component_property(
         name,
         value_definition,
         stack,
         timeline_stack,
         build_block,
-    ));
+    );
+    if matches!(value_definition, ValueDefinition::DoubleBinding(_)) {
+        *property = resolved_property;
+    } else {
+        property.replace_with(resolved_property);
+    }
 }
 
 #[cfg(test)]
@@ -3086,10 +3235,13 @@ mod timeline_tests {
         TRANSITION_PLAYHEAD_SYMBOL,
     };
     use pax_manifest::{
-        ExpressionInfo, PaxIdentifier, TimelineKeyframe, TimelineMarker, TimelineTrackDefinition,
-        TimelineTrackElement, Token, TransitionDefinition, ValueDefinition,
+        ExpressionInfo, GradientDefinition, GradientElement, GradientShapeDefinition,
+        GradientStopDefinition, PaxIdentifier, TimelineKeyframe, TimelineMarker,
+        TimelineTrackDefinition, TimelineTrackElement, Token, TransitionDefinition,
+        ValueDefinition,
     };
-    use pax_runtime_api::{PaxValue, Property, Variable};
+    use pax_runtime_api::pax_value::CoercionRules;
+    use pax_runtime_api::{Color, Fill, Numeric, PaxValue, Property, Size, Variable};
     use std::collections::HashMap;
     use std::rc::Rc;
     use std::sync::Arc;
@@ -3150,6 +3302,40 @@ mod timeline_tests {
                 PaxValue::Numeric(7.0.into()),
             )]))
         );
+    }
+
+    #[test]
+    fn gradient_values_evaluate_to_default_linear_fill() {
+        let elapsed_frames = Property::new(0_u64);
+        let stack = build_stack(&elapsed_frames);
+        let gradient = ValueDefinition::Gradient(GradientDefinition {
+            shape: GradientShapeDefinition::default(),
+            elements: vec![
+                GradientElement::Stop(GradientStopDefinition {
+                    position: Size::Percent(Numeric::F64(0.0)),
+                    color: ValueDefinition::LiteralValue(PaxValue::Color(Box::new(Color::RED))),
+                }),
+                GradientElement::Stop(GradientStopDefinition {
+                    position: Size::Percent(Numeric::F64(100.0)),
+                    color: ValueDefinition::LiteralValue(PaxValue::Color(Box::new(Color::BLUE))),
+                }),
+            ],
+        });
+
+        let value = evaluate_value_definition_to_pax_value(&gradient, &stack)
+            .expect("gradient should evaluate");
+        let fill = Fill::try_coerce(value).expect("gradient should coerce to Fill");
+        let Fill::LinearGradient(linear) = fill else {
+            panic!("expected linear gradient fill");
+        };
+
+        assert!((linear.start.0.expect_percent() - 0.0).abs() < 0.0001);
+        assert!((linear.start.1.expect_percent() - 0.0).abs() < 0.0001);
+        assert!((linear.end.0.expect_percent() - 1.0).abs() < 0.0001);
+        assert!((linear.end.1.expect_percent() - 0.0).abs() < 0.0001);
+        assert_eq!(linear.stops.len(), 2);
+        assert_eq!(linear.stops[0].color, Color::RED);
+        assert_eq!(linear.stops[1].color, Color::BLUE);
     }
 
     #[test]

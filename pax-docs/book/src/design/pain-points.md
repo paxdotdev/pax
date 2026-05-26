@@ -38,3 +38,70 @@ Solved by switching chassis validation to a single-root example such as
 Recommendations: document preferred single-root smoke-test examples for chassis
 work, or add a dedicated minimal iOS/macOS validation example that avoids
 cross-example Pax dependencies.
+
+While converting `neon-opacity` gradients to `@gradient`, elements following
+`opacity=1` rendered with default slate fills. The parser had interpreted the
+newline-separated `f` in the next `fill` attribute as the frame unit, producing
+`opacity=1f` and a bogus `ill` setting.
+
+Solved by making number+unit literals grammar-atomic so units must be adjacent:
+`10px`, `50%`, and `(expr)px` are valid; `10 px` is rejected.
+
+Recommendations: keep unit suffixes whitespace-free in docs and examples, and
+add parser regressions whenever a grammar shorthand can consume the first
+character of a neighboring attribute.
+
+## 2026-05-25
+
+The `color-picker` 2D saturation/lightness field was authored as generated
+`ImageSource::Data` pixels, which made hue reactivity harder to reason about
+while testing gradient syntax. The same HSL-style field can be represented more
+directly as two orthogonal gradient fills: a horizontal gray-to-selected-hue
+gradient under a vertical white-to-transparent-to-black gradient.
+
+Solved by replacing the generated palette image with two `@gradient` rectangles
+and driving the hue stop from a computed `Color` property.
+
+While validating this on the iPad simulator, percentage stops rendered too early
+because the GPU shader compared device-pixel-scaled coordinates against
+unscaled stop distances. On a 2x DPR screen, the 100% stop landed halfway across
+the fill. The symptom looked like broken stop alpha, but the manifest and
+runtime color data were correct.
+
+The same example also exposed native iOS slider jitter: the Swift view applied
+the last runtime value on every render pass while the user was tracking the
+thumb, so the control could fight an in-progress drag. A follow-up release
+drift bug showed that UIKit can also produce a final value mutation after the
+drag stream has visually settled. The bridge now avoids runtime value writes
+during active tracking, samples user ground truth from the `UISlider` tracking
+lifecycle, restores the last drag sample if release mutates it, and keeps the
+local Swift element value in sync with the value sent to Rust. The engine also
+avoids echoing native-origin slider value changes straight back to the same
+native control; only app-origin value changes should produce authoritative
+value patches.
+
+The slider also exposed a runtime binding trap: `bind:` parsed correctly as
+`DoubleBinding`, but generated property descriptor code applied it through
+`Property::replace_with`. That copied the bound property's current value into
+the child property instead of preserving the source property handle, so native
+slider interrupts updated only the slider-local `value`. Unconditional final
+`DoubleBinding` settings now assign the property handle directly.
+
+The macOS color picker exposed a separate native-overlay tangent: the app
+template only emitted `Click` interrupts from a SwiftUI gesture, while the
+palette was authored with `@mouse_down`, `@mouse_move`, and `@mouse_up`.
+Native-overlay containers also need to pass through empty hit-test regions so
+canvas events can reach the vector event layer below. The macOS template now
+dispatches pointer events from the canvas `NSView`, and the shared Apple bridge
+routes `MouseDown` / `MouseMove` / `MouseUp`.
+
+Recommendations: prefer vector gradients over generated image buffers when a
+visual is naturally expressible as fills; it keeps reactivity in the normal
+property graph and gives gradient syntax examples more realistic coverage. When
+debugging gradient alpha, check the renderer's coordinate space before assuming
+parse or manifest loss. Native form controls should not overwrite active user
+tracking state from stale runtime values. For form controls, verify that
+`bind:` preserves property identity, not only initial value mirroring. When a
+target supports both canvas and native controls, verify event parity for
+`Click`, mouse down/move/up, wheel, and touch rather than assuming a click-only
+smoke test covers drag-oriented widgets.

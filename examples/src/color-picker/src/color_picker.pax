@@ -76,11 +76,32 @@
             fill=TRANSPARENT
             stroke={color: WHITE, width: 2px}
         />
-        <Image
+        <Rectangle
             width=300px
             height=300px
-            source={ImageSource::Data(64, 64, self.saturation_and_lightness_image_data)}
-            fit=ImageFit::Fill
+            fill=@gradient {
+                linear: {
+                    start: (50%, 0%)
+                    end: (50%, 100%)
+                }
+
+                0%: WHITE
+                50%: rgba(128, 128, 128, 0)
+                100%: BLACK
+            }
+        />
+        <Rectangle
+            width=300px
+            height=300px
+            fill=@gradient {
+                linear: {
+                    start: (0%, 50%)
+                    end: (100%, 50%)
+                }
+
+                0%: rgba(128, 128, 128, 255)
+                100%: {self.hue_color}
+            }
         />
     </Group>
     <Rectangle fill=BLACK/>

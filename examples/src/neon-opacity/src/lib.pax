@@ -42,14 +42,15 @@
                 height=94px
                 anchor=50%
                 opacity=1
-                fill={Fill::linearGradient(
-                    (0%, 0%),
-                    (100%, 100%),
-                    [
-                        GradientStop::get(Color::rgba(255, 188, 88, 255), 0%),
-                        GradientStop::get(Color::rgba(255, 132, 86, 255), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: (0%, 0%)
+                        end: (100%, 100%)
+                    }
+
+                    0%: rgba(255, 188, 88, 255)
+                    100%: rgba(255, 132, 86, 255)
+                }
             />
             <Ellipse
                 x=366px
@@ -58,14 +59,15 @@
                 height=58px
                 anchor=50%
                 opacity=1
-                fill={Fill::linearGradient(
-                    (0%, 0%),
-                    (100%, 100%),
-                    [
-                        GradientStop::get(Color::rgba(92, 245, 255, 255), 0%),
-                        GradientStop::get(Color::rgba(110, 115, 255, 255), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: (0%, 0%)
+                        end: (100%, 100%)
+                    }
+
+                    0%: rgba(92, 245, 255, 255)
+                    100%: rgba(110, 115, 255, 255)
+                }
             />
             <Rectangle
                 x=286px
@@ -75,51 +77,55 @@
                 rotate=22deg
                 opacity=1
                 class=beam_capsule
-                fill={Fill::linearGradient(
-                    (0%, 50%),
-                    (100%, 50%),
-                    [
-                        GradientStop::get(Color::rgba(255, 255, 255, 0), 0%),
-                        GradientStop::get(Color::rgba(255, 244, 255, 255), 48%),
-                        GradientStop::get(Color::rgba(255, 255, 255, 0), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: (0%, 50%)
+                        end: (100%, 50%)
+                    }
+
+                    0%: rgba(255, 255, 255, 0)
+                    48%: rgba(255, 244, 255, 255)
+                    100%: rgba(255, 255, 255, 0)
+                }
             />
         </Group>
         <Rectangle
             class=mini_glaze
-            fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(90, 244, 255, 36), 0%),
-                    GradientStop::get(Color::rgba(255, 108, 224, 48), 48%),
-                    GradientStop::get(Color::rgba(9, 16, 42, 0), 100%)
-                ]
-            )}
+            fill=@gradient {
+                linear: {
+                    start: (0%, 0%)
+                    end: (100%, 100%)
+                }
+
+                0%: rgba(90, 244, 255, 36)
+                48%: rgba(255, 108, 224, 48)
+                100%: rgba(9, 16, 42, 0)
+            }
         />
         <Rectangle
             class=mini_skin
-            fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(18, 22, 58, 236), 0%),
-                    GradientStop::get(Color::rgba(29, 16, 69, 232), 54%),
-                    GradientStop::get(Color::rgba(10, 18, 42, 236), 100%)
-                ]
-            )}
+            fill=@gradient {
+                linear: {
+                    start: (0%, 0%)
+                    end: (100%, 100%)
+                }
+
+                0%: rgba(18, 22, 58, 236)
+                54%: rgba(29, 16, 69, 232)
+                100%: rgba(10, 18, 42, 236)
+            }
         />
         <Rectangle
             class=mini_shadow
-            fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(1, 4, 15, 152), 0%),
-                    GradientStop::get(Color::rgba(9, 8, 24, 118), 100%)
-                ]
-            )}
+            fill=@gradient {
+                linear: {
+                    start: (0%, 0%)
+                    end: (100%, 100%)
+                }
+
+                0%: rgba(1, 4, 15, 152)
+                100%: rgba(9, 8, 24, 118)
+            }
         />
     </Group>
 
@@ -149,14 +155,15 @@
                     height=40px
                     anchor=50%
                     opacity=1
-                    fill={Fill::linearGradient(
-                        (0%, 0%),
-                        (100%, 100%),
-                        [
-                            GradientStop::get(Color::rgba(255, 182, 84, 255), 0%),
-                            GradientStop::get(Color::rgba(255, 124, 76, 255), 100%)
-                        ]
-                    )}
+                    fill=@gradient {
+                        linear: {
+                            start: (0%, 0%)
+                            end: (100%, 100%)
+                        }
+
+                        0%: rgba(255, 182, 84, 255)
+                        100%: rgba(255, 124, 76, 255)
+                    }
                 />
                 <Ellipse
                     x=40px
@@ -165,14 +172,15 @@
                     height=30px
                     anchor=50%
                     opacity=1
-                    fill={Fill::linearGradient(
-                        (0%, 0%),
-                        (100%, 100%),
-                        [
-                            GradientStop::get(Color::rgba(88, 243, 255, 255), 0%),
-                            GradientStop::get(Color::rgba(111, 122, 255, 255), 100%)
-                        ]
-                    )}
+                    fill=@gradient {
+                        linear: {
+                            start: (0%, 0%)
+                            end: (100%, 100%)
+                        }
+
+                        0%: rgba(88, 243, 255, 255)
+                        100%: rgba(111, 122, 255, 255)
+                    }
                 />
                 <Rectangle
                     x=18px
@@ -182,15 +190,16 @@
                     rotate=28deg
                     class=beam_capsule
                     opacity=1
-                    fill={Fill::linearGradient(
-                        (0%, 50%),
-                        (100%, 50%),
-                        [
-                            GradientStop::get(Color::rgba(255, 255, 255, 0), 0%),
-                            GradientStop::get(Color::rgba(255, 244, 255, 255), 52%),
-                            GradientStop::get(Color::rgba(255, 255, 255, 0), 100%)
-                        ]
-                    )}
+                    fill=@gradient {
+                        linear: {
+                            start: (0%, 50%)
+                            end: (100%, 50%)
+                        }
+
+                        0%: rgba(255, 255, 255, 0)
+                        52%: rgba(255, 244, 255, 255)
+                        100%: rgba(255, 255, 255, 0)
+                    }
                 />
             </Group>
 
@@ -243,15 +252,16 @@
                 />
                 <Rectangle
                     class=control_surface
-                    fill={Fill::linearGradient(
-                        (0%, 0%),
-                        (100%, 100%),
-                        [
-                            GradientStop::get(Color::rgba(13, 19, 49, 246), 0%),
-                            GradientStop::get(Color::rgba(22, 14, 63, 236), 50%),
-                            GradientStop::get(Color::rgba(9, 18, 42, 242), 100%)
-                        ]
-                    )}
+                    fill=@gradient {
+                        linear: {
+                            start: (0%, 0%)
+                            end: (100%, 100%)
+                        }
+
+                        0%: rgba(13, 19, 49, 246)
+                        50%: rgba(22, 14, 63, 236)
+                        100%: rgba(9, 18, 42, 242)
+                    }
                 />
             </Group>
 
@@ -264,15 +274,16 @@
                     height=12px
                     class=beam_capsule
                     opacity=1
-                    fill={Fill::linearGradient(
-                        (0%, 50%),
-                        (100%, 50%),
-                        [
-                            GradientStop::get(Color::rgba(62, 228, 255, 0), 0%),
-                            GradientStop::get(Color::rgba(62, 228, 255, 196), 54%),
-                            GradientStop::get(Color::rgba(62, 228, 255, 0), 100%)
-                        ]
-                    )}
+                    fill=@gradient {
+                        linear: {
+                            start: (0%, 50%)
+                            end: (100%, 50%)
+                        }
+
+                        0%: rgba(62, 228, 255, 0)
+                        54%: rgba(62, 228, 255, 196)
+                        100%: rgba(62, 228, 255, 0)
+                    }
                 />
                 <Rectangle
                     x=14px
@@ -281,15 +292,16 @@
                     height=12px
                     class=beam_capsule
                     opacity=1
-                    fill={Fill::linearGradient(
-                        (0%, 50%),
-                        (100%, 50%),
-                        [
-                            GradientStop::get(Color::rgba(255, 96, 214, 0), 0%),
-                            GradientStop::get(Color::rgba(255, 96, 214, 210), 52%),
-                            GradientStop::get(Color::rgba(255, 96, 214, 0), 100%)
-                        ]
-                    )}
+                    fill=@gradient {
+                        linear: {
+                            start: (0%, 50%)
+                            end: (100%, 50%)
+                        }
+
+                        0%: rgba(255, 96, 214, 0)
+                        52%: rgba(255, 96, 214, 210)
+                        100%: rgba(255, 96, 214, 0)
+                    }
                 />
                 <Rectangle
                     x=34px
@@ -298,15 +310,16 @@
                     height=12px
                     class=beam_capsule
                     opacity=1
-                    fill={Fill::linearGradient(
-                        (0%, 50%),
-                        (100%, 50%),
-                        [
-                            GradientStop::get(Color::rgba(255, 186, 84, 0), 0%),
-                            GradientStop::get(Color::rgba(255, 186, 84, 224), 52%),
-                            GradientStop::get(Color::rgba(255, 186, 84, 0), 100%)
-                        ]
-                    )}
+                    fill=@gradient {
+                        linear: {
+                            start: (0%, 50%)
+                            end: (100%, 50%)
+                        }
+
+                        0%: rgba(255, 186, 84, 0)
+                        52%: rgba(255, 186, 84, 224)
+                        100%: rgba(255, 186, 84, 0)
+                    }
                 />
             </Group>
 
@@ -318,14 +331,15 @@
                 anchor=50%
                 rotate={(self.star_rotation * -0.3)deg}
                 opacity=1
-                fill={Fill::linearGradient(
-                    (0%, 0%),
-                    (100%, 100%),
-                    [
-                        GradientStop::get(Color::rgba(94, 241, 255, 210), 0%),
-                        GradientStop::get(Color::rgba(255, 104, 224, 90), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: (0%, 0%)
+                        end: (100%, 100%)
+                    }
+
+                    0%: rgba(94, 241, 255, 210)
+                    100%: rgba(255, 104, 224, 90)
+                }
                 elements=[
                     PathElement::Point(50%, 0%),
                     PathElement::Line,
@@ -340,38 +354,41 @@
         </Group>
         <Rectangle
             class=panel_glaze
-            fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(96, 242, 255, 34), 0%),
-                    GradientStop::get(Color::rgba(255, 102, 224, 54), 46%),
-                    GradientStop::get(Color::rgba(10, 18, 42, 0), 100%)
-                ]
-            )}
+            fill=@gradient {
+                linear: {
+                    start: (0%, 0%)
+                    end: (100%, 100%)
+                }
+
+                0%: rgba(96, 242, 255, 34)
+                46%: rgba(255, 102, 224, 54)
+                100%: rgba(10, 18, 42, 0)
+            }
         />
         <Rectangle
             class=panel_skin
-            fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(20, 24, 61, 236), 0%),
-                    GradientStop::get(Color::rgba(30, 16, 73, 228), 52%),
-                    GradientStop::get(Color::rgba(12, 22, 46, 236), 100%)
-                ]
-            )}
+            fill=@gradient {
+                linear: {
+                    start: (0%, 0%)
+                    end: (100%, 100%)
+                }
+
+                0%: rgba(20, 24, 61, 236)
+                52%: rgba(30, 16, 73, 228)
+                100%: rgba(12, 22, 46, 236)
+            }
         />
         <Rectangle
             class=panel_shadow
-            fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(1, 4, 14, 150), 0%),
-                    GradientStop::get(Color::rgba(10, 8, 26, 120), 100%)
-                ]
-            )}
+            fill=@gradient {
+                linear: {
+                    start: (0%, 0%)
+                    end: (100%, 100%)
+                }
+
+                0%: rgba(1, 4, 14, 150)
+                100%: rgba(10, 8, 26, 120)
+            }
         />
     </Group>
 
@@ -412,15 +429,16 @@
                         rotate=-6deg
                         class=beam_capsule
                         opacity=1
-                        fill={Fill::linearGradient(
-                            (0%, 50%),
-                            (100%, 50%),
-                            [
-                                GradientStop::get(Color::rgba(255, 98, 214, 0), 0%),
-                                GradientStop::get(Color::rgba(255, 98, 214, 214), 50%),
-                                GradientStop::get(Color::rgba(255, 98, 214, 0), 100%)
-                            ]
-                        )}
+                        fill=@gradient {
+                            linear: {
+                                start: (0%, 50%)
+                                end: (100%, 50%)
+                            }
+
+                            0%: rgba(255, 98, 214, 0)
+                            50%: rgba(255, 98, 214, 214)
+                            100%: rgba(255, 98, 214, 0)
+                        }
                     />
                     <Checkbox
                         class=checkbox_neon
@@ -451,14 +469,15 @@
                             height=48px
                             anchor=50%
                             opacity=1
-                            fill={Fill::linearGradient(
-                                (0%, 0%),
-                                (100%, 100%),
-                                [
-                                    GradientStop::get(Color::rgba(96, 242, 255, 180), 0%),
-                                    GradientStop::get(Color::rgba(96, 242, 255, 40), 100%)
-                                ]
-                            )}
+                            fill=@gradient {
+                                linear: {
+                                    start: (0%, 0%)
+                                    end: (100%, 100%)
+                                }
+
+                                0%: rgba(96, 242, 255, 180)
+                                100%: rgba(96, 242, 255, 40)
+                            }
                         />
                         <Ellipse
                             x=38px
@@ -467,14 +486,15 @@
                             height=34px
                             anchor=50%
                             opacity=1
-                            fill={Fill::linearGradient(
-                                (0%, 0%),
-                                (100%, 100%),
-                                [
-                                    GradientStop::get(Color::rgba(255, 104, 224, 210), 0%),
-                                    GradientStop::get(Color::rgba(255, 104, 224, 36), 100%)
-                                ]
-                            )}
+                            fill=@gradient {
+                                linear: {
+                                    start: (0%, 0%)
+                                    end: (100%, 100%)
+                                }
+
+                                0%: rgba(255, 104, 224, 210)
+                                100%: rgba(255, 104, 224, 36)
+                            }
                         />
                         <Ellipse
                             x=40px
@@ -483,14 +503,15 @@
                             height=22px
                             anchor=50%
                             opacity=1
-                            fill={Fill::linearGradient(
-                                (0%, 0%),
-                                (100%, 100%),
-                                [
-                                    GradientStop::get(Color::rgba(255, 184, 88, 210), 0%),
-                                    GradientStop::get(Color::rgba(255, 184, 88, 24), 100%)
-                                ]
-                            )}
+                            fill=@gradient {
+                                linear: {
+                                    start: (0%, 0%)
+                                    end: (100%, 100%)
+                                }
+
+                                0%: rgba(255, 184, 88, 210)
+                                100%: rgba(255, 184, 88, 24)
+                            }
                         />
                     </Group>
                     <Path
@@ -501,14 +522,15 @@
                         anchor=50%
                         rotate={(self.star_rotation * -0.6)deg}
                         opacity=1
-                        fill={Fill::linearGradient(
-                            (0%, 0%),
-                            (100%, 100%),
-                            [
-                                GradientStop::get(Color::rgba(96, 242, 255, 160), 0%),
-                                GradientStop::get(Color::rgba(255, 104, 224, 68), 100%)
-                            ]
-                        )}
+                        fill=@gradient {
+                            linear: {
+                                start: (0%, 0%)
+                                end: (100%, 100%)
+                            }
+
+                            0%: rgba(96, 242, 255, 160)
+                            100%: rgba(255, 104, 224, 68)
+                        }
                         elements=[
                             PathElement::Point(50%, 0%),
                             PathElement::Line,
@@ -531,38 +553,41 @@
                 </Group>
                 <Rectangle
                     class=orchid_glaze
-                    fill={Fill::linearGradient(
-                        (0%, 0%),
-                        (100%, 100%),
-                        [
-                            GradientStop::get(Color::rgba(96, 242, 255, 28), 0%),
-                            GradientStop::get(Color::rgba(255, 100, 224, 58), 52%),
-                            GradientStop::get(Color::rgba(14, 22, 44, 0), 100%)
-                        ]
-                    )}
+                    fill=@gradient {
+                        linear: {
+                            start: (0%, 0%)
+                            end: (100%, 100%)
+                        }
+
+                        0%: rgba(96, 242, 255, 28)
+                        52%: rgba(255, 100, 224, 58)
+                        100%: rgba(14, 22, 44, 0)
+                    }
                 />
                 <Rectangle
                     class=orchid_skin
-                    fill={Fill::linearGradient(
-                        (0%, 0%),
-                        (100%, 100%),
-                        [
-                            GradientStop::get(Color::rgba(24, 17, 64, 236), 0%),
-                            GradientStop::get(Color::rgba(43, 21, 82, 226), 54%),
-                            GradientStop::get(Color::rgba(15, 20, 54, 236), 100%)
-                        ]
-                    )}
+                    fill=@gradient {
+                        linear: {
+                            start: (0%, 0%)
+                            end: (100%, 100%)
+                        }
+
+                        0%: rgba(24, 17, 64, 236)
+                        54%: rgba(43, 21, 82, 226)
+                        100%: rgba(15, 20, 54, 236)
+                    }
                 />
                 <Rectangle
                     class=orchid_shadow
-                    fill={Fill::linearGradient(
-                        (0%, 0%),
-                        (100%, 100%),
-                        [
-                            GradientStop::get(Color::rgba(1, 4, 15, 156), 0%),
-                            GradientStop::get(Color::rgba(12, 8, 30, 120), 100%)
-                        ]
-                    )}
+                    fill=@gradient {
+                        linear: {
+                            start: (0%, 0%)
+                            end: (100%, 100%)
+                        }
+
+                        0%: rgba(1, 4, 15, 156)
+                        100%: rgba(12, 8, 30, 120)
+                    }
                 />
                 <Ellipse
                     x={(self.iris_x)px}
@@ -570,14 +595,15 @@
                     width={(self.iris_size)px}
                     height={(self.iris_size)px}
                     anchor=50%
-                    fill={Fill::linearGradient(
-                        (0%, 0%),
-                        (100%, 100%),
-                        [
-                            GradientStop::get(Color::rgba(96, 242, 255, 48), 0%),
-                            GradientStop::get(Color::rgba(255, 100, 224, 14), 100%)
-                        ]
-                    )}
+                    fill=@gradient {
+                        linear: {
+                            start: (0%, 0%)
+                            end: (100%, 100%)
+                        }
+
+                        0%: rgba(96, 242, 255, 48)
+                        100%: rgba(255, 100, 224, 14)
+                    }
                     opacity=0.42
                 />
             </Group>
@@ -634,26 +660,28 @@
         />
         <Rectangle
             class=footer_skin
-            fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(21, 20, 56, 226), 0%),
-                    GradientStop::get(Color::rgba(44, 25, 87, 214), 48%),
-                    GradientStop::get(Color::rgba(16, 22, 50, 226), 100%)
-                ]
-            )}
+            fill=@gradient {
+                linear: {
+                    start: (0%, 0%)
+                    end: (100%, 100%)
+                }
+
+                0%: rgba(21, 20, 56, 226)
+                48%: rgba(44, 25, 87, 214)
+                100%: rgba(16, 22, 50, 226)
+            }
         />
         <Rectangle
             class=footer_shadow
-            fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(2, 5, 18, 132), 0%),
-                    GradientStop::get(Color::rgba(10, 8, 28, 100), 100%)
-                ]
-            )}
+            fill=@gradient {
+                linear: {
+                    start: (0%, 0%)
+                    end: (100%, 100%)
+                }
+
+                0%: rgba(2, 5, 18, 132)
+                100%: rgba(10, 8, 28, 100)
+            }
         />
     </Group>
 
@@ -673,15 +701,16 @@
                 height=18px
                 class=beam_capsule
                 opacity=1
-                fill={Fill::linearGradient(
-                    (0%, 50%),
-                    (100%, 50%),
-                    [
-                        GradientStop::get(Color::rgba(96, 242, 255, 0), 0%),
-                        GradientStop::get(Color::rgba(96, 242, 255, 182), 48%),
-                        GradientStop::get(Color::rgba(96, 242, 255, 0), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: (0%, 50%)
+                        end: (100%, 50%)
+                    }
+
+                    0%: rgba(96, 242, 255, 0)
+                    48%: rgba(96, 242, 255, 182)
+                    100%: rgba(96, 242, 255, 0)
+                }
             />
             <Rectangle
                 x=20px
@@ -690,15 +719,16 @@
                 height=18px
                 class=beam_capsule
                 opacity=1
-                fill={Fill::linearGradient(
-                    (0%, 50%),
-                    (100%, 50%),
-                    [
-                        GradientStop::get(Color::rgba(255, 100, 224, 0), 0%),
-                        GradientStop::get(Color::rgba(255, 100, 224, 198), 48%),
-                        GradientStop::get(Color::rgba(255, 100, 224, 0), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: (0%, 50%)
+                        end: (100%, 50%)
+                    }
+
+                    0%: rgba(255, 100, 224, 0)
+                    48%: rgba(255, 100, 224, 198)
+                    100%: rgba(255, 100, 224, 0)
+                }
             />
             <Rectangle
                 x=58px
@@ -707,15 +737,16 @@
                 height=18px
                 class=beam_capsule
                 opacity=1
-                fill={Fill::linearGradient(
-                    (0%, 50%),
-                    (100%, 50%),
-                    [
-                        GradientStop::get(Color::rgba(255, 186, 88, 0), 0%),
-                        GradientStop::get(Color::rgba(255, 186, 88, 210), 48%),
-                        GradientStop::get(Color::rgba(255, 186, 88, 0), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: (0%, 50%)
+                        end: (100%, 50%)
+                    }
+
+                    0%: rgba(255, 186, 88, 0)
+                    48%: rgba(255, 186, 88, 210)
+                    100%: rgba(255, 186, 88, 0)
+                }
             />
         </Group>
     </Group>
@@ -736,15 +767,16 @@
                 height=24px
                 class=beam_capsule
                 opacity=1
-                fill={Fill::linearGradient(
-                    (0%, 50%),
-                    (100%, 50%),
-                    [
-                        GradientStop::get(Color::rgba(255, 255, 255, 0), 0%),
-                        GradientStop::get(Color::rgba(176, 248, 255, 174), 44%),
-                        GradientStop::get(Color::rgba(255, 255, 255, 0), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: (0%, 50%)
+                        end: (100%, 50%)
+                    }
+
+                    0%: rgba(255, 255, 255, 0)
+                    44%: rgba(176, 248, 255, 174)
+                    100%: rgba(255, 255, 255, 0)
+                }
             />
             <Rectangle
                 x=18px
@@ -753,15 +785,16 @@
                 height=20px
                 class=beam_capsule
                 opacity=1
-                fill={Fill::linearGradient(
-                    (0%, 50%),
-                    (100%, 50%),
-                    [
-                        GradientStop::get(Color::rgba(116, 142, 255, 0), 0%),
-                        GradientStop::get(Color::rgba(116, 142, 255, 156), 48%),
-                        GradientStop::get(Color::rgba(116, 142, 255, 0), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: (0%, 50%)
+                        end: (100%, 50%)
+                    }
+
+                    0%: rgba(116, 142, 255, 0)
+                    48%: rgba(116, 142, 255, 156)
+                    100%: rgba(116, 142, 255, 0)
+                }
             />
             <Ellipse
                 x=286px
@@ -770,14 +803,15 @@
                 height=84px
                 anchor=50%
                 opacity=1
-                fill={Fill::linearGradient(
-                    (0%, 0%),
-                    (100%, 100%),
-                    [
-                        GradientStop::get(Color::rgba(255, 104, 224, 160), 0%),
-                        GradientStop::get(Color::rgba(255, 104, 224, 20), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: (0%, 0%)
+                        end: (100%, 100%)
+                    }
+
+                    0%: rgba(255, 104, 224, 160)
+                    100%: rgba(255, 104, 224, 20)
+                }
             />
         </Group>
     </Group>
@@ -797,15 +831,16 @@
             anchor=50%
             rotate=-14deg
             class=beam_capsule
-            fill={Fill::linearGradient(
-                (0%, 50%),
-                (100%, 50%),
-                [
-                    GradientStop::get(Color::rgba(255, 255, 255, 0), 0%),
-                    GradientStop::get(Color::rgba(210, 249, 255, 146), 50%),
-                    GradientStop::get(Color::rgba(255, 255, 255, 0), 100%)
-                ]
-            )}
+            fill=@gradient {
+                linear: {
+                    start: (0%, 50%)
+                    end: (100%, 50%)
+                }
+
+                0%: rgba(255, 255, 255, 0)
+                50%: rgba(210, 249, 255, 146)
+                100%: rgba(255, 255, 255, 0)
+            }
         />
         <Rectangle
             x={(self.spotlight_x - 56.0)px}
@@ -816,15 +851,16 @@
             rotate=-15deg
             class=beam_capsule
             opacity=0.52
-            fill={Fill::linearGradient(
-                (0%, 50%),
-                (100%, 50%),
-                [
-                    GradientStop::get(Color::rgba(255, 108, 224, 0), 0%),
-                    GradientStop::get(Color::rgba(255, 108, 224, 124), 48%),
-                    GradientStop::get(Color::rgba(255, 108, 224, 0), 100%)
-                ]
-            )}
+            fill=@gradient {
+                linear: {
+                    start: (0%, 50%)
+                    end: (100%, 50%)
+                }
+
+                0%: rgba(255, 108, 224, 0)
+                48%: rgba(255, 108, 224, 124)
+                100%: rgba(255, 108, 224, 0)
+            }
         />
     </Group>
 
@@ -837,15 +873,16 @@
             anchor=50%
             rotate={(-18.0 + self.orbit_c * 14.0)deg}
             opacity=0.66
-            fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(255, 118, 226, 0), 0%),
-                    GradientStop::get(Color::rgba(255, 118, 226, 96), 44%),
-                    GradientStop::get(Color::rgba(24, 18, 62, 110), 100%)
-                ]
-            )}
+            fill=@gradient {
+                linear: {
+                    start: (0%, 0%)
+                    end: (100%, 100%)
+                }
+
+                0%: rgba(255, 118, 226, 0)
+                44%: rgba(255, 118, 226, 96)
+                100%: rgba(24, 18, 62, 110)
+            }
             elements=[
                 PathElement::Point(18%, 8%),
                 PathElement::Line,
@@ -873,15 +910,16 @@
             anchor=50%
             rotate={(12.0 + self.orbit_a * 16.0)deg}
             opacity=0.78
-            fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(88, 92, 255, 0), 0%),
-                    GradientStop::get(Color::rgba(96, 92, 255, 112), 42%),
-                    GradientStop::get(Color::rgba(255, 108, 224, 44), 100%)
-                ]
-            )}
+            fill=@gradient {
+                linear: {
+                    start: (0%, 0%)
+                    end: (100%, 100%)
+                }
+
+                0%: rgba(88, 92, 255, 0)
+                42%: rgba(96, 92, 255, 112)
+                100%: rgba(255, 108, 224, 44)
+            }
             elements=[
                 PathElement::Point(12%, 16%),
                 PathElement::Line,
@@ -909,15 +947,16 @@
             anchor=50%
             rotate={(8.0 + self.orbit_b * 10.0)deg}
             opacity=0.72
-            fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(40, 192, 218, 0), 0%),
-                    GradientStop::get(Color::rgba(40, 192, 218, 102), 48%),
-                    GradientStop::get(Color::rgba(96, 242, 255, 26), 100%)
-                ]
-            )}
+            fill=@gradient {
+                linear: {
+                    start: (0%, 0%)
+                    end: (100%, 100%)
+                }
+
+                0%: rgba(40, 192, 218, 0)
+                48%: rgba(40, 192, 218, 102)
+                100%: rgba(96, 242, 255, 26)
+            }
             elements=[
                 PathElement::Point(0%, 26%),
                 PathElement::Line,
@@ -951,15 +990,16 @@
                 height=250px
                 anchor=50%
                 opacity=0.46
-                fill={Fill::linearGradient(
-                    (0%, 0%),
-                    (100%, 100%),
-                    [
-                        GradientStop::get(Color::rgba(96, 242, 255, 18), 0%),
-                        GradientStop::get(Color::rgba(96, 242, 255, 118), 52%),
-                        GradientStop::get(Color::rgba(255, 104, 224, 34), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: (0%, 0%)
+                        end: (100%, 100%)
+                    }
+
+                    0%: rgba(96, 242, 255, 18)
+                    52%: rgba(96, 242, 255, 118)
+                    100%: rgba(255, 104, 224, 34)
+                }
                 elements=[
                     PathElement::Point(50%, 0%),
                     PathElement::Line,
@@ -978,15 +1018,16 @@
                 height=164px
                 anchor=50%
                 opacity=0.72
-                fill={Fill::linearGradient(
-                    (0%, 0%),
-                    (100%, 100%),
-                    [
-                        GradientStop::get(Color::rgba(18, 24, 58, 0), 0%),
-                        GradientStop::get(Color::rgba(18, 24, 58, 128), 36%),
-                        GradientStop::get(Color::rgba(255, 116, 226, 46), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: (0%, 0%)
+                        end: (100%, 100%)
+                    }
+
+                    0%: rgba(18, 24, 58, 0)
+                    36%: rgba(18, 24, 58, 128)
+                    100%: rgba(255, 116, 226, 46)
+                }
                 elements=[
                     PathElement::Point(50%, 0%),
                     PathElement::Line,
@@ -1007,15 +1048,16 @@
                 rotate=-26deg
                 class=beam_capsule
                 opacity=0.72
-                fill={Fill::linearGradient(
-                    (0%, 50%),
-                    (100%, 50%),
-                    [
-                        GradientStop::get(Color::rgba(255, 255, 255, 0), 0%),
-                        GradientStop::get(Color::rgba(255, 244, 255, 188), 48%),
-                        GradientStop::get(Color::rgba(255, 255, 255, 0), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: (0%, 50%)
+                        end: (100%, 50%)
+                    }
+
+                    0%: rgba(255, 255, 255, 0)
+                    48%: rgba(255, 244, 255, 188)
+                    100%: rgba(255, 255, 255, 0)
+                }
             />
             <Rectangle
                 x=170px
@@ -1026,15 +1068,16 @@
                 rotate=18deg
                 class=beam_capsule
                 opacity=0.58
-                fill={Fill::linearGradient(
-                    (0%, 50%),
-                    (100%, 50%),
-                    [
-                        GradientStop::get(Color::rgba(96, 242, 255, 0), 0%),
-                        GradientStop::get(Color::rgba(96, 242, 255, 154), 48%),
-                        GradientStop::get(Color::rgba(96, 242, 255, 0), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: (0%, 50%)
+                        end: (100%, 50%)
+                    }
+
+                    0%: rgba(96, 242, 255, 0)
+                    48%: rgba(96, 242, 255, 154)
+                    100%: rgba(96, 242, 255, 0)
+                }
             />
             <Rectangle
                 x=196px
@@ -1043,14 +1086,15 @@
                 height=92px
                 rotate=32deg
                 opacity=0.38
-                fill={Fill::linearGradient(
-                    (0%, 0%),
-                    (100%, 100%),
-                    [
-                        GradientStop::get(Color::rgba(88, 245, 255, 122), 0%),
-                        GradientStop::get(Color::rgba(88, 245, 255, 12), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: (0%, 0%)
+                        end: (100%, 100%)
+                    }
+
+                    0%: rgba(88, 245, 255, 122)
+                    100%: rgba(88, 245, 255, 12)
+                }
             />
         </Group>
         <Group
@@ -1070,15 +1114,16 @@
                 anchor=50%
                 class=beam_capsule
                 opacity=0.72
-                fill={Fill::linearGradient(
-                    (0%, 50%),
-                    (100%, 50%),
-                    [
-                        GradientStop::get(Color::rgba(96, 242, 255, 0), 0%),
-                        GradientStop::get(Color::rgba(96, 242, 255, 150), 50%),
-                        GradientStop::get(Color::rgba(96, 242, 255, 0), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: (0%, 50%)
+                        end: (100%, 50%)
+                    }
+
+                    0%: rgba(96, 242, 255, 0)
+                    50%: rgba(96, 242, 255, 150)
+                    100%: rgba(96, 242, 255, 0)
+                }
             />
             <Rectangle
                 x=50%
@@ -1088,15 +1133,16 @@
                 anchor=50%
                 class=beam_capsule
                 opacity=0.58
-                fill={Fill::linearGradient(
-                    (0%, 50%),
-                    (100%, 50%),
-                    [
-                        GradientStop::get(Color::rgba(255, 104, 224, 0), 0%),
-                        GradientStop::get(Color::rgba(255, 104, 224, 136), 50%),
-                        GradientStop::get(Color::rgba(255, 104, 224, 0), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: (0%, 50%)
+                        end: (100%, 50%)
+                    }
+
+                    0%: rgba(255, 104, 224, 0)
+                    50%: rgba(255, 104, 224, 136)
+                    100%: rgba(255, 104, 224, 0)
+                }
             />
             <Rectangle
                 x=58%
@@ -1106,15 +1152,16 @@
                 anchor=50%
                 rotate=4deg
                 opacity=0.16
-                fill={Fill::linearGradient(
-                    (0%, 0%),
-                    (100%, 100%),
-                    [
-                        GradientStop::get(Color::rgba(74, 68, 255, 0), 0%),
-                        GradientStop::get(Color::rgba(74, 68, 255, 136), 42%),
-                        GradientStop::get(Color::rgba(255, 108, 224, 38), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: (0%, 0%)
+                        end: (100%, 100%)
+                    }
+
+                    0%: rgba(74, 68, 255, 0)
+                    42%: rgba(74, 68, 255, 136)
+                    100%: rgba(255, 108, 224, 38)
+                }
                 class=beam_capsule
             />
         </Group>
@@ -1123,15 +1170,16 @@
     <Rectangle
         width=100%
         height=100%
-        fill={Fill::linearGradient(
-            (0%, 0%),
-            (0%, 100%),
-            [
-                GradientStop::get(Color::rgba(6, 9, 24, 255), 0%),
-                GradientStop::get(Color::rgba(9, 12, 32, 255), 38%),
-                GradientStop::get(Color::rgba(16, 18, 44, 255), 100%)
-            ]
-        )}
+        fill=@gradient {
+            linear: {
+                start: (0%, 0%)
+                end: (0%, 100%)
+            }
+
+            0%: rgba(6, 9, 24, 255)
+            38%: rgba(9, 12, 32, 255)
+            100%: rgba(16, 18, 44, 255)
+        }
     />
 </Group>
 

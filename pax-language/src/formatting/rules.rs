@@ -100,6 +100,13 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
             vec![Box::new(TimelineInlineValueDefaultRule)]
         }
         Rule::timeline_keyframe => vec![Box::new(TimelineKeyframeDefaultRule)],
+        Rule::gradient_inline_value => vec![Box::new(GradientInlineValueDefaultRule)],
+        Rule::gradient_body | Rule::gradient_shape_settings => {
+            vec![Box::new(TimelineObjectDefaultRule)]
+        }
+        Rule::gradient_shape_block => vec![Box::new(GradientShapeBlockDefaultRule)],
+        Rule::gradient_shape_setting => vec![Box::new(TimelineBlockSettingDefaultRule)],
+        Rule::gradient_stop => vec![Box::new(GradientStopDefaultRule)],
         Rule::literal_object | Rule::xo_object => vec![Box::new(ObjectDefaultRule)],
         Rule::settings_key_value_pair => vec![Box::new(SettingsKeyValuePairDefaultRule)],
         Rule::literal_function => vec![Box::new(LiteralFunctionDefaultRule)],
@@ -148,7 +155,10 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::settings_value => {
             vec![Box::new(WrapExpressionRule), Box::new(ForwardRule)]
         }
-        Rule::timeline_block_setting_value | Rule::timeline_keyframe_value => {
+        Rule::timeline_block_setting_value
+        | Rule::timeline_keyframe_value
+        | Rule::gradient_shape_setting_value
+        | Rule::gradient_stop_value => {
             vec![Box::new(WrapExpressionRule), Box::new(ForwardRule)]
         }
         Rule::root_tag_pair
@@ -166,8 +176,10 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::timeline_duration
         | Rule::timeline_duration_unit
         | Rule::timeline_easing_curve
+        | Rule::gradient_stop_marker
         | Rule::timeline_symbol
         | Rule::settings_key
+        | Rule::expression_grouped_unit
         | Rule::literal_number_with_unit
         | Rule::literal_number
         | Rule::literal_number_integer
@@ -187,6 +199,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::transition_id
         | Rule::statement_for_predicate_declaration
         | Rule::statement_for_source
+        | Rule::gradient_shape_key
         | Rule::comment
         | Rule::xo_neg
         | Rule::xo_bool_not
@@ -728,6 +741,39 @@ impl FormattingRule for TimelineKeyframeDefaultRule {
 }
 
 #[derive(Clone)]
+struct GradientInlineValueDefaultRule;
+
+impl FormattingRule for GradientInlineValueDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        format!("@gradient {}", children[0].formatted_node)
+    }
+}
+
+#[derive(Clone)]
+struct GradientShapeBlockDefaultRule;
+
+impl FormattingRule for GradientShapeBlockDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        format!(
+            "{}: {},",
+            children[0].formatted_node, children[1].formatted_node
+        )
+    }
+}
+
+#[derive(Clone)]
+struct GradientStopDefaultRule;
+
+impl FormattingRule for GradientStopDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        format!(
+            "{}: {},",
+            children[0].formatted_node, children[1].formatted_node
+        )
+    }
+}
+
+#[derive(Clone)]
 struct ListMultiLineRule;
 
 impl FormattingRule for ListMultiLineRule {
@@ -991,11 +1037,11 @@ struct ExpressionGroupedDefaultRule;
 impl FormattingRule for ExpressionGroupedDefaultRule {
     fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
         let mut formatted_node = String::new();
-        let literal_number_unit = if let Some(unit) = children
-            .iter()
-            .find(|child| child.node_type == Rule::literal_number_unit)
-        {
-            unit.formatted_node.clone()
+        let literal_number_unit = if let Some(unit) = children.iter().find(|child| {
+            child.node_type == Rule::literal_number_unit
+                || child.node_type == Rule::expression_grouped_unit
+        }) {
+            unit.formatted_node.trim_start_matches(')').to_string()
         } else {
             String::new()
         };

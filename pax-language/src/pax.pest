@@ -55,7 +55,7 @@ transition_inline_timeline_body = { "{" ~ (timeline_block_setting | timeline_pro
 double_binding = {identifier ~ "=" ~ "bind" ~ ":" ~ literal_function}
 
 //`...=5.0`, `...={...}`
-any_template_value = {timeline_inline_value | literal_value | expression_wrapped | identifier}
+any_template_value = {gradient_inline_value | timeline_inline_value | literal_value | expression_wrapped | identifier}
 
 //For example: <Text>"This is my inner content"</Text>
 //Presumably this content can be bare literal values other than strings like Color::hlca(...)
@@ -94,7 +94,7 @@ selector = {("." | "#") ~ identifier}
 settings_key_value_pair = { (settings_key ~ settings_value) ~ silent_comma? }
 settings_event_binding = {event_id ~ ":" ~ literal_function ~ silent_comma? }
 settings_key = { identifier ~ (":" | "=") } //Offer some grace here, since our borrowing of HTML/CSS semantics means we inherit the mismatch between xml-like `=` and json-like `:`.  Let's allow both and let linters deal with cleaning up mismatches.
-settings_value = { timeline_inline_value | literal_value | expression_wrapped }
+settings_value = { gradient_inline_value | timeline_inline_value | literal_value | expression_wrapped }
 
 ////// ////// //////
 /// BEGIN TIMELINES
@@ -102,14 +102,14 @@ settings_value = { timeline_inline_value | literal_value | expression_wrapped }
 
 timeline_block_declaration = {"@" ~ "timeline" ~ identifier? ~ "{" ~ (timeline_block_setting | timeline_selector_block | comment )* ~ "}"}
 timeline_block_setting = { (settings_key ~ timeline_block_setting_value) ~ silent_comma? }
-timeline_block_setting_value = { literal_value | expression_wrapped | timeline_symbol }
+timeline_block_setting_value = { gradient_inline_value | literal_value | expression_wrapped | timeline_symbol }
 timeline_selector_block = { timeline_target ~ timeline_selector_body ~ silent_comma? }
 timeline_selector_body = { "{" ~ (timeline_property_key_value_pair | comment )* ~ "}" }
 timeline_property_key_value_pair = { (settings_key ~ timeline_track) ~ silent_comma? }
 timeline_inline_value = { "@" ~ "timeline" ~ timeline_track }
 timeline_track = { "{" ~ (timeline_block_setting | timeline_keyframe | comment )* ~ "}" }
 timeline_keyframe = { timeline_marker ~ ":" ~ timeline_keyframe_value ~ (silent_comma ~ timeline_easing_curve)? ~ silent_comma? }
-timeline_keyframe_value = { literal_value | expression_wrapped | timeline_symbol }
+timeline_keyframe_value = { gradient_inline_value | literal_value | expression_wrapped | timeline_symbol }
 timeline_marker = { timeline_percent | timeline_duration | literal_number_integer }
 timeline_percent = { literal_number ~ "%" ~ !"%"}
 timeline_duration = { literal_number ~ timeline_duration_unit }
@@ -118,6 +118,21 @@ timeline_easing_curve = { pascal_identifier }
 timeline_target = { selector | timeline_local_target }
 timeline_local_target = { "self" | "this" }
 timeline_symbol = { ("self." | "this.")? ~ identifier }
+
+////// ////// //////
+/// BEGIN GRADIENTS
+//////
+
+gradient_inline_value = { "@" ~ "gradient" ~ gradient_body }
+gradient_body = { "{" ~ (gradient_shape_block | gradient_stop | comment )* ~ "}" }
+gradient_shape_block = { gradient_shape_key ~ ":" ~ gradient_shape_settings ~ silent_comma? }
+gradient_shape_key = { "linear" | "radial" }
+gradient_shape_settings = { "{" ~ (gradient_shape_setting | comment )* ~ "}" }
+gradient_shape_setting = { settings_key ~ gradient_shape_setting_value ~ silent_comma? }
+gradient_shape_setting_value = { literal_value | expression_wrapped | identifier }
+gradient_stop = { gradient_stop_marker ~ ":" ~ gradient_stop_value ~ silent_comma? }
+gradient_stop_marker = { literal_number_with_unit }
+gradient_stop_value = { literal_value | expression_wrapped | identifier }
 
 literal_function = { ("self." | "this.")? ~ identifier }
 silent_comma = _{","}
@@ -128,7 +143,7 @@ literal_boolean = {("true" | "false")}
 literal_some = {("Some" ~ "(" ~ literal_value ~ ")")}
 literal_none = {"None"}
 literal_option = {"Option::"? ~ literal_some | literal_none}
-literal_number_with_unit = { literal_number ~ literal_number_unit }
+literal_number_with_unit = ${ literal_number ~ literal_number_unit }
 literal_number = {literal_number_float | literal_number_integer}
 literal_number_integer = {"-"? ~ (!(".") ~ ASCII_DIGIT)+ }
 literal_number_float = {"-"? ~ ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ }
@@ -220,7 +235,8 @@ expression_wrapped = _{
     "{" ~ comment? ~ expression_body ~ "}"
 }
 
-expression_grouped = { "(" ~ expression_body ~ ")" ~ literal_number_unit? }
+expression_grouped = { "(" ~ expression_body ~ (expression_grouped_unit | ")") }
+expression_grouped_unit = ${ ")" ~ literal_number_unit }
 
 /*
 Some examples of valid expressions:

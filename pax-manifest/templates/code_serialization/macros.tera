@@ -32,6 +32,9 @@
     {% if vd.Timeline %}
         @timeline {{self::render_timeline_track(track=vd.Timeline)}}
     {% endif %}
+    {% if vd.Gradient %}
+        @gradient {{self::render_gradient_definition(gradient=vd.Gradient)}}
+    {% endif %}
     {% if vd.Expression %}
         { {{to_pax_expression(value=vd.Expression)}} }
     {% endif %}
@@ -164,6 +167,36 @@
         {% for elem in block.elements %}
             {% if elem.Track %}
                 {{ elem.Track.0.token_value }}: {{ self::render_timeline_track(track=elem.Track.1) }},
+            {% elif elem.Comment %}
+                {{ elem.Comment }}
+            {% endif %}
+        {% endfor %}
+    }
+{% endmacro %}
+
+{% macro render_gradient_definition(gradient) %}
+    {
+        {% if gradient.shape.Linear %}
+            {% if gradient.shape.Linear.start or gradient.shape.Linear.end %}
+                linear: {
+                    {% if gradient.shape.Linear.start %}
+                        start: {{ self::render_value_definition(vd=gradient.shape.Linear.start) }},
+                    {% endif %}
+                    {% if gradient.shape.Linear.end %}
+                        end: {{ self::render_value_definition(vd=gradient.shape.Linear.end) }},
+                    {% endif %}
+                },
+            {% endif %}
+        {% elif gradient.shape.Radial %}
+            radial: {
+                start: {{ self::render_value_definition(vd=gradient.shape.Radial.start) }},
+                end: {{ self::render_value_definition(vd=gradient.shape.Radial.end) }},
+                radius: {{ self::render_value_definition(vd=gradient.shape.Radial.radius) }},
+            },
+        {% endif %}
+        {% for elem in gradient.elements %}
+            {% if elem.Stop %}
+                {{ to_pax_size(value=elem.Stop.position) }}: {{ self::render_value_definition(vd=elem.Stop.color) }},
             {% elif elem.Comment %}
                 {{ elem.Comment }}
             {% endif %}

@@ -2,6 +2,7 @@ use crate::{
     ComponentDefinition, ComponentTemplate, ControlFlowConditionalBranchDefinition,
     ControlFlowConditionalBranchKind, ControlFlowRepeatPredicateDefinition,
     ControlFlowRouteBranchDefinition, ControlFlowSettingsDefinition, ExpressionInfo,
+    GradientDefinition, GradientElement, GradientShapeDefinition, GradientStopDefinition,
     LiteralBlockDefinition, LocationInfo, PaxManifest, PaxType, PropertyDefinition,
     PropertyDefinitionFlags, SettingElement, SettingsBlockElement, TemplateNodeDefinition,
     TemplateNodeId, TimelineBlockElement, TimelineDefinition, TimelineKeyframe, TimelineMarker,
@@ -370,6 +371,11 @@ impl RustManifestWriter {
                 mp = self.manifest_path,
                 track = self.timeline_track_definition(track),
             ),
+            ValueDefinition::Gradient(gradient) => format!(
+                "{mp}::ValueDefinition::Gradient({gradient})",
+                mp = self.manifest_path,
+                gradient = self.gradient_definition(gradient),
+            ),
             ValueDefinition::Transition(transition) => format!(
                 "{mp}::ValueDefinition::Transition({transition})",
                 mp = self.manifest_path,
@@ -404,6 +410,57 @@ impl RustManifestWriter {
             mp = self.manifest_path,
             explicit_type_pascal_identifier = self.option(&block.explicit_type_pascal_identifier, |value| self.token(value)),
             elements = self.vec(&block.elements, |element| self.setting_element(element)),
+        )
+    }
+
+    fn gradient_definition(&self, gradient: &GradientDefinition) -> String {
+        format!(
+            "{mp}::GradientDefinition {{ shape: {shape}, elements: {elements} }}",
+            mp = self.manifest_path,
+            shape = self.gradient_shape_definition(&gradient.shape),
+            elements = self.vec(&gradient.elements, |element| self.gradient_element(element)),
+        )
+    }
+
+    fn gradient_shape_definition(&self, shape: &GradientShapeDefinition) -> String {
+        match shape {
+            GradientShapeDefinition::Linear { start, end } => format!(
+                "{mp}::GradientShapeDefinition::Linear {{ start: {start}, end: {end} }}",
+                mp = self.manifest_path,
+                start = self.option_box_value_definition(start),
+                end = self.option_box_value_definition(end),
+            ),
+            GradientShapeDefinition::Radial { start, end, radius } => format!(
+                "{mp}::GradientShapeDefinition::Radial {{ start: Box::new({start}), end: Box::new({end}), radius: Box::new({radius}) }}",
+                mp = self.manifest_path,
+                start = self.value_definition(start),
+                end = self.value_definition(end),
+                radius = self.value_definition(radius),
+            ),
+        }
+    }
+
+    fn gradient_element(&self, element: &GradientElement) -> String {
+        match element {
+            GradientElement::Stop(stop) => format!(
+                "{mp}::GradientElement::Stop({stop})",
+                mp = self.manifest_path,
+                stop = self.gradient_stop_definition(stop),
+            ),
+            GradientElement::Comment(comment) => format!(
+                "{mp}::GradientElement::Comment({comment})",
+                mp = self.manifest_path,
+                comment = rust_string(comment),
+            ),
+        }
+    }
+
+    fn gradient_stop_definition(&self, stop: &GradientStopDefinition) -> String {
+        format!(
+            "{mp}::GradientStopDefinition {{ position: {position}, color: {color} }}",
+            mp = self.manifest_path,
+            position = self.size(&stop.position),
+            color = self.value_definition(&stop.color),
         )
     }
 

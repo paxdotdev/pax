@@ -1,7 +1,5 @@
-use pax_kit::*;
 use pax_kit::math::*;
-
-const PALETTE_IMAGE_SIZE: usize = 64;
+use pax_kit::*;
 
 #[pax]
 #[main]
@@ -10,9 +8,9 @@ pub struct ColorPickerExample {
     pub color: Property<Color>,
 
     // ---------color palette picker------------
-    pub saturation_and_lightness_image_data: Property<Vec<u8>>,
     pub hue_slider_image_data: Property<Vec<u8>>,
     pub alpha_slider_image_data: Property<Vec<u8>>,
+    pub hue_color: Property<Color>,
 
     // 0.0-1.0 coord in palette
     pub hue: Property<f64>,
@@ -73,14 +71,10 @@ impl ColorPickerExample {
 
         let hue = self.hue.clone();
         let deps = [hue.untyped()];
-        self.saturation_and_lightness_image_data
-            .replace_with(Property::computed(
-                move || {
-                    // saturated/max brightness color with this hue
-                    palette(hue.get()).to_vec()
-                },
-                &deps,
-            ));
+        self.hue_color.replace_with(Property::computed(
+            move || Color::hsl(hue_rotation_0_1(hue.get()), 255.into(), (255 / 2).into()),
+            &deps,
+        ));
 
         let hue = self.hue.clone();
         let saturation = self.saturation.clone();
@@ -205,24 +199,6 @@ impl ColorPickerExample {
         self.lightness.set(hsla[2]);
         self.alpha.set(hsla[3]);
     }
-}
-
-#[rustfmt::skip]
-fn palette(hue: f64) -> Vec<u8> {
-    let mut res = Vec::with_capacity(PALETTE_IMAGE_SIZE * PALETTE_IMAGE_SIZE * 4);
-    let max_index = (PALETTE_IMAGE_SIZE - 1) as i32;
-    for y in 0..PALETTE_IMAGE_SIZE as i32 {
-        for x in 0..PALETTE_IMAGE_SIZE as i32 {
-            let c = Color::hsl(
-                hue_rotation_0_1(hue),
-                (x * 255 / max_index).into(),
-                (255 - y * 255 / max_index).into(),
-            )
-            .to_rgba_0_1();
-           res.extend(c.map(|v| (v * 255.0) as u8)) 
-        }
-    }
-    res
 }
 
 fn hue_slider() -> [u8; 10 * 4] {

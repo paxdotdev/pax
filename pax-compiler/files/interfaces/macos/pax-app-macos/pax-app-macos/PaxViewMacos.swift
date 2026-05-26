@@ -565,25 +565,7 @@ struct PaxViewMacos: View {
             // SwiftUI can recreate the view tree independently of the backing NSView. Install the
             // interrupt bridge here so native controls always have a live path back into pax_interrupt.
             NativeInterruptDispatcher.shared.sendData = sendInterruptToEngine
-        }.contentShape(Rectangle())
-        .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .local).onEnded { dragGesture in
-                    //FUTURE: especially if parsing is a bottleneck, could use a different encoding than JSON
-            let json = String(format: "{\"Click\": {\"x\": %f, \"y\": %f, \"button\": \"Left\", \"modifiers\":[] } }", dragGesture.location.x, dragGesture.location.y);
-            let buffer = try! FlexBufferBuilder.fromJSON(json)
-
-            //Send `Click` interrupt
-            buffer.data.withUnsafeBytes({ptr in
-                var ffi_container = InterruptBuffer( data_ptr: ptr.baseAddress!, length: UInt64(ptr.count) )
-
-                guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
-                    return
-                }
-
-                withUnsafePointer(to: &ffi_container) {ffi_container_ptr in
-                    PaxCartridgeRuntime.shared.interrupt(engineContainer, ffi_container_ptr)
-                }
-            })
-        })
+        }
 
     }
 
@@ -692,6 +674,15 @@ struct PaxViewMacos: View {
             layer?.isOpaque = false
             createDisplayLink()
             refreshDevSessionRegistrationIfNeeded(now: Date(), allowThrottle: false)
+        }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+            true
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            window?.acceptsMouseMovedEvents = true
         }
 
         required init?(coder: NSCoder) {
@@ -1679,12 +1670,46 @@ struct PaxViewMacos: View {
             UInt64(Date().timeIntervalSince1970 * 1000.0)
         }
 
+        private func dispatchPointerInterrupt(_ type: String, event: NSEvent) {
+            let point = convert(event.locationInWindow, from: nil)
+            let json = String(format: "{\"%@\": {\"x\": %f, \"y\": %f, \"button\": \"Left\", \"modifiers\":[] } }", type, point.x, point.y)
+            let buffer = try! FlexBufferBuilder.fromJSON(json)
+
+            buffer.data.withUnsafeBytes { ptr in
+                var ffi_container = InterruptBuffer(data_ptr: ptr.baseAddress!, length: UInt64(ptr.count))
+                guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
+                    return
+                }
+                withUnsafePointer(to: &ffi_container) { ffi_container_ptr in
+                    PaxCartridgeRuntime.shared.interrupt(engineContainer, ffi_container_ptr)
+                }
+            }
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            window?.makeFirstResponder(self)
+            dispatchPointerInterrupt("MouseDown", event: event)
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            dispatchPointerInterrupt("MouseMove", event: event)
+        }
+
+        override func mouseMoved(with event: NSEvent) {
+            dispatchPointerInterrupt("MouseMove", event: event)
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            dispatchPointerInterrupt("MouseUp", event: event)
+            dispatchPointerInterrupt("Click", event: event)
+        }
 
         override func scrollWheel(with event: NSEvent){
             let deltaX = event.scrollingDeltaX
             let deltaY = -event.scrollingDeltaY
-            let x = event.locationInWindow.x;
-            let y = event.locationInWindow.y;
+            let point = convert(event.locationInWindow, from: nil)
+            let x = point.x;
+            let y = point.y;
             let json = String(format: "{\"Scroll\": {\"x\": %f, \"y\": %f, \"delta_x\": %f, \"delta_y\": %f} }", x, y, deltaX, deltaY);
             let buffer = try! FlexBufferBuilder.fromJSON(json)
 

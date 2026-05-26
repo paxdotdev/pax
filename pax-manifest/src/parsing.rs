@@ -1,7 +1,7 @@
 use crate::*;
 use pax_language::interpreter::parse_pax_expression_from_pair;
 use pax_language::{from_pax, parse_pax_expression, parse_pax_str, Pair, Pairs, Rule, Span};
-use pax_runtime_api::PaxValue;
+use pax_runtime_api::{CoercionRules, PaxValue, Size};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::Path;
@@ -700,14 +700,16 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
 
 pub fn parse_value_definition(value: Pair<Rule>) -> ValueDefinition {
     match value.as_rule() {
-        Rule::timeline_keyframe_value | Rule::timeline_block_setting_value => {
-            parse_value_definition(value.into_inner().next().unwrap())
-        }
+        Rule::timeline_keyframe_value
+        | Rule::timeline_block_setting_value
+        | Rule::gradient_shape_setting_value
+        | Rule::gradient_stop_value => parse_value_definition(value.into_inner().next().unwrap()),
         Rule::timeline_symbol => ValueDefinition::Identifier(PaxIdentifier::new(value.as_str())),
         Rule::timeline_inline_value => {
             let timeline_track = value.into_inner().next().unwrap();
             ValueDefinition::Timeline(derive_timeline_track_definition(timeline_track))
         }
+        Rule::gradient_inline_value => ValueDefinition::Gradient(derive_gradient_definition(value)),
         Rule::literal_value => {
             let inner = value.into_inner().next().unwrap();
             match inner.as_rule() {
@@ -742,6 +744,113 @@ pub fn parse_value_definition(value: Pair<Rule>) -> ValueDefinition {
                 value.as_rule()
             );
         }
+    }
+}
+
+fn parse_gradient_stop_marker(marker: Pair<Rule>) -> Size {
+    match marker.as_rule() {
+        Rule::gradient_stop_marker => {
+            parse_gradient_stop_marker(marker.into_inner().next().unwrap())
+        }
+        Rule::literal_number_with_unit => {
+            let literal = from_pax(marker.as_str())
+                .expect("gradient stop positions must be valid Pax size literals");
+            Size::try_coerce(literal).expect("gradient stop positions must use px or % units")
+        }
+        _ => unreachable!(
+            "Unexpected gradient stop marker rule: {:?}",
+            marker.as_rule()
+        ),
+    }
+}
+
+fn derive_gradient_stop_definition(gradient_stop: Pair<Rule>) -> GradientStopDefinition {
+    let mut pairs = gradient_stop.into_inner();
+    let position = parse_gradient_stop_marker(pairs.next().unwrap());
+    let color = parse_value_definition(pairs.next().unwrap());
+    GradientStopDefinition { position, color }
+}
+
+fn derive_gradient_shape_definition(gradient_shape_block: Pair<Rule>) -> GradientShapeDefinition {
+    let mut pairs = gradient_shape_block.into_inner();
+    let shape_key = pairs.next().unwrap();
+    let shape_settings = pairs.next().unwrap();
+
+    let mut start = None;
+    let mut end = None;
+    let mut radius = None;
+
+    for setting in shape_settings.into_inner() {
+        match setting.as_rule() {
+            Rule::gradient_shape_setting => {
+                let mut setting_pairs = setting.into_inner();
+                let key = setting_pairs.next().unwrap().into_inner().next().unwrap();
+                let value = parse_value_definition(setting_pairs.next().unwrap());
+                match key.as_str() {
+                    "start" => start = Some(Box::new(value)),
+                    "end" => end = Some(Box::new(value)),
+                    "radius" => radius = Some(Box::new(value)),
+                    unknown => panic!(
+                        "Unsupported {} gradient setting `{}`",
+                        shape_key.as_str(),
+                        unknown
+                    ),
+                }
+            }
+            Rule::comment => {}
+            _ => unreachable!(
+                "Unexpected gradient shape setting rule: {:?}",
+                setting.as_rule()
+            ),
+        }
+    }
+
+    match shape_key.as_str() {
+        "linear" => {
+            if radius.is_some() {
+                panic!("linear gradients do not support `radius`");
+            }
+            GradientShapeDefinition::Linear { start, end }
+        }
+        "radial" => GradientShapeDefinition::Radial {
+            start: start.expect("radial gradients require `start`"),
+            end: end.expect("radial gradients require `end`"),
+            radius: radius.expect("radial gradients require `radius`"),
+        },
+        _ => unreachable!("Unexpected gradient shape key: {}", shape_key.as_str()),
+    }
+}
+
+fn derive_gradient_definition(gradient_inline_value: Pair<Rule>) -> GradientDefinition {
+    let gradient_body = gradient_inline_value.into_inner().next().unwrap();
+    let mut shape = None;
+    let mut elements = Vec::new();
+    let mut stop_count = 0;
+
+    for pair in gradient_body.into_inner() {
+        match pair.as_rule() {
+            Rule::gradient_shape_block => {
+                if shape.is_some() {
+                    panic!("@gradient supports only one shape block");
+                }
+                shape = Some(derive_gradient_shape_definition(pair));
+            }
+            Rule::gradient_stop => {
+                stop_count += 1;
+                elements.push(GradientElement::Stop(derive_gradient_stop_definition(pair)));
+            }
+            Rule::comment => elements.push(GradientElement::Comment(pair.as_str().to_string())),
+            _ => unreachable!("Unexpected gradient body rule: {:?}", pair.as_rule()),
+        }
+    }
+
+    if stop_count < 2 {
+        panic!("@gradient requires at least two stops");
+    }
+
+    GradientDefinition {
+        shape: shape.unwrap_or_default(),
+        elements,
     }
 }
 

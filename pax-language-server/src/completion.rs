@@ -138,16 +138,23 @@ lazy_static! {
                 CompletionItem {
                     label: "Linear Gradient".to_string(),
                     kind: Some(CompletionItemKind::FUNCTION),
-                    insert_text: Some("{Fill::linearGradient(
-                        (0%, 50%),
-                        (100%, 50%),
-                        [GradientStop::get(Color::rgba(0.0,0.0,0.0,1.0), 0%), GradientStop::get(Color::rgba(0.0,0.0,0.0,0.5), 100%)])}$0".to_string()),
+                    insert_text: Some(
+                        "@gradient {
+                        linear: {
+                            start: (0%, 50%)
+                            end: (100%, 50%)
+                        }
+                        0%: rgba(0, 0, 0, 255)
+                        100%: rgba(0, 0, 0, 128)
+                    }$0"
+                        .to_string(),
+                    ),
                     insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
                     detail: Some("See Fill api".to_string()),
                     sort_text: Some("2".to_string()),
                     ..Default::default()
                 },
-            ]
+            ],
         );
         type_map.insert(
             "crate::types::Fill".to_string(),
@@ -164,16 +171,23 @@ lazy_static! {
                 CompletionItem {
                     label: "Linear Gradient".to_string(),
                     kind: Some(CompletionItemKind::FUNCTION),
-                    insert_text: Some("{Fill::linearGradient(
-                        (0%, 50%),
-                        (100%, 50%),
-                        [GradientStop::get(Color::rgba(0.0,0.0,0.0,1.0), 0%), GradientStop::get(Color::rgba(0.0,0.0,0.0,0.5), 100%)])}$0".to_string()),
+                    insert_text: Some(
+                        "@gradient {
+                        linear: {
+                            start: (0%, 50%)
+                            end: (100%, 50%)
+                        }
+                        0%: rgba(0, 0, 0, 255)
+                        100%: rgba(0, 0, 0, 128)
+                    }$0"
+                        .to_string(),
+                    ),
                     insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
                     detail: Some("See Fill api".to_string()),
                     sort_text: Some("2".to_string()),
                     ..Default::default()
                 },
-            ]
+            ],
         );
         type_map.insert(
             "Color".to_string(),

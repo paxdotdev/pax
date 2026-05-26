@@ -3,15 +3,16 @@ use std::collections::{BTreeMap, HashMap, VecDeque};
 use pax_message::serde::{Deserialize, Serialize};
 
 use crate::{
-    ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, PaxManifest, SettingElement,
-    SettingsBlockElement, SettingsConditionalBlock, SettingsConditionalBranch,
+    ComponentDefinition, ComponentTemplate, GradientDefinition, GradientElement,
+    GradientShapeDefinition, GradientStopDefinition, LiteralBlockDefinition, PaxManifest,
+    SettingElement, SettingsBlockElement, SettingsConditionalBlock, SettingsConditionalBranch,
     TemplateNodeDefinition, TemplateNodeId, TimelineBlockElement, TimelineDefinition,
     TimelineSelectorBlockDefinition, TimelineSelectorElement, TimelineTrackDefinition,
     TimelineTrackElement, Token, TransitionDefinition, TypeDefinition, TypeId, ValueDefinition,
 };
 
 const MAGIC: &[u8; 8] = b"PAXP\x00IR\x00";
-const VERSION: u8 = 1;
+const VERSION: u8 = 2;
 
 /// Runtime-facing semantic program model derived from a rich `PaxManifest`.
 ///
@@ -298,6 +299,43 @@ fn sanitize_timeline_track(track: &TimelineTrackDefinition) -> TimelineTrackDefi
     }
 }
 
+fn sanitize_gradient(definition: &GradientDefinition) -> GradientDefinition {
+    GradientDefinition {
+        shape: sanitize_gradient_shape(&definition.shape),
+        elements: definition
+            .elements
+            .iter()
+            .filter_map(|element| match element {
+                GradientElement::Stop(stop) => {
+                    Some(GradientElement::Stop(GradientStopDefinition {
+                        position: stop.position.clone(),
+                        color: sanitize_value_definition(&stop.color),
+                    }))
+                }
+                GradientElement::Comment(_) => None,
+            })
+            .collect(),
+    }
+}
+
+fn sanitize_gradient_shape(shape: &GradientShapeDefinition) -> GradientShapeDefinition {
+    match shape {
+        GradientShapeDefinition::Linear { start, end } => GradientShapeDefinition::Linear {
+            start: start
+                .as_ref()
+                .map(|value| Box::new(sanitize_value_definition(value))),
+            end: end
+                .as_ref()
+                .map(|value| Box::new(sanitize_value_definition(value))),
+        },
+        GradientShapeDefinition::Radial { start, end, radius } => GradientShapeDefinition::Radial {
+            start: Box::new(sanitize_value_definition(start)),
+            end: Box::new(sanitize_value_definition(end)),
+            radius: Box::new(sanitize_value_definition(radius)),
+        },
+    }
+}
+
 fn sanitize_value_definition(value: &ValueDefinition) -> ValueDefinition {
     match value {
         ValueDefinition::Undefined => ValueDefinition::Undefined,
@@ -305,6 +343,9 @@ fn sanitize_value_definition(value: &ValueDefinition) -> ValueDefinition {
         ValueDefinition::Block(block) => ValueDefinition::Block(sanitize_literal_block(block)),
         ValueDefinition::Timeline(track) => {
             ValueDefinition::Timeline(sanitize_timeline_track(track))
+        }
+        ValueDefinition::Gradient(gradient) => {
+            ValueDefinition::Gradient(sanitize_gradient(gradient))
         }
         ValueDefinition::Transition(transition) => {
             ValueDefinition::Transition(sanitize_transition_definition(transition))
@@ -352,15 +393,16 @@ pub mod binary {
 mod tests {
     use std::collections::{BTreeMap, HashMap};
 
-    use pax_runtime_api::PaxValue;
+    use pax_runtime_api::{Color, Numeric, PaxValue, Size};
 
     use super::ProgramIR;
     use crate::{
-        binary::Result as BinaryResult, ComponentDefinition, ComponentTemplate,
-        LiteralBlockDefinition, LocationInfo, PaxIdentifier, PaxManifest, SettingsBlockElement,
-        TemplateNodeDefinition, TimelineBlockElement, TimelineDefinition, TimelineKeyframe,
-        TimelineMarker, TimelineSelectorBlockDefinition, TimelineSelectorElement,
-        TimelineTrackDefinition, TimelineTrackElement, Token, TypeId, ValueDefinition,
+        binary::Result as BinaryResult, ComponentDefinition, ComponentTemplate, GradientDefinition,
+        GradientElement, GradientShapeDefinition, GradientStopDefinition, LiteralBlockDefinition,
+        LocationInfo, PaxIdentifier, PaxManifest, SettingsBlockElement, TemplateNodeDefinition,
+        TimelineBlockElement, TimelineDefinition, TimelineKeyframe, TimelineMarker,
+        TimelineSelectorBlockDefinition, TimelineSelectorElement, TimelineTrackDefinition,
+        TimelineTrackElement, Token, TypeId, ValueDefinition,
     };
 
     fn test_location() -> LocationInfo {
@@ -436,6 +478,32 @@ mod tests {
                                 crate::SettingElement::Setting(
                                     Token::new("value".to_string(), test_location()),
                                     ValueDefinition::Identifier(PaxIdentifier::new("self.value")),
+                                ),
+                                crate::SettingElement::Setting(
+                                    Token::new("fill".to_string(), test_location()),
+                                    ValueDefinition::Gradient(GradientDefinition {
+                                        shape: GradientShapeDefinition::Linear {
+                                            start: None,
+                                            end: None,
+                                        },
+                                        elements: vec![
+                                            GradientElement::Comment(
+                                                "gradient comment".to_string(),
+                                            ),
+                                            GradientElement::Stop(GradientStopDefinition {
+                                                position: Size::Percent(Numeric::F64(0.0)),
+                                                color: ValueDefinition::LiteralValue(
+                                                    PaxValue::Color(Box::new(Color::RED)),
+                                                ),
+                                            }),
+                                            GradientElement::Stop(GradientStopDefinition {
+                                                position: Size::Percent(Numeric::F64(100.0)),
+                                                color: ValueDefinition::LiteralValue(
+                                                    PaxValue::Color(Box::new(Color::BLUE)),
+                                                ),
+                                            }),
+                                        ],
+                                    }),
                                 ),
                             ],
                         },
@@ -547,6 +615,26 @@ mod tests {
                     .all(|handler| handler.token_location.is_none()));
             }
             _ => panic!("expected handler setting"),
+        }
+        match &component_settings[1] {
+            SettingsBlockElement::SelectorBlock(token, block) => {
+                assert_eq!(token.token_location, None);
+                assert_eq!(block.elements.len(), 2);
+                let Some(crate::SettingElement::Setting(_, ValueDefinition::Gradient(gradient))) =
+                    block.elements.get(1)
+                else {
+                    panic!("expected sanitized gradient setting");
+                };
+                assert!(matches!(
+                    &gradient.shape,
+                    GradientShapeDefinition::Linear {
+                        start: None,
+                        end: None
+                    }
+                ));
+                assert_eq!(gradient.elements.len(), 2);
+            }
+            _ => panic!("expected selector setting"),
         }
 
         let timeline = component.timelines.first().expect("timeline should remain");

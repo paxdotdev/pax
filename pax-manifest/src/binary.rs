@@ -17,7 +17,7 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"PAXM\x00BIN";
-const VERSION: u8 = 1;
+const VERSION: u8 = 2;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -1081,7 +1081,11 @@ impl<'de, 'a> VariantAccess<'de> for BinaryVariantAccess<'a, 'de> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{PropertyDefinition, TypeTable};
+    use crate::{
+        GradientDefinition, GradientElement, GradientShapeDefinition, GradientStopDefinition,
+        PropertyDefinition, SettingElement, Token, TypeTable, ValueDefinition,
+    };
+    use pax_runtime_api::{Color, Numeric, PaxValue, Size};
 
     #[test]
     fn binary_manifest_round_trips_template_maps_without_json_keys() {
@@ -1091,6 +1095,27 @@ mod tests {
         let mut root = TemplateNodeDefinition::default();
         root.type_id = type_id.clone();
         root.raw_comment_string = Some("root".to_string());
+        root.settings = Some(vec![SettingElement::Setting(
+            Token::new_without_location("fill".to_string()),
+            ValueDefinition::Gradient(GradientDefinition {
+                shape: GradientShapeDefinition::Linear {
+                    start: None,
+                    end: None,
+                },
+                elements: vec![
+                    GradientElement::Stop(GradientStopDefinition {
+                        position: Size::Percent(Numeric::F64(0.0)),
+                        color: ValueDefinition::LiteralValue(PaxValue::Color(Box::new(Color::RED))),
+                    }),
+                    GradientElement::Stop(GradientStopDefinition {
+                        position: Size::Percent(Numeric::F64(100.0)),
+                        color: ValueDefinition::LiteralValue(PaxValue::Color(Box::new(
+                            Color::BLUE,
+                        ))),
+                    }),
+                ],
+            }),
+        )]);
         let root_id = template.add(root).template_node_id;
 
         let mut child = TemplateNodeDefinition::default();
@@ -1156,5 +1181,16 @@ mod tests {
                 .len(),
             1
         );
+        let root = decoded_template
+            .get_node(&TemplateNodeId::build(0))
+            .expect("root should round-trip");
+        assert!(matches!(
+            root.settings
+                .as_ref()
+                .and_then(|settings| settings.first()),
+            Some(SettingElement::Setting(_, ValueDefinition::Gradient(gradient)))
+                if matches!(&gradient.shape, GradientShapeDefinition::Linear { start: None, end: None })
+                    && gradient.stops().count() == 2
+        ));
     }
 }

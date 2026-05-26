@@ -1121,6 +1121,11 @@ public struct NativeRenderingLayer: View {
             autoresizesSubviews = false
         }
 
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            let hitView = super.hitTest(point)
+            return hitView === self ? nil : hitView
+        }
+
 #endif
 
         required init?(coder: NSCoder) {
@@ -3806,10 +3811,12 @@ private final class PaxNativeCheckboxView: UIButton {
 
 private final class PaxNativeSliderView: UISlider {
     private var nodeId: PaxNodeId = 0
+    private var lastDispatchedValue: Float?
+    private var lastTrackingValue: Float?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        addTarget(self, action: #selector(handleChange), for: .valueChanged)
+        isContinuous = true
     }
 
     required init?(coder: NSCoder) {
@@ -3820,13 +3827,62 @@ private final class PaxNativeSliderView: UISlider {
         nodeId = element.id
         minimumValue = Float(element.min)
         maximumValue = Float(element.max > element.min ? element.max : element.min + 1)
-        value = Float(element.value)
+        let runtimeValue = Float(element.value)
+        if !isTracking {
+            if valuesDiffer(value, runtimeValue) {
+                setValue(runtimeValue, animated: false)
+            }
+            lastDispatchedValue = runtimeValue
+            lastTrackingValue = nil
+        }
         minimumTrackTintColor = platformColor(element.accent)
         maximumTrackTintColor = nativeFillColor(element.background, liquidGlass: element.liquidGlass)
     }
 
-    @objc private func handleChange() {
-        dispatchFormSliderChange(id: nodeId, value: Double(value))
+    override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
+        let didBegin = super.beginTracking(touch, with: event)
+        if didBegin {
+            lastTrackingValue = value
+            dispatchCurrentValue()
+        }
+        return didBegin
+    }
+
+    override func continueTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
+        let didContinue = super.continueTracking(touch, with: event)
+        if didContinue {
+            lastTrackingValue = value
+            dispatchCurrentValue()
+        }
+        return didContinue
+    }
+
+    override func endTracking(_ touch: UITouch?, with event: UIEvent?) {
+        let committedValue = lastTrackingValue ?? value
+        super.endTracking(touch, with: event)
+        if valuesDiffer(value, committedValue) {
+            setValue(committedValue, animated: false)
+        }
+        lastDispatchedValue = committedValue
+        lastTrackingValue = nil
+    }
+
+    override func cancelTracking(with event: UIEvent?) {
+        super.cancelTracking(with: event)
+        lastTrackingValue = nil
+    }
+
+    private func dispatchCurrentValue() {
+        let currentValue = value
+        if lastDispatchedValue.map({ valuesDiffer($0, currentValue) }) ?? true {
+            lastDispatchedValue = currentValue
+            SliderElements.singleton.elements[nodeId]?.value = Double(currentValue)
+            dispatchFormSliderChange(id: nodeId, value: Double(currentValue))
+        }
+    }
+
+    private func valuesDiffer(_ lhs: Float, _ rhs: Float) -> Bool {
+        abs(lhs - rhs) > 0.000001
     }
 }
 

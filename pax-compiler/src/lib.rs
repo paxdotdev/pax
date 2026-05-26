@@ -28,8 +28,9 @@ use eyre::eyre;
 use fs_extra::dir::{self, CopyOptions};
 use helpers::{copy_dir_recursively, wait_with_output};
 use pax_manifest::{
-    ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, PaxExpression, PaxManifest,
-    SettingElement, SettingsBlockElement, TemplateNodeDefinition, TypeId, ValueDefinition,
+    ComponentDefinition, ComponentTemplate, GradientElement, GradientShapeDefinition,
+    LiteralBlockDefinition, PaxExpression, PaxManifest, SettingElement, SettingsBlockElement,
+    TemplateNodeDefinition, TypeId, ValueDefinition,
 };
 use reqwest::blocking::Client;
 use reqwest::Url;
@@ -812,6 +813,28 @@ fn collect_value_definition(
                     if let pax_manifest::TimelineTrackElement::Keyframe(keyframe) = element {
                         collect_value_definition(&keyframe.value, seen, collected);
                     }
+                }
+            }
+        }
+        ValueDefinition::Gradient(gradient) => {
+            match &gradient.shape {
+                GradientShapeDefinition::Linear { start, end } => {
+                    if let Some(start) = start {
+                        collect_value_definition(start, seen, collected);
+                    }
+                    if let Some(end) = end {
+                        collect_value_definition(end, seen, collected);
+                    }
+                }
+                GradientShapeDefinition::Radial { start, end, radius } => {
+                    collect_value_definition(start, seen, collected);
+                    collect_value_definition(end, seen, collected);
+                    collect_value_definition(radius, seen, collected);
+                }
+            }
+            for element in &gradient.elements {
+                if let GradientElement::Stop(stop) = element {
+                    collect_value_definition(&stop.color, seen, collected);
                 }
             }
         }

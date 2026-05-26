@@ -6,16 +6,17 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use pax_language::{parse_pax_str, Rule};
-    use pax_manifest::pax_runtime_api::PaxValue;
+    use pax_manifest::pax_runtime_api::{Numeric, PaxValue, Size};
     use pax_manifest::{
         parsing::{
             assemble_component_definition, parse_settings_from_component_definition_string,
             parse_timeline_from_component_definition_string, ParsingContext,
         },
         utils, ComponentDefinition, ControlFlowConditionalBranchKind,
-        ControlFlowRepeatPredicateDefinition, PaxIdentifier, PaxManifest, SettingElement,
-        SettingsBlockElement, TemplateNodeDefinition, TemplateNodeId, TimelineBlockElement,
-        TimelineMarker, Token, TypeId, ValueDefinition,
+        ControlFlowRepeatPredicateDefinition, GradientDefinition, GradientElement,
+        GradientShapeDefinition, GradientStopDefinition, PaxIdentifier, PaxManifest,
+        SettingElement, SettingsBlockElement, TemplateNodeDefinition, TemplateNodeId,
+        TimelineBlockElement, TimelineMarker, Token, TypeId, ValueDefinition,
     };
 
     #[cfg(feature = "code_serialization")]
@@ -164,6 +165,133 @@ mod tests {
         } else {
             panic!("unexpected result: {:?}", res);
         }
+    }
+
+    #[test]
+    fn test_parse_inline_gradient_default_linear() {
+        let res = utils::parse_value("@gradient { 0%: RED, 100%: BLUE }");
+        if let Ok(Some(ValueDefinition::Gradient(gradient))) = res {
+            assert!(matches!(
+                &gradient.shape,
+                GradientShapeDefinition::Linear {
+                    start: None,
+                    end: None
+                }
+            ));
+            let stops: Vec<_> = gradient.stops().collect();
+            assert_eq!(stops.len(), 2);
+            assert!((stops[0].position.expect_percent() - 0.0).abs() < 0.0001);
+            assert!((stops[1].position.expect_percent() - 1.0).abs() < 0.0001);
+            assert!(matches!(
+                &stops[0].color,
+                ValueDefinition::LiteralValue(PaxValue::Color(_))
+            ));
+        } else {
+            panic!("unexpected result: {:?}", res);
+        }
+    }
+
+    #[test]
+    fn test_units_must_be_adjacent_to_numbers() {
+        assert!(matches!(
+            utils::parse_value("10px"),
+            Ok(Some(ValueDefinition::LiteralValue(PaxValue::Size(_))))
+        ));
+        assert!(utils::parse_value("10 px").is_err());
+    }
+
+    #[test]
+    fn test_parse_inline_gradient_explicit_linear() {
+        let res = utils::parse_value(
+            "@gradient { linear: { start: (0%, 50%) end: (100%, 50%) } 0%: rgba(255, 0, 0, 255), 100%: {self.active ? RED : BLUE} }",
+        );
+        if let Ok(Some(ValueDefinition::Gradient(gradient))) = res {
+            assert!(matches!(
+                &gradient.shape,
+                GradientShapeDefinition::Linear {
+                    start: Some(_),
+                    end: Some(_)
+                }
+            ));
+            let stops: Vec<_> = gradient.stops().collect();
+            assert_eq!(stops.len(), 2);
+            assert!(matches!(&stops[1].color, ValueDefinition::Expression(_)));
+        } else {
+            panic!("unexpected result: {:?}", res);
+        }
+    }
+
+    #[test]
+    fn test_parse_inline_gradient_radial() {
+        let res = utils::parse_value(
+            "@gradient { radial: { start: (50%, 50%) end: (50%, 50%) radius: 180 } 0%: WHITE, 100%: rgba(255, 255, 255, 0) }",
+        );
+        if let Ok(Some(ValueDefinition::Gradient(gradient))) = res {
+            assert!(matches!(
+                &gradient.shape,
+                GradientShapeDefinition::Radial { .. }
+            ));
+            assert_eq!(gradient.stops().count(), 2);
+        } else {
+            panic!("unexpected result: {:?}", res);
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "@gradient supports only one shape block")]
+    fn test_parse_inline_gradient_rejects_multiple_shapes() {
+        let _ = utils::parse_value(
+            "@gradient { linear: {} radial: { start: (50%, 50%) end: (50%, 50%) radius: 180 } 0%: WHITE, 100%: TRANSPARENT }",
+        );
+    }
+
+    #[test]
+    fn test_number_before_gradient_fill_does_not_consume_fill_as_frames_unit() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let ellipse_type_id = TypeId::build_singleton("Ellipse", Some("Ellipse"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Ellipse".to_string(), ellipse_type_id);
+
+        let pax = r#"
+            <Ellipse
+                opacity=1
+                fill=@gradient {
+                    0%: RED
+                    100%: BLUE
+                }
+            />
+        "#;
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            pax,
+            false,
+            template_map,
+            "crate",
+            component_type_id,
+            "example.pax",
+            file!(),
+        );
+
+        let template = component.template.unwrap();
+        let root_id = template.get_root().remove(0);
+        let node = template.get_node(&root_id).unwrap();
+        let settings = node.settings.as_ref().expect("settings should parse");
+
+        assert!(settings.iter().any(|setting| matches!(
+            setting,
+            SettingElement::Setting(token, ValueDefinition::LiteralValue(PaxValue::Numeric(_)))
+                if token.token_value == "opacity"
+        )));
+        assert!(settings.iter().any(|setting| matches!(
+            setting,
+            SettingElement::Setting(token, ValueDefinition::Gradient(_))
+                if token.token_value == "fill"
+        )));
+        assert!(!settings.iter().any(|setting| matches!(
+            setting,
+            SettingElement::Setting(token, _) if token.token_value == "ill"
+        )));
     }
 
     #[test]
@@ -1381,6 +1509,112 @@ mod tests {
             Some(ValueDefinition::Identifier(identifier)) if identifier.name == "self.phase"
         ));
         assert_eq!(opacity_track.keyframes().count(), 3);
+    }
+
+    #[test]
+    #[cfg(feature = "code_serialization")]
+    fn test_round_trip_inline_gradient_syntax() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let rectangle_type_id = TypeId::build_singleton("Rectangle", Some("Rectangle"));
+        let mut template =
+            ComponentTemplate::new(component_type_id.clone(), Some("example.pax".to_string()));
+        template.add(TemplateNodeDefinition {
+            type_id: rectangle_type_id.clone(),
+            control_flow_settings: None,
+            settings: Some(vec![SettingElement::Setting(
+                Token::new_without_location("fill".to_string()),
+                ValueDefinition::Gradient(GradientDefinition {
+                    shape: GradientShapeDefinition::Linear {
+                        start: Some(Box::new(ValueDefinition::LiteralValue(PaxValue::Vec(
+                            vec![
+                                PaxValue::Size(Size::Percent(Numeric::F64(0.0))),
+                                PaxValue::Size(Size::Percent(Numeric::F64(50.0))),
+                            ],
+                        )))),
+                        end: Some(Box::new(ValueDefinition::LiteralValue(PaxValue::Vec(
+                            vec![
+                                PaxValue::Size(Size::Percent(Numeric::F64(100.0))),
+                                PaxValue::Size(Size::Percent(Numeric::F64(50.0))),
+                            ],
+                        )))),
+                    },
+                    elements: vec![
+                        GradientElement::Stop(GradientStopDefinition {
+                            position: Size::Percent(Numeric::F64(0.0)),
+                            color: ValueDefinition::LiteralValue(PaxValue::Color(Box::new(
+                                pax_manifest::pax_runtime_api::Color::RED,
+                            ))),
+                        }),
+                        GradientElement::Stop(GradientStopDefinition {
+                            position: Size::Percent(Numeric::F64(100.0)),
+                            color: ValueDefinition::LiteralValue(PaxValue::Color(Box::new(
+                                pax_manifest::pax_runtime_api::Color::BLUE,
+                            ))),
+                        }),
+                    ],
+                }),
+            )]),
+            selector_info: Default::default(),
+            raw_comment_string: None,
+        });
+
+        let component = ComponentDefinition {
+            type_id: component_type_id.clone(),
+            is_main_component: false,
+            is_primitive: false,
+            is_struct_only_component: false,
+            module_path: "example".to_string(),
+            primitive_instance_import_path: None,
+            template: Some(template),
+            settings: None,
+            timelines: vec![],
+        };
+
+        let rendered = press_code_serialization_template(component).unwrap();
+        assert!(rendered.contains("fill=@gradient {"));
+        assert!(rendered.contains("linear: {"));
+        assert!(rendered.contains("0%: RED"));
+        assert!(rendered.contains("100%: BLUE"));
+
+        let mut template_map = HashMap::new();
+        template_map.insert("Rectangle".to_string(), rectangle_type_id);
+        let (_, parsed_component) = assemble_component_definition(
+            ParsingContext::default(),
+            &rendered,
+            false,
+            template_map,
+            "crate",
+            component_type_id,
+            "example.pax",
+            file!(),
+        );
+
+        let template = parsed_component.template.unwrap();
+        let root_id = template.get_root().remove(0);
+        let node = template.get_node(&root_id).unwrap();
+        let fill = node
+            .settings
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find_map(|setting| match setting {
+                SettingElement::Setting(token, ValueDefinition::Gradient(gradient))
+                    if token.token_value == "fill" =>
+                {
+                    Some(gradient)
+                }
+                _ => None,
+            })
+            .expect("inline gradient should round-trip");
+
+        assert!(matches!(
+            &fill.shape,
+            GradientShapeDefinition::Linear {
+                start: Some(_),
+                end: Some(_)
+            }
+        ));
+        assert_eq!(fill.stops().count(), 2);
     }
 
     #[test]

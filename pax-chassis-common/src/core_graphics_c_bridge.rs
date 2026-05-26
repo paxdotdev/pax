@@ -19,8 +19,8 @@ use pax_gpu::{Transform2D, WgpuRenderer, NATIVE_VECTOR_RESOURCE_CACHE_BYTES};
 use pax_runtime::api::math::Point2;
 use pax_runtime::api::{
     Accel, ButtonClick, CheckboxChange, Click, Event, Focus, Gyro, ModifierKey, MouseButton,
-    MouseEventArgs, PhotoPickerChange, RenderContext, Scroll, SelectStart, TextboxChange,
-    TextboxInput, Touch, TouchEnd, TouchMove, TouchStart,
+    MouseDown, MouseEventArgs, MouseMove, MouseUp, PhotoPickerChange, RenderContext, Scroll,
+    SelectStart, TextboxChange, TextboxInput, Touch, TouchEnd, TouchMove, TouchStart,
 };
 use pax_runtime::engine::layer_tiling::{scroller_canvas_plan_with_policy, ScrollerTilingPolicy};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -678,6 +678,66 @@ pub extern "C" fn pax_interrupt(
             {
                 topmost_node.dispatch_click(
                     Event::new(args_click),
+                    &globals,
+                    &engine.runtime_context,
+                );
+            }
+        }
+        NativeInterrupt::MouseMove(args) => {
+            if let Some(topmost_node) = engine
+                .runtime_context
+                .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+            {
+                let args_mouse_move = MouseMove {
+                    mouse: MouseEventArgs {
+                        x: args.x,
+                        y: args.y,
+                        button: MouseButton::from(args.button.clone()),
+                        modifiers: args.modifiers.iter().map(ModifierKey::from).collect(),
+                    },
+                };
+                topmost_node.dispatch_mouse_move(
+                    Event::new(args_mouse_move),
+                    &globals,
+                    &engine.runtime_context,
+                );
+            }
+        }
+        NativeInterrupt::MouseDown(args) => {
+            if let Some(topmost_node) = engine
+                .runtime_context
+                .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+            {
+                let args_mouse_down = MouseDown {
+                    mouse: MouseEventArgs {
+                        x: args.x,
+                        y: args.y,
+                        button: MouseButton::from(args.button.clone()),
+                        modifiers: args.modifiers.iter().map(ModifierKey::from).collect(),
+                    },
+                };
+                topmost_node.dispatch_mouse_down(
+                    Event::new(args_mouse_down),
+                    &globals,
+                    &engine.runtime_context,
+                );
+            }
+        }
+        NativeInterrupt::MouseUp(args) => {
+            if let Some(topmost_node) = engine
+                .runtime_context
+                .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+            {
+                let args_mouse_up = MouseUp {
+                    mouse: MouseEventArgs {
+                        x: args.x,
+                        y: args.y,
+                        button: MouseButton::from(args.button.clone()),
+                        modifiers: args.modifiers.iter().map(ModifierKey::from).collect(),
+                    },
+                };
+                topmost_node.dispatch_mouse_up(
+                    Event::new(args_mouse_up),
                     &globals,
                     &engine.runtime_context,
                 );

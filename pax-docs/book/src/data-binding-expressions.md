@@ -61,12 +61,53 @@ PAXEL supports booleans, numbers, strings, units, colors, lists, tuples, objects
 <Text text={Some("Ready") ?? "Waiting"} />
 ```
 
+Unit suffixes must be adjacent to their numeric literal: write `25px`, not `25 px`. For expression-derived units, group the expression and attach the suffix, for example `{(base_width + 8)px}`.
+
 Time units are available for animation durations and timeline markers: `250ms`, `1s`, and `5f`.  Timeline `duration` also accepts unitless frame counts.  Time units can be produced from expressions, for example `{(100 + self.delay)ms}`.
 
 Objects can contain nested expressions:
 
 ```pax
 <Rectangle fill={is_hot ? {r: 255, g: heat * 80, b: 0, a: 1} : {r: 0, g: 120, b: 255, a: 1}} />
+```
+
+Inline gradients use `@gradient` with `Size -> Color` stops. Stop alpha is expressed through the color value, such as `rgba(...)` or `hsla(...)`; there is no separate stop opacity field.
+
+```pax
+<Rectangle fill=@gradient {
+    linear: {
+        start: (0%, 50%)
+        end: (100%, 50%)
+    }
+
+    0%: rgba(255, 0, 0, 255)
+    50%: rgba(255, 200, 0, 180)
+    100%: BLUE
+} />
+```
+
+When the shape block is omitted, the gradient is a linear gradient from `(0%, 0%)` to `(100%, 0%)`:
+
+```pax
+<Rectangle fill=@gradient {
+    0%: RED
+    100%: BLUE
+} />
+```
+
+Radial gradients declare their center, endpoint, and radius:
+
+```pax
+<Rectangle fill=@gradient {
+    radial: {
+        start: (50%, 50%)
+        end: (50%, 50%)
+        radius: 180
+    }
+
+    0%: WHITE
+    100%: rgba(255, 255, 255, 0)
+} />
 ```
 
 ## `$base`
