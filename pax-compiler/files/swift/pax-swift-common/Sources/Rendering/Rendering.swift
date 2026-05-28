@@ -3812,11 +3812,11 @@ private final class PaxNativeCheckboxView: UIButton {
 private final class PaxNativeSliderView: UISlider {
     private var nodeId: PaxNodeId = 0
     private var lastDispatchedValue: Float?
-    private var lastTrackingValue: Float?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         isContinuous = true
+        addTarget(self, action: #selector(handleChange), for: .valueChanged)
     }
 
     required init?(coder: NSCoder) {
@@ -3833,43 +3833,13 @@ private final class PaxNativeSliderView: UISlider {
                 setValue(runtimeValue, animated: false)
             }
             lastDispatchedValue = runtimeValue
-            lastTrackingValue = nil
         }
         minimumTrackTintColor = platformColor(element.accent)
         maximumTrackTintColor = nativeFillColor(element.background, liquidGlass: element.liquidGlass)
     }
 
-    override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
-        let didBegin = super.beginTracking(touch, with: event)
-        if didBegin {
-            lastTrackingValue = value
-            dispatchCurrentValue()
-        }
-        return didBegin
-    }
-
-    override func continueTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
-        let didContinue = super.continueTracking(touch, with: event)
-        if didContinue {
-            lastTrackingValue = value
-            dispatchCurrentValue()
-        }
-        return didContinue
-    }
-
-    override func endTracking(_ touch: UITouch?, with event: UIEvent?) {
-        let committedValue = lastTrackingValue ?? value
-        super.endTracking(touch, with: event)
-        if valuesDiffer(value, committedValue) {
-            setValue(committedValue, animated: false)
-        }
-        lastDispatchedValue = committedValue
-        lastTrackingValue = nil
-    }
-
-    override func cancelTracking(with event: UIEvent?) {
-        super.cancelTracking(with: event)
-        lastTrackingValue = nil
+    @objc private func handleChange() {
+        dispatchCurrentValue()
     }
 
     private func dispatchCurrentValue() {

@@ -70,15 +70,13 @@ runtime color data were correct.
 
 The same example also exposed native iOS slider jitter: the Swift view applied
 the last runtime value on every render pass while the user was tracking the
-thumb, so the control could fight an in-progress drag. A follow-up release
-drift bug showed that UIKit can also produce a final value mutation after the
-drag stream has visually settled. The bridge now avoids runtime value writes
-during active tracking, samples user ground truth from the `UISlider` tracking
-lifecycle, restores the last drag sample if release mutates it, and keeps the
-local Swift element value in sync with the value sent to Rust. The engine also
-avoids echoing native-origin slider value changes straight back to the same
-native control; only app-origin value changes should produce authoritative
-value patches.
+thumb, so the control could fight an in-progress drag. A follow-up diagnostic
+showed that stock iOS liquid-glass `UISlider` interaction itself uses smoothed
+motion that can look like momentum or a spring-loaded release. That behavior is
+native, not a Pax echo bug. The bridge keeps the native slider as the
+hit-tested control, avoids runtime value writes during active tracking, keeps
+the local Swift element value in sync with values sent to Rust, and avoids
+echoing native-origin value changes straight back to the same native control.
 
 The slider also exposed a runtime binding trap: `bind:` parsed correctly as
 `DoubleBinding`, but generated property descriptor code applied it through
