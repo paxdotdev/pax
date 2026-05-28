@@ -103,3 +103,22 @@ tracking state from stale runtime values. For form controls, verify that
 target supports both canvas and native controls, verify event parity for
 `Click`, mouse down/move/up, wheel, and touch rather than assuming a click-only
 smoke test covers drag-oriented widgets.
+
+## 2026-05-28
+
+Firefox websocket failures from the designtime privileged-agent connection can
+arrive as generic browser events. `ewebsock` 0.4 read `ErrorEvent.message()`
+through a generated wasm-bindgen getter, which could throw
+`expected a string argument, found undefined` before Pax saw the close/error
+event. The client then logged noisy partial failures instead of quietly keeping
+the designtime session alive for reconnect.
+
+Solved by upgrading `pax-designtime` to `ewebsock` 0.8, whose wasm error path
+uses JS reflection for optional error fields, and by keeping explicit tests for
+close/error events scheduling reconnect without failing `handle_recv`.
+Direct wasm validation also required enabling the `web-sys` `Location` feature
+because `DesigntimeManager` reads `window.location().origin()`.
+
+Recommendations: when browser websocket behavior changes, validate
+`pax-designtime` directly with `cargo check -p pax-designtime --target
+wasm32-unknown-unknown` in addition to native unit tests.

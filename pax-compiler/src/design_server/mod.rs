@@ -50,6 +50,14 @@ pub(crate) fn display_addresses(port: u16) -> Vec<String> {
     addresses
 }
 
+pub(crate) fn display_address_links(port: u16) -> String {
+    display_addresses(port)
+        .into_iter()
+        .map(|address| address.blue().to_string())
+        .collect::<Vec<_>>()
+        .join(" or ")
+}
+
 fn local_network_ip() -> Option<IpAddr> {
     let socket = UdpSocket::bind((DEFAULT_BIND_HOST, 0)).ok()?;
     socket.connect(("8.8.8.8", 80)).ok()?;
@@ -405,7 +413,7 @@ pub fn start_server(
             &fs_path.to_str().unwrap()
         );
         if show_address_log {
-            let address_msg = display_addresses(port).join(" or ").blue();
+            let address_msg = display_address_links(port);
             let server_running_at_msg = format!("Server running at {}", address_msg).bold();
             println!("{} 📠 {}", *PAX_BADGE, server_running_at_msg);
         }

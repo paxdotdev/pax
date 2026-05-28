@@ -320,8 +320,12 @@ fn build_socket_url(addr: &str, versioning_prefix: Option<&str>) -> Result<Strin
 }
 
 fn connect_socket(url: &str) -> Result<(ewebsock::WsSender, ewebsock::WsReceiver)> {
-    ewebsock::connect_with_wakeup(url.to_owned(), wake_designtime_loop)
-        .map_err(|err| anyhow!("Couldn't create socket connection: {err}"))
+    ewebsock::connect_with_wakeup(
+        url.to_owned(),
+        ewebsock::Options::default(),
+        wake_designtime_loop,
+    )
+    .map_err(|err| anyhow!("Couldn't create socket connection: {err}"))
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -421,6 +425,21 @@ mod tests {
     fn schedules_reconnect_after_close_without_error() {
         let (recver, on_event) = ewebsock::WsReceiver::new();
         let _ = on_event(WsEvent::Closed);
+        let mut connection = test_connection(recver);
+        let mut orm = PaxManifestORM::new(empty_manifest());
+
+        let messages = connection.handle_recv(&mut orm).unwrap();
+
+        assert!(messages.is_empty());
+        assert!(!connection.alive);
+        assert!(!connection.connecting);
+        assert!(connection.next_reconnect_at.is_some());
+    }
+
+    #[test]
+    fn schedules_reconnect_after_error_without_error() {
+        let (recver, on_event) = ewebsock::WsReceiver::new();
+        let _ = on_event(WsEvent::Error(String::new()));
         let mut connection = test_connection(recver);
         let mut orm = PaxManifestORM::new(empty_manifest());
 

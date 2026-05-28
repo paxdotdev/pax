@@ -1,4 +1,4 @@
-use crate::design_server::{display_addresses, static_files_service, DEFAULT_BIND_HOST};
+use crate::design_server::{display_address_links, static_files_service, DEFAULT_BIND_HOST};
 use crate::helpers::PAX_BADGE;
 use actix_web::middleware::Logger;
 use actix_web::{App, HttpServer};
@@ -27,7 +27,7 @@ pub fn start_server(fs_path: PathBuf) -> std::io::Result<()> {
                     *PAX_BADGE,
                     &fs_path.to_str().unwrap()
                 );
-                let address_msg = display_addresses(port).join(" or ").blue();
+                let address_msg = display_address_links(port);
                 let server_running_at_msg = format!("Server running at {}", address_msg).bold();
                 println!("{} 📠 {}", *PAX_BADGE, server_running_at_msg);
                 break HttpServer::new(move || {
