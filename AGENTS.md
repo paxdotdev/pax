@@ -134,7 +134,7 @@ Before commits, the user may ask for a cleanup pass.  Follow this protocol at th
 - Keep tests, examples, and docs aligned with behavior changes.
 - If a partial implementation must stay, make the boundary explicit with a short comment or follow-up issue reference.
 - Run the narrowest meaningful validation first; broaden only when the change touches shared compiler/runtime behavior.
-- When we're ready to merge and close out the ticket, *remove the `target` folders from disk*, both pax/target, and pax/examples/src/**/target.  These cost gigabytes per worktree and are best to remove when we are about to wrap up work on a branch, as this workstation's 1TB drive fills up surprisingly quickly.
+- When we're ready to merge and close out the ticket, run `scripts/clean-temp-files.sh` from the monorepo root to remove generated temp directories (`target`, `examples/src/**/target`, and relevant `.pax` dirs). These cost gigabytes per worktree and are best to remove when we are about to wrap up work on a branch, as this workstation's 1TB drive fills up surprisingly quickly.
 
 ## Comments
 
