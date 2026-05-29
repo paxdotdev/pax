@@ -2,15 +2,11 @@ use std::pin::Pin;
 
 use crate::browser_surface_policy::BrowserSurfacePolicy;
 use pax_runtime::api::RenderContext;
-#[cfg(not(feature = "piet"))]
-use pax_runtime::pax_gpu_render_context::{
-    LayerSurfaceEntry, LayerSurfaceLayout, LayerSurfaceSize,
-};
+use pax_runtime::engine::layer_surface::{LayerSurfaceEntry, LayerSurfaceLayout, LayerSurfaceSize};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::{closure::Closure, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Document, HtmlCanvasElement, Window};
-#[cfg(not(feature = "piet"))]
 
 struct SurfaceMetrics {
     logical_width: f32,
@@ -20,7 +16,6 @@ struct SurfaceMetrics {
     dpr: [f32; 2],
 }
 
-#[cfg(not(feature = "piet"))]
 struct LayerCanvasTarget {
     key: String,
     host_signature: String,
@@ -32,7 +27,6 @@ struct LayerCanvasTarget {
     surface: SurfaceMetrics,
 }
 
-#[cfg(not(feature = "piet"))]
 const TILED_SCROLLER_DESIRED_DPR: f64 = 1.0;
 
 fn compute_surface_metrics(
@@ -94,63 +88,114 @@ fn compute_surface_metrics(
     }
 }
 
-#[cfg(feature = "piet")]
 pub(crate) fn get_render_context(
     window: Window,
-    _surface_policy: BrowserSurfacePolicy,
+    surface_policy: BrowserSurfacePolicy,
+) -> Box<dyn RenderContext> {
+    if cfg!(feature = "piet") || surface_policy.use_piet_fallback() {
+        log::info!("render backend: using Piet/CPU browser renderer");
+        Box::new(get_piet_render_context(window, surface_policy))
+    } else {
+        log::info!("render backend: using WebGPU browser renderer");
+        Box::new(get_gpu_render_context(window, surface_policy))
+    }
+}
+
+fn get_piet_render_context(
+    window: Window,
+    surface_policy: BrowserSurfacePolicy,
 ) -> impl RenderContext {
-    use pax_runtime::piet_render_context::PietRenderer;
+    use pax_runtime::piet_render_context::{PietLayerRenderer, PietLayerTarget, PietRenderer};
     use piet_web::WebRenderContext;
+
     PietRenderer::new(move |layer| {
-        let dpr = window.device_pixel_ratio();
         let document = window.document().unwrap();
-        let canvas = document
-            .get_element_by_id(layer.to_string().as_str())
-            .unwrap()
-            .dyn_into::<HtmlCanvasElement>()
-            .unwrap();
-        let context: web_sys::CanvasRenderingContext2d = canvas
-            .get_context("2d")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::CanvasRenderingContext2d>()
-            .unwrap();
-
-        let width = canvas.offset_width() as f64 * dpr;
-        let height = canvas.offset_height() as f64 * dpr;
-
-        canvas.set_width(width as u32);
-        canvas.set_height(height as u32);
-        let _ = context.scale(dpr, dpr);
+        let targets = query_layer_canvas_targets(
+            &document,
+            layer,
+            window.device_pixel_ratio(),
+            surface_policy.effective_max_surface_dimension(layer, u32::MAX),
+            surface_policy.minimum_dpr(layer),
+            surface_policy.defer_transient_root_host_surfaces(layer),
+        );
+        let layout = layer_surface_layout_from_targets(targets.iter());
+        let renderers = targets
+            .into_iter()
+            .map(|target| {
+                let context: web_sys::CanvasRenderingContext2d = target
+                    .canvas
+                    .get_context("2d")
+                    .unwrap()
+                    .unwrap()
+                    .dyn_into::<web_sys::CanvasRenderingContext2d>()
+                    .unwrap();
+                configure_piet_canvas_context(
+                    &context,
+                    &target.canvas,
+                    target.origin_x,
+                    target.origin_y,
+                    target.surface.surface_width,
+                    target.surface.surface_height,
+                    target.surface.dpr,
+                    true,
+                );
+                let entry = layer_surface_entry_from_target(&target);
+                let clear_fn = Box::new({
+                    let context = context.clone();
+                    let canvas = target.canvas.clone();
+                    move || {
+                        clear_piet_canvas_context(&context, &canvas);
+                    }
+                });
+                let configure_fn = Box::new({
+                    let context = context.clone();
+                    let canvas = target.canvas.clone();
+                    move |origin_x, origin_y, surface_width, surface_height, dpr, resize_surface| {
+                        configure_piet_canvas_context(
+                            &context,
+                            &canvas,
+                            origin_x,
+                            origin_y,
+                            surface_width,
+                            surface_height,
+                            dpr,
+                            resize_surface,
+                        );
+                    }
+                });
+                PietLayerRenderer::new(
+                    target.key.clone(),
+                    target.host_signature.clone(),
+                    WebRenderContext::new(context, window.clone()),
+                    clear_fn,
+                    configure_fn,
+                    &entry,
+                )
+            })
+            .collect();
+        let layout_provider: Box<dyn Fn() -> LayerSurfaceLayout> = Box::new({
+            let document = document.clone();
+            let window = window.clone();
+            move || {
+                build_layer_surface_layout(
+                    &document,
+                    layer,
+                    window.device_pixel_ratio(),
+                    surface_policy.effective_max_surface_dimension(layer, u32::MAX),
+                    surface_policy.minimum_dpr(layer),
+                    surface_policy.defer_transient_root_host_surfaces(layer),
+                )
+            }
+        });
 
         (
-            WebRenderContext::new(context.clone(), window.clone()),
-            // clear fn
-            Box::new({
-                let context = context.clone();
-                let canvas = canvas.clone();
-                move || {
-                    let w = canvas.width();
-                    let h = canvas.height();
-                    context.clear_rect(0.0, 0.0, w as f64, h as f64);
-                }
-            }),
-            // resize fn
-            Box::new({
-                let window = window.clone();
-                move || {
-                    let dpr = window.device_pixel_ratio();
-                    canvas.set_width((canvas.client_width() as f64 * dpr) as u32);
-                    canvas.set_height((canvas.client_height() as f64 * dpr) as u32);
-                    let _ = context.scale(dpr, dpr);
-                }
-            }),
+            PietLayerTarget::new(renderers, layout.active),
+            layout_provider,
         )
     })
 }
 
-#[cfg(not(feature = "piet"))]
-pub(crate) fn get_render_context(
+fn get_gpu_render_context(
     window: Window,
     surface_policy: BrowserSurfacePolicy,
 ) -> impl RenderContext {
@@ -176,12 +221,10 @@ pub(crate) fn get_render_context(
             .await;
             if surface_policy.force_gl() {
                 #[cfg(feature = "webgl")]
-                log::info!(
-                    "render backend: forcing GL canvas path for iOS WebKit browser surfaces"
-                );
+                log::info!("render backend: forcing legacy WebGL canvas path by debug override");
                 #[cfg(not(feature = "webgl"))]
                 log::warn!(
-                    "render backend: iOS WebKit requested GL canvas path, but this build was compiled without WebGL fallback"
+                    "render backend: legacy WebGL override was requested, but this build was compiled without WebGL fallback"
                 );
             }
             let force_gl = surface_policy.force_gl() && cfg!(feature = "webgl");
@@ -307,7 +350,6 @@ pub(crate) fn get_render_context(
     })
 }
 
-#[cfg(not(feature = "piet"))]
 async fn wait_for_canvas_layout_settle(window: &Window, document: &Document, layer: usize) {
     let mut last_signature = String::new();
     let mut stable_frames = 0;
@@ -355,7 +397,6 @@ async fn wait_for_canvas_layout_settle(window: &Window, document: &Document, lay
     }
 }
 
-#[cfg(not(feature = "piet"))]
 async fn wait_for_layer_canvas_targets(
     window: &Window,
     document: &Document,
@@ -386,7 +427,6 @@ async fn wait_for_layer_canvas_targets(
     Vec::new()
 }
 
-#[cfg(not(feature = "piet"))]
 fn query_layer_canvas_targets(
     document: &Document,
     layer: usize,
@@ -463,7 +503,6 @@ fn query_layer_canvas_targets(
         .collect()
 }
 
-#[cfg(not(feature = "piet"))]
 fn build_layer_surface_layout(
     document: &Document,
     layer: usize,
@@ -480,30 +519,69 @@ fn build_layer_surface_layout(
         minimum_dpr,
         defer_transient_root_host_surfaces,
     );
-    let active = targets.iter().any(|target| target.active);
-    LayerSurfaceLayout {
-        surfaces: targets
-            .into_iter()
-            .map(|target| LayerSurfaceEntry {
-                key: target.key,
-                host_signature: target.host_signature,
-                origin_x: target.origin_x,
-                origin_y: target.origin_y,
-                replay_priority: target.replay_priority,
-                surface: LayerSurfaceSize {
-                    logical_width: target.surface.logical_width,
-                    logical_height: target.surface.logical_height,
-                    surface_width: target.surface.surface_width,
-                    surface_height: target.surface.surface_height,
-                    dpr: target.surface.dpr,
-                },
-            })
-            .collect(),
-        active,
+    layer_surface_layout_from_targets(targets.iter())
+}
+
+fn layer_surface_layout_from_targets<'a>(
+    targets: impl IntoIterator<Item = &'a LayerCanvasTarget>,
+) -> LayerSurfaceLayout {
+    let mut active = false;
+    let surfaces = targets
+        .into_iter()
+        .map(|target| {
+            active |= target.active;
+            layer_surface_entry_from_target(target)
+        })
+        .collect();
+    LayerSurfaceLayout { surfaces, active }
+}
+
+fn layer_surface_entry_from_target(target: &LayerCanvasTarget) -> LayerSurfaceEntry {
+    LayerSurfaceEntry {
+        key: target.key.clone(),
+        host_signature: target.host_signature.clone(),
+        origin_x: target.origin_x,
+        origin_y: target.origin_y,
+        replay_priority: target.replay_priority,
+        surface: LayerSurfaceSize {
+            logical_width: target.surface.logical_width,
+            logical_height: target.surface.logical_height,
+            surface_width: target.surface.surface_width,
+            surface_height: target.surface.surface_height,
+            dpr: target.surface.dpr,
+        },
     }
 }
 
-#[cfg(not(feature = "piet"))]
+fn configure_piet_canvas_context(
+    context: &web_sys::CanvasRenderingContext2d,
+    canvas: &HtmlCanvasElement,
+    origin_x: f32,
+    origin_y: f32,
+    surface_width: u32,
+    surface_height: u32,
+    dpr: [f32; 2],
+    resize_surface: bool,
+) {
+    if resize_surface || canvas.width() != surface_width || canvas.height() != surface_height {
+        canvas.set_width(surface_width);
+        canvas.set_height(surface_height);
+    }
+    let _ = context.set_transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+    let _ = context.scale(dpr[0] as f64, dpr[1] as f64);
+    let _ = context.translate(-(origin_x as f64), -(origin_y as f64));
+}
+
+fn clear_piet_canvas_context(
+    context: &web_sys::CanvasRenderingContext2d,
+    canvas: &HtmlCanvasElement,
+) {
+    let _ = context.save();
+    let _ = context.set_transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+    context.clear_rect(0.0, 0.0, canvas.width() as f64, canvas.height() as f64);
+    let _ = context.restore();
+}
+
 fn query_layer_canvases(document: &Document, layer: usize) -> Vec<HtmlCanvasElement> {
     let mut canvases = Vec::new();
     let layer_marker = layer.to_string();
@@ -539,7 +617,6 @@ fn query_layer_canvases(document: &Document, layer: usize) -> Vec<HtmlCanvasElem
     canvases
 }
 
-#[cfg(not(feature = "piet"))]
 fn parse_tile_key(canvas: &HtmlCanvasElement) -> (i32, i32) {
     canvas
         .get_attribute("data-tile-key")
@@ -550,7 +627,6 @@ fn parse_tile_key(canvas: &HtmlCanvasElement) -> (i32, i32) {
         .unwrap_or((0, 0))
 }
 
-#[cfg(not(feature = "piet"))]
 fn canvas_layout_signature(canvas: &HtmlCanvasElement) -> String {
     let host_signature = attached_canvas_host_signature(canvas);
     format!(
@@ -561,7 +637,6 @@ fn canvas_layout_signature(canvas: &HtmlCanvasElement) -> String {
     )
 }
 
-#[cfg(not(feature = "piet"))]
 fn canvas_render_state(canvas: &HtmlCanvasElement) -> String {
     canvas
         .parent_element()
@@ -569,7 +644,6 @@ fn canvas_render_state(canvas: &HtmlCanvasElement) -> String {
         .unwrap_or_else(|| "active".to_string())
 }
 
-#[cfg(not(feature = "piet"))]
 fn canvas_host_signature(canvas: &HtmlCanvasElement) -> String {
     if let Some(signature) = canvas.get_attribute("data-host-signature") {
         if !signature.is_empty() {
@@ -598,7 +672,6 @@ fn canvas_host_signature(canvas: &HtmlCanvasElement) -> String {
         .unwrap_or_default()
 }
 
-#[cfg(not(feature = "piet"))]
 fn planned_canvas_logical_width(canvas: &HtmlCanvasElement) -> f64 {
     canvas
         .get_attribute("data-logical-width")
@@ -606,7 +679,6 @@ fn planned_canvas_logical_width(canvas: &HtmlCanvasElement) -> f64 {
         .unwrap_or(canvas.client_width() as f64)
 }
 
-#[cfg(not(feature = "piet"))]
 fn planned_canvas_logical_height(canvas: &HtmlCanvasElement) -> f64 {
     canvas
         .get_attribute("data-logical-height")
@@ -614,7 +686,6 @@ fn planned_canvas_logical_height(canvas: &HtmlCanvasElement) -> f64 {
         .unwrap_or(canvas.client_height() as f64)
 }
 
-#[cfg(not(feature = "piet"))]
 fn attached_canvas_host_signature(canvas: &HtmlCanvasElement) -> String {
     let parent = canvas.parent_element();
     let parent_role = parent
@@ -638,7 +709,6 @@ fn attached_canvas_host_signature(canvas: &HtmlCanvasElement) -> String {
         .unwrap_or_else(|| canvas_host_signature(canvas))
 }
 
-#[cfg(not(feature = "piet"))]
 async fn wait_for_animation_frame(window: &Window) {
     let mut maybe_window = Some(window.clone());
     let promise = js_sys::Promise::new(&mut move |resolve, _reject| {

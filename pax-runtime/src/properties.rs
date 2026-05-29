@@ -53,6 +53,7 @@ pub struct RuntimeContext {
     pub layer_count: Cell<usize>,
     pub dirty_canvases: Rc<RefCell<Vec<bool>>>,
     dirty_canvas_nodes: RefCell<HashSet<ExpandedNodeIdentifier>>,
+    targeted_canvas_replay_node_ids: RefCell<HashMap<usize, HashSet<u32>>>,
     removed_canvas_nodes: RefCell<Vec<(usize, u32)>>,
     occlusion_dirty: Cell<bool>,
     layer_canvas_plan_generation: Cell<u32>,
@@ -175,6 +176,7 @@ impl RuntimeContext {
             last_topmost_element: Default::default(),
             dirty_canvases: Default::default(),
             dirty_canvas_nodes: Default::default(),
+            targeted_canvas_replay_node_ids: Default::default(),
             removed_canvas_nodes: Default::default(),
             occlusion_dirty: Cell::new(true),
             layer_canvas_plan_generation: Cell::new(1),
@@ -208,6 +210,7 @@ impl RuntimeContext {
             last_topmost_element: Default::default(),
             dirty_canvases: Default::default(),
             dirty_canvas_nodes: Default::default(),
+            targeted_canvas_replay_node_ids: Default::default(),
             removed_canvas_nodes: Default::default(),
             occlusion_dirty: Cell::new(true),
             layer_canvas_plan_generation: Cell::new(1),
@@ -241,6 +244,7 @@ impl RuntimeContext {
             last_topmost_element: Default::default(),
             dirty_canvases: Default::default(),
             dirty_canvas_nodes: Default::default(),
+            targeted_canvas_replay_node_ids: Default::default(),
             removed_canvas_nodes: Default::default(),
             occlusion_dirty: Cell::new(true),
             layer_canvas_plan_generation: Cell::new(1),
@@ -685,6 +689,17 @@ impl RuntimeContext {
                 dirty_nodes.insert(id);
             }
         }
+    }
+
+    pub fn mark_targeted_canvas_replay_nodes(&self, layer: usize, node_ids: &[u32]) {
+        let mut targeted = borrow_mut!(self.targeted_canvas_replay_node_ids);
+        let layer_nodes = targeted.entry(layer).or_default();
+        layer_nodes.extend(node_ids.iter().copied());
+    }
+
+    pub fn take_targeted_canvas_replay_node_ids(&self) -> HashMap<usize, HashSet<u32>> {
+        let targeted = &mut *borrow_mut!(self.targeted_canvas_replay_node_ids);
+        std::mem::take(targeted)
     }
 
     pub fn mark_all_canvas_nodes_dirty(&self) {

@@ -262,6 +262,9 @@ impl PaxChassisWeb {
             if let Some(node_ids) = update.node_ids {
                 engine
                     .runtime_context
+                    .mark_targeted_canvas_replay_nodes(update.layer, &node_ids);
+                engine
+                    .runtime_context
                     .mark_canvas_nodes_on_layer_dirty_by_id(update.layer, &node_ids);
             } else {
                 engine
@@ -425,14 +428,7 @@ impl PaxChassisWeb {
         let start = Instant::now();
         let renderer = web_render_contexts::get_render_context(window, surface_policy);
         let get_time = Box::new(move || start.elapsed().as_millis());
-        (
-            width,
-            height,
-            os_info,
-            surface_policy,
-            get_time,
-            Box::new(renderer),
-        )
+        (width, height, os_info, surface_policy, get_time, renderer)
     }
 
     #[cfg(feature = "designtime")]

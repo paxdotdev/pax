@@ -1,20 +1,26 @@
 use pax_runtime::engine::layer_tiling::ScrollerTilingPolicy;
+use wasm_bindgen::JsValue;
 use web_sys::Window;
 
-const IOS_BROWSER_SURFACE_DIMENSION_CAP: u32 = 1800;
+const IOS_WEBGL_BROWSER_SURFACE_DIMENSION_CAP: u32 = 1800;
+const PIET_BROWSER_SURFACE_DIMENSION_CAP: u32 = 2048;
+const PIET_TARGET_TILE_BACKING_DIMENSION: f64 = 2048.0;
 const IOS_NESTED_LAYER_MIN_DPR: f64 = 0.25;
-const IOS_TOTAL_CANVAS_BUDGET: usize = 12;
+const IOS_WEBGL_TOTAL_CANVAS_BUDGET: usize = 12;
+const PIET_TOTAL_CANVAS_BUDGET: usize = 56;
+const PIET_PREWARM_VIEWPORT_PAD_X_MULTIPLIER: f64 = 2.0;
+const PIET_PREWARM_VIEWPORT_PAD_Y_MULTIPLIER: f64 = 6.0;
+const PIET_PREWARM_VIEWPORT_PAD_MIN_X: f64 = 1024.0;
+const PIET_PREWARM_VIEWPORT_PAD_MIN_Y: f64 = 4096.0;
 const WEB_TILE_OVERSCAN_COLUMNS: i32 = 0;
 const WEB_TILE_OVERSCAN_ROWS: i32 = 0;
-const FIREFOX_PREWARM_VIEWPORT_PAD_Y_MULTIPLIER: f64 = 3.0;
-const FIREFOX_PREWARM_VIEWPORT_PAD_MIN_Y: f64 = 1536.0;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct BrowserSurfacePolicy {
     force_gl: bool,
+    use_piet_fallback: bool,
     surface_dimension_cap: Option<u32>,
     ios_webkit: bool,
-    firefox: bool,
 }
 
 impl BrowserSurfacePolicy {
@@ -31,7 +37,11 @@ impl BrowserSurfacePolicy {
             && !user_agent.contains("CriOS")
             && !user_agent.contains("FxiOS")
             && !user_agent.contains("EdgiOS");
-        let firefox = user_agent.contains("Firefox/") && !user_agent.contains("FxiOS");
+        let webgpu_available =
+            js_sys::Reflect::has(window.navigator().as_ref(), &JsValue::from_str("gpu"))
+                .unwrap_or(false);
+        let force_gl = legacy_webgl_override_requested(window) && cfg!(feature = "webgl");
+        let use_piet_fallback = (ios_webkit || !webgpu_available) && !force_gl;
 
         // Nested browser-owned scroller surfaces on iOS WebKit hit two limits that the generic
         // web path does not:
@@ -40,25 +50,33 @@ impl BrowserSurfacePolicy {
         //    beyond ~1800 px, even when the reported device limits are higher.
         //
         // We keep that policy isolated here so the rest of the web chassis stays platform-agnostic:
-        // force the GL canvas path on iOS, and allow descendant layers to downsample below 1x DPR
-        // instead of failing surface initialization outright. Root-layer tiling is chosen one
+        // choose the CPU/Piet renderer on iOS, and allow descendant layers to downsample below 1x
+        // DPR instead of failing surface initialization outright. Root-layer tiling is chosen one
         // level up in the web surface host policy, so the root viewport no longer needs the same
         // backing-dimension cap here.
         let surface_dimension_cap = if ios_webkit {
-            Some(IOS_BROWSER_SURFACE_DIMENSION_CAP)
+            Some(if use_piet_fallback {
+                PIET_BROWSER_SURFACE_DIMENSION_CAP
+            } else {
+                IOS_WEBGL_BROWSER_SURFACE_DIMENSION_CAP
+            })
         } else {
             None
         };
         Self {
-            force_gl: ios_webkit,
+            force_gl,
+            use_piet_fallback,
             surface_dimension_cap,
             ios_webkit,
-            firefox,
         }
     }
 
     pub(crate) fn force_gl(self) -> bool {
         self.force_gl
+    }
+
+    pub(crate) fn use_piet_fallback(self) -> bool {
+        self.use_piet_fallback
     }
 
     pub(crate) fn effective_max_surface_dimension(self, layer: usize, backend_limit: u32) -> u32 {
@@ -86,23 +104,40 @@ impl BrowserSurfacePolicy {
         let mut policy = ScrollerTilingPolicy::default();
         policy.tile_overscan_columns = WEB_TILE_OVERSCAN_COLUMNS;
         policy.tile_overscan_rows = WEB_TILE_OVERSCAN_ROWS;
-        if self.firefox {
-            // Firefox reveals entering tiles before replay catches up more readily than Chrome or
-            // Safari. Keep extra vertical runway, but use the default tile size so fast scrolling
-            // does not increase retarget/swap frequency.
-            policy.prewarm_viewport_pad_y_multiplier = FIREFOX_PREWARM_VIEWPORT_PAD_Y_MULTIPLIER;
-            policy.prewarm_viewport_pad_min_y = FIREFOX_PREWARM_VIEWPORT_PAD_MIN_Y;
+        if self.use_piet_fallback {
+            // Piet does immediate CPU raster into browser canvases. Spend more canvas memory on
+            // warm runway so fast scrolls are less likely to expose tiles before replay catches up.
+            policy.target_tile_backing_dimension = PIET_TARGET_TILE_BACKING_DIMENSION;
+            policy.prewarm_viewport_pad_x_multiplier = PIET_PREWARM_VIEWPORT_PAD_X_MULTIPLIER;
+            policy.prewarm_viewport_pad_y_multiplier = PIET_PREWARM_VIEWPORT_PAD_Y_MULTIPLIER;
+            policy.prewarm_viewport_pad_min_x = PIET_PREWARM_VIEWPORT_PAD_MIN_X;
+            policy.prewarm_viewport_pad_min_y = PIET_PREWARM_VIEWPORT_PAD_MIN_Y;
+            policy.max_surfaces_per_layer = Some(PIET_TOTAL_CANVAS_BUDGET);
         }
         if self.ios_webkit {
-            // Keep Safari's fixed WebGL budget explicit at the planner boundary. The JS canvas
-            // pool still enforces the page-wide cap, but the engine should not request a per-layer
-            // surface set that the chassis can never materialize.
-            policy.max_tile_backing_width = Some(IOS_BROWSER_SURFACE_DIMENSION_CAP as f64);
-            policy.max_tile_backing_height = Some(IOS_BROWSER_SURFACE_DIMENSION_CAP as f64);
-            policy.max_tile_backing_area = Some((IOS_BROWSER_SURFACE_DIMENSION_CAP as f64).powi(2));
-            policy.tile_overscan_rows = 0;
-            policy.max_surfaces_per_layer = Some(IOS_TOTAL_CANVAS_BUDGET);
+            // Keep Safari's fixed browser-surface budget explicit at the planner boundary. The JS
+            // canvas pool still enforces the page-wide cap, but the engine should not request a
+            // per-layer surface set that the chassis can never materialize.
+            let surface_dimension_cap =
+                self.surface_dimension_cap
+                    .unwrap_or(if self.use_piet_fallback {
+                        PIET_BROWSER_SURFACE_DIMENSION_CAP
+                    } else {
+                        IOS_WEBGL_BROWSER_SURFACE_DIMENSION_CAP
+                    });
+            policy.max_tile_backing_width = Some(surface_dimension_cap as f64);
+            policy.max_tile_backing_height = Some(surface_dimension_cap as f64);
+            policy.max_tile_backing_area = Some((surface_dimension_cap as f64).powi(2));
+            if !self.use_piet_fallback {
+                policy.tile_overscan_rows = 0;
+                policy.max_surfaces_per_layer = Some(IOS_WEBGL_TOTAL_CANVAS_BUDGET);
+            }
         }
         policy
     }
+}
+
+fn legacy_webgl_override_requested(window: &Window) -> bool {
+    let query = window.location().search().unwrap_or_default();
+    query.contains("pax_force_webgl=1") || query.contains("pax-renderer=webgl")
 }

@@ -117,6 +117,11 @@ pub trait RenderContext {
             .unwrap_or_default()
     }
 
+    /// Returns whether the backend retains individual canvas nodes across frames.
+    fn retains_canvas_nodes(&self) -> bool {
+        true
+    }
+
     /// Begins rendering a node and returns false when the backend can skip it.
     fn begin_node(&mut self, _layer: usize, _node_id: u32, _z_index: i32) -> bool {
         true

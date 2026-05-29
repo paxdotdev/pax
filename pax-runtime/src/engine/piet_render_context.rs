@@ -3,9 +3,40 @@ use piet::{
     kurbo::{self, Affine, Shape},
     InterpolationMode, LineCap, LinearGradient, RadialGradient, StrokeStyle,
 };
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    rc::Rc,
+};
 
+use super::layer_surface::{
+    replay_batches_by_directional_priority, surface_intersects_coverage_bounds,
+    visible_surface_escape, LayerSurfaceEntry, LayerSurfaceLayout, LayoutChangeKind,
+    ReplayPriorityEntry, SurfaceReplayCoordinator, VisibleSurfaceEscape,
+};
 use crate::api;
+
+#[cfg(debug_assertions)]
+fn log_visible_surface_escape(layer: usize, escape: VisibleSurfaceEscape) {
+    log::warn!(
+        "[pax-tile-window-escape] backend=piet layer={} visible_surfaces={} escaped_visible_surfaces={} max_gap_x={:.1} max_gap_y={:.1} previous_bounds={} visible_bounds={}",
+        layer,
+        escape.visible_surfaces,
+        escape.escaped_visible_surfaces,
+        escape.max_gap_x,
+        escape.max_gap_y,
+        format_rect(escape.previous_bounds),
+        format_rect(escape.visible_bounds),
+    );
+}
+
+#[cfg(debug_assertions)]
+fn format_rect(bounds: kurbo::Rect) -> String {
+    format!(
+        "{:.1},{:.1}-{:.1},{:.1}",
+        bounds.x0, bounds.y0, bounds.x1, bounds.y1
+    )
+}
 
 struct ImgData<R: piet::RenderContext> {
     img: R::Image,
@@ -13,23 +44,460 @@ struct ImgData<R: piet::RenderContext> {
 }
 
 type ClearFn = Box<dyn Fn()>;
-type ResizeFn = Box<dyn Fn()>;
+type ConfigureFn = Box<dyn Fn(f32, f32, u32, u32, [f32; 2], bool)>;
+type LayerDef<R> = (PietLayerTarget<R>, Box<dyn Fn() -> LayerSurfaceLayout>);
 
-/// Legacy/test `RenderContext` implementation backed by piet.
+/// Retained metadata for one piet-backed browser canvas surface.
+pub struct PietLayerRenderer<R: piet::RenderContext> {
+    key: String,
+    host_signature: String,
+    context: R,
+    clear_fn: ClearFn,
+    configure_fn: ConfigureFn,
+    origin_x: f32,
+    origin_y: f32,
+    logical_width: f32,
+    logical_height: f32,
+    surface_width: u32,
+    surface_height: u32,
+    dpr: [f32; 2],
+}
+
+impl<R: piet::RenderContext> PietLayerRenderer<R> {
+    pub fn new(
+        key: String,
+        host_signature: String,
+        context: R,
+        clear_fn: ClearFn,
+        configure_fn: ConfigureFn,
+        surface: &LayerSurfaceEntry,
+    ) -> Self {
+        Self {
+            key,
+            host_signature,
+            context,
+            clear_fn,
+            configure_fn,
+            origin_x: surface.origin_x,
+            origin_y: surface.origin_y,
+            logical_width: surface.surface.logical_width,
+            logical_height: surface.surface.logical_height,
+            surface_width: surface.surface.surface_width,
+            surface_height: surface.surface.surface_height,
+            dpr: surface.surface.dpr,
+        }
+    }
+
+    fn context_mut(&mut self) -> &mut R {
+        &mut self.context
+    }
+
+    fn clear(&self) {
+        (self.clear_fn)();
+    }
+
+    fn intersects_coverage_bounds(&self, bounds: &kurbo::Rect) -> bool {
+        surface_intersects_coverage_bounds(
+            bounds,
+            self.origin_x as f64,
+            self.origin_y as f64,
+            self.logical_width as f64,
+            self.logical_height as f64,
+        )
+    }
+
+    fn coverage_bounds(&self) -> kurbo::Rect {
+        kurbo::Rect::new(
+            self.origin_x as f64,
+            self.origin_y as f64,
+            self.origin_x as f64 + self.logical_width as f64,
+            self.origin_y as f64 + self.logical_height as f64,
+        )
+    }
+
+    fn update_layout(&mut self, surface: &LayerSurfaceEntry) -> LayoutChangeKind {
+        let origin_changed = (self.origin_x - surface.origin_x).abs() > f32::EPSILON
+            || (self.origin_y - surface.origin_y).abs() > f32::EPSILON;
+        let size_changed = self.logical_width != surface.surface.logical_width
+            || self.logical_height != surface.surface.logical_height
+            || self.surface_width != surface.surface.surface_width
+            || self.surface_height != surface.surface.surface_height
+            || self.dpr != surface.surface.dpr;
+
+        self.origin_x = surface.origin_x;
+        self.origin_y = surface.origin_y;
+        self.logical_width = surface.surface.logical_width;
+        self.logical_height = surface.surface.logical_height;
+        self.surface_width = surface.surface.surface_width;
+        self.surface_height = surface.surface.surface_height;
+        self.dpr = surface.surface.dpr;
+
+        if size_changed || origin_changed {
+            (self.configure_fn)(
+                self.origin_x,
+                self.origin_y,
+                self.surface_width,
+                self.surface_height,
+                self.dpr,
+                size_changed,
+            );
+        }
+
+        if size_changed {
+            self.clear();
+        }
+
+        if size_changed {
+            LayoutChangeKind::Resized
+        } else if origin_changed {
+            LayoutChangeKind::OriginOnly
+        } else {
+            LayoutChangeKind::Unchanged
+        }
+    }
+}
+
+/// Current piet surface set for one logical layer.
+pub struct PietLayerTarget<R: piet::RenderContext> {
+    renderers: Vec<PietLayerRenderer<R>>,
+    active: bool,
+}
+
+impl<R: piet::RenderContext> PietLayerTarget<R> {
+    pub fn new(renderers: Vec<PietLayerRenderer<R>>, active: bool) -> Self {
+        Self { renderers, active }
+    }
+
+    fn activate(&mut self) -> bool {
+        let changed = !self.active;
+        self.active = true;
+        changed
+    }
+
+    fn deactivate(&mut self) {
+        self.active = false;
+    }
+}
+
+/// `RenderContext` implementation backed by piet.
 pub struct PietRenderer<R: piet::RenderContext> {
-    backends: Vec<(R, ClearFn, ResizeFn)>,
+    layers: Vec<LayerDef<R>>,
     image_map: HashMap<String, ImgData<R>>,
-    layer_factory: Box<dyn Fn(usize) -> (R, ClearFn, ResizeFn)>,
+    layer_factory: Box<dyn Fn(usize) -> LayerDef<R>>,
+    ready_layers: Vec<usize>,
+    replay_layers: Vec<usize>,
+    surface_replay: SurfaceReplayCoordinator,
+    active_render_scopes: Vec<Vec<Vec<usize>>>,
+    clean_skipped_canvas_nodes: HashSet<(usize, u32)>,
 }
 
 impl<R: piet::RenderContext> PietRenderer<R> {
-    /// Create a piet renderer with a chassis-provided layer factory.
-    pub fn new(layer_factory: impl Fn(usize) -> (R, ClearFn, ResizeFn) + 'static) -> Self {
+    /// Create a piet renderer with a chassis-provided logical layer factory.
+    pub fn new(layer_factory: impl Fn(usize) -> LayerDef<R> + 'static) -> Self {
         Self {
             layer_factory: Box::new(layer_factory),
-            backends: Vec::new(),
+            layers: Vec::new(),
             image_map: HashMap::new(),
+            ready_layers: Vec::new(),
+            replay_layers: Vec::new(),
+            surface_replay: SurfaceReplayCoordinator::default(),
+            active_render_scopes: Vec::new(),
+            clean_skipped_canvas_nodes: HashSet::new(),
         }
+    }
+
+    fn first_context_mut(&mut self) -> Option<&mut R> {
+        self.layers
+            .iter_mut()
+            .find_map(|(target, _)| target.renderers.first_mut())
+            .map(PietLayerRenderer::context_mut)
+    }
+
+    fn with_layer_context(&mut self, layer: usize, mut f: impl FnMut(&mut R)) {
+        let scoped_indices = self
+            .active_render_scopes
+            .get(layer)
+            .and_then(|scopes| scopes.last())
+            .cloned();
+
+        let Some((target, _)) = self.layers.get_mut(layer) else {
+            return;
+        };
+        if !target.active {
+            return;
+        }
+
+        if let Some(indices) = scoped_indices {
+            for index in indices {
+                if let Some(renderer) = target.renderers.get_mut(index) {
+                    f(renderer.context_mut());
+                }
+            }
+        } else {
+            for renderer in &mut target.renderers {
+                f(renderer.context_mut());
+            }
+        }
+    }
+
+    fn push_render_scope(&mut self, layer: usize, renderer_indices: Vec<usize>) {
+        if self.active_render_scopes.len() <= layer {
+            self.active_render_scopes.resize_with(layer + 1, Vec::new);
+        }
+        self.active_render_scopes[layer].push(renderer_indices);
+    }
+
+    fn pop_render_scope(&mut self, layer: usize) {
+        if let Some(scopes) = self.active_render_scopes.get_mut(layer) {
+            scopes.pop();
+        }
+    }
+
+    fn take_replay_layer_ids(&mut self) -> Vec<usize> {
+        let mut replay = std::mem::take(&mut self.replay_layers);
+        replay.sort_unstable();
+        replay.dedup();
+        replay
+    }
+
+    fn targeted_or_all_indices(&self, layer: usize, renderer_count: usize) -> Vec<usize> {
+        self.surface_replay
+            .targeted_or_all_indices(layer, renderer_count)
+    }
+
+    fn clear_targeted_replay_scope(&mut self, layer: usize) {
+        self.surface_replay.clear_targeted_replay_scope(layer);
+    }
+
+    fn set_targeted_replay_batches(
+        &mut self,
+        layer: usize,
+        batches: Vec<Vec<usize>>,
+        bounds_by_surface: HashMap<usize, Vec<kurbo::Rect>>,
+    ) {
+        self.surface_replay
+            .set_targeted_replay_batches(layer, batches, bounds_by_surface);
+    }
+
+    fn advance_targeted_replay_queue(&mut self, layer: usize) -> bool {
+        self.surface_replay.advance_targeted_replay_queue(layer)
+    }
+
+    fn remember_canvas_node_coverage(
+        &mut self,
+        layer: usize,
+        node_id: u32,
+        coverage_bounds: kurbo::Rect,
+    ) {
+        self.surface_replay
+            .remember_canvas_node_coverage(layer, node_id, coverage_bounds);
+    }
+
+    fn forget_canvas_node_coverage(&mut self, layer: usize, node_id: u32) {
+        self.surface_replay
+            .forget_canvas_node_coverage(layer, node_id);
+    }
+
+    fn targeted_replay_surface_bounds(
+        &self,
+        layer: usize,
+        target: &PietLayerTarget<R>,
+    ) -> Option<Vec<kurbo::Rect>> {
+        self.surface_replay
+            .targeted_replay_surface_bounds(layer, |index| {
+                target
+                    .renderers
+                    .get(index)
+                    .map(PietLayerRenderer::coverage_bounds)
+            })
+    }
+
+    fn spatial_replay_node_ids(&self, layer: usize) -> Option<Vec<u32>> {
+        let Some((target, _)) = self.layers.get(layer) else {
+            return None;
+        };
+        let surface_bounds = self.targeted_replay_surface_bounds(layer, target)?;
+        self.surface_replay
+            .spatial_replay_node_ids_for_surface_bounds(layer, &surface_bounds)
+    }
+
+    fn refresh_layer_layouts<I>(&mut self, layer_indices: I)
+    where
+        I: IntoIterator<Item = usize>,
+    {
+        for layer_index in layer_indices {
+            let Some((target, layout_provider)) = self.layers.get_mut(layer_index) else {
+                continue;
+            };
+            let layout = (layout_provider)();
+            let layout_matches = layer_layout_matches_target(target, &layout);
+
+            if !layout.active {
+                target.deactivate();
+                self.clear_targeted_replay_scope(layer_index);
+                continue;
+            }
+
+            if !layout_matches {
+                self.clear_targeted_replay_scope(layer_index);
+                let (new_target, new_provider) = (self.layer_factory)(layer_index);
+                let has_surfaces = !new_target.renderers.is_empty();
+                self.layers[layer_index] = (new_target, new_provider);
+                if has_surfaces {
+                    self.ready_layers.push(layer_index);
+                    self.replay_layers.push(layer_index);
+                }
+                continue;
+            }
+
+            let activated_replay = target.activate() && !target.renderers.is_empty();
+
+            let mut targeted_replay_entries = Vec::new();
+            let mut targeted_replay_bounds = HashMap::new();
+            let mut needs_full_layer_replay = false;
+            #[cfg(debug_assertions)]
+            {
+                let previous_surface_bounds: Vec<_> = target
+                    .renderers
+                    .iter()
+                    .map(PietLayerRenderer::coverage_bounds)
+                    .collect();
+                if let Some(escape) =
+                    visible_surface_escape(&previous_surface_bounds, &layout.surfaces)
+                {
+                    log_visible_surface_escape(layer_index, escape);
+                }
+            }
+            for (index, (surface, renderer)) in layout
+                .surfaces
+                .iter()
+                .zip(target.renderers.iter_mut())
+                .enumerate()
+            {
+                let previous_bounds = renderer.coverage_bounds();
+                let layout_change = renderer.update_layout(surface);
+                let current_bounds = renderer.coverage_bounds();
+                match layout_change {
+                    LayoutChangeKind::Unchanged => {}
+                    LayoutChangeKind::OriginOnly => {
+                        targeted_replay_entries.push(ReplayPriorityEntry::new(
+                            index,
+                            surface.replay_priority,
+                            previous_bounds,
+                            current_bounds,
+                        ));
+                        targeted_replay_bounds.insert(index, vec![previous_bounds, current_bounds]);
+                    }
+                    LayoutChangeKind::Resized => {
+                        needs_full_layer_replay = true;
+                    }
+                }
+            }
+            if activated_replay || needs_full_layer_replay {
+                self.clear_targeted_replay_scope(layer_index);
+                self.replay_layers.push(layer_index);
+            } else if !targeted_replay_entries.is_empty() {
+                self.set_targeted_replay_batches(
+                    layer_index,
+                    piet_replay_batches_for_retarget(targeted_replay_entries),
+                    targeted_replay_bounds,
+                );
+                self.replay_layers.push(layer_index);
+            }
+        }
+    }
+}
+
+fn piet_replay_batches_for_retarget(entries: Vec<ReplayPriorityEntry>) -> Vec<Vec<usize>> {
+    let batches = replay_batches_by_directional_priority(&entries);
+    let visible_indices: HashSet<_> = entries
+        .iter()
+        .filter(|entry| entry.priority <= 0)
+        .map(|entry| entry.index)
+        .collect();
+    if visible_indices.is_empty() {
+        return batches;
+    }
+
+    let mut visible_batch = Vec::new();
+    let mut warm_batches = Vec::new();
+    for batch in batches {
+        let mut warm_batch = Vec::new();
+        for index in batch {
+            if visible_indices.contains(&index) {
+                visible_batch.push(index);
+            } else {
+                warm_batch.push(index);
+            }
+        }
+        if !warm_batch.is_empty() {
+            warm_batches.push(warm_batch);
+        }
+    }
+
+    let mut coalesced_batches = Vec::with_capacity(warm_batches.len() + 1);
+    coalesced_batches.push(visible_batch);
+    coalesced_batches.extend(warm_batches);
+    coalesced_batches
+}
+
+fn layer_layout_matches_target<R: piet::RenderContext>(
+    target: &PietLayerTarget<R>,
+    layout: &LayerSurfaceLayout,
+) -> bool {
+    layout.surfaces.len() == target.renderers.len()
+        && layout
+            .surfaces
+            .iter()
+            .zip(target.renderers.iter())
+            .all(|(surface, renderer)| {
+                surface.key == renderer.key && surface.host_signature == renderer.host_signature
+            })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::piet_replay_batches_for_retarget;
+    use crate::engine::layer_surface::ReplayPriorityEntry;
+    use kurbo::Rect;
+
+    #[test]
+    fn piet_replay_batches_coalesce_visible_surfaces_first() {
+        let batches = piet_replay_batches_for_retarget(vec![
+            replay_entry(0, 0, 0.0, 100.0),
+            replay_entry(1, 0, 100.0, 200.0),
+            replay_entry(2, 1, 200.0, 300.0),
+            replay_entry(3, 1, -100.0, 0.0),
+        ]);
+
+        assert_eq!(batches[0], vec![1, 0]);
+        assert_eq!(batches[1], vec![2]);
+        assert_eq!(batches[2], vec![3]);
+    }
+
+    #[test]
+    fn piet_replay_batches_keep_warm_only_directional_batches() {
+        let batches = piet_replay_batches_for_retarget(vec![
+            replay_entry(0, 1, 0.0, 100.0),
+            replay_entry(1, 1, 100.0, 200.0),
+            replay_entry(2, 1, -100.0, 0.0),
+        ]);
+
+        assert_eq!(batches, vec![vec![1], vec![0], vec![2]]);
+    }
+
+    fn replay_entry(
+        index: usize,
+        priority: i32,
+        previous_y: f64,
+        current_y: f64,
+    ) -> ReplayPriorityEntry {
+        ReplayPriorityEntry::new(
+            index,
+            priority,
+            Rect::new(0.0, previous_y, 100.0, previous_y + 100.0),
+            Rect::new(0.0, current_y, 100.0, current_y + 100.0),
+        )
     }
 }
 
@@ -37,9 +505,7 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
     fn fill_with_opacity(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill, opacity: f64) {
         let rect = path.bounding_box();
         let brush = fill_to_piet_brush(&fill.with_alpha_factor(opacity), rect);
-        if let Some((layer, _, _)) = self.backends.get_mut(layer) {
-            layer.fill(path, &brush);
-        }
+        self.with_layer_context(layer, |context| context.fill(path.clone(), &brush));
     }
 
     fn stroke_with_opacity(
@@ -56,38 +522,35 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
         );
         let width = stroke.width.get().expect_pixels().to_float();
         let style = stroke_to_piet_style(stroke);
-        if let Some((layer, _, _)) = self.backends.get_mut(layer) {
-            layer.stroke_styled(path, &brush, width, &style);
-        }
+        self.with_layer_context(layer, |context| {
+            context.stroke_styled(path.clone(), &brush, width, &style)
+        });
     }
 
     fn save(&mut self, layer: usize) {
-        if let Some((layer, _, _)) = self.backends.get_mut(layer) {
-            let _ = layer.save();
-        }
+        self.with_layer_context(layer, |context| {
+            let _ = context.save();
+        });
     }
 
     fn transform(&mut self, layer: usize, affine: Affine) {
-        if let Some((layer, _, _)) = self.backends.get_mut(layer) {
-            layer.transform(affine);
-        }
+        self.with_layer_context(layer, |context| context.transform(affine));
     }
 
     fn clip(&mut self, layer: usize, path: kurbo::BezPath) {
-        if let Some((layer, _, _)) = self.backends.get_mut(layer) {
-            layer.clip(path);
-        }
+        self.with_layer_context(layer, |context| context.clip(path.clone()));
     }
 
     fn restore(&mut self, layer: usize) {
-        if let Some((layer, _, _)) = self.backends.get_mut(layer) {
-            let _ = layer.restore();
-        }
+        self.with_layer_context(layer, |context| {
+            let _ = context.restore();
+        });
     }
 
     fn load_image(&mut self, path: &str, buf: &[u8], width: usize, height: usize) {
-        //is this okay!? we know it's the same kind of backend no matter what layer, but it might be storing data?
-        let (render_context, _, _) = self.backends.first_mut().unwrap();
+        let Some(render_context) = self.first_context_mut() else {
+            return;
+        };
         let img = render_context
             .make_image(width, height, buf, piet::ImageFormat::RgbaSeparate)
             .expect("image creation successful");
@@ -108,27 +571,57 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
         let Some(data) = self.image_map.get(image_path) else {
             return;
         };
-        if let Some((layer, _, _)) = self.backends.get_mut(layer) {
-            layer.draw_image(&data.img, rect, InterpolationMode::Bilinear);
+        let scoped_indices = self
+            .active_render_scopes
+            .get(layer)
+            .and_then(|scopes| scopes.last())
+            .cloned();
+        let Some((target, _)) = self.layers.get_mut(layer) else {
+            return;
+        };
+        if !target.active {
+            return;
+        }
+        if let Some(indices) = scoped_indices {
+            for index in indices {
+                if let Some(renderer) = target.renderers.get_mut(index) {
+                    renderer
+                        .context_mut()
+                        .draw_image(&data.img, rect, InterpolationMode::Bilinear);
+                }
+            }
+        } else {
+            for renderer in &mut target.renderers {
+                renderer
+                    .context_mut()
+                    .draw_image(&data.img, rect, InterpolationMode::Bilinear);
+            }
         }
     }
 
     fn layers(&self) -> usize {
-        self.backends.len()
+        self.layers.len()
     }
 
     fn resize_layers_to(&mut self, layer_count: usize, dirty_canvases: Rc<RefCell<Vec<bool>>>) {
-        let current_len = self.backends.len();
+        let current_len = self.layers.len();
         match layer_count.cmp(&current_len) {
             std::cmp::Ordering::Less => {
-                self.backends.truncate(layer_count);
+                self.layers.truncate(layer_count);
+                self.active_render_scopes.truncate(layer_count);
+                self.surface_replay.truncate_layers(layer_count);
             }
             std::cmp::Ordering::Equal => return,
             std::cmp::Ordering::Greater => {
                 for i in current_len..layer_count {
-                    self.backends.push((self.layer_factory)(i));
+                    let (target, provider) = (self.layer_factory)(i);
+                    let has_surfaces = target.active && !target.renderers.is_empty();
+                    self.layers.push((target, provider));
                     if let Some(dirty_bit) = dirty_canvases.borrow_mut().get_mut(i) {
                         *dirty_bit = true;
+                    }
+                    if has_surfaces {
+                        self.ready_layers.push(i);
                     }
                 }
             }
@@ -140,24 +633,155 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
     }
 
     fn clear(&mut self, layer: usize) {
-        if let Some((_, clear_fn, _)) = self.backends.get_mut(layer) {
-            (clear_fn)();
+        let scoped_indices = self
+            .active_render_scopes
+            .get(layer)
+            .and_then(|scopes| scopes.last())
+            .cloned()
+            .or_else(|| {
+                self.layers
+                    .get(layer)
+                    .map(|(target, _)| self.targeted_or_all_indices(layer, target.renderers.len()))
+            });
+        let Some((target, _)) = self.layers.get_mut(layer) else {
+            return;
+        };
+        if !target.active {
+            return;
+        }
+        if let Some(indices) = scoped_indices {
+            for index in indices {
+                if let Some(renderer) = target.renderers.get(index) {
+                    renderer.clear();
+                }
+            }
+        } else {
+            for renderer in &target.renderers {
+                renderer.clear();
+            }
         }
     }
 
-    fn flush(&mut self, _layer: usize, _dirty_canvases: Rc<RefCell<Vec<bool>>>) {
-        // NOTE: used for GPU rendering to flush changes to the screen, not needed
-        // during CPU rendering
+    fn flush(&mut self, layer: usize, _dirty_canvases: Rc<RefCell<Vec<bool>>>) {
+        if self.advance_targeted_replay_queue(layer) {
+            self.replay_layers.push(layer);
+        }
     }
 
     fn resize(&mut self, _width: usize, _height: usize) {
-        for (_, _, resize_fn) in &self.backends {
-            (resize_fn)();
-        }
+        let layer_count = self.layers.len();
+        self.refresh_layer_layouts(0..layer_count);
     }
 
-    fn refresh_layers(&mut self, _layers: &[usize]) {
-        self.resize(0, 0);
+    fn refresh_layers(&mut self, layers: &[usize]) {
+        self.refresh_layer_layouts(layers.iter().copied());
+    }
+
+    fn take_ready_canvas_layers(&mut self) -> Vec<usize> {
+        let mut ready = std::mem::take(&mut self.ready_layers);
+        ready.sort_unstable();
+        ready.dedup();
+        ready
+    }
+
+    fn take_replay_canvas_layer_updates(
+        &mut self,
+    ) -> Vec<pax_runtime_api::ReplayCanvasLayerUpdate> {
+        let replay_layers = self.take_replay_layer_ids();
+        replay_layers
+            .into_iter()
+            .map(|layer| pax_runtime_api::ReplayCanvasLayerUpdate {
+                layer,
+                node_ids: self.spatial_replay_node_ids(layer),
+            })
+            .collect()
+    }
+
+    fn retains_canvas_nodes(&self) -> bool {
+        false
+    }
+
+    fn begin_node(&mut self, layer: usize, _node_id: u32, _z_index: i32) -> bool {
+        let renderer_count = {
+            let Some((target, _)) = self.layers.get(layer) else {
+                return false;
+            };
+            if !target.active {
+                return false;
+            }
+            target.renderers.len()
+        };
+        self.remember_canvas_node_coverage(
+            layer,
+            _node_id,
+            kurbo::Rect::new(
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+                f64::INFINITY,
+                f64::INFINITY,
+            ),
+        );
+        let selected = self.targeted_or_all_indices(layer, renderer_count);
+        let began = !selected.is_empty();
+        if began {
+            self.push_render_scope(layer, selected);
+        }
+        began
+    }
+
+    fn begin_node_with_bounds(
+        &mut self,
+        layer: usize,
+        node_id: u32,
+        _z_index: i32,
+        coverage_bounds: kurbo::Rect,
+    ) -> bool {
+        let renderer_count = {
+            let Some((target, _)) = self.layers.get(layer) else {
+                return false;
+            };
+            if !target.active {
+                return false;
+            }
+            target.renderers.len()
+        };
+        self.remember_canvas_node_coverage(layer, node_id, coverage_bounds);
+        let candidate_indices = self.targeted_or_all_indices(layer, renderer_count);
+        let Some((target, _)) = self.layers.get(layer) else {
+            return false;
+        };
+        let selected: Vec<_> = target
+            .renderers
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| candidate_indices.contains(index))
+            .filter_map(|(index, renderer)| {
+                renderer
+                    .intersects_coverage_bounds(&coverage_bounds)
+                    .then_some(index)
+            })
+            .collect();
+        let began = !selected.is_empty();
+        if began {
+            self.push_render_scope(layer, selected);
+        } else {
+            self.clean_skipped_canvas_nodes.insert((layer, node_id));
+        }
+        began
+    }
+
+    fn take_clean_skipped_node(&mut self, layer: usize, node_id: u32) -> bool {
+        self.clean_skipped_canvas_nodes.remove(&(layer, node_id))
+    }
+
+    fn end_node(&mut self, layer: usize, _node_id: u32) -> bool {
+        self.pop_render_scope(layer);
+        true
+    }
+
+    fn remove_node(&mut self, layer: usize, node_id: u32) -> bool {
+        self.forget_canvas_node_coverage(layer, node_id);
+        true
     }
 }
 

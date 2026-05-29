@@ -1,3 +1,8 @@
+use super::layer_surface::{
+    replay_batches_by_directional_priority, surface_intersects_coverage_bounds,
+    visible_surface_escape, LayerSurfaceEntry, LayerSurfaceLayout, LayoutChangeKind,
+    ReplayPriorityEntry, SurfaceReplayCoordinator, VisibleSurfaceEscape,
+};
 use kurbo::{BezPath, PathEl, Rect, Shape};
 use pax_gpu::{
     point, Box2D, Image, Path, ResourceChurnStats, Stroke as PixelStroke,
@@ -57,6 +62,59 @@ struct TileCullStats {
     resize_resets: u64,
 }
 
+#[cfg(debug_assertions)]
+fn replay_priority_stats(
+    entries: &[ReplayPriorityEntry],
+    batches: &[Vec<usize>],
+) -> (usize, usize, usize, usize) {
+    let visible_surfaces = entries.iter().filter(|entry| entry.priority <= 0).count();
+    let warm_surfaces = entries.len().saturating_sub(visible_surfaces);
+    let priority_by_index: HashMap<usize, i32> = entries
+        .iter()
+        .map(|entry| (entry.index, entry.priority))
+        .collect();
+    let visible_batches = batches
+        .iter()
+        .filter(|batch| {
+            batch.iter().any(|index| {
+                priority_by_index
+                    .get(index)
+                    .map_or(false, |priority| *priority <= 0)
+            })
+        })
+        .count();
+    let warm_batches = batches.len().saturating_sub(visible_batches);
+
+    (
+        visible_batches,
+        warm_batches,
+        visible_surfaces,
+        warm_surfaces,
+    )
+}
+
+#[cfg(debug_assertions)]
+fn log_visible_surface_escape(layer: usize, escape: VisibleSurfaceEscape) {
+    log::warn!(
+        "[pax-tile-window-escape] backend=wgpu layer={} visible_surfaces={} escaped_visible_surfaces={} max_gap_x={:.1} max_gap_y={:.1} previous_bounds={} visible_bounds={}",
+        layer,
+        escape.visible_surfaces,
+        escape.escaped_visible_surfaces,
+        escape.max_gap_x,
+        escape.max_gap_y,
+        format_rect(escape.previous_bounds),
+        format_rect(escape.visible_bounds),
+    );
+}
+
+#[cfg(debug_assertions)]
+fn format_rect(bounds: Rect) -> String {
+    format!(
+        "{:.1},{:.1}-{:.1},{:.1}",
+        bounds.x0, bounds.y0, bounds.x1, bounds.y1
+    )
+}
+
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 fn should_print_gpu_profile_logs() -> bool {
     static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
@@ -70,31 +128,7 @@ fn should_print_gpu_profile_logs() -> bool {
     })
 }
 
-/// Desired surface geometry for one tile in a layer layout.
-pub struct LayerSurfaceEntry {
-    pub key: String,
-    pub host_signature: String,
-    pub origin_x: f32,
-    pub origin_y: f32,
-    pub replay_priority: i32,
-    pub surface: LayerSurfaceSize,
-}
-
-/// Desired set of physical surfaces for a logical layer.
-pub struct LayerSurfaceLayout {
-    pub surfaces: Vec<LayerSurfaceEntry>,
-    pub active: bool,
-}
-
 type LayerDef = (LayerTarget, Pin<Box<dyn Fn() -> LayerSurfaceLayout>>);
-
-#[derive(Clone, Copy, Debug, Default)]
-enum LayoutChangeKind {
-    #[default]
-    Unchanged,
-    OriginOnly,
-    Resized,
-}
 
 impl LayerRenderer {
     /// Create a renderer wrapper with its current tile geometry.
@@ -181,26 +215,6 @@ impl LayerRenderer {
     }
 }
 
-fn surface_intersects_coverage_bounds(
-    bounds: &Rect,
-    origin_x: f64,
-    origin_y: f64,
-    width: f64,
-    height: f64,
-) -> bool {
-    if !bounds.x0.is_finite()
-        || !bounds.y0.is_finite()
-        || !bounds.x1.is_finite()
-        || !bounds.y1.is_finite()
-    {
-        return true;
-    }
-
-    let x1 = origin_x + width;
-    let y1 = origin_y + height;
-    bounds.x1 >= origin_x && bounds.x0 <= x1 && bounds.y1 >= origin_y && bounds.y0 <= y1
-}
-
 impl LayerTarget {
     /// Create a layer target from physical surface renderers.
     pub fn new(mut renderers: Vec<LayerRenderer>, active: bool) -> Self {
@@ -284,52 +298,6 @@ fn layer_layout_matches_bootstrapped_target(
                     && (surface.surface.dpr[0] - renderer.dpr[0]).abs() <= f32::EPSILON
                     && (surface.surface.dpr[1] - renderer.dpr[1]).abs() <= f32::EPSILON
             })
-}
-
-fn replay_batches_by_priority(mut entries: Vec<(usize, i32)>) -> Vec<Vec<usize>> {
-    if entries.is_empty() {
-        return Vec::new();
-    }
-    entries.sort_by_key(|(index, priority)| (*priority, *index));
-
-    // Keep visible tile replay isolated from warm pre-render work. Replaying a warm ring in the
-    // same frame smooths fast scroll exposure, but on native it can also turn an otherwise small
-    // scroll tick into a visible frame spike.
-    let mut batches = Vec::new();
-    let mut current_priority = entries[0].1;
-    let mut current_batch = Vec::new();
-    for (index, priority) in entries {
-        if priority != current_priority {
-            batches.push(current_batch);
-            current_batch = Vec::new();
-            current_priority = priority;
-        }
-        current_batch.push(index);
-    }
-    batches.push(current_batch);
-    batches
-}
-
-#[cfg(test)]
-mod replay_priority_tests {
-    use super::replay_batches_by_priority;
-
-    #[test]
-    fn visible_batch_excludes_warm_rings() {
-        let batches = replay_batches_by_priority(vec![(3, 4), (0, 0), (2, 2), (1, 0)]);
-
-        assert_eq!(batches[0], vec![0, 1]);
-        assert_eq!(batches[1], vec![2]);
-        assert_eq!(batches[2], vec![3]);
-    }
-
-    #[test]
-    fn starts_with_nearest_warm_batch_when_no_visible_tiles() {
-        let batches = replay_batches_by_priority(vec![(4, 5), (2, 3), (3, 3)]);
-
-        assert_eq!(batches[0], vec![2, 3]);
-        assert_eq!(batches[1], vec![4]);
-    }
 }
 
 const MAX_CONCURRENT_LAYER_INITIALIZATIONS: usize = 4;
@@ -425,15 +393,6 @@ fn pump_layer_initialization_queue(
         }
     }
 }
-/// Logical and backing-pixel dimensions for one physical surface.
-pub struct LayerSurfaceSize {
-    pub logical_width: f32,
-    pub logical_height: f32,
-    pub surface_width: u32,
-    pub surface_height: u32,
-    pub dpr: [f32; 2],
-}
-
 /// Runtime `RenderContext` implementation backed by `pax-gpu`/wgpu.
 pub struct PaxGpuRenderer {
     backends: Rc<RefCell<Vec<RenderLayerState>>>,
@@ -448,9 +407,7 @@ pub struct PaxGpuRenderer {
     layer_initializations_in_flight: Rc<Cell<usize>>,
     active_render_scopes: RefCell<Vec<Vec<Vec<usize>>>>,
     dirty_render_surfaces: RefCell<Vec<HashSet<usize>>>,
-    targeted_replay_queues: RefCell<Vec<VecDeque<Vec<usize>>>>,
-    targeted_replay_bounds: RefCell<Vec<HashMap<usize, Vec<Rect>>>>,
-    canvas_node_coverage: RefCell<Vec<HashMap<u32, Rect>>>,
+    surface_replay: RefCell<SurfaceReplayCoordinator>,
     clean_skipped_canvas_nodes: RefCell<HashSet<(usize, u32)>>,
     #[cfg(debug_assertions)]
     tile_cull_stats: RefCell<Vec<TileCullStats>>,
@@ -481,9 +438,7 @@ impl PaxGpuRenderer {
             layer_initializations_in_flight: Rc::new(Cell::new(0)),
             active_render_scopes: Default::default(),
             dirty_render_surfaces: Default::default(),
-            targeted_replay_queues: Default::default(),
-            targeted_replay_bounds: Default::default(),
-            canvas_node_coverage: Default::default(),
+            surface_replay: Default::default(),
             clean_skipped_canvas_nodes: Default::default(),
             #[cfg(debug_assertions)]
             tile_cull_stats: Default::default(),
@@ -608,10 +563,7 @@ impl PaxGpuRenderer {
     }
 
     fn targeted_replay_scope(&self, layer: usize) -> Option<Vec<usize>> {
-        self.targeted_replay_queues
-            .borrow()
-            .get(layer)
-            .and_then(|queue| queue.front().cloned())
+        self.surface_replay.borrow().targeted_replay_scope(layer)
     }
 
     fn set_targeted_replay_batches(
@@ -620,55 +572,15 @@ impl PaxGpuRenderer {
         batches: Vec<Vec<usize>>,
         bounds_by_surface: HashMap<usize, Vec<Rect>>,
     ) {
-        let mut queue = VecDeque::new();
-        for mut batch in batches {
-            batch.sort_unstable();
-            batch.dedup();
-            if !batch.is_empty() {
-                queue.push_back(batch);
-            }
-        }
-        if queue.is_empty() {
-            return;
-        }
-
-        let mut queues = self.targeted_replay_queues.borrow_mut();
-        if queues.len() <= layer {
-            queues.resize_with(layer + 1, VecDeque::new);
-        }
-        queues[layer] = queue;
-        drop(queues);
-
-        let mut bounds = self.targeted_replay_bounds.borrow_mut();
-        if bounds.len() <= layer {
-            bounds.resize_with(layer + 1, HashMap::new);
-        }
-        bounds[layer] = bounds_by_surface;
+        self.surface_replay
+            .borrow_mut()
+            .set_targeted_replay_batches(layer, batches, bounds_by_surface);
     }
 
     fn advance_targeted_replay_queue(&self, layer: usize) -> bool {
-        let (popped_batch, has_more) = {
-            let mut queues = self.targeted_replay_queues.borrow_mut();
-            let Some(queue) = queues.get_mut(layer) else {
-                return false;
-            };
-            let popped_batch = queue.pop_front();
-            (popped_batch, !queue.is_empty())
-        };
-
-        if let Some(popped_batch) = popped_batch {
-            if let Some(bounds_by_surface) = self.targeted_replay_bounds.borrow_mut().get_mut(layer)
-            {
-                for index in popped_batch {
-                    bounds_by_surface.remove(&index);
-                }
-                if !has_more {
-                    bounds_by_surface.clear();
-                }
-            }
-        };
-
-        has_more
+        self.surface_replay
+            .borrow_mut()
+            .advance_targeted_replay_queue(layer)
     }
 
     fn flush_targeted_or_dirty(&self, layer: usize, target: &mut LayerTarget) -> bool {
@@ -841,31 +753,27 @@ impl PaxGpuRenderer {
     }
 
     fn clear_targeted_replay_scope(&self, layer: usize) {
-        if let Some(queue) = self.targeted_replay_queues.borrow_mut().get_mut(layer) {
-            queue.clear();
-        }
-        if let Some(bounds_by_surface) = self.targeted_replay_bounds.borrow_mut().get_mut(layer) {
-            bounds_by_surface.clear();
-        }
+        self.surface_replay
+            .borrow_mut()
+            .clear_targeted_replay_scope(layer);
     }
 
     fn targeted_or_all_indices(&self, layer: usize, renderer_count: usize) -> Vec<usize> {
-        self.targeted_replay_scope(layer)
-            .unwrap_or_else(|| (0..renderer_count).collect())
+        self.surface_replay
+            .borrow()
+            .targeted_or_all_indices(layer, renderer_count)
     }
 
     fn remember_canvas_node_coverage(&self, layer: usize, node_id: u32, coverage_bounds: Rect) {
-        let mut coverage = self.canvas_node_coverage.borrow_mut();
-        if coverage.len() <= layer {
-            coverage.resize_with(layer + 1, HashMap::new);
-        }
-        coverage[layer].insert(node_id, coverage_bounds);
+        self.surface_replay
+            .borrow_mut()
+            .remember_canvas_node_coverage(layer, node_id, coverage_bounds);
     }
 
     fn forget_canvas_node_coverage(&self, layer: usize, node_id: u32) {
-        if let Some(coverage) = self.canvas_node_coverage.borrow_mut().get_mut(layer) {
-            coverage.remove(&node_id);
-        }
+        self.surface_replay
+            .borrow_mut()
+            .forget_canvas_node_coverage(layer, node_id);
     }
 
     fn mark_clean_skipped_node(&self, layer: usize, node_id: u32) {
@@ -879,28 +787,17 @@ impl PaxGpuRenderer {
         layer: usize,
         target: &LayerTarget,
     ) -> Option<Vec<Rect>> {
-        let indices = self.targeted_replay_scope(layer)?;
-        let mut bounds = Vec::with_capacity(indices.len());
-        let replay_bounds = self.targeted_replay_bounds.borrow();
-        let layer_replay_bounds = replay_bounds.get(layer);
-        for index in indices {
-            if let Some(surface_bounds) =
-                layer_replay_bounds.and_then(|bounds_by_surface| bounds_by_surface.get(&index))
-            {
-                bounds.extend(surface_bounds.iter().copied());
-                continue;
-            }
-            let Some(renderer) = target.renderers.get(index) else {
-                continue;
-            };
-            bounds.push(Rect::new(
-                renderer.origin_x as f64,
-                renderer.origin_y as f64,
-                renderer.origin_x as f64 + renderer.logical_width as f64,
-                renderer.origin_y as f64 + renderer.logical_height as f64,
-            ));
-        }
-        (!bounds.is_empty()).then_some(bounds)
+        self.surface_replay
+            .borrow()
+            .targeted_replay_surface_bounds(layer, |index| {
+                let renderer = target.renderers.get(index)?;
+                Some(Rect::new(
+                    renderer.origin_x as f64,
+                    renderer.origin_y as f64,
+                    renderer.origin_x as f64 + renderer.logical_width as f64,
+                    renderer.origin_y as f64 + renderer.logical_height as f64,
+                ))
+            })
     }
 
     fn spatial_replay_node_ids(&self, layer: usize) -> Option<Vec<u32>> {
@@ -909,31 +806,9 @@ impl PaxGpuRenderer {
             return None;
         };
         let surface_bounds = self.targeted_replay_surface_bounds(layer, target)?;
-        let coverage = self.canvas_node_coverage.borrow();
-        let layer_coverage = coverage.get(layer)?;
-        if layer_coverage.is_empty() {
-            return None;
-        }
-
-        let mut node_ids: Vec<_> = layer_coverage
-            .iter()
-            .filter_map(|(node_id, bounds)| {
-                surface_bounds
-                    .iter()
-                    .any(|surface| {
-                        surface_intersects_coverage_bounds(
-                            bounds,
-                            surface.x0,
-                            surface.y0,
-                            surface.width(),
-                            surface.height(),
-                        )
-                    })
-                    .then_some(*node_id)
-            })
-            .collect();
-        node_ids.sort_unstable();
-        Some(node_ids)
+        self.surface_replay
+            .borrow()
+            .spatial_replay_node_ids_for_surface_bounds(layer, &surface_bounds)
     }
 
     fn take_replay_layer_ids(&mut self) -> Vec<usize> {
@@ -1041,6 +916,19 @@ impl PaxGpuRenderer {
                     let mut targeted_replay_entries = Vec::new();
                     let mut targeted_replay_bounds = HashMap::new();
                     let mut needs_full_layer_replay = false;
+                    #[cfg(debug_assertions)]
+                    {
+                        let previous_surface_bounds: Vec<_> = target
+                            .renderers
+                            .iter()
+                            .map(LayerRenderer::coverage_bounds)
+                            .collect();
+                        if let Some(escape) =
+                            visible_surface_escape(&previous_surface_bounds, &layout.surfaces)
+                        {
+                            log_visible_surface_escape(layer_index, escape);
+                        }
+                    }
                     for (index, (surface, renderer)) in layout
                         .surfaces
                         .iter()
@@ -1053,7 +941,12 @@ impl PaxGpuRenderer {
                         match layout_change {
                             LayoutChangeKind::Unchanged => {}
                             LayoutChangeKind::OriginOnly => {
-                                targeted_replay_entries.push((index, surface.replay_priority));
+                                targeted_replay_entries.push(ReplayPriorityEntry::new(
+                                    index,
+                                    surface.replay_priority,
+                                    previous_bounds,
+                                    current_bounds,
+                                ));
                                 // Retained nodes carry transforms/resources built against the
                                 // previous surface origin, so an origin retarget must drop the
                                 // old scene before replaying nodes into the new tile.
@@ -1110,32 +1003,11 @@ impl PaxGpuRenderer {
                         self.mark_render_surfaces_dirty(layer_index, 0..target.renderers.len());
                         self.replay_layers.borrow_mut().push(layer_index);
                     } else if !targeted_replay_entries.is_empty() {
+                        let replay_batches =
+                            replay_batches_by_directional_priority(&targeted_replay_entries);
                         #[cfg(debug_assertions)]
-                        let replay_priority_stats = {
-                            let visible_surfaces = targeted_replay_entries
-                                .iter()
-                                .filter(|(_, priority)| *priority <= 0)
-                                .count();
-                            let warm_surfaces = targeted_replay_entries
-                                .len()
-                                .saturating_sub(visible_surfaces);
-                            let mut priorities: Vec<_> = targeted_replay_entries
-                                .iter()
-                                .map(|(_, priority)| *priority)
-                                .collect();
-                            priorities.sort_unstable();
-                            priorities.dedup();
-                            let visible_batches =
-                                priorities.iter().filter(|priority| **priority <= 0).count();
-                            let warm_batches = priorities.len().saturating_sub(visible_batches);
-                            (
-                                visible_batches,
-                                warm_batches,
-                                visible_surfaces,
-                                warm_surfaces,
-                            )
-                        };
-                        let replay_batches = replay_batches_by_priority(targeted_replay_entries);
+                        let replay_priority_stats =
+                            replay_priority_stats(&targeted_replay_entries, &replay_batches);
                         #[cfg(debug_assertions)]
                         self.update_tile_cull_stats(layer_index, |stats| {
                             stats.origin_only_retargets +=

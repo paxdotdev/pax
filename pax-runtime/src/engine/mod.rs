@@ -10,8 +10,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use pax_message::NativeMessage;
 use pax_runtime_api::{
-    pax_value::PaxAny, use_RefCell, Accel, Event, Focus, Gyro, SelectStart, TargetInfo, Variable,
-    Viewport, Window, OS,
+    borrow, pax_value::PaxAny, use_RefCell, Accel, Event, Focus, Gyro, SelectStart, TargetInfo,
+    Variable, Viewport, Window, OS,
 };
 
 use crate::api::{KeyDown, KeyPress, KeyUp, NodeContext, RenderContext};
@@ -19,6 +19,7 @@ use crate::api::{KeyDown, KeyPress, KeyUp, NodeContext, RenderContext};
 use crate::{ComponentInstance, RuntimeContext};
 use pax_runtime_api::Platform;
 
+pub mod layer_surface;
 pub mod layer_tiling;
 pub mod node_interface;
 pub mod occlusion;
@@ -85,11 +86,7 @@ fn viewport_bool_property(
 }
 
 #[cfg(feature = "designtime")]
-use {
-    crate::InstanceNode,
-    pax_designtime::DesigntimeManager,
-    pax_runtime_api::{borrow, borrow_mut},
-};
+use {crate::InstanceNode, pax_designtime::DesigntimeManager, pax_runtime_api::borrow_mut};
 
 #[derive(Clone)]
 /// Engine-wide reactive globals exposed to every component frame.
@@ -652,6 +649,31 @@ impl PaxEngine {
         })
     }
 
+    fn dirty_layer_can_use_targeted_replay_nodes(
+        &self,
+        layer: usize,
+        dirty_node_ids: &[ExpandedNodeIdentifier],
+        targeted_node_ids: &HashSet<u32>,
+    ) -> bool {
+        for dirty_node_id in dirty_node_ids {
+            let Some(node) = self
+                .runtime_context
+                .get_expanded_node_by_eid(*dirty_node_id)
+            else {
+                return false;
+            };
+            if node.occlusion.get().render_layer_id != layer
+                || borrow!(node.instance_node).base().flags().layer != crate::api::Layer::Canvas
+            {
+                continue;
+            }
+            if !targeted_node_ids.contains(&dirty_node_id.to_u32()) {
+                return false;
+            }
+        }
+        true
+    }
+
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
         self.update_layer_count(rcs);
 
@@ -664,10 +686,36 @@ impl PaxEngine {
         dirty_layers.extend(removals.iter().map(|(layer, _)| *layer));
         dirty_layers.sort_unstable();
         dirty_layers.dedup();
+        let removal_layers: HashSet<_> = removals.iter().map(|(layer, _)| *layer).collect();
+        let targeted_replay_node_ids = self.runtime_context.take_targeted_canvas_replay_node_ids();
+        let dirty_node_ids_before_expansion = self.runtime_context.dirty_canvas_node_ids();
+        let retains_canvas_nodes = rcs.retains_canvas_nodes();
+        if !retains_canvas_nodes && (!dirty_layers.is_empty() || !removals.is_empty()) {
+            for layer in &dirty_layers {
+                let can_use_targeted_replay_nodes = targeted_replay_node_ids
+                    .get(layer)
+                    .is_some_and(|targeted_node_ids| {
+                        !removal_layers.contains(layer)
+                            && self.dirty_layer_can_use_targeted_replay_nodes(
+                                *layer,
+                                &dirty_node_ids_before_expansion,
+                                targeted_node_ids,
+                            )
+                    });
+                if !can_use_targeted_replay_nodes {
+                    self.runtime_context
+                        .mark_canvas_nodes_on_layer_dirty(*layer);
+                }
+            }
+        }
         let dirty_node_ids = self.runtime_context.dirty_canvas_node_ids();
         let has_dirty_nodes = !dirty_node_ids.is_empty();
         let has_node_removals = !removals.is_empty();
         if !has_dirty_nodes && !has_node_removals {
+            for layer in &dirty_layers {
+                rcs.clear(*layer);
+            }
+        } else if !retains_canvas_nodes {
             for layer in &dirty_layers {
                 rcs.clear(*layer);
             }

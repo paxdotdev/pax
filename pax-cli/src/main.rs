@@ -74,7 +74,7 @@ fn main() -> Result<(), Report> {
     let ARG_WEBGL = Arg::with_name("webgl")
         .long("webgl")
         .takes_value(false)
-        .help("Include the WebGL fallback renderer in web builds. This increases WASM size and is intended for iOS Safari/WebKit targets.");
+        .help("Include the legacy WebGL renderer for internal experiments (force with ?pax_force_webgl=1). Default no-WebGPU and iOS Safari/WebKit fallback uses Piet/CPU, and this flag increases WASM size.");
 
     #[allow(non_snake_case)]
     let ARG_IOS_DEVICE = Arg::with_name("ios-device")

@@ -106,8 +106,16 @@ export class RenderLayerManager {
         sizeX: number | undefined,
         sizeY: number | undefined,
     ) {
-        this.effects.updateMask(id, entries, sizeX ?? 0, sizeY ?? 0);
-        if (entries.length === 0) {
+        let maskWidth = sizeX ?? 0;
+        let maskHeight = sizeY ?? 0;
+        this.effects.updateMask(id, entries, maskWidth, maskHeight);
+        if (
+            entries.length === 0
+            || !Number.isFinite(maskWidth)
+            || !Number.isFinite(maskHeight)
+            || maskWidth <= 0
+            || maskHeight <= 0
+        ) {
             element.classList.remove(MASKED_NATIVE_LEAF_CLASS);
             clearMaskStyles(element);
             refreshLeafOpacities(element);
@@ -116,7 +124,13 @@ export class RenderLayerManager {
 
         let maskValue = `url(#${nativeMaskId(id)})`;
         element.classList.add(MASKED_NATIVE_LEAF_CLASS);
-        applyMaskStyles(element, maskValue);
+        applyMaskStyles(
+            element,
+            maskValue,
+            buildWebkitSvgMaskImageValue(entries, maskWidth, maskHeight),
+            maskWidth,
+            maskHeight,
+        );
         refreshLeafOpacities(element);
     }
 
@@ -148,6 +162,9 @@ export class RenderLayerManager {
         applyContainerStyles(
             new_container,
             container.clipPathValue(),
+            container.clipPathData(),
+            container.styles.width,
+            container.styles.height,
             container.styles.opacity,
         );
 
@@ -389,6 +406,9 @@ export class RenderLayerManager {
                     applyContainerStyles(
                         elem as HTMLElement,
                         clipValue,
+                        container.clipPathData(),
+                        container.styles.width,
+                        container.styles.height,
                         container.styles.opacity,
                     );
                     refreshLeafOpacities(elem as HTMLElement);
@@ -672,13 +692,69 @@ function nativeMaskClipId(id: number, entryIndex: number, clipIndex: number) {
     return `${nativeMaskClipPrefix(id)}${entryIndex}-${clipIndex}`;
 }
 
-function applyContainerClipPath(element: HTMLElement, value: string) {
+function clearContainerClipStyles(element: HTMLElement) {
+    element.style.clipPath = "";
+    (element.style as any).webkitClipPath = "";
+    element.style.width = "";
+    element.style.height = "";
+    element.style.maskImage = "";
+    element.style.maskRepeat = "";
+    element.style.maskPosition = "";
+    element.style.maskSize = "";
+    (element.style as any).webkitMaskImage = "";
+    (element.style as any).webkitMaskRepeat = "";
+    (element.style as any).webkitMaskPosition = "";
+    (element.style as any).webkitMaskSize = "";
+}
+
+function applyContainerClipPath(
+    element: HTMLElement,
+    value: string,
+    pathData: string | undefined,
+    width: number,
+    height: number,
+) {
+    clearContainerClipStyles(element);
+    if (value === "none") {
+        element.style.clipPath = "none";
+        (element.style as any).webkitClipPath = "none";
+        return;
+    }
+    if (
+        requiresWebkitSvgReferenceFallback()
+        && pathData
+        && Number.isFinite(width)
+        && Number.isFinite(height)
+        && width > 0
+        && height > 0
+    ) {
+        let maskSize = webkitSvgClipImageSize(pathData, width, height);
+        element.style.width = `${maskSize.width}px`;
+        element.style.height = `${maskSize.height}px`;
+        (element.style as any).webkitMaskImage = buildWebkitSvgClipImageValue(
+            pathData,
+            maskSize.width,
+            maskSize.height,
+        );
+        (element.style as any).webkitMaskRepeat = "no-repeat";
+        (element.style as any).webkitMaskPosition = "0px 0px";
+        (element.style as any).webkitMaskSize = `${maskSize.width}px ${maskSize.height}px`;
+        return;
+    }
+
     element.style.clipPath = value;
     (element.style as any).webkitClipPath = value;
 }
 
-function applyContainerStyles(element: HTMLElement, clipPath: string, opacity: number) {
-    applyContainerClipPath(element, clipPath);
+function applyContainerStyles(
+    element: HTMLElement,
+    clipPath: string,
+    pathData: string | undefined,
+    width: number,
+    height: number,
+    opacity: number,
+) {
+    applyContainerClipPath(element, clipPath, pathData, width, height);
     element.dataset.paxContainerOpacity = `${opacity}`;
     element.style.opacity = "1";
 }
@@ -724,26 +800,145 @@ function clearMaskStyles(element: HTMLElement) {
     element.style.maskImage = "";
     element.style.maskRepeat = "";
     element.style.maskPosition = "";
+    element.style.maskSize = "";
     (element.style as any).webkitMaskImage = "";
     (element.style as any).webkitMaskRepeat = "";
     (element.style as any).webkitMaskPosition = "";
+    (element.style as any).webkitMaskSize = "";
 }
 
-function applyMaskStyles(element: HTMLElement, maskValue: string) {
+function applyMaskStyles(
+    element: HTMLElement,
+    fragmentMaskValue: string,
+    webkitImageMaskValue: string,
+    width: number,
+    height: number,
+) {
     clearMaskStyles(element);
-    // Blink/WebKit can incorrectly cull transformed native text under SVG masks
-    // when the generic mask path is combined with the browser's paint containment
-    // optimizations. Prefer the prefixed mask-image path on those engines.
-    if (prefersWebkitMaskProperties()) {
-        (element.style as any).webkitMaskImage = maskValue;
+    if (requiresWebkitSvgReferenceFallback()) {
+        (element.style as any).webkitMaskImage = webkitImageMaskValue;
         (element.style as any).webkitMaskRepeat = "no-repeat";
         (element.style as any).webkitMaskPosition = "0px 0px";
+        (element.style as any).webkitMaskSize = `${width}px ${height}px`;
         return;
     }
 
-    element.style.maskImage = maskValue;
+    // Blink resolves the SVG fragment reference correctly, and setting both the
+    // prefixed and standard forms avoids browser differences around transformed
+    // native leaves under mask composition.
+    if (prefersWebkitMaskProperties()) {
+        (element.style as any).webkitMaskImage = fragmentMaskValue;
+        (element.style as any).webkitMaskRepeat = "no-repeat";
+        (element.style as any).webkitMaskPosition = "0px 0px";
+    }
+
+    element.style.maskImage = fragmentMaskValue;
     element.style.maskRepeat = "no-repeat";
     element.style.maskPosition = "0px 0px";
+}
+
+function buildWebkitSvgMaskImageValue(entries: NativeMaskEntry[], width: number, height: number) {
+    let clipDefs: string[] = [];
+    let maskChildren = [
+        `<rect x="0" y="0" width="${width}" height="${height}" fill="white"/>`,
+    ];
+    entries.forEach((entry, entryIndex) => {
+        let child = `<path d="${escapeSvgAttribute(entry.path)}" fill="black" fill-opacity="${clampMaskOpacity(entry.opacity)}"/>`;
+        entry.clips.forEach((clipPathData, clipIndex) => {
+            let clipId = `pax-webkit-mask-clip-${entryIndex}-${clipIndex}`;
+            clipDefs.push(
+                `<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="${escapeSvgAttribute(clipPathData)}"/></clipPath>`,
+            );
+            child = `<g clip-path="url(#${clipId})">${child}</g>`;
+        });
+        maskChildren.push(child);
+    });
+
+    let svg = [
+        `<svg xmlns="${SVG_NS}" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
+        "<defs>",
+        clipDefs.join(""),
+        `<mask id="pax-webkit-native-mask" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" mask-type="luminance">`,
+        maskChildren.join(""),
+        "</mask>",
+        "</defs>",
+        `<rect x="0" y="0" width="${width}" height="${height}" fill="white" mask="url(#pax-webkit-native-mask)"/>`,
+        "</svg>",
+    ].join("");
+    return `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}")`;
+}
+
+function webkitSvgClipImageSize(pathData: string, fallbackWidth: number, fallbackHeight: number) {
+    let bounds = svgPathDataBounds(pathData);
+    return {
+        width: Math.max(1, Math.ceil(Math.max(fallbackWidth, bounds?.right ?? 0))),
+        height: Math.max(1, Math.ceil(Math.max(fallbackHeight, bounds?.bottom ?? 0))),
+    };
+}
+
+function buildWebkitSvgClipImageValue(pathData: string, width: number, height: number) {
+    let svg = [
+        `<svg xmlns="${SVG_NS}" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
+        `<path d="${escapeSvgAttribute(pathData)}" fill="white"/>`,
+        "</svg>",
+    ].join("");
+    return `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}")`;
+}
+
+function svgPathDataBounds(pathData: string) {
+    let values = pathData.match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi)?.map(Number) ?? [];
+    let left = Number.POSITIVE_INFINITY;
+    let top = Number.POSITIVE_INFINITY;
+    let right = Number.NEGATIVE_INFINITY;
+    let bottom = Number.NEGATIVE_INFINITY;
+    for (let index = 0; index + 1 < values.length; index += 2) {
+        let x = values[index];
+        let y = values[index + 1];
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+            continue;
+        }
+        left = Math.min(left, x);
+        top = Math.min(top, y);
+        right = Math.max(right, x);
+        bottom = Math.max(bottom, y);
+    }
+    if (
+        !Number.isFinite(left)
+        || !Number.isFinite(top)
+        || !Number.isFinite(right)
+        || !Number.isFinite(bottom)
+    ) {
+        return undefined;
+    }
+    return { left, top, right, bottom };
+}
+
+function escapeSvgAttribute(value: string) {
+    return value
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
+
+function clampMaskOpacity(value: number | undefined) {
+    let opacity = value ?? 1;
+    return Number.isFinite(opacity) ? Math.max(0, Math.min(1, opacity)) : 1;
+}
+
+function requiresWebkitSvgReferenceFallback() {
+    if (typeof navigator === "undefined") {
+        return false;
+    }
+    let userAgent = navigator.userAgent;
+    let iOSWebKit =
+        /iPad|iPhone|iPod/i.test(userAgent)
+        || (/Macintosh/i.test(userAgent) && navigator.maxTouchPoints > 1);
+    let safariWebKit =
+        /Safari/i.test(userAgent)
+        && !/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS|Android/i.test(userAgent);
+    return /AppleWebKit/i.test(userAgent)
+        && (iOSWebKit || safariWebKit);
 }
 
 function prefersWebkitMaskProperties() {

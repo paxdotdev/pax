@@ -3,6 +3,11 @@ import { ObjectManager } from "../pools/object-manager";
 
 const DEFAULT_POOL_HOST_ROLE = "canvas-pool-host";
 
+function tileDebugEnabled() {
+    return typeof window !== "undefined"
+        && new URLSearchParams(window.location.search).has("pax_tile_debug");
+}
+
 export class CanvasPool {
     private free: Array<{ canvas: HTMLCanvasElement; releasedAt: number }> = [];
     private allocated = 0;
@@ -43,6 +48,12 @@ export class CanvasPool {
         return Date.now();
     }
 
+    private debugLog(event: string, data: Record<string, unknown>) {
+        if (tileDebugEnabled()) {
+            console.debug(`[pax-canvas-pool] ${event}`, data);
+        }
+    }
+
     checkout(): HTMLCanvasElement | null {
         if (this.free.length > 0) {
             let now = this.nowMs();
@@ -58,9 +69,19 @@ export class CanvasPool {
             // If we're at capacity, fall back to the oldest released canvas even if it's still
             // cooling down.
             let fallback = this.free.shift();
+            this.debugLog(fallback == null ? "checkout-miss" : "checkout-oldest-free", {
+                allocated: this.allocated,
+                maxCanvases: this.maxCanvases,
+                free: this.free.length,
+            });
             return fallback?.canvas ?? null;
         }
         this.allocated += 1;
+        this.debugLog("checkout-new", {
+            allocated: this.allocated,
+            maxCanvases: this.maxCanvases,
+            free: this.free.length,
+        });
         return this.objectManager.getFromPool(CANVAS);
     }
 
@@ -74,5 +95,10 @@ export class CanvasPool {
             canvas.parentElement?.removeChild(canvas);
         }
         this.free.push({ canvas, releasedAt: this.nowMs() });
+        this.debugLog("release", {
+            allocated: this.allocated,
+            maxCanvases: this.maxCanvases,
+            free: this.free.length,
+        });
     }
 }

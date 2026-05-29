@@ -4,6 +4,11 @@ import { CANVAS, DIV } from "../pools/supported-objects";
 import type { CanvasPool } from "./canvas-pool";
 import type { LayerCanvasPlan, SurfaceCanvasDescriptor } from "./surface-host-policy";
 
+function tileDebugEnabled() {
+    return typeof window !== "undefined"
+        && new URLSearchParams(window.location.search).has("pax_tile_debug");
+}
+
 export class Layer {
     canvasMap?: Map<string, HTMLCanvasElement>;
     native?: HTMLDivElement;
@@ -90,6 +95,30 @@ export class Layer {
         this.canvasPlan = plan;
     }
 
+    private debugPlan(event: string, plan: LayerCanvasPlan, extra: Record<string, unknown> = {}) {
+        if (!tileDebugEnabled()) {
+            return;
+        }
+        let first = plan.surfaces[0];
+        let last = plan.surfaces[plan.surfaces.length - 1];
+        console.debug(`[pax-layer-plan] ${event}`, {
+            layer: this.renderLayerId,
+            active: plan.active,
+            planned: plan.surfaces.length,
+            materialized: this.canvases.size,
+            hostRole: this.visibleCanvasParent instanceof HTMLElement
+                ? this.visibleCanvasParent.dataset.role
+                : undefined,
+            first: first == null
+                ? undefined
+                : `${first.key}@${first.left},${first.top}:${first.width}x${first.height}`,
+            last: last == null
+                ? undefined
+                : `${last.key}@${last.left},${last.top}:${last.width}x${last.height}`,
+            ...extra,
+        });
+    }
+
     syncCanvasLayout() {
         if (this.renderLayerId == null || this.canvasMap == null) {
             return;
@@ -109,6 +138,7 @@ export class Layer {
         }
         let plan = this.canvasPlan;
         if (plan.surfaces.length === 0) {
+            this.debugPlan("empty-plan", plan);
             this.detachCanvases(true);
             return;
         }
@@ -161,9 +191,13 @@ export class Layer {
         if (missingSurface) {
             this.lastPlanSignature = undefined;
             this.lastVisibleHost = undefined;
+            this.debugPlan("missing-surface", plan, {
+                expected: expectedIds.size,
+            });
         } else {
             this.lastPlanSignature = planSignature;
             this.lastVisibleHost = visibleHost;
+            this.debugPlan("synced", plan);
         }
     }
 
@@ -191,7 +225,10 @@ export class Layer {
         this.renderLayerId = undefined;
     }
 
-    private configureCanvas(canvas: HTMLCanvasElement, descriptor: SurfaceCanvasDescriptor) {
+    private configureCanvas(
+        canvas: HTMLCanvasElement,
+        descriptor: SurfaceCanvasDescriptor,
+    ) {
         canvas.id = descriptor.id;
         canvas.dataset.layerId = String(this.renderLayerId);
         canvas.dataset.tileKey = descriptor.key;
@@ -236,7 +273,11 @@ export class Layer {
     }
 
     private computePlanSignature(plan: LayerCanvasPlan): string {
-        let parts = [plan.layerId.toString(), plan.active ? "1" : "0", plan.surfaces.length.toString()];
+        let parts = [
+            plan.layerId.toString(),
+            plan.active ? "1" : "0",
+            plan.surfaces.length.toString(),
+        ];
         plan.surfaces.forEach((descriptor) => {
             parts.push(
                 `${descriptor.id}|${descriptor.left},${descriptor.top},${descriptor.width},${descriptor.height}`

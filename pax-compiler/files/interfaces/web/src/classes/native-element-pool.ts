@@ -69,7 +69,7 @@ const SCROLLER_CHROME_STYLE_ATTRIBUTE = 'data-pax-scroller-chrome-style';
 const SCREENSHOT_OVERLAY_BLACK = '#000000';
 const SCREENSHOT_OVERLAY_WHITE = '#ffffff';
 const TILED_SCROLLER_SURFACE_DPR = 1.0;
-const IOS_BROWSER_SURFACE_DIMENSION_CAP = 1800;
+const IOS_BROWSER_SURFACE_DIMENSION_CAP = 2048;
 const IOS_NESTED_LAYER_MIN_DPR = 0.25;
 
 
@@ -1437,43 +1437,148 @@ export class NativeElementPool {
         return host;
     }
 
-    private shouldKeepScrollerHostsActive(leaf: HTMLElement, state: ScrollerMeasurementState) {
-        if (typeof window === "undefined") {
-            return true;
+    private getParentScrollerId(hosts: ScrollerDomHosts) {
+        let parentLeaf = hosts.leaf.parentElement?.closest(`.${SCROLLER_CONTAINER}`);
+        if (!(parentLeaf instanceof HTMLElement)) {
+            return undefined;
         }
-        let now =
-            typeof performance !== "undefined" && typeof performance.now === "function"
-                ? performance.now()
-                : Date.now();
-        if (state.isRootScroller || state.delegatesToPageScroll) {
-            state.lastWarmAt = now;
-            return true;
+        let parentId = parseInt(parentLeaf.getAttribute("pax_id") ?? "", 10);
+        if (!Number.isFinite(parentId) || parentId === hosts.id) {
+            return undefined;
         }
-        let scrollerId = this.getScrollerIdFromLeaf(leaf);
-        if (scrollerId == null) {
-            state.lastWarmAt = now;
-            return true;
+        return parentId;
+    }
+
+    private getWarmClipBaseForCandidate(
+        candidate: ScrollerWarmCandidate,
+        candidates: Map<number, ScrollerWarmCandidate>,
+    ): { bounds: AxisAlignedRect; viewportWidth: number; viewportHeight: number } {
+        if (candidate.parentId != null) {
+            let parentCandidate = candidates.get(candidate.parentId);
+            if (parentCandidate != null) {
+                let bounds = parentCandidate.record.presentedBounds;
+                return {
+                    bounds,
+                    viewportWidth: parentCandidate.hosts.leaf.clientWidth || rectWidth(bounds),
+                    viewportHeight: parentCandidate.hosts.leaf.clientHeight || rectHeight(bounds),
+                };
+            }
+
+            let parentHosts = this.scrollerHosts.get(candidate.parentId);
+            let parentState = this.scrollerMeasurementStates.get(candidate.parentId);
+            if (parentHosts != null && parentState != null) {
+                let record = this.getWarmthPresentationRecord(
+                    candidate.parentId,
+                    parentHosts.leaf,
+                    parentState,
+                );
+                return {
+                    bounds: record.presentedBounds,
+                    viewportWidth: parentHosts.leaf.clientWidth || rectWidth(record.presentedBounds),
+                    viewportHeight: parentHosts.leaf.clientHeight || rectHeight(record.presentedBounds),
+                };
+            }
         }
-        let record = this.getWarmthPresentationRecord(scrollerId, leaf, state);
-        let horizontalScrollable = leaf.scrollWidth > leaf.clientWidth + 0.5;
-        let verticalScrollable = leaf.scrollHeight > leaf.clientHeight + 0.5;
-        let paddedClipBounds = expandRect(
-            record.presentedClipBounds,
-            horizontalScrollable
-                ? activeScrollablePadX(leaf.clientWidth)
-                : 120,
-            verticalScrollable
-                ? activeScrollablePadY(leaf.clientHeight)
-                : 120,
-        );
-        if (rectsIntersect(record.presentedBounds, paddedClipBounds)) {
-            state.lastWarmAt = now;
-            return true;
-        }
-        if (isIOSWebKitBrowser() && now - state.lastWarmAt <= IOS_WARM_LINGER_MS) {
-            return true;
-        }
-        return false;
+
+        let bounds = candidate.record.presentedClipBounds;
+        return {
+            bounds,
+            viewportWidth: rectWidth(bounds),
+            viewportHeight: rectHeight(bounds),
+        };
+    }
+
+    private buildWarmScrollerCandidates(now: number) {
+        let candidates = new Map<number, ScrollerWarmCandidate>();
+        this.scrollerHosts.forEach((hosts, id) => {
+            let state = this.scrollerMeasurementStates.get(id);
+            if (state == null || !hosts.vectorIslandEnabled) {
+                return;
+            }
+            let record = this.getWarmthPresentationRecord(id, hosts.leaf, state);
+            candidates.set(id, {
+                id,
+                hosts,
+                state,
+                record,
+                parentId: this.getParentScrollerId(hosts),
+                intent: "cold",
+                distance: rectCenterDistance(record.presentedBounds, record.presentedClipBounds),
+                surfaceCost: this.estimateScrollerWarmSurfaceCost(hosts, state),
+                mandatory: state.isRootScroller || state.delegatesToPageScroll,
+            });
+        });
+
+        let resolving = new Set<number>();
+        let resolved = new Set<number>();
+        let resolveIntent = (candidate: ScrollerWarmCandidate): ScrollerWarmIntent => {
+            if (resolved.has(candidate.id)) {
+                return candidate.intent;
+            }
+            if (resolving.has(candidate.id)) {
+                candidate.intent = "active";
+                return candidate.intent;
+            }
+            resolving.add(candidate.id);
+
+            if (candidate.mandatory) {
+                candidate.intent = "active";
+                candidate.state.lastWarmAt = now;
+                resolving.delete(candidate.id);
+                resolved.add(candidate.id);
+                return candidate.intent;
+            }
+
+            let parentIntent: ScrollerWarmIntent = "active";
+            if (candidate.parentId != null) {
+                let parentCandidate = candidates.get(candidate.parentId);
+                if (parentCandidate != null) {
+                    parentIntent = resolveIntent(parentCandidate);
+                }
+            }
+
+            if (parentIntent === "cold") {
+                candidate.intent = "cold";
+                resolving.delete(candidate.id);
+                resolved.add(candidate.id);
+                return candidate.intent;
+            }
+
+            // Warmth propagates recursively: a child island must be inside its parent scroller's
+            // own runway, not just inside the page-level viewport runway.
+            let clipBase = this.getWarmClipBaseForCandidate(candidate, candidates);
+            let activeClipBounds = expandRect(
+                clipBase.bounds,
+                activeScrollablePadX(clipBase.viewportWidth),
+                activeScrollablePadY(clipBase.viewportHeight),
+            );
+            let prewarmClipBounds = expandRect(
+                clipBase.bounds,
+                prewarmScrollablePadX(clipBase.viewportWidth),
+                prewarmScrollablePadY(clipBase.viewportHeight),
+            );
+            let activeEligible = rectsIntersect(candidate.record.presentedBounds, activeClipBounds);
+            let recentlyWarm =
+                isIOSWebKitBrowser()
+                && now - candidate.state.lastWarmAt <= IOS_WARM_LINGER_MS;
+            if (activeEligible) {
+                candidate.state.lastWarmAt = now;
+                candidate.intent = parentIntent === "active" ? "active" : "prewarm";
+            } else if (recentlyWarm) {
+                candidate.intent = parentIntent === "active" ? "active" : "prewarm";
+            } else if (rectsIntersect(candidate.record.presentedBounds, prewarmClipBounds)) {
+                candidate.intent = "prewarm";
+            } else {
+                candidate.intent = "cold";
+            }
+            candidate.distance = rectCenterDistance(candidate.record.presentedBounds, clipBase.bounds);
+            resolving.delete(candidate.id);
+            resolved.add(candidate.id);
+            return candidate.intent;
+        };
+
+        candidates.forEach(candidate => resolveIntent(candidate));
+        return candidates;
     }
 
     private getPresentationRecordForLeaf(
@@ -1586,7 +1691,11 @@ export class NativeElementPool {
     }
 
     private parkScrollerHosts(hosts: ScrollerDomHosts) {
-        if (hosts.parked) {
+        if (
+            hosts.parked
+            && hosts.canvasHost.dataset.renderState === "parked"
+            && hosts.contentHost.dataset.renderState === "parked"
+        ) {
             return;
         }
         hosts.parked = true;
@@ -1606,6 +1715,23 @@ export class NativeElementPool {
         hosts.contentHost.dataset.renderState = "active";
         hosts.canvasHost.style.visibility = "";
         hosts.contentHost.style.visibility = "";
+        this.surfaceRefreshPending = true;
+    }
+
+    private prewarmScrollerHosts(hosts: ScrollerDomHosts) {
+        if (
+            hosts.parked
+            && hosts.canvasHost.dataset.renderState === "active"
+            && hosts.contentHost.dataset.renderState === "parked"
+            && hosts.canvasHost.style.visibility === "hidden"
+        ) {
+            return;
+        }
+        hosts.parked = true;
+        hosts.canvasHost.dataset.renderState = "active";
+        hosts.contentHost.dataset.renderState = "parked";
+        hosts.canvasHost.style.visibility = "hidden";
+        hosts.contentHost.style.visibility = "hidden";
         this.surfaceRefreshPending = true;
     }
 
@@ -1646,101 +1772,37 @@ export class NativeElementPool {
         );
     }
 
-    private collectPrewarmCandidates() {
-        let candidates: Array<{ id: number; distance: number }> = [];
+    private syncWarmScrollerHosts() {
+        let now =
+            typeof performance !== "undefined" && typeof performance.now === "function"
+                ? performance.now()
+                : Date.now();
+        let candidatesById = this.buildWarmScrollerCandidates(now);
+        let candidates = Array.from(candidatesById.values());
         this.scrollerHosts.forEach((hosts, id) => {
-            if (hosts.warmed) {
+            if (candidatesById.has(id)) {
                 return;
             }
             let state = this.scrollerMeasurementStates.get(id);
-            if (state == null || state.isRootScroller || state.delegatesToPageScroll) {
-                return;
+            if (state == null || !hosts.vectorIslandEnabled) {
+                this.unparkScrollerHosts(hosts);
             }
-            let record = this.getWarmthPresentationRecord(id, hosts.leaf, state);
-            let horizontalScrollable = hosts.leaf.scrollWidth > hosts.leaf.clientWidth + 0.5;
-            let verticalScrollable = hosts.leaf.scrollHeight > hosts.leaf.clientHeight + 0.5;
-            let prewarmClipBounds = expandRect(
-                record.presentedClipBounds,
-                horizontalScrollable
-                    ? prewarmScrollablePadX(hosts.leaf.clientWidth)
-                    : 240,
-                verticalScrollable
-                    ? prewarmScrollablePadY(hosts.leaf.clientHeight)
-                    : 240,
-            );
-            if (!rectsIntersect(record.presentedBounds, prewarmClipBounds)) {
-                return;
-            }
-            candidates.push({
-                id,
-                distance: rectCenterDistance(record.presentedBounds, record.presentedClipBounds),
-            });
         });
-        candidates.sort((left, right) => left.distance - right.distance || left.id - right.id);
-        return candidates;
-    }
 
-    private syncWarmScrollerHosts() {
         let nestedSurfaceBudget = browserNestedScrollerSurfaceBudget();
         let totalCanvasBudget = browserTotalCanvasBudget();
         if (nestedSurfaceBudget != null) {
-            let candidates: Array<{
-                id: number;
-                hosts: ScrollerDomHosts;
-                shouldWarm: boolean;
-                distance: number;
-                surfaceCost: number;
-                mandatory: boolean;
-                prewarmEligible: boolean;
-            }> = [];
             let rootCanvasCost = 0;
             if (totalCanvasBudget != null && this.mount != null) {
                 rootCanvasCost = Math.max(1, this.estimateWarmLayerCanvasCount(0, this.mount));
             }
-            let mandatoryCost = 0;
-            this.scrollerHosts.forEach((hosts, id) => {
-                let state = this.scrollerMeasurementStates.get(id);
-                if (state == null) {
-                    this.unparkScrollerHosts(hosts);
-                    return;
-                }
-                if (!hosts.vectorIslandEnabled) {
-                    this.unparkScrollerHosts(hosts);
-                    return;
-                }
-                let mandatory = state.isRootScroller || state.delegatesToPageScroll;
-                let shouldWarm = mandatory
-                    ? true
-                    : this.shouldKeepScrollerHostsActive(hosts.leaf, state);
-                let record = this.getWarmthPresentationRecord(id, hosts.leaf, state);
-                let horizontalScrollable = hosts.leaf.scrollWidth > hosts.leaf.clientWidth + 0.5;
-                let verticalScrollable = hosts.leaf.scrollHeight > hosts.leaf.clientHeight + 0.5;
-                let prewarmClipBounds = expandRect(
-                    record.presentedClipBounds,
-                    horizontalScrollable
-                        ? prewarmScrollablePadX(hosts.leaf.clientWidth)
-                        : 240,
-                    verticalScrollable
-                        ? prewarmScrollablePadY(hosts.leaf.clientHeight)
-                        : 240,
-                );
-                let prewarmEligible = rectsIntersect(record.presentedBounds, prewarmClipBounds);
-                let surfaceCost = this.estimateScrollerWarmSurfaceCost(hosts, state);
-                if (mandatory) {
-                    mandatoryCost += surfaceCost;
-                }
-                candidates.push({
-                    id,
-                    hosts,
-                    shouldWarm,
-                    distance: rectCenterDistance(record.presentedBounds, record.presentedClipBounds),
-                    surfaceCost,
-                    mandatory,
-                    prewarmEligible,
-                });
-            });
+            let mandatoryCost = candidates.reduce((total, candidate) => {
+                return candidate.mandatory
+                    ? total + Math.max(1, candidate.surfaceCost)
+                    : total;
+            }, 0);
             candidates.sort((left, right) => {
-                let rankDelta = Number(left.shouldWarm) - Number(right.shouldWarm);
+                let rankDelta = scrollerWarmIntentRank(left.intent) - scrollerWarmIntentRank(right.intent);
                 if (rankDelta !== 0) {
                     return -rankDelta;
                 }
@@ -1771,33 +1833,55 @@ export class NativeElementPool {
                 }
                 selected.add(candidate.id);
             }
+            let mandatorySelectionCount = selected.size;
+            let trySelectCandidate = (candidate: ScrollerWarmCandidate): boolean => {
+                if (selected.has(candidate.id)) {
+                    return true;
+                }
+                if (candidate.mandatory) {
+                    selected.add(candidate.id);
+                    return true;
+                }
+                if (candidate.intent === "cold" && !candidate.hosts.warmed) {
+                    return false;
+                }
+                if (candidate.parentId != null) {
+                    let parentCandidate = candidatesById.get(candidate.parentId);
+                    if (parentCandidate != null && !trySelectCandidate(parentCandidate)) {
+                        return false;
+                    }
+                }
+                let cost = Math.max(1, candidate.surfaceCost);
+                let canAfford = remainingBudget >= cost;
+                let mustKeep = totalCanvasBudget == null
+                    && candidate.intent === "active"
+                    && selected.size === mandatorySelectionCount;
+                if (!canAfford && !mustKeep) {
+                    return false;
+                }
+                selected.add(candidate.id);
+                remainingBudget = Math.max(0, remainingBudget - cost);
+                return true;
+            };
             for (let candidate of candidates) {
                 if (candidate.mandatory) {
                     continue;
                 }
-                let cost = Math.max(1, candidate.surfaceCost);
-                let eligibleForWarmSlot =
-                    candidate.shouldWarm || candidate.hosts.warmed || candidate.prewarmEligible;
-                if (!eligibleForWarmSlot) {
+                if (
+                    candidate.intent === "cold"
+                    && !candidate.hosts.warmed
+                ) {
                     continue;
                 }
-                let canAfford = remainingBudget >= cost;
-                let mustKeep = totalCanvasBudget == null
-                    && candidate.shouldWarm
-                    && selected.size === 0;
-                if (!canAfford && !mustKeep) {
-                    continue;
-                }
-                selected.add(candidate.id);
-                remainingBudget = Math.max(0, remainingBudget - cost);
+                trySelectCandidate(candidate);
             }
             for (let candidate of candidates) {
                 if (selected.has(candidate.id)) {
                     this.promoteScrollerHosts(candidate.hosts);
-                    if (candidate.shouldWarm || candidate.mandatory) {
+                    if (candidate.intent === "active" || candidate.mandatory) {
                         this.unparkScrollerHosts(candidate.hosts);
                     } else {
-                        this.parkScrollerHosts(candidate.hosts);
+                        this.prewarmScrollerHosts(candidate.hosts);
                     }
                 } else {
                     this.demoteScrollerHosts(candidate.hosts);
@@ -1805,44 +1889,17 @@ export class NativeElementPool {
             }
             return;
         }
-        this.scrollerHosts.forEach((hosts, id) => {
-            let state = this.scrollerMeasurementStates.get(id);
-            if (state == null) {
-                this.unparkScrollerHosts(hosts);
-                return;
-            }
-            if (!hosts.vectorIslandEnabled) {
-                this.unparkScrollerHosts(hosts);
-                return;
-            }
-            let shouldWarm = this.shouldKeepScrollerHostsActive(hosts.leaf, state);
-            if (state.isRootScroller) {
-                hosts.warmed = true;
-                hosts.canvasHost.dataset.warmState = "warm";
-            } else if (!hosts.warmed && shouldWarm) {
-                // Grow the warm island pool on demand: the first near-viewport visit upgrades a
-                // nested scroller from cold to warm, and we keep that warm state for the rest of
-                // the session instead of thrashing back to zero-target cold starts.
-                this.promoteScrollerHosts(hosts);
-            }
-            if (shouldWarm) {
-                this.unparkScrollerHosts(hosts);
+        for (let candidate of candidates) {
+            if (candidate.intent === "active" || candidate.mandatory) {
+                this.promoteScrollerHosts(candidate.hosts);
+                this.unparkScrollerHosts(candidate.hosts);
+            } else if (candidate.intent === "prewarm") {
+                this.promoteScrollerHosts(candidate.hosts);
+                this.prewarmScrollerHosts(candidate.hosts);
+            } else if (candidate.hosts.warmed) {
+                this.prewarmScrollerHosts(candidate.hosts);
             } else {
-                this.parkScrollerHosts(hosts);
-            }
-        });
-        let coldCandidates = this.collectPrewarmCandidates();
-        let eagerWarmLimit = effectiveEagerWarmScrollerLimit();
-        let prewarmPromotionBudget = effectivePrewarmPromotionBudget();
-        let prewarmBudget =
-            coldCandidates.length <= eagerWarmLimit
-                ? coldCandidates.length
-                : Math.min(prewarmPromotionBudget, coldCandidates.length);
-        for (let index = 0; index < prewarmBudget; index += 1) {
-            let candidate = coldCandidates[index];
-            let hosts = this.scrollerHosts.get(candidate.id);
-            if (hosts != null) {
-                this.promoteScrollerHosts(hosts);
+                this.parkScrollerHosts(candidate.hosts);
             }
         }
     }
@@ -4653,6 +4710,23 @@ type ScrollerDomHosts = {
     vectorIslandEnabled: boolean;
 };
 
+type ScrollerWarmIntent = "active" | "prewarm" | "cold";
+
+type ScrollerWarmCandidate = {
+    id: number;
+    hosts: ScrollerDomHosts;
+    state: ScrollerMeasurementState;
+    record: {
+        presentedBounds: AxisAlignedRect;
+        presentedClipBounds: AxisAlignedRect;
+    };
+    parentId?: number;
+    intent: ScrollerWarmIntent;
+    distance: number;
+    surfaceCost: number;
+    mandatory: boolean;
+};
+
 type AxisAlignedRect = {
     left: number;
     top: number;
@@ -4665,31 +4739,27 @@ type PresentationRecord = {
     presentedClipBounds?: AxisAlignedRect;
 };
 
-const EAGER_WARM_SCROLLER_LIMIT = 16;
-const PREWARM_PROMOTION_BUDGET = 4;
-const IOS_EAGER_WARM_SCROLLER_LIMIT = 10;
-const IOS_PREWARM_PROMOTION_BUDGET = 4;
-const IOS_WARM_LINGER_MS = 1500;
+const IOS_WARM_LINGER_MS = 3000;
 const DEFAULT_ACTIVE_SCROLLABLE_PAD_X_MULTIPLIER = 4.0;
-const DEFAULT_ACTIVE_SCROLLABLE_PAD_Y_MULTIPLIER = 2.0;
+const DEFAULT_ACTIVE_SCROLLABLE_PAD_Y_MULTIPLIER = 4.0;
 const DEFAULT_ACTIVE_SCROLLABLE_MIN_PAD_X = 960;
-const DEFAULT_ACTIVE_SCROLLABLE_MIN_PAD_Y = 480;
+const DEFAULT_ACTIVE_SCROLLABLE_MIN_PAD_Y = 1024;
 const DEFAULT_PREWARM_SCROLLABLE_PAD_X_MULTIPLIER = 8.0;
-const DEFAULT_PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER = 4.0;
+const DEFAULT_PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER = 8.0;
 const DEFAULT_PREWARM_SCROLLABLE_MIN_PAD_X = 1920;
-const DEFAULT_PREWARM_SCROLLABLE_MIN_PAD_Y = 960;
-const IOS_ACTIVE_SCROLLABLE_PAD_X_MULTIPLIER = 6.0;
-const IOS_ACTIVE_SCROLLABLE_PAD_Y_MULTIPLIER = 3.0;
-const IOS_ACTIVE_SCROLLABLE_MIN_PAD_X = 1440;
-const IOS_ACTIVE_SCROLLABLE_MIN_PAD_Y = 720;
-const IOS_PREWARM_SCROLLABLE_PAD_X_MULTIPLIER = 12.0;
-const IOS_PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER = 6.0;
-const IOS_PREWARM_SCROLLABLE_MIN_PAD_X = 2880;
-const IOS_PREWARM_SCROLLABLE_MIN_PAD_Y = 1440;
-// WebKit's WebGL context cap is tight enough that we need a little headroom
-// beyond the nominal canvas budget to avoid eviction when layers churn.
-const IOS_NESTED_BROWSER_SURFACE_BUDGET = 12;
-const IOS_TOTAL_CANVAS_BUDGET = 12;
+const DEFAULT_PREWARM_SCROLLABLE_MIN_PAD_Y = 2048;
+const IOS_ACTIVE_SCROLLABLE_PAD_X_MULTIPLIER = 8.0;
+const IOS_ACTIVE_SCROLLABLE_PAD_Y_MULTIPLIER = 4.0;
+const IOS_ACTIVE_SCROLLABLE_MIN_PAD_X = 1920;
+const IOS_ACTIVE_SCROLLABLE_MIN_PAD_Y = 1024;
+const IOS_PREWARM_SCROLLABLE_PAD_X_MULTIPLIER = 16.0;
+const IOS_PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER = 8.0;
+const IOS_PREWARM_SCROLLABLE_MIN_PAD_X = 3840;
+const IOS_PREWARM_SCROLLABLE_MIN_PAD_Y = 2048;
+// The ordinary iOS path now uses Piet/2D canvas, not one WebGL context per tile. Keep enough
+// browser canvases around to prevent fast scrolls from exposing cold, uninitialized tile slots.
+const IOS_NESTED_BROWSER_SURFACE_BUDGET = 64;
+const IOS_TOTAL_CANVAS_BUDGET = 64;
 const DEFAULT_TOTAL_CANVAS_BUDGET = 64;
 
 function browserNestedScrollerSurfaceBudget() {
@@ -4712,18 +4782,6 @@ function browserCanvasPoolReuseCooldownMs() {
     // WebGPU on desktop browsers can glitch if a canvas is rebound to a new device immediately
     // after release. Add a small cooldown to reduce rapid reuse across layers.
     return isIOSWebKitBrowser() ? 0 : 200;
-}
-
-function effectiveEagerWarmScrollerLimit() {
-    return isIOSWebKitBrowser()
-        ? IOS_EAGER_WARM_SCROLLER_LIMIT
-        : EAGER_WARM_SCROLLER_LIMIT;
-}
-
-function effectivePrewarmPromotionBudget() {
-    return isIOSWebKitBrowser()
-        ? IOS_PREWARM_PROMOTION_BUDGET
-        : PREWARM_PROMOTION_BUDGET;
 }
 
 function browserOwnedVectorScrollerIslandsEnabled() {
@@ -4768,6 +4826,17 @@ function clampNumber(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
 }
 
+function scrollerWarmIntentRank(intent: ScrollerWarmIntent) {
+    switch (intent) {
+        case "active":
+            return 2;
+        case "prewarm":
+            return 1;
+        default:
+            return 0;
+    }
+}
+
 function activeScrollablePadX(viewportWidth: number) {
     let multiplier = DEFAULT_ACTIVE_SCROLLABLE_PAD_X_MULTIPLIER;
     let minPad = DEFAULT_ACTIVE_SCROLLABLE_MIN_PAD_X;
@@ -4806,6 +4875,14 @@ function prewarmScrollablePadY(viewportHeight: number) {
         minPad = IOS_PREWARM_SCROLLABLE_MIN_PAD_Y;
     }
     return Math.max(viewportHeight * multiplier, minPad);
+}
+
+function rectWidth(rect: AxisAlignedRect) {
+    return Math.max(0, rect.right - rect.left);
+}
+
+function rectHeight(rect: AxisAlignedRect) {
+    return Math.max(0, rect.bottom - rect.top);
 }
 
 function expandRect(rect: AxisAlignedRect, expandX: number, expandY: number): AxisAlignedRect {

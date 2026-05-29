@@ -22,12 +22,11 @@ use pax_runtime::api::{
     MouseDown, MouseEventArgs, MouseMove, MouseUp, PhotoPickerChange, RenderContext, Scroll,
     SelectStart, TextboxChange, TextboxInput, Touch, TouchEnd, TouchMove, TouchStart,
 };
+#[cfg(any(target_os = "ios", target_os = "macos"))]
+use pax_runtime::engine::layer_surface::{LayerSurfaceEntry, LayerSurfaceLayout, LayerSurfaceSize};
 use pax_runtime::engine::layer_tiling::{scroller_canvas_plan_with_policy, ScrollerTilingPolicy};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
-use pax_runtime::pax_gpu_render_context::{
-    LayerRenderer, LayerSurfaceEntry, LayerSurfaceLayout, LayerSurfaceSize, LayerTarget,
-    PaxGpuRenderer,
-};
+use pax_runtime::pax_gpu_render_context::{LayerRenderer, LayerTarget, PaxGpuRenderer};
 use pax_runtime::PaxEngine;
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
 use piet::kurbo;
@@ -1339,6 +1338,9 @@ pub extern "C" fn pax_render(engine_container: *mut PaxEngineContainer) {
         for update in renderer.take_replay_canvas_layer_updates() {
             engine.runtime_context.set_canvas_dirty(update.layer);
             if let Some(node_ids) = update.node_ids {
+                engine
+                    .runtime_context
+                    .mark_targeted_canvas_replay_nodes(update.layer, &node_ids);
                 engine
                     .runtime_context
                     .mark_canvas_nodes_on_layer_dirty_by_id(update.layer, &node_ids);

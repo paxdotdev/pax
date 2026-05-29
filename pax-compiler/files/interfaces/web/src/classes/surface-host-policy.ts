@@ -28,6 +28,11 @@ const IOS_FALLBACK_MAX_BACKING_DIMENSION = 2048;
 const IOS_MAX_BACKING_DIMENSION_CAP = 2048;
 const IOS_MAX_BACKING_AREA_CAP = IOS_MAX_BACKING_DIMENSION_CAP * IOS_MAX_BACKING_DIMENSION_CAP;
 const IOS_SCROLLER_RENDER_DPR = 1.0;
+const IOS_PIET_TARGET_TILE_BACKING_DIMENSION = 2048;
+const IOS_PIET_PREWARM_VIEWPORT_PAD_X_MULTIPLIER = 2.0;
+const IOS_PIET_PREWARM_VIEWPORT_PAD_Y_MULTIPLIER = 6.0;
+const IOS_PIET_PREWARM_VIEWPORT_PAD_MIN_X = 1024;
+const IOS_PIET_PREWARM_VIEWPORT_PAD_MIN_Y = 4096;
 const MIN_LOGICAL_TILE_SIZE = 256;
 const TILE_OVERSCAN_COLUMNS = 0;
 const TILE_OVERSCAN_ROWS = 0;
@@ -141,14 +146,24 @@ function computeLayerCanvasPlanInternal(
     }
     let maxColumn = Math.max(0, Math.ceil(contentWidth / tileDimensions.width) - 1);
     let maxRow = Math.max(0, Math.ceil(contentHeight / tileDimensions.height) - 1);
-    let prewarmPadYMultiplier = isFirefoxBrowser()
+    let prewarmPadXMultiplier = iosHost
+        ? IOS_PIET_PREWARM_VIEWPORT_PAD_X_MULTIPLIER
+        : PREWARM_VIEWPORT_PAD_X_MULTIPLIER;
+    let prewarmPadYMultiplier = iosHost
+        ? IOS_PIET_PREWARM_VIEWPORT_PAD_Y_MULTIPLIER
+        : isFirefoxBrowser()
         ? FIREFOX_PREWARM_VIEWPORT_PAD_Y_MULTIPLIER
         : PREWARM_VIEWPORT_PAD_Y_MULTIPLIER;
-    let prewarmPadMinY = isFirefoxBrowser()
+    let prewarmPadMinX = iosHost
+        ? IOS_PIET_PREWARM_VIEWPORT_PAD_MIN_X
+        : PREWARM_VIEWPORT_PAD_MIN_X;
+    let prewarmPadMinY = iosHost
+        ? IOS_PIET_PREWARM_VIEWPORT_PAD_MIN_Y
+        : isFirefoxBrowser()
         ? FIREFOX_PREWARM_VIEWPORT_PAD_MIN_Y
         : PREWARM_VIEWPORT_PAD_MIN_Y;
     let padX = horizontalScrollable
-        ? Math.max(viewportWidth * PREWARM_VIEWPORT_PAD_X_MULTIPLIER, PREWARM_VIEWPORT_PAD_MIN_X)
+        ? Math.max(viewportWidth * prewarmPadXMultiplier, prewarmPadMinX)
         : 0;
     let padY = verticalScrollable
         ? Math.max(viewportHeight * prewarmPadYMultiplier, prewarmPadMinY)
@@ -161,10 +176,6 @@ function computeLayerCanvasPlanInternal(
     // vertical scroller does not pay for horizontal warm columns, and vice versa.
     let overscanColumns = horizontalScrollable ? TILE_OVERSCAN_COLUMNS : 0;
     let overscanRows = verticalScrollable ? TILE_OVERSCAN_ROWS : 0;
-    if (iosHost) {
-        overscanColumns = 0;
-        overscanRows = 0;
-    }
     let activeColumns = Math.min(
         maxColumn + 1,
         visibleTileSpan(paddedViewportWidth, tileDimensions.width, true) + overscanColumns * 2,
@@ -299,7 +310,8 @@ function getIOSMaxBackingDimension() {
 
 function targetTileBackingDimension(host?: HTMLElement) {
     if (isIOSWebKitBrowser()) {
-        return getIOSMaxBackingDimension() ?? IOS_FALLBACK_MAX_BACKING_DIMENSION;
+        let maxBackingDimension = getIOSMaxBackingDimension() ?? IOS_FALLBACK_MAX_BACKING_DIMENSION;
+        return Math.min(IOS_PIET_TARGET_TILE_BACKING_DIMENSION, maxBackingDimension);
     }
     return host?.dataset.role === "scroller-canvas-host"
         ? SCROLLER_TARGET_TILE_BACKING_DIMENSION
