@@ -9,6 +9,68 @@
 - Assets and URLs: image sources, web fonts, and static files.
 - Deployment and packaging overview: where build outputs land and how to ship them.
 
+## Development environment setup
+
+Pax projects are Rust projects, so every development workstation needs a Rust
+toolchain plus the target-specific tools used by the Pax CLI. The setup below
+gets a workstation ready for web builds, which are the fastest first smoke test
+on every operating system.
+
+### Ubuntu
+
+These steps have been validated on Ubuntu 26.04 LTS ARM64. They should also be a
+good starting point for current Ubuntu LTS releases on x86_64.
+
+Install native build dependencies:
+
+```sh
+sudo apt-get update
+sudo apt-get install -y \
+  ca-certificates curl git build-essential pkg-config libssl-dev \
+  python3 unzip xvfb \
+  libglib2.0-dev libcairo2-dev libpango1.0-dev
+```
+
+Install Rust and the WebAssembly target:
+
+```sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+  | sh -s -- -y --profile default --default-toolchain stable
+
+. "$HOME/.cargo/env"
+rustup target add wasm32-unknown-unknown
+```
+
+Install the web build helper and Pax CLI:
+
+```sh
+cargo install wasm-pack --version 0.15.0
+cargo install pax-cli
+```
+
+Create and run a smoke project:
+
+```sh
+pax-cli create hello-pax
+cd hello-pax
+pax-cli run --target=web
+```
+
+If the app builds and the CLI prints a local server URL, the workstation is
+ready for normal Pax web development.
+
+### macOS
+
+TODO: Add the supported macOS setup flow, including Xcode Command Line Tools,
+Rust, the WebAssembly target, `wasm-pack`, `pax-cli`, and Apple target notes for
+macOS/iOS/iPadOS builds.
+
+### Windows
+
+TODO: Add the supported Windows setup flow, including Visual Studio Build Tools
+or equivalent C/C++ toolchain requirements, Rust, the WebAssembly target,
+`wasm-pack`, `pax-cli`, and any PowerShell-specific command variants.
+
 ## Project Metadata
 
 Rust-backed Pax projects can define build-time project metadata in `Cargo.toml`

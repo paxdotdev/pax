@@ -975,7 +975,7 @@ export class NativeElementPool {
 
     photoPickerCreate(patch: AnyCreatePatch) {
         console.assert(patch.id != null);
-        console.assert(patch.occlusionLayerId != null);
+        console.assert(patch.renderLayerId != null);
 
         const input = this.objectManager.getFromPool(INPUT) as HTMLInputElement;
         input.type = "file";
@@ -1008,11 +1008,11 @@ export class NativeElementPool {
         leaf.style.pointerEvents = "auto";
         leaf.style.overflow = "hidden";
 
-        if(patch.id != undefined && patch.occlusionLayerId != undefined){
-            this.layers.addElement(leaf, patch.parentFrame, patch.occlusionLayerId);
+        if(patch.id != undefined && patch.renderLayerId != undefined){
+            this.layers.addElement(leaf, patch.parentFrame, patch.renderLayerId);
             this.nodesLookup.set(patch.id!, leaf);
         } else {
-            throw new Error("undefined id or occlusionLayer");
+            throw new Error("undefined id or renderLayer");
         }
     }
 

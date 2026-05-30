@@ -122,3 +122,28 @@ because `DesigntimeManager` reads `window.location().origin()`.
 Recommendations: when browser websocket behavior changes, validate
 `pax-designtime` directly with `cargo check -p pax-designtime --target
 wasm32-unknown-unknown` in addition to native unit tests.
+
+## 2026-05-29
+
+Clean Ubuntu first-touch validation exposed host-side Linux development
+dependencies that are easy to miss from macOS. Building `pax-cli` from source on
+Ubuntu 26.04 ARM64 failed in `glib-sys` until the VM had GLib, Cairo, and Pango
+development packages installed. The dependency came through Pax's current
+text/rendering stack, not through the generated user's app logic.
+
+Solved in the first-touch Ubuntu harness by adding `libglib2.0-dev`,
+`libcairo2-dev`, and `libpango1.0-dev` to the baseline package set.
+
+The same smoke also showed a stale web-interface contract path. Non-libdev
+projects receive the web interface from `pax-compiler`'s embedded
+`files/interfaces/web/public` output. The TypeScript source had mostly moved
+from `occlusionLayerId` to `renderLayerId`, but an ignored generated public
+bundle and `photoPickerCreate` still carried the old name. A fresh generated app
+compiled successfully, then failed at runtime with `undefined id or
+occlusionLayer` and rendered a black page.
+
+Recommendations: after changing compiler/runtime interface message shapes,
+rebuild the web interface bundle before packaging or source-linked smoke tests,
+and grep both `src` and generated `public` interface files for retired contract
+terms. For first-touch CI, include a browser smoke that loads and clicks the
+fresh generated app, not just `pax-cli build`.
