@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="utf-8"?>
+<unattend xmlns="urn:schemas-microsoft-com:unattend">
+  <settings pass="windowsPE">
+    <component name="Microsoft-Windows-Setup" processorArchitecture="arm64"
+      publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
+      xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <DiskConfiguration>
+        <Disk wcm:action="add">
+          <DiskID>0</DiskID>
+          <WillWipeDisk>true</WillWipeDisk>
+          <CreatePartitions>
+            <CreatePartition>
+              <Order>1</Order>
+              <Type>Primary</Type>
+              <Size>300</Size>
+            </CreatePartition>
+            <CreatePartition>
+              <Order>2</Order>
+              <Type>EFI</Type>
+              <Size>300</Size>
+            </CreatePartition>
+            <CreatePartition>
+              <Order>3</Order>
+              <Type>MSR</Type>
+              <Size>128</Size>
+            </CreatePartition>
+            <CreatePartition>
+              <Order>4</Order>
+              <Type>Primary</Type>
+              <Extend>true</Extend>
+            </CreatePartition>
+          </CreatePartitions>
+          <ModifyPartitions>
+            <ModifyPartition>
+              <Order>1</Order>
+              <PartitionID>1</PartitionID>
+              <Format>NTFS</Format>
+              <TypeID>de94bba4-06d1-4d40-a16a-bfd50179d6ac</TypeID>
+            </ModifyPartition>
+            <ModifyPartition>
+              <Order>2</Order>
+              <PartitionID>2</PartitionID>
+              <Format>FAT32</Format>
+            </ModifyPartition>
+            <ModifyPartition>
+              <Order>3</Order>
+              <PartitionID>4</PartitionID>
+              <Letter>C</Letter>
+              <Format>NTFS</Format>
+            </ModifyPartition>
+          </ModifyPartitions>
+        </Disk>
+        <WillShowUI>OnError</WillShowUI>
+      </DiskConfiguration>
+      <UserData>
+        <ProductKey>
+          <Key>@@PRODUCTKEY@@</Key>
+          <WillShowUI>OnError</WillShowUI>
+        </ProductKey>
+        <AcceptEula>true</AcceptEula>
+        <FullName>@@USERNAME@@</FullName>
+        <Organization>Pax</Organization>
+      </UserData>
+      <ImageInstall>
+        <OSImage>
+          <InstallFrom>
+            <MetaData wcm:action="add">
+              <Key>/IMAGE/INDEX</Key>
+              <Value>3</Value>
+            </MetaData>
+          </InstallFrom>
+          <InstallTo>
+            <DiskID>0</DiskID>
+            <PartitionID>4</PartitionID>
+          </InstallTo>
+          <WillShowUI>OnError</WillShowUI>
+          <InstallToAvailablePartition>false</InstallToAvailablePartition>
+        </OSImage>
+      </ImageInstall>
+    </component>
+
+    <component name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="arm64"
+      publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
+      xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <SetupUILanguage>
+        <UILanguage>en-US</UILanguage>
+      </SetupUILanguage>
+      <InputLocale>en-US</InputLocale>
+      <SystemLocale>en-US</SystemLocale>
+      <UILanguage>en-US</UILanguage>
+      <UserLocale>en-US</UserLocale>
+    </component>
+
+    <component name="Microsoft-Windows-PnpCustomizationsWinPE" processorArchitecture="arm64"
+      publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
+      xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <DriverPaths>
+        <PathAndCredentials wcm:keyValue="1" wcm:action="add">
+          <Path>D:\netkvm\arm64</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:keyValue="2" wcm:action="add">
+          <Path>E:\netkvm\arm64</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:keyValue="3" wcm:action="add">
+          <Path>F:\netkvm\arm64</Path>
+        </PathAndCredentials>
+      </DriverPaths>
+    </component>
+  </settings>
+
+  <settings pass="specialize">
+    <component name="Microsoft-Windows-Deployment" processorArchitecture="arm64"
+      publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
+      xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <RunSynchronous>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Disable automatic BitLocker drive encryption</Description>
+          <Order>1</Order>
+          <Path>reg add HKLM\SYSTEM\CurrentControlSet\Control\BitLocker /v PreventDeviceEncryption /t REG_DWORD /d 1 /f</Path>
+          <WillReboot>Never</WillReboot>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Install Parallels Toolgate</Description>
+          <Order>2</Order>
+          <Path>cmd /q /C "FOR %I IN (D E F G H I J K L M N O P Q R S T U V W X Y Z) DO IF EXIST %I:\prl_tg\DrvInARM64.exe %I:\prl_tg\DrvInARM64.exe -installPrlTg %I:\prl_tg\arm64\prl_tg.inf"</Path>
+          <WillReboot>Never</WillReboot>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Disable CEIP</Description>
+          <Order>3</Order>
+          <Path>schtasks /Change /TN "\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser" /Disable</Path>
+          <WillReboot>Always</WillReboot>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Disable Teams preinstall</Description>
+          <Order>4</Order>
+          <Path>reg add HKLM\Software\Microsoft\Windows\CurrentVersion\Communications /v ConfigureChatAutoInstall /t REG_DWORD /d 0 /f</Path>
+          <WillReboot>Never</WillReboot>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Disable Cortana voice during OOBE</Description>
+          <Order>5</Order>
+          <Path>reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v DisableVoice /t REG_DWORD /d 1 /f</Path>
+          <WillReboot>Never</WillReboot>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Hide OOBE license page</Description>
+          <Order>6</Order>
+          <Path>reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v HideEULAPage /t REG_DWORD /d 1 /f</Path>
+          <WillReboot>Never</WillReboot>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Hide OOBE online account screens</Description>
+          <Order>7</Order>
+          <Path>reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v HideOnlineAccountScreens /t REG_DWORD /d 1 /f</Path>
+          <WillReboot>Never</WillReboot>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Hide OOBE wireless setup</Description>
+          <Order>8</Order>
+          <Path>reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v HideWirelessSetupInOOBE /t REG_DWORD /d 1 /f</Path>
+          <WillReboot>Never</WillReboot>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Enable OOBE network bypass</Description>
+          <Order>9</Order>
+          <Path>reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE /v BypassNRO /t REG_DWORD /d 1 /f</Path>
+          <WillReboot>Never</WillReboot>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Remove OOBE EULA page from registration flow</Description>
+          <Order>10</Order>
+          <Path>reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE\Components\Sections\Registration /v pages /t REG_MULTI_SZ /d EnterpriseProvisioning\0PID\0HidAccessoryPairing /f</Path>
+          <WillReboot>Never</WillReboot>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Copy Parallels Tools installer</Description>
+          <Order>11</Order>
+          <Path>cmd /q /C "FOR %I IN (D E F G H I J K L M N O P Q R S T U V W X Y Z) DO IF EXIST %I:\igt_arm64.exe COPY %I:\igt_arm64.exe %TEMP%\IGT.exe"</Path>
+          <WillReboot>Never</WillReboot>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Description>Install Parallels Tools</Description>
+          <Order>12</Order>
+          <Path>%TEMP%\IGT.exe</Path>
+          <WillReboot>Never</WillReboot>
+        </RunSynchronousCommand>
+      </RunSynchronous>
+    </component>
+
+    <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="arm64"
+      publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
+      xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <ComputerName>@@COMPUTERNAME@@</ComputerName>
+      <TimeZone>@@TIMEZONE@@</TimeZone>
+    </component>
+
+    <component name="Microsoft-Windows-SQMAPI" processorArchitecture="arm64"
+      publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
+      xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <CEIPEnabled>0</CEIPEnabled>
+    </component>
+  </settings>
+
+  <settings pass="oobeSystem">
+    <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="arm64"
+      publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
+      xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <OOBE>
+        <HideEULAPage>true</HideEULAPage>
+        <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>
+        <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
+        <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
+        <HideLocalAccountScreen>true</HideLocalAccountScreen>
+        <ProtectYourPC>3</ProtectYourPC>
+      </OOBE>
+      <AutoLogon>
+        <Password>
+          <Value>@@PASSWORD@@</Value>
+          <PlainText>true</PlainText>
+        </Password>
+        <Enabled>true</Enabled>
+        <Username>@@USERNAME@@</Username>
+      </AutoLogon>
+      <Display>
+        <ColorDepth>32</ColorDepth>
+        <HorizontalResolution>1280</HorizontalResolution>
+        <VerticalResolution>900</VerticalResolution>
+      </Display>
+      <UserAccounts>
+        <AdministratorPassword>
+          <Value>@@PASSWORD@@</Value>
+          <PlainText>true</PlainText>
+        </AdministratorPassword>
+        <LocalAccounts>
+          <LocalAccount wcm:action="add">
+            <Password>
+              <Value>@@PASSWORD@@</Value>
+              <PlainText>true</PlainText>
+            </Password>
+            <Description>Pax first-touch local admin</Description>
+            <DisplayName>@@USERNAME@@</DisplayName>
+            <Group>Administrators</Group>
+            <Name>@@USERNAME@@</Name>
+          </LocalAccount>
+        </LocalAccounts>
+      </UserAccounts>
+      <FirstLogonCommands>
+        <SynchronousCommand wcm:action="add">
+          <CommandLine>cmd /q /C "WMIC USERACCOUNT WHERE Name='@@USERNAME@@' SET PasswordExpires=FALSE"</CommandLine>
+          <Description>Turn off password expiry</Description>
+          <Order>1</Order>
+        </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <CommandLine>reg add HKCU\Software\Microsoft\OneDrive /v UserInitiatedUninstall /t REG_DWORD /d 1 /f</CommandLine>
+          <Description>Disable OneDrive setup</Description>
+          <Order>2</Order>
+        </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <CommandLine>reg add "HKLM\System\CurrentControlSet\Control\Network\NewNetworkWindowOff" /f</CommandLine>
+          <Description>No new network prompt</Description>
+          <Order>3</Order>
+        </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <CommandLine>cmd /q /C "FOR %I IN (D E F G H I J K L M N O P Q R S T U V W X Y Z) DO IF EXIST %I:\windows-workstation-prereqs.ps1 powershell.exe -NoProfile -ExecutionPolicy Bypass -File %I:\windows-workstation-prereqs.ps1"</CommandLine>
+          <Description>Install Pax workstation prerequisites</Description>
+          <RequiresUserInput>false</RequiresUserInput>
+          <Order>4</Order>
+        </SynchronousCommand>
+      </FirstLogonCommands>
+    </component>
+
+    <component name="Microsoft-Windows-International-Core" processorArchitecture="arm64"
+      publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
+      xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <InputLocale>en-US</InputLocale>
+      <SystemLocale>en-US</SystemLocale>
+      <UILanguage>en-US</UILanguage>
+      <UserLocale>en-US</UserLocale>
+    </component>
+  </settings>
+</unattend>

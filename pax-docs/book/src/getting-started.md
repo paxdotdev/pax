@@ -67,9 +67,105 @@ macOS/iOS/iPadOS builds.
 
 ### Windows
 
-TODO: Add the supported Windows setup flow, including Visual Studio Build Tools
-or equivalent C/C++ toolchain requirements, Rust, the WebAssembly target,
-`wasm-pack`, `pax-cli`, and any PowerShell-specific command variants.
+These steps target Windows 11, including Windows 11 Arm64 VMs on Apple Silicon.
+
+Install native build tools first. Pax uses Rust crates with native build steps,
+so Windows needs the MSVC C/C++ toolchain. Install Visual Studio Build Tools
+2022 with the C++ workload from PowerShell:
+
+```powershell
+$installer = "$env:TEMP\vs_BuildTools.exe"
+Invoke-WebRequest https://aka.ms/vs/17/release/vs_BuildTools.exe -OutFile $installer
+$vsArgs = @(
+  "--quiet",
+  "--wait",
+  "--norestart",
+  "--installPath", "C:\BuildTools",
+  "--add", "Microsoft.VisualStudio.Workload.VCTools",
+  "--add", "Microsoft.VisualStudio.Component.VC.Llvm.Clang",
+  "--add", "Microsoft.VisualStudio.Component.VC.Llvm.ClangToolset",
+  "--includeRecommended"
+)
+
+if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
+  $vsArgs += @("--add", "Microsoft.VisualStudio.Component.VC.Tools.ARM64")
+}
+
+Start-Process $installer -Wait -ArgumentList $vsArgs
+```
+
+Load the MSVC environment in the current shell before running Rust native build
+commands. The LLVM path is especially important on Windows Arm64 because
+`wasm-pack` currently compiles dependencies that expect `clang`:
+
+```powershell
+$vcvars = "C:\BuildTools\VC\Auxiliary\Build\vcvarsall.bat"
+$vcArch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "x64" }
+cmd.exe /s /c "`"$vcvars`" $vcArch >nul && set" | ForEach-Object {
+  $separator = $_.IndexOf("=")
+  if ($separator -gt 0) {
+    Set-Item -Path "Env:$($_.Substring(0, $separator))" `
+      -Value $_.Substring($separator + 1)
+  }
+}
+
+$llvmPath = "C:\BuildTools\VC\Tools\Llvm\bin"
+$userPath = @(
+  [Environment]::GetEnvironmentVariable("Path", "User") -split ";" |
+    Where-Object { $_ }
+)
+if ($userPath -notcontains $llvmPath) {
+  [Environment]::SetEnvironmentVariable(
+    "Path",
+    ((@($userPath) + $llvmPath) -join ";"),
+    "User"
+  )
+}
+$env:Path = "$llvmPath;$env:Path"
+```
+
+Install Git for Windows:
+
+```powershell
+winget install --id Git.Git --exact --source winget `
+  --accept-package-agreements --accept-source-agreements
+```
+
+Install Rust and the WebAssembly target. Use the Arm64 rustup installer on
+Windows Arm64, or the x86_64 installer on x86_64 Windows:
+
+```powershell
+$rustupArch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
+  "aarch64-pc-windows-msvc"
+} else {
+  "x86_64-pc-windows-msvc"
+}
+
+$rustup = "$env:TEMP\rustup-init.exe"
+Invoke-WebRequest "https://static.rust-lang.org/rustup/dist/$rustupArch/rustup-init.exe" -OutFile $rustup
+& $rustup -y --profile default --default-toolchain stable
+
+$env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
+rustup target add wasm32-unknown-unknown
+```
+
+Install the web build helper and Pax CLI:
+
+```powershell
+cargo install wasm-pack --version 0.15.0
+cargo install pax-cli
+```
+
+Create and run a smoke project:
+
+```powershell
+pax-cli create hello-pax
+Set-Location hello-pax
+pax-cli run --target=web
+```
+
+If the app builds and the CLI prints a local server URL, the workstation is
+ready for normal Pax web development.
 
 ## Project Metadata
 

@@ -147,3 +147,55 @@ rebuild the web interface bundle before packaging or source-linked smoke tests,
 and grep both `src` and generated `public` interface files for retired contract
 terms. For first-touch CI, include a browser smoke that loads and clicks the
 fresh generated app, not just `pax-cli build`.
+
+Windows 11 25H2 Arm64 first-touch provisioning in Parallels exposed two
+workstation-harness traps. First, the guest computer name is still constrained
+to 15 characters, so a natural VM name like `pax-windows-first-touch` cannot be
+used as the Windows `ComputerName`. Second, the current Microsoft Arm64 media
+can still present the OOBE license page even with the documented
+`HideEULAPage` unattended setting and matching registry value present.
+
+Solved for the harness by separating prerequisite installation from OOBE
+completion. The Parallels install still creates the local `pax` admin user, but
+the host waits for Parallels Tools authentication and then uses `prlctl enter`
+to create and run a highest-privilege scheduled task as that user. This lets the
+baseline install Visual Studio Build Tools, Git, Rust, the WebAssembly target,
+and `wasm-pack` while preserving the visible OOBE page as an interactive desktop
+checkpoint rather than a provisioning blocker. The harness also removes the
+default Parallels sound device because it can trigger a macOS microphone privacy
+modal that blocks console interaction and is irrelevant to Pax CLI validation.
+
+Recommendations: keep Windows first-touch automation explicit about the split
+between CLI/workstation prerequisites and interactive OOBE completion. Use a
+short default computer name such as `pax-win-touch`, avoid assuming unattended
+OOBE flags suppress every 25H2 screen, and disable VM devices that create host
+privacy prompts unless a test explicitly needs them.
+
+The same Windows baseline showed that Visual Studio's broad C++ workload can
+still omit the native ARM64 linker on Windows Arm64. Rust's
+`aarch64-pc-windows-msvc` toolchain then failed at `cargo install wasm-pack`
+with `link.exe` missing even though Build Tools was present. Once the ARM64
+linker was present, `ring` also required `clang` during the `wasm-pack`
+install.
+
+Solved by explicitly adding `Microsoft.VisualStudio.Component.VC.Tools.ARM64`
+on ARM64 workstations plus `Microsoft.VisualStudio.Component.VC.Llvm.Clang`
+and `Microsoft.VisualStudio.Component.VC.Llvm.ClangToolset`, and by checking
+for a matching `VC\Tools\MSVC\*\bin\Hostarm64\arm64\link.exe` and `clang.exe`
+before deciding that Build Tools is complete.
+
+Windows source-linked smoke testing from a macOS host exposed a host archive
+metadata leak. BSD tar can emit AppleDouble `._*` entries for extended
+attributes, and Windows then extracts those binary metadata files into the
+checkout. The `pax-docs` build script walks docs files and expects UTF-8, so the
+first Windows `cargo install --path pax-cli` failed while trying to read
+`._*.md` sidecar files, even though the real source files were valid.
+
+Solved in the Windows smoke harness by setting `COPYFILE_DISABLE=1` for the
+host tar step and excluding `._*` / `__MACOSX` entries, in addition to
+dereferencing symlinks and excluding platform build directories.
+
+Recommendations: any macOS-hosted tarball used as a Linux or Windows source
+checkout should disable AppleDouble emission and exclude host metadata. Build
+scripts that recursively read docs or templates should ignore known metadata
+sidecars before attempting UTF-8 parsing.
