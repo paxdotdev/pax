@@ -1,0 +1,22 @@
+#cloud-config
+autoinstall:
+  version: 1
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+  identity:
+    hostname: ${hostname}
+    username: ${username}
+    password: "${password_hash}"
+  ssh:
+    install-server: true
+    allow-pw: true
+  storage:
+    layout:
+      name: direct
+  updates: security
+  packages:
+    - ca-certificates
+    - openssh-server
+  late-commands:
+    - curtin in-target --target=/target -- systemctl enable ssh
