@@ -1340,6 +1340,10 @@ impl RenderContext for PaxGpuRenderer {
         }
     }
 
+    fn clear_targeted_replay(&mut self, layer: usize) {
+        self.clear_targeted_replay_scope(layer);
+    }
+
     fn take_ready_canvas_layers(&mut self) -> Vec<usize> {
         let mut ready_layers = self.ready_layers.borrow_mut();
         let mut ready = std::mem::take(&mut *ready_layers);
@@ -1503,24 +1507,31 @@ impl RenderContext for PaxGpuRenderer {
                 }
                 self.remember_canvas_node_coverage(layer, node_id, coverage_bounds);
                 target.prepare_for_render();
-                let candidate_indices = self.targeted_or_all_indices(layer, target.renderers.len());
-                let renderer_count = candidate_indices.len() as u64;
+                let renderer_count = target.renderers.len();
+                let candidate_indices = self.targeted_or_all_indices(layer, renderer_count);
+                let candidate_indices: HashSet<_> = candidate_indices.into_iter().collect();
                 #[cfg(debug_assertions)]
                 self.update_tile_cull_stats(layer, |stats| {
                     stats.nodes_considered += 1;
                 });
                 let mut selected = Vec::new();
                 let mut removed = Vec::new();
-                for index in candidate_indices {
-                    let Some(renderer) = target.renderers.get_mut(index) else {
-                        continue;
-                    };
-                    if !renderer.intersects_coverage_bounds(&coverage_bounds) {
+                let mut skipped_surfaces = 0u64;
+                let mut stale_surface_removal_attempts = 0u64;
+                for (index, renderer) in target.renderers.iter_mut().enumerate() {
+                    let intersects = renderer.intersects_coverage_bounds(&coverage_bounds);
+                    if !intersects {
+                        skipped_surfaces += 1;
+                        stale_surface_removal_attempts += 1;
                         // If a dirty node moved out of this tile, skipping begin_node is not
                         // enough: the renderer may still retain that node from an earlier frame.
                         if renderer.renderer.remove_node(node_id) {
                             removed.push(index);
                         }
+                        continue;
+                    }
+                    if !candidate_indices.contains(&index) {
+                        skipped_surfaces += 1;
                         continue;
                     }
                     if renderer.renderer.begin_node(node_id, z_index) {
@@ -1536,9 +1547,8 @@ impl RenderContext for PaxGpuRenderer {
                 self.update_tile_cull_stats(layer, |stats| {
                     let selected_count = selected.len() as u64;
                     stats.selected_surfaces += selected_count;
-                    stats.skipped_surfaces += renderer_count.saturating_sub(selected_count);
-                    stats.stale_surface_removal_attempts +=
-                        renderer_count.saturating_sub(selected_count);
+                    stats.skipped_surfaces += skipped_surfaces;
+                    stats.stale_surface_removal_attempts += stale_surface_removal_attempts;
                 });
                 if began {
                     self.push_render_scope(layer, selected);

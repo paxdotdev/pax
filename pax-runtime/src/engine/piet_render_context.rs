@@ -677,6 +677,10 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
         self.refresh_layer_layouts(layers.iter().copied());
     }
 
+    fn clear_targeted_replay(&mut self, layer: usize) {
+        self.clear_targeted_replay_scope(layer);
+    }
+
     fn take_ready_canvas_layers(&mut self) -> Vec<usize> {
         let mut ready = std::mem::take(&mut self.ready_layers);
         ready.sort_unstable();

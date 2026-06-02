@@ -215,7 +215,7 @@ fn logs_command() -> App<'static, 'static> {
 
 fn ray_cast_command() -> App<'static, 'static> {
     SubCommand::with_name("ray-cast")
-        .about("Return the z-sorted stack of expanded nodes beneath a window-space point")
+        .about("Return the z-sorted stack of expanded nodes beneath a default-scale dev-look screenshot point")
         .arg(arg_path())
         .arg(arg_session())
         .arg(
@@ -223,14 +223,14 @@ fn ray_cast_command() -> App<'static, 'static> {
                 .long("x")
                 .takes_value(true)
                 .required(true)
-                .help("Window-space x coordinate in px"),
+                .help("Window screenshot x coordinate in px, matching default-scale `pax-cli dev look` captures"),
         )
         .arg(
             Arg::with_name("y")
                 .long("y")
                 .takes_value(true)
                 .required(true)
-                .help("Window-space y coordinate in px"),
+                .help("Window screenshot y coordinate in px, matching default-scale `pax-cli dev look` captures"),
         )
         .arg(
             Arg::with_name("hit-invisible")

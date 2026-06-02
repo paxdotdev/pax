@@ -215,6 +215,82 @@ checkout should disable AppleDouble emission and exclude host metadata. Build
 scripts that recursively read docs or templates should ignore known metadata
 sidecars before attempting UTF-8 parsing.
 
+## 2026-05-31
+
+Tried to author a component that places the first few projected children in
+fixed positions and then renders the rest together. Existing `slot(index)` only
+addressed one child at a time, so examples had to mirror child count or invent
+intermediate props just to express a natural composition shape.
+
+Solved by adding `slot()` as a declarative remainder projection. The runtime
+derives a component-local projection plan from current projected children, active
+slot sites, and explicit slot indices; no persistent drain cursor is stored.
+
+The example also exposed a separate layout ergonomics issue: a `Stacker` treats
+the `Slot` projection site as one direct stackable child, even when `slot()`
+projects multiple children. That means `slot()` can semantically return a
+subtree, but it does not yet make each projected child its own Stacker cell.
+
+The duplicate-slot panel exposed a related authoring trap: wrapping each
+`slot(...)` site in its own `Stacker` made the example look like duplicate
+explicit slots were allowed to render, because the layout wrapper also
+participates in projection and can obscure the shared projection-plan shape the
+example is trying to demonstrate. Fixed-size visual buckets that should not
+re-project their content should use `Group` wrappers instead.
+
+Styling the example also hit the easy-to-miss Pax z-order rule: the first
+template child receives the highest z-index. A full-screen background rectangle
+placed before foreground content covered the entire scene in the web renderer.
+The expanded-tree inspector made the issue obvious by showing the background
+node above the title and panels.
+
+Dynamic slot re-dealing exposed a native-overlay artifact: a projected child
+whose visual identity included `Text` could move between slot homes while its
+native text descendants lagged or disappeared. Canvas primitives moved
+correctly. The example avoids that artifact by making the gem tiles pure canvas
+rectangles and keeping explanatory text outside the projected child.
+
+macOS dev-tool verification exposed a host lifecycle trap: launch-time session
+registration can succeed before the SwiftUI `WindowGroup` has produced a
+drawable canvas, so `pax-cli dev list` may briefly show a session that never
+heartbeats or services filesystem requests. Treat a one-time registration as
+insufficient proof that the macOS chassis is actually ticking; confirm a
+follow-up heartbeat, a successful `pax-cli dev look`, or a processed request.
+When the canvas moves between windows, do not permanently shut down the display
+link on a transient `viewWillMove(toWindow: nil)`; defer shutdown and confirm
+the view is still windowless.
+
+The same macOS example exposed a retained-rendering edge case in scrolled
+content. Slot re-dealing moved a canvas-only gem tile from one fixed bucket to
+another, and the live expanded tree/ray-cast correctly showed the old bucket as
+empty, but the old physical surface still displayed a stale gradient sheen.
+Skipping a dirty node on the newly targeted surface is not enough when a node's
+coverage moves across retained render surfaces; the old surface must also drop
+its retained copy of that node.
+
+Relaunching the macOS example also showed that a hidden or non-visible SwiftUI
+window can keep the app process alive without giving dev tooling a ticking
+window. The app delegate now preserves the normal launch activation path and
+creates an explicit fallback window only when no visible, key-capable window
+exists.
+
+Recommendations: prefer `slot()` for "fixed children plus rest" component APIs,
+keep remainder semantics documented near component composition docs, and use
+`examples/src/slot-projection-planner` when changing slot planning, control-flow
+slot ordering, or projection diagnostics. If we want "rest children as
+individual Stacker cells," design that as a container/layout transparency
+feature rather than coupling it to slot planning. Use `Group`, not `Stacker`, as
+the fixed-size wrapper for a slot site when the example is testing component-wide
+slot planning instead of Stacker projection behavior. When a screenshot shows
+only a background layer, check `pax-cli dev inspect tree` before chasing layout
+math. When validating slot reparenting across native elements, include explicit
+native-overlay checks; canvas-only examples are not enough to prove native
+descendant reparenting. For renderer artifacts, compare framebuffer screenshots
+against `ray-cast` or `inspect tree`: if the live tree is correct and only the
+framebuffer is stale, audit retained renderer cleanup across every physical
+surface the node used to intersect, not only the currently targeted replay
+surface.
+
 ## 2026-06-03
 
 The `materials` example exposed a native-cartridge gap that host-side

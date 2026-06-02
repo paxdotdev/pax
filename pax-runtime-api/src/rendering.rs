@@ -89,6 +89,8 @@ pub trait RenderContext {
     fn refresh_layers(&mut self, layers: &[usize]);
     /// Installs resolved lighting for a logical canvas layer.
     fn set_scene_lighting(&mut self, _layer: usize, _lighting: &SceneLighting) {}
+    /// Cancels any narrowed replay scope for a layer so subsequent work targets all surfaces.
+    fn clear_targeted_replay(&mut self, _layer: usize) {}
     /// Returns canvas layers ready to present.
     fn take_ready_canvas_layers(&mut self) -> Vec<usize> {
         vec![]

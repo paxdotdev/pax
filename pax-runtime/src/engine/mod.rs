@@ -696,6 +696,28 @@ impl PaxEngine {
         let targeted_replay_node_ids = self.runtime_context.take_targeted_canvas_replay_node_ids();
         let dirty_node_ids_before_expansion = self.runtime_context.dirty_canvas_node_ids();
         let retains_canvas_nodes = rcs.retains_canvas_nodes();
+        let mut retained_full_replay_layers = Vec::new();
+        if retains_canvas_nodes {
+            for layer in &dirty_layers {
+                let has_retained_removal = removal_layers.contains(layer);
+                let has_targeted_conflict =
+                    targeted_replay_node_ids
+                        .get(layer)
+                        .is_some_and(|targeted_node_ids| {
+                            !self.dirty_layer_can_use_targeted_replay_nodes(
+                                *layer,
+                                &dirty_node_ids_before_expansion,
+                                targeted_node_ids,
+                            )
+                        });
+                if has_retained_removal || has_targeted_conflict {
+                    rcs.clear_targeted_replay(*layer);
+                    self.runtime_context
+                        .mark_canvas_nodes_on_layer_dirty(*layer);
+                    retained_full_replay_layers.push(*layer);
+                }
+            }
+        }
         if !retains_canvas_nodes && (!dirty_layers.is_empty() || !removals.is_empty()) {
             for layer in &dirty_layers {
                 let can_use_targeted_replay_nodes = targeted_replay_node_ids
@@ -724,6 +746,10 @@ impl PaxEngine {
         } else if !retains_canvas_nodes {
             for layer in &dirty_layers {
                 rcs.clear(*layer);
+            }
+        } else {
+            for layer in retained_full_replay_layers {
+                rcs.clear(layer);
             }
         }
 

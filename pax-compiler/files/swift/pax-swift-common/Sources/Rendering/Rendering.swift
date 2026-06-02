@@ -1397,6 +1397,16 @@ public struct NativeRenderingLayer: View {
         private var appliedContentSignature: Int?
         private var debugLeafId: PaxNodeId = 0
 
+#if os(macOS)
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            guard contentKey != "text-static" else {
+                return nil
+            }
+            let hitView = super.hitTest(point)
+            return hitView === self ? nil : hitView
+        }
+#endif
+
         private static func shouldRasterizeMaskAsynchronously() -> Bool {
 #if os(macOS)
             false
@@ -1686,8 +1696,56 @@ public struct NativeRenderingLayer: View {
 #elseif os(macOS)
         private final class FlippedContentView: NSView {
             override var isFlipped: Bool { true }
+
+            override func hitTest(_ point: NSPoint) -> NSView? {
+                let hitView = super.hitTest(point)
+                return hitView === self ? nil : hitView
+            }
         }
-        private let scrollView = NSScrollView()
+        private final class PointerForwardingScrollView: NSScrollView {
+            var pointerInterruptHandler: ((String, NSEvent) -> Void)?
+
+            override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+                true
+            }
+
+            override func hitTest(_ point: NSPoint) -> NSView? {
+                guard let hitView = super.hitTest(point) else {
+                    return nil
+                }
+                return shouldForwardPointerHit(hitView) ? self : hitView
+            }
+
+            private func shouldForwardPointerHit(_ hitView: NSView) -> Bool {
+                hitView === self
+                    || hitView === contentView
+                    || hitView === documentView
+                    || hitView is FlippedContentView
+                    || hitView is PlatformContainerView
+            }
+
+            override func mouseDown(with event: NSEvent) {
+                pointerInterruptHandler?("MouseDown", event)
+                super.mouseDown(with: event)
+            }
+
+            override func mouseDragged(with event: NSEvent) {
+                pointerInterruptHandler?("MouseMove", event)
+                super.mouseDragged(with: event)
+            }
+
+            override func mouseMoved(with event: NSEvent) {
+                pointerInterruptHandler?("MouseMove", event)
+                super.mouseMoved(with: event)
+            }
+
+            override func mouseUp(with event: NSEvent) {
+                pointerInterruptHandler?("MouseUp", event)
+                pointerInterruptHandler?("Click", event)
+                super.mouseUp(with: event)
+            }
+        }
+        private let scrollView = PointerForwardingScrollView()
         private let innerContentView = FlippedContentView()
         private var scrollObserver: NSObjectProtocol?
         private var liveScrollStartObserver: NSObjectProtocol?
@@ -1758,6 +1816,9 @@ public struct NativeRenderingLayer: View {
             scrollView.hasHorizontalScroller = false
             scrollView.drawsBackground = false
             scrollView.autohidesScrollers = true
+            scrollView.pointerInterruptHandler = { [weak self] type, event in
+                self?.dispatchMacPointerInterrupt(type, event: event)
+            }
             scrollView.layer?.masksToBounds = true
             scrollView.contentView.wantsLayer = true
             scrollView.contentView.layer?.masksToBounds = true
@@ -2053,6 +2114,15 @@ public struct NativeRenderingLayer: View {
         }
 
 #if os(macOS)
+        private func dispatchMacPointerInterrupt(_ type: String, event: NSEvent) {
+            let point = NativeInterruptDispatcher.shared.convertWindowPoint(
+                event.locationInWindow,
+                in: event.window ?? window
+            )
+                ?? convert(event.locationInWindow, from: nil)
+            dispatchPointerMouseInterrupt(type: type, x: Double(point.x), y: Double(point.y))
+        }
+
         private func setMacClipOrigin(_ origin: CGPoint) {
             CATransaction.begin()
             CATransaction.setDisableActions(true)
@@ -4252,6 +4322,14 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard usingTextView else {
+            return nil
+        }
+        let hitView = super.hitTest(point)
+        return hitView === self ? nil : hitView
     }
 
     func apply(element: TextElement, size: CGSize) {

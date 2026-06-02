@@ -1204,10 +1204,10 @@ struct StatementSlotDefaultRule;
 
 impl FormattingRule for StatementSlotDefaultRule {
     fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
-        let mut formatted_node = String::new();
-        let exp = children[0].formatted_node.clone();
-        formatted_node.push_str(format!("slot {}", exp).as_str());
-        formatted_node
+        match children.first() {
+            Some(exp) => format!("slot({})", exp.formatted_node),
+            None => "slot()".to_string(),
+        }
     }
 }
 

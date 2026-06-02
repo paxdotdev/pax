@@ -311,14 +311,13 @@ fn recurse_visit_tag_pairs_for_template(
                 }
                 Rule::statement_slot => {
                     let mut statement_slot = any_tag_pair.into_inner();
-                    let expression_body = statement_slot.next().unwrap();
-                    let slot_expression = ExpressionInfo::new(
-                        parse_pax_expression(expression_body.as_str()).unwrap(),
-                    );
+                    let slot_expression = statement_slot.next().map(|expression_body| {
+                        ExpressionInfo::new(parse_pax_expression(expression_body.as_str()).unwrap())
+                    });
                     let template_node = TemplateNodeDefinition {
                         control_flow_settings: Some(ControlFlowSettingsDefinition {
                             condition_expression: None,
-                            slot_index_expression: Some(slot_expression),
+                            slot_index_expression: slot_expression,
                             repeat_predicate_definition: None,
                             repeat_source_expression: None,
                             repeat_key_expression: None,

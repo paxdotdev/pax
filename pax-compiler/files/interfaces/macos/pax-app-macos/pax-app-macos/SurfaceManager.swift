@@ -297,6 +297,10 @@ final class PaxMetalSurfaceView: NSView {
     private var appliedScale: CGFloat = 0
     private var appliedPixelSize: CGSize = .zero
 
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         commonInit()

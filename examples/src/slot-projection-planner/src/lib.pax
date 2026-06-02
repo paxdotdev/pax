@@ -1,0 +1,117 @@
+<Group width=100% height=100%>
+    <Text id=title x=50% y=34px width={100% - 64px} height=36px text="Slot Projection Planner" selectable=false />
+    <Text id=subtitle x=50% y=72px width={100% - 64px} height=22px text={self.status} selectable=false />
+
+    <Scroller x=50% y=104px width={100% - 64px} height={100% - 124px} anchor_x=50% scroll_height=1480px>
+        <Group width=100% height=1480px>
+            <Group class=panel_control x=360px y=260px width=142px height=32px @click=self.next_selected>
+                <Text class=control_text x=50% y=50% width={100% - 16px} height=20px text={"selected: " + self.selected} selectable=false />
+                <Rectangle class=control_bg width=100% height=100% />
+            </Group>
+            <Group class=panel_control x=300px y=504px width=142px height=32px @click=self.next_out_of_range>
+                <Text class=control_text x=50% y=50% width={100% - 16px} height=20px text={"probe: " + self.out_of_range_index} selectable=false />
+                <Rectangle class=control_bg width=100% height=100% />
+            </Group>
+            <Group class=panel_control x=520px y=748px width=142px height=32px @click=self.toggle_duplicate>
+                <Text class=control_text x=50% y=50% width={100% - 16px} height=20px text={self.duplicate_b == self.duplicate_a ? "duplicate on" : "duplicate off"} selectable=false />
+                <Rectangle class=control_bg width=100% height=100% />
+            </Group>
+            <Group class=panel_control x=400px y=992px width=142px height=32px @click=self.toggle_conditional>
+                <Text class=control_text x=50% y=50% width={100% - 16px} height=20px text={self.pin_first ? "if slot on" : "if slot off"} selectable=false />
+                <Rectangle class=control_bg width=100% height=100% />
+            </Group>
+            <Group class=panel_control x=440px y=1236px width=142px height=32px @click=self.rotate_repeated>
+                <Text class=control_text x=50% y=50% width={100% - 16px} height=20px text="rotate for-loop" selectable=false />
+                <Rectangle class=control_bg width=100% height=100% />
+            </Group>
+
+            <FirstThreeThenRest x=0px y=0px width=100% height=220px>
+                <GemTile index=0 label="Ruby" color=rgb(255, 42, 88) />
+                <GemTile index=1 label="Amber" color=rgb(255, 145, 0) />
+                <GemTile index=2 label="Citrine" color=rgb(255, 221, 64) />
+                <GemTile x=0px index=3 label="Emerald" color=rgb(27, 211, 137) />
+                <GemTile x=90px index=4 label="Sapphire" color=rgb(37, 124, 255) />
+                <GemTile x=180px index=5 label="Indigo" color=rgb(93, 86, 255) />
+            </FirstThreeThenRest>
+
+            <DynamicDeal x=0px y=244px width=100% height=220px selected={self.selected}>
+                <GemTile index=0 label="Ruby" color=rgb(255, 42, 88) />
+                <GemTile index=1 label="Amber" color=rgb(255, 145, 0) />
+            </DynamicDeal>
+
+            <OutOfRangeDeal x=0px y=488px width=100% height=220px index={self.out_of_range_index}>
+                <GemTile index=2 label="Citrine" color=rgb(255, 221, 64) />
+            </OutOfRangeDeal>
+
+            <DuplicateDeal x=0px y=732px width=100% height=220px a={self.duplicate_a} b={self.duplicate_b}>
+                <GemTile index=3 label="Emerald" color=rgb(27, 211, 137) />
+                <GemTile index=4 label="Sapphire" color=rgb(37, 124, 255) />
+            </DuplicateDeal>
+
+            <ConditionalDeal x=0px y=976px width=100% height=220px pin_first={self.pin_first}>
+                <GemTile index=5 label="Indigo" color=rgb(93, 86, 255) />
+            </ConditionalDeal>
+
+            <RepeatedDeal x=0px y=1220px width=100% height=240px pinned_indices={self.pinned_indices}>
+                <GemTile index=5 label="Indigo" color=rgb(93, 86, 255) />
+                <GemTile index=6 label="Amethyst" color=rgb(181, 87, 255) />
+                <GemTile index=0 label="Ruby" color=rgb(255, 42, 88) />
+            </RepeatedDeal>
+
+            <Rectangle class=scroller_bg width=100% height=100% />
+        </Group>
+    </Scroller>
+
+    <Rectangle class=background width=100% height=100% />
+</Group>
+
+@settings {
+    @mount: handle_mount
+
+    #title {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@700;900&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 30px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+    #subtitle {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font_size: 13px
+            fill: rgba(195, 211, 246, 210)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+    .control_text {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@600;800&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 12px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+        }
+    }
+    .control_bg {
+        fill: rgba(43, 80, 142, 235)
+        stroke: Stroke { color: rgba(138, 174, 255, 116), width: 1px }
+        corner_radii: RectangleCornerRadii::radii(10.0, 10.0, 10.0, 10.0)
+    }
+    .background {
+        fill: @gradient {
+            linear: {
+                start: (0%, 0%)
+                end: (100%, 100%)
+            }
+            0%: rgb(3, 6, 14)
+            55%: rgb(10, 17, 35)
+            100%: rgb(4, 9, 20)
+        }
+    }
+    .scroller_bg {
+        fill: rgb(4, 8, 18)
+    }
+}

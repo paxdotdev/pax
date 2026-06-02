@@ -9,14 +9,22 @@ import AppKit
 import SwiftUI
 
 final class PaxMacosAppDelegate: NSObject, NSApplicationDelegate {
+    private static var fallbackWindow: NSWindow?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = notification
         bringApplicationToFront()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            self.ensureInitialWindowIfNeeded()
+            self.bringApplicationToFront()
+        }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         _ = sender
-        _ = flag
+        if !flag {
+            ensureInitialWindowIfNeeded()
+        }
         bringApplicationToFront()
         return true
     }
@@ -50,6 +58,30 @@ final class PaxMacosAppDelegate: NSObject, NSApplicationDelegate {
         } else {
             app.activate(ignoringOtherApps: true)
         }
+    }
+
+    private func ensureInitialWindowIfNeeded() {
+        let app = NSApplication.shared
+        guard !app.windows.contains(where: { $0.canBecomeKey && $0.isVisible && !$0.isMiniaturized }) else {
+            return
+        }
+
+        let title = (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
+            ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)
+            ?? "Pax"
+        let hostingController = NSHostingController(rootView: PaxViewMacos())
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 900, height: 450),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = title
+        window.isReleasedWhenClosed = false
+        window.contentViewController = hostingController
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        Self.fallbackWindow = window
     }
 }
 

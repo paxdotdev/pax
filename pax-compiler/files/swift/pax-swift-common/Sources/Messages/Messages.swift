@@ -59,12 +59,21 @@ public final class NativeInterruptDispatcher {
     public static let shared = NativeInterruptDispatcher()
 
     public var sendData: ((Data) -> Void)?
+#if os(macOS)
+    public var convertWindowPointToPax: ((NSPoint, NSWindow?) -> CGPoint?)?
+#endif
 
     private init() {}
 
     public func send(_ data: Data) {
         sendData?(data)
     }
+
+#if os(macOS)
+    public func convertWindowPoint(_ point: NSPoint, in window: NSWindow?) -> CGPoint? {
+        convertWindowPointToPax?(point, window)
+    }
+#endif
 }
 
 public struct PhotoPickerSelectedAsset {
@@ -384,6 +393,17 @@ public func dispatchTap(x: Double, y: Double) {
         builder.addMapWithStringKey("Tap") { messageBuilder in
             messageBuilder.addWithStringKey("x", x)
             messageBuilder.addWithStringKey("y", y)
+        }
+    }
+}
+
+public func dispatchPointerMouseInterrupt(type: String, x: Double, y: Double, button: String = "Left") {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey(type) { messageBuilder in
+            messageBuilder.addWithStringKey("x", x)
+            messageBuilder.addWithStringKey("y", y)
+            messageBuilder.addStringWithStringKey("button", button)
+            messageBuilder.addVectorWithStringKey("modifiers") { _ in }
         }
     }
 }

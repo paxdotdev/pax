@@ -265,6 +265,10 @@ pub struct ExpandedNode {
     /// Dirty signal emitted when the projected child set changes structurally.
     pub projected_children_changed: Property<()>,
 
+    /// Dirty signal emitted when active slot sites or slot-index expressions
+    /// may change the component-local projection plan.
+    pub slot_projection_changed: Property<()>,
+
     /// subscription properties: added to this expanded node by calling ctx.subscribe in a node event handler
     pub subscriptions: RefCell<Vec<Property<()>>>,
 
@@ -581,6 +585,7 @@ impl ExpandedNode {
             content_measurement_bound: Cell::new(false),
             subtree_requires_non_reactive_update: Cell::new(true),
             projected_children_changed: Property::default(),
+            slot_projection_changed: Property::default(),
             subscriptions: Default::default(),
             transition_phase,
             transition_origin_frame,
@@ -753,6 +758,26 @@ impl ExpandedNode {
 
     fn has_child(children: &[Rc<ExpandedNode>], target: &Rc<ExpandedNode>) -> bool {
         children.iter().any(|child| Rc::ptr_eq(child, target))
+    }
+
+    fn detach_child_for_reparent(&self, target: &Rc<ExpandedNode>) {
+        let mut removed = false;
+        {
+            let active_children = &mut *borrow_mut!(self.active_children);
+            let old_len = active_children.len();
+            active_children.retain(|child| !Rc::ptr_eq(child, target));
+            removed |= active_children.len() != old_len;
+        }
+        {
+            let exiting_children = &mut *borrow_mut!(self.exiting_children);
+            let old_len = exiting_children.len();
+            exiting_children.retain(|child| !Rc::ptr_eq(child, target));
+            removed |= exiting_children.len() != old_len;
+        }
+        if removed {
+            self.sync_mounted_children_from_active_and_exiting();
+            self.mark_non_reactive_update_subtree_dirty();
+        }
     }
 
     fn template_node_identifier(&self) -> Option<UniqueTemplateNodeIdentifier> {
@@ -1077,6 +1102,18 @@ impl ExpandedNode {
         liquid_glass_scope: &Property<Option<NativeLiquidGlassScope>>,
     ) -> Vec<Rc<ExpandedNode>> {
         for child in new_children.iter() {
+            let previous_parent = borrow!(child.render_parent).upgrade();
+            let is_reparented = child.attached.get() > 0
+                && previous_parent
+                    .as_ref()
+                    .is_some_and(|parent| parent.id != self.id);
+            if is_reparented {
+                child.mark_canvas_subtree_dirty_for_reparent(context, true);
+                if let Some(previous_parent) = previous_parent.as_ref() {
+                    previous_parent.detach_child_for_reparent(child);
+                }
+            }
+
             // set parent and connect up viewport bounds to new parent
             *borrow_mut!(child.render_parent) = Rc::downgrade(self);
             // set frame clipping reference
@@ -1093,7 +1130,12 @@ impl ExpandedNode {
 
             // suspension is used in the designer to turn of/on tick/update
             child.inherit_suspend(self);
-            child.bind_to_parent_bounds(context);
+            if is_reparented {
+                child.rebind_parent_bounds_for_mounted_subtree(context);
+                child.mark_canvas_subtree_dirty_for_reparent(context, false);
+            } else {
+                child.bind_to_parent_bounds(context);
+            }
         }
         let mut newly_mounted_children = Vec::new();
         if self.attached.get() > 0 {
@@ -1120,8 +1162,11 @@ impl ExpandedNode {
             }
             for child in new_children.iter() {
                 if !Self::has_child(&old_active_children, child) {
+                    let was_attached = child.attached.get() > 0;
                     Rc::clone(child).recurse_mount(context);
-                    newly_mounted_children.push(Rc::clone(child));
+                    if !was_attached {
+                        newly_mounted_children.push(Rc::clone(child));
+                    }
                 }
             }
         }
@@ -1158,6 +1203,44 @@ impl ExpandedNode {
         *borrow_mut!(self.sidecar_children) = new_children.clone();
         self.mark_non_reactive_update_subtree_dirty();
         new_children
+    }
+
+    fn rebind_parent_bounds_for_mounted_subtree(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        self.bind_to_parent_bounds(context);
+        self.bind_occlusion_listener(context);
+        let mounted_children = borrow!(self.mounted_children).clone();
+        for child in mounted_children {
+            child.rebind_parent_bounds_for_mounted_subtree(context);
+        }
+        let sidecar_children = borrow!(self.sidecar_children).clone();
+        for child in sidecar_children {
+            child.rebind_parent_bounds_for_mounted_subtree(context);
+        }
+    }
+
+    fn mark_canvas_subtree_dirty_for_reparent(
+        self: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+        queue_retained_removal: bool,
+    ) {
+        let layer = self.occlusion.get().render_layer_id;
+        context.set_canvas_dirty(layer);
+        if borrow!(self.instance_node).base().flags().layer == Layer::Canvas {
+            if queue_retained_removal {
+                context.enqueue_canvas_node_removal(layer, self.id.to_u32());
+            }
+            context.mark_canvas_node_dirty(self.id);
+        }
+        context.mark_occlusion_dirty();
+
+        let mounted_children = borrow!(self.mounted_children).clone();
+        for child in mounted_children {
+            child.mark_canvas_subtree_dirty_for_reparent(context, queue_retained_removal);
+        }
+        let sidecar_children = borrow!(self.sidecar_children).clone();
+        for child in sidecar_children {
+            child.mark_canvas_subtree_dirty_for_reparent(context, queue_retained_removal);
+        }
     }
 
     fn bind_to_parent_bounds(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
@@ -1270,6 +1353,19 @@ impl ExpandedNode {
                     node.compute_flattened_projected_children();
                 }
                 context.mark_occlusion_dirty();
+
+                let (is_slot, is_component) = {
+                    let instance = borrow!(node.instance_node);
+                    let flags = instance.base().flags();
+                    (flags.is_slot, flags.is_component)
+                };
+                if !is_slot {
+                    if is_component {
+                        node.slot_projection_changed.set(());
+                    } else if let Some(containing_component) = node.containing_component.upgrade() {
+                        containing_component.slot_projection_changed.set(());
+                    }
+                }
             },
             &deps,
         ));

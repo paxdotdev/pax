@@ -1,0 +1,27 @@
+<Group width=100% height=100%>
+    <Rectangle
+        x=3px
+        y=3px
+        width={100% - 6px}
+        height={100% - 6px}
+        fill=@gradient {
+            radial: {
+                start: (100%, 0%)
+                end: (97%, 3%)
+                radius: 28
+            }
+            0%: rgba(255, 255, 255, 170)
+            20%: rgba(255, 255, 255, 52)
+            58%: rgba(255, 255, 255, 6)
+            100%: rgba(255, 255, 255, 0)
+        }
+        corner_radii={RectangleCornerRadii::radii(9.0, 9.0, 9.0, 9.0)}
+    />
+    <Rectangle
+        width=100%
+        height=100%
+        fill={Fill::Solid(self.color)}
+        stroke={Stroke { color: rgba(255, 255, 255, 92), width: 1px }}
+        corner_radii={RectangleCornerRadii::radii(12.0, 12.0, 12.0, 12.0)}
+    />
+</Group>

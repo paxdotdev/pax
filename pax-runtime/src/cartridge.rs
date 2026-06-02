@@ -1334,8 +1334,6 @@ pub trait DefinitionToInstanceTraverser {
                     .as_ref()
                     .unwrap()
                     .slot_index_expression
-                    .as_ref()
-                    .unwrap()
                     .clone();
 
                 let prototypical_properties_factory: Box<
@@ -1345,6 +1343,25 @@ pub trait DefinitionToInstanceTraverser {
                     )
                         -> Option<std::rc::Rc<RefCell<pax_runtime_api::pax_value::PaxAny>>>,
                 > = Box::new(move |stack_frame, expanded_node| {
+                    let Some(expr_info) = expr_info.clone() else {
+                        if let Some(expanded_node) = &expanded_node {
+                            let expanded_node = borrow!(**expanded_node);
+                            let outer_ref = expanded_node.properties.borrow();
+                            let rc = Rc::clone(&outer_ref);
+                            let mut inner_ref = (*rc).borrow_mut();
+                            let slot_properties =
+                                crate::Slot::mut_from_pax_any(&mut inner_ref).unwrap();
+                            slot_properties.is_remainder.set(true);
+                            return None;
+                        }
+
+                        return Some(std::rc::Rc::new(RefCell::new({
+                            let mut properties = crate::Slot::default();
+                            properties.is_remainder = Property::new(true);
+                            properties.to_pax_any()
+                        })));
+                    };
+
                     let cloned_stack = stack_frame.clone();
                     let expr_ast = expr_info.expression.clone();
 

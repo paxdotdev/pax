@@ -673,6 +673,7 @@ struct PaxViewMacos: View {
             layer?.backgroundColor = NSColor.clear.cgColor
             layer?.isOpaque = false
             createDisplayLink()
+            installNativeInterruptDispatcher()
             refreshDevSessionRegistrationIfNeeded(now: Date(), allowThrottle: false)
         }
 
@@ -682,6 +683,7 @@ struct PaxViewMacos: View {
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
+            installNativeInterruptDispatcher()
             window?.acceptsMouseMovedEvents = true
         }
 
@@ -691,7 +693,21 @@ struct PaxViewMacos: View {
             layer?.backgroundColor = NSColor.clear.cgColor
             layer?.isOpaque = false
             createDisplayLink()
+            installNativeInterruptDispatcher()
             refreshDevSessionRegistrationIfNeeded(now: Date(), allowThrottle: false)
+        }
+
+        private func installNativeInterruptDispatcher() {
+            NativeInterruptDispatcher.shared.sendData = sendInterruptToEngine
+            NativeInterruptDispatcher.shared.convertWindowPointToPax = { [weak self] point, window in
+                guard let self else {
+                    return nil
+                }
+                if let window, self.window !== window {
+                    return nil
+                }
+                return self.convert(point, from: nil)
+            }
         }
 
         private var requestAnimationFrameQueue: [() -> Void] = []
@@ -768,10 +784,16 @@ struct PaxViewMacos: View {
         }
 
         override func viewWillMove(toWindow newWindow: NSWindow?) {
-            if newWindow == nil {
-                shutdown()
-            }
             super.viewWillMove(toWindow: newWindow)
+            guard newWindow == nil else {
+                return
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.window == nil else {
+                    return
+                }
+                self.shutdown()
+            }
         }
 
         deinit {
@@ -780,6 +802,20 @@ struct PaxViewMacos: View {
 
         private func currentScale() -> CGFloat {
             window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1.0
+        }
+
+        private func convertPaxDevWindowPixelPointToCanvas(x: Double, y: Double) -> CGPoint {
+            guard let window else {
+                return CGPoint(x: x, y: y)
+            }
+            let scale = max(currentScale(), 0.0001)
+            let windowFrame = window.frame
+            let screenPoint = NSPoint(
+                x: windowFrame.minX + CGFloat(x) / scale,
+                y: windowFrame.maxY - CGFloat(y) / scale
+            )
+            let windowPoint = window.convertPoint(fromScreen: screenPoint)
+            return convert(windowPoint, from: nil)
         }
 
 
@@ -1239,9 +1275,10 @@ struct PaxViewMacos: View {
                 throw NSError(domain: "", code: 213, userInfo: [NSLocalizedDescriptionKey: "Pax engine is not initialized"])
             }
 
+            let canvasPoint = convertPaxDevWindowPixelPointToCanvas(x: request.x, y: request.y)
             let bridgeRequest = PaxDevRayCastBridgeRequest(
-                x: request.x,
-                y: request.y,
+                x: Double(canvasPoint.x),
+                y: Double(canvasPoint.y),
                 hit_invisible: request.hit_invisible
             )
             let bridgeRequestData = try JSONEncoder().encode(bridgeRequest)
