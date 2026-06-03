@@ -38,6 +38,7 @@ import { TextboxUpdatePatch } from "./classes/messages/textbox-update-patch";
 import { DropdownUpdatePatch } from "./classes/messages/dropdown-update-patch";
 import { SliderUpdatePatch } from "./classes/messages/slider-update-patch";
 import { NavigationPatch } from "./classes/messages/navigation-patch";
+import { SetCursorPatch } from "./classes/messages/set-cursor-patch";
 import { NativeImageUpdatePatch } from "./classes/messages/native-image-update-patch";
 import { YoutubeVideoUpdatePatch } from "./classes/messages/youtube-video-update-patch";
 import { ScreenshotPatch } from "./classes/messages/screenshot-patch";
@@ -633,7 +634,7 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             nativePool.navigate(patch)
         } else if (unwrapped_msg["SetCursor"]) {
             let msg = unwrapped_msg["SetCursor"];
-            let patch : NavigationPatch = objectManager.getFromPool(SET_CURSOR_PATCH);
+            let patch : SetCursorPatch = objectManager.getFromPool(SET_CURSOR_PATCH);
             patch.fromPatch(msg);
             nativePool.setCursor(patch)
         } else if (unwrapped_msg["Screenshot"]) {

@@ -45,6 +45,8 @@ pub struct Text {
     pub _style_link: Property<TextStyle>,
     /// Whether `text` should be interpreted as Markdown.
     pub markdown: Property<bool>,
+    /// Whether long text lines should wrap inside the node bounds.
+    pub wrap: Property<bool>,
 }
 
 impl Default for Text {
@@ -57,6 +59,7 @@ impl Default for Text {
             style: Property::new(TextStyle::default()),
             _style_link: Property::new(TextStyle::default()),
             markdown: Property::new(false),
+            wrap: Property::new(true),
         }
     }
 }
@@ -178,6 +181,11 @@ impl InstanceNode for TextInstance {
                                 &mut old_state.markdown,
                                 &mut patch.markdown,
                                 properties.markdown.get(),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.wrap,
+                                &mut patch.wrap,
+                                properties.wrap.get(),
                             ),
                             // Styles
                             patch_if_needed(

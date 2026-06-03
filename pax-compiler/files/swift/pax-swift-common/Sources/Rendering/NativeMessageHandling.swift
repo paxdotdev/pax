@@ -2,6 +2,9 @@ import Foundation
 import SwiftUI
 import FlexBuffers
 import Messages
+#if os(macOS)
+import AppKit
+#endif
 
 public struct DirtyCollections {
     public var text = false
@@ -59,6 +62,35 @@ public protocol NativeMessageHandling: AnyObject {
 }
 
 public extension NativeMessageHandling {
+    func handleSetCursor(patch: SetCursorPatchMessage) {
+        #if os(macOS)
+        let cursor: NSCursor
+        switch patch.cursor {
+        case "pointer":
+            cursor = .pointingHand
+        case "text", "vertical-text":
+            cursor = .iBeam
+        case "crosshair":
+            cursor = .crosshair
+        case "not-allowed", "no-drop":
+            cursor = .operationNotAllowed
+        case "grab":
+            cursor = .openHand
+        case "grabbing":
+            cursor = .closedHand
+        case "col-resize", "e-resize", "w-resize", "ew-resize":
+            cursor = .resizeLeftRight
+        case "row-resize", "n-resize", "s-resize", "ns-resize":
+            cursor = .resizeUpDown
+        default:
+            cursor = .arrow
+        }
+        DispatchQueue.main.async {
+            cursor.set()
+        }
+        #endif
+    }
+
     private func hasScrollerScrollUpdate(_ patch: ScrollerUpdatePatch) -> Bool {
         patch.scroll_x != nil
             || patch.scroll_y != nil
@@ -934,7 +966,9 @@ public extension NativeMessageHandling {
                 }
             }
 
-            let _ = message["SetCursor"]
+            if let setCursorMessage = message["SetCursor"] {
+                handleSetCursor(patch: SetCursorPatchMessage(fb: setCursorMessage))
+            }
         }
 
         if masks.recomputeAll {

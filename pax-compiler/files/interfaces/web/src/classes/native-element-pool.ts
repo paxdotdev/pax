@@ -1277,6 +1277,10 @@ export class NativeElementPool {
             applyClip(patch.clip);
         }
 
+        if (patch.wrap != null) {
+            textChild.style.whiteSpace = patch.wrap ? "normal" : "pre";
+        }
+
         applyTextStyle(leaf, textChild, patch.style);
 
         // Apply the content
@@ -4562,7 +4566,8 @@ function drawPlainTextNativeLeaves(
         const lineHeight = Number.parseFloat(textStyle.lineHeight || '') || fontSize * 1.2;
         const localWidth = Number.parseFloat(leafStyle.width || '') || leafNode.offsetWidth || leafRect.width;
         const localHeight = Number.parseFloat(leafStyle.height || '') || leafNode.offsetHeight || leafRect.height;
-        const lines = wrapPlainText(text, localWidth, ctx);
+        const preservesWhitespace = textStyle.whiteSpace.includes("pre");
+        const lines = preservesWhitespace ? text.split('\n') : wrapPlainText(text, localWidth, ctx);
         const totalTextHeight = lineHeight * lines.length;
 
         ctx.setTransform(scaleX, 0, 0, scaleY, 0, 0);
@@ -4590,7 +4595,11 @@ function drawPlainTextNativeLeaves(
 
         const startY = (localHeight - totalTextHeight) / 2 + lineHeight / 2;
         lines.forEach((line, index) => {
-            ctx.fillText(line, x, startY + index * lineHeight, localWidth);
+            if (preservesWhitespace) {
+                ctx.fillText(line, x, startY + index * lineHeight);
+            } else {
+                ctx.fillText(line, x, startY + index * lineHeight, localWidth);
+            }
         });
         ctx.restore();
     });

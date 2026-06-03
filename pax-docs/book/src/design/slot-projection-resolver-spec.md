@@ -1,4 +1,4 @@
-# Slot Projection Planner (Draft)
+# Slot Projection Resolver (Draft)
 
 Authoring Date: 2026-05-31
 
@@ -12,7 +12,7 @@ component that wants to render "some specific children, then the rest" has had
 to mirror child counts or invent a wrapper API. That makes simple composition
 patterns awkward and pushes declarative template structure into Rust props.
 
-The planner should support this common shape directly:
+The resolver should support this common shape directly:
 
 ```pax
 <Group>
@@ -44,8 +44,8 @@ The planner should support this common shape directly:
 - No slot-specific mini-language such as `slot(3..)` or `slot(*)`.
 - No grammar-wide open-ended range changes for this feature.
 - No author-controlled multi-home projection. A projected child has one
-  rendered home in a single plan.
-- No first-pass attempt to expose the computed plan to user code.
+  rendered home in a single resolution.
+- No first-pass attempt to expose the computed resolution to user code.
 
 ## Authoring Surface
 
@@ -59,24 +59,24 @@ same containing component. Empty remainder is valid and silent.
 
 Both forms are scoped to the component whose template owns the slot site. Slot
 sites inside nested component boundaries belong to that nested component's own
-planner.
+resolver.
 
-## Planning Semantics
+## Resolution Semantics
 
-For each component instance, the runtime derives a slot projection plan from:
+For each component instance, the runtime resolves slot projection from:
 
 1. the current ordered projected child list,
 2. the current active slot sites in the component's encapsulated tree, and
 3. each explicit slot site's current index expression.
 
-The planner walks active slot sites in rendered child-tree order. At each site:
+The resolver walks active slot sites in rendered child-tree order. At each site:
 
 - `slot(n)` consumes child `n` if it exists and has not already been consumed.
 - `slot()` consumes every unconsumed child in original projected-child order.
 
-The plan is recomputed from scratch when its inputs change. There is no retained
+Resolution is recomputed from scratch when its inputs change. There is no retained
 "drain position" across frames; remainder is purely a function of earlier active
-slot sites in the current plan.
+slot sites in the current resolution.
 
 ### Examples
 
@@ -101,12 +101,12 @@ slot(self.selected)
 slot()
 ```
 
-When `self.selected` changes, the component re-plans projection. The remainder
+When `self.selected` changes, the component re-resolves projection. The remainder
 slot receives the children not consumed by the new selected index.
 
 Control-flow sites behave the same way. If an `if` branch adds or removes a
 prior slot site, or a `for` loop changes the order or number of explicit slot
-sites, the same component re-plans from the active tree.
+sites, the same component re-resolves from the active tree.
 
 ## Diagnostics
 
@@ -128,7 +128,7 @@ earlier remainder has already consumed that child.
 
 ## Example Project
 
-`examples/src/slot-projection-planner` visualizes the planner with bright
+`examples/src/slot-projection-resolver` visualizes projection resolution with bright
 ROYGBIV gem-tone tiles on a dark background. Each panel uses `Stacker` buckets
 to show where the projected children land:
 
@@ -150,9 +150,9 @@ same projected child list re-deal into each panel.
 
 Current layout note: a `slot()` site can project multiple children, but a
 `Stacker` still treats the `Slot` site itself as its direct child. The example
-keeps each remainder bucket compact while visualizing the planner behavior; a
+keeps each remainder bucket compact while visualizing the resolver behavior; a
 layout-transparent "explode projected children into Stacker cells" behavior is
-a separate container-layout feature, not part of this planner spec.
+a separate container-layout feature, not part of this resolver spec.
 
 ## Implementation Notes
 

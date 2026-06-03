@@ -223,8 +223,9 @@ addressed one child at a time, so examples had to mirror child count or invent
 intermediate props just to express a natural composition shape.
 
 Solved by adding `slot()` as a declarative remainder projection. The runtime
-derives a component-local projection plan from current projected children, active
-slot sites, and explicit slot indices; no persistent drain cursor is stored.
+derives a component-local projection resolution from current projected children,
+active slot sites, and explicit slot indices; no persistent drain cursor is
+stored.
 
 The example also exposed a separate layout ergonomics issue: a `Stacker` treats
 the `Slot` projection site as one direct stackable child, even when `slot()`
@@ -234,8 +235,8 @@ subtree, but it does not yet make each projected child its own Stacker cell.
 The duplicate-slot panel exposed a related authoring trap: wrapping each
 `slot(...)` site in its own `Stacker` made the example look like duplicate
 explicit slots were allowed to render, because the layout wrapper also
-participates in projection and can obscure the shared projection-plan shape the
-example is trying to demonstrate. Fixed-size visual buckets that should not
+participates in projection and can obscure the shared projection-resolution shape
+the example is trying to demonstrate. Fixed-size visual buckets that should not
 re-project their content should use `Group` wrappers instead.
 
 Styling the example also hit the easy-to-miss Pax z-order rule: the first
@@ -276,12 +277,12 @@ exists.
 
 Recommendations: prefer `slot()` for "fixed children plus rest" component APIs,
 keep remainder semantics documented near component composition docs, and use
-`examples/src/slot-projection-planner` when changing slot planning, control-flow
-slot ordering, or projection diagnostics. If we want "rest children as
+`examples/src/slot-projection-resolver` when changing slot resolution,
+control-flow slot ordering, or projection diagnostics. If we want "rest children as
 individual Stacker cells," design that as a container/layout transparency
-feature rather than coupling it to slot planning. Use `Group`, not `Stacker`, as
+feature rather than coupling it to slot resolution. Use `Group`, not `Stacker`, as
 the fixed-size wrapper for a slot site when the example is testing component-wide
-slot planning instead of Stacker projection behavior. When a screenshot shows
+slot resolution instead of Stacker projection behavior. When a screenshot shows
 only a background layer, check `pax-cli dev inspect tree` before chasing layout
 math. When validating slot reparenting across native elements, include explicit
 native-overlay checks; canvas-only examples are not enough to prove native

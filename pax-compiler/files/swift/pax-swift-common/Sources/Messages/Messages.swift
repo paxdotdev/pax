@@ -801,11 +801,12 @@ public class TextElement: NativePositionElement {
     public var textStyle: TextStyle
     public var selectable: Bool
     public var markdown: Bool
+    public var wrap: Bool
     public var style_link: TextStyle?
     public var lastMeasuredSize: CGSize?
     public var nativeMaskPatch: NativeMaskPatch? = nil
     
-    public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, content: String, editable: Bool, clip: Bool, transform: [Float], size_x: Float, size_y: Float, opacity: Double, textStyle: TextStyle, selectable: Bool, markdown: Bool, style_link: TextStyle?, lastMeasuredSize: CGSize? = nil) {
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, content: String, editable: Bool, clip: Bool, transform: [Float], size_x: Float, size_y: Float, opacity: Double, textStyle: TextStyle, selectable: Bool, markdown: Bool, wrap: Bool, style_link: TextStyle?, lastMeasuredSize: CGSize? = nil) {
         self.id = id
         self.parentFrame = parentFrame
         self.renderLayerId = renderLayerId
@@ -820,13 +821,14 @@ public class TextElement: NativePositionElement {
         self.textStyle = textStyle
         self.selectable = selectable
         self.markdown = markdown
+        self.wrap = wrap
         self.style_link = style_link
         self.lastMeasuredSize = lastMeasuredSize
     }
     
     public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32) -> TextElement {
         let defaultTextStyle = TextStyle(font: PaxFont.makeDefault(), fill: Color(.black), alignmentMultiline: .leading, alignment: .topLeading, font_size: 5.0, underline: false)
-        return TextElement(id: id, parentFrame: parentFrame, renderLayerId: renderLayerId, zIndex: 0, content: "", editable: false, clip: false, transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, opacity: 1.0, textStyle: defaultTextStyle, selectable: false, markdown: false, style_link: nil)
+        return TextElement(id: id, parentFrame: parentFrame, renderLayerId: renderLayerId, zIndex: 0, content: "", editable: false, clip: false, transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, opacity: 1.0, textStyle: defaultTextStyle, selectable: false, markdown: false, wrap: true, style_link: nil)
     }
     
     public func applyPatch(patch: TextUpdatePatch) {
@@ -858,6 +860,9 @@ public class TextElement: NativePositionElement {
         }
         if let markdown = patch.markdown {
             self.markdown = markdown
+        }
+        if let wrap = patch.wrap {
+            self.wrap = wrap
         }
         
         // Apply new TextStyle
@@ -1061,6 +1066,7 @@ public class TextUpdatePatch: ResolvedPlacementPatch {
     public var selectable: Bool?
     public var clip: Bool?
     public var markdown: Bool?
+    public var wrap: Bool?
     public var style: TextStyleMessage?
     public var style_link: TextStyleMessage?
 
@@ -1080,6 +1086,7 @@ public class TextUpdatePatch: ResolvedPlacementPatch {
         self.selectable = fb["selectable"]?.asBool
         self.clip = fb["clip"]?.asBool
         self.markdown = fb["markdown"]?.asBool
+        self.wrap = fb["wrap"]?.asBool
         
         if let styleBuffer = fb["style"], !styleBuffer.isNull {
             self.style = TextStyleMessage(styleBuffer)

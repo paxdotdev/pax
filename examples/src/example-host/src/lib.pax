@@ -1,0 +1,77 @@
+<Group width=100% height=100%>
+    <ExampleHost x=48px y=48px width={100% - 96px} height={100% - 96px} title="ExampleHost: slot() subtree" sources={self.sources}>
+        <Group x=0px y=0px width=100% height=160px>
+            <Text class=hero_title x=44px y=42px width={100% - 84px} height=52px text="A projected multi-child example" selectable=false />
+            <Text class=hero_copy x=42px y=100px width={100% - 84px} height=50px text="The source drawer belongs to ExampleHost; the preview subtree is just ordinary projected Pax content." selectable=false />
+        </Group>
+
+        <Group x=0px y=0px width=100% height=100%>
+            <Stacker
+                x=42px
+                y=178px
+                width={100% - 84px}
+                height=178px
+                direction=StackerDirection::Horizontal
+                gutter=18px
+                sizes=[None, None, None, None]
+            >
+                <ExampleTile label="Ruby" detail="slot child 0" color=rgb(255, 42, 88) />
+                <ExampleTile label="Citrine" detail="slot child 1" color=rgb(255, 221, 64) />
+                <ExampleTile label="Emerald" detail="slot child 2" color=rgb(27, 211, 137) />
+                <ExampleTile label="Sapphire" detail="slot child 3" color=rgb(37, 124, 255) />
+            </Stacker>
+        </Group>
+
+        <Group x=0px y=0px width=100% height=100%>
+            <Rectangle class=preview_frame x=18px y=18px width={100% - 36px} height={100% - 36px} />
+        </Group>
+    </ExampleHost>
+
+    <Rectangle class=page_bg width=100% height=100% />
+</Group>
+
+@settings {
+    @mount: handle_mount
+
+    .page_bg {
+        fill: @gradient {
+            linear: {
+                start: (0%, 0%)
+                end: (100%, 100%)
+            }
+            0%: rgb(2, 5, 13)
+            50%: rgb(9, 16, 34)
+            100%: rgb(5, 9, 20)
+        }
+    }
+
+    .preview_frame {
+        fill: rgba(8, 14, 28, 232)
+        stroke: Stroke { color: rgba(102, 132, 190, 128), width: 1px }
+        corner_radii: RectangleCornerRadii::radii(16.0, 16.0, 16.0, 16.0)
+    }
+
+    .hero_title {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@700;900&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 34px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .hero_copy {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font_size: 16px
+            fill: rgba(194, 210, 242, 230)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+}

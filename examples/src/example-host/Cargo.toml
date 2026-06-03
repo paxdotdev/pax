@@ -1,11 +1,11 @@
 [package]
-name = "slot-projection-planner"
+name = "example-host"
 version = "0.38.3"
 edition = "2021"
 default-run = "run"
 
 [package.metadata.pax]
-title = "Slot Projection Planner"
+title = "ExampleHost"
 
 [dependencies]
 pax-kit = { version = "0.38.3", path = "../../../pax-kit" }

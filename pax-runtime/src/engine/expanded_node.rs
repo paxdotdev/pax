@@ -266,7 +266,7 @@ pub struct ExpandedNode {
     pub projected_children_changed: Property<()>,
 
     /// Dirty signal emitted when active slot sites or slot-index expressions
-    /// may change the component-local projection plan.
+    /// may change the component-local projection resolution.
     pub slot_projection_changed: Property<()>,
 
     /// subscription properties: added to this expanded node by calling ctx.subscribe in a node event handler

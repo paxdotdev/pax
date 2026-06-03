@@ -883,6 +883,7 @@ public struct NativeRenderingLayer: View {
                 hasher.combine(element.selectable)
                 hasher.combine(element.clip)
                 hasher.combine(element.markdown)
+                hasher.combine(element.wrap)
                 combineTextStyle(element.textStyle, into: &hasher)
                 if let styleLink = element.style_link {
                     combineTextStyle(styleLink, into: &hasher)
@@ -3143,13 +3144,52 @@ public class NativeSceneInvalidation: ObservableObject {
     }
 }
 
+private let paxNativeAttributedStringCache = NSCache<NSString, NSAttributedString>()
+
+private func nativeAttributedStringCacheKey(for element: TextElement) -> NSString {
+    "\(element.markdown)\u{1F}\(element.content)" as NSString
+}
+
+private func cachedNativeAttributedString(for element: TextElement) -> NSAttributedString {
+    let key = nativeAttributedStringCacheKey(for: element)
+    if let cached = paxNativeAttributedStringCache.object(forKey: key) {
+        return cached
+    }
+
+    let attributed = NSAttributedString(nativeAttributedString(for: element))
+    paxNativeAttributedStringCache.setObject(attributed, forKey: key)
+    return attributed
+}
+
+private func nativeTextMeasurementSignature(for element: TextElement) -> Int {
+    var hasher = Hasher()
+    hasher.combine(element.content)
+    hasher.combine(element.markdown)
+    hasher.combine(element.wrap)
+    hasher.combine(element.clip)
+    hasher.combine(element.editable)
+    hasher.combine(element.selectable)
+    combineTextStyle(element.textStyle, into: &hasher)
+    if let styleLink = element.style_link {
+        combineTextStyle(styleLink, into: &hasher)
+    } else {
+        hasher.combine(0)
+    }
+    return hasher.finalize()
+}
+
 private func nativeAttributedString(for element: TextElement) -> AttributedString {
     var attributedString: AttributedString
     if element.markdown {
-        attributedString = (try? AttributedString(
-            markdown: element.content,
-            options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        )) ?? AttributedString(element.content)
+        let htmlAttributedString = nativeHTMLAttributedString(markup: element.content)
+        if let htmlAttributedString {
+            attributedString = htmlAttributedString
+        } else {
+            attributedString = (try? AttributedString(
+                markdown: element.content,
+                options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+            )) ?? AttributedString(element.content)
+        }
     } else {
         attributedString = AttributedString(element.content)
     }
@@ -3163,6 +3203,132 @@ private func nativeAttributedString(for element: TextElement) -> AttributedStrin
     }
 
     return attributedString
+}
+
+private func nativeHTMLAttributedString(markup: String) -> AttributedString? {
+    let lowered = markup.lowercased()
+    guard lowered.contains("<span") || lowered.contains("<pre") else {
+        return nil
+    }
+    if let attributed = nativeHighlightedCodeAttributedString(markup: markup) {
+        return attributed
+    }
+    guard let data = markup.data(using: .utf8) else {
+        return nil
+    }
+    let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
+        .documentType: NSAttributedString.DocumentType.html,
+        .characterEncoding: String.Encoding.utf8.rawValue
+    ]
+    guard let attributed = try? NSAttributedString(
+        data: data,
+        options: options,
+        documentAttributes: nil
+    ) else {
+        return nil
+    }
+    return AttributedString(attributed)
+}
+
+private func nativeHighlightedCodeAttributedString(markup: String) -> AttributedString? {
+    guard markup.lowercased().contains("<pre") else {
+        return nil
+    }
+
+    let attributed = NSMutableAttributedString(string: "")
+    var cursor = markup.startIndex
+    var currentColor: Any?
+
+    while cursor < markup.endIndex {
+        if markup[cursor] == "<" {
+            guard let close = markup[cursor...].firstIndex(of: ">") else {
+                return nil
+            }
+            let tag = String(markup[cursor...close]).lowercased()
+            if tag.hasPrefix("<span") {
+                currentColor = nativeHexColor(from: tag)
+            } else if tag.hasPrefix("</span") {
+                currentColor = nil
+            }
+            cursor = markup.index(after: close)
+            continue
+        }
+
+        let nextTag = markup[cursor...].firstIndex(of: "<") ?? markup.endIndex
+        let text = decodeHTMLEntities(String(markup[cursor..<nextTag]))
+        if !text.isEmpty {
+            var attributes: [NSAttributedString.Key: Any] = [:]
+            if let currentColor {
+                attributes[.foregroundColor] = currentColor
+            }
+            attributed.append(NSAttributedString(string: text, attributes: attributes))
+        }
+        cursor = nextTag
+    }
+
+    return AttributedString(attributed)
+}
+
+private func nativeHexColor(from tag: String) -> Any? {
+    guard let colorRange = tag.range(of: "color:") else {
+        return nil
+    }
+    var hex = String(tag[colorRange.upperBound...])
+    if let end = hex.firstIndex(where: { $0 == ";" || $0 == "\"" || $0 == "'" || $0 == " " }) {
+        hex = String(hex[..<end])
+    }
+    if hex.hasPrefix("#") {
+        hex.removeFirst()
+    }
+    guard hex.count == 6, let value = Int(hex, radix: 16) else {
+        return nil
+    }
+
+    let red = CGFloat((value >> 16) & 0xff) / 255.0
+    let green = CGFloat((value >> 8) & 0xff) / 255.0
+    let blue = CGFloat(value & 0xff) / 255.0
+    #if os(iOS) || os(tvOS) || os(watchOS)
+    return UIColor(red: red, green: green, blue: blue, alpha: 1.0)
+    #elseif os(macOS)
+    return NSColor(red: red, green: green, blue: blue, alpha: 1.0)
+    #else
+    return nil
+    #endif
+}
+
+private func decodeHTMLEntities(_ text: String) -> String {
+    text
+        .replacingOccurrences(of: "&amp;", with: "&")
+        .replacingOccurrences(of: "&lt;", with: "<")
+        .replacingOccurrences(of: "&gt;", with: ">")
+        .replacingOccurrences(of: "&quot;", with: "\"")
+        .replacingOccurrences(of: "&#39;", with: "'")
+}
+
+private func textMeasurementConstraint(for element: TextElement, size: CGSize) -> CGSize {
+    CGSize(
+        width: (element.wrap && element.size_x >= 0) ? size.width : CGFloat.greatestFiniteMagnitude,
+        height: (element.size_y >= 0 && element.clip) ? size.height : CGFloat.greatestFiniteMagnitude
+    )
+}
+
+private func addDefaultForegroundColor(_ color: Color, to mutable: NSMutableAttributedString) {
+    let fullRange = NSRange(location: 0, length: mutable.length)
+    mutable.enumerateAttribute(.foregroundColor, in: fullRange, options: []) { value, range, _ in
+        if value == nil {
+            mutable.addAttribute(.foregroundColor, value: platformColor(color), range: range)
+        }
+    }
+}
+
+private func noWrapOverflowFrame(_ frame: CGRect, measured: CGSize, element: TextElement) -> CGRect {
+    guard !element.wrap && !element.clip else {
+        return frame
+    }
+
+    var frame = frame
+    frame.size.width = max(frame.size.width, ceil(max(0, measured.width)))
+    return frame
 }
 
 private func reportMeasuredTextSizeIfNeeded(_ measuredSize: CGSize, for element: TextElement) {
@@ -3480,11 +3646,8 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
         selectableView.frame = rect
         selectableView.bounds = rect
 
-        let attr = NSAttributedString(nativeAttributedString(for: element))
-        let measurementConstraint = CGSize(
-            width: element.size_x >= 0 ? size.width : CGFloat.greatestFiniteMagnitude,
-            height: (element.size_y >= 0 && element.clip) ? size.height : CGFloat.greatestFiniteMagnitude
-        )
+        let attr = cachedNativeAttributedString(for: element)
+        let measurementConstraint = textMeasurementConstraint(for: element, size: size)
         if useSelectableView {
             editableNodeId = element.id
             suppressChange = true
@@ -3495,17 +3658,19 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
             selectableView.textAlignment = platformTextAlignment(element.textStyle.alignmentMultiline)
             selectableView.isEditable = element.editable
             selectableView.isSelectable = element.selectable || element.editable
+            selectableView.textContainer.lineBreakMode = element.wrap ? .byWordWrapping : .byClipping
+            selectableView.textContainer.widthTracksTextView = element.wrap
             selectableView.textContainer.size = CGSize(
-                width: size.width,
+                width: element.wrap ? size.width : CGFloat.greatestFiniteMagnitude,
                 height: element.clip ? size.height : CGFloat.greatestFiniteMagnitude
             )
             let measured = selectableView.sizeThatFits(measurementConstraint)
-            let alignedFrame = alignedTextLayerFrame(
+            let alignedFrame = noWrapOverflowFrame(alignedTextLayerFrame(
                 containerSize: size,
                 measuredTextSize: measured,
                 alignment: element.textStyle.alignment,
                 clip: element.clip
-            )
+            ), measured: measured, element: element)
             selectableView.frame = alignedFrame
             selectableView.bounds = CGRect(origin: .zero, size: alignedFrame.size)
             reportMeasuredTextSizeIfNeeded(measured, for: element)
@@ -3514,28 +3679,29 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
             let fullRange = NSRange(location: 0, length: mutable.length)
             let paragraphStyle = NSMutableParagraphStyle()
             paragraphStyle.alignment = platformHorizontalTextAlignment(element.textStyle.alignment)
-            paragraphStyle.lineBreakMode = .byWordWrapping
+            paragraphStyle.lineBreakMode = element.wrap ? .byWordWrapping : .byClipping
             mutable.addAttributes(
                 [
                     .font: element.textStyle.font.getUIFont(size: element.textStyle.font_size),
-                    .foregroundColor: platformColor(element.textStyle.fill),
                     .paragraphStyle: paragraphStyle
                 ],
                 range: fullRange
             )
+            addDefaultForegroundColor(element.textStyle.fill, to: mutable)
             staticTextLayer.alignmentMode = platformLayerTextAlignment(element.textStyle.alignment)
+            staticTextLayer.isWrapped = element.wrap
             staticTextLayer.string = mutable
             let measured = mutable.boundingRect(
                 with: measurementConstraint,
                 options: [.usesLineFragmentOrigin, .usesFontLeading],
                 context: nil
             ).integral.size
-            staticTextLayer.frame = alignedTextLayerFrame(
+            staticTextLayer.frame = noWrapOverflowFrame(alignedTextLayerFrame(
                 containerSize: size,
                 measuredTextSize: measured,
                 alignment: element.textStyle.alignment,
                 clip: element.clip
-            )
+            ), measured: measured, element: element)
             reportMeasuredTextSizeIfNeeded(measured, for: element)
         }
     }
@@ -4277,6 +4443,7 @@ private func configuredLiquidGlassView(
 
 private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
     override var isFlipped: Bool { true }
+    override var isOpaque: Bool { false }
 
     private let staticTextLayer = CATextLayer()
     private let scrollView = NSScrollView()
@@ -4284,16 +4451,22 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
     private var usingTextView = false
     private var suppressChange = false
     private var editableNodeId: PaxNodeId = 0
+    private var lastContentSignature: Int?
+    private var lastMeasuredTextSignature: Int?
+    private var lastMeasuredTextSize: CGSize?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
+        layer?.isOpaque = false
         layer?.masksToBounds = false
         staticTextLayer.frame = bounds
         staticTextLayer.isWrapped = true
         staticTextLayer.truncationMode = .none
         staticTextLayer.masksToBounds = false
+        staticTextLayer.backgroundColor = NSColor.clear.cgColor
+        staticTextLayer.isOpaque = false
         staticTextLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 1.0
         layer?.addSublayer(staticTextLayer)
 
@@ -4305,9 +4478,16 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
         scrollView.borderType = .noBorder
         scrollView.documentView = textView
         scrollView.wantsLayer = true
+        scrollView.layer?.backgroundColor = NSColor.clear.cgColor
+        scrollView.layer?.isOpaque = false
         scrollView.layer?.masksToBounds = false
+        scrollView.contentView.drawsBackground = false
+        scrollView.contentView.wantsLayer = true
+        scrollView.contentView.layer?.backgroundColor = NSColor.clear.cgColor
+        scrollView.contentView.layer?.isOpaque = false
 
         textView.drawsBackground = false
+        textView.backgroundColor = .clear
         textView.isEditable = false
         textView.isSelectable = true
         textView.delegate = self
@@ -4317,6 +4497,8 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
         textView.isHorizontallyResizable = false
         textView.textContainer?.widthTracksTextView = true
         textView.wantsLayer = true
+        textView.layer?.backgroundColor = NSColor.clear.cgColor
+        textView.layer?.isOpaque = false
         textView.layer?.masksToBounds = false
     }
 
@@ -4337,9 +4519,7 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
         scrollView.layer?.masksToBounds = element.clip
         textView.layer?.masksToBounds = element.clip
         staticTextLayer.masksToBounds = element.clip
-        // When clip=false, prefer the static text layer even for selectable text so descenders and
-        // other overflow can render outside the frame. Editing still requires the native text view.
-        let useTextView = element.editable || (element.selectable && element.clip)
+        let useTextView = element.editable || element.selectable
         if useTextView != usingTextView {
             if useTextView {
                 staticTextLayer.isHidden = true
@@ -4349,68 +4529,114 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
                 staticTextLayer.isHidden = false
             }
             usingTextView = useTextView
+            lastContentSignature = nil
+            lastMeasuredTextSignature = nil
+            lastMeasuredTextSize = nil
         }
 
-        let attr = NSAttributedString(nativeAttributedString(for: element))
         let rect = CGRect(origin: .zero, size: size)
-        let measurementConstraint = CGSize(
-            width: element.size_x >= 0 ? size.width : CGFloat.greatestFiniteMagnitude,
-            height: (element.size_y >= 0 && element.clip) ? size.height : CGFloat.greatestFiniteMagnitude
-        )
+        let measurementConstraint = textMeasurementConstraint(for: element, size: size)
+        let contentSignature = nativeTextMeasurementSignature(for: element)
         if useTextView {
             editableNodeId = element.id
-            suppressChange = true
-            textView.textStorage?.setAttributedString(attr)
-            suppressChange = false
+            if lastContentSignature != contentSignature {
+                let mutable = NSMutableAttributedString(attributedString: cachedNativeAttributedString(for: element))
+                let fullRange = NSRange(location: 0, length: mutable.length)
+                let paragraphStyle = NSMutableParagraphStyle()
+                paragraphStyle.alignment = platformHorizontalTextAlignment(element.textStyle.alignment)
+                paragraphStyle.lineBreakMode = element.wrap ? .byWordWrapping : .byClipping
+                mutable.addAttributes(
+                    [
+                        .font: element.textStyle.font.getNSFont(size: element.textStyle.font_size),
+                        .paragraphStyle: paragraphStyle
+                    ],
+                    range: fullRange
+                )
+                addDefaultForegroundColor(element.textStyle.fill, to: mutable)
+                suppressChange = true
+                textView.textStorage?.setAttributedString(mutable)
+                suppressChange = false
+                lastContentSignature = contentSignature
+                lastMeasuredTextSignature = nil
+                lastMeasuredTextSize = nil
+            }
             textView.font = element.textStyle.font.getNSFont(size: element.textStyle.font_size)
             textView.textColor = platformColor(element.textStyle.fill)
             textView.alignment = platformTextAlignment(element.textStyle.alignmentMultiline)
             textView.isEditable = element.editable
             textView.isSelectable = element.selectable || element.editable
+            textView.textContainer?.lineBreakMode = element.wrap ? .byWordWrapping : .byClipping
+            textView.textContainer?.widthTracksTextView = element.wrap
+            textView.isHorizontallyResizable = !element.wrap
             textView.textContainer?.containerSize = CGSize(
-                width: size.width,
+                width: element.wrap ? size.width : CGFloat.greatestFiniteMagnitude,
                 height: element.clip ? size.height : CGFloat.greatestFiniteMagnitude
             )
-            let measured = textView.fittingSize
-            let alignedFrame = alignedTextLayerFrame(
+            let measureSignature = contentSignature
+            let measured: CGSize
+            if !element.wrap,
+               lastMeasuredTextSignature == measureSignature,
+               let cachedSize = lastMeasuredTextSize {
+                measured = cachedSize
+            } else {
+                if element.wrap {
+                    measured = textView.fittingSize
+                } else {
+                    measured = textView.attributedString().boundingRect(
+                        with: measurementConstraint,
+                        options: [.usesLineFragmentOrigin, .usesFontLeading],
+                        context: nil
+                    ).integral.size
+                }
+                if element.wrap {
+                    lastMeasuredTextSignature = nil
+                    lastMeasuredTextSize = nil
+                } else {
+                    lastMeasuredTextSignature = measureSignature
+                    lastMeasuredTextSize = measured
+                }
+            }
+            let alignedFrame = noWrapOverflowFrame(alignedTextLayerFrame(
                 containerSize: size,
                 measuredTextSize: measured,
                 alignment: element.textStyle.alignment,
                 clip: element.clip
-            )
+            ), measured: measured, element: element)
             scrollView.frame = alignedFrame
             scrollView.bounds = CGRect(origin: .zero, size: alignedFrame.size)
             textView.frame = CGRect(origin: .zero, size: alignedFrame.size)
             textView.bounds = CGRect(origin: .zero, size: alignedFrame.size)
             reportMeasuredTextSizeIfNeeded(measured, for: element)
         } else {
+            let attr = cachedNativeAttributedString(for: element)
             let mutable = NSMutableAttributedString(attributedString: attr)
             let fullRange = NSRange(location: 0, length: mutable.length)
             let paragraphStyle = NSMutableParagraphStyle()
             paragraphStyle.alignment = platformHorizontalTextAlignment(element.textStyle.alignment)
-            paragraphStyle.lineBreakMode = .byWordWrapping
+            paragraphStyle.lineBreakMode = element.wrap ? .byWordWrapping : .byClipping
             mutable.addAttributes(
                 [
                     .font: element.textStyle.font.getNSFont(size: element.textStyle.font_size),
-                    .foregroundColor: platformColor(element.textStyle.fill),
                     .paragraphStyle: paragraphStyle
                 ],
                 range: fullRange
             )
+            addDefaultForegroundColor(element.textStyle.fill, to: mutable)
             staticTextLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1.0
             staticTextLayer.alignmentMode = platformLayerTextAlignment(element.textStyle.alignment)
+            staticTextLayer.isWrapped = element.wrap
             staticTextLayer.string = mutable
             let measured = mutable.boundingRect(
                 with: measurementConstraint,
                 options: [.usesLineFragmentOrigin, .usesFontLeading],
                 context: nil
             ).integral.size
-            staticTextLayer.frame = alignedTextLayerFrame(
+            staticTextLayer.frame = noWrapOverflowFrame(alignedTextLayerFrame(
                 containerSize: size,
                 measuredTextSize: measured,
                 alignment: element.textStyle.alignment,
                 clip: element.clip
-            )
+            ), measured: measured, element: element)
             reportMeasuredTextSizeIfNeeded(measured, for: element)
         }
     }

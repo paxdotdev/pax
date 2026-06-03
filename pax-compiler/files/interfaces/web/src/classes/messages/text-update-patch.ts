@@ -18,6 +18,7 @@ export class TextUpdatePatch {
     public selectable?: boolean;
     public clip?: boolean;
     public markdown?: boolean;
+    public wrap?: boolean;
     objectManager: ObjectManager;
 
     constructor(objectManager: ObjectManager) {
@@ -38,6 +39,7 @@ export class TextUpdatePatch {
         this.selectable = jsonMessage["selectable"];
         this.clip = jsonMessage["clip"];
         this.markdown = jsonMessage["markdown"];
+        this.wrap = jsonMessage["wrap"];
 
         const styleMessage = jsonMessage["style"];
         if (styleMessage) {
@@ -69,5 +71,6 @@ export class TextUpdatePatch {
         this.selectable = false;
         this.clip = false;
         this.markdown = false;
+        this.wrap = true;
     }
 }

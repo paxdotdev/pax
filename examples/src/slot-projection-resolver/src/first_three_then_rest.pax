@@ -1,4 +1,4 @@
-<Group width=100% height=220px>
+<Group height=220px>
     <Text class=panel_title x=26px y=18px width={100% - 52px} height=28px text="Static deal: first three slots, then remainder" selectable=false />
     <Text class=panel_caption x=26px y=60px width={100% - 52px} height=22px text="slot(0), slot(1), and slot(2) land in fixed Stackers; slot() receives three remaining gem tiles, with two empty buckets left over." selectable=false />
 
@@ -33,7 +33,7 @@
     <Rectangle class=bucket_bg x=480px y=120px width=72px height=58px />
     <Rectangle class=bucket_bg x=570px y=120px width=72px height=58px />
     <Rectangle class=bucket_bg x=660px y=120px width=72px height=58px />
-    <Rectangle class=panel_bg width=100% height=100% />
+    <Rectangle class=panel_bg />
 </Group>
 
 @settings {

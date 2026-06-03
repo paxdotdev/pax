@@ -13,6 +13,7 @@ pub struct Example {
     pub pin_first: Property<bool>,
     pub pinned_indices: Property<Vec<usize>>,
     pub status: Property<String>,
+    pub sources: Property<Vec<ExampleSource>>,
 }
 
 #[pax]
@@ -66,6 +67,7 @@ impl Example {
         self.duplicate_b.set(0);
         self.pin_first.set(true);
         self.pinned_indices.set(vec![0, 1]);
+        self.sources.set(example_sources());
         self.refresh_status();
     }
 
@@ -119,4 +121,54 @@ impl Example {
             self.pinned_indices.get()
         ));
     }
+}
+
+fn example_sources() -> Vec<ExampleSource> {
+    vec![
+        ExampleSource {
+            label: "src/lib.pax".to_string(),
+            language: "pax".to_string(),
+            code: include_str!("lib.pax").to_string(),
+        },
+        ExampleSource {
+            label: "src/lib.rs".to_string(),
+            language: "rust".to_string(),
+            code: include_str!("lib.rs").to_string(),
+        },
+        ExampleSource {
+            label: "first_three_then_rest.pax".to_string(),
+            language: "pax".to_string(),
+            code: include_str!("first_three_then_rest.pax").to_string(),
+        },
+        ExampleSource {
+            label: "dynamic_deal.pax".to_string(),
+            language: "pax".to_string(),
+            code: include_str!("dynamic_deal.pax").to_string(),
+        },
+        ExampleSource {
+            label: "out_of_range_deal.pax".to_string(),
+            language: "pax".to_string(),
+            code: include_str!("out_of_range_deal.pax").to_string(),
+        },
+        ExampleSource {
+            label: "duplicate_deal.pax".to_string(),
+            language: "pax".to_string(),
+            code: include_str!("duplicate_deal.pax").to_string(),
+        },
+        ExampleSource {
+            label: "conditional_deal.pax".to_string(),
+            language: "pax".to_string(),
+            code: include_str!("conditional_deal.pax").to_string(),
+        },
+        ExampleSource {
+            label: "repeated_deal.pax".to_string(),
+            language: "pax".to_string(),
+            code: include_str!("repeated_deal.pax").to_string(),
+        },
+        ExampleSource {
+            label: "gem_tile.pax".to_string(),
+            language: "pax".to_string(),
+            code: include_str!("gem_tile.pax").to_string(),
+        },
+    ]
 }

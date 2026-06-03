@@ -1,0 +1,125 @@
+<Group width=100% height=100% @mouse_down=self.on_resize_mouse_down @mouse_move=self.on_resize_mouse_move @mouse_up=self.on_resize_mouse_up>
+    if self._is_resizing_drawer {
+        <Group width=100% height=100% @mouse_move=self.on_resize_mouse_move @mouse_up=self.on_resize_mouse_up>
+            <Rectangle fill=TRANSPARENT width=100% height=100% @mouse_move=self.on_resize_mouse_move @mouse_up=self.on_resize_mouse_up />
+        </Group>
+    }
+
+    if self.drawer_open {
+        <Group class=example_host_split_target x={self._preview_width} y=0px width=18px height=100% anchor_x=50% anchor_y=0%>
+            <Rectangle class=example_host_split_handle x=50% y=0px width=4px height=100% anchor_x=50% @mouse_down=self.on_split_mouse_down @mouse_over=self.on_resize_mouse_over @mouse_out=self.on_resize_mouse_out />
+            <Rectangle fill=TRANSPARENT width=100% height=100% @mouse_down=self.on_split_mouse_down @mouse_over=self.on_resize_mouse_over @mouse_out=self.on_resize_mouse_out />
+        </Group>
+    }
+
+    if !self.drawer_open {
+        <Group class=example_host_toggle x={100% - 114px} y=14px width=100px height=34px @click=self.toggle_drawer>
+            <Text class=example_host_button_label x=50% y=50% width={100% - 14px} height=18px text="source" selectable=false />
+            <Rectangle class=example_host_button_bg width=100% height=100% />
+        </Group>
+    }
+
+    <Group class=example_host_drawer x={self._preview_width} y=0px width={self._drawer_width} height=100% anchor_x=0% anchor_y=0%>
+        if self.drawer_open {
+            <Group class=example_host_drawer_close x={100% - 58px} y=18px width=34px height=34px>
+                <Text class=example_host_button_label x=50% y=50% width={100% - 10px} height=18px text="x" selectable=false @click=self.toggle_drawer />
+                <Rectangle class=example_host_button_bg width=100% height=100% @click=self.toggle_drawer />
+            </Group>
+            <Text class=example_host_drawer_title x=24px y=24px width={100% - 92px} height=28px text={self.title} selectable=false clip=true />
+            <Text class=example_host_drawer_meta x=24px y=58px width={100% - 48px} height=18px text={self._active_source.language + " / " + self._active_source.label} selectable=false clip=true />
+            <Scroller x=24px y=90px width={100% - 48px} height=42px scroll_width={(Math::len(self.sources) * 132)px} scroll_height=42px border_radius=9.0>
+                <Group width={(Math::len(self.sources) * 132)px} height=42px>
+                    for (source, i) in self.sources {
+                        <ExampleHostSourceTab x={(i * 132)px} y=4px width=124px height=34px source={source} index={i} selected={self.selected_source} />
+                    }
+                </Group>
+            </Scroller>
+            <Group x=24px y=148px width={100% - 48px} height={100% - 172px}>
+                <Scroller width=100% height=100% autosize=true autosize_x=true autosize_y=true border_radius=12.0>
+                    <Text class=example_host_code_text x=14px y=14px text={self._active_source_markup} markdown=true wrap=false selectable=true />
+                </Scroller>
+                <Rectangle class=example_host_code_bg width=100% height=100% />
+            </Group>
+        }
+        <Rectangle class=example_host_drawer_bg width=100% height=100% />
+    </Group>
+
+    <Group class=example_host_preview x=0px y=0px width={self._preview_width} height=100% anchor_x=0% anchor_y=0%>
+        slot()
+    </Group>
+</Group>
+
+@settings {
+    @mount: on_mount
+
+    .example_host_drawer_bg {
+        fill: rgba(5, 10, 22, 246)
+        stroke: Stroke { color: rgba(96, 125, 172, 132), width: 1px }
+        corner_radii: RectangleCornerRadii::radii(0.0, 0.0, 0.0, 0.0)
+    }
+
+    .example_host_split_handle {
+        fill: rgba(126, 164, 232, 190)
+        corner_radii: RectangleCornerRadii::radii(2.0, 2.0, 2.0, 2.0)
+    }
+
+    .example_host_code_bg {
+        fill: rgba(6, 12, 24, 255)
+        stroke: Stroke { color: rgba(75, 100, 138, 150), width: 1px }
+        corner_radii: RectangleCornerRadii::radii(12.0, 12.0, 12.0, 12.0)
+    }
+
+    .example_host_button_bg {
+        fill: rgba(43, 80, 142, 238)
+        stroke: Stroke { color: rgba(147, 185, 255, 140), width: 1px }
+        corner_radii: RectangleCornerRadii::radii(9.0, 9.0, 9.0, 9.0)
+    }
+
+    .example_host_button_label {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 12px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+            underline: false
+        }
+    }
+
+    .example_host_drawer_title {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@700;900&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 21px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .example_host_drawer_meta {
+        style: TextStyle {
+            font: Font::Web("Azeret Mono", "https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font_size: 11px
+            fill: rgba(178, 201, 240, 235)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+
+    .example_host_code_text {
+        style: TextStyle {
+            font: Font::Web("JetBrains Mono", "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font_size: 13px
+            fill: rgba(224, 234, 250, 255)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+            underline: false
+        }
+    }
+}

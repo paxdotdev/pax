@@ -908,6 +908,7 @@ pub struct TextPatch {
     pub selectable: Option<bool>,
     pub clip: Option<bool>,
     pub markdown: Option<bool>,
+    pub wrap: Option<bool>,
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
