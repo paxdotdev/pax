@@ -19,6 +19,7 @@ export class TextUpdatePatch {
     public clip?: boolean;
     public markdown?: boolean;
     public wrap?: boolean;
+    public measure_generation?: number;
     objectManager: ObjectManager;
 
     constructor(objectManager: ObjectManager) {
@@ -40,6 +41,7 @@ export class TextUpdatePatch {
         this.clip = jsonMessage["clip"];
         this.markdown = jsonMessage["markdown"];
         this.wrap = jsonMessage["wrap"];
+        this.measure_generation = jsonMessage["measure_generation"];
 
         const styleMessage = jsonMessage["style"];
         if (styleMessage) {
@@ -72,5 +74,6 @@ export class TextUpdatePatch {
         this.clip = false;
         this.markdown = false;
         this.wrap = true;
+        this.measure_generation = undefined;
     }
 }

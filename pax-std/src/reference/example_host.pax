@@ -6,7 +6,7 @@
     }
 
     if self.drawer_open {
-        <Group class=example_host_split_target x={self._preview_width} y=0px width=18px height=100% anchor_x=50% anchor_y=0%>
+        <Group class=example_host_split_target x={100% - (self._drawer_width_px)px} y=0px width=18px height=100% anchor_x=50% anchor_y=0%>
             <Rectangle class=example_host_split_handle x=50% y=0px width=4px height=100% anchor_x=50% @mouse_down=self.on_split_mouse_down @mouse_over=self.on_resize_mouse_over @mouse_out=self.on_resize_mouse_out />
             <Rectangle fill=TRANSPARENT width=100% height=100% @mouse_down=self.on_split_mouse_down @mouse_over=self.on_resize_mouse_over @mouse_out=self.on_resize_mouse_out />
         </Group>
@@ -19,8 +19,8 @@
         </Group>
     }
 
-    <Group class=example_host_drawer x={self._preview_width} y=0px width={self._drawer_width} height=100% anchor_x=0% anchor_y=0%>
-        if self.drawer_open {
+    if self.drawer_open {
+        <Group class=example_host_drawer x={100% - (self._drawer_width_px)px} y=0px width={(self._drawer_width_px)px} height=100% anchor_x=0% anchor_y=0%>
             <Group class=example_host_drawer_close x={100% - 58px} y=18px width=34px height=34px>
                 <Text class=example_host_button_label x=50% y=50% width={100% - 10px} height=18px text="x" selectable=false @click=self.toggle_drawer />
                 <Rectangle class=example_host_button_bg width=100% height=100% @click=self.toggle_drawer />
@@ -40,11 +40,11 @@
                 </Scroller>
                 <Rectangle class=example_host_code_bg width=100% height=100% />
             </Group>
-        }
-        <Rectangle class=example_host_drawer_bg width=100% height=100% />
-    </Group>
+            <Rectangle class=example_host_drawer_bg width=100% height=100% />
+        </Group>
+    }
 
-    <Group class=example_host_preview x=0px y=0px width={self._preview_width} height=100% anchor_x=0% anchor_y=0%>
+    <Group class=example_host_preview x=0px y=0px width={self.drawer_open ? 100% - (self._drawer_width_px)px : 100%} height=100% anchor_x=0% anchor_y=0%>
         slot()
     </Group>
 </Group>

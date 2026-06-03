@@ -69,6 +69,7 @@ pub enum NativeMessage {
 /// Events and data packets sent from the chassis back into the Pax runtime.
 pub enum NativeInterrupt {
     ChassisResizeRequestCollection(Vec<ChassisResizeRequestArgs>),
+    TextMeasurementResponse(TextMeasurementResponseArgs),
     SelectStart(SelectStartArgs),
     Focus(FocusInterruptArgs),
     Scroll(ScrollInterruptArgs),
@@ -116,6 +117,16 @@ pub enum NativeInterrupt {
 /// Chassis response containing measured native control bounds.
 pub struct ChassisResizeRequestArgs {
     pub id: u32,
+    pub width: f64,
+    pub height: f64,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+/// Chassis response to an engine-authored native text measurement request.
+pub struct TextMeasurementResponseArgs {
+    pub id: u32,
+    pub generation: u64,
     pub width: f64,
     pub height: f64,
 }
@@ -915,6 +926,8 @@ pub struct TextPatch {
     pub opacity: Option<f64>,
     pub style: Option<TextStyleMessage>,
     pub style_link: Option<TextStyleMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub measure_generation: Option<u64>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]

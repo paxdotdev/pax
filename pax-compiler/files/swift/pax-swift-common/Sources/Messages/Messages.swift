@@ -471,6 +471,17 @@ public func dispatchChassisResizeRequest(id: PaxNodeId, width: Double, height: D
     }
 }
 
+public func dispatchTextMeasurementResponse(id: PaxNodeId, generation: UInt64, width: Double, height: Double) {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey("TextMeasurementResponse") { messageBuilder in
+            messageBuilder.addWithStringKey("id", UInt(id))
+            messageBuilder.addWithStringKey("generation", generation)
+            messageBuilder.addWithStringKey("width", width)
+            messageBuilder.addWithStringKey("height", height)
+        }
+    }
+}
+
 public func dispatchTouchStart(touches: [TouchInterruptMessage]) {
     dispatchTouchInterrupt(type: "TouchStart", touches: touches)
 }
@@ -1069,6 +1080,7 @@ public class TextUpdatePatch: ResolvedPlacementPatch {
     public var wrap: Bool?
     public var style: TextStyleMessage?
     public var style_link: TextStyleMessage?
+    public var measureGeneration: UInt64?
 
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? decodeId(fb) ?? 0
@@ -1087,6 +1099,7 @@ public class TextUpdatePatch: ResolvedPlacementPatch {
         self.clip = fb["clip"]?.asBool
         self.markdown = fb["markdown"]?.asBool
         self.wrap = fb["wrap"]?.asBool
+        self.measureGeneration = fb["measure_generation"]?.asUInt64
         
         if let styleBuffer = fb["style"], !styleBuffer.isNull {
             self.style = TextStyleMessage(styleBuffer)

@@ -345,6 +345,39 @@ private func configureNativeTransformLayer(_ layer: CALayer) {
         .layerTopEdge,
         .layerBottomEdge
     ]
+    disableNativeLayerImplicitActions(layer)
+}
+
+private let disabledNativeLayerActions: [String: CAAction] = [
+    "anchorPoint": NSNull(),
+    "backgroundColor": NSNull(),
+    "borderColor": NSNull(),
+    "borderWidth": NSNull(),
+    "bounds": NSNull(),
+    "contents": NSNull(),
+    "contentsGravity": NSNull(),
+    "contentsScale": NSNull(),
+    "cornerRadius": NSNull(),
+    "frame": NSNull(),
+    "foregroundColor": NSNull(),
+    "hidden": NSNull(),
+    "masksToBounds": NSNull(),
+    "opacity": NSNull(),
+    "path": NSNull(),
+    "position": NSNull(),
+    "sublayers": NSNull(),
+    "transform": NSNull(),
+]
+
+private func disableNativeLayerImplicitActions(_ layer: CALayer?) {
+    layer?.actions = disabledNativeLayerActions
+}
+
+private func performWithoutNativeLayerActions(_ body: () -> Void) {
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    body()
+    CATransaction.commit()
 }
 
 private struct RasterizedNativeMaskCacheKey: Hashable {
@@ -1110,12 +1143,16 @@ public struct NativeRenderingLayer: View {
         }
 #elseif os(macOS)
         override var isFlipped: Bool { true }
+        override var preservesContentDuringLiveResize: Bool { false }
 
         override init(frame frameRect: CGRect) {
             super.init(frame: frameRect)
             wantsLayer = true
+            layerContentsRedrawPolicy = .duringViewResize
             layer?.backgroundColor = NSColor.clear.cgColor
             layer?.anchorPoint = CGPoint(x: 0.0, y: 0.0)
+            layer?.contentsGravity = .topLeft
+            layer?.needsDisplayOnBoundsChange = true
             if let layer {
                 configureNativeTransformLayer(layer)
             }
@@ -1374,6 +1411,33 @@ public struct NativeRenderingLayer: View {
         }
     }
 
+    fileprivate static func orderPlatformSubviews(_ orderedSubviews: [PlatformBaseView], in parent: PlatformBaseView) {
+        guard orderedSubviews.count > 1 else {
+            return
+        }
+        let orderedSet = Set(orderedSubviews.map { ObjectIdentifier($0) })
+        let currentSubviews = parent.subviews.filter { orderedSet.contains(ObjectIdentifier($0)) }
+        guard currentSubviews.count == orderedSubviews.count else {
+            return
+        }
+        let alreadyOrdered = zip(currentSubviews, orderedSubviews).allSatisfy { current, expected in
+            current === expected
+        }
+        guard !alreadyOrdered else {
+            return
+        }
+
+        // AppKit and UIKit hit-test by subview order, not layer.zPosition. Rebuild the
+        // sibling order from the sorted Pax render tree so native hit testing follows z-order.
+        for child in orderedSubviews {
+#if os(iOS) || os(tvOS) || os(watchOS)
+            parent.bringSubviewToFront(child)
+#elseif os(macOS)
+            parent.addSubview(child, positioned: .above, relativeTo: nil)
+#endif
+        }
+    }
+
     private final class PlatformMaskedLeafView: PlatformContainerView {
         private static let maskRasterQueue = DispatchQueue(
             label: "dev.pax.apple.native-mask-raster",
@@ -1451,6 +1515,7 @@ public struct NativeRenderingLayer: View {
             let view = NativeRenderingLayer.makePlatformLeafView(for: kind)
             view.frame = bounds
             view.autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
+            disableNativeLayerImplicitActions(view.layer)
             NativeRenderingLayer.attachPlatformSubview(view, to: self)
             contentView = view
             contentKey = desiredKey
@@ -1697,6 +1762,7 @@ public struct NativeRenderingLayer: View {
 #elseif os(macOS)
         private final class FlippedContentView: NSView {
             override var isFlipped: Bool { true }
+            override var preservesContentDuringLiveResize: Bool { false }
 
             override func hitTest(_ point: NSPoint) -> NSView? {
                 let hitView = super.hitTest(point)
@@ -1705,6 +1771,7 @@ public struct NativeRenderingLayer: View {
         }
         private final class PointerForwardingScrollView: NSScrollView {
             var pointerInterruptHandler: ((String, NSEvent) -> Void)?
+            override var preservesContentDuringLiveResize: Bool { false }
 
             override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
                 true
@@ -1813,6 +1880,7 @@ public struct NativeRenderingLayer: View {
             scrollView.addSubview(innerContentView)
 #elseif os(macOS)
             scrollView.wantsLayer = true
+            scrollView.layerContentsRedrawPolicy = .duringViewResize
             scrollView.hasVerticalScroller = false
             scrollView.hasHorizontalScroller = false
             scrollView.drawsBackground = false
@@ -1821,9 +1889,20 @@ public struct NativeRenderingLayer: View {
                 self?.dispatchMacPointerInterrupt(type, event: event)
             }
             scrollView.layer?.masksToBounds = true
+            scrollView.layer?.contentsGravity = .topLeft
+            scrollView.layer?.needsDisplayOnBoundsChange = true
+            disableNativeLayerImplicitActions(scrollView.layer)
             scrollView.contentView.wantsLayer = true
+            scrollView.contentView.layerContentsRedrawPolicy = .duringViewResize
             scrollView.contentView.layer?.masksToBounds = true
+            scrollView.contentView.layer?.contentsGravity = .topLeft
+            scrollView.contentView.layer?.needsDisplayOnBoundsChange = true
+            disableNativeLayerImplicitActions(scrollView.contentView.layer)
             innerContentView.wantsLayer = true
+            innerContentView.layerContentsRedrawPolicy = .duringViewResize
+            innerContentView.layer?.contentsGravity = .topLeft
+            innerContentView.layer?.needsDisplayOnBoundsChange = true
+            disableNativeLayerImplicitActions(innerContentView.layer)
             scrollView.contentView.postsBoundsChangedNotifications = true
             scrollView.documentView = innerContentView
             scrollObserver = NotificationCenter.default.addObserver(
@@ -1909,7 +1988,9 @@ public struct NativeRenderingLayer: View {
 #elseif os(macOS)
         override func layout() {
             super.layout()
-            scrollView.frame = bounds
+            performWithoutNativeLayerActions {
+                scrollView.frame = bounds
+            }
         }
 #endif
 
@@ -2535,22 +2616,24 @@ public struct NativeRenderingLayer: View {
         }
 
         private func refreshScene() {
-            var activeFrames = Set<PaxNodeId>()
-            var activeLeaves = Set<PaxNodeId>()
-            var activeScrollers = Set<PaxNodeId>()
-            sync(
-                nodes: currentNodes,
-                parentView: self,
-                activeFrames: &activeFrames,
-                activeLeaves: &activeLeaves,
-                activeScrollers: &activeScrollers,
-                positiveClipPaths: []
-            )
-            pruneInactiveNodes(
-                activeFrames: activeFrames,
-                activeLeaves: activeLeaves,
-                activeScrollers: activeScrollers
-            )
+            performWithoutNativeLayerActions {
+                var activeFrames = Set<PaxNodeId>()
+                var activeLeaves = Set<PaxNodeId>()
+                var activeScrollers = Set<PaxNodeId>()
+                sync(
+                    nodes: currentNodes,
+                    parentView: self,
+                    activeFrames: &activeFrames,
+                    activeLeaves: &activeLeaves,
+                    activeScrollers: &activeScrollers,
+                    positiveClipPaths: []
+                )
+                pruneInactiveNodes(
+                    activeFrames: activeFrames,
+                    activeLeaves: activeLeaves,
+                    activeScrollers: activeScrollers
+                )
+            }
         }
 
         private func containsScroller(_ nodes: [NativeRenderNode]) -> Bool {
@@ -2588,6 +2671,7 @@ public struct NativeRenderingLayer: View {
         ) {
             parentView.applyGlassContainerSpacing(glassContainerSpacing(for: nodes))
             let parentContentView = parentView.childHostView
+            var orderedChildViews: [PlatformBaseView] = []
             for node in nodes {
                 switch node {
                 case .frame(let frame):
@@ -2603,6 +2687,7 @@ public struct NativeRenderingLayer: View {
                         return view
                     }()
                     NativeRenderingLayer.attachPlatformSubview(frameView, to: parentContentView)
+                    orderedChildViews.append(frameView)
                     frameView.applyGeometry(
                         size: frame.size,
                         localTransform: frame.localTransform,
@@ -2639,6 +2724,7 @@ public struct NativeRenderingLayer: View {
                         return view
                     }()
                     NativeRenderingLayer.attachPlatformSubview(scrollerView, to: parentContentView)
+                    orderedChildViews.append(scrollerView)
                     scrollerView.applyGeometry(
                         size: scroller.size,
                         localTransform: scroller.localTransform,
@@ -2672,6 +2758,7 @@ public struct NativeRenderingLayer: View {
                         return view
                     }()
                     NativeRenderingLayer.attachPlatformSubview(leafView, to: parentContentView)
+                    orderedChildViews.append(leafView)
                     leafView.applyGeometry(
                         size: item.size,
                         localTransform: item.localTransform,
@@ -2681,6 +2768,7 @@ public struct NativeRenderingLayer: View {
                     leafView.update(item: item)
                 }
             }
+            NativeRenderingLayer.orderPlatformSubviews(orderedChildViews, in: parentContentView)
         }
 
         private func pruneInactiveNodes(
@@ -3650,12 +3738,29 @@ private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
         let measurementConstraint = textMeasurementConstraint(for: element, size: size)
         if useSelectableView {
             editableNodeId = element.id
+            let mutable = NSMutableAttributedString(attributedString: attr)
+            let fullRange = NSRange(location: 0, length: mutable.length)
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.alignment = platformTextAlignment(element.textStyle.alignmentMultiline)
+            paragraphStyle.lineBreakMode = element.wrap ? .byWordWrapping : .byClipping
+            let defaultFont = element.textStyle.font.getUIFont(size: element.textStyle.font_size)
+            let defaultColor = platformColor(element.textStyle.fill)
+            mutable.addAttributes(
+                [
+                    .font: defaultFont,
+                    .paragraphStyle: paragraphStyle
+                ],
+                range: fullRange
+            )
+            addDefaultForegroundColor(element.textStyle.fill, to: mutable)
             suppressChange = true
-            selectableView.attributedText = attr
+            selectableView.attributedText = mutable
             suppressChange = false
-            selectableView.font = element.textStyle.font.getUIFont(size: element.textStyle.font_size)
-            selectableView.textColor = platformColor(element.textStyle.fill)
-            selectableView.textAlignment = platformTextAlignment(element.textStyle.alignmentMultiline)
+            selectableView.typingAttributes = [
+                .font: defaultFont,
+                .foregroundColor: defaultColor,
+                .paragraphStyle: paragraphStyle
+            ]
             selectableView.isEditable = element.editable
             selectableView.isSelectable = element.selectable || element.editable
             selectableView.textContainer.lineBreakMode = element.wrap ? .byWordWrapping : .byClipping
@@ -4444,6 +4549,7 @@ private func configuredLiquidGlassView(
 private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
     override var isFlipped: Bool { true }
     override var isOpaque: Bool { false }
+    override var preservesContentDuringLiveResize: Bool { false }
 
     private let staticTextLayer = CATextLayer()
     private let scrollView = NSScrollView()
@@ -4458,20 +4564,28 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
+        layerContentsRedrawPolicy = .duringViewResize
         layer?.backgroundColor = NSColor.clear.cgColor
-        layer?.isOpaque = false
-        layer?.masksToBounds = false
-        staticTextLayer.frame = bounds
-        staticTextLayer.isWrapped = true
-        staticTextLayer.truncationMode = .none
+            layer?.isOpaque = false
+            layer?.masksToBounds = false
+            layer?.contentsGravity = .topLeft
+            layer?.needsDisplayOnBoundsChange = true
+            disableNativeLayerImplicitActions(layer)
+            staticTextLayer.frame = bounds
+            staticTextLayer.isWrapped = true
+            staticTextLayer.truncationMode = .none
         staticTextLayer.masksToBounds = false
         staticTextLayer.backgroundColor = NSColor.clear.cgColor
         staticTextLayer.isOpaque = false
-        staticTextLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 1.0
-        layer?.addSublayer(staticTextLayer)
+            staticTextLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 1.0
+            staticTextLayer.contentsGravity = .topLeft
+            staticTextLayer.needsDisplayOnBoundsChange = true
+            disableNativeLayerImplicitActions(staticTextLayer)
+            layer?.addSublayer(staticTextLayer)
 
         scrollView.frame = bounds
         scrollView.autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
+        scrollView.layerContentsRedrawPolicy = .duringViewResize
         scrollView.hasVerticalScroller = false
         scrollView.hasHorizontalScroller = false
         scrollView.drawsBackground = false
@@ -4480,11 +4594,18 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
         scrollView.wantsLayer = true
         scrollView.layer?.backgroundColor = NSColor.clear.cgColor
         scrollView.layer?.isOpaque = false
-        scrollView.layer?.masksToBounds = false
-        scrollView.contentView.drawsBackground = false
-        scrollView.contentView.wantsLayer = true
-        scrollView.contentView.layer?.backgroundColor = NSColor.clear.cgColor
-        scrollView.contentView.layer?.isOpaque = false
+            scrollView.layer?.masksToBounds = false
+            scrollView.layer?.contentsGravity = .topLeft
+            scrollView.layer?.needsDisplayOnBoundsChange = true
+            disableNativeLayerImplicitActions(scrollView.layer)
+            scrollView.contentView.drawsBackground = false
+            scrollView.contentView.layerContentsRedrawPolicy = .duringViewResize
+            scrollView.contentView.wantsLayer = true
+            scrollView.contentView.layer?.backgroundColor = NSColor.clear.cgColor
+            scrollView.contentView.layer?.isOpaque = false
+            scrollView.contentView.layer?.contentsGravity = .topLeft
+            scrollView.contentView.layer?.needsDisplayOnBoundsChange = true
+            disableNativeLayerImplicitActions(scrollView.contentView.layer)
 
         textView.drawsBackground = false
         textView.backgroundColor = .clear
@@ -4496,11 +4617,15 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
         textView.isVerticallyResizable = false
         textView.isHorizontallyResizable = false
         textView.textContainer?.widthTracksTextView = true
+        textView.layerContentsRedrawPolicy = .duringViewResize
         textView.wantsLayer = true
         textView.layer?.backgroundColor = NSColor.clear.cgColor
         textView.layer?.isOpaque = false
-        textView.layer?.masksToBounds = false
-    }
+            textView.layer?.masksToBounds = false
+            textView.layer?.contentsGravity = .topLeft
+            textView.layer?.needsDisplayOnBoundsChange = true
+            disableNativeLayerImplicitActions(textView.layer)
+        }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
@@ -4539,15 +4664,17 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
         let contentSignature = nativeTextMeasurementSignature(for: element)
         if useTextView {
             editableNodeId = element.id
+            let defaultFont = element.textStyle.font.getNSFont(size: element.textStyle.font_size)
+            let defaultColor = platformColor(element.textStyle.fill)
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.alignment = platformTextAlignment(element.textStyle.alignmentMultiline)
+            paragraphStyle.lineBreakMode = element.wrap ? .byWordWrapping : .byClipping
             if lastContentSignature != contentSignature {
                 let mutable = NSMutableAttributedString(attributedString: cachedNativeAttributedString(for: element))
                 let fullRange = NSRange(location: 0, length: mutable.length)
-                let paragraphStyle = NSMutableParagraphStyle()
-                paragraphStyle.alignment = platformHorizontalTextAlignment(element.textStyle.alignment)
-                paragraphStyle.lineBreakMode = element.wrap ? .byWordWrapping : .byClipping
                 mutable.addAttributes(
                     [
-                        .font: element.textStyle.font.getNSFont(size: element.textStyle.font_size),
+                        .font: defaultFont,
                         .paragraphStyle: paragraphStyle
                     ],
                     range: fullRange
@@ -4560,9 +4687,11 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
                 lastMeasuredTextSignature = nil
                 lastMeasuredTextSize = nil
             }
-            textView.font = element.textStyle.font.getNSFont(size: element.textStyle.font_size)
-            textView.textColor = platformColor(element.textStyle.fill)
-            textView.alignment = platformTextAlignment(element.textStyle.alignmentMultiline)
+            textView.typingAttributes = [
+                .font: defaultFont,
+                .foregroundColor: defaultColor,
+                .paragraphStyle: paragraphStyle
+            ]
             textView.isEditable = element.editable
             textView.isSelectable = element.selectable || element.editable
             textView.textContainer?.lineBreakMode = element.wrap ? .byWordWrapping : .byClipping

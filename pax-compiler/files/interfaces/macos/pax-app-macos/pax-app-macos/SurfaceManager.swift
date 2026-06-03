@@ -5,6 +5,26 @@ import Rendering
 import PaxCartridge
 import AppKit
 
+private let disabledSurfaceLayerActions: [String: CAAction] = [
+    "anchorPoint": NSNull(),
+    "backgroundColor": NSNull(),
+    "bounds": NSNull(),
+    "contents": NSNull(),
+    "contentsGravity": NSNull(),
+    "contentsScale": NSNull(),
+    "drawableSize": NSNull(),
+    "frame": NSNull(),
+    "hidden": NSNull(),
+    "opacity": NSNull(),
+    "position": NSNull(),
+    "sublayers": NSNull(),
+    "transform": NSNull(),
+]
+
+private func disableSurfaceLayerImplicitActions(_ layer: CALayer?) {
+    layer?.actions = disabledSurfaceLayerActions
+}
+
 private struct SurfaceCanvasDescriptor {
     let id: String
     let key: String
@@ -296,6 +316,7 @@ final class SurfaceManager {
 final class PaxMetalSurfaceView: NSView {
     private var appliedScale: CGFloat = 0
     private var appliedPixelSize: CGSize = .zero
+    override var preservesContentDuringLiveResize: Bool { false }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
@@ -317,23 +338,35 @@ final class PaxMetalSurfaceView: NSView {
 
     private func commonInit() {
         wantsLayer = true
+        layerContentsRedrawPolicy = .duringViewResize
         layer?.backgroundColor = NSColor.clear.cgColor
         layer?.anchorPoint = CGPoint(x: 0.0, y: 0.0)
+        layer?.contentsGravity = .topLeft
+        layer?.needsDisplayOnBoundsChange = true
+        disableSurfaceLayerImplicitActions(layer)
         if let metalLayer = layer as? CAMetalLayer {
-            metalLayer.framebufferOnly = false
-            metalLayer.isOpaque = false
-            metalLayer.presentsWithTransaction = false
-            metalLayer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
+            configureMetalLayer(metalLayer)
         }
     }
 
     var metalLayer: CAMetalLayer {
         guard let metalLayer = layer as? CAMetalLayer else {
             let layer = CAMetalLayer()
+            configureMetalLayer(layer)
             self.layer = layer
             return layer
         }
         return metalLayer
+    }
+
+    private func configureMetalLayer(_ metalLayer: CAMetalLayer) {
+        metalLayer.framebufferOnly = false
+        metalLayer.isOpaque = false
+        metalLayer.presentsWithTransaction = false
+        metalLayer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
+        metalLayer.contentsGravity = .topLeft
+        metalLayer.needsDisplayOnBoundsChange = true
+        disableSurfaceLayerImplicitActions(metalLayer)
     }
 
     func configure(scale: CGFloat, pixelSize: CGSize) {

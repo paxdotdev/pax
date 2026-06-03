@@ -661,6 +661,13 @@ pub extern "C" fn pax_interrupt(
                 }
             }
         }
+        NativeInterrupt::TextMeasurementResponse(args) => {
+            if let Some(node) =
+                engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
+            {
+                borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
+            }
+        }
         NativeInterrupt::Click(args) => {
             let modifiers = args.modifiers.iter().map(ModifierKey::from).collect();
             let args_click = Click {

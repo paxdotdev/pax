@@ -67,6 +67,73 @@ impl Default for Text {
 // Runtime instance backing `<Text>`.
 pub struct TextInstance {
     base: BaseInstance,
+    measurement_state: RefCell<TextMeasurementState>,
+}
+
+#[derive(Clone, PartialEq)]
+struct TextMeasurementKey {
+    content: String,
+    markdown: bool,
+    wrap: bool,
+    clip: bool,
+    editable: bool,
+    selectable: bool,
+    style: TextStyleMessage,
+    style_link: TextStyleMessage,
+    width_constraint_bits: Option<u64>,
+    height_constraint_bits: Option<u64>,
+}
+
+#[derive(Default)]
+struct TextMeasurementState {
+    next_generation: u64,
+    requested_key: Option<TextMeasurementKey>,
+    pending_generation: Option<u64>,
+}
+
+impl TextInstance {
+    fn request_measurement_generation(
+        &self,
+        key: TextMeasurementKey,
+        has_current_measurement: bool,
+    ) -> Option<u64> {
+        let mut state = self.measurement_state.borrow_mut();
+        let key_changed = state.requested_key.as_ref() != Some(&key);
+        if key_changed || (!has_current_measurement && state.pending_generation.is_none()) {
+            state.next_generation = state.next_generation.wrapping_add(1).max(1);
+            let generation = state.next_generation;
+            state.requested_key = Some(key);
+            state.pending_generation = Some(generation);
+            Some(generation)
+        } else {
+            None
+        }
+    }
+
+    fn clear_measurement_request(&self, expanded_node: &Rc<ExpandedNode>) {
+        let mut state = self.measurement_state.borrow_mut();
+        state.requested_key = None;
+        state.pending_generation = None;
+        if expanded_node.measured_size.get().is_some() {
+            expanded_node.measured_size.set(None);
+        }
+    }
+
+    fn accept_measurement_response(
+        &self,
+        expanded_node: &Rc<ExpandedNode>,
+        generation: u64,
+        width: f64,
+        height: f64,
+    ) {
+        let mut state = self.measurement_state.borrow_mut();
+        if state.pending_generation != Some(generation) {
+            return;
+        }
+        state.pending_generation = None;
+        drop(state);
+        expanded_node.set_measured_size(width, height);
+    }
 }
 
 impl InstanceNode for TextInstance {
@@ -85,6 +152,7 @@ impl InstanceNode for TextInstance {
                     is_slot: false,
                 },
             ),
+            measurement_state: RefCell::new(TextMeasurementState::default()),
         })
     }
 
@@ -127,6 +195,7 @@ impl InstanceNode for TextInstance {
 
         // send update message when relevant properties change
         let weak_self_ref = Rc::downgrade(&expanded_node);
+        let instance = Rc::clone(&self);
         let context = Rc::clone(context);
         let last_patch = Rc::new(RefCell::new(TextPatch {
             id,
@@ -169,49 +238,57 @@ impl InstanceNode for TextInstance {
                             cp.width.get().is_some().then_some(width).unwrap_or(-1.0),
                             cp.height.get().is_some().then_some(height).unwrap_or(-1.0),
                         );
+                        let content = properties.text.get();
+                        let markdown = properties.markdown.get();
+                        let wrap = properties.wrap.get();
+                        let style: TextStyleMessage = (&properties.style.get()).into();
+                        let style_link: TextStyleMessage = (&properties._style_link.get()).into();
+                        let editable = properties.editable.get();
+                        let selectable = properties.selectable.get();
+                        let clip = properties.clip.get();
 
                         let updates = [
                             // Content
                             patch_if_needed(
                                 &mut old_state.content,
                                 &mut patch.content,
-                                properties.text.get(),
+                                content.clone(),
                             ),
                             patch_if_needed(
                                 &mut old_state.markdown,
                                 &mut patch.markdown,
-                                properties.markdown.get(),
+                                markdown,
                             ),
                             patch_if_needed(
                                 &mut old_state.wrap,
                                 &mut patch.wrap,
-                                properties.wrap.get(),
+                                wrap,
                             ),
                             // Styles
                             patch_if_needed(
                                 &mut old_state.style,
                                 &mut patch.style,
-                                (&properties.style.get()).into(),
+                                style.clone(),
                             ),
                             patch_if_needed(
                                 &mut old_state.style_link,
                                 &mut patch.style_link,
-                                (&properties._style_link.get()).into(),
+                                style_link.clone(),
                             ),
                             patch_if_needed(
                                 &mut old_state.editable,
                                 &mut patch.editable,
-                                properties.editable.get(),
+                                editable,
                             ),
                             patch_if_needed(
                                 &mut old_state.selectable,
                                 &mut patch.selectable,
-                                properties.selectable.get(),
+                                selectable,
                             ),
                             patch_if_needed(
                                 &mut old_state.clip,
                                 &mut patch.clip,
-                                properties.clip.get(),
+                                clip,
                             ),
                             // Transform and bounds
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
@@ -237,14 +314,37 @@ impl InstanceNode for TextInstance {
                                 native_surface_opacity(&expanded_node, &context),
                             ),
                         ];
-                        if updates.into_iter().any(|v| v == true) {
+                        let measurement_key = text_measurement_key(
+                            content.clone(),
+                            markdown,
+                            wrap,
+                            clip,
+                            editable,
+                            selectable,
+                            style,
+                            style_link,
+                            width,
+                            height,
+                        );
+                        if let Some(measurement_key) = measurement_key {
+                            patch.measure_generation = instance.request_measurement_generation(
+                                measurement_key,
+                                expanded_node.measured_size.get().is_some(),
+                            );
+                        } else {
+                            instance.clear_measurement_request(&expanded_node);
+                        }
+
+                        if updates.into_iter().any(|v| v == true)
+                            || patch.measure_generation.is_some()
+                        {
                             // HACK: markdown flag and content is needed at the same time, so if we have one,
                             // include the other:
                             if patch.markdown.is_some() && patch.content.is_none() {
-                                patch.content = Some(properties.text.get());
+                                patch.content = Some(content);
                             }
                             if patch.content.is_some() && patch.markdown.is_none() {
-                                patch.markdown = Some(properties.markdown.get());
+                                patch.markdown = Some(markdown);
                             }
                             context.enqueue_native_message(pax_message::NativeMessage::TextUpdate(
                                 patch,
@@ -296,10 +396,51 @@ impl InstanceNode for TextInstance {
             expanded_node.with_properties_unwrapped(|properties: &mut Text| {
                 properties.text.set(args.text.clone())
             });
+        } else if let pax_message::NativeInterrupt::TextMeasurementResponse(args) = interrupt {
+            self.accept_measurement_response(
+                expanded_node,
+                args.generation,
+                args.width,
+                args.height,
+            );
         } else {
             log::warn!("text element was handed interrupt it doesn't use");
         }
     }
+}
+
+fn explicit_constraint_bits(value: f64) -> Option<u64> {
+    (value >= 0.0).then_some(value.to_bits())
+}
+
+fn text_measurement_key(
+    content: String,
+    markdown: bool,
+    wrap: bool,
+    clip: bool,
+    editable: bool,
+    selectable: bool,
+    style: TextStyleMessage,
+    style_link: TextStyleMessage,
+    width: f64,
+    height: f64,
+) -> Option<TextMeasurementKey> {
+    if width >= 0.0 && height >= 0.0 {
+        return None;
+    }
+
+    Some(TextMeasurementKey {
+        content,
+        markdown,
+        wrap,
+        clip,
+        editable,
+        selectable,
+        style,
+        style_link,
+        width_constraint_bits: explicit_constraint_bits(width),
+        height_constraint_bits: explicit_constraint_bits(height),
+    })
 }
 
 /// Struct describing platform-agnostic text display properties.

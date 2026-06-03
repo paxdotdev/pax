@@ -58,7 +58,7 @@ public protocol NativeMessageHandling: AnyObject {
 
     func handleImageLoad(patch: ImageLoadPatch)
     func handleNavigate(patch: NavigationPatchMessage)
-    func didUpdateTextElement(_ textElement: TextElement)
+    func didUpdateTextElement(_ textElement: TextElement, measureGeneration: UInt64?)
 }
 
 public extension NativeMessageHandling {
@@ -193,8 +193,9 @@ public extension NativeMessageHandling {
         }
     }
 
-    func didUpdateTextElement(_ textElement: TextElement) {
+    func didUpdateTextElement(_ textElement: TextElement, measureGeneration: UInt64?) {
         _ = textElement
+        _ = measureGeneration
     }
 
     func resolvedTextMaskSize(_ textElement: TextElement) -> CGSize {
@@ -271,7 +272,7 @@ public extension NativeMessageHandling {
             ) {
                 masks.mark(patch.id)
             }
-            didUpdateTextElement(textElement)
+            didUpdateTextElement(textElement, measureGeneration: patch.measureGeneration)
         }
         dirty.text = true
     }

@@ -2,13 +2,11 @@
 
 use crate::*;
 use pax_engine::api::{
-    cursor::CursorStyle, Axis, Click, Event, MouseDown, MouseMove, MouseOut, MouseOver, MouseUp,
-    Numeric, Size, Store,
+    cursor::CursorStyle, Click, Event, MouseDown, MouseMove, MouseOut, MouseOver, MouseUp, Store,
 };
 use pax_engine::*;
 use pax_runtime::api::NodeContext;
 
-const MOBILE_DRAWER_BREAKPOINT_PX: f64 = 760.0;
 const DESKTOP_DRAWER_WIDTH_PX: f64 = 430.0;
 const MIN_PREVIEW_WIDTH_PX: f64 = 320.0;
 const MIN_DRAWER_WIDTH_PX: f64 = 280.0;
@@ -40,14 +38,8 @@ pub struct ExampleHost {
     pub _active_source_markup: Property<String>,
     // Private source-panel width in pixels, remembered while the drawer closes.
     pub _drawer_width_px: Property<f64>,
-    // Private source-panel width used by the template.
-    pub _drawer_width: Property<Size>,
-    // Private preview width and divider position.
-    pub _preview_width: Property<Size>,
     // Private drag state for the source divider.
     pub _is_resizing_drawer: Property<bool>,
-    // Private responsive flag derived from component bounds.
-    pub _is_mobile: Property<bool>,
 }
 
 impl Default for ExampleHost {
@@ -61,10 +53,7 @@ impl Default for ExampleHost {
             _source_markups: Property::new(vec![highlighted_code_markup(&fallback_source())]),
             _active_source_markup: Property::new(highlighted_code_markup(&fallback_source())),
             _drawer_width_px: Property::new(DESKTOP_DRAWER_WIDTH_PX),
-            _drawer_width: Property::new(Size::Pixels(Numeric::F64(0.0))),
-            _preview_width: Property::new(closed_drawer_divider()),
             _is_resizing_drawer: Property::new(false),
-            _is_mobile: Property::new(false),
         }
     }
 }
@@ -105,41 +94,6 @@ impl ExampleHost {
             },
             &deps,
         ));
-
-        let drawer_open = self.drawer_open.clone();
-        let drawer_width_px = self._drawer_width_px.clone();
-        let deps = [drawer_open.untyped(), drawer_width_px.untyped()];
-        self._drawer_width.replace_with(Property::computed(
-            move || {
-                if drawer_open.get() {
-                    Size::Pixels(Numeric::F64(drawer_width_px.get()))
-                } else {
-                    Size::Pixels(Numeric::F64(0.0))
-                }
-            },
-            &deps,
-        ));
-
-        let drawer_open = self.drawer_open.clone();
-        let drawer_width_px = self._drawer_width_px.clone();
-        let deps = [drawer_open.untyped(), drawer_width_px.untyped()];
-        self._preview_width.replace_with(Property::computed(
-            move || {
-                if drawer_open.get() {
-                    Size::Combined(Numeric::F64(-drawer_width_px.get()), Numeric::F64(100.0))
-                } else {
-                    closed_drawer_divider()
-                }
-            },
-            &deps,
-        ));
-
-        let bounds = ctx.bounds_self.clone();
-        let deps = [bounds.untyped()];
-        self._is_mobile.replace_with(Property::computed(
-            move || bounds.get().0 < MOBILE_DRAWER_BREAKPOINT_PX,
-            &deps,
-        ));
     }
 
     /// Toggles the source drawer.
@@ -158,7 +112,7 @@ impl ExampleHost {
         }
 
         let bounds = ctx.bounds_self.get();
-        let divider_px = self._preview_width.get().evaluate(bounds, Axis::X);
+        let divider_px = bounds.0 - self._drawer_width_px.get();
         if (event.mouse.x - divider_px).abs() < 12.0 {
             self._is_resizing_drawer.set(true);
             ctx.set_cursor(CursorStyle::EwResize);
@@ -304,10 +258,6 @@ fn source_markups(sources: &[ExampleSource]) -> Vec<String> {
         return vec![highlighted_code_markup(&fallback_source())];
     }
     sources.iter().map(highlighted_code_markup).collect()
-}
-
-fn closed_drawer_divider() -> Size {
-    Size::Percent(Numeric::F64(100.0))
 }
 
 fn highlighted_code_markup(source: &ExampleSource) -> String {

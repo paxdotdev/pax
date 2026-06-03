@@ -138,7 +138,6 @@ struct PaxViewIos: View {
         private var displayLink: CADisplayLink?
         private var previousViewportSize: CGSize = .zero
         private let viewportSizeEpsilon: CGFloat = 0.5
-        private var needsNativeTextRemeasure = false
         private let surfaceManager = SurfaceManager()
         private var lastTouchPositions: [ObjectIdentifier: CGPoint] = [:]
 
@@ -276,10 +275,6 @@ struct PaxViewIos: View {
             }
 
             previousViewportSize = size
-            needsNativeTextRemeasure = true
-            for textElement in textElements.elements.values {
-                textElement.lastMeasuredSize = nil
-            }
         }
 
         private func isUsableViewportSize(_ size: CGSize) -> Bool {
@@ -399,16 +394,6 @@ struct PaxViewIos: View {
             )
             pax_render(engineContainer)
 
-            if needsNativeTextRemeasure {
-                needsNativeTextRemeasure = false
-                for textElement in textElements.elements.values {
-                    requestTextResizeIfNeeded(textElement)
-                }
-            }
-        }
-
-        private func sendChassisResizeRequest(id: PaxNodeId, size: CGSize) {
-            dispatchChassisResizeRequest(id: id, width: Double(size.width), height: Double(size.height))
         }
 
         private func measureTextElement(_ textElement: TextElement) -> CGSize {
@@ -436,25 +421,23 @@ struct PaxViewIos: View {
             return CGSize(width: ceil(measured.width), height: ceil(measured.height))
         }
 
-        private func requestTextResizeIfNeeded(_ textElement: TextElement) {
-            guard textElement.size_x < 0 || textElement.size_y < 0 else {
-                return
-            }
-
+        private func respondToTextMeasurementRequest(_ textElement: TextElement, generation: UInt64) {
             let measuredSize = measureTextElement(textElement)
-            if let priorSize = textElement.lastMeasuredSize,
-               abs(priorSize.width - measuredSize.width) < 0.5,
-               abs(priorSize.height - measuredSize.height) < 0.5 {
-                return
-            }
-
             textElement.lastMeasuredSize = measuredSize
             recomputeResolvedMask(for: textElement)
-            sendChassisResizeRequest(id: textElement.id, size: measuredSize)
+            dispatchTextMeasurementResponse(
+                id: textElement.id,
+                generation: generation,
+                width: Double(measuredSize.width),
+                height: Double(measuredSize.height)
+            )
         }
 
-        func didUpdateTextElement(_ textElement: TextElement) {
-            requestTextResizeIfNeeded(textElement)
+        func didUpdateTextElement(_ textElement: TextElement, measureGeneration: UInt64?) {
+            guard let measureGeneration else {
+                return
+            }
+            respondToTextMeasurementRequest(textElement, generation: measureGeneration)
         }
 
         func handleNavigate(patch: NavigationPatchMessage) {
