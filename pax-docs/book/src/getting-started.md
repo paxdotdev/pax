@@ -11,69 +11,83 @@
 
 ## Development environment setup
 
-Pax projects are Rust projects, so every development workstation needs a Rust
-toolchain plus the target-specific tools used by the Pax CLI. The setup below
-gets a workstation ready for web builds, which are the fastest first smoke test
-on every operating system.
-
-### Ubuntu
-
-These steps have been validated on Ubuntu 26.04 LTS ARM64. They should also be a
-good starting point for current Ubuntu LTS releases on x86_64.
-
-Install native build dependencies:
-
-```sh
-sudo apt-get update
-sudo apt-get install -y \
-  ca-certificates curl git build-essential pkg-config libssl-dev \
-  python3 unzip xvfb \
-  libglib2.0-dev libcairo2-dev libpango1.0-dev
-```
-
-Install Rust and the WebAssembly target:
-
-```sh
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-  | sh -s -- -y --profile default --default-toolchain stable
-
-. "$HOME/.cargo/env"
-rustup target add wasm32-unknown-unknown
-```
-
-Install the web build helper and Pax CLI:
-
-```sh
-cargo install wasm-pack --version 0.15.0
-cargo install pax-cli
-```
-
-Create and run a smoke project:
-
-```sh
-pax-cli create hello-pax
-cd hello-pax
-pax-cli run --target=web
-```
-
-If the app builds and the CLI prints a local server URL, the workstation is
-ready for normal Pax web development.
+Pax projects are Rust projects. Install the workstation toolchain for your
+operating system, then create and run a small project to confirm the setup.
 
 ### macOS
 
-TODO: Add the supported macOS setup flow, including Xcode Command Line Tools,
-Rust, the WebAssembly target, `wasm-pack`, `pax-cli`, and Apple target notes for
-macOS/iOS/iPadOS builds.
+#### 1. Install toolchains
+
+Run the following terminal commands to install the dependencies:
+
+```sh
+# Install Rust.
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+. "$HOME/.cargo/env"
+
+# Install Xcode Command Line Tools.
+xcode-select --install
+
+# Install the WebAssembly target and helper.
+rustup target add wasm32-unknown-unknown
+cargo install wasm-pack --version 0.15.0
+
+# Install the Pax CLI.
+cargo install pax-cli
+```
+
+#### 2. Run
+
+Create a new project and run it:
+
+```sh
+pax-cli create my-first-project && cd my-first-project && pax-cli run
+```
+
+### Linux (Debian / Ubuntu)
+
+#### 1. Install toolchains
+
+These commands install Rust plus the native packages required by Pax web builds.
+This dependency set has been validated on Ubuntu 26.04 LTS ARM64.
+
+```sh
+# Install native build dependencies.
+sudo apt update
+sudo apt install -y \
+  ca-certificates curl git build-essential pkg-config libssl-dev \
+  python3 unzip xvfb \
+  libglib2.0-dev libcairo2-dev libpango1.0-dev
+
+# Install Rust.
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+. "$HOME/.cargo/env"
+
+# Install the WebAssembly target and helper.
+rustup target add wasm32-unknown-unknown
+cargo install wasm-pack --version 0.15.0
+
+# Install the Pax CLI.
+cargo install pax-cli
+```
+
+#### 2. Run
+
+Create a new project and run it:
+
+```sh
+pax-cli create my-first-project && cd my-first-project && pax-cli run
+```
 
 ### Windows
 
-These steps target Windows 11, including Windows 11 Arm64 VMs on Apple Silicon.
+#### 1. Install toolchains
 
-Install native build tools first. Pax uses Rust crates with native build steps,
-so Windows needs the MSVC C/C++ toolchain. Install Visual Studio Build Tools
-2022 with the C++ workload from PowerShell:
+Install Visual Studio Build Tools with the C++ workload, Git, Rust, and the web
+build helper from PowerShell:
 
 ```powershell
+# Install Visual Studio Build Tools.
 $installer = "$env:TEMP\vs_BuildTools.exe"
 Invoke-WebRequest https://aka.ms/vs/17/release/vs_BuildTools.exe -OutFile $installer
 $vsArgs = @(
@@ -92,13 +106,8 @@ if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
 }
 
 Start-Process $installer -Wait -ArgumentList $vsArgs
-```
 
-Load the MSVC environment in the current shell before running Rust native build
-commands. The LLVM path is especially important on Windows Arm64 because
-`wasm-pack` currently compiles dependencies that expect `clang`:
-
-```powershell
+# Load the MSVC environment in this shell.
 $vcvars = "C:\BuildTools\VC\Auxiliary\Build\vcvarsall.bat"
 $vcArch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "x64" }
 cmd.exe /s /c "`"$vcvars`" $vcArch >nul && set" | ForEach-Object {
@@ -109,32 +118,24 @@ cmd.exe /s /c "`"$vcvars`" $vcArch >nul && set" | ForEach-Object {
   }
 }
 
+# Make Git and clang available to future shells.
+winget install --id Git.Git --exact --source winget `
+  --accept-package-agreements --accept-source-agreements
+
 $llvmPath = "C:\BuildTools\VC\Tools\Llvm\bin"
 $userPath = @(
   [Environment]::GetEnvironmentVariable("Path", "User") -split ";" |
     Where-Object { $_ }
 )
-if ($userPath -notcontains $llvmPath) {
-  [Environment]::SetEnvironmentVariable(
-    "Path",
-    ((@($userPath) + $llvmPath) -join ";"),
-    "User"
-  )
+foreach ($path in @("C:\Program Files\Git\cmd", $llvmPath)) {
+  if ($userPath -notcontains $path) {
+    $userPath = @($userPath) + $path
+  }
 }
-$env:Path = "$llvmPath;$env:Path"
-```
+[Environment]::SetEnvironmentVariable("Path", ($userPath -join ";"), "User")
+$env:Path = "C:\Program Files\Git\cmd;$llvmPath;$env:Path"
 
-Install Git for Windows:
-
-```powershell
-winget install --id Git.Git --exact --source winget `
-  --accept-package-agreements --accept-source-agreements
-```
-
-Install Rust and the WebAssembly target. Use the Arm64 rustup installer on
-Windows Arm64, or the x86_64 installer on x86_64 Windows:
-
-```powershell
+# Install Rust.
 $rustupArch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
   "aarch64-pc-windows-msvc"
 } else {
@@ -144,28 +145,29 @@ $rustupArch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
 $rustup = "$env:TEMP\rustup-init.exe"
 Invoke-WebRequest "https://static.rust-lang.org/rustup/dist/$rustupArch/rustup-init.exe" -OutFile $rustup
 & $rustup -y --profile default --default-toolchain stable
-
 $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
+
+# Install the WebAssembly target and helper.
 rustup target add wasm32-unknown-unknown
+cargo install wasm-pack --version 0.15.0
 ```
 
-Install the web build helper and Pax CLI:
+#### 2. Install pax-cli
 
 ```powershell
-cargo install wasm-pack --version 0.15.0
 cargo install pax-cli
 ```
+
+NOTE: `cargo install pax-cli` and the first `pax-cli run` can take some time.
+Subsequent builds are faster.
+
+#### 3. Run
 
 Create and run a smoke project:
 
 ```powershell
-pax-cli create hello-pax
-Set-Location hello-pax
-pax-cli run --target=web
+pax-cli create my-first-project ; cd my-first-project ; pax-cli run
 ```
-
-If the app builds and the CLI prints a local server URL, the workstation is
-ready for normal Pax web development.
 
 ## Project Metadata
 

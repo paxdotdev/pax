@@ -171,6 +171,21 @@ short default computer name such as `pax-win-touch`, avoid assuming unattended
 OOBE flags suppress every 25H2 screen, and disable VM devices that create host
 privacy prompts unless a test explicitly needs them.
 
+## 2026-06-02
+
+Clean macOS first-touch validation exposed a web-build prerequisite that was not
+called out in the public setup instructions. `pax-cli` installed successfully
+from local source, but `pax-cli build --target web` failed while building the
+default web interface because `pax-compiler/files/interfaces/web/build-interface.sh`
+shells out to `npm`.
+
+Solved in the source-linked first-touch harness by adding Node.js/npm to the
+workstation baseline and recording their versions in the prerequisite markers.
+This should not become a normal user prerequisite: release packaging should
+build `pax-interface-web.js` and `pax-interface-web.css` before publishing
+`pax-compiler`, and release validation should assert those generated artifacts
+are included in the crate package.
+
 The same Windows baseline showed that Visual Studio's broad C++ workload can
 still omit the native ARM64 linker on Windows Arm64. Rust's
 `aarch64-pc-windows-msvc` toolchain then failed at `cargo install wasm-pack`

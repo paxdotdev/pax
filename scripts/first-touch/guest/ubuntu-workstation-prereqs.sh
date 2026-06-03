@@ -23,4 +23,6 @@ fi
 
 rustc --version
 cargo --version
+node --version
+npm --version
 wasm-pack --version

@@ -124,6 +124,39 @@ def publish_docs(new_version):
 
     subprocess.run(docs_publish_command(new_version), check=True)
 
+
+def verify_web_interface_release_artifacts():
+    required_paths = {
+        "files/interfaces/web/public/pax-interface-web.js",
+        "files/interfaces/web/public/pax-interface-web.css",
+    }
+    package_root = os.path.join(WORKSPACE_DIR, "pax-compiler")
+    missing_on_disk = [
+        path for path in required_paths
+        if not os.path.isfile(os.path.join(package_root, path))
+    ]
+    if missing_on_disk:
+        print("ERROR: missing built web interface artifacts:")
+        for path in missing_on_disk:
+            print("  " + os.path.join("pax-compiler", path))
+        exit(1)
+
+    package_list = subprocess.run(
+        ["cargo", "package", "--list", "--allow-dirty"],
+        cwd=package_root,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    ).stdout.splitlines()
+    package_files = set(package_list)
+    missing_from_package = sorted(required_paths - package_files)
+    if missing_from_package:
+        print("ERROR: built web interface artifacts are missing from pax-compiler package:")
+        for path in missing_from_package:
+            print("  " + path)
+        exit(1)
+
+
 # Compile ts to js and css for the web chassis
 original_dir = WORKSPACE_DIR
 try:
@@ -135,6 +168,7 @@ except:
     exit(1)
 
 os.chdir(original_dir)
+verify_web_interface_release_artifacts()
 
 # Create a mapping from package name to path
 PACKAGE_NAMES = {}
@@ -276,4 +310,3 @@ publish_docs(NEW_VERSION)
 
 # Perform git tag
 # subprocess.run(["git", "tag", "-a", "v" + NEW_VERSION, "-m", "Release v" + NEW_VERSION], check=True)
-

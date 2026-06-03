@@ -136,6 +136,24 @@ try {
         Add-UserPath "C:\Program Files\Git\cmd"
     }
 
+    if (-not (Get-Command node.exe -ErrorAction SilentlyContinue) -or -not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
+        if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
+            throw "winget.exe is required to install Node.js LTS"
+        }
+        Invoke-NativeCommand -FilePath "winget.exe" -ArgumentList @(
+            "install",
+            "--id", "OpenJS.NodeJS.LTS",
+            "--exact",
+            "--source", "winget",
+            "--silent",
+            "--accept-package-agreements",
+            "--accept-source-agreements"
+        )
+    }
+    if (Test-Path "C:\Program Files\nodejs") {
+        Add-UserPath "C:\Program Files\nodejs"
+    }
+
     $cargoBin = Join-Path $env:USERPROFILE ".cargo\bin"
     Add-UserPath $cargoBin
 
@@ -163,6 +181,8 @@ try {
         (rustc --version),
         (cargo --version),
         (rustup --version),
+        (node --version),
+        (npm --version),
         (wasm-pack --version),
         (git --version)
     )

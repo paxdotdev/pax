@@ -97,7 +97,7 @@ build {
     inline = [
       "set -eux",
       "apt-get update",
-      "DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl git build-essential pkg-config libssl-dev python3 unzip xvfb libglib2.0-dev libcairo2-dev libpango1.0-dev",
+      "DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl git build-essential pkg-config libssl-dev python3 unzip xvfb nodejs npm libglib2.0-dev libcairo2-dev libpango1.0-dev",
       "apt-get clean",
       "rm -rf /var/lib/apt/lists/*",
       "printf 'pax-first-touch ubuntu system prerequisites ready\\n'"
