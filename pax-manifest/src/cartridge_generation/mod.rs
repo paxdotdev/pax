@@ -42,10 +42,12 @@ pub struct ComponentTransitionConfig {
     pub has_enter: bool,
     pub enter_frame_count: u64,
     pub enter_millis_count: Option<u64>,
+    pub enter_dynamic_durations: Vec<ValueDefinition>,
     pub enter_sources: Vec<UniqueTemplateNodeIdentifier>,
     pub has_exit: bool,
     pub exit_frame_count: u64,
     pub exit_millis_count: Option<u64>,
+    pub exit_dynamic_durations: Vec<ValueDefinition>,
     pub exit_sources: Vec<UniqueTemplateNodeIdentifier>,
     pub timeout_ms: u64,
 }
@@ -56,9 +58,13 @@ impl ComponentTransitionConfig {
         self.enter_frame_count = self.enter_frame_count.max(other.enter_frame_count);
         self.enter_millis_count =
             max_optional_u64(self.enter_millis_count, other.enter_millis_count);
+        self.enter_dynamic_durations
+            .extend(other.enter_dynamic_durations);
         self.has_exit |= other.has_exit;
         self.exit_frame_count = self.exit_frame_count.max(other.exit_frame_count);
         self.exit_millis_count = max_optional_u64(self.exit_millis_count, other.exit_millis_count);
+        self.exit_dynamic_durations
+            .extend(other.exit_dynamic_durations);
         self.timeout_ms = self.timeout_ms.max(other.timeout_ms);
 
         for source in other.enter_sources {
@@ -551,6 +557,8 @@ impl PaxManifest {
         let mut max_frame = 0;
         let has_literal_duration =
             Self::timeline_track_literal_duration(timeline_definition, track);
+        let has_dynamic_duration = has_literal_duration.is_none()
+            && Self::timeline_track_duration_value(timeline_definition, track).is_some();
         if let Some(duration) = has_literal_duration {
             max_frame = max_frame.max(duration.as_frames_f64().max(0.0).ceil() as u64);
         }
@@ -567,6 +575,8 @@ impl PaxManifest {
         if uses_percent_markers {
             let fallback = if has_literal_duration.is_some() {
                 max_frame
+            } else if has_dynamic_duration {
+                0
             } else {
                 100
             };
@@ -605,14 +615,30 @@ impl PaxManifest {
         }
     }
 
-    fn timeline_track_literal_duration(
-        timeline_definition: &TimelineDefinition,
-        track: &crate::TimelineTrackDefinition,
-    ) -> Option<pax_runtime_api::Duration> {
+    fn timeline_track_duration_value<'a>(
+        timeline_definition: &'a TimelineDefinition,
+        track: &'a crate::TimelineTrackDefinition,
+    ) -> Option<&'a ValueDefinition> {
         track
             .duration
             .as_deref()
             .or(timeline_definition.duration.as_ref())
+    }
+
+    fn timeline_track_dynamic_duration(
+        timeline_definition: &TimelineDefinition,
+        track: &crate::TimelineTrackDefinition,
+    ) -> Option<ValueDefinition> {
+        Self::timeline_track_duration_value(timeline_definition, track)
+            .filter(|value| Self::literal_duration_value(value).is_none())
+            .cloned()
+    }
+
+    fn timeline_track_literal_duration(
+        timeline_definition: &TimelineDefinition,
+        track: &crate::TimelineTrackDefinition,
+    ) -> Option<pax_runtime_api::Duration> {
+        Self::timeline_track_duration_value(timeline_definition, track)
             .and_then(Self::literal_duration_value)
     }
 
@@ -720,6 +746,39 @@ impl PaxManifest {
         max_frame
     }
 
+    fn timeline_dynamic_durations(
+        timeline_definition: &TimelineDefinition,
+    ) -> Vec<ValueDefinition> {
+        let mut durations = Vec::new();
+        for element in &timeline_definition.elements {
+            if let TimelineBlockElement::SelectorBlock(_, block) = element {
+                for selector_element in &block.elements {
+                    if let TimelineSelectorElement::Track(_, track) = selector_element {
+                        if let Some(duration) =
+                            Self::timeline_track_dynamic_duration(timeline_definition, track)
+                        {
+                            durations.push(duration);
+                        }
+                    }
+                }
+            }
+        }
+        durations
+    }
+
+    fn add_dynamic_durations_to_transition_config(
+        config: &mut ComponentTransitionConfig,
+        timeline: &TimelineDefinition,
+        transition_kind: u64,
+    ) {
+        let durations = Self::timeline_dynamic_durations(timeline);
+        match transition_kind {
+            TRANSITION_PHASE_ENTER => config.enter_dynamic_durations.extend(durations),
+            TRANSITION_PHASE_EXIT => config.exit_dynamic_durations.extend(durations),
+            _ => {}
+        }
+    }
+
     pub fn get_component_transition_config(
         &self,
         component_type_id: &TypeId,
@@ -744,6 +803,11 @@ impl PaxManifest {
                         config.enter_millis_count =
                             Some(config.enter_millis_count.unwrap_or_default().max(millis));
                     }
+                    Self::add_dynamic_durations_to_transition_config(
+                        &mut config,
+                        timeline,
+                        TRANSITION_PHASE_ENTER,
+                    );
                 }
                 Some(TRANSITION_PHASE_EXIT) => {
                     config.has_exit = true;
@@ -754,6 +818,11 @@ impl PaxManifest {
                         config.exit_millis_count =
                             Some(config.exit_millis_count.unwrap_or_default().max(millis));
                     }
+                    Self::add_dynamic_durations_to_transition_config(
+                        &mut config,
+                        timeline,
+                        TRANSITION_PHASE_EXIT,
+                    );
                 }
                 _ => {}
             }
@@ -779,6 +848,7 @@ impl PaxManifest {
                     config.enter_millis_count =
                         Some(config.enter_millis_count.unwrap_or_default().max(millis));
                 }
+                Self::add_dynamic_durations_to_transition_config(config, timeline, transition_kind);
                 if !config.enter_sources.contains(source) {
                     config.enter_sources.push(source.clone());
                 }
@@ -792,6 +862,7 @@ impl PaxManifest {
                     config.exit_millis_count =
                         Some(config.exit_millis_count.unwrap_or_default().max(millis));
                 }
+                Self::add_dynamic_durations_to_transition_config(config, timeline, transition_kind);
                 if !config.exit_sources.contains(source) {
                     config.exit_sources.push(source.clone());
                 }

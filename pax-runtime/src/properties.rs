@@ -5,7 +5,10 @@ use pax_language::interpreter::property_resolution::IdentifierResolver;
 use pax_manifest::cartridge_generation::TRANSITION_PHASE_EXIT;
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, ScreenshotData};
-use pax_runtime_api::properties::{drain_effects, register_effect_property, UntypedProperty};
+use pax_runtime_api::properties::{
+    drain_effects, drain_effects_with_report, register_effect_property,
+    register_effect_property_with_name, UntypedProperty,
+};
 use pax_runtime_api::{
     borrow, borrow_mut, use_RefCell, Event, Interpolatable, LightShape, MouseOut, MouseOver,
     Property, RenderContext, SceneLight, SceneLighting, Store, Variable,
@@ -17,11 +20,33 @@ use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::rc::{Rc, Weak};
+use std::sync::OnceLock;
+use std::time::Instant;
 
 use crate::{ExpandedNode, Globals};
 
 #[cfg(feature = "designtime")]
 use crate::{ComponentInstance, InstanceNode};
+
+fn effect_drain_instrumentation_enabled() -> bool {
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    *ENABLED.get_or_init(|| {
+        std::env::var("PAX_EFFECT_DRAIN_INSTRUMENTATION")
+            .map(|value| {
+                let value = value.to_ascii_lowercase();
+                matches!(value.as_str(), "1" | "true" | "yes" | "on")
+            })
+            .unwrap_or(false)
+    })
+}
+
+fn format_effect_top(top_effects: &[(String, usize)]) -> String {
+    top_effects
+        .iter()
+        .map(|(name, count)| format!("{count}x {name}"))
+        .collect::<Vec<_>>()
+        .join("; ")
+}
 
 impl Interpolatable for ExpandedNodeIdentifier {}
 
@@ -315,12 +340,36 @@ impl RuntimeContext {
         self.import_settings_node_count.get() > 0
     }
 
-    pub fn register_node_effect_property(
+    pub fn register_node_effect_property(&self, node: ExpandedNodeIdentifier, prop: &Property<()>) {
+        self.register_node_effect_property_named(node, prop, "node effect");
+    }
+
+    pub fn register_node_effect_property_named(
         &self,
-        _node: ExpandedNodeIdentifier,
+        node: ExpandedNodeIdentifier,
         prop: &Property<()>,
+        effect_name: &str,
     ) {
-        register_effect_property(prop);
+        if effect_drain_instrumentation_enabled() {
+            let debug_name = self.node_effect_debug_name(node, effect_name);
+            register_effect_property_with_name(prop, &debug_name);
+        } else {
+            register_effect_property(prop);
+        }
+    }
+
+    pub fn register_expanded_node_effect_property_named(
+        &self,
+        node: &Rc<ExpandedNode>,
+        prop: &Property<()>,
+        effect_name: &str,
+    ) {
+        if effect_drain_instrumentation_enabled() {
+            let debug_name = Self::expanded_node_effect_debug_name(node, effect_name);
+            register_effect_property_with_name(prop, &debug_name);
+        } else {
+            register_effect_property(prop);
+        }
     }
 
     pub fn register_node_effect(
@@ -330,19 +379,70 @@ impl RuntimeContext {
         effect: impl Fn() + 'static,
     ) -> Property<()> {
         let prop = Property::computed(effect, dependencies);
-        self.register_node_effect_property(node, &prop);
+        self.register_node_effect_property_named(node, &prop, "registered node effect");
         prop
     }
 
     pub fn drain_node_effects(&self) {
         const MAX_NODE_EFFECTS_PER_TICK: usize = 100_000;
-        let drained = drain_effects(MAX_NODE_EFFECTS_PER_TICK);
-        if drained == MAX_NODE_EFFECTS_PER_TICK {
+        if !effect_drain_instrumentation_enabled() {
+            let drained = drain_effects(MAX_NODE_EFFECTS_PER_TICK);
+            if drained == MAX_NODE_EFFECTS_PER_TICK {
+                log::warn!(
+                    "node effect drain hit {} effects in one tick; deferring remaining effects",
+                    MAX_NODE_EFFECTS_PER_TICK
+                );
+            }
+            return;
+        }
+
+        let start = Instant::now();
+        let report = drain_effects_with_report(MAX_NODE_EFFECTS_PER_TICK);
+        let elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
+        if report.ran == MAX_NODE_EFFECTS_PER_TICK {
             log::warn!(
                 "node effect drain hit {} effects in one tick; deferring remaining effects",
                 MAX_NODE_EFFECTS_PER_TICK
             );
         }
+        if report.popped > 0 {
+            println!(
+                "[PaxEffectDrain] ran={} popped={} clean={} unregistered={} missing={} remaining={} elapsed_ms={:.3} top=[{}]",
+                report.ran,
+                report.popped,
+                report.skipped_clean,
+                report.skipped_unregistered,
+                report.skipped_missing,
+                report.remaining,
+                elapsed_ms,
+                format_effect_top(&report.top_effects),
+            );
+        }
+    }
+
+    fn node_effect_debug_name(&self, node: ExpandedNodeIdentifier, effect_name: &str) -> String {
+        let node = borrow!(self.node_cache).eid_to_node.get(&node).cloned();
+        if let Some(node) = node {
+            Self::expanded_node_effect_debug_name(&node, effect_name)
+        } else {
+            format!("{effect_name} node={node:?}")
+        }
+    }
+
+    fn expanded_node_effect_debug_name(node: &Rc<ExpandedNode>, effect_name: &str) -> String {
+        let instance_node = borrow!(node.instance_node);
+        let base = instance_node.base();
+        let type_name = base
+            .template_node_type_id
+            .as_ref()
+            .map(|type_id| {
+                type_id
+                    .get_pascal_identifier()
+                    .unwrap_or_else(|| type_id.to_string())
+            })
+            .unwrap_or_else(|| "<unknown>".to_owned());
+
+        format!("{effect_name} type={type_name}")
     }
 
     pub fn tick_handler_nodes(&self) -> Vec<ExpandedNodeIdentifier> {
@@ -954,11 +1054,15 @@ impl RuntimeContext {
         let Some(root_node) = root.or_else(|| borrow!(self.root_expanded_node).upgrade()) else {
             return accum;
         };
-        let mut to_process = vec![(root_node, false, Affine::IDENTITY)];
-        while let Some((node, clipped, active_scroll_transform)) = to_process.pop() {
+        let mut to_process = vec![(root_node, false, Affine::IDENTITY, false)];
+        while let Some((node, clipped, active_scroll_transform, retained_for_exit)) =
+            to_process.pop()
+        {
             // make sure slot sources are updated for this node
             node.compute_flattened_projected_children();
-            if !hit_invisible && node.transition_phase.get() == TRANSITION_PHASE_EXIT {
+            if !hit_invisible
+                && (retained_for_exit || node.transition_phase.get() == TRANSITION_PHASE_EXIT)
+            {
                 continue;
             }
             // Browser-composited scrollers move descendants outside the engine transform tree.
@@ -1058,15 +1162,24 @@ impl RuntimeContext {
                 }
             }
             let clipped = clipped || (!hit && clips_content);
+            let retained_children = borrow!(node.exiting_children).clone();
             to_process.extend(
                 node.children
                     .get()
                     .iter()
                     .cloned()
                     .map(|v| {
+                        let retained_for_exit = retained_children
+                            .iter()
+                            .any(|retained| Rc::ptr_eq(retained, &v));
                         let cp = v.get_common_properties();
                         let unclippable = borrow!(cp).unclippable.get().unwrap_or(false);
-                        (v, clipped && !unclippable, descendant_scroll_transform)
+                        (
+                            v,
+                            clipped && !unclippable,
+                            descendant_scroll_transform,
+                            retained_for_exit,
+                        )
                     })
                     .rev(),
             )

@@ -521,14 +521,19 @@ fn string_map_to_pax_value(map: &HashMap<String, String>) -> PaxValue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::math::Transform2;
-    use crate::api::CommonProperties;
-    use crate::{ComponentInstance, Globals, RuntimePropertiesStackFrame, TransformAndBounds};
+    use crate::api::math::{Point2, Transform2};
+    use crate::api::{CommonProperties, Layer, Size, Window};
+    use crate::{
+        BaseInstance, ComponentInstance, Globals, InstanceFlags, RuntimePropertiesStackFrame,
+        TransformAndBounds,
+    };
     use pax_manifest::cartridge_generation::{
         ComponentTransitionConfig, TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT,
+        TRANSITION_PHASE_IDLE,
     };
+    use pax_manifest::ValueDefinition;
     use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
-    use pax_runtime_api::{Platform, TargetInfo, OS};
+    use pax_runtime_api::{Duration, Platform, TargetInfo, OS};
     use std::cell::RefCell;
 
     fn route(path_segments: &[&str]) -> RouteLocation {
@@ -632,6 +637,81 @@ mod tests {
 
     fn leaf() -> Rc<dyn InstanceNode> {
         ComponentInstance::instantiate(leaf_args())
+    }
+
+    struct HitBoxInstance {
+        base: BaseInstance,
+    }
+
+    impl InstanceNode for HitBoxInstance {
+        fn base(&self) -> &BaseInstance {
+            &self.base
+        }
+
+        fn instantiate(args: InstantiationArgs) -> Rc<Self> {
+            Rc::new(Self {
+                base: BaseInstance::new(
+                    args,
+                    InstanceFlags {
+                        invisible_to_slot: false,
+                        invisible_to_raycasting: false,
+                        layer: Layer::Canvas,
+                        is_component: false,
+                        is_slot: false,
+                    },
+                ),
+            })
+        }
+
+        fn resolve_debug(
+            &self,
+            f: &mut std::fmt::Formatter,
+            _expanded_node: Option<&ExpandedNode>,
+        ) -> std::fmt::Result {
+            write!(f, "HitBox")
+        }
+    }
+
+    fn hit_box_args(transition_config: ComponentTransitionConfig) -> InstantiationArgs {
+        InstantiationArgs {
+            prototypical_common_properties: crate::CommonPropertiesInit::Factory(Box::new(
+                |_, expanded_node| {
+                    expanded_node.is_none().then(|| {
+                        let mut cp = CommonProperties::default();
+                        cp.width = Property::new(Some(Size::Pixels(40.into())));
+                        cp.height = Property::new(Some(Size::Pixels(40.into())));
+                        Rc::new(RefCell::new(cp))
+                    })
+                },
+            )),
+            prototypical_properties: crate::PropertiesInit::Factory(default_properties_factory()),
+            handler_registry: None,
+            children: None,
+            component_template: Some(RefCell::new(Vec::new())),
+            component_settings: None,
+            template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
+            transition_config,
+            properties_scope: crate::PropertiesScopeInit::None,
+        }
+    }
+
+    fn hit_box(transition_config: ComponentTransitionConfig) -> Rc<dyn InstanceNode> {
+        HitBoxInstance::instantiate(hit_box_args(transition_config))
+    }
+
+    fn dynamic_exit_duration_leaf(frames: f64) -> Rc<dyn InstanceNode> {
+        let mut args = leaf_args();
+        args.transition_config = ComponentTransitionConfig {
+            has_exit: true,
+            exit_dynamic_durations: vec![ValueDefinition::LiteralValue(PaxValue::Duration(
+                Duration::Frames(frames.into()),
+            ))],
+            timeout_ms: 5_000,
+            ..Default::default()
+        };
+        ComponentInstance::instantiate(args)
     }
 
     fn router_args(
@@ -871,6 +951,161 @@ mod tests {
         assert!(initial_active
             .iter()
             .all(|old_child| exiting.iter().any(|child| child.id.0 == old_child.id.0)));
+    }
+
+    #[test]
+    fn branch_can_be_reselected_while_previous_instance_is_exiting() {
+        let input_location = Property::new(route(&["alpha"]));
+        let (_root, router_node, context) = mounted_router(
+            input_location.clone(),
+            vec![
+                ControlFlowRouteBranchDefinition {
+                    path: Some("/alpha".to_string()),
+                    default: false,
+                    child_ids: vec![],
+                },
+                ControlFlowRouteBranchDefinition {
+                    path: Some("/beta".to_string()),
+                    default: false,
+                    child_ids: vec![],
+                },
+            ],
+            vec![0..1, 1..2],
+            vec![leaf(), leaf()],
+        );
+
+        let initial_alpha = borrow!(router_node.active_children)[0].id;
+
+        input_location.set(route(&["beta"]));
+        router_node.recurse_update(&context);
+        assert_eq!(borrow!(router_node.active_children).len(), 1);
+        assert_eq!(borrow!(router_node.exiting_children).len(), 1);
+        assert_eq!(borrow!(router_node.exiting_children)[0].id, initial_alpha);
+
+        input_location.set(route(&["alpha"]));
+        router_node.recurse_update(&context);
+
+        let active = borrow!(router_node.active_children).clone();
+        let exiting = borrow!(router_node.exiting_children).clone();
+        assert_eq!(active.len(), 1);
+        assert_ne!(active[0].id, initial_alpha);
+        assert_eq!(active[0].transition_phase.get(), TRANSITION_PHASE_ENTER);
+        assert!(exiting.iter().any(|child| child.id == initial_alpha));
+    }
+
+    #[test]
+    fn retained_exiting_route_tree_does_not_intercept_hit_testing() {
+        let input_location = Property::new(route(&["alpha"]));
+        let exiting_route_config = ComponentTransitionConfig {
+            has_exit: true,
+            exit_frame_count: 30,
+            timeout_ms: 5_000,
+            ..Default::default()
+        };
+        let (root, router_node, context) = mounted_router(
+            input_location.clone(),
+            vec![
+                ControlFlowRouteBranchDefinition {
+                    path: Some("/alpha".to_string()),
+                    default: false,
+                    child_ids: vec![],
+                },
+                ControlFlowRouteBranchDefinition {
+                    path: Some("/beta".to_string()),
+                    default: false,
+                    child_ids: vec![],
+                },
+            ],
+            vec![0..1, 1..2],
+            vec![hit_box(exiting_route_config), hit_box(Default::default())],
+        );
+
+        input_location.set(route(&["beta"]));
+        router_node.recurse_update(&context);
+
+        let active = borrow!(router_node.active_children).clone();
+        assert_eq!(active.len(), 1);
+        assert_eq!(borrow!(router_node.exiting_children).len(), 1);
+
+        let hits = context.get_elements_beneath_ray(
+            Some(root),
+            Point2::<Window>::new(5.0, 5.0),
+            true,
+            vec![],
+            false,
+        );
+        assert_eq!(hits.first().map(|node| node.id), Some(active[0].id));
+    }
+
+    #[test]
+    fn dynamic_exit_duration_controls_retained_route_cleanup() {
+        let input_location = Property::new(route(&["alpha"]));
+        let (_root, router_node, context) = mounted_router(
+            input_location.clone(),
+            vec![
+                ControlFlowRouteBranchDefinition {
+                    path: Some("/alpha".to_string()),
+                    default: false,
+                    child_ids: vec![],
+                },
+                ControlFlowRouteBranchDefinition {
+                    path: Some("/beta".to_string()),
+                    default: false,
+                    child_ids: vec![],
+                },
+            ],
+            vec![0..1, 1..2],
+            vec![dynamic_exit_duration_leaf(3.0), leaf()],
+        );
+
+        input_location.set(route(&["beta"]));
+        router_node.recurse_update(&context);
+        assert_eq!(borrow!(router_node.exiting_children).len(), 1);
+
+        context.globals().elapsed_frames.set(2);
+        context.drain_node_effects();
+        assert_eq!(borrow!(router_node.exiting_children).len(), 1);
+
+        context.globals().elapsed_frames.set(3);
+        context.drain_node_effects();
+        assert!(borrow!(router_node.exiting_children).is_empty());
+    }
+
+    #[test]
+    fn active_enter_transition_returns_to_idle_after_duration() {
+        let input_location = Property::new(route(&["alpha"]));
+        let (_root, router_node, context) = mounted_router(
+            input_location.clone(),
+            vec![
+                ControlFlowRouteBranchDefinition {
+                    path: Some("/alpha".to_string()),
+                    default: false,
+                    child_ids: vec![],
+                },
+                ControlFlowRouteBranchDefinition {
+                    path: Some("/beta".to_string()),
+                    default: false,
+                    child_ids: vec![],
+                },
+            ],
+            vec![0..1, 1..2],
+            vec![leaf(), leaf()],
+        );
+
+        input_location.set(route(&["beta"]));
+        router_node.recurse_update(&context);
+
+        let active = borrow!(router_node.active_children).clone();
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].transition_phase.get(), TRANSITION_PHASE_ENTER);
+
+        context.globals().elapsed_frames.set(9);
+        context.drain_node_effects();
+        assert_eq!(active[0].transition_phase.get(), TRANSITION_PHASE_ENTER);
+
+        context.globals().elapsed_frames.set(10);
+        context.drain_node_effects();
+        assert_eq!(active[0].transition_phase.get(), TRANSITION_PHASE_IDLE);
     }
 
     #[test]

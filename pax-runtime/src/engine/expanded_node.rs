@@ -17,6 +17,7 @@ use crate::constants::{
     TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use_RefCell!();
+use crate::cartridge::evaluate_timeline_duration;
 use crate::{ExpandedNodeIdentifier, Globals, LayoutHull, LayoutProperties, TransformAndBounds};
 use core::fmt;
 use std::cell::Cell;
@@ -282,8 +283,14 @@ pub struct ExpandedNode {
     pub transition_playhead: Property<f64>,
     /// Local playhead, in milliseconds, for the active lifecycle transition.
     pub transition_playhead_millis: Property<f64>,
+    /// Effect property used to stop enter-transition clock dependencies.
+    pub enter_cleanup_listener: Property<()>,
+    /// Whether enter cleanup should do work on frame ticks.
+    pub enter_cleanup_active: Cell<bool>,
     /// Wall-clock start for exit timeout enforcement.
     pub exit_started_millis: Cell<Option<u128>>,
+    /// Whether this node has already warned about truncating its current exit transition.
+    exit_timeout_warning_emitted: Cell<bool>,
     /// Effect property used to release deferred exit children.
     pub exit_cleanup_listener: Property<()>,
     /// Whether exit cleanup should do work on frame ticks.
@@ -457,40 +464,8 @@ impl ExpandedNode {
             context.globals().elapsed_millis.get(),
             "transition origin millis",
         );
-        let (transition_playhead, transition_playhead_millis) = if has_transition_bindings {
-            let elapsed_frames = context.globals().elapsed_frames.clone();
-            let elapsed_millis = context.globals().elapsed_millis.clone();
-            let elapsed_frames_for_playhead = elapsed_frames.clone();
-            let transition_origin_frame_for_playhead = transition_origin_frame.clone();
-            let transition_playhead = Property::computed_with_name(
-                move || {
-                    elapsed_frames_for_playhead
-                        .get()
-                        .saturating_sub(transition_origin_frame_for_playhead.get())
-                        as f64
-                },
-                &[elapsed_frames.untyped(), transition_origin_frame.untyped()],
-                "transition playhead",
-            );
-            let elapsed_millis_for_playhead = elapsed_millis.clone();
-            let transition_origin_millis_for_playhead = transition_origin_millis.clone();
-            let transition_playhead_millis = Property::computed_with_name(
-                move || {
-                    elapsed_millis_for_playhead
-                        .get()
-                        .saturating_sub(transition_origin_millis_for_playhead.get())
-                        as f64
-                },
-                &[elapsed_millis.untyped(), transition_origin_millis.untyped()],
-                "transition playhead millis",
-            );
-            (transition_playhead, transition_playhead_millis)
-        } else {
-            (
-                Property::new_with_name(0.0, "transition playhead"),
-                Property::new_with_name(0.0, "transition playhead millis"),
-            )
-        };
+        let transition_playhead = Property::new_with_name(0.0, "transition playhead");
+        let transition_playhead_millis = Property::new_with_name(0.0, "transition playhead millis");
 
         let env = if has_transition_bindings {
             env.push(
@@ -592,7 +567,10 @@ impl ExpandedNode {
             transition_origin_millis,
             transition_playhead,
             transition_playhead_millis,
+            enter_cleanup_listener: Property::default(),
+            enter_cleanup_active: Cell::new(false),
             exit_started_millis: Cell::new(None),
+            exit_timeout_warning_emitted: Cell::new(false),
             exit_cleanup_listener: Property::default(),
             exit_cleanup_active: Cell::new(false),
             imported_settings_layers: RefCell::new(Vec::new()),
@@ -827,7 +805,7 @@ impl ExpandedNode {
     }
 
     fn start_self_enter_transition_for_source(
-        &self,
+        self: &Rc<Self>,
         context: &Rc<RuntimeContext>,
         requested_source: Option<&UniqueTemplateNodeIdentifier>,
     ) -> bool {
@@ -843,12 +821,15 @@ impl ExpandedNode {
             return false;
         }
         drop(instance_node);
-        self.transition_phase.set(TRANSITION_PHASE_ENTER);
         self.transition_origin_frame
             .set(context.globals().elapsed_frames.get());
         self.transition_origin_millis
             .set(context.globals().elapsed_millis.get());
+        self.activate_transition_clock(context);
+        self.transition_phase.set(TRANSITION_PHASE_ENTER);
         self.exit_started_millis.set(None);
+        self.exit_timeout_warning_emitted.set(false);
+        self.enable_enter_cleanup_listener(context);
         true
     }
 
@@ -869,13 +850,16 @@ impl ExpandedNode {
         if !self.has_exit_transition_for_source(requested_source) {
             return false;
         }
-        self.transition_phase.set(TRANSITION_PHASE_EXIT);
         self.transition_origin_frame
             .set(context.globals().elapsed_frames.get());
         self.transition_origin_millis
             .set(context.globals().elapsed_millis.get());
+        self.activate_transition_clock(context);
+        self.transition_phase.set(TRANSITION_PHASE_EXIT);
+        self.disable_enter_cleanup_listener();
         self.exit_started_millis
             .set(Some((context.globals().get_elapsed_millis)()));
+        self.exit_timeout_warning_emitted.set(false);
         true
     }
 
@@ -887,6 +871,45 @@ impl ExpandedNode {
             }
         }
         started
+    }
+
+    fn activate_transition_clock(&self, context: &Rc<RuntimeContext>) {
+        let elapsed_frames = context.globals().elapsed_frames.clone();
+        let origin_frame = self.transition_origin_frame.clone();
+        let elapsed_frames_for_playhead = elapsed_frames.clone();
+        let origin_frame_for_playhead = origin_frame.clone();
+        self.transition_playhead
+            .replace_with(Property::computed_with_name(
+                move || {
+                    elapsed_frames_for_playhead
+                        .get()
+                        .saturating_sub(origin_frame_for_playhead.get()) as f64
+                },
+                &[elapsed_frames.untyped(), origin_frame.untyped()],
+                "transition playhead",
+            ));
+
+        let elapsed_millis = context.globals().elapsed_millis.clone();
+        let origin_millis = self.transition_origin_millis.clone();
+        let elapsed_millis_for_playhead = elapsed_millis.clone();
+        let origin_millis_for_playhead = origin_millis.clone();
+        self.transition_playhead_millis
+            .replace_with(Property::computed_with_name(
+                move || {
+                    elapsed_millis_for_playhead
+                        .get()
+                        .saturating_sub(origin_millis_for_playhead.get()) as f64
+                },
+                &[elapsed_millis.untyped(), origin_millis.untyped()],
+                "transition playhead millis",
+            ));
+    }
+
+    fn deactivate_transition_clock(&self) {
+        self.transition_playhead
+            .replace_with(Property::new_with_name(0.0, "transition playhead"));
+        self.transition_playhead_millis
+            .replace_with(Property::new_with_name(0.0, "transition playhead millis"));
     }
 
     fn start_bound_enter_transitions(
@@ -1004,16 +1027,17 @@ impl ExpandedNode {
         if self.transition_phase.get() != TRANSITION_PHASE_EXIT {
             return true;
         }
-        let transition_config = borrow!(self.instance_node)
-            .base()
-            .transition_config()
-            .clone();
-        let duration_complete = if let Some(exit_millis_count) = transition_config.exit_millis_count
-        {
-            self.transition_playhead_millis.get() >= exit_millis_count as f64
-        } else {
-            self.transition_playhead.get() >= transition_config.exit_frame_count as f64
-        };
+        let instance_node = borrow!(self.instance_node);
+        let base = instance_node.base();
+        let transition_config = base.transition_config().clone();
+        let template_node_identifier = base.template_node_identifier.clone();
+        let template_node_type_id = base.template_node_type_id.clone();
+        drop(instance_node);
+        let duration_complete = self.transition_duration_complete(
+            transition_config.exit_frame_count,
+            transition_config.exit_millis_count,
+            &transition_config.exit_dynamic_durations,
+        );
         let timeout_complete = self
             .exit_started_millis
             .get()
@@ -1022,7 +1046,122 @@ impl ExpandedNode {
                     >= transition_config.timeout_ms as u128
             })
             .unwrap_or(false);
+        if timeout_complete
+            && !duration_complete
+            && !self.exit_timeout_warning_emitted.replace(true)
+        {
+            log::warn!(
+                "Exit transition timed out after {}ms and will be truncated for node {:?}{}{}. Check @out/@transition duration, percent keyframes, and dynamic duration expressions.",
+                transition_config.timeout_ms,
+                self.id,
+                template_node_identifier
+                    .as_ref()
+                    .map(|identifier| format!(" template={}", identifier))
+                    .unwrap_or_default(),
+                template_node_type_id
+                    .as_ref()
+                    .map(|type_id| format!(" type={}", type_id))
+                    .unwrap_or_default(),
+            );
+        }
         duration_complete || timeout_complete
+    }
+
+    fn transition_duration_complete(
+        &self,
+        frame_count: u64,
+        millis_count: Option<u64>,
+        dynamic_durations: &[ValueDefinition],
+    ) -> bool {
+        let mut frame_count = frame_count as f64;
+        let mut millis_count = millis_count.map(|value| value as f64).unwrap_or_default();
+        let mut unresolved_dynamic_duration = false;
+
+        for duration_definition in dynamic_durations {
+            match evaluate_timeline_duration(duration_definition, &self.stack) {
+                Some(duration) if duration.is_frame_based() => {
+                    frame_count = frame_count.max(duration.as_frames_f64().max(0.0).ceil());
+                }
+                Some(duration) => {
+                    millis_count = millis_count.max(duration.as_milliseconds_f64().max(0.0).ceil());
+                }
+                None => unresolved_dynamic_duration = true,
+            }
+        }
+
+        if unresolved_dynamic_duration
+            && frame_count <= f64::EPSILON
+            && millis_count <= f64::EPSILON
+        {
+            frame_count = 100.0;
+        }
+
+        let frame_complete =
+            frame_count <= f64::EPSILON || self.transition_playhead.get() >= frame_count;
+        let millis_complete =
+            millis_count <= f64::EPSILON || self.transition_playhead_millis.get() >= millis_count;
+        frame_complete && millis_complete
+    }
+
+    fn self_enter_transition_complete(&self) -> bool {
+        if self.transition_phase.get() != TRANSITION_PHASE_ENTER {
+            return true;
+        }
+        let instance_node = borrow!(self.instance_node);
+        let transition_config = instance_node.base().transition_config().clone();
+        drop(instance_node);
+        self.transition_duration_complete(
+            transition_config.enter_frame_count,
+            transition_config.enter_millis_count,
+            &transition_config.enter_dynamic_durations,
+        )
+    }
+
+    fn enable_enter_cleanup_listener(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        if self.enter_cleanup_active.get() {
+            return;
+        }
+        self.enter_cleanup_active.set(true);
+        let weak_self = Rc::downgrade(self);
+        let elapsed_frames = context.globals().elapsed_frames.clone();
+        let elapsed_frames_dep = elapsed_frames.untyped();
+        self.enter_cleanup_listener
+            .replace_with(Property::computed_with_name(
+                move || {
+                    let _ = elapsed_frames.get();
+                    if let Some(node) = weak_self.upgrade() {
+                        node.complete_self_enter_transition_if_needed();
+                    }
+                },
+                &[elapsed_frames_dep],
+                "enter transition cleanup",
+            ));
+        context.register_expanded_node_effect_property_named(
+            self,
+            &self.enter_cleanup_listener,
+            "enter transition cleanup",
+        );
+    }
+
+    fn complete_self_enter_transition_if_needed(&self) {
+        if !self.enter_cleanup_active.get() {
+            return;
+        }
+        if self.transition_phase.get() != TRANSITION_PHASE_ENTER {
+            self.disable_enter_cleanup_listener();
+            return;
+        }
+        if self.self_enter_transition_complete() {
+            self.transition_phase.set(TRANSITION_PHASE_IDLE);
+            self.deactivate_transition_clock();
+            self.disable_enter_cleanup_listener();
+        }
+    }
+
+    fn disable_enter_cleanup_listener(&self) {
+        self.enter_cleanup_active.set(false);
+        self.enter_cleanup_listener
+            .replace_with(Property::new_with_name((), "enter transition cleanup"));
     }
 
     fn exit_transition_tree_complete(self: &Rc<Self>, context: &Rc<RuntimeContext>) -> bool {
@@ -1052,13 +1191,19 @@ impl ExpandedNode {
                 &[elapsed_frames_dep],
                 "exit transition cleanup",
             ));
-        context.register_node_effect_property(self.id, &self.exit_cleanup_listener);
+        context.register_expanded_node_effect_property_named(
+            self,
+            &self.exit_cleanup_listener,
+            "exit transition cleanup",
+        );
     }
 
     fn prune_completed_exit_children(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
         let exiting = std::mem::take(&mut *borrow_mut!(self.exiting_children));
         if exiting.is_empty() {
             self.exit_cleanup_active.set(false);
+            self.exit_cleanup_listener
+                .replace_with(Property::new_with_name((), "exit transition cleanup"));
             return;
         }
 
@@ -1077,6 +1222,8 @@ impl ExpandedNode {
 
         if borrow!(self.exiting_children).is_empty() {
             self.exit_cleanup_active.set(false);
+            self.exit_cleanup_listener
+                .replace_with(Property::new_with_name((), "exit transition cleanup"));
         }
     }
 
@@ -1328,48 +1475,62 @@ impl ExpandedNode {
         ]);
 
         let context = Rc::clone(ctx);
-        self.occlusion_listener.replace_with(Property::computed(
-            move || {
-                context.mark_occlusion_dirty();
-            },
-            &deps,
-        ));
-        ctx.register_node_effect_property(self.id, &self.occlusion_listener);
+        self.occlusion_listener
+            .replace_with(Property::computed_with_name(
+                move || {
+                    context.mark_occlusion_dirty();
+                },
+                &deps,
+                "occlusion listener",
+            ));
+        ctx.register_expanded_node_effect_property_named(
+            self,
+            &self.occlusion_listener,
+            "occlusion listener",
+        );
     }
 
     fn bind_children_listener(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
         let deps = [self.children.untyped()];
         let weak_self = Rc::downgrade(self);
         let context = Rc::clone(ctx);
-        self.children_listener.replace_with(Property::computed(
-            move || {
-                let Some(node) = weak_self.upgrade() else {
-                    return;
-                };
-                let _ = node.children.get();
-                if borrow!(node.instance_node).base().flags().is_component
-                    || borrow!(node.expanded_projected_children).is_some()
-                {
-                    node.compute_flattened_projected_children();
-                }
-                context.mark_occlusion_dirty();
-
-                let (is_slot, is_component) = {
-                    let instance = borrow!(node.instance_node);
-                    let flags = instance.base().flags();
-                    (flags.is_slot, flags.is_component)
-                };
-                if !is_slot {
-                    if is_component {
-                        node.slot_projection_changed.set(());
-                    } else if let Some(containing_component) = node.containing_component.upgrade() {
-                        containing_component.slot_projection_changed.set(());
+        self.children_listener
+            .replace_with(Property::computed_with_name(
+                move || {
+                    let Some(node) = weak_self.upgrade() else {
+                        return;
+                    };
+                    let _ = node.children.get();
+                    if borrow!(node.instance_node).base().flags().is_component
+                        || borrow!(node.expanded_projected_children).is_some()
+                    {
+                        node.compute_flattened_projected_children();
                     }
-                }
-            },
-            &deps,
-        ));
-        ctx.register_node_effect_property(self.id, &self.children_listener);
+                    context.mark_occlusion_dirty();
+
+                    let (is_slot, is_component) = {
+                        let instance = borrow!(node.instance_node);
+                        let flags = instance.base().flags();
+                        (flags.is_slot, flags.is_component)
+                    };
+                    if !is_slot {
+                        if is_component {
+                            node.slot_projection_changed.set(());
+                        } else if let Some(containing_component) =
+                            node.containing_component.upgrade()
+                        {
+                            containing_component.slot_projection_changed.set(());
+                        }
+                    }
+                },
+                &deps,
+                "children listener",
+            ));
+        ctx.register_expanded_node_effect_property_named(
+            self,
+            &self.children_listener,
+            "children listener",
+        );
     }
 
     fn bind_subtree_layout_hull(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
@@ -1388,7 +1549,11 @@ impl ExpandedNode {
                 &deps,
                 "subtree layout hull listener",
             ));
-        ctx.register_node_effect_property(self.id, &self.subtree_layout_hull_listener);
+        ctx.register_expanded_node_effect_property_named(
+            self,
+            &self.subtree_layout_hull_listener,
+            "subtree layout hull listener",
+        );
     }
     fn rebind_subtree_layout_hull(self: &Rc<Self>) {
         let self_transform_and_bounds = self.transform_and_bounds.clone();
@@ -1688,7 +1853,11 @@ impl ExpandedNode {
             borrow!(self.instance_node)
                 .clone()
                 .handle_mount(&self, context);
-            context.register_node_effect_property(self.id, &self.changed_listener);
+            context.register_expanded_node_effect_property_named(
+                self,
+                &self.changed_listener,
+                "changed listener",
+            );
         }
     }
 
@@ -1740,6 +1909,9 @@ impl ExpandedNode {
             borrow_mut!(self.resolved_property_provenance).clear();
             self.active_children_view.set(Vec::new());
             self.exiting_children_view.set(Vec::new());
+            self.enter_cleanup_active.set(false);
+            self.enter_cleanup_listener
+                .replace_with(Property::new_with_name((), "enter transition cleanup"));
             self.exit_cleanup_active.set(false);
             self.exit_cleanup_listener.replace_with(Property::default());
         }

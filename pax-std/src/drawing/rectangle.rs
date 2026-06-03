@@ -2,7 +2,7 @@ use kurbo::{Affine, RoundedRect, RoundedRectRadii, Shape};
 use pax_runtime::{api::Fill, BaseInstance};
 use pax_runtime_api::use_RefCell;
 
-use crate::common::begin_bounded_canvas_node;
+use crate::common::{begin_bounded_canvas_node, mark_canvas_node_dirty_on_render_change};
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
 use pax_runtime::api as pax_runtime_api;
@@ -10,6 +10,8 @@ use pax_runtime::api::{Layer, Material, RenderContext, Stroke};
 use_RefCell!();
 use pax_engine::{helpers, pax, Property};
 use pax_manifest::pax_runtime_api::Numeric;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 /// A 2D vector rectangle, which covers its bounding box with the specified fill and stroke.
@@ -74,14 +76,26 @@ impl InstanceNode for RectangleInstance {
         ];
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
+        let last_render_signature = Rc::new(RefCell::new(None));
+        let corner_radii_for_dirty = corner_radii.clone();
+        let stroke_for_dirty = stroke.clone();
+        let fill_for_dirty = fill.clone();
 
         expanded_node
             .changed_listener
             .replace_with(Property::computed(
                 move || {
-                    cloned_context.mark_canvas_node_dirty(cloned_expanded_node.id);
-                    cloned_context
-                        .set_canvas_dirty(cloned_expanded_node.occlusion.get().render_layer_id)
+                    let style_hash = rectangle_style_hash(
+                        &corner_radii_for_dirty.get(),
+                        &stroke_for_dirty.get(),
+                        &fill_for_dirty.get(),
+                    );
+                    mark_canvas_node_dirty_on_render_change(
+                        &last_render_signature,
+                        &cloned_expanded_node,
+                        &cloned_context,
+                        style_hash,
+                    );
                 },
                 deps,
             ));
@@ -170,6 +184,19 @@ impl InstanceNode for RectangleInstance {
     fn base(&self) -> &BaseInstance {
         &self.base
     }
+}
+
+fn rectangle_style_hash(corner_radii: &RectangleCornerRadii, stroke: &Stroke, fill: &Fill) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    corner_radii.top_left.get().hash(&mut hasher);
+    corner_radii.top_right.get().hash(&mut hasher);
+    corner_radii.bottom_right.get().hash(&mut hasher);
+    corner_radii.bottom_left.get().hash(&mut hasher);
+    stroke.color.get().hash(&mut hasher);
+    stroke.width.get().hash(&mut hasher);
+    stroke.cap.get().hash(&mut hasher);
+    fill.hash(&mut hasher);
+    hasher.finish()
 }
 
 /// Corner radii for a rectangle, ordered clockwise from top-left.

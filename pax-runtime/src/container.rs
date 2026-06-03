@@ -291,10 +291,12 @@ pub fn bind_content_measurement_effect<F>(
         extra_deps,
         effect.clone(),
     );
-    ctx.runtime_context.register_node_effect_property(
-        expanded_node.id,
-        &expanded_node.content_measurement_listener,
-    );
+    ctx.runtime_context
+        .register_expanded_node_effect_property_named(
+            expanded_node,
+            &expanded_node.content_measurement_listener,
+            listener_name,
+        );
 
     let weak_node = Rc::downgrade(expanded_node);
     let runtime_context = Rc::clone(&ctx.runtime_context);
@@ -318,10 +320,12 @@ pub fn bind_content_measurement_effect<F>(
             &[ctx.received_children_changed.untyped()],
             &rebind_name,
         ));
-    ctx.runtime_context.register_node_effect_property(
-        expanded_node.id,
-        &expanded_node.content_measurement_rebind_listener,
-    );
+    ctx.runtime_context
+        .register_expanded_node_effect_property_named(
+            expanded_node,
+            &expanded_node.content_measurement_rebind_listener,
+            &rebind_name,
+        );
 }
 
 /// Engine-internal selector for which child family should be normalized into

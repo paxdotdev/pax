@@ -512,26 +512,27 @@ impl InstanceNode for ScrollerHostInstance {
                             || patch.scroll_y.is_some()
                             || patch.presentation_scroll_x.is_some()
                             || patch.presentation_scroll_y.is_some();
-                        let visual_update = patch.size_x.is_some()
+                        let content_visual_update = patch.size_x.is_some()
                             || patch.size_y.is_some()
                             || patch.size_inner_pane_x.is_some()
                             || patch.size_inner_pane_y.is_some()
                             || patch.scroll_enabled_x.is_some()
                             || patch.scroll_enabled_y.is_some()
-                            || patch.transform.is_some()
-                            || patch.opacity.is_some()
                             || patch.clip_content.is_some();
+                        let host_compositor_update =
+                            patch.transform.is_some() || patch.opacity.is_some();
                         if updates.into_iter().any(|updated| updated) {
                             context.enqueue_native_message(
                                 pax_message::NativeMessage::ScrollerUpdate(patch),
                             );
-                            if visual_update {
+                            if content_visual_update
+                                || (host_compositor_update && !has_scroller_island)
+                            {
                                 // Browser-owned scroller islands now keep tiled canvases mounted in
-                                // content coordinates, so ordinary scroll motion is handled by the
-                                // browser moving the host. Reserve descendant canvas invalidation
-                                // for real visual/layout changes; tile-window shifts are handled by
-                                // the chassis surface-refresh path instead of rerendering every
-                                // canvas node on each scroll tick.
+                                // content coordinates, so host transforms and opacity can be
+                                // applied by the native compositor. Reserve descendant canvas
+                                // invalidation for content geometry changes, or for non-island
+                                // scrollers whose descendants still render into a fixed surface.
                                 mark_canvas_descendants_dirty(&expanded_node, &context);
                             } else if scroll_updated && !has_scroller_island {
                                 // Root/non-island scrollers still render into a fixed surface; when

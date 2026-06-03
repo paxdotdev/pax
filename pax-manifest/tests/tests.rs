@@ -766,6 +766,66 @@ mod tests {
     }
 
     #[test]
+    fn test_element_transition_dynamic_duration_does_not_use_percent_fallback() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let group_type_id = TypeId::build_singleton("Group", Some("Group"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Group".to_string(), group_type_id);
+
+        let pax = r#"
+            <Group
+                id=panel
+                opacity=1
+                @out=@timeline {
+                    duration: {self.duration},
+                    opacity: {
+                        0: 1,
+                        100%: 0,
+                    },
+                }
+            />
+        "#;
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            pax,
+            false,
+            template_map,
+            "crate",
+            component_type_id.clone(),
+            "example.pax",
+            file!(),
+        );
+        let mut components = BTreeMap::new();
+        components.insert(component_type_id.clone(), component);
+        let manifest = PaxManifest {
+            components,
+            main_component_type_id: component_type_id.clone(),
+            type_table: Default::default(),
+            assets_dirs: vec![],
+            engine_import_path: "pax_kit::pax_engine".to_string(),
+        };
+
+        let component = manifest.components.get(&component_type_id).unwrap();
+        let template = component.template.as_ref().unwrap();
+        let panel_id = template_node_id_by_id(template, "panel");
+        let panel = template.get_node(&panel_id).unwrap();
+        let common = manifest.get_inline_common_properties(&component_type_id, &panel_id, panel);
+
+        assert!(matches!(
+            common.get("opacity"),
+            Some(ValueDefinition::Transition(transition)) if transition.exit.is_some()
+        ));
+        let config = manifest.get_template_node_transition_config(&component_type_id, &panel_id);
+        assert!(config.has_exit);
+        assert_eq!(config.exit_frame_count, 0);
+        assert!(matches!(
+            config.exit_dynamic_durations.as_slice(),
+            [ValueDefinition::Expression(_)]
+        ));
+    }
+
+    #[test]
     fn test_parse_with_extra() {
         let res = utils::parse_value("{5 + 3}this_shouldn't succeed");
         assert!(matches!(res, Err(_)));

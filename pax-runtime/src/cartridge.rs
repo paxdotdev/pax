@@ -2620,7 +2620,7 @@ fn duration_unit(duration: Duration) -> TimelineClockUnit {
     }
 }
 
-fn evaluate_timeline_duration(
+pub(crate) fn evaluate_timeline_duration(
     value_definition: &ValueDefinition,
     stack: &Rc<RuntimePropertiesStackFrame>,
 ) -> Option<Duration> {

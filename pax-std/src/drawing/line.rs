@@ -6,9 +6,13 @@ use pax_runtime::api::{use_RefCell, Layer, Material, RenderContext, Stroke};
 use pax_runtime::BaseInstance;
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
-use crate::common::{begin_bounded_canvas_node, to_kurbo_point};
+use crate::common::{
+    begin_bounded_canvas_node, mark_canvas_node_dirty_on_render_change, to_kurbo_point,
+};
 
 use_RefCell!();
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 /// A 2D vector line segment.
@@ -88,14 +92,30 @@ impl InstanceNode for LineInstance {
         ];
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
+        let last_render_signature = Rc::new(RefCell::new(None));
+        let x1_for_dirty = x1.clone();
+        let y1_for_dirty = y1.clone();
+        let x2_for_dirty = x2.clone();
+        let y2_for_dirty = y2.clone();
+        let stroke_for_dirty = stroke.clone();
 
         expanded_node
             .changed_listener
             .replace_with(Property::computed(
                 move || {
-                    cloned_context.mark_canvas_node_dirty(cloned_expanded_node.id);
-                    cloned_context
-                        .set_canvas_dirty(cloned_expanded_node.occlusion.get().render_layer_id)
+                    let style_hash = line_style_hash(
+                        x1_for_dirty.get(),
+                        y1_for_dirty.get(),
+                        x2_for_dirty.get(),
+                        y2_for_dirty.get(),
+                        &stroke_for_dirty.get(),
+                    );
+                    mark_canvas_node_dirty_on_render_change(
+                        &last_render_signature,
+                        &cloned_expanded_node,
+                        &cloned_context,
+                        style_hash,
+                    );
                 },
                 deps,
             ));
@@ -188,6 +208,18 @@ impl InstanceNode for LineInstance {
     fn base(&self) -> &BaseInstance {
         &self.base
     }
+}
+
+fn line_style_hash(x1: Size, y1: Size, x2: Size, y2: Size, stroke: &Stroke) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    x1.hash(&mut hasher);
+    y1.hash(&mut hasher);
+    x2.hash(&mut hasher);
+    y2.hash(&mut hasher);
+    stroke.color.get().hash(&mut hasher);
+    stroke.width.get().hash(&mut hasher);
+    stroke.cap.get().hash(&mut hasher);
+    hasher.finish()
 }
 
 fn resolve_points(line: &Line, bounds: (f64, f64)) -> (kurbo::Point, kurbo::Point) {

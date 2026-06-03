@@ -10,6 +10,7 @@ mod untyped_property;
 use crate::{Duration, EasingCurve, Interpolatable, TransitionQueueEntry};
 
 use self::properties_table::{PropertyType, PROPERTY_MILLIS, PROPERTY_TIME};
+pub use properties_table::EffectDrainReport;
 use properties_table::PROPERTY_TABLE;
 pub use untyped_property::UntypedProperty;
 
@@ -246,8 +247,18 @@ pub fn register_effect_property(prop: &Property<()>) {
 }
 
 #[doc(hidden)]
+pub fn register_effect_property_with_name(prop: &Property<()>, debug_name: &str) {
+    PROPERTY_TABLE.with(|t| t.register_effect_with_name(prop.untyped.id, Some(debug_name)));
+}
+
+#[doc(hidden)]
 pub fn drain_effects(max_iterations: usize) -> usize {
     PROPERTY_TABLE.with(|t| t.drain_effects(max_iterations))
+}
+
+#[doc(hidden)]
+pub fn drain_effects_with_report(max_iterations: usize) -> EffectDrainReport {
+    PROPERTY_TABLE.with(|t| t.drain_effects_with_report(max_iterations))
 }
 
 // Registers the runtime clock property used by transition/easing machinery.

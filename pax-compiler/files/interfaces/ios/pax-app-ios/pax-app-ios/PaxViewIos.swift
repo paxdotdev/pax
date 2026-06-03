@@ -140,6 +140,8 @@ struct PaxViewIos: View {
         private let viewportSizeEpsilon: CGFloat = 0.5
         private let surfaceManager = SurfaceManager()
         private var lastTouchPositions: [ObjectIdentifier: CGPoint] = [:]
+        private let frameInstrumentationEnabled = PaxCanvasViewIos.frameInstrumentationFlagEnabled()
+        private var frameInstrumentation = PaxFrameInstrumentation()
 
         override init(frame: CGRect) {
             super.init(frame: frame)
@@ -348,18 +350,42 @@ struct PaxViewIos: View {
         }
 
         @objc private func handleDisplayLink(_ displayLink: CADisplayLink) {
-            processRequestAnimationFrameQueue()
-            tick()
+            if frameInstrumentationEnabled {
+                let requestAnimationFrameStart = CACurrentMediaTime()
+                processRequestAnimationFrameQueue()
+                let requestAnimationFrameMs = Self.elapsedMilliseconds(since: requestAnimationFrameStart)
+                let phases = tick(measurePhases: true)
+                frameInstrumentation.record(
+                    displayLink: displayLink,
+                    requestAnimationFrameMs: requestAnimationFrameMs,
+                    phases: phases
+                )
+            } else {
+                processRequestAnimationFrameQueue()
+                tick()
+            }
         }
 
         deinit {
             displayLink?.invalidate()
         }
 
-        private func tick() {
+        @discardableResult
+        private func tick(measurePhases: Bool = false) -> PaxFramePhaseDurations {
+            let totalStart = measurePhases ? CACurrentMediaTime() : 0
+            var phaseStart = totalStart
+            var phases = PaxFramePhaseDurations()
+
             let viewportSize = viewportSizeForCurrentFrame()
+            if measurePhases {
+                phases.viewportMs = Self.elapsedMilliseconds(since: phaseStart)
+                phaseStart = CACurrentMediaTime()
+            }
             guard viewportSize.width > 0, viewportSize.height > 0 else {
-                return
+                if measurePhases {
+                    phases.totalMs = Self.elapsedMilliseconds(since: totalStart)
+                }
+                return phases
             }
             noteViewportSize(viewportSize)
 
@@ -370,9 +396,16 @@ struct PaxViewIos: View {
             if PaxEngineContainer.paxEngineContainer == nil {
                 PaxEngineContainer.paxEngineContainer = pax_init(width, height)
             }
+            if measurePhases {
+                phases.engineInitMs = Self.elapsedMilliseconds(since: phaseStart)
+                phaseStart = CACurrentMediaTime()
+            }
 
             guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
-                return
+                if measurePhases {
+                    phases.totalMs = Self.elapsedMilliseconds(since: totalStart)
+                }
+                return phases
             }
 
             let nativeMessageQueue = pax_tick(
@@ -382,18 +415,170 @@ struct PaxViewIos: View {
                 height,
                 scale
             )
+            if measurePhases {
+                phases.paxTickMs = Self.elapsedMilliseconds(since: phaseStart)
+                phaseStart = CACurrentMediaTime()
+            }
             let queue = nativeMessageQueue.unsafelyUnwrapped.pointee
             let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
             processNativeMessageQueueData(Data(buffer: buffer))
             pax_dealloc_message_queue(nativeMessageQueue)
+            if measurePhases {
+                phases.nativeMessagesMs = Self.elapsedMilliseconds(since: phaseStart)
+                phaseStart = CACurrentMediaTime()
+            }
 
             surfaceManager.sync(
                 engineContainer: engineContainer,
                 rootView: self,
                 scale: CGFloat(scale)
             )
+            if measurePhases {
+                phases.surfaceSyncMs = Self.elapsedMilliseconds(since: phaseStart)
+                phaseStart = CACurrentMediaTime()
+            }
             pax_render(engineContainer)
+            if measurePhases {
+                phases.paxRenderMs = Self.elapsedMilliseconds(since: phaseStart)
+                phases.totalMs = Self.elapsedMilliseconds(since: totalStart)
+            }
+            return phases
+        }
 
+        private static func frameInstrumentationFlagEnabled() -> Bool {
+            if processFlagEnabled("PAX_IOS_FRAME_INSTRUMENTATION") {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: "PAX_IOS_FRAME_INSTRUMENTATION")
+        }
+
+        private static func processFlagEnabled(_ name: String) -> Bool {
+            guard let value = ProcessInfo.processInfo.environment[name]?.lowercased() else {
+                return false
+            }
+            return value == "1" || value == "true" || value == "yes" || value == "on"
+        }
+
+        private static func elapsedMilliseconds(since start: CFTimeInterval) -> Double {
+            (CACurrentMediaTime() - start) * 1000.0
+        }
+
+        private struct PaxFramePhaseDurations {
+            var viewportMs = 0.0
+            var engineInitMs = 0.0
+            var paxTickMs = 0.0
+            var nativeMessagesMs = 0.0
+            var surfaceSyncMs = 0.0
+            var paxRenderMs = 0.0
+            var totalMs = 0.0
+        }
+
+        private struct PaxFrameInstrumentation {
+            private var windowStart = CACurrentMediaTime()
+            private var lastDisplayLinkTimestamp: CFTimeInterval?
+            private var frameCount = 0
+            private var callbackIntervalTotalMs = 0.0
+            private var callbackIntervalMaxMs = 0.0
+            private var overBudgetFrames = 0
+            private var frameTotal = PhaseStats()
+            private var requestAnimationFrame = PhaseStats()
+            private var paxTick = PhaseStats()
+            private var nativeMessages = PhaseStats()
+            private var surfaceSync = PhaseStats()
+            private var paxRender = PhaseStats()
+
+            mutating func record(
+                displayLink: CADisplayLink,
+                requestAnimationFrameMs: Double,
+                phases: PaxFramePhaseDurations
+            ) {
+                frameCount += 1
+                if let lastDisplayLinkTimestamp {
+                    let intervalMs = (displayLink.timestamp - lastDisplayLinkTimestamp) * 1000.0
+                    callbackIntervalTotalMs += intervalMs
+                    callbackIntervalMaxMs = max(callbackIntervalMaxMs, intervalMs)
+                }
+                lastDisplayLinkTimestamp = displayLink.timestamp
+
+                let budgetMs = max((displayLink.targetTimestamp - displayLink.timestamp) * 1000.0, 1.0)
+                if phases.totalMs > budgetMs {
+                    overBudgetFrames += 1
+                }
+
+                frameTotal.record(phases.totalMs)
+                requestAnimationFrame.record(requestAnimationFrameMs)
+                paxTick.record(phases.paxTickMs)
+                nativeMessages.record(phases.nativeMessagesMs)
+                surfaceSync.record(phases.surfaceSyncMs)
+                paxRender.record(phases.paxRenderMs)
+
+                let now = CACurrentMediaTime()
+                let elapsed = now - windowStart
+                guard elapsed >= 1.0 else {
+                    return
+                }
+
+                let callbackSamples = max(frameCount - 1, 1)
+                let callbackAvgMs = callbackIntervalTotalMs / Double(callbackSamples)
+                let fps = Double(frameCount) / elapsed
+                print(
+                    String(
+                        format: "[PaxFrame] fps=%.1f frames=%d budget=%.2fms callback_avg=%.2fms callback_max=%.2fms over_budget=%d total=%@ raf=%@ pax_tick=%@ native=%@ surface=%@ render=%@",
+                        fps,
+                        frameCount,
+                        budgetMs,
+                        callbackAvgMs,
+                        callbackIntervalMaxMs,
+                        overBudgetFrames,
+                        frameTotal.summary,
+                        requestAnimationFrame.summary,
+                        paxTick.summary,
+                        nativeMessages.summary,
+                        surfaceSync.summary,
+                        paxRender.summary
+                    )
+                )
+                resetWindow(now: now)
+            }
+
+            private mutating func resetWindow(now: CFTimeInterval) {
+                windowStart = now
+                frameCount = 0
+                callbackIntervalTotalMs = 0.0
+                callbackIntervalMaxMs = 0.0
+                overBudgetFrames = 0
+                frameTotal.reset()
+                requestAnimationFrame.reset()
+                paxTick.reset()
+                nativeMessages.reset()
+                surfaceSync.reset()
+                paxRender.reset()
+            }
+        }
+
+        private struct PhaseStats {
+            private var totalMs = 0.0
+            private var maxMs = 0.0
+            private var count = 0
+
+            mutating func record(_ value: Double) {
+                totalMs += value
+                maxMs = max(maxMs, value)
+                count += 1
+            }
+
+            mutating func reset() {
+                totalMs = 0.0
+                maxMs = 0.0
+                count = 0
+            }
+
+            var summary: String {
+                guard count > 0 else {
+                    return "avg=0.00 max=0.00"
+                }
+                return String(format: "avg=%.2f max=%.2f", totalMs / Double(count), maxMs)
+            }
         }
 
         private func measureTextElement(_ textElement: TextElement) -> CGSize {

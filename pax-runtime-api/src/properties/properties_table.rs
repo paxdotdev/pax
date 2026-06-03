@@ -1,7 +1,7 @@
 use std::{
     any::Any,
     cell::RefCell,
-    collections::{HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     rc::Rc,
 };
 
@@ -12,6 +12,17 @@ use slotmap::SparseSecondaryMap;
 use crate::{Property, TransitionManager, TransitionQueueEntry};
 
 use super::{private::PropertyId, PropertyValue};
+
+#[derive(Clone, Debug, Default)]
+pub struct EffectDrainReport {
+    pub ran: usize,
+    pub popped: usize,
+    pub skipped_clean: usize,
+    pub skipped_unregistered: usize,
+    pub skipped_missing: usize,
+    pub remaining: usize,
+    pub top_effects: Vec<(String, usize)>,
+}
 
 thread_local! {
     // Global property table used to store data backing dirty-dag
@@ -72,6 +83,7 @@ pub(crate) struct PropertyTable {
     pub(crate) property_map: RefCell<SlotMap<PropertyId, Entry>>,
     #[cfg(debug_assertions)]
     debug_names: RefCell<SparseSecondaryMap<PropertyId, String>>,
+    effect_debug_names: RefCell<HashMap<PropertyId, String>>,
     effect_properties: RefCell<HashSet<PropertyId>>,
     queued_effects: RefCell<VecDeque<PropertyId>>,
     queued_effect_set: RefCell<HashSet<PropertyId>>,
@@ -399,6 +411,15 @@ impl PropertyTable {
     }
 
     pub(crate) fn register_effect(&self, id: PropertyId) {
+        self.register_effect_with_name(id, None);
+    }
+
+    pub(crate) fn register_effect_with_name(&self, id: PropertyId, debug_name: Option<&str>) {
+        if let Some(debug_name) = debug_name {
+            self.effect_debug_names
+                .borrow_mut()
+                .insert(id, debug_name.to_owned());
+        }
         self.effect_properties.borrow_mut().insert(id);
         self.enqueue_effect_if_registered(id);
     }
@@ -419,6 +440,49 @@ impl PropertyTable {
             }
         }
         ran
+    }
+
+    pub(crate) fn drain_effects_with_report(&self, max_iterations: usize) -> EffectDrainReport {
+        let mut report = EffectDrainReport::default();
+        let mut effect_counts = HashMap::new();
+
+        while report.ran < max_iterations {
+            let Some(id) = self.pop_queued_effect() else {
+                break;
+            };
+            report.popped += 1;
+
+            if !self.is_registered_effect(id) {
+                report.skipped_unregistered += 1;
+                continue;
+            }
+            if !self.has_live_entry(id) {
+                report.skipped_missing += 1;
+                continue;
+            }
+
+            let dirty = self.with_property_data(id, |property_data| property_data.dirty);
+            if dirty {
+                let effect_name = self.debug_name_for_diagnostics(id);
+                self.update_value::<()>(id);
+                report.ran += 1;
+                *effect_counts.entry(effect_name).or_insert(0) += 1;
+            } else {
+                report.skipped_clean += 1;
+            }
+        }
+
+        report.remaining = self.queued_effects.borrow().len();
+        report.top_effects = effect_counts.into_iter().collect();
+        report
+            .top_effects
+            .sort_by(|(left_name, left_count), (right_name, right_count)| {
+                right_count
+                    .cmp(left_count)
+                    .then_with(|| left_name.cmp(right_name))
+            });
+        report.top_effects.truncate(8);
+        report
     }
 
     pub(crate) fn enqueue_effect_if_registered(&self, id: PropertyId) {
@@ -442,6 +506,7 @@ impl PropertyTable {
 
     fn unregister_effect(&self, id: PropertyId) {
         self.effect_properties.borrow_mut().remove(&id);
+        self.effect_debug_names.borrow_mut().remove(&id);
         self.queued_effect_set.borrow_mut().remove(&id);
     }
 
@@ -455,5 +520,20 @@ impl PropertyTable {
             .get(id)
             .and_then(|entry| entry.data.as_ref())
             .is_some()
+    }
+
+    fn debug_name_for_diagnostics(&self, id: PropertyId) -> String {
+        if let Some(name) = self.effect_debug_names.borrow().get(&id) {
+            return name.clone();
+        }
+
+        #[cfg(debug_assertions)]
+        {
+            if let Some(name) = self.debug_names.borrow().get(id) {
+                return name.clone();
+            }
+        }
+
+        format!("{id:?}")
     }
 }
