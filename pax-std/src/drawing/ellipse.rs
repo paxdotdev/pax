@@ -1,7 +1,7 @@
 use kurbo::{Affine, Rect, Shape};
 use pax_engine::*;
 use pax_runtime::api::{use_RefCell, Stroke};
-use pax_runtime::api::{Fill, Layer, RenderContext};
+use pax_runtime::api::{Fill, Layer, Material, RenderContext};
 use pax_runtime::BaseInstance;
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
@@ -20,6 +20,8 @@ pub struct Ellipse {
     pub stroke: Property<Stroke>,
     /// Fill painted inside the ellipse.
     pub fill: Property<Fill>,
+    /// Light-reactive surface response.
+    pub material: Property<Material>,
 }
 
 // Runtime instance backing `<Ellipse>`.
@@ -52,14 +54,20 @@ impl InstanceNode for EllipseInstance {
         context: &Rc<RuntimeContext>,
     ) {
         let tab = expanded_node.transform_and_bounds.clone();
-        let (stroke, fill) = expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
-            (properties.stroke.clone(), properties.fill.clone())
-        });
+        let (stroke, fill, material) =
+            expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
+                (
+                    properties.stroke.clone(),
+                    properties.fill.clone(),
+                    properties.material.clone(),
+                )
+            });
 
         let deps = &[
             tab.untyped(),
             stroke.untyped(),
             fill.untyped(),
+            material.untyped(),
             expanded_node.computed_opacity.untyped(),
         ];
         let cloned_expanded_node = expanded_node.clone();
@@ -114,15 +122,28 @@ impl InstanceNode for EllipseInstance {
             let opacity = expanded_node.computed_opacity.get();
             let fill = properties.fill.get();
             let stroke = properties.stroke.get();
+            let material = properties.material.get();
             rc.save(scope.layer_id);
             rc.transform(scope.layer_id, scope.surface_transform);
-            rc.fill_with_opacity(scope.layer_id, bez_path.clone(), &fill, opacity);
+            rc.fill_with_material_and_opacity(
+                scope.layer_id,
+                bez_path.clone(),
+                &fill,
+                &material,
+                opacity,
+            );
 
             //hack to address "phantom stroke" bug on Web
             let width: f64 = stroke.width.get().expect_pixels().to_float();
 
             if width > f64::EPSILON {
-                rc.stroke_with_opacity(scope.layer_id, bez_path, &stroke, opacity);
+                rc.stroke_with_material_and_opacity(
+                    scope.layer_id,
+                    bez_path,
+                    &stroke,
+                    &material,
+                    opacity,
+                );
             }
             rc.restore(scope.layer_id);
         });

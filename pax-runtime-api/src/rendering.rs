@@ -19,6 +19,17 @@ pub trait RenderContext {
     }
     /// Fills a path with an explicit opacity multiplier.
     fn fill_with_opacity(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill, opacity: f64);
+    /// Fills a path with a material and explicit opacity multiplier.
+    fn fill_with_material_and_opacity(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        fill: &Fill,
+        _material: &Material,
+        opacity: f64,
+    ) {
+        self.fill_with_opacity(layer, path, fill, opacity);
+    }
     /// Strokes a path at full opacity.
     fn stroke(&mut self, layer: usize, path: kurbo::BezPath, stroke: &Stroke) {
         self.stroke_with_opacity(layer, path, stroke, 1.0);
@@ -31,6 +42,17 @@ pub trait RenderContext {
         stroke: &Stroke,
         opacity: f64,
     );
+    /// Strokes a path with a material and explicit opacity multiplier.
+    fn stroke_with_material_and_opacity(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        stroke: &Stroke,
+        _material: &Material,
+        opacity: f64,
+    ) {
+        self.stroke_with_opacity(layer, path, stroke, opacity);
+    }
 
     // Clip/transform
     /// Saves the current graphics state for a layer.
@@ -65,6 +87,8 @@ pub trait RenderContext {
     fn resize(&mut self, width: usize, height: usize);
     /// Requests refresh of specific layers.
     fn refresh_layers(&mut self, layers: &[usize]);
+    /// Installs resolved lighting for a logical canvas layer.
+    fn set_scene_lighting(&mut self, _layer: usize, _lighting: &SceneLighting) {}
     /// Returns canvas layers ready to present.
     fn take_ready_canvas_layers(&mut self) -> Vec<usize> {
         vec![]

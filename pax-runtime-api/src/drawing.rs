@@ -147,6 +147,490 @@ impl Hash for Stroke {
     }
 }
 
+/// Logical scene depth for lighting calculations.
+///
+/// `Depth` is expressed in logical pixels. Unlike [`Size`], it is not anchored
+/// to a viewport or parent box, so percent and combined units are intentionally
+/// rejected during value coercion.
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, Default, PartialEq, PartialOrd)]
+#[serde(crate = "crate::serde")]
+pub struct Depth(pub Numeric);
+
+impl Depth {
+    /// Returns the depth as a floating-point logical pixel value.
+    pub fn to_float(&self) -> f64 {
+        self.0.to_float()
+    }
+}
+
+impl From<Numeric> for Depth {
+    fn from(value: Numeric) -> Self {
+        Self(value)
+    }
+}
+
+impl From<f64> for Depth {
+    fn from(value: f64) -> Self {
+        Self(Numeric::F64(value))
+    }
+}
+
+impl Hash for Depth {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
+impl Interpolatable for Depth {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Self(self.0.interpolate(&other.0, t))
+    }
+}
+
+impl HelperFunctions for Depth {}
+
+/// A three-dimensional vector in logical scene space.
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(crate = "crate::serde")]
+pub struct Vector3 {
+    /// X component.
+    pub x: f64,
+    /// Y component.
+    pub y: f64,
+    /// Z component.
+    pub z: f64,
+}
+
+impl Vector3 {
+    /// Constructs a 3D vector.
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+}
+
+impl Default for Vector3 {
+    fn default() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+}
+
+impl Hash for Vector3 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.x.to_bits().hash(state);
+        self.y.to_bits().hash(state);
+        self.z.to_bits().hash(state);
+    }
+}
+
+impl Interpolatable for Vector3 {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Self {
+            x: self.x.interpolate(&other.x, t),
+            y: self.y.interpolate(&other.y, t),
+            z: self.z.interpolate(&other.z, t),
+        }
+    }
+}
+
+impl HelperFunctions for Vector3 {
+    fn register_all_functions() {
+        register_function(
+            "Vector3".to_string(),
+            "new".to_string(),
+            std::sync::Arc::new(|args| {
+                if args.len() != 3 {
+                    return Err("Expected 3 arguments for function Vector3::new".to_string());
+                }
+                let mut itr = args.into_iter();
+                let x = f64::try_coerce(itr.next().unwrap())?;
+                let y = f64::try_coerce(itr.next().unwrap())?;
+                let z = f64::try_coerce(itr.next().unwrap())?;
+                Ok(Vector3::new(x, y, z).to_pax_value())
+            }),
+        );
+    }
+}
+
+/// Shape of a light contribution in logical scene space.
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
+#[serde(crate = "crate::serde")]
+pub enum LightShape {
+    /// A positional light with radius-based attenuation.
+    #[default]
+    Point,
+    /// A light with direction but no position or attenuation.
+    Directional,
+}
+
+impl Interpolatable for LightShape {}
+impl HelperFunctions for LightShape {}
+
+/// Tunable response parameters for a light-reactive vector material.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "crate::serde")]
+pub struct MaterialParams {
+    /// Ambient contribution multiplier.
+    pub ambient: Property<f64>,
+    /// Diffuse contribution multiplier.
+    pub diffuse: Property<f64>,
+    /// Specular contribution multiplier.
+    pub specular: Property<f64>,
+    /// Surface roughness in the `[0.0, 1.0]` range.
+    pub roughness: Property<f64>,
+    /// Metallic response in the `[0.0, 1.0]` range.
+    pub metallic: Property<f64>,
+    /// Additive emissive color.
+    pub emissive: Property<Color>,
+    /// Additive emissive intensity.
+    pub emissive_intensity: Property<f64>,
+}
+
+impl Default for MaterialParams {
+    fn default() -> Self {
+        Self {
+            ambient: Property::new(1.0),
+            diffuse: Property::new(0.82),
+            specular: Property::new(0.08),
+            roughness: Property::new(0.78),
+            metallic: Property::new(0.0),
+            emissive: Property::new(Color::BLACK),
+            emissive_intensity: Property::new(0.0),
+        }
+    }
+}
+
+impl PartialEq for MaterialParams {
+    fn eq(&self, other: &Self) -> bool {
+        self.ambient.get() == other.ambient.get()
+            && self.diffuse.get() == other.diffuse.get()
+            && self.specular.get() == other.specular.get()
+            && self.roughness.get() == other.roughness.get()
+            && self.metallic.get() == other.metallic.get()
+            && self.emissive.get() == other.emissive.get()
+            && self.emissive_intensity.get() == other.emissive_intensity.get()
+    }
+}
+
+impl Hash for MaterialParams {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.ambient.get().to_bits().hash(state);
+        self.diffuse.get().to_bits().hash(state);
+        self.specular.get().to_bits().hash(state);
+        self.roughness.get().to_bits().hash(state);
+        self.metallic.get().to_bits().hash(state);
+        self.emissive.get().hash(state);
+        self.emissive_intensity.get().to_bits().hash(state);
+    }
+}
+
+impl Interpolatable for MaterialParams {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Self {
+            ambient: Property::new(self.ambient.get().interpolate(&other.ambient.get(), t)),
+            diffuse: Property::new(self.diffuse.get().interpolate(&other.diffuse.get(), t)),
+            specular: Property::new(self.specular.get().interpolate(&other.specular.get(), t)),
+            roughness: Property::new(self.roughness.get().interpolate(&other.roughness.get(), t)),
+            metallic: Property::new(self.metallic.get().interpolate(&other.metallic.get(), t)),
+            emissive: Property::new(self.emissive.get().interpolate(&other.emissive.get(), t)),
+            emissive_intensity: Property::new(
+                self.emissive_intensity
+                    .get()
+                    .interpolate(&other.emissive_intensity.get(), t),
+            ),
+        }
+    }
+}
+
+impl HelperFunctions for MaterialParams {}
+
+/// Light-reactive surface response for vector primitives.
+///
+/// This is intentionally named `Material`; `texture` is reserved for future
+/// bitmap-backed texture maps and pattern data.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(crate = "crate::serde")]
+pub enum Material {
+    /// Responds to scene lighting using parameterized material coefficients.
+    Lit(MaterialParams),
+    /// Ignores scene lighting and preserves legacy unlit rendering behavior.
+    Unlit,
+}
+
+impl Default for Material {
+    fn default() -> Self {
+        Self::matte()
+    }
+}
+
+impl Material {
+    /// A soft, low-specular material suitable as the default lit response.
+    pub fn matte() -> Self {
+        Self::Lit(MaterialParams::default())
+    }
+
+    /// A higher-specular material with lower roughness.
+    pub fn glossy(specular: f64) -> Self {
+        let mut params = MaterialParams::default();
+        params.specular = Property::new(specular.clamp(0.0, 1.0));
+        params.roughness = Property::new(0.28);
+        Self::Lit(params)
+    }
+
+    /// A metallic material response.
+    pub fn metallic(metallic: f64) -> Self {
+        let mut params = MaterialParams::default();
+        params.metallic = Property::new(metallic.clamp(0.0, 1.0));
+        params.diffuse = Property::new(0.42);
+        params.specular = Property::new(0.55);
+        params.roughness = Property::new(0.36);
+        Self::Lit(params)
+    }
+
+    /// An emissive material that adds color independent of lights.
+    pub fn emissive(color: Color, intensity: f64) -> Self {
+        let mut params = MaterialParams::default();
+        params.emissive = Property::new(color);
+        params.emissive_intensity = Property::new(intensity.max(0.0));
+        Self::Lit(params)
+    }
+
+    /// Creates a lit material from explicit coefficients.
+    pub fn custom(params: MaterialParams) -> Self {
+        Self::Lit(params)
+    }
+
+    /// A material that ignores authored lights.
+    pub fn unlit() -> Self {
+        Self::Unlit
+    }
+}
+
+impl Hash for Material {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Material::Lit(params) => {
+                state.write_u8(0);
+                params.hash(state);
+            }
+            Material::Unlit => {
+                state.write_u8(1);
+            }
+        }
+    }
+}
+
+impl Interpolatable for Material {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        match (self, other) {
+            (Self::Lit(lhs), Self::Lit(rhs)) => Self::Lit(lhs.interpolate(rhs, t)),
+            _ if t < 1.0 => self.clone(),
+            _ => other.clone(),
+        }
+    }
+}
+
+impl HelperFunctions for Material {
+    fn register_all_functions() {
+        register_function(
+            "Material".to_string(),
+            "matte".to_string(),
+            std::sync::Arc::new(|args| {
+                if !args.is_empty() {
+                    return Err("Expected 0 arguments for function Material::matte".to_string());
+                }
+                Ok(Material::matte().to_pax_value())
+            }),
+        );
+        register_function(
+            "Material".to_string(),
+            "glossy".to_string(),
+            std::sync::Arc::new(|args| {
+                if args.len() != 1 {
+                    return Err("Expected 1 argument for function Material::glossy".to_string());
+                }
+                let specular = f64::try_coerce(args.into_iter().next().unwrap())?;
+                Ok(Material::glossy(specular).to_pax_value())
+            }),
+        );
+        register_function(
+            "Material".to_string(),
+            "metallic".to_string(),
+            std::sync::Arc::new(|args| {
+                if args.len() != 1 {
+                    return Err("Expected 1 argument for function Material::metallic".to_string());
+                }
+                let metallic = f64::try_coerce(args.into_iter().next().unwrap())?;
+                Ok(Material::metallic(metallic).to_pax_value())
+            }),
+        );
+        register_function(
+            "Material".to_string(),
+            "emissive".to_string(),
+            std::sync::Arc::new(|args| {
+                if args.len() != 2 {
+                    return Err("Expected 2 arguments for function Material::emissive".to_string());
+                }
+                let mut itr = args.into_iter();
+                let color = Color::try_coerce(itr.next().unwrap())?;
+                let intensity = f64::try_coerce(itr.next().unwrap())?;
+                Ok(Material::emissive(color, intensity).to_pax_value())
+            }),
+        );
+        register_function(
+            "Material".to_string(),
+            "custom".to_string(),
+            std::sync::Arc::new(|args| {
+                if args.len() != 1 {
+                    return Err("Expected 1 argument for function Material::custom".to_string());
+                }
+                let params = MaterialParams::try_coerce(args.into_iter().next().unwrap())?;
+                Ok(Material::custom(params).to_pax_value())
+            }),
+        );
+        register_function(
+            "Material".to_string(),
+            "unlit".to_string(),
+            std::sync::Arc::new(|args| {
+                if !args.is_empty() {
+                    return Err("Expected 0 arguments for function Material::unlit".to_string());
+                }
+                Ok(Material::unlit().to_pax_value())
+            }),
+        );
+    }
+}
+
+/// Resolved ambient light for one logical canvas layer.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(crate = "crate::serde")]
+pub struct SceneAmbientLight {
+    /// Ambient color.
+    pub color: Color,
+    /// Ambient intensity.
+    pub intensity: f64,
+}
+
+impl Default for SceneAmbientLight {
+    fn default() -> Self {
+        Self {
+            color: Color::WHITE,
+            intensity: 1.0,
+        }
+    }
+}
+
+impl Interpolatable for SceneAmbientLight {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Self {
+            color: self.color.interpolate(&other.color, t),
+            intensity: self.intensity.interpolate(&other.intensity, t),
+        }
+    }
+}
+
+impl HelperFunctions for SceneAmbientLight {}
+
+/// Resolved light contribution for one logical canvas layer.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(crate = "crate::serde")]
+pub struct SceneLight {
+    /// Positional or directional light shape.
+    pub shape: LightShape,
+    /// Position in logical canvas pixels for point lights.
+    pub position: Vector3,
+    /// Direction in scene space for directional lights.
+    pub direction: Vector3,
+    /// Light color.
+    pub color: Color,
+    /// Light intensity.
+    pub intensity: f64,
+    /// Point light radius in logical pixels.
+    pub radius: f64,
+    /// Whether this light contributes.
+    pub enabled: bool,
+}
+
+impl Default for SceneLight {
+    fn default() -> Self {
+        Self {
+            shape: LightShape::Point,
+            position: Vector3::default(),
+            direction: Vector3::new(0.0, 0.0, -1.0),
+            color: Color::WHITE,
+            intensity: 1.0,
+            radius: 240.0,
+            enabled: true,
+        }
+    }
+}
+
+impl Interpolatable for SceneLight {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Self {
+            shape: if t < 1.0 { self.shape } else { other.shape },
+            position: self.position.interpolate(&other.position, t),
+            direction: self.direction.interpolate(&other.direction, t),
+            color: self.color.interpolate(&other.color, t),
+            intensity: self.intensity.interpolate(&other.intensity, t),
+            radius: self.radius.interpolate(&other.radius, t),
+            enabled: if t < 1.0 { self.enabled } else { other.enabled },
+        }
+    }
+}
+
+impl HelperFunctions for SceneLight {}
+
+/// Resolved lighting state for one logical canvas layer.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(crate = "crate::serde")]
+pub struct SceneLighting {
+    /// Whether authored lights or ambient overrides are present.
+    pub active: bool,
+    /// Singleton ambient contribution.
+    pub ambient: SceneAmbientLight,
+    /// Positional and directional light contributions.
+    pub lights: Vec<SceneLight>,
+}
+
+impl Default for SceneLighting {
+    fn default() -> Self {
+        Self {
+            active: false,
+            ambient: SceneAmbientLight::default(),
+            lights: vec![],
+        }
+    }
+}
+
+impl SceneLighting {
+    /// Ambient intensity used when point/directional lights exist but no explicit ambient override exists.
+    pub const DEFAULT_AMBIENT_INTENSITY: f64 = 0.35;
+
+    /// Returns lighting that preserves unlit legacy rendering.
+    pub fn identity() -> Self {
+        Self::default()
+    }
+
+    /// Creates active lighting with Pax's default ambient term.
+    pub fn with_default_ambient(lights: Vec<SceneLight>) -> Self {
+        Self {
+            active: !lights.is_empty(),
+            ambient: SceneAmbientLight {
+                color: Color::WHITE,
+                intensity: Self::DEFAULT_AMBIENT_INTENSITY,
+            },
+            lights,
+        }
+    }
+}
+
+impl Interpolatable for SceneLighting {}
+impl HelperFunctions for SceneLighting {}
+
 impl Interpolatable for Fill {
     fn interpolate(&self, _other: &Self, _t: f64) -> Self {
         // TODO interpolation

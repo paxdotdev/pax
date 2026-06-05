@@ -5,6 +5,7 @@ use crate::render_backend::RetainedVectorResource;
 use crate::render_backend::SharedRetainedVectorResource;
 use crate::render_backend::MAX_BATCH_COLORS;
 use crate::render_backend::MAX_BATCH_GRADIENTS;
+use crate::render_backend::MAX_BATCH_MATERIALS;
 use crate::render_backend::MAX_BATCH_PRIMITIVES;
 use crate::render_backend::MAX_BATCH_TRANSFORMS;
 use crate::render_backend::MAX_SCENE_CLIPS;
@@ -29,9 +30,13 @@ use lyon::tessellation::StrokeVertex;
 use crate::point;
 use crate::render_backend::data::GpuColor;
 use crate::render_backend::data::GpuGradient;
+use crate::render_backend::data::GpuMaterial;
 use crate::render_backend::data::GpuPrimitive;
+use crate::render_backend::data::GpuSceneLight;
+use crate::render_backend::data::GpuSceneLighting;
 use crate::render_backend::data::GpuTransform;
 use crate::render_backend::data::GpuVertex;
+use crate::render_backend::data::MAX_SCENE_LIGHTS;
 use crate::render_backend::CachedTextureResource;
 use crate::render_backend::CapturedFrame;
 use crate::render_backend::PrimitiveBatch;
@@ -702,6 +707,17 @@ impl<'w> WgpuRenderer<'w> {
 
     /// Queue a stroked vector path with an extra opacity multiplier.
     pub fn stroke_path_with_opacity(&mut self, path: Path, stroke: Stroke, opacity: f32) {
+        self.stroke_path_with_material_and_opacity(path, stroke, Material::default(), opacity);
+    }
+
+    /// Queue a stroked vector path with material response and an extra opacity multiplier.
+    pub fn stroke_path_with_material_and_opacity(
+        &mut self,
+        path: Path,
+        stroke: Stroke,
+        material: Material,
+        opacity: f32,
+    ) {
         let current_transform = self.current_transform();
         let geometry_signature = hash_vector_path(
             &path,
@@ -717,6 +733,7 @@ impl<'w> WgpuRenderer<'w> {
         buffers.ops.push(PendingVectorOp {
             path,
             fill: stroke.fill,
+            material,
             transform: current_transform,
             opacity,
             kind: PendingVectorOpKind::Stroke(stroke.weight, stroke.cap),
@@ -731,6 +748,17 @@ impl<'w> WgpuRenderer<'w> {
 
     /// Queue a filled vector path with an extra opacity multiplier.
     pub fn fill_path_with_opacity(&mut self, path: Path, fill: Fill, opacity: f32) {
+        self.fill_path_with_material_and_opacity(path, fill, Material::default(), opacity);
+    }
+
+    /// Queue a filled vector path with material response and an extra opacity multiplier.
+    pub fn fill_path_with_material_and_opacity(
+        &mut self,
+        path: Path,
+        fill: Fill,
+        material: Material,
+        opacity: f32,
+    ) {
         let current_transform = self.current_transform();
         let geometry_signature = hash_vector_path(&path, PendingVectorOpKind::Fill);
         let Some(PendingNode {
@@ -743,11 +771,18 @@ impl<'w> WgpuRenderer<'w> {
         buffers.ops.push(PendingVectorOp {
             path,
             fill,
+            material,
             transform: current_transform,
             opacity,
             kind: PendingVectorOpKind::Fill,
             geometry_signature,
         });
+    }
+
+    pub fn set_scene_lighting(&mut self, lighting: SceneLighting) {
+        self.render_backend
+            .set_scene_lighting(to_gpu_scene_lighting(&lighting));
+        self.scene_dirty = true;
     }
 
     pub fn clear(&mut self) {
@@ -1561,6 +1596,7 @@ struct PendingVectorNode {
 struct PendingVectorOp {
     path: Path,
     fill: Fill,
+    material: Material,
     transform: Transform2D,
     opacity: f32,
     kind: PendingVectorOpKind,
@@ -1637,6 +1673,7 @@ fn new_cpu_buffers() -> CpuBuffers {
         primitives: Vec::new(),
         colors: Vec::new(),
         gradients: Vec::new(),
+        materials: Vec::new(),
         transforms: vec![GpuTransform::default()],
     }
 }
@@ -1714,11 +1751,13 @@ fn rebuild_vector_buffers(
     if !reuse_fill {
         buffers.colors.clear();
         buffers.gradients.clear();
+        buffers.materials.clear();
     }
     buffers.transforms.truncate(1);
 
     let mut next_color_id: u16 = 0;
     let mut next_gradient_id: u16 = 0;
+    let mut next_material_id: u32 = 0;
 
     for op in ops {
         let transform_id = push_transform_with_opacity(buffers, op.transform, op.opacity);
@@ -1729,9 +1768,10 @@ fn rebuild_vector_buffers(
                 transform_id,
                 &mut next_color_id,
                 &mut next_gradient_id,
+                &mut next_material_id,
             )
         } else {
-            push_primitive_def(buffers, op.fill.clone(), transform_id)
+            push_primitive_def(buffers, op.fill.clone(), op.material, transform_id)
         };
 
         if reuse_geometry {
@@ -1884,6 +1924,7 @@ fn append_cpu_buffers(dst: &mut CpuBuffers, src: &CpuBuffers) {
     };
     let color_offset = dst.colors.len() as u16;
     let gradient_offset = dst.gradients.len() as u16;
+    let material_offset = dst.materials.len() as u32;
 
     dst.geometry
         .vertices
@@ -1909,6 +1950,7 @@ fn append_cpu_buffers(dst: &mut CpuBuffers, src: &CpuBuffers) {
             } else {
                 primitive.fill_id = primitive.fill_id.saturating_add(gradient_offset);
             }
+            primitive.material_id = primitive.material_id.saturating_add(material_offset);
             primitive
         }));
     if !src_uses_only_identity_transform {
@@ -1917,6 +1959,7 @@ fn append_cpu_buffers(dst: &mut CpuBuffers, src: &CpuBuffers) {
     }
     dst.colors.extend(src.colors.iter().copied());
     dst.gradients.extend(src.gradients.iter().copied());
+    dst.materials.extend(src.materials.iter().copied());
 }
 
 fn push_transform_with_opacity(
@@ -1952,6 +1995,7 @@ fn would_exceed_batch_capacity(dst: &CpuBuffers, src: &CpuBuffers) -> bool {
         || dst.primitives.len() + src.primitives.len() > MAX_BATCH_PRIMITIVES
         || dst.colors.len() + src.colors.len() > MAX_BATCH_COLORS
         || dst.gradients.len() + src.gradients.len() > MAX_BATCH_GRADIENTS
+        || dst.materials.len() + src.materials.len() > MAX_BATCH_MATERIALS
         || dst.transforms.len() + extra_transforms > MAX_BATCH_TRANSFORMS
 }
 
@@ -1960,6 +2004,7 @@ fn hash_vector_fills(ops: &[PendingVectorOp]) -> u64 {
     ops.len().hash(&mut hasher);
     for op in ops {
         hash_fill_bits(&op.fill, &mut hasher);
+        hash_material_bits(&op.material, &mut hasher);
     }
     hasher.finish()
 }
@@ -2233,13 +2278,86 @@ fn hash_fill_bits<H: Hasher>(fill: &Fill, state: &mut H) {
     }
 }
 
+fn hash_material_bits<H: Hasher>(material: &Material, state: &mut H) {
+    material.unlit.hash(state);
+    for value in material.coefficients {
+        value.to_bits().hash(state);
+    }
+    for value in material.emissive {
+        value.to_bits().hash(state);
+    }
+}
+
 fn hash_color_bits<H: Hasher>(color: &Color, state: &mut H) {
     for value in color.rgba {
         value.to_bits().hash(state);
     }
 }
 
-fn push_primitive_def(buffers: &mut CpuBuffers, fill: Fill, transform_id: u32) -> u32 {
+fn to_gpu_material(material: Material) -> GpuMaterial {
+    if material.unlit {
+        return GpuMaterial {
+            coefficients: [-1.0, 0.0, 0.0, 0.0],
+            emissive: [0.0; 4],
+        };
+    }
+
+    GpuMaterial {
+        coefficients: material.coefficients,
+        emissive: material.emissive,
+    }
+}
+
+fn to_gpu_scene_lighting(lighting: &SceneLighting) -> GpuSceneLighting {
+    let mut out = GpuSceneLighting {
+        ambient: [
+            lighting.ambient_color.rgba[0],
+            lighting.ambient_color.rgba[1],
+            lighting.ambient_color.rgba[2],
+            lighting.ambient_intensity.max(0.0),
+        ],
+        meta: [lighting.active as u32, 0, 0, 0],
+        ..GpuSceneLighting::default()
+    };
+
+    let count = lighting.lights.len().min(MAX_SCENE_LIGHTS);
+    out.meta[1] = count as u32;
+    for (index, light) in lighting.lights.iter().take(count).enumerate() {
+        out.lights[index] = GpuSceneLight {
+            position: [light.position[0], light.position[1], light.position[2], 0.0],
+            direction: [
+                light.direction[0],
+                light.direction[1],
+                light.direction[2],
+                0.0,
+            ],
+            color: [
+                light.color.rgba[0],
+                light.color.rgba[1],
+                light.color.rgba[2],
+                light.intensity.max(0.0),
+            ],
+            params: [
+                match light.shape {
+                    LightShape::Point => 0.0,
+                    LightShape::Directional => 1.0,
+                },
+                light.radius.max(0.0),
+                0.0,
+                0.0,
+            ],
+        };
+    }
+
+    out
+}
+
+fn push_primitive_def(
+    buffers: &mut CpuBuffers,
+    fill: Fill,
+    material: Material,
+    transform_id: u32,
+) -> u32 {
     let fill_id;
     let fill_type_flag;
     match fill {
@@ -2282,10 +2400,12 @@ fn push_primitive_def(buffers: &mut CpuBuffers, fill: Fill, transform_id: u32) -
             });
         }
     }
+    let material_id = buffers.materials.len() as u32;
+    buffers.materials.push(to_gpu_material(material));
     let primitive = GpuPrimitive {
         fill_id,
         fill_type_flag,
-        clipping_id: 0,
+        material_id,
         transform_id,
         z_index: 0,
     };
@@ -2300,6 +2420,7 @@ fn push_primitive_with_existing_fill(
     transform_id: u32,
     next_color_id: &mut u16,
     next_gradient_id: &mut u16,
+    next_material_id: &mut u32,
 ) -> u32 {
     let (fill_id, fill_type_flag) = match fill {
         Fill::Solid(_) => {
@@ -2313,11 +2434,13 @@ fn push_primitive_with_existing_fill(
             (fill_id, 1)
         }
     };
+    let material_id = *next_material_id;
+    *next_material_id = next_material_id.saturating_add(1);
     let prim_id = buffers.primitives.len() as u32;
     buffers.primitives.push(GpuPrimitive {
         fill_id,
         fill_type_flag,
-        clipping_id: 0,
+        material_id,
         transform_id,
         z_index: 0,
     });
@@ -2544,7 +2667,7 @@ pub enum GradientType {
     Radial,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 /// Linear RGBA color used by the low-level renderer.
 pub struct Color {
     rgba: [f32; 4],
@@ -2643,6 +2766,101 @@ pub enum Fill {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+/// Light-reactive material coefficients for a tessellated vector path.
+pub struct Material {
+    pub coefficients: [f32; 4],
+    pub emissive: [f32; 4],
+    pub unlit: bool,
+}
+
+impl Material {
+    pub fn matte() -> Self {
+        Self::default()
+    }
+
+    pub fn custom(
+        ambient: f32,
+        diffuse: f32,
+        specular: f32,
+        roughness: f32,
+        emissive: Color,
+        emissive_intensity: f32,
+    ) -> Self {
+        Self {
+            coefficients: [
+                ambient.clamp(0.0, 8.0),
+                diffuse.clamp(0.0, 8.0),
+                specular.clamp(0.0, 8.0),
+                roughness.clamp(0.0, 1.0),
+            ],
+            emissive: [
+                emissive.rgba[0],
+                emissive.rgba[1],
+                emissive.rgba[2],
+                emissive_intensity.max(0.0),
+            ],
+            unlit: false,
+        }
+    }
+
+    pub fn unlit() -> Self {
+        Self {
+            coefficients: [0.0; 4],
+            emissive: [0.0; 4],
+            unlit: true,
+        }
+    }
+}
+
+impl Default for Material {
+    fn default() -> Self {
+        Self {
+            coefficients: [1.0, 0.82, 0.08, 0.78],
+            emissive: [0.0; 4],
+            unlit: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Shape of a scene light.
+pub enum LightShape {
+    Point,
+    Directional,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+/// A resolved scene light for the low-level renderer.
+pub struct SceneLight {
+    pub shape: LightShape,
+    pub position: [f32; 3],
+    pub direction: [f32; 3],
+    pub color: Color,
+    pub intensity: f32,
+    pub radius: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+/// Resolved lighting state for one retained vector scene.
+pub struct SceneLighting {
+    pub active: bool,
+    pub ambient_color: Color,
+    pub ambient_intensity: f32,
+    pub lights: Vec<SceneLight>,
+}
+
+impl Default for SceneLighting {
+    fn default() -> Self {
+        Self {
+            active: false,
+            ambient_color: Color::rgba(1.0, 1.0, 1.0, 1.0),
+            ambient_intensity: 1.0,
+            lights: vec![],
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// Stroke end-cap style.
 pub enum StrokeCap {
@@ -2695,6 +2913,7 @@ mod tests {
         let op = PendingVectorOp {
             path: path.clone(),
             fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
+            material: Material::default(),
             transform: Transform2D::identity(),
             opacity: 1.0,
             kind: PendingVectorOpKind::Fill,
@@ -2704,6 +2923,7 @@ mod tests {
             PendingVectorOp {
                 path,
                 fill: Fill::Solid(Color::rgba(0.0, 1.0, 0.0, 1.0)),
+                material: Material::default(),
                 transform: Transform2D::identity(),
                 opacity: 1.0,
                 kind: PendingVectorOpKind::Fill,

@@ -5,12 +5,13 @@ use super::layer_surface::{
 };
 use kurbo::{BezPath, PathEl, Rect, Shape};
 use pax_gpu::{
-    point, Box2D, Image, Path, ResourceChurnStats, Stroke as PixelStroke,
-    StrokeCap as PixelStrokeCap, Transform2D, WgpuRenderer,
+    point, Box2D, Image, LightShape as PixelLightShape, Material as PixelMaterial, Path,
+    ResourceChurnStats, SceneLight as PixelSceneLight, SceneLighting as PixelSceneLighting,
+    Stroke as PixelStroke, StrokeCap as PixelStrokeCap, Transform2D, WgpuRenderer,
 };
 use pax_runtime_api::{
-    Axis, LayerSurfaceScreenshotData, RenderContext, ReplayCanvasLayerUpdate, ScreenshotData,
-    Stroke, StrokeCap,
+    Axis, LayerSurfaceScreenshotData, Material, RenderContext, ReplayCanvasLayerUpdate,
+    SceneLighting, ScreenshotData, Stroke, StrokeCap,
 };
 use std::{
     cell::{Cell, RefCell},
@@ -407,6 +408,7 @@ pub struct PaxGpuRenderer {
     layer_initializations_in_flight: Rc<Cell<usize>>,
     active_render_scopes: RefCell<Vec<Vec<Vec<usize>>>>,
     dirty_render_surfaces: RefCell<Vec<HashSet<usize>>>,
+    last_scene_lighting: RefCell<Vec<Option<PixelSceneLighting>>>,
     surface_replay: RefCell<SurfaceReplayCoordinator>,
     clean_skipped_canvas_nodes: RefCell<HashSet<(usize, u32)>>,
     #[cfg(debug_assertions)]
@@ -438,6 +440,7 @@ impl PaxGpuRenderer {
             layer_initializations_in_flight: Rc::new(Cell::new(0)),
             active_render_scopes: Default::default(),
             dirty_render_surfaces: Default::default(),
+            last_scene_lighting: Default::default(),
             surface_replay: Default::default(),
             clean_skipped_canvas_nodes: Default::default(),
             #[cfg(debug_assertions)]
@@ -560,6 +563,18 @@ impl PaxGpuRenderer {
                 dirty_surfaces.remove(index);
             }
         }
+    }
+
+    fn update_scene_lighting_cache(&self, layer: usize, lighting: &PixelSceneLighting) -> bool {
+        let mut last_scene_lighting = self.last_scene_lighting.borrow_mut();
+        if last_scene_lighting.len() <= layer {
+            last_scene_lighting.resize_with(layer + 1, || None);
+        }
+        let changed = last_scene_lighting[layer].as_ref() != Some(lighting);
+        if changed {
+            last_scene_lighting[layer] = Some(lighting.clone());
+        }
+        changed
     }
 
     fn targeted_replay_scope(&self, layer: usize) -> Option<Vec<usize>> {
@@ -1054,6 +1069,23 @@ impl RenderContext for PaxGpuRenderer {
         });
     }
 
+    fn fill_with_material_and_opacity(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        fill: &pax_runtime_api::Fill,
+        material: &Material,
+        opacity: f64,
+    ) {
+        self.with_layer_context(layer, |context| {
+            let bounds = path.bounding_box();
+            let path = convert_kurbo_to_lyon_path(&path);
+            let fill = to_pax_gpu_fill(fill, bounds, context.current_transform());
+            let material = to_pax_gpu_material(material);
+            context.fill_path_with_material_and_opacity(path, fill, material, opacity as f32);
+        });
+    }
+
     fn stroke_with_opacity(
         &mut self,
         layer: usize,
@@ -1078,6 +1110,37 @@ impl RenderContext for PaxGpuRenderer {
                         StrokeCap::Square => PixelStrokeCap::Square,
                     },
                 },
+                opacity as f32,
+            );
+        });
+    }
+
+    fn stroke_with_material_and_opacity(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        stroke: &Stroke,
+        material: &Material,
+        opacity: f64,
+    ) {
+        self.with_layer_context(layer, |context| {
+            let bounds = path.bounding_box();
+            context.stroke_path_with_material_and_opacity(
+                convert_kurbo_to_lyon_path(&path),
+                PixelStroke {
+                    fill: to_pax_gpu_fill(
+                        &pax_runtime_api::Fill::Solid(stroke.color.get()),
+                        bounds,
+                        context.current_transform(),
+                    ),
+                    weight: stroke.width.get().expect_pixels().to_float() as f32,
+                    cap: match stroke.cap.get() {
+                        StrokeCap::Butt => PixelStrokeCap::Butt,
+                        StrokeCap::Round => PixelStrokeCap::Round,
+                        StrokeCap::Square => PixelStrokeCap::Square,
+                    },
+                },
+                to_pax_gpu_material(material),
                 opacity as f32,
             );
         });
@@ -1244,6 +1307,37 @@ impl RenderContext for PaxGpuRenderer {
 
     fn refresh_layers(&mut self, layers: &[usize]) {
         self.refresh_layer_layouts(layers.iter().copied());
+    }
+
+    fn set_scene_lighting(&mut self, layer: usize, lighting: &SceneLighting) {
+        let lighting = to_pax_gpu_scene_lighting(lighting);
+        let lighting_changed = self.update_scene_lighting_cache(layer, &lighting);
+        let mut backends = self.backends.borrow_mut();
+        match backends.get_mut(layer) {
+            Some(RenderLayerState::Pending) => {}
+            Some(RenderLayerState::Failed) => {}
+            Some(RenderLayerState::Ready((target, _))) => {
+                if !target.active {
+                    return;
+                }
+                if lighting_changed {
+                    self.mark_render_surfaces_dirty(layer, 0..target.renderers.len());
+                }
+                for renderer in &mut target.renderers {
+                    renderer
+                        .renderer
+                        .set_scene_lighting(translate_scene_lighting_for_surface(
+                            &lighting,
+                            renderer.origin_x,
+                            renderer.origin_y,
+                        ));
+                }
+            }
+            None => log::warn!(
+                "tried to set lighting for layer {} context for non-existent layer",
+                layer
+            ),
+        }
     }
 
     fn take_ready_canvas_layers(&mut self) -> Vec<usize> {
@@ -1600,6 +1694,74 @@ fn to_pax_gpu_fill(
             }
         }
     }
+}
+
+fn to_pax_gpu_material(material: &pax_runtime_api::Material) -> PixelMaterial {
+    match material {
+        pax_runtime_api::Material::Unlit => PixelMaterial::unlit(),
+        pax_runtime_api::Material::Lit(params) => {
+            let metallic = params.metallic.get().clamp(0.0, 1.0) as f32;
+            let diffuse = params.diffuse.get().max(0.0) as f32 * (1.0 - metallic * 0.55);
+            let specular = params.specular.get().max(0.0) as f32 + metallic * 0.45;
+            let roughness = (params.roughness.get().clamp(0.0, 1.0) as f32
+                * (1.0 - metallic * 0.35))
+                .clamp(0.0, 1.0);
+            PixelMaterial::custom(
+                params.ambient.get().max(0.0) as f32,
+                diffuse,
+                specular,
+                roughness,
+                to_pax_gpu_color(&params.emissive.get()),
+                params.emissive_intensity.get().max(0.0) as f32,
+            )
+        }
+    }
+}
+
+fn to_pax_gpu_scene_lighting(lighting: &SceneLighting) -> PixelSceneLighting {
+    PixelSceneLighting {
+        active: lighting.active,
+        ambient_color: to_pax_gpu_color(&lighting.ambient.color),
+        ambient_intensity: lighting.ambient.intensity.max(0.0) as f32,
+        lights: lighting
+            .lights
+            .iter()
+            .map(|light| PixelSceneLight {
+                shape: match light.shape {
+                    pax_runtime_api::LightShape::Point => PixelLightShape::Point,
+                    pax_runtime_api::LightShape::Directional => PixelLightShape::Directional,
+                },
+                position: [
+                    light.position.x as f32,
+                    light.position.y as f32,
+                    light.position.z as f32,
+                ],
+                direction: [
+                    light.direction.x as f32,
+                    light.direction.y as f32,
+                    light.direction.z as f32,
+                ],
+                color: to_pax_gpu_color(&light.color),
+                intensity: light.intensity.max(0.0) as f32,
+                radius: light.radius.max(0.0) as f32,
+            })
+            .collect(),
+    }
+}
+
+fn translate_scene_lighting_for_surface(
+    lighting: &PixelSceneLighting,
+    origin_x: f32,
+    origin_y: f32,
+) -> PixelSceneLighting {
+    let mut lighting = lighting.clone();
+    for light in &mut lighting.lights {
+        if matches!(light.shape, PixelLightShape::Point) {
+            light.position[0] -= origin_x;
+            light.position[1] -= origin_y;
+        }
+    }
+    lighting
 }
 
 /// Convert a runtime API color into the `pax-gpu` render-context color.

@@ -6,7 +6,7 @@ use crate::common::begin_bounded_canvas_node;
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
 use pax_runtime::api as pax_runtime_api;
-use pax_runtime::api::{Layer, RenderContext, Stroke};
+use pax_runtime::api::{Layer, Material, RenderContext, Stroke};
 use_RefCell!();
 use pax_engine::{helpers, pax, Property};
 use pax_manifest::pax_runtime_api::Numeric;
@@ -21,6 +21,8 @@ pub struct Rectangle {
     pub stroke: Property<Stroke>,
     /// Fill painted inside the rectangle.
     pub fill: Property<Fill>,
+    /// Light-reactive surface response.
+    pub material: Property<Material>,
     /// Per-corner radii.
     pub corner_radii: Property<RectangleCornerRadii>,
 }
@@ -52,12 +54,13 @@ impl InstanceNode for RectangleInstance {
         context: &Rc<RuntimeContext>,
     ) {
         let tab = expanded_node.transform_and_bounds.clone();
-        let (corner_radii, stroke, fill) =
+        let (corner_radii, stroke, fill, material) =
             expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
                 (
                     properties.corner_radii.clone(),
                     properties.stroke.clone(),
                     properties.fill.clone(),
+                    properties.material.clone(),
                 )
             });
 
@@ -66,6 +69,7 @@ impl InstanceNode for RectangleInstance {
             corner_radii.untyped(),
             stroke.untyped(),
             fill.untyped(),
+            material.untyped(),
             expanded_node.computed_opacity.untyped(),
         ];
         let cloned_expanded_node = expanded_node.clone();
@@ -120,13 +124,26 @@ impl InstanceNode for RectangleInstance {
             let opacity = expanded_node.computed_opacity.get();
             let fill = properties.fill.get();
             let stroke = properties.stroke.get();
+            let material = properties.material.get();
             rc.save(scope.layer_id);
             rc.transform(scope.layer_id, scope.surface_transform);
-            rc.fill_with_opacity(scope.layer_id, bez_path.clone(), &fill, opacity);
+            rc.fill_with_material_and_opacity(
+                scope.layer_id,
+                bez_path.clone(),
+                &fill,
+                &material,
+                opacity,
+            );
             //hack to address "phantom stroke" bug on Web
             let width: f64 = stroke.width.get().expect_pixels().to_float();
             if width > f64::EPSILON {
-                rc.stroke_with_opacity(scope.layer_id, bez_path, &stroke, opacity);
+                rc.stroke_with_material_and_opacity(
+                    scope.layer_id,
+                    bez_path,
+                    &stroke,
+                    &material,
+                    opacity,
+                );
             }
             rc.restore(scope.layer_id);
         });

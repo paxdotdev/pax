@@ -7,11 +7,11 @@ use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, ScreenshotData};
 use pax_runtime_api::properties::{drain_effects, register_effect_property, UntypedProperty};
 use pax_runtime_api::{
-    borrow, borrow_mut, use_RefCell, Event, Interpolatable, MouseOut, MouseOver, Property,
-    RenderContext, Store, Variable,
+    borrow, borrow_mut, use_RefCell, Event, Interpolatable, LightShape, MouseOut, MouseOver,
+    Property, RenderContext, SceneLight, SceneLighting, Store, Variable,
 };
 use_RefCell!();
-use kurbo::Affine;
+use kurbo::{Affine, Point};
 use std::any::{Any, TypeId};
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
@@ -24,6 +24,20 @@ use crate::{ExpandedNode, Globals};
 use crate::{ComponentInstance, InstanceNode};
 
 impl Interpolatable for ExpandedNodeIdentifier {}
+
+fn transform_scene_light_for_layer(
+    mut light: SceneLight,
+    source_to_root: Affine,
+    root_to_target: Affine,
+) -> SceneLight {
+    if matches!(light.shape, LightShape::Point) {
+        let point = Point::new(light.position.x, light.position.y);
+        let point = root_to_target * (source_to_root * point);
+        light.position.x = point.x;
+        light.position.y = point.y;
+    }
+    light
+}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// Stable runtime identifier assigned to an expanded node.
@@ -431,6 +445,7 @@ impl RuntimeContext {
             ScrollerSurfaceStateChange::Unchanged => {}
             ScrollerSurfaceStateChange::ScrollOnly => {
                 self.mark_layer_canvas_plans_dirty();
+                self.mark_scroller_content_layers_dirty(id);
             }
             ScrollerSurfaceStateChange::Structural => {
                 self.mark_layer_canvas_plans_dirty();
@@ -530,6 +545,16 @@ impl RuntimeContext {
     /// Find the scroller that owns a render layer, when one exists.
     pub fn get_layer_scroller_owner(&self, layer_id: usize) -> Option<ExpandedNodeIdentifier> {
         borrow!(self.layer_scroller_owners).get(&layer_id).copied()
+    }
+
+    fn mark_scroller_content_layers_dirty(&self, scroller_id: u32) {
+        let layers = borrow!(self.layer_scroller_owners)
+            .iter()
+            .filter_map(|(layer, owner)| (owner.to_u32() == scroller_id).then_some(*layer))
+            .collect::<Vec<_>>();
+        for layer in layers {
+            self.set_canvas_dirty(layer);
+        }
     }
 
     /// Mark which node currently delegates root scrolling behavior to the page.
@@ -673,6 +698,124 @@ impl RuntimeContext {
                 dirty_nodes.insert(node.id);
             }
         }
+    }
+
+    pub fn collect_scene_lighting_for_layer(&self, layer: usize) -> SceneLighting {
+        let layer_to_root_transforms = self.layer_to_root_transforms(layer);
+        let root_to_target = layer_to_root_transforms[&layer].inverse();
+        let node_cache = borrow!(self.node_cache);
+        let mut lights = Vec::new();
+        let mut topmost_ambient = None;
+
+        for node in node_cache.eid_to_node.values() {
+            let occlusion = node.occlusion.get();
+            let source_layer = occlusion.render_layer_id;
+            let Some(source_to_root) = layer_to_root_transforms.get(&source_layer) else {
+                continue;
+            };
+
+            let instance_node = borrow!(node.instance_node);
+            if let Some(light) = instance_node.resolve_scene_light(node, self) {
+                if light.enabled {
+                    lights.push(transform_scene_light_for_layer(
+                        light,
+                        *source_to_root,
+                        root_to_target,
+                    ));
+                }
+            }
+            if let Some(ambient) = instance_node.resolve_scene_ambient_light(node, self) {
+                let should_replace = topmost_ambient
+                    .as_ref()
+                    .map(|(z_index, _)| occlusion.z_index >= *z_index)
+                    .unwrap_or(true);
+                if should_replace {
+                    topmost_ambient = Some((occlusion.z_index, ambient));
+                }
+            }
+        }
+
+        if let Some((_, ambient)) = topmost_ambient {
+            SceneLighting {
+                active: true,
+                ambient,
+                lights,
+            }
+        } else {
+            SceneLighting::with_default_ambient(lights)
+        }
+    }
+
+    fn layer_to_root_transforms(&self, layer: usize) -> HashMap<usize, Affine> {
+        let mut transforms = HashMap::new();
+        transforms.insert(layer, self.layer_to_root_transform(layer));
+
+        let mut current_layer = layer;
+        let mut visited = HashSet::new();
+        while let Some(owner_id) = self.get_layer_scroller_owner(current_layer) {
+            if !visited.insert(current_layer) {
+                break;
+            }
+            let Some(owner_node) = self.get_expanded_node_by_eid(owner_id) else {
+                break;
+            };
+            let owner_layer = owner_node.occlusion.get().render_layer_id;
+            transforms
+                .entry(owner_layer)
+                .or_insert_with(|| self.layer_to_root_transform(owner_layer));
+            if owner_layer == current_layer {
+                break;
+            }
+            current_layer = owner_layer;
+        }
+
+        transforms
+    }
+
+    fn layer_to_root_transform(&self, layer: usize) -> Affine {
+        let mut transform = Affine::IDENTITY;
+        let mut current_layer = layer;
+        let mut visited = HashSet::new();
+
+        while let Some(owner_id) = self.get_layer_scroller_owner(current_layer) {
+            if !visited.insert(current_layer) {
+                break;
+            }
+            let Some(owner_node) = self.get_expanded_node_by_eid(owner_id) else {
+                break;
+            };
+            let owner_layer = owner_node.occlusion.get().render_layer_id;
+            let owner_transform = self.canvas_surface_transform_for_node(&owner_node);
+            let (scroll_x, scroll_y) = self
+                .get_scroller_surface_scroll(owner_node.id.to_u32())
+                .or_else(|| borrow!(owner_node.instance_node).resolve_scroll_offset(&owner_node))
+                .unwrap_or((0.0, 0.0));
+            transform = owner_transform * Affine::translate((-scroll_x, -scroll_y)) * transform;
+
+            if owner_layer == current_layer {
+                break;
+            }
+            current_layer = owner_layer;
+        }
+
+        transform
+    }
+
+    fn canvas_surface_transform_for_node(&self, node: &ExpandedNode) -> Affine {
+        let transform = Affine::from(node.transform_and_bounds.get().transform);
+        let own_layer = node.occlusion.get().render_layer_id;
+        let mut parent_frame_id = node.parent_frame.get();
+        while let Some(current_parent_frame_id) = parent_frame_id {
+            let Some(parent_frame) = self.get_expanded_node_by_eid(current_parent_frame_id) else {
+                break;
+            };
+            if parent_frame.occlusion.get().render_layer_id != own_layer {
+                return Affine::from(parent_frame.transform_and_bounds.get().transform.inverse())
+                    * transform;
+            }
+            parent_frame_id = parent_frame.parent_frame.get();
+        }
+        transform
     }
 
     pub fn mark_canvas_nodes_on_layer_dirty_by_id(&self, layer: usize, node_ids: &[u32]) {

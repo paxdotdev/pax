@@ -2,6 +2,8 @@ use bytemuck::{Pod, Zeroable};
 
 use crate::Transform2D;
 
+pub(crate) const MAX_SCENE_LIGHTS: usize = 8;
+
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct GpuGlobals {
@@ -15,7 +17,7 @@ pub(crate) struct GpuPrimitive {
     pub fill_id: u16,
     pub fill_type_flag: u16,
     pub z_index: i32,
-    pub clipping_id: u32, //not used atm
+    pub material_id: u32,
     pub transform_id: u32,
 }
 
@@ -23,6 +25,30 @@ pub(crate) struct GpuPrimitive {
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub(crate) struct GpuColor {
     pub color: [f32; 4],
+}
+
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
+pub(crate) struct GpuMaterial {
+    pub coefficients: [f32; 4],
+    pub emissive: [f32; 4],
+}
+
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
+pub(crate) struct GpuSceneLight {
+    pub position: [f32; 4],
+    pub direction: [f32; 4],
+    pub color: [f32; 4],
+    pub params: [f32; 4],
+}
+
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
+pub(crate) struct GpuSceneLighting {
+    pub ambient: [f32; 4],
+    pub meta: [u32; 4],
+    pub lights: [GpuSceneLight; MAX_SCENE_LIGHTS],
 }
 
 // OBS: if you change this, you need to change the padding in GpuColoring to

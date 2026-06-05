@@ -3,7 +3,7 @@ use kurbo::{Affine, BezPath};
 use pax_engine::api::{Fill, PathElement};
 use pax_runtime::api::drawing::stroke_utils::{stroke_width_pixels, stroked_outline_path};
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
-use pax_runtime::api::{Layer, RenderContext, Stroke};
+use pax_runtime::api::{Layer, Material, RenderContext, Stroke};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
@@ -31,6 +31,8 @@ pub struct Path {
     pub stroke: Property<Stroke>,
     /// The fill applied to the interior of closed contours.
     pub fill: Property<Fill>,
+    /// Light-reactive surface response.
+    pub material: Property<Material>,
 }
 
 impl Path {
@@ -115,12 +117,13 @@ impl InstanceNode for PathInstance {
         });
 
         let tab = expanded_node.transform_and_bounds.clone();
-        let (elements, stroke, fill) =
+        let (elements, stroke, fill, material) =
             expanded_node.with_properties_unwrapped(|properties: &mut Path| {
                 (
                     properties.elements.clone(),
                     properties.stroke.clone(),
                     properties.fill.clone(),
+                    properties.material.clone(),
                 )
             });
 
@@ -129,6 +132,7 @@ impl InstanceNode for PathInstance {
             elements.untyped(),
             stroke.untyped(),
             fill.untyped(),
+            material.untyped(),
             expanded_node.computed_opacity.untyped(),
         ];
         let cloned_expanded_node = expanded_node.clone();
@@ -224,12 +228,25 @@ impl InstanceNode for PathInstance {
             let opacity = expanded_node.computed_opacity.get();
             let fill = properties.fill.get();
             let stroke = properties.stroke.get();
+            let material = properties.material.get();
             rc.save(scope.layer_id);
             rc.transform(scope.layer_id, scope.surface_transform);
             rc.clip(scope.layer_id, clip_path.clone());
-            rc.fill_with_opacity(scope.layer_id, bez_path.clone(), &fill, opacity);
+            rc.fill_with_material_and_opacity(
+                scope.layer_id,
+                bez_path.clone(),
+                &fill,
+                &material,
+                opacity,
+            );
             if stroke_width_pixels(&stroke) > f64::EPSILON {
-                rc.stroke_with_opacity(scope.layer_id, bez_path, &stroke, opacity);
+                rc.stroke_with_material_and_opacity(
+                    scope.layer_id,
+                    bez_path,
+                    &stroke,
+                    &material,
+                    opacity,
+                );
             }
             rc.restore(scope.layer_id);
         });

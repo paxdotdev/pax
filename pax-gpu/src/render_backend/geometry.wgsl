@@ -6,7 +6,7 @@ struct Globals {
 struct Primitive {
     fill_id_and_type: u32,
     z_index: i32,
-    clipping_id: u32, //not used atm
+    material_id: u32,
     transform_id: u32,
 };
 
@@ -53,12 +53,36 @@ struct Gradients {
     gradients: array<Gradient, 64>,
 }
 
+struct Material {
+    coefficients: vec4<f32>,
+    emissive: vec4<f32>,
+}
+
+struct Materials {
+    materials: array<Material, 512>,
+}
+
+struct SceneLight {
+    position: vec4<f32>,
+    direction: vec4<f32>,
+    color: vec4<f32>,
+    params: vec4<f32>,
+}
+
+struct SceneLighting {
+    ambient: vec4<f32>,
+    flags: vec4<u32>,
+    lights: array<SceneLight, 8>,
+}
+
 
 @group(0) @binding(0) var<uniform> globals: Globals;
 @group(0) @binding(1) var<uniform> u_primitives: Primitives;
 @group(0) @binding(2) var<uniform> transforms: Transforms;
 @group(0) @binding(3) var<uniform> colors: Colors;
 @group(0) @binding(4) var<uniform> gradients: Gradients;
+@group(0) @binding(5) var<uniform> materials: Materials;
+@group(0) @binding(6) var<uniform> scene_lighting: SceneLighting;
 
 struct GpuVertex {
     @location(0) position: vec2<f32>,
@@ -69,6 +93,7 @@ struct GpuVertex {
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
 	@location(0) @interpolate(flat) prim_id: u32,
+    @location(1) world_position: vec2<f32>,
 };
 
 @vertex
@@ -93,6 +118,7 @@ fn vs_main(
     pos.y *= -1.0;
 
     out.prim_id = model.prim_id;
+    out.world_position = vec2<f32>(t_p_x, t_p_y);
     out.clip_position = vec4<f32>(pos, 0.0, 1.0);
     return out;
 }
@@ -116,7 +142,60 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         color = gradient(fill_id, p);
     }
     color.a *= transforms.transforms[primitive.transform_id].opacity;
+    color = apply_lighting(color, materials.materials[primitive.material_id], in.world_position);
     return color;
+}
+
+fn apply_lighting(color: vec4<f32>, material: Material, world_position: vec2<f32>) -> vec4<f32> {
+    if scene_lighting.flags.x == 0u {
+        return color;
+    }
+
+    if material.coefficients.x < 0.0 {
+        return color;
+    }
+
+    let ambient_coeff = material.coefficients.x;
+    let diffuse_coeff = material.coefficients.y;
+    let specular_coeff = material.coefficients.z;
+    let roughness = clamp(material.coefficients.w, 0.0, 1.0);
+    let surface_position = vec3<f32>(world_position, 0.0);
+    let normal = vec3<f32>(0.0, 0.0, 1.0);
+    let view_dir = vec3<f32>(0.0, 0.0, 1.0);
+    var lighting = scene_lighting.ambient.rgb * scene_lighting.ambient.a * ambient_coeff;
+    let light_count = min(scene_lighting.flags.y, 8u);
+
+    for (var i = 0u; i < 8u; i++) {
+        if i >= light_count {
+            break;
+        }
+
+        let light = scene_lighting.lights[i];
+        var light_dir: vec3<f32>;
+        var attenuation = 1.0;
+        if light.params.x < 0.5 {
+            let to_light = light.position.xyz - surface_position;
+            let distance = max(length(to_light), 0.0001);
+            let radius = max(light.params.y, 0.0001);
+            let falloff = max(1.0 - distance / radius, 0.0);
+            attenuation = falloff * falloff;
+            light_dir = to_light / distance;
+        } else {
+            let direction_len = max(length(light.direction.xyz), 0.0001);
+            light_dir = -light.direction.xyz / direction_len;
+        }
+
+        let diffuse = max(dot(normal, light_dir), 0.0);
+        let half_dir = normalize(light_dir + view_dir);
+        let shininess = mix(96.0, 8.0, roughness);
+        let specular = pow(max(dot(normal, half_dir), 0.0), shininess);
+        lighting += light.color.rgb * light.color.a * attenuation *
+            ((diffuse_coeff * diffuse) + (specular_coeff * specular));
+    }
+
+    let lit_rgb = color.rgb * clamp(lighting, vec3<f32>(0.0), vec3<f32>(8.0))
+        + material.emissive.rgb * material.emissive.a;
+    return vec4<f32>(lit_rgb, color.a);
 }
 
 

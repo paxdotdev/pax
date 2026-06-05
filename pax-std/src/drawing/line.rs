@@ -2,7 +2,7 @@ use kurbo::{Affine, BezPath, Shape};
 use pax_engine::api::Size;
 use pax_engine::*;
 use pax_runtime::api::drawing::stroke_utils::{stroke_width_pixels, stroked_outline_path};
-use pax_runtime::api::{use_RefCell, Layer, RenderContext, Stroke};
+use pax_runtime::api::{use_RefCell, Layer, Material, RenderContext, Stroke};
 use pax_runtime::BaseInstance;
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
@@ -30,6 +30,8 @@ pub struct Line {
     pub y2: Property<Size>,
     /// The stroke used to render the segment.
     pub stroke: Property<Stroke>,
+    /// Light-reactive surface response.
+    pub material: Property<Material>,
 }
 
 // Runtime instance backing `<Line>`.
@@ -62,7 +64,7 @@ impl InstanceNode for LineInstance {
         context: &Rc<RuntimeContext>,
     ) {
         let tab = expanded_node.transform_and_bounds.clone();
-        let (x1, y1, x2, y2, stroke) =
+        let (x1, y1, x2, y2, stroke, material) =
             expanded_node.with_properties_unwrapped(|properties: &mut Line| {
                 (
                     properties.x1.clone(),
@@ -70,6 +72,7 @@ impl InstanceNode for LineInstance {
                     properties.x2.clone(),
                     properties.y2.clone(),
                     properties.stroke.clone(),
+                    properties.material.clone(),
                 )
             });
 
@@ -80,6 +83,7 @@ impl InstanceNode for LineInstance {
             x2.untyped(),
             y2.untyped(),
             stroke.untyped(),
+            material.untyped(),
             expanded_node.computed_opacity.untyped(),
         ];
         let cloned_expanded_node = expanded_node.clone();
@@ -141,15 +145,17 @@ impl InstanceNode for LineInstance {
         expanded_node.with_properties_unwrapped(|properties: &mut Line| {
             let (start, end) = resolve_points(properties, scope.bounds);
             let stroke = properties.stroke.get();
+            let material = properties.material.get();
             let stroke_width = stroke_width_pixels(&stroke);
             if stroke_width > f64::EPSILON {
                 let bez_path = centerline_path(start, end);
                 rc.save(scope.layer_id);
                 rc.transform(scope.layer_id, scope.surface_transform);
-                rc.stroke_with_opacity(
+                rc.stroke_with_material_and_opacity(
                     scope.layer_id,
                     bez_path,
                     &stroke,
+                    &material,
                     expanded_node.computed_opacity.get(),
                 );
                 rc.restore(scope.layer_id);

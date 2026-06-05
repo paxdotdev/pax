@@ -14,21 +14,29 @@ use crate::math::Vector2;
 use crate::properties::PropertyValue;
 use crate::Color;
 use crate::ColorChannel;
+use crate::Depth;
 use crate::Duration;
 use crate::Fill;
 use crate::GradientStop;
 use crate::LayoutRole;
+use crate::LightShape;
 use crate::LinearGradient;
+use crate::Material;
+use crate::MaterialParams;
 use crate::Opacity;
 use crate::PathElement;
 use crate::Percent;
 use crate::Property;
 use crate::RadialGradient;
 use crate::Rotation;
+use crate::SceneAmbientLight;
+use crate::SceneLight;
+use crate::SceneLighting;
 use crate::Size;
 use crate::Stroke;
 use crate::StrokeCap;
 use crate::Transform2D;
+use crate::Vector3;
 
 // Primitive types
 impl_to_pax_value!(bool, PaxValue::Bool);
@@ -63,6 +71,12 @@ impl_to_pax_value!(Size, PaxValue::Size);
 impl_to_pax_value!(Rotation, PaxValue::Rotation);
 impl_to_pax_value!(Duration, PaxValue::Duration);
 impl_to_pax_value!(Percent, PaxValue::Percent);
+
+impl ToPaxValue for Depth {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Size(Size::Pixels(self.0))
+    }
+}
 
 impl ToPaxValue for LayoutRole {
     fn to_pax_value(self) -> PaxValue {
@@ -224,6 +238,117 @@ impl ToPaxValue for StrokeCap {
             variant.to_string(),
             vec![],
         )))
+    }
+}
+
+impl ToPaxValue for LightShape {
+    fn to_pax_value(self) -> PaxValue {
+        let variant = match self {
+            LightShape::Point => "Point",
+            LightShape::Directional => "Directional",
+        };
+        PaxValue::Enum(Box::new((
+            "LightShape".to_string(),
+            variant.to_string(),
+            vec![],
+        )))
+    }
+}
+
+impl ToPaxValue for Vector3 {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Object(
+            vec![
+                ("x".to_string(), self.x.to_pax_value()),
+                ("y".to_string(), self.y.to_pax_value()),
+                ("z".to_string(), self.z.to_pax_value()),
+            ]
+            .into_iter()
+            .collect(),
+        )
+    }
+}
+
+impl ToPaxValue for MaterialParams {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Object(
+            vec![
+                ("ambient".to_string(), self.ambient.get().to_pax_value()),
+                ("diffuse".to_string(), self.diffuse.get().to_pax_value()),
+                ("specular".to_string(), self.specular.get().to_pax_value()),
+                ("roughness".to_string(), self.roughness.get().to_pax_value()),
+                ("metallic".to_string(), self.metallic.get().to_pax_value()),
+                ("emissive".to_string(), self.emissive.get().to_pax_value()),
+                (
+                    "emissive_intensity".to_string(),
+                    self.emissive_intensity.get().to_pax_value(),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        )
+    }
+}
+
+impl ToPaxValue for Material {
+    fn to_pax_value(self) -> PaxValue {
+        match self {
+            Material::Lit(params) => PaxValue::Enum(Box::new((
+                "Material".to_string(),
+                "Lit".to_string(),
+                vec![params.to_pax_value()],
+            ))),
+            Material::Unlit => PaxValue::Enum(Box::new((
+                "Material".to_string(),
+                "Unlit".to_string(),
+                vec![],
+            ))),
+        }
+    }
+}
+
+impl ToPaxValue for SceneAmbientLight {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Object(
+            vec![
+                ("color".to_string(), self.color.to_pax_value()),
+                ("intensity".to_string(), self.intensity.to_pax_value()),
+            ]
+            .into_iter()
+            .collect(),
+        )
+    }
+}
+
+impl ToPaxValue for SceneLight {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Object(
+            vec![
+                ("shape".to_string(), self.shape.to_pax_value()),
+                ("position".to_string(), self.position.to_pax_value()),
+                ("direction".to_string(), self.direction.to_pax_value()),
+                ("color".to_string(), self.color.to_pax_value()),
+                ("intensity".to_string(), self.intensity.to_pax_value()),
+                ("radius".to_string(), self.radius.to_pax_value()),
+                ("enabled".to_string(), self.enabled.to_pax_value()),
+            ]
+            .into_iter()
+            .collect(),
+        )
+    }
+}
+
+impl ToPaxValue for SceneLighting {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Object(
+            vec![
+                ("active".to_string(), self.active.to_pax_value()),
+                ("ambient".to_string(), self.ambient.to_pax_value()),
+                ("lights".to_string(), self.lights.to_pax_value()),
+            ]
+            .into_iter()
+            .collect(),
+        )
     }
 }
 

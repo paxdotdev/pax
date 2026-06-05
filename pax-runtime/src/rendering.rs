@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::iter;
 use std::rc::Rc;
 use_RefCell!();
-use crate::api::{math::Point2, CommonProperties, RenderContext};
+use crate::api::{math::Point2, CommonProperties, RenderContext, SceneAmbientLight, SceneLight};
 use pax_manifest::cartridge_generation::ComponentTransitionConfig;
 use pax_manifest::{
     SettingsBlockElement, TemplateNodeSelectorInfo, TypeId, UniqueTemplateNodeIdentifier,
@@ -234,6 +234,24 @@ pub trait InstanceNode {
     /// reactive property effects.
     fn requires_non_reactive_update(&self, _expanded_node: &ExpandedNode) -> bool {
         false
+    }
+
+    /// Returns a resolved light contribution for non-rendering lighting primitives.
+    fn resolve_scene_light(
+        &self,
+        _expanded_node: &ExpandedNode,
+        _context: &RuntimeContext,
+    ) -> Option<SceneLight> {
+        None
+    }
+
+    /// Returns a resolved ambient contribution for non-rendering lighting primitives.
+    fn resolve_scene_ambient_light(
+        &self,
+        _expanded_node: &ExpandedNode,
+        _context: &RuntimeContext,
+    ) -> Option<SceneAmbientLight> {
+        None
     }
 
     /// Updates the expanded node, recomputing its properties and possibly updating its children.

@@ -3208,13 +3208,8 @@ pub fn apply_component_property<T>(
 ) where
     T: CoercionRules + PropertyValue + ToPaxValue,
 {
-    let resolved_property = build_component_property(
-        name,
-        value_definition,
-        stack,
-        timeline_stack,
-        build_block,
-    );
+    let resolved_property =
+        build_component_property(name, value_definition, stack, timeline_stack, build_block);
     if matches!(value_definition, ValueDefinition::DoubleBinding(_)) {
         *property = resolved_property;
     } else {

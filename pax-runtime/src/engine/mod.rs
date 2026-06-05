@@ -686,6 +686,12 @@ impl PaxEngine {
         dirty_layers.extend(removals.iter().map(|(layer, _)| *layer));
         dirty_layers.sort_unstable();
         dirty_layers.dedup();
+        for layer in &dirty_layers {
+            let lighting = self
+                .runtime_context
+                .collect_scene_lighting_for_layer(*layer);
+            rcs.set_scene_lighting(*layer, &lighting);
+        }
         let removal_layers: HashSet<_> = removals.iter().map(|(layer, _)| *layer).collect();
         let targeted_replay_node_ids = self.runtime_context.take_targeted_canvas_replay_node_ids();
         let dirty_node_ids_before_expansion = self.runtime_context.dirty_canvas_node_ids();

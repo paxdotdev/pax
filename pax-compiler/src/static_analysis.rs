@@ -48,10 +48,12 @@ const PAX_STD_DESIGNTIME_SEED_IDENTIFIERS: &[&str] = &[
     "Tooltip",
     "YoutubeVideo",
     "Ellipse",
+    "AmbientLight",
     "Image",
     "ImageSource",
     "ImageFit",
     "Line",
+    "LightSource",
     "Path",
     "PathPoint",
     "PathLine",
@@ -470,8 +472,15 @@ fn ensure_known_type_definition(ctx: &mut ParsingContext, import_path: &str) -> 
         }
         "pax_engine::api::Fill" => TypeId::build_singleton(import_path, Some("Fill")),
         "pax_engine::api::Stroke" => TypeId::build_singleton(import_path, Some("Stroke")),
+        "pax_engine::api::Material" => TypeId::build_singleton(import_path, Some("Material")),
+        "pax_engine::api::MaterialParams" => {
+            TypeId::build_singleton(import_path, Some("MaterialParams"))
+        }
         "pax_engine::api::Size" => TypeId::build_singleton(import_path, Some("Size")),
+        "pax_engine::api::Depth" => TypeId::build_singleton(import_path, Some("Depth")),
         "pax_engine::api::Color" => TypeId::build_singleton(import_path, Some("Color")),
+        "pax_engine::api::LightShape" => TypeId::build_singleton(import_path, Some("LightShape")),
+        "pax_engine::api::Vector3" => TypeId::build_singleton(import_path, Some("Vector3")),
         "pax_engine::api::PathElement" => TypeId::build_singleton(import_path, Some("PathElement")),
         "pax_engine::api::ColorChannel" => {
             TypeId::build_singleton(import_path, Some("ColorChannel"))
@@ -509,6 +518,81 @@ fn ensure_known_type_definition(ctx: &mut ParsingContext, import_path: &str) -> 
                         name: "width".to_string(),
                         flags,
                         type_id: size_type_id,
+                    },
+                ],
+            },
+        );
+    } else if import_path == "pax_engine::api::MaterialParams" {
+        let numeric_type_id = TypeId::build_primitive("f64");
+        let color_type_id = ensure_known_type_definition(ctx, "pax_engine::api::Color")?;
+        let mut flags = PropertyDefinitionFlags::default();
+        flags.is_property_wrapped = true;
+        ctx.type_table.insert(
+            type_id.clone(),
+            TypeDefinition {
+                type_id: type_id.clone(),
+                inner_iterable_type_id: None,
+                property_definitions: vec![
+                    PropertyDefinition {
+                        name: "ambient".to_string(),
+                        flags: flags.clone(),
+                        type_id: numeric_type_id.clone(),
+                    },
+                    PropertyDefinition {
+                        name: "diffuse".to_string(),
+                        flags: flags.clone(),
+                        type_id: numeric_type_id.clone(),
+                    },
+                    PropertyDefinition {
+                        name: "specular".to_string(),
+                        flags: flags.clone(),
+                        type_id: numeric_type_id.clone(),
+                    },
+                    PropertyDefinition {
+                        name: "roughness".to_string(),
+                        flags: flags.clone(),
+                        type_id: numeric_type_id.clone(),
+                    },
+                    PropertyDefinition {
+                        name: "metallic".to_string(),
+                        flags: flags.clone(),
+                        type_id: numeric_type_id.clone(),
+                    },
+                    PropertyDefinition {
+                        name: "emissive".to_string(),
+                        flags: flags.clone(),
+                        type_id: color_type_id,
+                    },
+                    PropertyDefinition {
+                        name: "emissive_intensity".to_string(),
+                        flags,
+                        type_id: numeric_type_id,
+                    },
+                ],
+            },
+        );
+    } else if import_path == "pax_engine::api::Vector3" {
+        let numeric_type_id = TypeId::build_primitive("f64");
+        ctx.type_table.insert(
+            type_id.clone(),
+            TypeDefinition {
+                type_id: type_id.clone(),
+                inner_iterable_type_id: None,
+                property_definitions: vec![
+                    PropertyDefinition {
+                        name: "x".to_string(),
+                        flags: PropertyDefinitionFlags::default(),
+                        type_id: numeric_type_id.clone(),
+                    },
+                    PropertyDefinition {
+                        name: "y".to_string(),
+                        flags: PropertyDefinitionFlags::default(),
+                        type_id: numeric_type_id.clone(),
+                    },
+                    PropertyDefinition {
+                        name: "z".to_string(),
+                        flags: PropertyDefinitionFlags::default(),
+                        type_id: numeric_type_id,
                     },
                 ],
             },
@@ -1204,8 +1288,13 @@ fn canonical_special_import_path_for_ident(ident: &str) -> Option<&'static str> 
         "TemplateNodeId" => Some("pax_manifest::TemplateNodeId"),
         "Fill" => Some("pax_engine::api::Fill"),
         "Stroke" => Some("pax_engine::api::Stroke"),
+        "Material" => Some("pax_engine::api::Material"),
+        "MaterialParams" => Some("pax_engine::api::MaterialParams"),
         "Size" => Some("pax_engine::api::Size"),
+        "Depth" => Some("pax_engine::api::Depth"),
         "Color" => Some("pax_engine::api::Color"),
+        "LightShape" => Some("pax_engine::api::LightShape"),
+        "Vector3" => Some("pax_engine::api::Vector3"),
         "PathElement" => Some("pax_engine::api::PathElement"),
         "ColorChannel" => Some("pax_engine::api::ColorChannel"),
         "Rotation" => Some("pax_engine::api::Rotation"),
@@ -1227,11 +1316,26 @@ fn canonical_special_import_path_for_path(path: &str) -> Option<&'static str> {
         "pax_engine::api::Stroke" | "pax_runtime::api::Stroke" | "pax_runtime_api::Stroke" => {
             Some("pax_engine::api::Stroke")
         }
+        "pax_engine::api::Material"
+        | "pax_runtime::api::Material"
+        | "pax_runtime_api::Material" => Some("pax_engine::api::Material"),
+        "pax_engine::api::MaterialParams"
+        | "pax_runtime::api::MaterialParams"
+        | "pax_runtime_api::MaterialParams" => Some("pax_engine::api::MaterialParams"),
         "pax_engine::api::Size" | "pax_runtime::api::Size" | "pax_runtime_api::Size" => {
             Some("pax_engine::api::Size")
         }
+        "pax_engine::api::Depth" | "pax_runtime::api::Depth" | "pax_runtime_api::Depth" => {
+            Some("pax_engine::api::Depth")
+        }
         "pax_engine::api::Color" | "pax_runtime::api::Color" | "pax_runtime_api::Color" => {
             Some("pax_engine::api::Color")
+        }
+        "pax_engine::api::LightShape"
+        | "pax_runtime::api::LightShape"
+        | "pax_runtime_api::LightShape" => Some("pax_engine::api::LightShape"),
+        "pax_engine::api::Vector3" | "pax_runtime::api::Vector3" | "pax_runtime_api::Vector3" => {
+            Some("pax_engine::api::Vector3")
         }
         "pax_engine::api::PathElement"
         | "pax_runtime::api::PathElement"
@@ -1826,6 +1930,7 @@ mod tests {
                 "pax_std::core::text::TextAlignVertical",
                 "pax_engine::api::Fill",
                 "pax_engine::api::Stroke",
+                "pax_engine::api::Material",
                 "pax_engine::api::Color",
                 "pax_engine::api::Size",
                 "pax_engine::api::Numeric",
@@ -1850,6 +1955,70 @@ mod tests {
                 "pax_std::media::image::ImageSource",
                 "pax_std::drawing::path::PathCurve",
             ],
+        );
+    }
+
+    #[test]
+    fn material_and_lighting_api_types_have_static_signatures() {
+        let mut ctx = ParsingContext::default();
+        for import_path in [
+            "pax_engine::api::Material",
+            "pax_engine::api::MaterialParams",
+            "pax_engine::api::Depth",
+            "pax_engine::api::LightShape",
+            "pax_engine::api::Vector3",
+        ] {
+            ensure_known_type_definition(&mut ctx, import_path)
+                .expect("special API type should be known");
+        }
+
+        let material_params_id =
+            TypeId::build_singleton("pax_engine::api::MaterialParams", Some("MaterialParams"));
+        let mut material_params_fields = ctx.type_table[&material_params_id]
+            .property_definitions
+            .iter()
+            .map(|property| {
+                (
+                    property.name.as_str(),
+                    property.type_id.to_string(),
+                    property.flags.is_property_wrapped,
+                )
+            })
+            .collect::<Vec<_>>();
+        material_params_fields.sort();
+        assert_eq!(
+            material_params_fields,
+            vec![
+                ("ambient", "f64".to_string(), true),
+                ("diffuse", "f64".to_string(), true),
+                ("emissive", "pax_engine::api::Color".to_string(), true),
+                ("emissive_intensity", "f64".to_string(), true),
+                ("metallic", "f64".to_string(), true),
+                ("roughness", "f64".to_string(), true),
+                ("specular", "f64".to_string(), true),
+            ]
+        );
+
+        let vector3_id = TypeId::build_singleton("pax_engine::api::Vector3", Some("Vector3"));
+        let mut vector3_fields = ctx.type_table[&vector3_id]
+            .property_definitions
+            .iter()
+            .map(|property| {
+                (
+                    property.name.as_str(),
+                    property.type_id.to_string(),
+                    property.flags.is_property_wrapped,
+                )
+            })
+            .collect::<Vec<_>>();
+        vector3_fields.sort();
+        assert_eq!(
+            vector3_fields,
+            vec![
+                ("x", "f64".to_string(), false),
+                ("y", "f64".to_string(), false),
+                ("z", "f64".to_string(), false),
+            ]
         );
     }
 

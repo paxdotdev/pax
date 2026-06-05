@@ -403,8 +403,8 @@ impl InstanceNode for ScrollerHostInstance {
                                 || (presentation_scroll.1 - previous_presentation_scroll.1).abs()
                                     > 1e-4;
                         *previous_presentation_scroll = presentation_scroll;
-                        let has_scroller_island =
-                            resolve_scroller_island_layer(&expanded_node).is_some();
+                        let scroller_island_layer = resolve_scroller_island_layer(&expanded_node);
+                        let has_scroller_island = scroller_island_layer.is_some();
                         let surface_change = context.set_scroller_surface_state(
                             id,
                             ScrollerSurfaceState {
@@ -537,6 +537,13 @@ impl InstanceNode for ScrollerHostInstance {
                                 // Root/non-island scrollers still render into a fixed surface; when
                                 // scroll changes, their vector content needs a redraw to stay aligned.
                                 mark_canvas_descendants_dirty(&expanded_node, &context);
+                            } else if scroll_updated {
+                                // Scroller islands keep geometry in content coordinates, but
+                                // inherited lights must be re-expressed through the current scroll
+                                // transform and uploaded to the retained surface.
+                                if let Some(layer) = scroller_island_layer {
+                                    context.set_canvas_dirty(layer);
+                                }
                             }
                         } else if presentation_changed && !scroll_updated {
                             mark_canvas_descendants_dirty(&expanded_node, &context);

@@ -7,9 +7,9 @@ use std::ops::Range;
 use crate::{
     impl_default_coercion_rule,
     math::{Transform2, Vector2},
-    Color, ColorChannel, Duration, Fill, GradientStop, LayoutRole, LinearGradient, Numeric,
-    Opacity, PathElement, PaxValue, Percent, Property, RadialGradient, Rotation, Size, Stroke,
-    StrokeCap, Transform2D,
+    Color, ColorChannel, Depth, Duration, Fill, GradientStop, LayoutRole, LightShape,
+    LinearGradient, Material, MaterialParams, Numeric, Opacity, PathElement, PaxValue, Percent,
+    Property, RadialGradient, Rotation, Size, Stroke, StrokeCap, Transform2D, Vector3,
 };
 
 // Default coercion rules:
@@ -451,6 +451,221 @@ impl CoercionRules for GradientStop {
     }
 }
 
+impl CoercionRules for Depth {
+    fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
+        Ok(match pax_value {
+            PaxValue::Size(Size::Pixels(value)) => Depth(value),
+            PaxValue::Size(Size::Percent(_)) | PaxValue::Percent(_) => {
+                return Err("failed to coerce Depth: percent depth is not supported".to_string());
+            }
+            PaxValue::Size(Size::Combined(_, _)) => {
+                return Err("failed to coerce Depth: combined depth is not supported".to_string());
+            }
+            PaxValue::Numeric(value) => Depth(value),
+            PaxValue::Option(o) => {
+                if let Some(o) = *o {
+                    Depth::try_coerce(o)?
+                } else {
+                    return Err("failed to coerce Depth".to_string());
+                }
+            }
+            _ => return Err(format!("{:?} can't be coerced into a Depth", pax_value)),
+        })
+    }
+}
+
+impl CoercionRules for Vector3 {
+    fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
+        Ok(match pax_value {
+            PaxValue::Object(map) => {
+                let [x, y, z] = extract_options(["x", "y", "z"], map)
+                    .map_err(|e| format!("failed to convert to Vector3: {e}"))?;
+                Vector3 {
+                    x: f64::try_coerce(x)?,
+                    y: f64::try_coerce(y)?,
+                    z: f64::try_coerce(z)?,
+                }
+            }
+            PaxValue::Vec(values) => {
+                if values.len() != 3 {
+                    return Err("failed to coerce Vector3: expected three values".to_string());
+                }
+                let mut values = values.into_iter();
+                Vector3 {
+                    x: f64::try_coerce(values.next().unwrap())?,
+                    y: f64::try_coerce(values.next().unwrap())?,
+                    z: f64::try_coerce(values.next().unwrap())?,
+                }
+            }
+            PaxValue::Enum(contents) => {
+                let (_, variant, values) = *contents;
+                match variant.as_str() {
+                    "new" => {
+                        if values.len() != 3 {
+                            return Err("failed to coerce Vector3::new".to_string());
+                        }
+                        let mut values = values.into_iter();
+                        Vector3 {
+                            x: f64::try_coerce(values.next().unwrap())?,
+                            y: f64::try_coerce(values.next().unwrap())?,
+                            z: f64::try_coerce(values.next().unwrap())?,
+                        }
+                    }
+                    _ => {
+                        return Err(format!(
+                            "failed to coerce Vector3: unknown enum variant {:?}",
+                            variant
+                        ))
+                    }
+                }
+            }
+            PaxValue::Option(o) => {
+                if let Some(o) = *o {
+                    Vector3::try_coerce(o)?
+                } else {
+                    return Err("failed to coerce Vector3".to_string());
+                }
+            }
+            _ => return Err(format!("{:?} can't be coerced into a Vector3", pax_value)),
+        })
+    }
+}
+
+impl CoercionRules for LightShape {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::Enum(contents) => {
+                let (_, variant, args) = *contents;
+                if !args.is_empty() {
+                    return Err(format!(
+                        "failed to coerce LightShape: expected no enum args, got {:?}",
+                        args
+                    ));
+                }
+                match variant.as_str() {
+                    "Point" => Ok(LightShape::Point),
+                    "Directional" => Ok(LightShape::Directional),
+                    _ => Err(format!(
+                        "failed to coerce LightShape: unknown enum variant {:?}",
+                        variant
+                    )),
+                }
+            }
+            PaxValue::Option(o) => {
+                if let Some(o) = *o {
+                    LightShape::try_coerce(o)
+                } else {
+                    Err("failed to coerce LightShape".to_string())
+                }
+            }
+            _ => Err("failed to coerce LightShape".to_string()),
+        }
+    }
+}
+
+impl CoercionRules for MaterialParams {
+    fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
+        Ok(match pax_value {
+            PaxValue::Object(map) => {
+                let mut params = MaterialParams::default();
+                for (key, value) in map {
+                    match key.as_str() {
+                        "ambient" => params.ambient = Property::new(f64::try_coerce(value)?),
+                        "diffuse" => params.diffuse = Property::new(f64::try_coerce(value)?),
+                        "specular" => params.specular = Property::new(f64::try_coerce(value)?),
+                        "roughness" => params.roughness = Property::new(f64::try_coerce(value)?),
+                        "metallic" => params.metallic = Property::new(f64::try_coerce(value)?),
+                        "emissive" => params.emissive = Property::new(Color::try_coerce(value)?),
+                        "emissive_intensity" | "emissiveIntensity" => {
+                            params.emissive_intensity = Property::new(f64::try_coerce(value)?)
+                        }
+                        _ => {}
+                    }
+                }
+                params
+            }
+            PaxValue::Option(o) => {
+                if let Some(o) = *o {
+                    MaterialParams::try_coerce(o)?
+                } else {
+                    return Err("failed to coerce MaterialParams".to_string());
+                }
+            }
+            _ => {
+                return Err(format!(
+                    "{:?} can't be coerced into MaterialParams",
+                    pax_value
+                ))
+            }
+        })
+    }
+}
+
+impl CoercionRules for Material {
+    fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
+        Ok(match pax_value {
+            PaxValue::Object(map) => {
+                Material::Lit(MaterialParams::try_coerce(PaxValue::Object(map))?)
+            }
+            PaxValue::Enum(contents) => {
+                let (_, variant, args) = *contents;
+                match variant.as_str() {
+                    "Lit" | "custom" => {
+                        let params = args
+                            .into_iter()
+                            .next()
+                            .ok_or_else(|| "failed to coerce Material::custom".to_string())?;
+                        Material::Lit(MaterialParams::try_coerce(params)?)
+                    }
+                    "Unlit" | "unlit" => Material::Unlit,
+                    "Matte" | "matte" => Material::matte(),
+                    "Glossy" | "glossy" => {
+                        let specular = args
+                            .into_iter()
+                            .next()
+                            .map(f64::try_coerce)
+                            .transpose()?
+                            .unwrap_or(0.28);
+                        Material::glossy(specular)
+                    }
+                    "Metallic" | "metallic" => {
+                        let metallic = args
+                            .into_iter()
+                            .next()
+                            .map(f64::try_coerce)
+                            .transpose()?
+                            .unwrap_or(0.72);
+                        Material::metallic(metallic)
+                    }
+                    "Emissive" | "emissive" => {
+                        if args.len() != 2 {
+                            return Err("failed to coerce Material::emissive".to_string());
+                        }
+                        let mut args = args.into_iter();
+                        let color = Color::try_coerce(args.next().unwrap())?;
+                        let intensity = f64::try_coerce(args.next().unwrap())?;
+                        Material::emissive(color, intensity)
+                    }
+                    _ => {
+                        return Err(format!(
+                            "failed to coerce Material: unknown enum variant {:?}",
+                            variant
+                        ))
+                    }
+                }
+            }
+            PaxValue::Option(o) => {
+                if let Some(o) = *o {
+                    Material::try_coerce(o)?
+                } else {
+                    return Err("failed to coerce Material".to_string());
+                }
+            }
+            _ => return Err(format!("{:?} can't be coerced into Material", pax_value)),
+        })
+    }
+}
+
 fn parse_gradient_point(value: PaxValue) -> Result<(Size, Size), String> {
     match value {
         PaxValue::Vec(vec) => {
@@ -593,6 +808,32 @@ mod tests {
             .expect("numeric opacity should coerce");
         assert_eq!(opacity, Opacity::Alpha(Numeric::F64(0.5)));
         assert!((opacity.to_float_0_1() - 0.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn coerces_depth_from_px_but_rejects_percent() {
+        let depth = Depth::try_coerce(PaxValue::Size(Size::Pixels(Numeric::F64(260.0))))
+            .expect("px depth should coerce");
+        assert_eq!(depth.to_float(), 260.0);
+
+        let err = Depth::try_coerce(pct(50)).expect_err("percent depth should fail");
+        assert!(err.contains("percent depth"));
+    }
+
+    #[test]
+    fn coerces_material_helper_syntax() {
+        let pax_value = PaxValue::Enum(Box::new((
+            "Material".to_string(),
+            "glossy".to_string(),
+            vec![PaxValue::Numeric(Numeric::F64(0.44))],
+        )));
+
+        let material = Material::try_coerce(pax_value).expect("material helper should coerce");
+        let Material::Lit(params) = material else {
+            panic!("expected lit material");
+        };
+        assert_eq!(params.specular.get(), 0.44);
+        assert_eq!(params.roughness.get(), 0.28);
     }
 }
 

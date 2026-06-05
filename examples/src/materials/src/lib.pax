@@ -1,0 +1,403 @@
+<Group width=100% height=100%>
+    <AmbientLight intensity=0.42 color=rgba(232, 238, 244, 255) />
+
+    <Scroller width=100% height=100% autosize=true scroll_pos_y=bind:scroll_y>
+        <Group width=100% autosize_y=true>
+            <Stacker
+                width=100%
+                autosize=true
+                direction=StackerDirection::Vertical
+                gutter=15px
+                padding_y=15px
+            >
+                <Group width=100% height={(self.panel_height)px}>
+                    <Group x=59px y=44px width={100% - 118px} autosize_y=true>
+                        <Text class=element_title x={self.is_compact ? 0px : 178px} y={self.is_compact ? 156px : 12px} width={self.is_compact ? 100% : (100% - 202px)} height=68px text="Luminite" />
+                        <Text class=element_copy x={self.is_compact ? 0px : 181px} y={self.is_compact ? 228px : 96px} width={self.is_compact ? 100% : (100% - 227px)} text="A cooperative mineral that accepts stray photons, stores them in a satin lattice, and releases them only when a moving light crosses its surface." />
+                        <Text class=element_symbol x=0px y=22px width=142px height=102px text="Lu" selectable=false />
+                        <Rectangle
+                            x=0px
+                            y=0px
+                            width=142px
+                            height=142px
+                            fill=rgba(255, 255, 255, 0)
+                            material={self.background_material}
+                            stroke={
+                                color: rgba(255, 255, 255, 232)
+                                width: 6px
+                            }
+                            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+                        />
+                    </Group>
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={rgb(74, 100, 126)} material={self.material_00} corner_radii={RectangleCornerRadii::radii(25.0, 25.0, 25.0, 25.0)} />
+                </Group>
+                <Group width=100% height={(self.panel_height)px}>
+                    <Group x=59px y=44px width={100% - 118px} autosize_y=true>
+                        <Text class=element_title x={self.is_compact ? 0px : 178px} y={self.is_compact ? 156px : 12px} width={self.is_compact ? 100% : (100% - 202px)} height=68px text="Vellumite" />
+                        <Text class=element_copy x={self.is_compact ? 0px : 181px} y={self.is_compact ? 228px : 96px} width={self.is_compact ? 100% : (100% - 227px)} text="A soft-grained element that dims reflected light, turning sharp color into a quiet photographic haze." />
+                        <Text class=element_symbol x=0px y=22px width=142px height=102px text="Ve" selectable=false />
+                        <Rectangle
+                            x=0px
+                            y=0px
+                            width=142px
+                            height=142px
+                            fill=rgba(255, 255, 255, 0)
+                            material={self.background_material}
+                            stroke={
+                                color: rgba(255, 255, 255, 232)
+                                width: 6px
+                            }
+                            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+                        />
+                    </Group>
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={rgb(166, 86, 92)} material={self.material_01} opacity=0.3067 corner_radii={RectangleCornerRadii::radii(25.0, 25.0, 25.0, 25.0)} />
+                </Group>
+                <Group width=100% height={(self.panel_height)px}>
+                    <Group x=59px y=44px width={100% - 118px} autosize_y=true>
+                        <Text class=element_title x={self.is_compact ? 0px : 178px} y={self.is_compact ? 156px : 12px} width={self.is_compact ? 100% : (100% - 202px)} height=68px text="Cindral" />
+                        <Text class=element_copy x={self.is_compact ? 0px : 181px} y={self.is_compact ? 228px : 96px} width={self.is_compact ? 100% : (100% - 227px)} text="A warm mineral that throws coppery highlights from shallow angles and keeps its shadows dry and emberlike." />
+                        <Text class=element_symbol x=0px y=22px width=142px height=102px text="Ci" selectable=false />
+                        <Rectangle
+                            x=0px
+                            y=0px
+                            width=142px
+                            height=142px
+                            fill=rgba(255, 255, 255, 0)
+                            material={self.background_material}
+                            stroke={
+                                color: rgba(255, 255, 255, 232)
+                                width: 6px
+                            }
+                            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+                        />
+                    </Group>
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={rgb(204, 118, 64)} material={self.material_02} corner_radii={RectangleCornerRadii::radii(25.0, 25.0, 25.0, 25.0)} />
+                </Group>
+                <Group width=100% height={(self.panel_height)px}>
+                    <Group x=59px y=44px width={100% - 118px} autosize_y=true>
+                        <Text class=element_title x={self.is_compact ? 0px : 178px} y={self.is_compact ? 156px : 12px} width={self.is_compact ? 100% : (100% - 202px)} height=68px text="Aurevene" />
+                        <Text class=element_copy x={self.is_compact ? 0px : 181px} y={self.is_compact ? 228px : 96px} width={self.is_compact ? 100% : (100% - 227px)} text="A bright alloy that polishes incoming light into long golden bands, as if memory itself had luster." />
+                        <Text class=element_symbol x=0px y=22px width=142px height=102px text="Ae" selectable=false />
+                        <Rectangle
+                            x=0px
+                            y=0px
+                            width=142px
+                            height=142px
+                            fill=rgba(255, 255, 255, 0)
+                            material={self.background_material}
+                            stroke={
+                                color: rgba(255, 255, 255, 232)
+                                width: 6px
+                            }
+                            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+                        />
+                    </Group>
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={rgb(184, 160, 76)} material={self.material_03} corner_radii={RectangleCornerRadii::radii(25.0, 25.0, 25.0, 25.0)} />
+                </Group>
+                <Group width=100% height={(self.panel_height)px}>
+                    <Group x=59px y=44px width={100% - 118px} autosize_y=true>
+                        <Text class=element_title x={self.is_compact ? 0px : 178px} y={self.is_compact ? 156px : 12px} width={self.is_compact ? 100% : (100% - 202px)} height=68px text="Thalasson" />
+                        <Text class=element_copy x={self.is_compact ? 0px : 181px} y={self.is_compact ? 228px : 96px} width={self.is_compact ? 100% : (100% - 227px)} text="A sea-green metal whose surface answers light with a dense, tidal shimmer and a cool mineral edge." />
+                        <Text class=element_symbol x=0px y=22px width=142px height=102px text="Th" selectable=false />
+                        <Rectangle
+                            x=0px
+                            y=0px
+                            width=142px
+                            height=142px
+                            fill=rgba(255, 255, 255, 0)
+                            material={self.background_material}
+                            stroke={
+                                color: rgba(255, 255, 255, 232)
+                                width: 6px
+                            }
+                            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+                        />
+                    </Group>
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={rgb(64, 148, 130)} material={self.material_04} corner_radii={RectangleCornerRadii::radii(25.0, 25.0, 25.0, 25.0)} />
+                </Group>
+                <Group width=100% height={(self.panel_height)px}>
+                    <Group x=59px y=44px width={100% - 118px} autosize_y=true>
+                        <Text class=element_title x={self.is_compact ? 0px : 178px} y={self.is_compact ? 156px : 12px} width={self.is_compact ? 100% : (100% - 202px)} height=68px text="Bluorite" />
+                        <Text class=element_copy x={self.is_compact ? 0px : 181px} y={self.is_compact ? 228px : 96px} width={self.is_compact ? 100% : (100% - 227px)} text="A blue alloy that stores bright glints briefly, then releases them as narrow flashes along its grain." />
+                        <Text class=element_symbol x=0px y=22px width=142px height=102px text="Bl" selectable=false />
+                        <Rectangle
+                            x=0px
+                            y=0px
+                            width=142px
+                            height=142px
+                            fill=rgba(255, 255, 255, 0)
+                            material={self.background_material}
+                            stroke={
+                                color: rgba(255, 255, 255, 232)
+                                width: 6px
+                            }
+                            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+                        />
+                    </Group>
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={rgb(62, 136, 192)} material={self.material_05} opacity=0.2533 corner_radii={RectangleCornerRadii::radii(25.0, 25.0, 25.0, 25.0)} />
+                </Group>
+                <Group width=100% height={(self.panel_height)px}>
+                    <Group x=59px y=44px width={100% - 118px} autosize_y=true>
+                        <Text class=element_title x={self.is_compact ? 0px : 178px} y={self.is_compact ? 156px : 12px} width={self.is_compact ? 100% : (100% - 202px)} height=68px text="Solivane" />
+                        <Text class=element_copy x={self.is_compact ? 0px : 181px} y={self.is_compact ? 228px : 96px} width={self.is_compact ? 100% : (100% - 227px)} text="A lamp-bearing crystal that warms nearby colors without surrendering its own violet core." />
+                        <Text class=element_symbol x=0px y=22px width=142px height=102px text="So" selectable=false />
+                        <Rectangle
+                            x=0px
+                            y=0px
+                            width=142px
+                            height=142px
+                            fill=rgba(255, 255, 255, 0)
+                            material={self.background_material}
+                            stroke={
+                                color: rgba(255, 255, 255, 232)
+                                width: 6px
+                            }
+                            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+                        />
+                    </Group>
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={rgb(104, 98, 202)} material={self.material_06} corner_radii={RectangleCornerRadii::radii(25.0, 25.0, 25.0, 25.0)} />
+                </Group>
+                <Group width=100% height={(self.panel_height)px}>
+                    <Group x=59px y=44px width={100% - 118px} autosize_y=true>
+                        <Text class=element_title x={self.is_compact ? 0px : 178px} y={self.is_compact ? 156px : 12px} width={self.is_compact ? 100% : (100% - 202px)} height=68px text="Opalume" />
+                        <Text class=element_copy x={self.is_compact ? 0px : 181px} y={self.is_compact ? 228px : 96px} width={self.is_compact ? 100% : (100% - 227px)} text="A smooth pink glass that cushions bright light, turning hard reflections into a pearled, milky bloom." />
+                        <Text class=element_symbol x=0px y=22px width=142px height=102px text="Op" selectable=false />
+                        <Rectangle
+                            x=0px
+                            y=0px
+                            width=142px
+                            height=142px
+                            fill=rgba(255, 255, 255, 0)
+                            material={self.background_material}
+                            stroke={
+                                color: rgba(255, 255, 255, 232)
+                                width: 6px
+                            }
+                            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+                        />
+                    </Group>
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={rgb(180, 86, 168)} material={self.material_07} corner_radii={RectangleCornerRadii::radii(25.0, 25.0, 25.0, 25.0)} />
+                </Group>
+                <Group width=100% height={(self.panel_height)px}>
+                    <Group x=59px y=44px width={100% - 118px} autosize_y=true>
+                        <Text class=element_title x={self.is_compact ? 0px : 178px} y={self.is_compact ? 156px : 12px} width={self.is_compact ? 100% : (100% - 202px)} height=68px text="Roscaline" />
+                        <Text class=element_copy x={self.is_compact ? 0px : 181px} y={self.is_compact ? 228px : 96px} width={self.is_compact ? 100% : (100% - 227px)} text="A thin rose element, almost more atmosphere than matter, visible only when light gathers through it." />
+                        <Text class=element_symbol x=0px y=22px width=142px height=102px text="Rc" selectable=false />
+                        <Rectangle
+                            x=0px
+                            y=0px
+                            width=142px
+                            height=142px
+                            fill=rgba(255, 255, 255, 0)
+                            material={self.background_material}
+                            stroke={
+                                color: rgba(255, 255, 255, 232)
+                                width: 6px
+                            }
+                            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+                        />
+                    </Group>
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={rgb(207, 84, 116)} material={self.material_08} opacity=0.2000 corner_radii={RectangleCornerRadii::radii(25.0, 25.0, 25.0, 25.0)} />
+                </Group>
+                <Group width=100% height={(self.panel_height)px}>
+                    <Group x=59px y=44px width={100% - 118px} autosize_y=true>
+                        <Text class=element_title x={self.is_compact ? 0px : 178px} y={self.is_compact ? 156px : 12px} width={self.is_compact ? 100% : (100% - 202px)} height=68px text="Viridane" />
+                        <Text class=element_copy x={self.is_compact ? 0px : 181px} y={self.is_compact ? 228px : 96px} width={self.is_compact ? 100% : (100% - 227px)} text="A chlorophyll alloy that scatters light broadly, producing a herbarium softness around each highlight." />
+                        <Text class=element_symbol x=0px y=22px width=142px height=102px text="Vd" selectable=false />
+                        <Rectangle
+                            x=0px
+                            y=0px
+                            width=142px
+                            height=142px
+                            fill=rgba(255, 255, 255, 0)
+                            material={self.background_material}
+                            stroke={
+                                color: rgba(255, 255, 255, 232)
+                                width: 6px
+                            }
+                            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+                        />
+                    </Group>
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={rgb(130, 170, 74)} material={self.material_09} corner_radii={RectangleCornerRadii::radii(25.0, 25.0, 25.0, 25.0)} />
+                </Group>
+                <Group width=100% height={(self.panel_height)px}>
+                    <Group x=59px y=44px width={100% - 118px} autosize_y=true>
+                        <Text class=element_title x={self.is_compact ? 0px : 178px} y={self.is_compact ? 156px : 12px} width={self.is_compact ? 100% : (100% - 202px)} height=68px text="Giltora" />
+                        <Text class=element_copy x={self.is_compact ? 0px : 181px} y={self.is_compact ? 228px : 96px} width={self.is_compact ? 100% : (100% - 227px)} text="A dry gold compound with a waxy face, reluctant shine, and a slow amber response to passing light." />
+                        <Text class=element_symbol x=0px y=22px width=142px height=102px text="Gt" selectable=false />
+                        <Rectangle
+                            x=0px
+                            y=0px
+                            width=142px
+                            height=142px
+                            fill=rgba(255, 255, 255, 0)
+                            material={self.background_material}
+                            stroke={
+                                color: rgba(255, 255, 255, 232)
+                                width: 6px
+                            }
+                            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+                        />
+                    </Group>
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={rgb(210, 170, 88)} material={self.material_10} corner_radii={RectangleCornerRadii::radii(25.0, 25.0, 25.0, 25.0)} />
+                </Group>
+                <Group width=100% height={(self.panel_height)px}>
+                    <Group x=59px y=44px width={100% - 118px} autosize_y=true>
+                        <Text class=element_title x={self.is_compact ? 0px : 178px} y={self.is_compact ? 156px : 12px} width={self.is_compact ? 100% : (100% - 202px)} height=68px text="Umbrelle" />
+                        <Text class=element_copy x={self.is_compact ? 0px : 181px} y={self.is_compact ? 228px : 96px} width={self.is_compact ? 100% : (100% - 227px)} text="A storm-blue mineral whose polish is uneven, bright at the rim and secretive through the center." />
+                        <Text class=element_symbol x=0px y=22px width=142px height=102px text="Ub" selectable=false />
+                        <Rectangle
+                            x=0px
+                            y=0px
+                            width=142px
+                            height=142px
+                            fill=rgba(255, 255, 255, 0)
+                            material={self.background_material}
+                            stroke={
+                                color: rgba(255, 255, 255, 232)
+                                width: 6px
+                            }
+                            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+                        />
+                    </Group>
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={rgb(84, 116, 172)} material={self.material_11} opacity=0.3600 corner_radii={RectangleCornerRadii::radii(25.0, 25.0, 25.0, 25.0)} />
+                </Group>
+                <Group width=100% height={(self.panel_height)px}>
+                    <Group x=59px y=44px width={100% - 118px} autosize_y=true>
+                        <Text class=element_title x={self.is_compact ? 0px : 178px} y={self.is_compact ? 156px : 12px} width={self.is_compact ? 100% : (100% - 202px)} height=68px text="Ferrivox" />
+                        <Text class=element_copy x={self.is_compact ? 0px : 181px} y={self.is_compact ? 228px : 96px} width={self.is_compact ? 100% : (100% - 227px)} text="An iron-red element that catches heat-colored light and pulls it into a low, smoky resonance." />
+                        <Text class=element_symbol x=0px y=22px width=142px height=102px text="Fx" selectable=false />
+                        <Rectangle
+                            x=0px
+                            y=0px
+                            width=142px
+                            height=142px
+                            fill=rgba(255, 255, 255, 0)
+                            material={self.background_material}
+                            stroke={
+                                color: rgba(255, 255, 255, 232)
+                                width: 6px
+                            }
+                            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+                        />
+                    </Group>
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={rgb(170, 96, 68)} material={self.material_12} corner_radii={RectangleCornerRadii::radii(25.0, 25.0, 25.0, 25.0)} />
+                </Group>
+                <Group width=100% height={(self.panel_height)px}>
+                    <Group x=59px y=44px width={100% - 118px} autosize_y=true>
+                        <Text class=element_title x={self.is_compact ? 0px : 178px} y={self.is_compact ? 156px : 12px} width={self.is_compact ? 100% : (100% - 202px)} height=68px text="Aquivelle" />
+                        <Text class=element_copy x={self.is_compact ? 0px : 181px} y={self.is_compact ? 228px : 96px} width={self.is_compact ? 100% : (100% - 227px)} text="A clear-green salt that behaves like polished water, brightening at the edges before it settles." />
+                        <Text class=element_symbol x=0px y=22px width=142px height=102px text="Aq" selectable=false />
+                        <Rectangle
+                            x=0px
+                            y=0px
+                            width=142px
+                            height=142px
+                            fill=rgba(255, 255, 255, 0)
+                            material={self.background_material}
+                            stroke={
+                                color: rgba(255, 255, 255, 232)
+                                width: 6px
+                            }
+                            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+                        />
+                    </Group>
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={rgb(70, 166, 146)} material={self.material_13} corner_radii={RectangleCornerRadii::radii(25.0, 25.0, 25.0, 25.0)} />
+                </Group>
+                <Group width=100% height={(self.panel_height)px}>
+                    <Group x=59px y=44px width={100% - 118px} autosize_y=true>
+                        <Text class=element_title x={self.is_compact ? 0px : 178px} y={self.is_compact ? 156px : 12px} width={self.is_compact ? 100% : (100% - 202px)} height=68px text="Lilacene" />
+                        <Text class=element_copy x={self.is_compact ? 0px : 181px} y={self.is_compact ? 228px : 96px} width={self.is_compact ? 100% : (100% - 227px)} text="A violet emitter that lends nearby shadows a ceremonial glow, as if color were being sung." />
+                        <Text class=element_symbol x=0px y=22px width=142px height=102px text="Lc" selectable=false />
+                        <Rectangle
+                            x=0px
+                            y=0px
+                            width=142px
+                            height=142px
+                            fill=rgba(255, 255, 255, 0)
+                            material={self.background_material}
+                            stroke={
+                                color: rgba(255, 255, 255, 232)
+                                width: 6px
+                            }
+                            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+                        />
+                    </Group>
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={rgb(142, 94, 208)} material={self.material_14} corner_radii={RectangleCornerRadii::radii(25.0, 25.0, 25.0, 25.0)} />
+                </Group>
+                <Group width=100% height={(self.panel_height)px}>
+                    <Group x=59px y=44px width={100% - 118px} autosize_y=true>
+                        <Text class=element_title x={self.is_compact ? 0px : 178px} y={self.is_compact ? 156px : 12px} width={self.is_compact ? 100% : (100% - 202px)} height=68px text="Gravolite" />
+                        <Text class=element_copy x={self.is_compact ? 0px : 181px} y={self.is_compact ? 228px : 96px} width={self.is_compact ? 100% : (100% - 227px)} text="A compact gray mineral with a restrained gloss, used as a control surface for testing reluctant highlights." />
+                        <Text class=element_symbol x=0px y=22px width=142px height=102px text="Gv" selectable=false />
+                        <Rectangle
+                            x=0px
+                            y=0px
+                            width=142px
+                            height=142px
+                            fill=rgba(255, 255, 255, 0)
+                            material={self.background_material}
+                            stroke={
+                                color: rgba(255, 255, 255, 232)
+                                width: 6px
+                            }
+                            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+                        />
+                    </Group>
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={rgb(72, 76, 84)} material={self.material_15} opacity=0.4133 corner_radii={RectangleCornerRadii::radii(25.0, 25.0, 25.0, 25.0)} />
+                </Group>
+            </Stacker>
+            <Rectangle width=100% height={(self.content_height)px} fill={rgb(22, 23, 24)} material={self.background_material} />
+        </Group>
+    </Scroller>
+
+    <LightSource
+        x={(self.light_x)px}
+        y={(self.light_y)px}
+        width=34px
+        height=34px
+        radius=1240px
+        z=150px
+        intensity=2.85
+        color=rgba(255, 236, 204, 255)
+    />
+
+    <Rectangle width=100% height=100% fill={rgb(22, 23, 24)} material={self.background_material} />
+</Group>
+
+@settings {
+    @mount: on_mount
+
+    .element_symbol {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap", FontStyle::Normal, FontWeight::ExtraBold)
+            font_size: 90px
+            fill: rgba(255, 255, 255, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+
+    .element_title {
+        style: TextStyle {
+            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap", FontStyle::Normal, FontWeight::ExtraBold)
+            font_size: 48px
+            fill: rgba(255, 255, 255, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    .element_copy {
+        style: TextStyle {
+            font: Font::Web("Cormorant Garamond", "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,500;1,600&display=swap", FontStyle::Italic, FontWeight::Medium)
+            font_size: 20px
+            fill: rgba(255, 255, 255, 230)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+}

@@ -22,7 +22,7 @@ mod texture;
 
 pub(crate) use texture::CachedTextureResource;
 
-use data::{GpuGlobals, GpuPrimitive, GpuVertex};
+use data::{GpuGlobals, GpuPrimitive, GpuSceneLighting, GpuVertex};
 
 use crate::{
     render_backend::texture::{
@@ -33,7 +33,7 @@ use crate::{
 };
 
 use self::{
-    data::{GpuColor, GpuGradient, GpuTransform},
+    data::{GpuColor, GpuGradient, GpuMaterial, GpuTransform},
     gpu_resources::create_multisampled_framebuffer,
     stencil::{StencilPipelineResources, StencilRenderer},
 };
@@ -231,6 +231,7 @@ pub struct RenderConfig {
     primitive_buffer_size: u64,
     colors_buffer_size: u64,
     gradients_buffer_size: u64,
+    materials_buffer_size: u64,
     transforms_buffer_size: u64,
     clip_transforms_buffer_size: u64,
     pub initial_width: u32,
@@ -241,6 +242,7 @@ pub struct RenderConfig {
 pub(crate) const MAX_BATCH_PRIMITIVES: usize = 512;
 pub(crate) const MAX_BATCH_COLORS: usize = 512;
 pub(crate) const MAX_BATCH_GRADIENTS: usize = 64;
+pub(crate) const MAX_BATCH_MATERIALS: usize = 512;
 pub(crate) const MAX_BATCH_TRANSFORMS: usize = 480;
 // WebGL/WebKit-class platforms can expose a 16 KiB max uniform binding size.
 // Keep the scene transform uniform arena under that ceiling.
@@ -257,6 +259,7 @@ impl RenderConfig {
             primitive_buffer_size: MAX_BATCH_PRIMITIVES as u64,
             colors_buffer_size: MAX_BATCH_COLORS as u64,
             gradients_buffer_size: MAX_BATCH_GRADIENTS as u64,
+            materials_buffer_size: MAX_BATCH_MATERIALS as u64,
             transforms_buffer_size: MAX_SCENE_TRANSFORMS as u64,
             clip_transforms_buffer_size: MAX_SCENE_CLIPS as u64,
             initial_width: width,
@@ -369,6 +372,8 @@ pub struct RenderBackend<'w> {
     clip_transforms_buffer: wgpu::Buffer,
     colors_buffer: wgpu::Buffer,
     gradients_buffer: wgpu::Buffer,
+    materials_buffer: wgpu::Buffer,
+    lighting_buffer: wgpu::Buffer,
 
     index_count: u64,
 
@@ -432,9 +437,11 @@ pub(crate) struct SharedRetainedVectorResource {
     primitive_capacity: usize,
     color_capacity: usize,
     gradient_capacity: usize,
+    material_capacity: usize,
     _primitive_buffer: wgpu::Buffer,
     _colors_buffer: wgpu::Buffer,
     _gradients_buffer: wgpu::Buffer,
+    _materials_buffer: wgpu::Buffer,
 }
 
 pub(crate) struct RetainedVectorResource {
@@ -558,6 +565,26 @@ fn create_primitive_bind_group_layout(device: &Device) -> BindGroupLayout {
                 },
                 count: None,
             },
+            wgpu::BindGroupLayoutEntry {
+                binding: 5,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 6,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
         ],
         label: Some("bind_group_layout"),
     })
@@ -592,6 +619,14 @@ impl<'w> RenderBackend<'w> {
                     binding: 4,
                     resource: self.gradients_buffer.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: self.materials_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: self.lighting_buffer.as_entire_binding(),
+                },
             ],
             label: Some("bind_group"),
         });
@@ -605,6 +640,7 @@ impl<'w> RenderBackend<'w> {
         required_transforms: usize,
         required_colors: usize,
         required_gradients: usize,
+        required_materials: usize,
     ) {
         let mut rebind_main_group = false;
 
@@ -664,6 +700,17 @@ impl<'w> RenderBackend<'w> {
             self.gradients_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Gradients Buffer"),
                 size: self.config.gradients_buffer_size * std::mem::size_of::<GpuGradient>() as u64,
+                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            rebind_main_group = true;
+        }
+
+        if required_materials > self.config.materials_buffer_size as usize {
+            self.config.materials_buffer_size = next_capacity(required_materials);
+            self.materials_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Materials Buffer"),
+                size: self.config.materials_buffer_size * std::mem::size_of::<GpuMaterial>() as u64,
                 usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
@@ -1042,6 +1089,18 @@ impl<'w> RenderBackend<'w> {
             config.gradients_buffer_size,
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         );
+        let (_, materials_buffer) = create_buffer::<GpuMaterial>(
+            &device,
+            "Materials Buffer",
+            config.materials_buffer_size,
+            BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        );
+        let (_, lighting_buffer) = create_buffer::<GpuSceneLighting>(
+            &device,
+            "Scene Lighting Buffer",
+            1,
+            BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        );
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &context.primitive_bind_group_layout,
@@ -1065,6 +1124,14 @@ impl<'w> RenderBackend<'w> {
                 wgpu::BindGroupEntry {
                     binding: 4,
                     resource: gradients_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: materials_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: lighting_buffer.as_entire_binding(),
                 },
             ],
             label: Some("bind_group"),
@@ -1112,6 +1179,8 @@ impl<'w> RenderBackend<'w> {
             globals_buffer,
             colors_buffer,
             gradients_buffer,
+            materials_buffer,
+            lighting_buffer,
             globals,
             index_count: 0,
             multisampled_target: None,
@@ -1365,6 +1434,7 @@ impl<'w> RenderBackend<'w> {
         primitive_buffer: &wgpu::Buffer,
         colors_buffer: &wgpu::Buffer,
         gradients_buffer: &wgpu::Buffer,
+        materials_buffer: &wgpu::Buffer,
     ) -> BindGroup {
         self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &self.context.primitive_bind_group_layout,
@@ -1389,6 +1459,14 @@ impl<'w> RenderBackend<'w> {
                     binding: 4,
                     resource: gradients_buffer.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: materials_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: self.lighting_buffer.as_entire_binding(),
+                },
             ],
             label: Some("retained_bind_group"),
         })
@@ -1403,6 +1481,7 @@ impl<'w> RenderBackend<'w> {
                 &shared._primitive_buffer,
                 &shared._colors_buffer,
                 &shared._gradients_buffer,
+                &shared._materials_buffer,
             ),
             shared,
         }
@@ -1413,12 +1492,14 @@ impl<'w> RenderBackend<'w> {
         buffers: &mut CpuBuffers,
         retained_primitives: &[GpuPrimitive],
     ) -> (Rc<SharedRetainedVectorResource>, u64) {
-        let (vertices, indices, _, _, mut colors, mut gradients) = aligned_cpu_buffers(buffers);
+        let (vertices, indices, _, _, mut colors, mut gradients, mut materials) =
+            aligned_cpu_buffers(buffers);
         let vertex_capacity = vertices.len();
         let index_capacity = indices.len();
         let primitive_capacity = retained_primitives.len();
         let color_capacity = colors.len();
         let gradient_capacity = gradients.len();
+        let material_capacity = materials.len();
         let mut primitives = retained_primitives.to_vec();
         primitives.resize(
             self.config.primitive_buffer_size as usize,
@@ -1429,11 +1510,16 @@ impl<'w> RenderBackend<'w> {
             self.config.gradients_buffer_size as usize,
             GpuGradient::default(),
         );
+        materials.resize(
+            self.config.materials_buffer_size as usize,
+            GpuMaterial::default(),
+        );
         let upload_bytes = (std::mem::size_of_val(vertices.as_slice())
             + std::mem::size_of_val(indices.as_slice())
             + std::mem::size_of_val(primitives.as_slice())
             + std::mem::size_of_val(colors.as_slice())
-            + std::mem::size_of_val(gradients.as_slice())) as u64;
+            + std::mem::size_of_val(gradients.as_slice())
+            + std::mem::size_of_val(materials.as_slice())) as u64;
         let vertex_buffer = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -1469,6 +1555,13 @@ impl<'w> RenderBackend<'w> {
                 contents: bytemuck::cast_slice(&gradients),
                 usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             });
+        let materials_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Retained Material Buffer"),
+                contents: bytemuck::cast_slice(&materials),
+                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            });
         (
             Rc::new(SharedRetainedVectorResource {
                 vertex_buffer,
@@ -1479,9 +1572,11 @@ impl<'w> RenderBackend<'w> {
                 primitive_capacity,
                 color_capacity,
                 gradient_capacity,
+                material_capacity,
                 _primitive_buffer: primitive_buffer,
                 _colors_buffer: colors_buffer,
                 _gradients_buffer: gradients_buffer,
+                _materials_buffer: materials_buffer,
             }),
             upload_bytes,
         )
@@ -1512,10 +1607,14 @@ impl<'w> RenderBackend<'w> {
         if dirty.fill {
             let colors = aligned_pod_slice(&buffers.colors);
             let gradients = aligned_pod_slice(&buffers.gradients);
-            if colors.len() > shared.color_capacity || gradients.len() > shared.gradient_capacity {
+            let materials = aligned_pod_slice(&buffers.materials);
+            if colors.len() > shared.color_capacity
+                || gradients.len() > shared.gradient_capacity
+                || materials.len() > shared.material_capacity
+            {
                 return None;
             }
-            fill = Some((colors, gradients));
+            fill = Some((colors, gradients, materials));
         }
 
         let mut upload_bytes = 0;
@@ -1537,16 +1636,22 @@ impl<'w> RenderBackend<'w> {
             );
         }
         if dirty.fill {
-            let (colors, gradients) =
+            let (colors, gradients, materials) =
                 fill.expect("aligned fill should be available for dirty fill");
             upload_bytes += std::mem::size_of_val(colors.as_slice()) as u64;
             upload_bytes += std::mem::size_of_val(gradients.as_slice()) as u64;
+            upload_bytes += std::mem::size_of_val(materials.as_slice()) as u64;
             self.queue
                 .write_buffer(&shared._colors_buffer, 0, bytemuck::cast_slice(&colors));
             self.queue.write_buffer(
                 &shared._gradients_buffer,
                 0,
                 bytemuck::cast_slice(&gradients),
+            );
+            self.queue.write_buffer(
+                &shared._materials_buffer,
+                0,
+                bytemuck::cast_slice(&materials),
             );
         }
         shared.index_count = buffers.geometry.indices.len() as u32;
@@ -1924,6 +2029,7 @@ impl<'w> RenderBackend<'w> {
             ref mut primitives,
             ref mut colors,
             ref mut gradients,
+            ref mut materials,
             ref mut transforms,
         } = buffers;
         //Add ghost triangles to follow COPY_BUFFER_ALIGNMENT requirement
@@ -1948,6 +2054,9 @@ impl<'w> RenderBackend<'w> {
         while gradients.len() * std::mem::size_of::<GpuGradient>() % ALIGNMENT != 0 {
             gradients.push(GpuGradient::default());
         }
+        while materials.len() * std::mem::size_of::<GpuMaterial>() % ALIGNMENT != 0 {
+            materials.push(GpuMaterial::default());
+        }
 
         self.resize_shared_buffers_if_needed(
             geom.indices.len(),
@@ -1956,6 +2065,7 @@ impl<'w> RenderBackend<'w> {
             transforms.len(),
             colors.len(),
             gradients.len(),
+            materials.len(),
         );
 
         write_staged_buffer(
@@ -1987,6 +2097,12 @@ impl<'w> RenderBackend<'w> {
             encoder,
             &self.gradients_buffer,
             bytemuck::cast_slice(gradients),
+        );
+        write_staged_buffer(
+            &mut self.staging_belt,
+            encoder,
+            &self.materials_buffer,
+            bytemuck::cast_slice(materials),
         );
         write_staged_buffer(
             &mut self.staging_belt,
@@ -2362,6 +2478,11 @@ impl<'w> RenderBackend<'w> {
         self.pending_clear = true;
     }
 
+    pub(crate) fn set_scene_lighting(&mut self, lighting: GpuSceneLighting) {
+        self.queue
+            .write_buffer(&self.lighting_buffer, 0, bytemuck::bytes_of(&lighting));
+    }
+
     pub(crate) fn ensure_frame_cleared(&mut self) {
         if !self.pending_clear {
             self.clear();
@@ -2677,6 +2798,7 @@ fn aligned_cpu_buffers(
     Vec<GpuTransform>,
     Vec<GpuColor>,
     Vec<GpuGradient>,
+    Vec<GpuMaterial>,
 ) {
     let CpuBuffers {
         geometry,
@@ -2684,6 +2806,7 @@ fn aligned_cpu_buffers(
         transforms,
         colors,
         gradients,
+        materials,
     } = buffers;
     let mut indices = geometry.indices.clone();
     let mut vertices = geometry.vertices.clone();
@@ -2691,6 +2814,7 @@ fn aligned_cpu_buffers(
     let mut transforms = transforms.clone();
     let mut colors = colors.clone();
     let mut gradients = gradients.clone();
+    let mut materials = materials.clone();
 
     const ALIGNMENT: usize = 16;
     if primitives.is_empty() {
@@ -2704,6 +2828,9 @@ fn aligned_cpu_buffers(
     }
     if gradients.is_empty() {
         gradients.push(GpuGradient::default());
+    }
+    if materials.is_empty() {
+        materials.push(GpuMaterial::default());
     }
     while indices.len() * std::mem::size_of::<u16>() % ALIGNMENT != 0 {
         indices.push(0);
@@ -2725,8 +2852,13 @@ fn aligned_cpu_buffers(
     while gradients.len() * std::mem::size_of::<GpuGradient>() % ALIGNMENT != 0 {
         gradients.push(GpuGradient::default());
     }
+    while materials.len() * std::mem::size_of::<GpuMaterial>() % ALIGNMENT != 0 {
+        materials.push(GpuMaterial::default());
+    }
 
-    (vertices, indices, primitives, transforms, colors, gradients)
+    (
+        vertices, indices, primitives, transforms, colors, gradients, materials,
+    )
 }
 
 fn aligned_geometry_buffers(buffers: &CpuBuffers) -> (Vec<GpuVertex>, Vec<u16>) {
@@ -2784,6 +2916,7 @@ pub(crate) struct CpuBuffers {
     pub transforms: Vec<GpuTransform>,
     pub colors: Vec<GpuColor>,
     pub gradients: Vec<GpuGradient>,
+    pub materials: Vec<GpuMaterial>,
 }
 
 impl CpuBuffers {
@@ -2795,12 +2928,14 @@ impl CpuBuffers {
             transforms,
             colors,
             gradients,
+            materials,
         } = self;
         geometry.vertices.clear();
         geometry.indices.clear();
         primitives.clear();
         colors.clear();
         gradients.clear();
+        materials.clear();
         // leave the identity transform at the start
         transforms.truncate(1);
     }

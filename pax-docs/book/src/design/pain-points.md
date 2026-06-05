@@ -214,3 +214,49 @@ Recommendations: any macOS-hosted tarball used as a Linux or Windows source
 checkout should disable AppleDouble emission and exclude host metadata. Build
 scripts that recursively read docs or templates should ignore known metadata
 sidecars before attempting UTF-8 parsing.
+
+## 2026-06-03
+
+The `materials` example exposed a native-cartridge gap that host-side
+`cargo check` did not catch. New public template-visible API types such as
+`Material`, `Depth`, `LightShape`, and `Vector3` compiled in the source crate,
+but the generated iPadOS crate calls `<Type>::register_all_functions()` for
+template-exposed value types. Without at least an empty `HelperFunctions` impl,
+the native target failed during generated crate compilation.
+
+Solved by adding `HelperFunctions` impls for the new lighting/material value
+types and registering the intended `Material::*` and `Vector3::new` helpers.
+
+The same simulator run caught a WGSL reserved-word issue that ordinary Rust
+checks cannot see. A uniform field named `meta` parsed on the Rust side but
+failed when wgpu created the shader module on iPadOS because `meta` is reserved
+by WGSL/Naga.
+
+Recommendations: when adding template-visible value types, test at least one
+generated native cartridge path, not only the source crate. When changing WGSL,
+prefer boring names such as `flags`, `params`, or `state`, and use an actual
+wgpu runtime launch to validate shader parsing on the target backend.
+
+## 2026-06-04
+
+While tuning the `materials` example, a browser refresh reloaded the baked web
+cartridge instead of the latest hot-reloaded `.pax` state. The source had moved
+the charcoal root underlay below the scroller, but `.pax/cartridge.partial.rs`
+and the served wasm still contained the earlier child order until the web target
+was rebuilt. Touching the `.pax` file caused a file event but did not bring the
+refreshed connection up to the latest template state.
+
+The same pass exposed a browser scroller-layer compositing trap: the root
+underlay is the right visual model, but opaque browser canvas surfaces clear to
+white, so transparent gutters inside a browser-owned scroller showed white
+instead of the root charcoal.
+
+Solved for the example by rebuilding after the `.pax` edit and by adding an
+unlit charcoal rectangle inside the scroller content as the gutter backing,
+while keeping the root charcoal underlay in place.
+
+Recommendations: refreshed designtime connections should catch up to the latest
+template state instead of only loading the baked cartridge. When examples rely
+on root backgrounds showing through browser-owned scroller layers, verify the
+browser target specifically; opaque canvas fallbacks may need an in-layer
+background or a renderer-level alpha/compositing fix.
