@@ -912,6 +912,9 @@ impl<'w> WgpuRenderer<'w> {
                     let Some(resource) = node.resource.as_ref() else {
                         continue;
                     };
+                    if !resource.is_drawable() {
+                        continue;
+                    }
                     current_batch.push(RetainedDraw::Vector(resource));
                 }
                 RetainedNode::Image(node) => {
@@ -1702,7 +1705,10 @@ fn record_retained_batch_stats(stats: &mut ResourceChurnStats, draws: &[Retained
     stats.retained_draws += draws.len() as u64;
     for draw in draws {
         match draw {
-            RetainedDraw::Vector(_) => stats.retained_vector_draws += 1,
+            RetainedDraw::Vector(resource) if resource.is_drawable() => {
+                stats.retained_vector_draws += 1
+            }
+            RetainedDraw::Vector(_) => {}
             RetainedDraw::Image { .. } => stats.retained_image_draws += 1,
         }
     }

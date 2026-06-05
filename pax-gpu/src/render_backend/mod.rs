@@ -453,6 +453,12 @@ impl RetainedVectorResource {
     pub(crate) fn shared(&self) -> &Rc<SharedRetainedVectorResource> {
         &self.shared
     }
+
+    pub(crate) fn is_drawable(&self) -> bool {
+        self.shared.index_count > 0
+            && self.shared.vertex_capacity > 0
+            && self.shared.index_capacity > 0
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -1673,6 +1679,10 @@ impl<'w> RenderBackend<'w> {
 
     #[allow(dead_code)]
     pub(crate) fn draw_vector_resource(&mut self, resource: &RetainedVectorResource) {
+        if !resource.is_drawable() {
+            return;
+        }
+
         let load_op = self.take_color_load_op();
         self.ensure_active_frame();
         let (screen_texture, resolve_target) = self.current_color_attachment_views();
@@ -1829,6 +1839,9 @@ impl<'w> RenderBackend<'w> {
                 for draw in &run.draws {
                     match draw {
                         RetainedDraw::Vector(resource) => {
+                            if !resource.is_drawable() {
+                                continue;
+                            }
                             render_pass.set_pipeline(self.pipeline.as_ref());
                             render_pass.set_bind_group(0, &resource.bind_group, &[]);
                             render_pass
@@ -1893,6 +1906,9 @@ impl<'w> RenderBackend<'w> {
                 for draw in &run.draws {
                     match draw {
                         RetainedDraw::Vector(resource) => {
+                            if !resource.is_drawable() {
+                                continue;
+                            }
                             render_pass.set_pipeline(self.pipeline.as_ref());
                             render_pass.set_bind_group(0, &resource.bind_group, &[]);
                             render_pass
