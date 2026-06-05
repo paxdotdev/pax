@@ -2,11 +2,10 @@
     <Text class=panel_title x=26px y=18px width={100% - 260px} height=28px text="Repeated slot sites from a for loop" selectable=false />
     <Text class=panel_caption x=26px y=60px width={100% - 52px} height=22px text="The for loop emits explicit slot sites in runtime order, then slot() receives everything not consumed." selectable=false />
 
-    <Text class=bucket_label x=28px y=100px width=162px height=18px text="for i in pinned_indices { slot(i) }" selectable=false />
-    <Stacker x=28px y=120px width=162px height=82px direction=StackerDirection::Horizontal gutter=18px>
+    <Stacker x=28px y=100px width=162px height=82px direction=StackerDirection::Horizontal gutter=18px>
         for i in self.pinned_indices {
             <Group width=72px height=82px>
-                <Text class=mini_label x=50% y=8px width=72px height=14px text={"slot(" + i + ")"} selectable=false />
+                <Text class=bucket_label width=72px height=18px text={"slot(" + i + ")"} selectable=false />
                 <Stacker x=0px y=24px width=72px height=58px direction=StackerDirection::Horizontal>
                     slot(i)
                 </Stacker>
@@ -16,21 +15,20 @@
     </Stacker>
 
     <Text class=bucket_label x=208px y=100px width=72px height=18px text="slot()" selectable=false />
-    <Stacker x=208px y=144px width=72px height=58px direction=StackerDirection::Horizontal gutter=10px>
+    <Stacker x=208px y=124px width=432px height=58px direction=StackerDirection::Horizontal gutter=10px>
         slot()
     </Stacker>
 
-    <Rectangle class=bucket_bg x=28px y=144px width=72px height=58px />
-    <Rectangle class=bucket_bg x=118px y=144px width=72px height=58px />
-    <Rectangle class=bucket_bg x=208px y=144px width=72px height=58px />
+    <Rectangle class=bucket_bg x=28px y=124px width=72px height=58px />
+    <Rectangle class=bucket_bg x=118px y=124px width=72px height=58px />
+    <Rectangle class=bucket_bg x=208px y=124px width=432px height=58px />
     <Rectangle class=panel_bg />
 </Group>
 
 @settings {
-    .panel_title { style: TextStyle { font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@600;800&display=swap", FontStyle::Normal, FontWeight::Bold) font_size: 20px fill: WHITE align_vertical: TextAlignVertical::Center align_horizontal: TextAlignHorizontal::Left } }
-    .panel_caption { style: TextStyle { font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap", FontStyle::Normal, FontWeight::Medium) font_size: 13px fill: rgba(218, 229, 255, 210) align_vertical: TextAlignVertical::Center align_horizontal: TextAlignHorizontal::Left } }
-    .bucket_label { style: TextStyle { font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold) font_size: 12px fill: rgba(235, 242, 255, 225) align_vertical: TextAlignVertical::Center align_horizontal: TextAlignHorizontal::Left } }
-    .mini_label { style: TextStyle { font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold) font_size: 10px fill: rgba(205, 218, 255, 220) align_vertical: TextAlignVertical::Center align_horizontal: TextAlignHorizontal::Center } }
+    .panel_title { style: TextStyle { font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::SemiBold) font_size: 20px fill: WHITE align_vertical: TextAlignVertical::Center align_horizontal: TextAlignHorizontal::Left } }
+    .panel_caption { style: TextStyle { font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Normal) font_size: 13px fill: rgba(218, 229, 255, 210) align_vertical: TextAlignVertical::Center align_horizontal: TextAlignHorizontal::Left } }
+    .bucket_label { style: TextStyle { font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Medium) font_size: 12px fill: rgba(235, 242, 255, 225) align_vertical: TextAlignVertical::Center align_horizontal: TextAlignHorizontal::Left } }
     .inner_bucket_bg { fill: rgba(20, 31, 58, 210) stroke: Stroke { color: rgba(106, 132, 190, 80), width: 1px } corner_radii: RectangleCornerRadii::radii(12.0, 12.0, 12.0, 12.0) }
     .bucket_bg { fill: rgba(13, 22, 41, 222) stroke: Stroke { color: rgba(106, 132, 190, 108), width: 1px } corner_radii: RectangleCornerRadii::radii(14.0, 14.0, 14.0, 14.0) }
     .panel_bg { fill: rgba(7, 12, 24, 238) stroke: Stroke { color: rgba(126, 150, 210, 96), width: 1px } corner_radii: RectangleCornerRadii::radii(16.0, 16.0, 16.0, 16.0) }

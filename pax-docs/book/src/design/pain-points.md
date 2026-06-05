@@ -314,6 +314,35 @@ generated native cartridge path, not only the source crate. When changing WGSL,
 prefer boring names such as `flags`, `params`, or `state`, and use an actual
 wgpu runtime launch to validate shader parsing on the target backend.
 
+The source panel in `slot-projection-resolver` exposed a web chassis regression:
+a native-only `Scroller` could still receive a scroller-owned WebGPU canvas
+layer. Because the layer had no vector drawables, it displayed only the browser
+surface clear color, so the native text pane appeared to have an unexpected
+opaque backing even though the DOM/native text subtree was transparent.
+
+Solved by publishing the set of render layers that actually contain canvas
+drawables from the engine occlusion pass, then returning an inactive canvas plan
+for scroller-owned web layers that have no canvas work. The native scroller host
+still exists and can clip/scroll native content, but the chassis no longer
+materializes an empty GPU surface behind it.
+
+The same example also showed the canvas-backed half of the issue: a horizontal
+tab scroller with vector children still needed a scroller canvas, but empty
+pixels in that canvas cleared white. The browser WebGPU backend in wgpu 28
+reports only `Opaque` surface alpha in capabilities even though its configure
+path accepts `PreMultiplied` and maps it to browser premultiplied canvas alpha.
+The web chassis now requests premultiplied alpha for browser WebGPU surfaces so
+canvas-backed scroller islands can clear transparent instead of exposing the
+opaque fallback color.
+
+Recommendations: when a transparent native-backed scroller looks opaque on web,
+inspect both DOM backgrounds and the scroller's canvas plan before adding app
+backing rectangles. Main scrollers with vector descendants can mask this bug
+because their canvas content covers the empty clear; native-only scrollers are
+the cleaner regression test. Also include at least one canvas-backed scroller
+with empty pixels in transparent-scroller validation, since it exercises browser
+surface alpha rather than only empty-plan suppression.
+
 ## 2026-06-04
 
 While tuning the `materials` example, a browser refresh reloaded the baked web

@@ -1,5 +1,5 @@
 use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
@@ -176,6 +176,14 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
         &mut next_layer_id,
         &mut drawables,
     );
+    let canvas_drawable_layers = drawables
+        .iter()
+        .filter_map(|drawable| match drawable {
+            DrawableInfo::Canvas { layer_id, .. } => Some(*layer_id),
+            DrawableInfo::Native { .. } => None,
+        })
+        .collect::<HashSet<_>>();
+    ctx.set_canvas_drawable_layers(canvas_drawable_layers);
     let _native_mask_stats = update_native_masks(&drawables, ctx);
 
     let new_layer_count = next_layer_id;

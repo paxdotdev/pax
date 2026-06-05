@@ -254,42 +254,22 @@ impl InstanceNode for TextInstance {
                                 &mut patch.content,
                                 content.clone(),
                             ),
-                            patch_if_needed(
-                                &mut old_state.markdown,
-                                &mut patch.markdown,
-                                markdown,
-                            ),
-                            patch_if_needed(
-                                &mut old_state.wrap,
-                                &mut patch.wrap,
-                                wrap,
-                            ),
+                            patch_if_needed(&mut old_state.markdown, &mut patch.markdown, markdown),
+                            patch_if_needed(&mut old_state.wrap, &mut patch.wrap, wrap),
                             // Styles
-                            patch_if_needed(
-                                &mut old_state.style,
-                                &mut patch.style,
-                                style.clone(),
-                            ),
+                            patch_if_needed(&mut old_state.style, &mut patch.style, style.clone()),
                             patch_if_needed(
                                 &mut old_state.style_link,
                                 &mut patch.style_link,
                                 style_link.clone(),
                             ),
-                            patch_if_needed(
-                                &mut old_state.editable,
-                                &mut patch.editable,
-                                editable,
-                            ),
+                            patch_if_needed(&mut old_state.editable, &mut patch.editable, editable),
                             patch_if_needed(
                                 &mut old_state.selectable,
                                 &mut patch.selectable,
                                 selectable,
                             ),
-                            patch_if_needed(
-                                &mut old_state.clip,
-                                &mut patch.clip,
-                                clip,
-                            ),
+                            patch_if_needed(&mut old_state.clip, &mut patch.clip, clip),
                             // Transform and bounds
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),

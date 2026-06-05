@@ -228,6 +228,7 @@ fn get_gpu_render_context(
                 );
             }
             let force_gl = surface_policy.force_gl() && cfg!(feature = "webgl");
+            let prefer_browser_premultiplied_alpha = !force_gl;
 
             let mut renderers = Vec::with_capacity(initial_targets.len());
             let mut backend_limit = u32::MAX;
@@ -244,7 +245,8 @@ fn get_gpu_render_context(
                             target.surface.surface_width,
                             target.surface.surface_height,
                             target.surface.dpr,
-                        ),
+                        )
+                        .with_browser_premultiplied_alpha(prefer_browser_premultiplied_alpha),
                         shared_context.clone(),
                     )
                     .await
@@ -256,7 +258,8 @@ fn get_gpu_render_context(
                             target.surface.surface_width,
                             target.surface.surface_height,
                             target.surface.dpr,
-                        ),
+                        )
+                        .with_browser_premultiplied_alpha(prefer_browser_premultiplied_alpha),
                         shared_context.clone(),
                     )
                     .await

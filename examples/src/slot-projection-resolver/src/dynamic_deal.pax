@@ -19,13 +19,13 @@
 
 @settings {
     .panel_title {
-        style: TextStyle { font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@600;800&display=swap", FontStyle::Normal, FontWeight::Bold) font_size: 20px fill: WHITE align_vertical: TextAlignVertical::Center align_horizontal: TextAlignHorizontal::Left }
+        style: TextStyle { font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::SemiBold) font_size: 20px fill: WHITE align_vertical: TextAlignVertical::Center align_horizontal: TextAlignHorizontal::Left }
     }
     .panel_caption {
-        style: TextStyle { font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap", FontStyle::Normal, FontWeight::Medium) font_size: 13px fill: rgba(218, 229, 255, 210) align_vertical: TextAlignVertical::Center align_horizontal: TextAlignHorizontal::Left }
+        style: TextStyle { font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Normal) font_size: 13px fill: rgba(218, 229, 255, 210) align_vertical: TextAlignVertical::Center align_horizontal: TextAlignHorizontal::Left }
     }
     .bucket_label {
-        style: TextStyle { font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold) font_size: 12px fill: rgba(235, 242, 255, 225) align_vertical: TextAlignVertical::Center align_horizontal: TextAlignHorizontal::Left }
+        style: TextStyle { font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Medium) font_size: 12px fill: rgba(235, 242, 255, 225) align_vertical: TextAlignVertical::Center align_horizontal: TextAlignHorizontal::Left }
     }
     .bucket_bg {
         fill: rgba(13, 22, 41, 222)

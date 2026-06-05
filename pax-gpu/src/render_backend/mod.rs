@@ -237,6 +237,7 @@ pub struct RenderConfig {
     pub initial_width: u32,
     pub initial_height: u32,
     pub initial_dpr: [f32; 2],
+    prefer_browser_premultiplied_alpha: bool,
 }
 
 pub(crate) const MAX_BATCH_PRIMITIVES: usize = 512;
@@ -265,7 +266,18 @@ impl RenderConfig {
             initial_width: width,
             initial_height: height,
             initial_dpr: dpr,
+            prefer_browser_premultiplied_alpha: false,
         }
+    }
+
+    /// Request premultiplied browser canvas alpha for WebGPU surfaces.
+    ///
+    /// wgpu's web backend currently reports only `Opaque` alpha in surface capabilities, but its
+    /// configure path accepts `PreMultiplied` and maps it to `GPUCanvasAlphaMode::Premultiplied`.
+    /// Pax needs that for transparent browser-owned scroller islands.
+    pub fn with_browser_premultiplied_alpha(mut self, enabled: bool) -> Self {
+        self.prefer_browser_premultiplied_alpha = enabled;
+        self
     }
 }
 
@@ -964,15 +976,20 @@ impl<'w> RenderBackend<'w> {
             surface_format,
             surface_format.is_srgb()
         );
-        let alpha_mode = [
-            CompositeAlphaMode::PreMultiplied,
-            CompositeAlphaMode::PostMultiplied,
-            CompositeAlphaMode::Opaque,
-        ]
-        .into_iter()
-        .find(|mode| surface_caps.alpha_modes.contains(mode))
-        .or_else(|| surface_caps.alpha_modes.first().copied())
-        .ok_or_else(|| anyhow!("surface reported no compatible alpha modes"))?;
+        let alpha_mode =
+            if cfg!(target_arch = "wasm32") && config.prefer_browser_premultiplied_alpha {
+                CompositeAlphaMode::PreMultiplied
+            } else {
+                [
+                    CompositeAlphaMode::PreMultiplied,
+                    CompositeAlphaMode::PostMultiplied,
+                    CompositeAlphaMode::Opaque,
+                ]
+                .into_iter()
+                .find(|mode| surface_caps.alpha_modes.contains(mode))
+                .or_else(|| surface_caps.alpha_modes.first().copied())
+                .ok_or_else(|| anyhow!("surface reported no compatible alpha modes"))?
+            };
         #[cfg(target_arch = "wasm32")]
         if alpha_mode == CompositeAlphaMode::Opaque {
             log::debug!("render backend: browser surface only exposes opaque alpha");

@@ -30,7 +30,7 @@ use pax_runtime::api::SelectStart;
 use pax_runtime::api::OS;
 use pax_runtime::api::{Accel, Gyro};
 use pax_runtime::api::{PhotoPickerChange, TextboxChange, TextboxInput};
-use pax_runtime::engine::layer_tiling::scroller_canvas_plan_with_policy;
+use pax_runtime::engine::layer_tiling::{scroller_canvas_plan_with_policy, LayerCanvasPlan};
 use pax_runtime::DefinitionToInstanceTraverser;
 use web_time::Instant;
 use_RefCell!();
@@ -550,6 +550,13 @@ impl PaxChassisWeb {
                     if let Some(node) = node {
                         node.chassis_resize_request(args.width, args.height);
                     }
+                }
+                false
+            }
+            NativeInterrupt::TextMeasurementResponse(args) => {
+                let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
+                if let Some(node) = node {
+                    borrow!(node.instance_node).handle_native_interrupt(&node, &x);
                 }
                 false
             }
@@ -1225,18 +1232,26 @@ impl PaxChassisWeb {
                     scroll_y = visual.page_scroll_y;
                 }
             }
-            scroller_canvas_plan_with_policy(
-                layer,
-                host_signature,
-                state.content_width,
-                state.content_height,
-                viewport_width,
-                viewport_height,
-                scroll_x,
-                scroll_y,
-                dpr,
-                engine.scroller_tiling_policy,
-            )
+            if ctx.layer_has_canvas_drawables(layer) {
+                scroller_canvas_plan_with_policy(
+                    layer,
+                    host_signature,
+                    state.content_width,
+                    state.content_height,
+                    viewport_width,
+                    viewport_height,
+                    scroll_x,
+                    scroll_y,
+                    dpr,
+                    engine.scroller_tiling_policy,
+                )
+            } else {
+                LayerCanvasPlan {
+                    layer_id: layer,
+                    active: false,
+                    surfaces: Vec::new(),
+                }
+            }
         } else if layer == 0 {
             let viewport = ctx.globals().viewport.get();
             let host_signature = "root".to_string();

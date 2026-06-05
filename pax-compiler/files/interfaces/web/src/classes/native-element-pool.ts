@@ -1164,6 +1164,8 @@ export class NativeElementPool {
         textDiv.style.contain = "layout style";
         textChild.style.overflow = "visible";
         textChild.setAttribute("contenteditable", "false");
+        textChild.innerHTML = "";
+        delete textChild.dataset.paxRenderedContentSignature;
         textDiv.addEventListener("click", (_event) => {
             if (textDiv.contentEditable != "false") {
                 textChild.focus();
@@ -1285,12 +1287,14 @@ export class NativeElementPool {
 
         // Apply the content
         if (patch.content != null) {
-            if (textChild.innerText != patch.content) {
+            const renderSignature = `${patch.markdown ? "markdown" : "plain"}:${patch.content}`;
+            if (textChild.dataset.paxRenderedContentSignature !== renderSignature) {
                 if (patch.markdown) {
-                    textChild.innerHTML = snarkdown(patch.content);
+                    textChild.innerHTML = renderMarkdownTextContent(patch.content);
                 } else {
                     textChild.innerText = patch.content;
                 }
+                textChild.dataset.paxRenderedContentSignature = renderSignature;
             }
             // Apply the link styles if they exist
             if (patch.style_link != null) {
@@ -4977,6 +4981,15 @@ function toCssColor(color: ColorGroup): string {
     } else {
         throw new TypeError("Unsupported Color Format");
     }        
+}
+
+const PAX_GENERATED_CODE_MARKUP_PREFIX = '<pre data-pax-code-markup="example-host" ';
+
+function renderMarkdownTextContent(content: string): string {
+    if (content.startsWith(PAX_GENERATED_CODE_MARKUP_PREFIX)) {
+        return content;
+    }
+    return snarkdown(content);
 }
 
 function applyTextStyle(textContainer: HTMLElement, textElem: HTMLElement, style: TextStyle | undefined) {

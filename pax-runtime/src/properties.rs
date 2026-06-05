@@ -71,6 +71,7 @@ pub struct RuntimeContext {
     removed_canvas_nodes: RefCell<Vec<(usize, u32)>>,
     occlusion_dirty: Cell<bool>,
     layer_canvas_plan_generation: Cell<u32>,
+    canvas_drawable_layers: RefCell<HashSet<usize>>,
     import_settings_node_count: Cell<usize>,
     tick_handler_nodes: RefCell<Vec<ExpandedNodeIdentifier>>,
     pre_render_handler_nodes: RefCell<Vec<ExpandedNodeIdentifier>>,
@@ -194,6 +195,7 @@ impl RuntimeContext {
             removed_canvas_nodes: Default::default(),
             occlusion_dirty: Cell::new(true),
             layer_canvas_plan_generation: Cell::new(1),
+            canvas_drawable_layers: Default::default(),
             import_settings_node_count: Cell::new(0),
             tick_handler_nodes: Default::default(),
             pre_render_handler_nodes: Default::default(),
@@ -228,6 +230,7 @@ impl RuntimeContext {
             removed_canvas_nodes: Default::default(),
             occlusion_dirty: Cell::new(true),
             layer_canvas_plan_generation: Cell::new(1),
+            canvas_drawable_layers: Default::default(),
             import_settings_node_count: Cell::new(0),
             tick_handler_nodes: Default::default(),
             pre_render_handler_nodes: Default::default(),
@@ -262,6 +265,7 @@ impl RuntimeContext {
             removed_canvas_nodes: Default::default(),
             occlusion_dirty: Cell::new(true),
             layer_canvas_plan_generation: Cell::new(1),
+            canvas_drawable_layers: Default::default(),
             import_settings_node_count: Cell::new(0),
             tick_handler_nodes: Default::default(),
             pre_render_handler_nodes: Default::default(),
@@ -608,6 +612,21 @@ impl RuntimeContext {
 
     pub fn layer_canvas_plan_generation(&self) -> u32 {
         self.layer_canvas_plan_generation.get()
+    }
+
+    /// Replace the set of render layers that currently contain canvas drawables.
+    pub fn set_canvas_drawable_layers(&self, layers: HashSet<usize>) {
+        let mut current = borrow_mut!(self.canvas_drawable_layers);
+        if *current == layers {
+            return;
+        }
+        *current = layers;
+        self.mark_layer_canvas_plans_dirty();
+    }
+
+    /// Return whether a render layer currently has canvas work to paint.
+    pub fn layer_has_canvas_drawables(&self, layer: usize) -> bool {
+        borrow!(self.canvas_drawable_layers).contains(&layer)
     }
 
     /// Mark every canvas layer clean.
