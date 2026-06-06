@@ -248,7 +248,7 @@ pub struct ExampleSource {
         }
 
         .example_host_tab_idle {
-            fill: rgba(12, 15, 21, 255)
+            fill: rgba(20, 24, 32, 255)
             elements: [
                 PathElement::Point(0%, 100%),
                 PathElement::Line,
