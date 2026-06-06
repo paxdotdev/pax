@@ -174,6 +174,7 @@ pub struct AppState {
     dev_session: Mutex<Option<DevSession>>,
     pending_dev_look_requests: Mutex<HashMap<String, DevLookRequest>>,
     logic_reload: Mutex<Option<LogicReloadState>>,
+    latest_web_reload_request: Mutex<Option<ReloadAppRequest>>,
 }
 
 impl AppState {
@@ -190,6 +191,7 @@ impl AppState {
             dev_session: Mutex::new(None),
             pending_dev_look_requests: Mutex::new(HashMap::new()),
             logic_reload: Mutex::new(None),
+            latest_web_reload_request: Mutex::new(None),
         }
     }
     pub fn new(
@@ -215,6 +217,7 @@ impl AppState {
                 build_in_progress: false,
                 rebuild_pending: false,
             })),
+            latest_web_reload_request: Mutex::new(None),
         }
     }
 
@@ -233,6 +236,14 @@ impl AppState {
     pub fn update_last_written_timestamp(&self) {
         let mut last_written = self.last_written_timestamp.lock().unwrap();
         *last_written = SystemTime::now();
+    }
+
+    fn latest_web_reload_request(&self) -> Option<ReloadAppRequest> {
+        self.latest_web_reload_request.lock().unwrap().clone()
+    }
+
+    fn store_latest_web_reload_request(&self, request: ReloadAppRequest) {
+        *self.latest_web_reload_request.lock().unwrap() = Some(request);
     }
 }
 
@@ -313,18 +324,17 @@ pub(crate) fn perform_logic_reload(
                 config.should_run_designer,
             )?;
             *state.manifest.lock().unwrap() = Some(build.manifest);
-            send_agent_message_to_active_client(
-                state,
-                AgentMessage::ReloadAppRequest(ReloadAppRequest {
-                    request_id: format!("reload-app-{}", state.generate_request_id()),
-                    build_id: build.build_id,
-                    // Keep the host protocol artifact-oriented so future
-                    // runtimes can extend this without inheriting dylib-shaped
-                    // assumptions from the native path.
-                    artifact_kind: "web-cartridge".to_string(),
-                    artifact_location: build.extensionless_url,
-                }),
-            );
+            let request = ReloadAppRequest {
+                request_id: format!("reload-app-{}", state.generate_request_id()),
+                build_id: build.build_id,
+                // Keep the host protocol artifact-oriented so future
+                // runtimes can extend this without inheriting dylib-shaped
+                // assumptions from the native path.
+                artifact_kind: "web-cartridge".to_string(),
+                artifact_location: build.extensionless_url,
+            };
+            state.store_latest_web_reload_request(request.clone());
+            send_agent_message_to_active_client(state, AgentMessage::ReloadAppRequest(request));
         }
     }
     Ok(())
@@ -568,11 +578,34 @@ fn perform_build_and_update_state(state: &AppState, folder_to_watch: &str) -> st
 
 #[cfg(test)]
 mod tests {
-    use super::static_files_service;
+    use super::{static_files_service, AppState};
     use actix_web::http::{header, StatusCode};
     use actix_web::{test, App};
+    use pax_designtime::messages::ReloadAppRequest;
     use std::fs;
     use tempfile::tempdir;
+
+    #[actix_web::test]
+    async fn app_state_remembers_latest_web_reload_request() {
+        let state = AppState::new_empty();
+        assert!(state.latest_web_reload_request().is_none());
+
+        state.store_latest_web_reload_request(ReloadAppRequest {
+            request_id: "reload-app-1".to_string(),
+            build_id: "build-1".to_string(),
+            artifact_kind: "web-cartridge".to_string(),
+            artifact_location: "/__reloads__/build-1/pax-cartridge".to_string(),
+        });
+
+        let request = state.latest_web_reload_request().unwrap();
+        assert_eq!(request.request_id, "reload-app-1");
+        assert_eq!(request.build_id, "build-1");
+        assert_eq!(request.artifact_kind, "web-cartridge");
+        assert_eq!(
+            request.artifact_location,
+            "/__reloads__/build-1/pax-cartridge"
+        );
+    }
 
     #[actix_web::test]
     async fn deep_html_routes_fall_back_to_index_html() {

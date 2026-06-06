@@ -410,6 +410,12 @@ impl Actor for PrivilegedAgentWebSocket {
         }
 
         self.refresh_dev_session_registration();
+        if let Some(request) = self.state.latest_web_reload_request() {
+            match rmp_serde::to_vec(&AgentMessage::ReloadAppRequest(request)) {
+                Ok(serialized) => ctx.binary(serialized),
+                Err(err) => eprintln!("failed to serialize latest web reload request: {err}"),
+            }
+        }
         ctx.run_interval(WEBSOCKET_HEARTBEAT_INTERVAL, |actor, ctx| {
             if Instant::now().duration_since(actor.last_heartbeat) > WEBSOCKET_CLIENT_TIMEOUT {
                 log::warn!("timed out waiting for a heartbeat from the Pax dev browser client");
@@ -1077,15 +1083,58 @@ fn panic_payload_to_string(payload: Box<dyn Any + Send>) -> String {
 #[cfg(test)]
 mod tests {
     use super::{parse_pax_source_update, resolve_component_rust_source_path, source_paths_match};
+    use crate::design_server::{web_socket, AppState};
+    use actix_web::{web::Data, App};
+    use futures_util::{SinkExt, StreamExt};
+    use pax_designtime::messages::{AgentMessage, ReloadAppRequest};
     use pax_manifest::{
         ComponentDefinition, ComponentTemplate, PaxManifest, SettingsBlockElement, TypeId,
     };
+    use rmp_serde::from_slice;
     use std::path::Path;
     use std::{
         collections::{BTreeMap, HashMap},
         fs,
     };
     use tempfile::tempdir;
+
+    #[actix_web::test]
+    async fn sends_latest_web_reload_request_to_new_client() {
+        let state = Data::new(AppState::new_empty());
+        state.store_latest_web_reload_request(ReloadAppRequest {
+            request_id: "reload-app-1".to_string(),
+            build_id: "build-1".to_string(),
+            artifact_kind: "web-cartridge".to_string(),
+            artifact_location: "/__reloads__/build-1/pax-cartridge".to_string(),
+        });
+        let server_state = state.clone();
+        let srv = actix_test::start(move || {
+            App::new()
+                .app_data(server_state.clone())
+                .service(web_socket)
+        });
+
+        let client = awc::Client::new();
+        let (_resp, mut connection) = client.ws(srv.url("/ws")).connect().await.unwrap();
+
+        let Some(Ok(awc::ws::Frame::Binary(bin_data))) = connection.next().await else {
+            panic!("expected initial reload-app websocket message");
+        };
+        let message: AgentMessage = from_slice(&bin_data).unwrap();
+        let AgentMessage::ReloadAppRequest(request) = message else {
+            panic!("expected ReloadAppRequest");
+        };
+
+        assert_eq!(request.request_id, "reload-app-1");
+        assert_eq!(request.build_id, "build-1");
+        assert_eq!(request.artifact_kind, "web-cartridge");
+        assert_eq!(
+            request.artifact_location,
+            "/__reloads__/build-1/pax-cartridge"
+        );
+
+        connection.close().await.unwrap();
+    }
 
     #[test]
     fn source_paths_match_relative_manifest_to_absolute_request() {

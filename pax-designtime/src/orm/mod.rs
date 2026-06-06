@@ -164,8 +164,13 @@ impl PaxManifestORM {
             && self.manifest_version.get() == 0
             && self.reload_queue.is_empty()
         {
+            let manifest_changed = !manifests_match(&self.manifest, &manifest);
             self.manifest = manifest;
             self.manifest_loaded_from_server.set(true);
+            if manifest_changed {
+                self.increment_manifest_version();
+                self.insert_reload(ReloadType::Tree);
+            }
             return;
         }
 
@@ -614,6 +619,28 @@ impl PaxManifestORM {
             return false;
         };
         template.contains_slots()
+    }
+}
+
+fn manifests_match(left: &PaxManifest, right: &PaxManifest) -> bool {
+    let left_identity = (
+        &left.components,
+        &left.main_component_type_id,
+        &left.assets_dirs,
+        &left.engine_import_path,
+    );
+    let right_identity = (
+        &right.components,
+        &right.main_component_type_id,
+        &right.assets_dirs,
+        &right.engine_import_path,
+    );
+    match (
+        rmp_serde::to_vec(&left_identity),
+        rmp_serde::to_vec(&right_identity),
+    ) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => false,
     }
 }
 

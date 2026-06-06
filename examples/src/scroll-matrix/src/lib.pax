@@ -1,7 +1,7 @@
 <Group width=100% height=100%>
 <Scroller width=100% height=100% scroll_height=3600px scroll_pos_y=bind:outer_scroll_y>
     <Group width=100% height=3600px>
-        <Group x=50% y=86px width={100% - 48px} height=170px anchor_x=50%>
+        <Group x=50% y=43px width={100% - 48px} height=126px anchor_x=50%>
             <Text class=title x=0px y=0px width=100% height=72px text="Scroller Correctness Matrix"/>
             <Text
                 class=dek
@@ -11,59 +11,9 @@
                 height=48px
                 text="Outer native scroller with nested, axis-locked, transformed, clipped, masked, opacity-stacked, and large-content probes."
             />
-            <Text
-                class=mono
-                x=0px
-                y=132px
-                width=100%
-                height=24px
-                text={"ROYAL2 PALETTE // OUTER Y " + self.outer_scroll_y + " // VY " + self.vertical_probe_y + " // HX " + self.horizontal_probe_x}
-            />
-            <Group x={100% - 300px} y=122px width=300px height=36px>
-                <Rectangle x=0px y=0px width=60px height=36px fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(137, 144, 6, 255), 0%),
-                    GradientStop::get(Color::rgba(137, 144, 6, 128), 100%)
-                ]
-            )}/>
-                <Rectangle x=60px y=0px width=60px height=36px fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(239, 188, 151, 255), 0%),
-                    GradientStop::get(Color::rgba(239, 188, 151, 128), 100%)
-                ]
-            )}/>
-                <Rectangle x=120px y=0px width=60px height=36px fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(239, 145, 143, 255), 0%),
-                    GradientStop::get(Color::rgba(239, 145, 143, 128), 100%)
-                ]
-            )}/>
-                <Rectangle x=180px y=0px width=60px height=36px fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(247, 216, 148, 255), 0%),
-                    GradientStop::get(Color::rgba(247, 216, 148, 128), 100%)
-                ]
-            )}/>
-                <Rectangle x=240px y=0px width=60px height=36px fill={Fill::linearGradient(
-                (0%, 0%),
-                (100%, 100%),
-                [
-                    GradientStop::get(Color::rgba(98, 139, 125, 255), 0%),
-                    GradientStop::get(Color::rgba(98, 139, 125, 128), 100%)
-                ]
-            )}/>
-            </Group>
         </Group>
 
-        <Group class=card x=50% y=290px width={100% - 48px} height=340px anchor_x=50%>
+        <Group class=card x=50% y=215px width={100% - 48px} height=340px anchor_x=50%>
             <Text class=card_index x=24px y=24px width=88px height=24px text="01"/>
             <Text class=card_title x=86px y=20px width={100% - 118px} height=36px text="Vertical Axis Lock"/>
             <Text
@@ -129,7 +79,7 @@
             )}/>
         </Group>
 
-        <Group class=card x=50% y=662px width={100% - 48px} height=340px anchor_x=50%>
+        <Group class=card x=50% y=587px width={100% - 48px} height=340px anchor_x=50%>
             <Text class=card_index x=24px y=24px width=88px height=24px text="02"/>
             <Text class=card_title x=86px y=20px width={100% - 118px} height=36px text="Horizontal Rail"/>
             <Text
@@ -188,7 +138,7 @@
             )}/>
         </Group>
 
-        <Group class=card x=50% y=1034px width={100% - 48px} height=412px anchor_x=50%>
+        <Group class=card x=50% y=959px width={100% - 48px} height=412px anchor_x=50%>
             <Text class=card_index x=24px y=24px width=88px height=24px text="03"/>
             <Text class=card_title x=86px y=20px width={100% - 118px} height=36px text="Nested Scrollers"/>
             <Text
@@ -268,7 +218,7 @@
             )}/>
         </Group>
 
-        <Group class=card x=50% y=1478px width={100% - 48px} height=560px anchor_x=50%>
+        <Group class=card x=50% y=1403px width={100% - 48px} height=560px anchor_x=50%>
             <Text class=card_index x=24px y=24px width=88px height=24px text="04"/>
             <Text class=card_title x=86px y=20px width={100% - 118px} height=36px text="Native Controls In Motion"/>
             <Text
@@ -357,7 +307,7 @@
             )}/>
         </Group>
 
-        <Group class=card x=50% y=2070px width={100% - 48px} height=404px anchor_x=50%>
+        <Group class=card x=50% y=1995px width={100% - 48px} height=404px anchor_x=50%>
             <Text class=card_index x=24px y=24px width=88px height=24px text="05"/>
             <Text class=card_title x=86px y=20px width={100% - 118px} height=36px text="Masked Scroller"/>
             <Text
@@ -504,7 +454,7 @@
             )}/>
         </Group>
 
-        <Group class=card x=50% y=2506px width={100% - 48px} height=398px anchor_x=50%>
+        <Group class=card x=50% y=2431px width={100% - 48px} height=398px anchor_x=50%>
             <Text class=card_index x=24px y=24px width=88px height=24px text="06"/>
             <Text class=card_title x=86px y=20px width={100% - 118px} height=36px text="Transformed Native Scroller"/>
             <Text
@@ -577,7 +527,7 @@
             )}/>
         </Group>
 
-        <Group class=card x=50% y=2936px width={100% - 48px} height=324px anchor_x=50% opacity={(0.42 + self.gain * 0.48)}>
+        <Group class=card x=50% y=2861px width={100% - 48px} height=324px anchor_x=50% opacity={(0.42 + self.gain * 0.48)}>
             <Text class=card_index x=24px y=24px width=88px height=24px text="07"/>
             <Text class=card_title x=86px y=20px width={100% - 118px} height=36px text="Opacity Group"/>
             <Text
@@ -645,7 +595,7 @@
             )}/>
         </Group>
 
-        <Group class=card x=50% y=3292px width={100% - 48px} height=244px anchor_x=50%>
+        <Group class=card x=50% y=3217px width={100% - 48px} height=244px anchor_x=50%>
             <Text class=card_index x=24px y=24px width=88px height=24px text="08"/>
             <Text class=card_title x=86px y=20px width={100% - 118px} height=36px text="Large Tile Plane"/>
             <Text
@@ -753,8 +703,8 @@
                 (0%, 0%),
                 (100%, 100%),
                 [
-                    GradientStop::get(Color::rgba(251, 238, 210, 255), 0%),
-                    GradientStop::get(Color::rgba(251, 238, 210, 128), 100%)
+                    GradientStop::get(Color::rgba(191, 138, 28, 255), 0%),
+                    GradientStop::get(Color::rgba(143, 101, 20, 180), 100%)
                 ]
             )}/>
     </Group>
@@ -763,8 +713,8 @@
                 (0%, 0%),
                 (100%, 100%),
                 [
-                    GradientStop::get(Color::rgba(251, 238, 210, 255), 0%),
-                    GradientStop::get(Color::rgba(251, 238, 210, 128), 100%)
+                    GradientStop::get(Color::rgba(191, 138, 28, 255), 0%),
+                    GradientStop::get(Color::rgba(143, 101, 20, 180), 100%)
                 ]
             )}/>
 </Group>
