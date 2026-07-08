@@ -432,3 +432,31 @@ both changes were reverted.
 Recommendations: revisit handwriting smoothing only alongside a renderer-level
 path-drawing strategy that preserves full stroked geometry and varies the
 visible range without changing submitted path geometry every frame.
+
+## 2026-07-08
+
+While adding a reusable `FontComparisonRow` component to the path-drawing
+example, the component rendered inside fixed-height stacker rows but clipped
+and aligned inconsistently until each call site specified `width=100%` and
+`height=100%`.
+
+Solved in the example by treating reusable row components like ordinary layout
+children: the containing `Group` owns the row size, and the component instance
+explicitly fills that row before its internal scroller uses percent sizing.
+
+Recommendations: when extracting a repeated Pax layout into a component, keep
+the outer component dimensions explicit at the call site if the component's
+template relies on percent-sized descendants. If this keeps surfacing, consider
+improving docs or defaults around component-root sizing in layout containers.
+
+The same path-drawing example exposed a likely web scroller fidelity issue:
+stroke edges in large `Handwriter` paths looked aliased on a DPR 2 display even
+though `Handwriter` emits vector `PathElement`s and `Path` strokes them at the
+resolved pixel bounds. Browser inspection showed the root visible canvas backed
+at 2x, but additional scroller-related canvases were backed at 1 canvas pixel
+per CSS pixel.
+
+Recommendations: treat jagged large vector strokes inside web scrollers as a
+potential surface backing-scale issue before blaming the primitive. A focused
+regression should inspect all visible layer/tile canvases and verify that
+scroller-owned vector surfaces honor device DPR unless deliberately clamped.
